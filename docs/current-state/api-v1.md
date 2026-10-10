@@ -459,7 +459,7 @@ Browser presentation also receives additive case fields: `project_code` and
 (nullable string), and `is_demo_project` (boolean). Ordered category entries
 include `icon_name` (nullable configured Font Awesome class) and `count`
 (nonnegative integer, zero when missing). `attachment_count` is the
-nonnegative count from the shared HTMX attachment-count helper. These carry the same display
+nonnegative count derived from the current payload by the shared HTMX helper. These carry the same display
 meaning as the HTMX workspace. Clients tolerate their absence; allocation,
 view authorization, masking and workflow semantics remain unchanged.
 
@@ -471,6 +471,7 @@ view authorization, masking and workflow semantics remain unchanged.
 | `blocked_by` | codes that stop the final save: `narrative_qa` (coders; NQA enabled and not saved by the caller) and `social_autopsy` (the role's analysis required and not saved) |
 | `assessments` | always these keys, null when absent. Coding: `initial` (the caller's own active Step 1: `id`, `immediate_cod`, `antecedent_cod`, `other_conditions` as a list, `created_at`), `initial_prefill` (what the Step 1 form opens with: the same row, or in a recode episode the caller's latest prior draft), `final` (the authoritative coder final: `id`, `conclusive_cod`, `immediate_cod`, `other_conditions`, `remark`, `created_at`; only once `step` is `final`, as the web's Step 2 form shows it, so a masked Step 1 stays blind to an earlier coder's result), `not_codeable` (`reason`, `other`, `created_at`; only the caller's own review). Reviewing: `coder_initial`, `final` and `not_codeable` as read-only reference (the web panel shows them to a reviewer), and the caller's own `reviewer_initial` and `reviewer_final` (another reviewer's final is neither shown nor makes `step` `done`). Another coder's Step 1 is never shown to a coder |
 | `smartva` | the active SmartVA result read live (not from the section cache; it completes asynchronously): `age`, `gender`, `key_symptoms`, `causes` (`rank`, `cause`, `icd10`, `icd11` mapping, `likelihood`), `symptoms`; null when none, and on a masked project until the caller has their own Step 1 (Step 1 is blind) |
+| `smartva_status`, `smartva_can_run` | status-only `not_requested`, `queued`, `running`, `done` or `failed`, and whether the existing SmartVA action can run; `smartva_can_run` is false in view mode. Masked Step 1 can show status while `smartva` remains null. |
 | `other_conditions_options` | the Step 1 other-conditions list of the age group (`coding`); null for `reviewing`, whose form takes free text |
 | `doris` | null unless `case.project_mode` is `masked_doris` or `unmasked_doris`; else the DORIS editor's seed (`doris_context_service.workspace_doris`, the same logic the web partials use). Unmasked: `{initial_certificate, prefill_provenance}`, seeded from the reviewer's own final, else the authoritative coder final's certificate, else the interview prefill (`doris_prefill`; a saved certificate carries no prefill markers). Masked adds `saved_processing` (`{certificate, doris, codedit, final_choice}`: the caller's own active Step 1 reopened display-only, null without a result; no process token is minted by the read, so a changed Step 1 still needs `POST /api/v1/doris-clinical/process/<va_sid>`) and `step1_certificate` / `step1_processing` (`{doris, codedit}`: the own Step 1 a Step 2 confirms; null until there is one). A masked coder gets these keys at both steps (so Step 1 can be reopened after it is saved); `initial_certificate` is the own Step 1 certificate, else the interview prefill. A masked reviewer's `initial_certificate` is the reviewer's own Step 1, else the Step 1 behind the authoritative coder final, else the prefill. Masked Step 1 carries no SmartVA and never another coder's Step 1 or final. Every certificate has `AdministrativeData` removed for a viewer `should_redact_pii` redacts, and the prefill is skipped for one. The editor's other URLs are fixed: `/api/v1/doris-clinical/{process,terms,codeinfo,selection-check}/<va_sid>` |
 | `narrative_qa` | null unless the project has Narrative QA on; else `{fields, max_score, saved}`. `fields` is `app/services/narrative_qa_service.NARRATIVE_QA_FIELDS`, the list the web form renders: `[{key, label, options: [{value, label}]}]` in question order, `key` being the save body key. `max_score` is 10. `saved` is null, or the caller's own answers on the current payload: `{cannot_grade, values: {key: int}, score, rating}` (`rating` `Good`, `Fair`, `Poor` or `Cannot Grade`); a cannot-grade save stores every value and the score as 0, returned as stored |
@@ -489,11 +490,12 @@ and every delay level must be answered.
 
 `GET /<va_sid>/categories/<code>?mode=` returns `{code, label, render_mode,
 summary_items, subcategories, blocked_by}`. `subcategories` is an ordered list
-`[{code, label, render_mode, items: [{label, value, flip, info}]}]`, never a
+`[{code, label, source_category, render_mode, items: [{label, value, flip, info}]}]`, never a
 label-keyed object (the JSON provider sorts keys); `flip` and `info` are the
 mapping's flip and info labels the web badges use. The `workflow_panel`
 category (`vacodassessment`) carries the narration and documents and the health
-history subcategories the COD panel shows. `blocked_by` is `narrative_qa` or
+history subcategories the COD panel shows. `source_category` preserves their
+configured source grouping; clients tolerate its absence. `blocked_by` is `narrative_qa` or
 `social_autopsy` while that category's required form is unsaved. The data is
 the section cache (below) with PII redaction. A category the mode's role does
 not see is 404 `not_found`, like one that does not exist. Every category reply is

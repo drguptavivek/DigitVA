@@ -577,16 +577,24 @@ class VaCaseApiTests(BaseTestCase):
         self._mode(masked=True)
         sid = self._coding_case()
         db.session.add(VaSmartvaResults(
-            va_sid=sid, va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
+            va_sid=sid, payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
             va_smartva_cause1icd="I64", va_smartva_likelihood1="0.5", va_smartva_cause2="NaN",
             va_smartva_age="60", va_smartva_allsymptoms="fever; cough",
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
         ))
         db.session.commit()
         # Present: a result exists, yet blind Step 1 does not carry it.
         self.assertIsNotNone(case_content.get_active_smartva(sid))
-        self.assertIsNone(self._workspace(sid)["smartva"])
+        body = self._workspace(sid)
+        self.assertIsNone(body["smartva"])
+        self.assertEqual(body["smartva_status"], "done")
+        self.assertTrue(body["smartva_can_run"])
         self._initial(sid)
-        smartva = self._workspace(sid)["smartva"]
+        body = self._workspace(sid)
+        self.assertEqual(body["smartva_status"], "done")
+        self.assertTrue(body["smartva_can_run"])
+        smartva = body["smartva"]
         self.assertEqual(smartva["causes"][0]["cause"], "Stroke")
         self.assertEqual(smartva["causes"][0]["icd10"], "I64")
         self.assertIsNone(smartva["causes"][1]["cause"])
@@ -855,6 +863,7 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(labels[:3], ["Zulu", "Alpha", "Mike"])
         self.assertEqual(body["render_mode"], "table_sections")
         self.assertEqual(body["subcategories"][0]["code"], "sub1")
+        self.assertEqual(body["subcategories"][0]["source_category"], "cat1")
 
     def test_workspace_includes_web_header_metadata_and_category_badges(self):
         sid = self._coding_case()
@@ -962,10 +971,24 @@ class VaCaseApiTests(BaseTestCase):
 
     def test_the_workflow_panel_carries_the_evidence_subcategories(self):
         sid = self._coding_case()
-        body = self._get(sid, "categories/vacodassessment").get_json()
+        section = {
+            "summary_items": [],
+            "va_processedcategorydata": {},
+            "cod_attachments_data": {"attachments": {"Audio": "narration"}},
+            "cod_attachments_labels": {},
+            "cod_attachments_render_modes": {},
+            "cod_health_history_data": {"medical_history": {"Tuberculosis": "Yes"}},
+            "cod_health_history_labels": {},
+        }
+        with patch("app.routes.api.va_case.get_section_data", return_value=section):
+            body = self._get(sid, "categories/vacodassessment").get_json()
         self.assertEqual(body["render_mode"], "workflow_panel")
         self.assertIn("summary_items", body)
         self.assertIsInstance(body["subcategories"], list)
+        self.assertEqual(
+            {item["source_category"] for item in body["subcategories"]},
+            {"vanarrationanddocuments", "vahealthhistorydetails"},
+        )
 
     # -- section cache key -------------------------------------------------------------
 
@@ -1311,7 +1334,9 @@ class VaCaseApiTests(BaseTestCase):
         ))
         self._initial(sid, user=other.user_id)
         db.session.add(VaSmartvaResults(
-            va_sid=sid, va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
+            va_sid=sid, payload_version_id=version,
+            va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
         ))
         db.session.commit()
         for user in (self.base_coder_id, self._collaborator()):
@@ -1327,7 +1352,10 @@ class VaCaseApiTests(BaseTestCase):
         redacted = self._workspace(sid, mode="view", user=self._collaborator())["assessments"]
         self.assertEqual((redacted["final"]["remark"], redacted["reviewer_final"]["remark"]), (None, None))
         # Masked project, caller without a Step 1: SmartVA is still shown.
-        self.assertEqual(self._workspace(sid, mode="view")["smartva"]["causes"][0]["cause"], "Stroke")
+        view = self._workspace(sid, mode="view")
+        self.assertEqual(view["smartva"]["causes"][0]["cause"], "Stroke")
+        self.assertEqual(view["smartva_status"], "done")
+        self.assertFalse(view["smartva_can_run"])
         # Nothing in the view carries a user id.
         self.assertNotIn(str(other.user_id), str(self._workspace(sid, mode="view")))
         self.assertNotIn(str(self.reviewer.user_id), str(self._workspace(sid, mode="view")))

@@ -13,6 +13,8 @@ export type WorkspaceLayoutProps = {
   onExit: () => void;
   children: React.ReactNode;
   notes?: React.ReactNode;
+  smartvaPanel?: React.ReactNode;
+  nextBlockedReason?: string;
 };
 
 /** Native workspace chrome. The browser has a platform-specific HTMX-like layout. */

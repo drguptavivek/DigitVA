@@ -16,6 +16,7 @@ export class WorkspaceContractError extends Error {
 export type WorkspaceMode = "coding" | "reviewing" | "view";
 export type CodingStep = "initial" | "final" | "done" | "view";
 export type ProjectMode = "masked_simple" | "masked_doris" | "unmasked_simple" | "unmasked_doris";
+export type SmartvaStatus = "not_requested" | "queued" | "running" | "done" | "failed";
 
 export interface WorkspaceIdentity {
   vaSid: string;
@@ -87,6 +88,11 @@ export interface DorisProcessReply {
   doris: DorisProcessEngine;
   codedit: DorisProcessEngine;
   process_token: string;
+}
+
+export interface SmartvaRunReply {
+  va_sid: string;
+  status: SmartvaStatus;
 }
 
 export interface WorkspaceCategoryNav {
@@ -174,6 +180,9 @@ export interface WorkspacePayload {
     reviewer_final?: WorkspaceAssessment | null;
   };
   smartva: JsonValue;
+  /** Additive metadata; old servers omit these fields and remain readable. */
+  smartva_status?: SmartvaStatus;
+  smartva_can_run?: boolean;
   other_conditions_options: string[] | null;
   doris: null | {
     initial_certificate: JsonObject;
@@ -195,6 +204,7 @@ export interface CategoryPayload {
     code: string;
     label: string;
     render_mode: string;
+    source_category?: string;
     items: Array<{ label: string; value: JsonValue; flip: boolean; info: boolean }>;
   }>;
   blocked_by?: string[];
@@ -489,6 +499,17 @@ function socialAutopsy(value: unknown): SocialAutopsy | null {
   return { questions: array(source.questions, "social_autopsy.questions", socialQuestion), saved };
 }
 
+function smartvaStatus(value: unknown, field: string): SmartvaStatus {
+  const candidate = string(value, field);
+  if (!["not_requested", "queued", "running", "done", "failed"].includes(candidate)) throw new WorkspaceContractError(field);
+  return candidate as SmartvaStatus;
+}
+
+export function parseSmartvaRun(value: unknown): SmartvaRunReply {
+  const source = record(value, "smartva.run");
+  return { va_sid: string(source.va_sid, "smartva.run.va_sid"), status: smartvaStatus(source.status, "smartva.run.status") };
+}
+
 export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePayload {
   const source = record(value, "workspace");
   const caseSource = record(source.case, "workspace.case");
@@ -499,6 +520,8 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
   const step = string(source.step, "workspace.step");
   if (!["initial", "final", "done", "view"].includes(step)) throw new WorkspaceContractError("workspace.step");
   const blockedBy = stringArray(source.blocked_by, "workspace.blocked_by");
+  const smartvaStatusValue = source.smartva_status === undefined ? undefined : smartvaStatus(source.smartva_status, "workspace.smartva_status");
+  const smartvaCanRun = source.smartva_can_run === undefined ? undefined : boolean(source.smartva_can_run, "workspace.smartva_can_run");
   const assessmentsSource = record(source.assessments, "workspace.assessments");
   const dorisSource = source.doris === null ? null : record(source.doris, "workspace.doris");
   const doris = dorisSource === null ? null : {
@@ -553,6 +576,8 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
       ...(assessmentsSource.reviewer_final !== undefined ? { reviewer_final: assessment(assessmentsSource.reviewer_final, "workspace.assessments.reviewer_final") } : {}),
     },
     smartva: parseJsonValue(source.smartva, "workspace.smartva"),
+    ...(smartvaStatusValue !== undefined ? { smartva_status: smartvaStatusValue } : {}),
+    ...(smartvaCanRun !== undefined ? { smartva_can_run: smartvaCanRun } : {}),
     other_conditions_options: source.other_conditions_options === null ? null : stringArray(source.other_conditions_options, "workspace.other_conditions_options"),
     doris,
     narrative_qa: narrative(source.narrative_qa),
@@ -575,7 +600,7 @@ export function parseCategory(value: unknown, mode: WorkspaceMode): CategoryPayl
     summary_items: array(source.summary_items, "category.summary_items", parseJsonValue),
     subcategories: array(source.subcategories, "category.subcategories", (item, field) => {
       const subcategory = record(item, field);
-      return { code: string(subcategory.code, `${field}.code`), label: string(subcategory.label, `${field}.label`), render_mode: string(subcategory.render_mode, `${field}.render_mode`), items: array(subcategory.items, `${field}.items`, (entry, itemField) => {
+      return { code: string(subcategory.code, `${field}.code`), label: string(subcategory.label, `${field}.label`), render_mode: string(subcategory.render_mode, `${field}.render_mode`), ...(subcategory.source_category !== undefined ? { source_category: string(subcategory.source_category, `${field}.source_category`) } : {}), items: array(subcategory.items, `${field}.items`, (entry, itemField) => {
         const itemObject = record(entry, itemField);
         return { label: string(itemObject.label, `${itemField}.label`), value: parseJsonValue(itemObject.value, `${itemField}.value`), flip: boolean(itemObject.flip, `${itemField}.flip`), info: boolean(itemObject.info, `${itemField}.info`) };
       }) };

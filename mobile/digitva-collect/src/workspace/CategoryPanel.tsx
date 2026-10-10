@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import { styles } from "../ui";
-import type { CategoryPayload, JsonValue } from "./contracts";
+import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
 
@@ -14,6 +14,10 @@ export function CategoryPanel({
   category: CategoryPayload;
   renderMedia?: (attachmentPath: string) => ReactNode;
   iconName?: string | null;
+  categoryNav?: WorkspaceCategoryNav[];
+  workspaceIdentity?: string;
+  notesSummary?: ReactNode;
+  afterContent?: ReactNode;
 }) {
   return (
     <View accessibilityLabel={category.label}>

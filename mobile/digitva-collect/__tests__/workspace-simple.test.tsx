@@ -1,6 +1,6 @@
 import React from "react";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 
 jest.mock("../src/ui", () => {
   const React = require("react") as typeof import("react");
@@ -12,6 +12,18 @@ jest.mock("../src/ui", () => {
     errorText: () => "Generic error",
     styles: new Proxy({}, { get: () => undefined }),
   };
+});
+
+jest.mock("../src/workspace/WorkspaceLayout", () => {
+  const React = require("react") as typeof import("react");
+  const actual = jest.requireActual("../src/workspace/WorkspaceLayout");
+  return { ...actual, WorkspaceLayout: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.WorkspaceLayout, props), props.notes) };
+});
+
+jest.mock("../src/workspace/CategoryPanel", () => {
+  const React = require("react") as typeof import("react");
+  const actual = jest.requireActual("../src/workspace/CategoryPanel");
+  return { ...actual, CategoryPanel: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.CategoryPanel, props), props.afterContent) };
 });
 
 import { ApiError } from "../src/api";
@@ -728,4 +740,48 @@ it("clears the note and exits when the allocation is lost", async () => {
   expect(onAllocationLost).toHaveBeenCalledTimes(1);
   expect(tree.root.findAllByProps({ accessibilityLabel: "Private note" })).toHaveLength(0);
   await act(async () => tree.unmount());
+});
+
+
+it("updates the narrative score and exposes checked radio state before saving", async () => {
+  let tree!: ReactTestRenderer;
+  const narrative = { fields: [{ key: "q1", label: "Detail", options: [{ value: 2, label: "Complete" }] }], max_score: 2, saved: null };
+  await act(async () => { tree = create(<QualityPanels narrative={narrative} socialAutopsy={null} onSaveNarrative={jest.fn()} onSaveSocialAutopsy={jest.fn()} />); });
+  expect(JSON.stringify(tree.toJSON())).toContain("Not Assessed");
+  await act(async () => pressByLabel(tree, "Detail: Complete"));
+  expect(byLabel(tree, "Detail: Complete").props.accessibilityState).toEqual({ checked: true });
+  expect(textContent(tree.root)).toContain("Score: 2 / 2 · Poor");
+  await act(async () => pressByLabel(tree, "Cannot grade"));
+  expect(textContent(tree.root)).toContain("Score: 0 / 2 · Cannot Grade");
+  await act(async () => tree.unmount());
+});
+
+it("keeps the browser category and unsaved private note through a quality refresh", async () => {
+  const priorOS = Platform.OS;
+  Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+  const payload = workspace("coding");
+  payload.categories.push({ code: "docs", label: "Documents", nav_label: "Documents", render_mode: "attachments" });
+  payload.narrative_qa = { fields: [], max_score: 0, saved: null };
+  const api = apiFor(payload, { getCategory: jest.fn(async (_sid, code) => ({ ...category, code, render_mode: code === "docs" ? "attachments" : "workflow_panel" })) });
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => { tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} />); await flush(); });
+    const layout = tree.root.findByProps({ selectedCode: "vacodassessment" });
+    await act(async () => { layout.props.onSelectCategory("docs"); await flush(); });
+    const note = tree.root.findByType(PrivateNotePanel);
+    const input = note.findAll((node) => typeof node.props.onChangeText === "function")[0];
+    expect(input).toBeDefined();
+    await act(async () => input.props.onChangeText("unsaved draft"));
+    const quality = tree.root.findByType(QualityPanels);
+    expect(quality.props.narrative).toBe(payload.narrative_qa);
+    expect(quality.props.socialAutopsy).toBeNull();
+    await act(async () => { await quality.props.onSaveNarrative({ cannot_grade: true }); await flush(); });
+    expect(api.getCategory).toHaveBeenLastCalledWith("sid-1", "docs", "coding");
+    const currentInput = tree.root.findByType(PrivateNotePanel).findAll((node) => typeof node.props.onChangeText === "function")[0];
+    expect(currentInput.props.value).toBe("unsaved draft");
+    expect(api.saveNote).not.toHaveBeenCalled();
+  } finally {
+    if (tree) await act(async () => tree.unmount());
+    Object.defineProperty(Platform, "OS", { configurable: true, value: priorOS });
+  }
 });

@@ -31,9 +31,9 @@ test("browser category panel keeps the HTMX query/response table and flip colour
   expect(output).toContain("Response");
   expect(output).toContain("Fever");
   expect(output).toContain("Cough");
-  expect(output).toContain('"children":["i"]');
+  expect(output).toContain("Informational response: Yes");
   expect(output.match(/"children":\["Yes"\]/g)).toHaveLength(2);
-  expect(output).toContain("#bc2938");
+  expect(output).toContain("#004687");
   expect(output).toContain("#3f9366");
 });
 
@@ -43,7 +43,7 @@ test("browser disease history groups explicit answers without using flip or hidi
     renderer = create(<CategoryPanel category={{
       code: "vahealthhistorydetails",
       label: "Disease / Co-morbidity",
-      render_mode: "table_sections",
+      render_mode: "health_history_summary",
       summary_items: [],
       subcategories: [{ code: "medical_history", label: "Medical history", render_mode: "table_sections", items: [
         { label: "Malaria", value: "Yes", flip: true, info: false },
@@ -65,7 +65,7 @@ test("browser disease history groups explicit answers without using flip or hidi
   expect(output).toContain("Malaria\\nStroke");
   expect(output).toContain("Diabetes");
   expect(output).toContain("Tuberculosis");
-  expect(output).toContain("Other responses");
+  expect(output).toContain("Medical History (Responses)");
   expect(output).toContain("Structured answer");
   expect(output).toContain("flexWrap");
 });

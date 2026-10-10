@@ -35,6 +35,10 @@ function NarrativePanel({ data, onSave }: { data: NarrativeQuality; onSave(body:
     setCannotGrade(data.saved?.cannot_grade ?? false);
   }, [data]);
 
+  const complete = data.fields.every((field) => values[field.key] !== undefined);
+  const score = cannotGrade ? 0 : data.fields.reduce((total, field) => total + (values[field.key] ?? 0), 0);
+  const rating = cannotGrade ? "Cannot Grade" : !complete ? "Not Assessed" : score >= 7 ? "Good" : score >= 5 ? "Fair" : "Poor";
+
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Narrative quality</Text>
@@ -42,13 +46,14 @@ function NarrativePanel({ data, onSave }: { data: NarrativeQuality; onSave(body:
         <View key={field.key}>
           <Text style={styles.muted}>{field.label}</Text>
           {field.options.map((option) => (
-            <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${field.label}: ${option.label}`} accessibilityState={{ selected: values[field.key] === option.value }} disabled={cannotGrade} onPress={() => setValues((current) => ({ ...current, [field.key]: option.value }))}>
+            <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${field.label}: ${option.label}`} accessibilityState={{ checked: values[field.key] === option.value }} style={{ minHeight: 44, justifyContent: "center" }} disabled={cannotGrade} onPress={() => setValues((current) => ({ ...current, [field.key]: option.value }))}>
               <Text style={styles.text}>{values[field.key] === option.value ? "◉" : "○"} {option.label}</Text>
             </Pressable>
           ))}
         </View>
       ))}
-      <Pressable accessibilityRole="checkbox" accessibilityLabel="Cannot grade" accessibilityState={{ checked: cannotGrade }} onPress={() => setCannotGrade((value) => !value)}>
+      <Text accessibilityLiveRegion="polite" style={styles.text}>Score: {complete || cannotGrade ? score : "—"} / {data.max_score} · {rating}</Text>
+      <Pressable accessibilityRole="checkbox" accessibilityLabel="Cannot grade" accessibilityState={{ checked: cannotGrade }} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => setCannotGrade((value) => !value)}>
         <Text style={styles.text}>{cannotGrade ? "☑" : "☐"} Cannot grade</Text>
       </Pressable>
       <Button label="Save narrative quality" onPress={() => {
@@ -81,7 +86,7 @@ function SocialAutopsyPanel({ data, onSave }: { data: SocialAutopsy; onSave(body
             const values = selected[question.delay_level] ?? [];
             const checked = values.includes(option.option_code);
             return (
-              <Pressable key={option.option_code} accessibilityRole="checkbox" accessibilityLabel={`${question.title}: ${option.label}`} accessibilityState={{ checked }} onPress={() => setSelected((current) => {
+              <Pressable key={option.option_code} accessibilityRole="checkbox" accessibilityLabel={`${question.title}: ${option.label}`} accessibilityState={{ checked }} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => setSelected((current) => {
                 const currentValues = current[question.delay_level] ?? [];
                 const next = checked
                   ? currentValues.filter((value) => value !== option.option_code)

@@ -1,4 +1,4 @@
-import { parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
+import { parseCategory, parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -32,4 +32,11 @@ test.each([
   ["malformed age", { case: { ...payload().case, age: { value: 46 } } }, "workspace.case.age"],
 ] as const)("rejects %s", (_label, override, field) => {
   expect(() => parseWorkspace({ ...payload(), ...override }, "coding")).toThrow(new WorkspaceContractError(field));
+});
+
+test("accepts additive evidence provenance and rejects a malformed source", () => {
+  const category = { code: "cod", label: "COD", render_mode: "workflow_panel", summary_items: [], subcategories: [{ code: "history", label: "History", render_mode: "default", source_category: "diagnoses", items: [] }] };
+  expect(parseCategory(category, "coding").subcategories[0].source_category).toBe("diagnoses");
+  expect(() => parseCategory({ ...category, subcategories: [{ ...category.subcategories[0], source_category: 3 }] }, "coding")).toThrow(WorkspaceContractError);
+  expect(parseCategory({ ...category, subcategories: [{ code: "old", label: "Old", render_mode: "default", items: [] }] }, "coding").subcategories[0].source_category).toBeUndefined();
 });

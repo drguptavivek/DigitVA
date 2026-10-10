@@ -6,8 +6,11 @@ Used by:
 """
 
 import logging
+
 import sqlalchemy as sa
-from app import db, cache as flask_cache
+
+from app import cache as flask_cache
+from app import db
 from app.models import VaSubmissions
 from app.models.va_forms import VaForms
 from app.models.va_project_master import VaProjectMaster
@@ -32,33 +35,20 @@ def get_project_for_submission(va_sid: str):
     return db.session.get(VaProjectMaster, project_id)
 
 
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from app.models import VaSubmissions
-
-
 def _count_attachments_per_category(form_type_code: str, payload_data: dict, va_sid: str) -> dict[str, int]:
     """Count non-empty attachment fields per category for media_gallery subcategories.
 
     Returns {category_code: count} for categories whose render_mode is 'attachments',
     counting only fields that belong to subcategories with render_mode 'media_gallery'.
 
-    Result is cached in Redis for 30 min (payload rarely changes).
-    Reuses the cached field mapping service — no extra DB queries on cache hit.
+    Field mappings are cached by the mapping service; counts are derived from
+    the supplied payload so edits are reflected immediately.
     """
-    from app import cache as flask_cache
-
-    cache_key = f"attachment_counts:{va_sid}"
-    cached = flask_cache.get(cache_key)
-    if cached is not None:
-        return cached
-
     from app.services.field_mapping_service import get_mapping_service
 
     _mapping_svc = get_mapping_service()
     fieldsitepi = _mapping_svc.get_fieldsitepi(form_type_code)
 
-    # Build {category_code: [field_ids]} for media_gallery subcategories
     counts: dict[str, int] = {}
     for cat_code, subcats in fieldsitepi.items():
         render_modes = _mapping_svc.get_subcategory_render_modes(form_type_code, cat_code)
@@ -69,26 +59,29 @@ def _count_attachments_per_category(form_type_code: str, payload_data: dict, va_
             for field_id in subcats.get(sub_code, {})
         ]
         if attachment_fields:
-            count = sum(1 for f in attachment_fields if payload_data.get(f))
+            count = sum(1 for field_id in attachment_fields if payload_data.get(field_id))
             if count >= 1:
                 counts[cat_code] = count
 
-    flask_cache.set(cache_key, counts, timeout=1800)
     return counts
 
 
 def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_dashboard_role: str):
     """Render va_coding.html for a VA form session entry point."""
     from flask import render_template, url_for
-    from app.utils import va_get_form_type_code_for_form
-    from app.services.category_rendering_service import get_category_rendering_service, get_visible_category_codes
+    from flask_login import current_user
+
+    from app.services.authz import Action, can
+    from app.services.category_rendering_service import (
+        get_category_rendering_service,
+        get_visible_category_codes,
+    )
     from app.services.coder_workflow_service import is_upstream_recode
     from app.services.demo_project_service import is_demo_training_submission
     from app.services.submission_payload_version_service import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
     from app.tasks.sync_tasks import run_open_submission_repair
-    from flask_login import current_user
-    from app.services.authz import Action, can
+    from app.utils import va_get_form_type_code_for_form
 
     # A coding session repairs its payload before the coder works on it. A
     # read-only opening repairs only for someone who may sync the submission,

@@ -13,7 +13,8 @@ workspace's visual hierarchy: Hints, VA Form Details, category navigation,
 Query/Response sections, assessment controls, and a persistent Notes panel.
 The HTMX templates are the visual reference, including Roboto typography,
 blue headings, white panels, category count badges and response emphasis.
-Narrow screens collapse category navigation without hiding the case content.
+A persistent icon rail at every screen width selects categories directly; an
+optional slide-out shows category names and counts without hiding case content.
 Disease/Co-morbidity uses the HTMX history columns: diagnoses answered Yes
 under "Diagnosed by Health Professional", and explicit No answers under
 "Absent". Unknown or other answers remain visible separately; missing
@@ -30,3 +31,33 @@ Display metadata is additive: project/site codes, age, gender, demo status,
 configured category icons and category counts. Clients tolerate absent
 presentation fields; no database migration or payload backfill is required.
 The native application retains its existing layout.
+
+## Complete experience and mobile-first layout
+
+The browser workspace carries over the complete existing HTMX coding
+experience: category navigation, response emphasis and configured colour
+reversals, grouped disease history, narrated and documentary evidence,
+image browsing/rotation, audio playback, consolidated assessment context,
+private notes, narrative quality and social-autopsy actions. The source
+templates and configured render modes define the presentation semantics;
+an ordinary table is not a substitute for a specialized source view.
+
+Design starts with a phone viewport. A compact left icon rail offers direct
+category selection; an optional slide-out exposes names and counts. Each
+icon has an accessible category name and selected state. Case context stays
+compact, full metadata and hints remain available, and controls support
+touch and keyboard input. Desktop space expands the same content and
+navigation rather than changing its workflow meaning.
+
+Media stays behind the existing authenticated attachment boundary. Images
+fit the viewport, can be browsed and rotated without changing stored files,
+and audio uses explicit user playback. Category/case changes release active
+media. Existing authorization, masking and workflow gates remain authoritative.
+
+
+The category API includes additive `source_category` provenance so consolidated
+COD evidence can retain its configured narration and disease grouping. Workspace
+metadata includes status-only `smartva_status` and `smartva_can_run`; masked
+Step 1 still withholds result content. SmartVA buttons use the existing coding
+submission action and its authorization and CSRF protections. Read-only views
+never offer execution. No schema or stored clinical data changes are needed.

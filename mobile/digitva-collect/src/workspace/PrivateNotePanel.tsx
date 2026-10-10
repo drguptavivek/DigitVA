@@ -11,10 +11,12 @@ export function PrivateNotePanel({
   identity,
   api,
   onAllocationLost,
+  onNoteChanged,
 }: {
   identity: { vaSid: string; mode: "coding" | "reviewing" };
   api: WorkspaceApi;
   onAllocationLost: () => void;
+  onNoteChanged?: (note: NotePayload | null) => void;
 }) {
   const [noteState, setNoteState] = useState<{ api: WorkspaceApi; vaSid: string; mode: "coding" | "reviewing"; note: NotePayload; content: string } | null>(null);
   const [busy, setBusy] = useState(true);
@@ -26,6 +28,8 @@ export function PrivateNotePanel({
   const currentNote = noteState?.api === api && noteState.vaSid === identity.vaSid && noteState.mode === identity.mode ? noteState : null;
   const content = currentNote?.content ?? "";
   const note = currentNote?.note ?? null;
+
+  useEffect(() => { onNoteChanged?.(note); }, [note, onNoteChanged]);
 
   const load = useCallback(async () => {
     const id = ++generation.current;

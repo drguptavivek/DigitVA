@@ -18,6 +18,7 @@ import {
   parseReviewerHistory,
   parseReviewerQueue,
   parseReviewerStats,
+  parseSmartvaRun,
   parseWorkflowEvents,
   parseWorkspace,
   parseJsonValue,
@@ -39,6 +40,7 @@ import {
   type ReviewerHistory,
   type ReviewerQueue,
   type ReviewerStats,
+  type SmartvaRunReply,
   type WorkspaceMode,
   type WorkspacePayload,
   type WorkflowEvents,
@@ -73,6 +75,7 @@ export interface WorkspaceApi {
   saveInitial(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<CodingWriteReply>;
   saveFinal(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<CodingWriteReply>;
   saveNotCodeable(vaSid: string, body: JsonObject): Promise<CodingSaveReply>;
+  runSmartva(vaSid: string, regenerate?: boolean): Promise<SmartvaRunReply>;
   saveNarrativeQuality(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<JsonObject>;
   saveSocialAutopsy(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<JsonObject>;
   getNote(vaSid: string, mode: "coding" | "reviewing"): Promise<NotePayload>;
@@ -201,6 +204,9 @@ export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
       return parsed(await post(path, body), parseCodingWrite);
     },
     async saveNotCodeable(vaSid, body) { return parsed(await post(`/coding/not-codeable/${id(vaSid)}`, body), parseCodingSave); },
+    async runSmartva(vaSid, regenerate = false) {
+      return parsed(await post(`/coding/submissions/${id(vaSid)}/smartva`, { regenerate }), parseSmartvaRun);
+    },
     async saveNarrativeQuality(vaSid, body, mode = "coding") { return jsonObject(await post(`/va/${id(vaSid)}/narrative-qa`, { ...body, va_actiontype: mode === "reviewing" ? "varesumereviewing" : "varesumecoding" }), "narrative_qa.save"); },
     async saveSocialAutopsy(vaSid, body, mode = "coding") { return jsonObject(await post(`/va/${id(vaSid)}/social-autopsy`, { ...body, va_actiontype: mode === "reviewing" ? "varesumereviewing" : "varesumecoding" }), "social_autopsy.save"); },
     async getNote(vaSid, mode) { return parsed(await get(`/va/${id(vaSid)}/note?mode=${mode}`), parseNote); },

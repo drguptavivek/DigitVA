@@ -25,6 +25,7 @@ from app import db
 from app.decorators import role_required
 from app.models import VaFinalAssessments, VaForms, VaProjectMaster, VaStatuses, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
+from app.services import smartva_service
 from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
     category_block_code,
@@ -357,7 +358,8 @@ def workspace(va_sid):
     """The workspace shell for ``?mode=coding|reviewing|view``.
 
     200 ``{case, categories, default_category, step, blocked_by,
-    assessments, smartva, other_conditions_options, narrative_qa,
+    assessments, smartva, smartva_status, smartva_can_run,
+    other_conditions_options, narrative_qa,
     social_autopsy, doris}``; ``step`` is ``initial | final | done``, or
     ``view`` for a read-only view: ``blocked_by`` is empty, ``doris``,
     ``narrative_qa``, ``social_autopsy``, ``other_conditions_options`` and
@@ -481,6 +483,7 @@ def workspace(va_sid):
     smartva = None
     if show_reference or (not view and (not masked or has_initial)):
         smartva = smartva_summary(get_active_smartva(va_sid))
+    smartva_panel = smartva_service.smartva_panel(va_sid)
     body = {
         "case": {
             "va_sid": va_sid,
@@ -531,6 +534,8 @@ def workspace(va_sid):
         ),
         "assessments": assessments,
         "smartva": smartva,
+        "smartva_status": smartva_panel["status"],
+        "smartva_can_run": bool(smartva_panel["can_run"]) and not view,
         "other_conditions_options": options,
         "narrative_qa": None if view else _narrative_qa_json(case, va_sid, uid),
         "social_autopsy": None if view else _social_autopsy_json(case, va_sid, uid),
@@ -551,13 +556,16 @@ def workspace(va_sid):
     return _private(jsonify(body))
 
 
-def _subcategories(data, labels, render_modes, flip_labels, info_labels) -> list[dict]:
-    """Ordered ``[{code, label, render_mode, items}]``; never label-keyed
+def _subcategories(
+    data, labels, render_modes, flip_labels, info_labels, *, source_category: str
+) -> list[dict]:
+    """Ordered subcategories with their source category; never label-keyed
     dicts, which Flask's JSON provider would sort."""
     return [
         {
             "code": code,
             "label": labels.get(code, code),
+            "source_category": source_category,
             "render_mode": render_modes.get(code, "default"),
             "items": [
                 {
@@ -612,6 +620,7 @@ def category(va_sid, code):
         mapping.get_subcategory_render_modes(ftc, code),
         flip,
         info,
+        source_category=code,
     )
     if config.render_mode == "workflow_panel":
         subcategories += _subcategories(
@@ -620,6 +629,7 @@ def category(va_sid, code):
             section["cod_attachments_render_modes"],
             flip,
             info,
+            source_category="vanarrationanddocuments",
         )
         subcategories += _subcategories(
             section["cod_health_history_data"],
@@ -627,6 +637,7 @@ def category(va_sid, code):
             mapping.get_subcategory_render_modes(ftc, "vahealthhistorydetails"),
             flip,
             info,
+            source_category="vahealthhistorydetails",
         )
     block = (
         None

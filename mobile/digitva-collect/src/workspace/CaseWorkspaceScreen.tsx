@@ -8,9 +8,10 @@ import { CategoryPanel, CategoryValue } from "./CategoryPanel";
 import { PrivateNotePanel } from "./PrivateNotePanel";
 import { QualityPanels } from "./QualityPanels";
 import { SimpleCodPanel } from "./SimpleCodPanel";
+import { SmartvaStatusPanel } from "./SmartvaStatusPanel";
 import { WorkflowHistory } from "./WorkflowHistory";
 import type { WorkspaceApi } from "./api";
-import type { CategoryPayload, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
+import type { CategoryPayload, NotePayload, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
 /** Own the secured, allocation-scoped workspace lifecycle and render its ordered categories. */
@@ -32,6 +33,8 @@ export function CaseWorkspaceScreen({
   const [loadedWorkspace, setLoadedWorkspace] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: WorkspacePayload } | null>(null);
   const [loadedCategory, setLoadedCategory] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: CategoryPayload } | null>(null);
   const [selectedCode, setSelectedCode] = useState("");
+  const selectedCategory = useRef("");
+  const [savedNote, setSavedNote] = useState<{ api: WorkspaceApi; vaSid: string; mode: WorkspaceIdentity["mode"]; note: NotePayload } | null>(null);
   const [loadedEvents, setLoadedEvents] = useState<{ vaSid: string; mode: "view"; api: WorkspaceApi; cursor: string | null; payload: WorkflowEvents } | null>(null);
   const [loading, setLoading] = useState(true);
   const [categoryLoading, setCategoryLoading] = useState(false);
@@ -74,6 +77,7 @@ export function CaseWorkspaceScreen({
     setLoadedWorkspace(null);
     setLoadedCategory(null);
     setLoadedEvents(null);
+    setSavedNote(null);
     setHistoryLoading(false);
     setHistoryRetryCursor(null);
     setError(identity.mode === "view" ? "You no longer have access to this case." : "Your case allocation is no longer active.");
@@ -121,6 +125,7 @@ export function CaseWorkspaceScreen({
       && context.current.vaSid === identity.vaSid
       && context.current.mode === identity.mode;
     setSelectedCode(code);
+    selectedCategory.current = code;
     setLoadedCategory(null);
     setCategoryLoading(true);
     setError("");
@@ -136,7 +141,7 @@ export function CaseWorkspaceScreen({
     }
   }, [api, canReadPrivateData, identity.mode, identity.vaSid, loseAllocation]);
 
-  const loadWorkspace = useCallback(async () => {
+  const loadWorkspace = useCallback(async (preserveCategory?: string) => {
     if (!canReadPrivateData()) return;
     const request = ++generation.current;
     eventGeneration.current += 1;
@@ -147,10 +152,13 @@ export function CaseWorkspaceScreen({
       && context.current.vaSid === identity.vaSid
       && context.current.mode === identity.mode;
     categoryGeneration.current += 1;
-    setLoading(true);
+    setLoading(preserveCategory === undefined);
     setCategoryLoading(false);
-    setLoadedWorkspace(null);
-    setLoadedCategory(null);
+    if (preserveCategory === undefined) {
+      setLoadedWorkspace(null);
+      setLoadedCategory(null);
+      setSavedNote(null);
+    }
     setLoadedEvents(null);
     setHistoryLoading(false);
     setHistoryError("");
@@ -162,7 +170,9 @@ export function CaseWorkspaceScreen({
       if (!current()) return;
       setLoadedWorkspace({ vaSid: identity.vaSid, mode: identity.mode, api, payload: result });
       setLoading(false);
-      const defaultCategory = result.categories.find((item) => item.code === result.default_category) ?? result.categories[0];
+      const preferred = preserveCategory === undefined ? result.default_category : selectedCategory.current || preserveCategory;
+      const defaultCategory = result.categories.find((item) => item.code === preferred)
+        ?? result.categories.find((item) => item.code === result.default_category) ?? result.categories[0];
       if (defaultCategory) void loadCategory(defaultCategory.code, request);
       if (identity.mode === "view") {
         void loadEvents(undefined, request);
@@ -203,6 +213,7 @@ export function CaseWorkspaceScreen({
       setLoadedWorkspace(null);
       setLoadedCategory(null);
       setLoadedEvents(null);
+      setSavedNote(null);
       setLoading(true);
       setCategoryLoading(false);
     };
@@ -252,13 +263,18 @@ export function CaseWorkspaceScreen({
     try {
       await save();
       if (!current()) return;
-      await loadWorkspace();
+      await loadWorkspace(Platform.OS === "web" ? selectedCategory.current : undefined);
     } catch (saveError) {
       if (!current()) return;
       if (saveError instanceof ApiError && saveError.status === 403) loseAllocation();
       else setQualityError(errorText(saveError));
     }
   };
+
+  const noteChanged = useCallback((note: NotePayload | null) => {
+    if (!canReadPrivateData() || context.current.api !== api || context.current.vaSid !== identity.vaSid || context.current.mode !== identity.mode) return;
+    setSavedNote(note ? { api, vaSid: identity.vaSid, mode: identity.mode, note } : null);
+  }, [api, canReadPrivateData, identity.mode, identity.vaSid]);
 
   const identityKey = `${identity.mode}:${identity.vaSid}`;
   if (loading || !workspace) {
@@ -268,8 +284,26 @@ export function CaseWorkspaceScreen({
   }
 
   const privateNotes = identity.mode !== "view" ? (
-    <PrivateNotePanel key={identityKey} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} />
+    <PrivateNotePanel key={identityKey} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} onNoteChanged={noteChanged} />
   ) : null;
+  const browser = Platform.OS === "web";
+  const selectedMode = workspace.categories.find((item) => item.code === selectedCode)?.render_mode;
+  const qualityPanels = identity.mode !== "view" ? <>
+    <QualityPanels
+      narrative={!browser || selectedMode === "attachments" ? workspace.narrative_qa : null}
+      socialAutopsy={!browser || selectedCode === "social_autopsy" ? workspace.social_autopsy : null}
+      onSaveNarrative={(body) => saveQuality(() => api.saveNarrativeQuality(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
+      onSaveSocialAutopsy={(body) => saveQuality(() => api.saveSocialAutopsy(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
+    />
+    {qualityError ? <Text accessibilityRole="alert" style={styles.error}>{qualityError}</Text> : null}
+  </> : null;
+  const currentNote = savedNote?.api === api && savedNote.vaSid === identity.vaSid && savedNote.mode === identity.mode ? savedNote.note : null;
+  const noteSummary = identity.mode !== "view" ? <View style={styles.card}>
+    <Text style={styles.text}>{!currentNote ? "Open Notes to view your saved note." : currentNote.content ? noteText(currentNote.content) : "No note saved for this submission yet."}</Text>
+  </View> : undefined;
+  const nextBlockedReason = identity.mode !== "view" && category?.blocked_by?.length
+    ? category.blocked_by.map((code) => code === "narrative_qa" ? "Complete the Narrative Quality Assessment before proceeding." : code === "social_autopsy" ? "Save the Social Autopsy Analysis before proceeding to the next category." : `Complete the required assessment (${code}) before proceeding.`).join(" ")
+    : undefined;
 
   return (
     <WorkspaceLayout
@@ -281,9 +315,11 @@ export function CaseWorkspaceScreen({
       onSelectCategory={(code) => void loadCategory(code, generation.current)}
       onExit={onExit}
       notes={Platform.OS === "web" ? privateNotes : undefined}
+      nextBlockedReason={nextBlockedReason}
+      smartvaPanel={browser ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} onChanged={() => loadWorkspace(selectedCategory.current)} /> : undefined}
     >
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} /> : null}
+      {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} categoryNav={workspace.categories} workspaceIdentity={`${identityKey}:${selectedCode}`} notesSummary={noteSummary} afterContent={browser ? qualityPanels : undefined} /> : null}
       {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
         <View key={identityKey}>
           {workspace.case.project_mode.endsWith("_doris") ? (
@@ -291,13 +327,7 @@ export function CaseWorkspaceScreen({
           ) : (
             <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={api} onSaved={reloadAfterCodSave} onAllocationLost={loseAllocation} onDone={finish} />
           )}
-          <QualityPanels
-            narrative={workspace.narrative_qa}
-            socialAutopsy={workspace.social_autopsy}
-            onSaveNarrative={(body) => saveQuality(() => api.saveNarrativeQuality(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
-            onSaveSocialAutopsy={(body) => saveQuality(() => api.saveSocialAutopsy(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
-          />
-          {qualityError ? <Text accessibilityRole="alert" style={styles.error}>{qualityError}</Text> : null}
+          {browser ? null : qualityPanels}
           {Platform.OS === "web" ? null : privateNotes}
         </View>
       ) : null}
@@ -319,6 +349,19 @@ export function CaseWorkspaceScreen({
       ) : null}
     </WorkspaceLayout>
   );
+}
+
+/** Existing rich-text notes use Quill insert operations; render their text without HTML. */
+function noteText(content: string): string {
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (parsed && typeof parsed === "object" && "ops" in parsed && Array.isArray(parsed.ops)) {
+      return parsed.ops.map((operation: unknown) => operation && typeof operation === "object" && "insert" in operation && typeof operation.insert === "string" ? operation.insert : "").join("") || content;
+    }
+  } catch {
+    // Plain-text notes are also supported.
+  }
+  return content;
 }
 
 /** Show only assessment and SmartVA reference fields actually served by the API. */

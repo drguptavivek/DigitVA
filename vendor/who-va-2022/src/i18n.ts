@@ -77,10 +77,14 @@ export interface WhoVaUiMessageTemplates {
   startingMicrophone: string;
   stopAndSaveRecording: string;
   savingRecording: string;
+  cancelRecording: string;
+  recordingTime: string;
   replaceAudio: string;
   recordAudio: string;
   microphonePermissionDenied: string;
   audioRecordingFailed: string;
+  loadingAudio: string;
+  savedAudioLoadFailed: string;
   selectedImage: string;
   savedImageLoadFailed: string;
   scanBarcode: string;
@@ -203,10 +207,14 @@ export interface WhoVaUiMessages {
   startingMicrophone: string;
   stopAndSaveRecording: string;
   savingRecording: string;
+  cancelRecording: string;
+  recordingTime: string;
   replaceAudio: string;
   recordAudio: string;
   microphonePermissionDenied: string;
   audioRecordingFailed: string;
+  loadingAudio: string;
+  savedAudioLoadFailed: string;
   selectedImage: string;
   savedImageLoadFailed: string;
   scanBarcode: string;
@@ -315,11 +323,15 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   startingMicrophone: "Starting microphone…",
   stopAndSaveRecording: "Stop and save recording",
   savingRecording: "Saving recording…",
+  cancelRecording: "Cancel recording",
+  recordingTime: "Recording time",
   replaceAudio: "Replace audio",
   recordAudio: "Record audio",
   microphonePermissionDenied:
     "Microphone permission was denied. Allow microphone access in the browser and try again.",
   audioRecordingFailed: "Audio recording failed. Please try again.",
+  loadingAudio: "Loading recording…",
+  savedAudioLoadFailed: "The saved recording could not be loaded from this device.",
   selectedImage: "Selected image",
   savedImageLoadFailed: "The saved image could not be loaded from this device.",
   scanBarcode: "Scan",

@@ -26,11 +26,13 @@ const generated = generatedInstrument as InstrumentDefinition;
  * `interview_outcome` — is always
  * included: it does not depend on `enabledExtensions`.
  *
- * `options.whoOverrides: false` keeps every WHO question as WHO wrote it
- * while still adding the extension questions. Only the server artifact
- * (tooling/who-va-2022/build-server-instrument.mjs) uses it: the server's
- * re-derivation keeps WHO's own, looser rules for the questions
- * `doris_support_whova_2022` tightens (see `withDorisSupport`).
+ * `options.whoOverrides: false` disables only the WHO-question tightening
+ * contributed by `doris_support_whova_2022` while still adding the extension
+ * questions. The mandatory DigitVA core override for Id10476 remains applied
+ * in either mode. Only the server artifact
+ * (tooling/who-va-2022/build-server-instrument.mjs) uses this option: its
+ * re-derivation keeps WHO's own, looser rules for the DORIS-tightened
+ * questions (see `withDorisSupport`).
  */
 export function createWhoVa2022Instrument(
   enabledExtensions: ReadonlySet<string> | ReadonlyArray<string>,
@@ -99,21 +101,29 @@ export function createWhoVa2022Instrument(
     ...withCertificate.slice(consentAnchorIndex + 1)
   ];
 
+  // DigitVA collects both the optional audio and the required multiline
+  // narrative: the text must remain visible even when audio was saved.
+  const withDigitvaCore: InstrumentQuestion[] = withConsentMode.map((question) => {
+    if (question.name === "Id10476") return { ...question, relevant: undefined };
+    if (question.name === "Id10476_audio") return { ...question, hint: {} };
+    return question;
+  });
+
   // DigitVA extension (vendored copy, see src/digitva-extension.ts): the
   // narration language and narrative image follow the narrative text (Id10476);
   // the document images form a new section after the medical certificate.
-  const narrativeAnchorIndex = withConsentMode.findIndex((question) => question.name === "Id10476");
+  const narrativeAnchorIndex = withDigitvaCore.findIndex((question) => question.name === "Id10476");
   if (narrativeAnchorIndex < 0) {
     throw new Error("Cannot add the DigitVA narration fields because Id10476 is missing");
   }
-  const narrativeAnchor = withConsentMode[narrativeAnchorIndex]!;
+  const narrativeAnchor = withDigitvaCore[narrativeAnchorIndex]!;
   const lastSection = generated.sections[generated.sections.length - 1]!;
   // ABHA identifiers follow the deceased's surname (Id10018).
-  const deceasedAnchorIndex = withConsentMode.findIndex((question) => question.name === "Id10018");
+  const deceasedAnchorIndex = withDigitvaCore.findIndex((question) => question.name === "Id10018");
   if (deceasedAnchorIndex < 0) {
     throw new Error("Cannot add the DigitVA ABHA fields because Id10018 is missing");
   }
-  const deceasedAnchor = withConsentMode[deceasedAnchorIndex]!;
+  const deceasedAnchor = withDigitvaCore[deceasedAnchorIndex]!;
   // Numbered starting after consent_mode's own order (consentModeOrder), not
   // maxOrder itself, so createDigitVaExtension's first question does not
   // reuse consent_mode's number.
@@ -126,9 +136,9 @@ export function createWhoVa2022Instrument(
   );
 
   const withDeceased: InstrumentQuestion[] = [
-    ...withConsentMode.slice(0, deceasedAnchorIndex + 1),
+    ...withDigitvaCore.slice(0, deceasedAnchorIndex + 1),
     ...digitva.deceasedQuestions,
-    ...withConsentMode.slice(deceasedAnchorIndex + 1)
+    ...withDigitvaCore.slice(deceasedAnchorIndex + 1)
   ];
   const narrativeIndex = withDeceased.findIndex((question) => question.name === "Id10476");
 
@@ -167,8 +177,9 @@ export function createWhoVa2022Instrument(
  * check, Id10308 required, Id10340's relevance). Numbered past every order
  * already used, as the other layers are.
  *
- * Without `whoOverrides` the WHO questions stay as WHO wrote them. The
- * server's re-derivation uses that shape and still accepts everything the
+ * Without `whoOverrides` the DORIS-touched WHO questions stay as WHO wrote
+ * them; the mandatory DigitVA Id10476 override is independent of this flag.
+ * The server's re-derivation uses that shape and still accepts everything the
  * web form collects: A10's Id10340 relevance is a subset of WHO's
  * (tests/digitva-extension-layers), so no Id10340 answer is stripped;
  * WHO's Id10366 constraint admits every weight A2's does; and the server

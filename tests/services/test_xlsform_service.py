@@ -132,6 +132,10 @@ class XlsFormBase(BaseTestCase):
         for code in ("hi", "kn", "ta", "mr"):
             cls._text(code, "question", "Id10010", "label", f"LABEL-{code}")
         cls._text("hi", "question", "sa01", "label", "HI-SA01", source="edited")
+        cls._text(
+            "hi", "question", "Id10476_audio", "hint",
+            "[ऑडियो रिकॉर्ड करें या छोड़ें और अगले प्रश्न में पाठ दर्ज करें]",
+        )
         cls._text("hi", "choice", "sas01/1", "label", "HI-SAS01-1")
         cls._text("hi", "choice", "YES_NO/yes", "label", "HI-YES")  # a WHO choice, from the cached reference
         cls._text("hi", "question", "Id10017", "label", "MACHINE-DRAFT", source="machine")
@@ -227,6 +231,21 @@ class XlsFormContentTests(XlsFormBase):
         self.assertEqual(rows["Id10366"]["constraint"], ". >= 100 and . <= 9999")  # DORIS A2
         self.assertEqual(rows["Id10304_a"]["relevant"], "selected(${Id10304},'yes')")  # digitva-13x
         self.assertEqual(rows["Id10230"]["agegroup"], "C_A")
+
+    def test_typed_narrative_override_matches_web_and_clears_localized_audio_hint(self):
+        _form, data = self._build(self.FULL)
+        rows = {r["name"]: r for r in _sheet(data, "survey") if "name" in r}
+        web = {q["name"]: q for q in served_form_service.composed_definition()["questions"]}
+
+        self.assertIsNone(web["Id10476"].get("relevant"))
+        self.assertEqual(web["Id10476"]["required"], True)
+        self.assertEqual(web["Id10476"]["appearance"], "multiline")
+        self.assertEqual(web["Id10476"]["validation"]["required"], True)
+        self.assertNotIn("relevant", rows["Id10476"])
+        self.assertEqual(rows["Id10476"]["required"], "yes")
+        self.assertEqual(rows["Id10476"]["appearance"], "multiline")
+        self.assertNotIn("hint", rows["Id10476_audio"])
+        self.assertNotIn("hint::Hindi (hi)", rows["Id10476_audio"])
 
     def test_added_rows_land_at_their_anchors(self):
         _form, data = self._build(self.FULL)

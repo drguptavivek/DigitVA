@@ -1,8 +1,9 @@
 // Emit vendor/who-va-2022/src/generated/who-va-2022.server-instrument.json:
 // every question and section of the composed instrument (WHO base plus all
 // DigitVA extensions, as whoVa2022Instrument in
-// vendor/who-va-2022/src/instrument.ts, but with every WHO question as WHO
-// wrote it: `whoOverrides: false`), reduced to the fields a server-side
+// vendor/who-va-2022/src/instrument.ts), with DigitVA's always-on narrative
+// audio/text override and `whoOverrides: false` for the DORIS-specific
+// tightening, reduced to the fields a server-side
 // re-evaluation needs -- name, sectionPath, control, and the *source strings*
 // of relevant/constraint/calculation -- so app/services/web_intake_service.py
 // can re-derive relevance and validity without a Node process in the request

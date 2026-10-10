@@ -564,6 +564,44 @@ class IntakeApiTests(BaseTestCase):
         # remembered per browser, never stored server-side.
         self.assertIn("options.available_locales", body)
 
+    def test_form_page_csp_allows_blob_audio_without_widening_other_pages(self):
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        previous_store = self.app.config["ATTACHMENT_STORE"]
+        try:
+            # Exercise the same S3-origin policy that production uses without
+            # constructing an S3 client or changing the attachment endpoint.
+            self.app.config["ATTACHMENT_STORE"] = "s3"
+            dashboard_csp = self.client.get("/intake/").headers["Content-Security-Policy"]
+            form_csp = self.client.get(
+                f"/intake/form/{draft['draft_id']}"
+            ).headers["Content-Security-Policy"]
+            dashboard_after_csp = self.client.get("/intake/").headers[
+                "Content-Security-Policy"
+            ]
+        finally:
+            self.app.config["ATTACHMENT_STORE"] = previous_store
+
+        def directives(header):
+            return dict(part.strip().split(" ", 1) for part in header.split(";"))
+
+        dashboard = directives(dashboard_csp)
+        form = directives(form_csp)
+        self.assertEqual(dashboard_after_csp, dashboard_csp)
+        self.assertNotIn("blob:", dashboard["media-src"])
+        self.assertIn("blob:", form["media-src"])
+        self.assertIn("https://s3.ap-south-1.amazonaws.com", form["media-src"])
+        self.assertIn(
+            "https://digitva-test-attachments.s3.ap-south-1.amazonaws.com",
+            form["media-src"],
+        )
+        self.assertIn("https://s3.ap-south-1.amazonaws.com", form["img-src"])
+        for directive in dashboard:
+            if directive in {"img-src", "media-src"}:
+                self.assertTrue(form[directive].startswith("'self'"))
+            else:
+                self.assertEqual(form[directive], dashboard[directive])
+
     def test_form_page_header_shows_names_with_codes_in_a_tooltip(self):
         """digitva-wdj: "Case id X · {project_id} / {site_id}" was meaningless
         to an interviewer; the header now shows the project/site names, and

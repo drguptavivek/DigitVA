@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-10
 ---
 
 # VA Form Project Configuration Policy
@@ -15,6 +15,8 @@ renders the **WHO VA 2022 base plus the extensions a project has switched on**,
 with every option list supplied from project configuration. This policy fixes
 what a project configures, where each option list comes from, and who may see
 what.
+
+The registry of WHO field overrides, existing logic adaptations and extension purposes is [DigitVA overrides and extensions](digitva-who-form-overrides.md). The always-on core also keeps typed narrative `Id10476` visible and required alongside optional audio or image.
 
 It governs DigitVA's own clients. ODK Central collection is unaffected: those
 forms carry their own choice lists, published with the form.

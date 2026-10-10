@@ -1006,7 +1006,7 @@
       "control": "text",
       "dataType": "string",
       "name": "Id10476",
-      "relevant": "string-length(${Id10476_audio})=0",
+      "relevant": null,
       "sectionPath": [
         "consented",
         "narrat"

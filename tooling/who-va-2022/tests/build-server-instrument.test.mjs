@@ -46,3 +46,12 @@ test("md_available -> md_count -> md_im1 relevance chain is captured, each depen
   assert.equal(byName.md_im1.control, "image");
   assert.equal(byName.md_im1.dataType, "attachment");
 });
+
+test("DigitVA's narrative text is not stripped when audio is saved", () => {
+  const doc = JSON.parse(readFileSync(artifactPath, "utf8"));
+  const byName = Object.fromEntries(doc.questions.map((q) => [q.name, q]));
+
+  assert.equal(byName.Id10476.relevant, null);
+  assert.equal(byName.Id10476.control, "text");
+  assert.equal(byName.Id10476.dataType, "string");
+});

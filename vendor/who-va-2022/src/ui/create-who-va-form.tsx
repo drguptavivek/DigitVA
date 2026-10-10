@@ -119,6 +119,12 @@ export interface WhoVaPrimitiveSet {
   /** Select primitive reserved for partial date selectors. */
   PartialSelect?: React.ElementType;
   Pressable: React.ElementType;
+  /** Plays a resolved saved audio attachment. */
+  AudioPlayer?: React.ComponentType<{
+    uri: string;
+    accessibilityLabel: string;
+    onError: () => void;
+  }>;
   ScrollView: React.ElementType;
   Image?: React.ElementType;
   /** See SectionNavPrimitives.Modal: hosts the section drawer above the page. */
@@ -312,6 +318,7 @@ export function createWhoVaForm(
     Select: primitives.Select,
     PartialSelect: primitives.PartialSelect,
     Pressable,
+    AudioPlayer: primitives.AudioPlayer,
     Image: primitives.Image,
     platform: primitives.platform
   });

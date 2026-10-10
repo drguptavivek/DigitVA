@@ -43,6 +43,8 @@ async function loadExtensionModule() {
     entryPath,
     `export { createDigitVaExtension, createConsentModeQuestion } from ${JSON.stringify(
       path.join(vendorSrc, "digitva-extension.js"),
+    )};\nexport { createWhoVa2022Instrument } from ${JSON.stringify(
+      path.join(vendorSrc, "instrument.js"),
     )};\n`,
   );
   try {
@@ -143,7 +145,8 @@ export function groupRows(sections, questions, name, extra = {}) {
 const ANCHOR_PATH = ["digitva_anchor", "narrat"];
 
 async function main() {
-  const { createDigitVaExtension, createConsentModeQuestion } = await loadExtensionModule();
+  const { createDigitVaExtension, createConsentModeQuestion, createWhoVa2022Instrument } =
+    await loadExtensionModule();
   const only = (extension) =>
     createDigitVaExtension(0, ANCHOR_PATH, "digitva_parent", ["digitva_anchor", "deceased"], [extension]);
 
@@ -152,6 +155,17 @@ async function main() {
   // digitva_core: the consent mode, plus the three rows ODK needs that the web
   // server injects (Site, unique_id) or accepts as an upload.
   const consentMode = createConsentModeQuestion(0, []);
+  // WHO's Id10476 relevance and Id10476_audio hint are overridden in the
+  // composed web definition. Carry those exact values into the ODK base-row
+  // changes so this generator has one source of truth for both forms.
+  const composedCore = createWhoVa2022Instrument(["digitva_core"]);
+  const composedQuestion = (name) => {
+    const question = composedCore.questions.find((item) => item.name === name);
+    if (!question) throw new Error(`The composed web instrument lacks ${name}`);
+    return question;
+  };
+  const typedNarrative = composedQuestion("Id10476");
+  const audioNarrative = composedQuestion("Id10476_audio");
   specs.digitva_core = [
     {
       id: "core_site",
@@ -213,6 +227,25 @@ async function main() {
       ],
       choices: [],
       change: [],
+    },
+    {
+      id: "core_typed_narrative_visibility",
+      title: "Always-visible typed narrative",
+      odk: {
+        note: "Keep the required typed narrative visible alongside optional audio or image, matching the composed web definition.",
+      },
+      survey: [],
+      choices: [],
+      change: [
+        {
+          name: "Id10476",
+          cells: { relevant: typedNarrative.relevant?.source ?? null },
+        },
+        {
+          name: "Id10476_audio",
+          cells: { hint: audioNarrative.hint?.en ?? null },
+        },
+      ],
     },
   ];
 

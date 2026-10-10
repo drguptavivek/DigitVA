@@ -6,13 +6,23 @@ JSON API at ``/api/v1/intake`` (app/routes/api/intake.py), sending
 ``X-CSRFToken`` from the page's ``csrf_token()``.
 Policy: docs/policy/web-intake.md
 """
-from flask import Blueprint, render_template
+from flask import Blueprint, current_app, render_template
 from flask_login import current_user
 
+from app import _content_security_policy, talisman
 from app.decorators import role_required
 from app.services import web_intake_service as intake_svc
 
 intake = Blueprint("intake", __name__)
+
+
+class _FormPageContentSecurityPolicy:
+    """Build the global policy per request, allowing blob-backed audio."""
+
+    def items(self):
+        policy = _content_security_policy(current_app)
+        policy["media-src"] += " blob:"
+        return policy.items()
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +53,7 @@ def supervision_page():
 
 
 @intake.get("/form/<draft_id>")
+@talisman(content_security_policy=_FormPageContentSecurityPolicy())
 @role_required("interviewer")
 def form_page(draft_id):
     try:

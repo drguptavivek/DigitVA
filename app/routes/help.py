@@ -89,6 +89,8 @@ HELP_PAGES = [
     ("email-verification",    "Email Verification",           "fa-envelope-circle-check", "User Onboarding",  None),
     # ── User Roles ───────────────────────────────────────────────────
     ("user-roles",            "User Roles & Permissions",     "fa-users-gear",           "User Roles",       None),
+    # ── Data Collection ──────────────────────────────────────────────
+    ("data-collection",       "Data Collection",              "fa-clipboard-question",   "Data Collection",  None),
     # ── Coding Workflow ──────────────────────────────────────────────
     ("demo-coding",           "Demo / Training Coding",       "fa-graduation-cap",       "Coding Workflow",  ["coder", "coding_tester", "admin"]),
     ("coding-tester",         "Coding Tester Workflow",       "fa-vial",                 "Coding Workflow",  ["coding_tester", "admin"]),
@@ -152,6 +154,8 @@ ENGINEERING_DOCS = [
      "docs/policy/sync-dashboard-operations.md"),
     ("odk-repair",                 "ODK Repair Workflow",          "fa-wrench",             "Data Pipeline",
      "docs/current-state/odk-repair-workflow.md"),
+    ("who-form-overrides",          "DigitVA WHO Form Overrides",   "fa-file-medical",       "Data Pipeline",
+     "docs/policy/digitva-who-form-overrides.md"),
     # ── Coding Workflow ─────────────────────────────────────────────
     ("wf-state-machine",           "Workflow State Machine",       "fa-diagram-project",    "Coding Workflow",
      "docs/policy/coding-workflow-state-machine.md"),

@@ -3764,9 +3764,7 @@
       "control": "audio",
       "dataType": "attachment",
       "guidance": {},
-      "hint": {
-        "en": "[Record the audio information or skip and enter the text on next question]"
-      },
+      "hint": {},
       "label": {
         "en": "(Id10476_audio) Thank you for your information. Now can you please tell me in your own words about the events that led to the death?"
       },
@@ -3803,9 +3801,6 @@
       "name": "Id10476",
       "order": 86,
       "readOnly": false,
-      "relevant": {
-        "source": "string-length(${Id10476_audio})=0"
-      },
       "required": true,
       "sectionPath": [
         "consented",
@@ -33950,5 +33945,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-3833e95fb5"
+  "version": "2026081401-503d5dd1bb"
 }

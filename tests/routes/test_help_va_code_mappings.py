@@ -95,7 +95,7 @@ class HelpVaCodeMappingsRouteTests(BaseTestCase):
         self.assertNotIn("crosswalk", body)
         self.assertNotIn("vas_01_07", body)
         self.assertNotIn("10To11", body)
-        self.assertNotIn("override", body)
+        self.assertNotIn(row["note"], body)
 
     def test_second_page(self):
         first = self.client.get("/help/va-code-mappings").get_data(as_text=True)

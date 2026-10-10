@@ -1,0 +1,147 @@
+<h2 id="collection-overview">What Data Collection covers</h2>
+
+<p>DigitVA receives verbal autopsies through two collection paths: an <strong>ODK Central</strong> form that is synced into DigitVA, and the DigitVA <strong>web questionnaire</strong> used by an authorised interviewer. ODK remains the source of truth for a synced submission. The web path uses the WHO 2022 verbal autopsy instrument, deployed here as <code>WHO_2022_VA</code>, with the 2026 instrument revision <code>2026081401</code> and DigitVA's configured extensions and adaptations.</p>
+
+<p>This page is an interviewer-facing guide. It describes the collection workflow and the form layers; it does not grant access. Access comes from an explicit role grant and its project, site or organization-unit scope. See <a href="{{ url_for('help.page', slug='user-roles') }}">User Roles &amp; Permissions</a> for the complete role definitions.</p>
+
+<h2 id="who-can-collect">Who may register, interview and supervise</h2>
+
+<p>Roles do not include one another. A person needs the grant for the action they perform, and an organization-unit grant covers that unit and every unit below it. A unit grant is also checked against the cadre's level permissions.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle">
+  <thead>
+    <tr>
+      <th>Task</th>
+      <th>Role and scope</th>
+      <th>What the grant permits</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Register a death and interview</td>
+      <td><code>interviewer</code>; project, project-site or organization unit</td>
+      <td>Register a death, check possible duplicates, open or resume the questionnaire, save drafts and submit an interview. A unit grant requires the cadre to be allowed to fill VA forms at that level.</td>
+    </tr>
+    <tr>
+      <td>Register a death only</td>
+      <td><code>death_reporter</code>; organization unit only</td>
+      <td>Register deaths through the registration API/mobile path and correct their own registration details until an interview is completed. This role cannot start or resume a questionnaire; the web intake page is interviewer-only.</td>
+    </tr>
+    <tr>
+      <td>Supervise intake</td>
+      <td><code>interview_supervisor</code>; organization unit only</td>
+      <td>See cases in the unit subtree, resolve flags, cancel, reopen and mark duplicates. The cadre must be allowed to supervise interviews at that level. This role does not register or interview.</td>
+    </tr>
+    <tr>
+      <td>Manage collection access</td>
+      <td>Admin or project PI; data manager or In-charge within its own area</td>
+      <td>Give or manage the applicable grants within the scope allowed by the role. Managing a grant does not turn that person into an interviewer or supervisor.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="help-warning">
+  <strong>Scope matters:</strong> the role gate only opens the collection area. The selected project, site or organization unit is checked separately for every draft, registration and submission. Never share an account to work around a missing grant.
+</div>
+
+<h2 id="interviewer-steps">Practical interviewer steps</h2>
+
+<ol>
+  <li><strong>Confirm the assignment.</strong> Open the project and the site or organization unit covered by your grant. Check that the displayed form is the project’s active WHO 2022 form before collecting an interview.</li>
+  <li><strong>Register or find the death.</strong> In <code>death_register</code> or <code>both</code> mode, register the death first and check possible duplicates. Record exact, month-year or year-only birth information at the precision known; do not invent a missing day or month. A direct questionnaire project can create its case when the draft starts.</li>
+  <li><strong>Start the questionnaire.</strong> Confirm the deceased and visit details, explain the verbal autopsy and consent, then ask the WHO questions in order. Follow the on-screen relevance and requiredness rules. The project, site, unit and submitter context are supplied by DigitVA where applicable.</li>
+  <li><strong>Save a draft early and often.</strong> A draft belongs to the interviewer who started it. If the visit is interrupted, leave it open and use the same account to resume it; do not start a second draft to bypass an unfinished interview.</li>
+  <li><strong>Complete the narrative carefully.</strong> The typed narrative field is visible and required even when audio or an image is present. Audio narration and narrative images are useful but optional. Add medical documents or a death summary when available; no attachment is mandatory.</li>
+  <li><strong>Review before submitting.</strong> Check identity, consent, dates, the narrative, attachments and the interview outcome. Resolve any field message shown beside its question. Submit only when the visit is complete; an incomplete or refused outcome is recorded as field work with its own workflow path.</li>
+</ol>
+
+<div class="help-tip">
+  <strong>Media reminder:</strong> enter the typed narrative, with optional audio or a narrative image. Medical document controls remain available according to the project configuration. Missing optional media does not by itself prevent submission. Newly generated project XLSForms also keep the typed narrative visible and required; existing ODK deployments need the updated form published.
+</div>
+
+<h2 id="odk-and-web">ODK and DigitVA web collection</h2>
+
+<table class="table table-sm table-bordered align-middle">
+  <thead>
+    <tr><th>Path</th><th>What the collector does</th><th>What DigitVA does</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>ODK Central</strong></td>
+      <td>Fill and submit the configured ODK form using the project's ODK workflow.</td>
+      <td>Syncs the submission and attachments, preserves the ODK submission key, and sends it through the same downstream projection and coding workflow.</td>
+    </tr>
+    <tr>
+      <td><strong>DigitVA web intake</strong></td>
+      <td>Register a death when required, fill the WHO questionnaire in the browser, save or resume a draft, add optional media, and submit.</td>
+      <td>Stores section drafts, attributes the case to the authorised scope, validates the workflow outcome and routes a submitted case with <code>intake_source = web</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The two paths share the clinical instrument and downstream workflow, but an ODK submission and a web draft have different source identifiers. Keep ODK keys, DigitVA case IDs and internal UUIDs distinct.</p>
+
+<h2 id="identifiers">Organization identifiers are host context</h2>
+
+<p>For an organization project, the selected unit determines a hierarchy such as <strong>project &rarr; organization level &rarr; organization unit</strong>. DigitVA injects the unit's ancestor values as <code>org_&lt;level_code&gt;_code</code>, along with the configured <code>Site</code>, <code>unique_id</code> and submitter context. These values support routing, reporting and access scope.</p>
+
+<p>The <code>org_*</code> values are supplied by the host and are not clinical answers in the WHO questionnaire. They must not be re-entered as facts about the death, merged with a WHO question, or confused with the ODK instance ID, the human-readable death ID or the internal draft/submission UUID. Unit codes are unique within a project; the human-readable death ID is assigned separately.</p>
+
+<div class="help-info">
+  <strong>Keep the layers separate:</strong> the WHO instrument records the verbal-autopsy interview. DigitVA adds host context so the interview can be routed to the right project area. Changing an organization assignment does not rewrite the clinical response.
+</div>
+
+<h2 id="form-matrix">Form field comparison and legend</h2>
+
+<p>The comparison source is the local <code>ND01_ICMRVA_WHOVA2022.xlsx</code> workbook. The mapped UNSW examples available for this reference are <code>UNSW01KA0101</code> (KA01), <code>UNSW01KL0101</code> (KL01) and <code>UNSW01TR0101</code> (TR01). The NC01 workbook was unavailable for this comparison. No JIPMER workbook is treated as an UNSW source.</p>
+
+<p>The matrix is a source and deployment reference, not a promise that every project enables every optional layer. The active project form type, extension settings and deployed release control what an interviewer sees.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle small" id="form-field-legend">
+  <thead><tr><th>Column</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Source type (<code>sourceType</code>)</strong></td><td>Each source type is a separate matrix column: <code>WHO2026</code>, <code>DigitVA Web</code>, <code>ICMR ND01</code> and the mapped UNSW source columns. A missing source is marked as unavailable rather than inferred.</td></tr>
+    <tr><td><strong>Cell type</strong></td><td>Each available cell begins with the source's exact type, such as <code>text</code>, <code>select_one</code>, <code>begin group</code>, <code>note</code> or <code>digitva-extension</code>.</td></tr>
+    <tr><td><strong>Requiredness</strong></td><td>The matrix uses the literal values <code>required</code> and <code>optional</code> from the source/deployed definition.</td></tr>
+    <tr><td><strong>Question relevance</strong></td><td>The third value is the exact relevance expression, or <code>no question-level relevance</code>. A field with no question-level relevance can still inherit an ancestor group's relevance gate.</td></tr>
+  </tbody>
+</table>
+</div>
+
+{% include "help/pages/_form-field-matrix.html" %}
+
+<p><a class="btn btn-sm btn-outline-primary" href="{{ url_for('static', filename='help/digitva-form-field-matrix.xlsx') }}"><i class="fa-solid fa-file-excel me-1"></i>Download the field matrix (XLSX)</a></p>
+
+<h2 id="extensions">What DigitVA adds</h2>
+
+<p>These are practical extension groups described in the current form policy. A project may enable only the layers it needs:</p>
+
+<ul>
+  <li><strong>Collection support:</strong> an intake welcome screen, consent mode, interview outcome and the short refusal visit note.</li>
+  <li><strong>Narrative and records:</strong> narration language, handwritten narrative image, optional death-summary images, optional medical-record images and the medical-certificate attachment control.</li>
+  <li><strong>Programme and analysis:</strong> social-autopsy questions and ABHA identifiers. DORIS support is always on for every web project, whatever its COD entry mode; the certificate prefill still runs only where the DORIS editor is shown.</li>
+  <li><strong>Host context:</strong> organization geography and identifiers supplied from the selected unit, plus submitter and case metadata.</li>
+</ul>
+
+<p>These additions are separate from the WHO clinical questions. An extension can be present in the composed instrument while remaining optional or hidden by its project setting.</p>
+
+<h2 id="adaptations">WHO logic adaptations and DORIS support</h2>
+
+<p>DigitVA also adapts selected WHO behavior so the deployed questionnaire is usable in this workflow. The original WHO workbook remains unchanged; composition happens in the maintained source layers.</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle">
+  <thead><tr><th>Area</th><th>Deployed behavior</th></tr></thead>
+  <tbody>
+    <tr><td>Typed narrative <code>Id10476</code></td><td>Required multiline text with no audio-only relevance gate; it remains visible with audio or an image.</td></tr>
+    <tr><td>WHO logic corrections</td><td><code>Id10365</code> does not carry the source constraint; <code>Id10382</code> explicitly accepts the 99 code; selected validation messages are clearer for interviewers. The <code>nmh</code> note is placed inside <code>consented/injuries_accidents</code> so the injury guidance appears with that group.</td></tr>
+    <tr><td>Consent and completion</td><td>The WHO consent question stays, while DigitVA records consent mode and the server-owned interview outcome separately.</td></tr>
+    <tr><td>DORIS support</td><td>The DORIS support layer is always on for every web project and carries fields such as birth-weight confirmation, pregnancy, hysterectomy and related certificate details. The certificate editor/prefill is shown only where that workflow is available; these fields do not form a second WHO questionnaire.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>For the complete field-level register, source provenance and known unresolved WHO logic issues, see <a href="{{ url_for('help.doc_page', slug='who-form-overrides') }}">DigitVA WHO Form Overrides</a> in the engineering documentation index.</p>

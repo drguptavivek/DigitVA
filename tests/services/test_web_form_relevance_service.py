@@ -39,6 +39,22 @@ class StripIrrelevantAnswersTests(unittest.TestCase):
         # md_available itself is never gated -- it survives.
         self.assertEqual(stripped["md_available"], "no")
 
+    def test_typed_narrative_survives_with_either_audio_or_image(self):
+        for media_field in ("Id10476_audio", "imagenarr"):
+            with self.subTest(media_field=media_field):
+                data = {
+                    "Id10013": "yes",
+                    "Id10476": "Synthetic narrative for retention testing.",
+                    media_field: "who-va-attachment:media-test",
+                }
+                stripped, removed = strip_irrelevant_answers(data, now=NOW)
+                self.assertEqual(stripped["Id10476"], data["Id10476"])
+                self.assertEqual(stripped[media_field], data[media_field])
+                self.assertNotIn("Id10476", removed)
+                self.assertEqual(
+                    data["Id10476"], "Synthetic narrative for retention testing."
+                )
+
     def test_relevant_answers_are_left_alone(self):
         data = {
             "Id10013": "yes",

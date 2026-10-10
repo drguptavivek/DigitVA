@@ -134,6 +134,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Caveats still true
 
+- Narrative/media follow-up: real saved WebM and microphone acceptance remain with `digitva-ej1`. Newly generated project XLSForms share the typed-narrative override; existing ODK deployments require publication of the regenerated form. Help `/help/data-collection` and `docs/policy/digitva-who-form-overrides.md` document the WHO2026/ICMR/UNSW comparison; UNSW NC01 source workbook remains unavailable, and the downloadable matrix currently measures Web composition rather than independently generated XLSForms. Vendor typecheck errors at `digitva-extension.ts:738/747` and date-picker hooks lint at `web.tsx:406` remain.
 - `tests/migrations` runs on its own DB, never with the main suite; give
   writers only the new migration's test plus `test_schema_drift.py` and
   `test_no_app_imports_in_migrations.py`.

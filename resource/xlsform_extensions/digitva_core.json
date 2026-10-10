@@ -85,6 +85,29 @@
         }
       ],
       "title": "Medical certificate upload"
+    },
+    {
+      "change": [
+        {
+          "cells": {
+            "relevant": null
+          },
+          "name": "Id10476"
+        },
+        {
+          "cells": {
+            "hint": null
+          },
+          "name": "Id10476_audio"
+        }
+      ],
+      "choices": [],
+      "id": "core_typed_narrative_visibility",
+      "odk": {
+        "note": "Keep the required typed narrative visible alongside optional audio or image, matching the composed web definition."
+      },
+      "survey": [],
+      "title": "Always-visible typed narrative"
     }
   ],
   "schemaVersion": 1,

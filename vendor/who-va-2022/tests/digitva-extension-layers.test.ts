@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createWhoVa2022Instrument, whoVa2022Instrument } from "../src/instrument.js";
 import { isQuestionRelevant, validateAnswer } from "../src/engine/validation.js";
 import { DIGITVA_DOCUMENTS_SECTION } from "../src/digitva-extension.js";
+import generatedInstrument from "../src/generated/who-va-2022.instrument.json";
 
 import type { InstrumentDefinition } from "../src/types.js";
 
@@ -270,6 +271,43 @@ describe("consent_mode", () => {
     expect(consentQuestion!.choices?.map((c) => c.value)).toEqual(["yes", "no"]);
     const consentedSection = instrument.sections.find((s) => s.name === "consented");
     expect(consentedSection!.relevant?.source).toBe("selected(${Id10013}, 'yes')");
+  });
+});
+
+describe("DigitVA narrative override", () => {
+  it("keeps required multiline text visible when audio is saved and leaves the WHO source untouched", () => {
+    const instrument = createWhoVa2022Instrument(BASE_ONLY);
+    const serverInstrument = createWhoVa2022Instrument(
+      new Set([...BASE_ONLY, "doris_support_whova_2022"]),
+      { whoOverrides: false }
+    );
+    const narrative = question(instrument, "Id10476")!;
+    const audio = question(instrument, "Id10476_audio")!;
+    const whoNarrative = (generatedInstrument as InstrumentDefinition).questions.find(
+      (item) => item.name === "Id10476"
+    )!;
+    const whoAudio = (generatedInstrument as InstrumentDefinition).questions.find(
+      (item) => item.name === "Id10476_audio"
+    )!;
+
+    expect(narrative.relevant).toBeUndefined();
+    expect(narrative.required).toBe(true);
+    expect(narrative.validation?.required).toBe(true);
+    expect(narrative.appearance).toBe("multiline");
+    expect(question(serverInstrument, "Id10476")!.relevant).toBeUndefined();
+    expect(
+      isQuestionRelevant(instrument, narrative, {
+        Id10013: "yes",
+        Id10476_audio: { uri: "who-va-attachment:audio-1" }
+      })
+    ).toBe(true);
+    expect(validateAnswer(narrative, undefined, {} as never).some((issue) => issue.code === "required")).toBe(true);
+    expect(audio.hint).toEqual({});
+
+    expect(whoNarrative.relevant?.source).toBe("string-length(${Id10476_audio})=0");
+    expect(whoNarrative.required).toBe(true);
+    expect(whoNarrative.appearance).toBe("multiline");
+    expect(whoAudio.hint.en).toContain("skip and enter the text");
   });
 });
 

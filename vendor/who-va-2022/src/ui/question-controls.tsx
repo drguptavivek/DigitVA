@@ -133,6 +133,14 @@ export interface WhoVaQuestionControlPrimitives {
   /** Select primitive reserved for partial date selectors. */
   PartialSelect?: React.ElementType | undefined;
   Pressable: React.ElementType;
+  /** Plays a resolved saved audio attachment. */
+  AudioPlayer?:
+    | React.ComponentType<{
+        uri: string;
+        accessibilityLabel: string;
+        onError: () => void;
+      }>
+    | undefined;
   Image?: React.ElementType | undefined;
   /**
    * Renders ODK's inline markup in choice labels. Optional: without it labels
@@ -195,6 +203,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     Select,
     PartialSelect,
     Pressable,
+    AudioPlayer,
     Image
   } = primitives;
   const RichText = primitives.RichText;
@@ -1738,6 +1747,85 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  function audioAttachmentReference(value: AnswerValue | undefined): AttachmentReference | undefined {
+    const reference = attachmentReference(value);
+    if (reference || typeof value !== "string" || !value.startsWith("who-va-attachment:")) return reference;
+    const id = value.slice("who-va-attachment:".length);
+    return id ? { uri: value, id } : undefined;
+  }
+
+  /** Resolve a saved audio attachment without ever handing the opaque ref to the player. */
+  function useAudioPreviewUri(
+    value: AnswerValue | undefined,
+    services: WhoVaPlatformServices,
+    loadFailedMessage: string,
+    onLoadError: (message: string) => void
+  ) {
+    const attachmentUri = attachmentDetails(value).uri;
+    const [previewUri, setPreviewUri] = useState<string | undefined>();
+    const [loading, setLoading] = useState(false);
+    const resolveAttachmentUri = services.resolveAttachmentUri;
+    const releaseAttachmentUri = services.releaseAttachmentUri;
+
+    useEffect(() => {
+      let active = true;
+      let resolvedUri: string | undefined;
+      const attachmentValue = audioAttachmentReference(value);
+      if (!attachmentUri) {
+        setPreviewUri(undefined);
+        setLoading(false);
+        return () => {
+          active = false;
+        };
+      }
+      if (!attachmentUri.startsWith("who-va-attachment:")) {
+        setPreviewUri(attachmentUri);
+        setLoading(false);
+        return () => {
+          active = false;
+        };
+      }
+      if (!resolveAttachmentUri || !attachmentValue) {
+        setPreviewUri(undefined);
+        setLoading(false);
+        onLoadError(loadFailedMessage);
+        return () => {
+          active = false;
+        };
+      }
+      setPreviewUri(undefined);
+      setLoading(true);
+      void resolveAttachmentUri(attachmentValue)
+        .then((uri) => {
+          if (!active) {
+            if (uri) releaseAttachmentUri?.(uri);
+            return;
+          }
+          if (!uri || uri.startsWith("who-va-attachment:")) {
+            if (uri) releaseAttachmentUri?.(uri);
+            setLoading(false);
+            onLoadError(loadFailedMessage);
+            return;
+          }
+          resolvedUri = uri;
+          setLoading(false);
+          setPreviewUri(uri);
+        })
+        .catch(() => {
+          if (active) {
+            setLoading(false);
+            onLoadError(loadFailedMessage);
+          }
+        });
+      return () => {
+        active = false;
+        if (resolvedUri) releaseAttachmentUri?.(resolvedUri);
+      };
+    }, [attachmentUri, loadFailedMessage, onLoadError, releaseAttachmentUri, resolveAttachmentUri, value]);
+
+    return { previewUri, loading };
+  }
+
   function Audio({
     question,
     value,
@@ -1749,33 +1837,84 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
   }: WhoVaQuestionControlProps) {
     const [phase, setPhase] = useState<"idle" | "starting" | "recording" | "stopping">("idle");
     const [recordingError, setRecordingError] = useState<string>();
+    const [playbackError, setPlaybackError] = useState<string>();
+    const [recordingStartedAt, setRecordingStartedAt] = useState<number>();
+    const [recordingElapsed, setRecordingElapsed] = useState(0);
     const session = useRef<WhoVaAudioRecordingSession | undefined>(undefined);
+    const requestId = useRef(0);
+    const mounted = useRef(true);
     const readOnly = question.readOnly;
     const services = { ...primitives.platform, ...platform };
-    const currentAttachment = attachmentReference(value);
-    const disabled =
-      readOnly ||
-      phase === "starting" ||
-      phase === "stopping" ||
-      (phase === "idle" && !services.startAudioRecording && !services.captureAudio);
-
-    useEffect(
-      () => () => {
-        if (session.current) void session.current.cancel();
-      },
-      []
+    const currentAttachment = audioAttachmentReference(value);
+    const attachment = attachmentDetails(value);
+    const recordingUnavailable = !services.startAudioRecording && !services.captureAudio;
+    useEffect(() => setPlaybackError(undefined), [attachment.uri]);
+    const { previewUri, loading: playbackLoading } = useAudioPreviewUri(
+      value,
+      services,
+      messages.savedAudioLoadFailed,
+      setPlaybackError
     );
+    const disabled =
+      readOnly || phase === "starting" || phase === "stopping" || (phase === "idle" && recordingUnavailable);
 
-    const label =
-      phase === "starting"
-        ? messages.startingMicrophone
-        : phase === "recording"
-          ? messages.stopAndSaveRecording
-          : phase === "stopping"
-            ? messages.savingRecording
-            : value
-              ? messages.replaceAudio
-              : messages.recordAudio;
+    const cancelSession = (activeSession: WhoVaAudioRecordingSession, reportError = false) => {
+      void Promise.resolve()
+        .then(() => activeSession.cancel())
+        .catch(() => {
+          if (reportError && mounted.current) setRecordingError(messages.audioRecordingFailed);
+        });
+    };
+
+    useEffect(() => {
+      if (phase !== "recording" || recordingStartedAt === undefined) return;
+      const updateElapsed = () =>
+        setRecordingElapsed(Math.max(0, Math.floor((globalThis.Date.now() - recordingStartedAt) / 1000)));
+      updateElapsed();
+      const timer = globalThis.setInterval(updateElapsed, 1000);
+      return () => globalThis.clearInterval(timer);
+    }, [phase, recordingStartedAt]);
+
+    useEffect(() => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        requestId.current += 1;
+        const activeSession = session.current;
+        session.current = undefined;
+        if (activeSession)
+          void Promise.resolve()
+            .then(() => activeSession.cancel())
+            .catch(() => undefined);
+      };
+    }, []);
+
+    const cancelRecording = () => {
+      requestId.current += 1;
+      const activeSession = session.current;
+      session.current = undefined;
+      if (activeSession) cancelSession(activeSession, true);
+      setRecordingStartedAt(undefined);
+      setRecordingElapsed(0);
+      setPhase("idle");
+    };
+
+    const formatRecordingTime = (seconds: number) =>
+      `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+
+    const removeOldAttachment = (attachmentToRemove: AttachmentReference | undefined) => {
+      if (attachmentToRemove)
+        void Promise.resolve()
+          .then(() => services.removeAttachment?.(attachmentToRemove))
+          .catch(() => undefined);
+    };
+
+    const label = {
+      starting: messages.startingMicrophone,
+      recording: messages.stopAndSaveRecording,
+      stopping: messages.savingRecording,
+      idle: value ? messages.replaceAudio : messages.recordAudio
+    }[phase];
 
     return (
       <View>
@@ -1784,13 +1923,10 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           accessibilityState={{ disabled, busy: phase === "starting" || phase === "stopping" }}
           aria-invalid={issues.length > 0 || undefined}
           testID={`question-${question.name}`}
-          aria-describedby={
-            !services.startAudioRecording && !services.captureAudio
-              ? `question-${question.name}-unavailable`
-              : undefined
-          }
+          aria-describedby={recordingUnavailable ? `question-${question.name}-unavailable` : undefined}
           style={[
             questionControlStyles.button,
+            questionControlStyles.buttonCompact,
             issues.length > 0 && questionControlStyles.buttonError,
             disabled && questionControlStyles.buttonDisabled
           ]}
@@ -1798,30 +1934,56 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           onPress={async () => {
             if (readOnly) return;
             setRecordingError(undefined);
+            const operationId = ++requestId.current;
             try {
               if (phase === "recording" && session.current) {
+                const activeSession = session.current;
                 setPhase("stopping");
-                const recorded = await session.current.stop();
+                const recorded = await activeSession.stop();
+                if (!mounted.current || requestId.current !== operationId) {
+                  removeOldAttachment(attachmentReference(recorded));
+                  return;
+                }
                 session.current = undefined;
-                if (currentAttachment) await services.removeAttachment?.(currentAttachment);
                 onAnswer(recorded);
+                removeOldAttachment(currentAttachment);
+                setRecordingStartedAt(undefined);
+                setRecordingElapsed(0);
                 setPhase("idle");
                 return;
               }
               if (services.startAudioRecording) {
                 setPhase("starting");
-                session.current = await services.startAudioRecording(question, data);
+                const nextSession = await services.startAudioRecording(question, data);
+                if (!mounted.current || requestId.current !== operationId) {
+                  cancelSession(nextSession);
+                  return;
+                }
+                session.current = nextSession;
+                setRecordingStartedAt(globalThis.Date.now());
+                setRecordingElapsed(0);
                 setPhase("recording");
                 return;
               }
               if (!services.captureAudio) return;
               setPhase("starting");
               const recorded = await services.captureAudio(question, data);
-              if (currentAttachment) await services.removeAttachment?.(currentAttachment);
+              if (!mounted.current || requestId.current !== operationId) {
+                removeOldAttachment(attachmentReference(recorded));
+                return;
+              }
               onAnswer(recorded);
+              removeOldAttachment(currentAttachment);
+              setRecordingStartedAt(undefined);
+              setRecordingElapsed(0);
               setPhase("idle");
             } catch (error) {
+              if (!mounted.current || requestId.current !== operationId) return;
+              const activeSession = session.current;
               session.current = undefined;
+              if (activeSession) cancelSession(activeSession);
+              setRecordingStartedAt(undefined);
+              setRecordingElapsed(0);
               setPhase("idle");
               setRecordingError(
                 typeof DOMException !== "undefined" &&
@@ -1835,12 +1997,53 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         >
           <PrimitiveText style={questionControlStyles.buttonText}>{label}</PrimitiveText>
         </Pressable>
+        {phase === "recording" ? (
+          <PrimitiveText
+            accessibilityLabel={`${messages.recordingTime} ${formatRecordingTime(recordingElapsed)}`}
+            testID={`question-${question.name}-timer`}
+            style={questionControlStyles.audioTimer}
+          >
+            {messages.recordingTime} {formatRecordingTime(recordingElapsed)}
+          </PrimitiveText>
+        ) : null}
+        {services.startAudioRecording && (phase === "starting" || phase === "recording") ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={readOnly}
+            testID={`question-${question.name}-cancel`}
+            style={[
+              questionControlStyles.button,
+              questionControlStyles.buttonSecondary,
+              questionControlStyles.buttonCompact
+            ]}
+            onPress={cancelRecording}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
+              {messages.cancelRecording}
+            </PrimitiveText>
+          </Pressable>
+        ) : null}
+        {playbackLoading ? (
+          <PrimitiveText style={questionControlStyles.hint}>{messages.loadingAudio}</PrimitiveText>
+        ) : null}
+        {phase === "idle" && previewUri && AudioPlayer ? (
+          <AudioPlayer
+            accessibilityLabel={messages.recorded}
+            onError={() => setPlaybackError(messages.savedAudioLoadFailed)}
+            uri={previewUri}
+          />
+        ) : null}
+        {playbackError ? (
+          <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
+            {playbackError}
+          </PrimitiveText>
+        ) : null}
         {recordingError ? (
           <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
             {recordingError}
           </PrimitiveText>
         ) : null}
-        {!services.startAudioRecording && !services.captureAudio ? (
+        {recordingUnavailable ? (
           <PrimitiveText
             nativeID={`question-${question.name}-unavailable`}
             style={questionControlStyles.hint}

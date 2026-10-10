@@ -189,6 +189,8 @@ export const questionControlStyles = {
   dropdownList: { marginTop: 6 },
   hint: withWebTheme({ color: "#536b64", fontSize: 13, marginBottom: 10 }, { color: "muted" }),
   actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, marginTop: 8 },
+  buttonCompact: { alignSelf: "flex-start" as const },
+  audioTimer: withWebTheme({ color: "#536b64", fontSize: 14, marginTop: 6 }, { color: "muted" }),
   button: withWebTheme(
     {
       minHeight: 44,

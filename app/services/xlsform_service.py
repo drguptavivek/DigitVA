@@ -530,9 +530,14 @@ def _move_into_group(survey: list[dict], row: dict, group: str) -> None:
     raise XlsFormError(f"Deviation moves {row.get('name')} into {group}, which the WHO form lacks.", status_code=500)
 
 
-def _apply_changes(survey: list[dict], blocks: list[_Block]) -> None:
-    """Replace the WHO cells a block's ``change`` names; refuse a missing row."""
+def _apply_changes(survey: list[dict], blocks: list[_Block]) -> set[tuple[str, str]]:
+    """Replace the WHO cells a block's ``change`` names; refuse a missing row.
+
+    Return the cells explicitly cleared by an override so translation
+    attachment cannot repopulate a deliberately empty localized field.
+    """
     by_name = {row["name"]: row for row in survey if row.get("name")}
+    cleared: set[tuple[str, str]] = set()
     for block in blocks:
         for change in block.change:
             row = by_name.get(change["name"])
@@ -541,8 +546,11 @@ def _apply_changes(survey: list[dict], blocks: list[_Block]) -> None:
             for column, value in change["cells"].items():
                 if _blank(value) is None:
                     row.pop(column, None)
+                    cleared.add((change["name"], column))
                 else:
                     row[column] = value
+                    cleared.discard((change["name"], column))
+    return cleared
 
 
 def _splice(survey: list[dict], blocks: list[_Block]) -> list[dict]:
@@ -680,7 +688,7 @@ def compose_project_form(
     reference_survey, reference_choices, settings = _reference()
     survey = copy.deepcopy(list(reference_survey))
     reference_choices = _apply_deviations(survey, copy.deepcopy(list(reference_choices)))
-    _apply_changes(survey, blocks)
+    cleared_cells = _apply_changes(survey, blocks)
     survey = _splice(survey, blocks)
 
     languages = [(BASE_LOCALE, BASE_LANGUAGE_NAME), *_display_locales(project)]
@@ -718,20 +726,33 @@ def compose_project_form(
         extensions=list(extensions),
         style=str(settings.get("style") or "pages"),
     )
-    _attach_translations(form, translations)
+    _attach_translations(form, translations, cleared_cells=cleared_cells)
     return form
 
 
-def _attach_translations(form: XlsForm, translations: dict[str, dict]) -> None:
+def _attach_translations(
+    form: XlsForm,
+    translations: dict[str, dict],
+    *,
+    cleared_cells: set[tuple[str, str]] | frozenset[tuple[str, str]] = frozenset(),
+) -> None:
     """Add ``<field>::<code>`` keys to rows; the choice labels of project lists
-    (languages, sites, narration, units) read the same in every language."""
+    (languages, sites, narration, units) read the same in every language.
+
+    A cleared English cell is an intentional override, so its localized
+    translations are cleared with it rather than reintroducing the old value.
+    """
     for row in form.survey:
         name = row.get("name")
         if not name:
             continue
         for code, payload in translations.items():
             for field_name, text in (payload["questions"].get(name) or {}).items():
-                if field_name in _TRANSLATED_SURVEY_FIELDS and text:
+                if (
+                    field_name in _TRANSLATED_SURVEY_FIELDS
+                    and (name, field_name) not in cleared_cells
+                    and text
+                ):
                     row[f"{field_name}::{code}"] = text
     for row in form.choices:
         label = row.get("label")

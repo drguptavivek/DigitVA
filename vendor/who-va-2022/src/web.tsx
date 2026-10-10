@@ -91,6 +91,20 @@ const TextInput = themedPrimitive(WebTextInput, "WhoVaWebTextInput");
 const Pressable = themedPrimitive(WebPressable, "WhoVaWebPressable");
 const ScrollView = themedPrimitive(WebScrollView, "WhoVaWebScrollView");
 const Image = themedPrimitive(WebImage, "WhoVaWebImage");
+export const WebAudioPlayer: React.ComponentType<{
+  uri: string;
+  accessibilityLabel: string;
+  onError: () => void;
+}> = ({ uri, accessibilityLabel, onError }) => (
+  <audio
+    controls
+    preload="metadata"
+    src={uri}
+    aria-label={accessibilityLabel}
+    onError={onError}
+    style={{ display: "block", width: "100%", maxWidth: 640 }}
+  />
+);
 const Svg = React.forwardRef<SVGSVGElement, React.SVGProps<SVGSVGElement>>((props, ref) => (
   <svg {...props} ref={ref} />
 ));
@@ -582,6 +596,7 @@ export const WhoVaForm = createWhoVaForm(
     Pressable,
     ScrollView,
     Image,
+    AudioPlayer: WebAudioPlayer,
     Modal: WebModal,
     Svg,
     SvgCircle,
@@ -600,6 +615,7 @@ export const WhoVaQuestionControls = createWhoVaQuestionControls({
   Select: WebSelect,
   PartialSelect: WebSelect,
   Pressable,
+  AudioPlayer: WebAudioPlayer,
   Image
 });
 export type { WhoVaQuestionControlProps } from "./ui/question-controls.js";

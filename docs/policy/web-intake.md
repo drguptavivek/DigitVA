@@ -382,6 +382,8 @@ stay on the server draft only.
   page lists the file (named by the question it answers, never by file name)
   with the reason and offers to delete it; it is not retried, and the
   seven-day rule still applies.
+- **Typed narrative.** DigitVA overrides WHO’s audio-empty relevance for `Id10476`: typed narrative is always visible, required and multiline, as in the ICMR XLSForms. Audio and narrative images remain optional; saving either does not hide or discard typed narrative. Apply this override in both browser and server instrument composition, without changing the WHO source XLSForm.
+- **Audio review.** The web questionnaire shows elapsed time while recording and lets the interviewer stop and save or cancel. Saved recordings have playback controls. Starting or cancelling a replacement, or a recording failure, preserves the previous answer; replacement happens only after a new recording is saved. Playback uses the protected attachment service and temporary URLs released when no longer used. The questionnaire page permits blob media URLs for these previews; other pages retain the default media policy and attachment responses remain inert.
 - **Deleted once the server confirms.** The encrypted copy is removed as soon
   as the server answers `200`/`201` with the stored record. The form then
   shows the file from the server copy.

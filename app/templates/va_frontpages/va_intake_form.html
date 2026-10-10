@@ -686,7 +686,7 @@ async function main() {
   // composed into chosenInstrument above; this is only the welcome-screen
   // check, which the instrument itself has no notion of.
   const extensions = options.enabled_extensions || [];
-  if (extensions.includes("intake_screen") && options.intake_note) {
+  if (!DRAFT.current_section && extensions.includes("intake_screen") && options.intake_note) {
     // The note is project text: set it as text, never as markup.
     $("wv-intake-note").textContent = options.intake_note;
     const screen = $("wv-intake-screen");

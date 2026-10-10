@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-10
 ---
 
 # DORIS COD Workflow
@@ -285,6 +285,12 @@ application POSTs, and a 12-second response deadline. Its read-only ECT
 proxy is the sole CSRF-exempt POST. Both ingress and Gunicorn omit query
 strings from access logs. Direct access to the clinical app does not serve
 the public DORIS demonstration; the public hostname must point to the ingress.
+
+The anonymous `/help/icd11-codes` browser links to this synthetic, unsaved
+demo through the ingress. In local debug, the clinical app shows that link
+only for `localhost:8051` or `127.0.0.1:8051` and targets the local ingress on
+port 8052. A remote host served directly by the clinical app does not show
+that development link.
 
 The ingress passes incoming `X-Forwarded-For` and `X-Forwarded-Proto` through
 unchanged, falling back to its own peer address and scheme only when they are

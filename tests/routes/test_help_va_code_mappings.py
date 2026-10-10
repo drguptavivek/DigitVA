@@ -239,6 +239,45 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertIn("params.set('origin', state.filters.origin)", alias)
         self.assertIn("async function updateFiltersFromInputs(event)", alias)
 
+    def test_icd11_browser_links_to_public_doris_demo_in_dev_and_through_ingress(self):
+        with mock.patch.dict(self.app.config, {"DEBUG": True}):
+            local = self.client.get("/help/icd11-codes", base_url="http://localhost:8051")
+            self.assertEqual(local.status_code, 200)
+            self.assertIn("ICD-11 Code Browser", local.get_data(as_text=True))
+            self.assertIn(
+                'href="http://localhost:8052/help/doris-demo"',
+                local.get_data(as_text=True),
+            )
+            loopback = self.client.get("/help/icd11-codes", base_url="http://127.0.0.1:8051")
+            self.assertEqual(loopback.status_code, 200)
+            self.assertIn(
+                'href="http://localhost:8052/help/doris-demo"',
+                loopback.get_data(as_text=True),
+            )
+
+            remote = self.client.get("/help/icd11-codes", base_url="http://digitva.example:8051")
+            self.assertEqual(remote.status_code, 200)
+            remote_body = remote.get_data(as_text=True)
+            self.assertIn("ICD-11 Code Browser", remote_body)
+            self.assertNotIn("Try DORIS &amp; CoDEdit", remote_body)
+
+        with mock.patch.dict(self.app.config, {"DEBUG": False}):
+            local_production = self.client.get(
+                "/help/icd11-codes", base_url="http://localhost:8051"
+            )
+            self.assertEqual(local_production.status_code, 200)
+            self.assertIn("ICD-11 Code Browser", local_production.get_data(as_text=True))
+            self.assertNotIn("Try DORIS &amp; CoDEdit", local_production.get_data(as_text=True))
+            ingress = self.client.get(
+                "/help/icd11-codes",
+                base_url="https://digitva.example",
+                headers={"X-DigitVA-Public-Ingress": "1"},
+            )
+        self.assertEqual(ingress.status_code, 200)
+        self.assertIn("ICD-11 Code Browser", ingress.get_data(as_text=True))
+        self.assertIn('href="/help/doris-demo"', ingress.get_data(as_text=True))
+        self.assertIn("without signing in", ingress.get_data(as_text=True))
+
     def test_icd11_browser_children_are_filtered_and_include_policy_fields(self):
         row = db.session.scalar(
             db.select(MasIcd11Mms).where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "KD3B.0")

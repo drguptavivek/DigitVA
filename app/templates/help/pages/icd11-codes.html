@@ -12,12 +12,17 @@
   certificate.
 </p>
 
+{% set doris_demo_url = none %}
 {% if request.headers.get('X-DigitVA-Public-Ingress') == '1' %}
-<p>
-  To practise entering a complete death certificate and see separate DORIS
-  and CoDEdit results, open the
-  <a href="{{ url_for('help.page', slug='doris-demo') }}">DORIS training demonstration</a>.
-  It uses synthetic examples and does not save the certificate.
+  {% set doris_demo_url = url_for('help.page', slug='doris-demo') %}
+{% elif config.DEBUG and request.host in ('localhost:8051', '127.0.0.1:8051') %}
+  {% set doris_demo_url = 'http://localhost:8052/help/doris-demo' %}
+{% endif %}
+{% if doris_demo_url %}
+<p class="my-3">
+  Try the DORIS and CoDEdit workflow without signing in. The demonstration
+  uses synthetic examples and does not save the certificate.
+  <a class="btn btn-outline-primary ms-2" href="{{ doris_demo_url }}">Try DORIS &amp; CoDEdit</a>
 </p>
 {% endif %}
 

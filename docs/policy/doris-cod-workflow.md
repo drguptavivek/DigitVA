@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-10
 ---
 
 # DORIS COD Workflow Policy
@@ -171,3 +171,6 @@ POSTs require CSRF; only the read-only WHO ECT proxy POST is exempt because
 ECT cannot attach the token. Release validation must show five parallel
 public Process submissions while clinical requests remain responsive.
 Input, output, time and access-log limits apply before public release.
+The anonymous ICD-11 Help browser links to the demo through public ingress;
+only local debug requests on loopback port 8051 target the development ingress
+on port 8052.

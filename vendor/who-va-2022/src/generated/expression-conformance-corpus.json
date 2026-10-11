@@ -16316,6 +16316,85 @@
         {
           "currentValue": null,
           "data": {
+            "Id10013": "",
+            "Id10017": "",
+            "Id10019": "",
+            "Id10023": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "yes",
+            "Id10017": "hello world",
+            "Id10019": "female",
+            "Id10023": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "no",
+            "Id10017": "0",
+            "Id10019": "male",
+            "Id10023": "0"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "not_a_real_choice",
+            "Id10017": "  ",
+            "Id10019": "not_a_real_choice",
+            "Id10023": "  "
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "yes",
+            "Id10017": "0",
+            "Id10019": "not_a_real_choice",
+            "Id10023": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${Id10013}, 'no') and (string-length(${Id10017}) = 0 or string-length(${Id10019}) = 0 or string-length(${Id10023}) = 0)"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
             "Id10013": ""
           },
           "error": null,

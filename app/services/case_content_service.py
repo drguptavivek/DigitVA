@@ -49,7 +49,6 @@ from app.services.smartva_icd11 import smartva_icd11_mapping
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
 from app.services.viewer_pii_service import should_redact_pii
-from app.services.visit_note import note_from_payload, visit_note_for_viewer
 from app.utils import va_render_processcategorydata
 from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
 
@@ -158,9 +157,7 @@ def get_section_data(
 
     Returns the cached dict: ``summary_items``, ``va_processedcategorydata``,
     the ``cod_attachments_*`` and ``cod_health_history_*`` of the workflow
-    panel, ``visit_note`` (a nameless refusal's visit note: date only for a
-    no-PII viewer, None when the case has none) and ``smartva`` (cached with
-    the section, as the web always did).
+    panel and ``smartva`` (cached with the section, as the web always did).
 
     A no-PII viewer is served the redacted variant. An unconfirmed PII set
     means nobody has said which of this form type's fields are personal data,
@@ -213,9 +210,6 @@ def get_section_data(
 
     data = {
         "summary_items": build_submission_summary(form_type_code, render_payload),
-        # From the raw payload, redacted by visit_note_for_viewer itself, so the
-        # date survives an unconfirmed PII set that empties render_payload.
-        "visit_note": visit_note_for_viewer(note_from_payload(payload_data), redact_pii=redact_pii),
         "va_processedcategorydata": render(va_partial),
         "cod_attachments_data": {},
         "cod_attachments_labels": {},

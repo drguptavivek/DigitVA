@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only; one full suite per
 > commit batch:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_runner minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (4224 passed, 6.0 min, 2026-10-11). Coding goes to Sonnet code-writers
+> (4225 passed, 10 min, 2026-10-11). Coding goes to Sonnet code-writers
 > (owner, 2026-10-04); code must be fast (bd memory `perf-first`). Shared
 > checkout: the Expo session owns `mobile/` and `vendor/`; this backend
 > session commits every other file. Build commit lists with
@@ -52,13 +52,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 4. **External**: `digitva-fb5` five wrong-wording translations need Odia, Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
    `digitva-ddv.5` report to WHO; `digitva-sn1.1.7` real-device passkey; Android `kmk.5`, `kfi`; production `ddv.2`.
-5. **Visit note and menu landed** (`digitva-96a7` `50698bb6`, header fix, Manage menu). Browser-verified as admin: DM list filter and column, case-page
-   header, area dashboard cards and Visit notes column. Still unchecked in a browser: a collaborator's area dashboard (and the Final COD column),
-   redaction (unit test only), phone-width menu, passkey login. A test visit note sits on dev case `uuid:26f10840-ca9e-4700-b8e0-9ae81f7ea9d8-icmr01nd0101`
-   (delete the `visit_*` payload keys to remove). No index or `EXPLAIN` on the count. Dead code: the panel-level note in the three category
-   templates and `get_section_data` is redundant now the header shows it; remove with its tests. Menu: Intake/Coding/Review flat, one "Manage" dropdown
-   (dashboards, Supervision, KPI, Reports=COD buckets, Data Manager, People, Translations, Admin); owner may want Reports named differently.
-   Expo `digitva-gqtp` shows an intake 422's message beside its `fields`. `digitva-943l` may no longer reproduce.
+5. **Visit note and menu: browser checks done 2026-10-11** (dev). Verified: collaborator area dashboard (Final COD 820, Visit notes 1 for ND01);
+   visit-note redaction in the case header (plain collaborator: date only, "Withheld for your role"; collaborator_pii: address and remarks);
+   Manage menu at 375px as collaborator and coder (no overflow; admin earlier); web passkey register and login (Playwright virtual authenticator, credential removed).
+   Not checked: a "viewer" role distinct from collaborator. Test note and temp grants removed. EXPLAIN on the visit-note count: 4.7 ms on 8.3k
+   submissions, no index needed. `digitva-943l` did not reproduce (4225 passed): closed. Open: `digitva-4ufj` (collaborator Data page toasts
+   "data_manager access is required" for charts and coder stats); owner to say whether "Reports" is the right menu label for the COD buckets page.
+   Panel-level note removed (`digitva-a9kn`). Expo `digitva-gqtp` shows an intake 422's message beside its `fields`.
 6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe` semantic ICD search (design and quality check done,
    `docs/planning/icd-semantic-search.md`; next is the two-stage causes prototype).

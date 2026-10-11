@@ -508,7 +508,6 @@ def renderpartial(va_sid, va_partial):
             user=current_user,
         )
         summary_items = section["summary_items"]
-        visit_note = section.get("visit_note")
         va_processedcategorydata = section["va_processedcategorydata"]
         cod_attachments_data = section["cod_attachments_data"]
         cod_attachments_labels = section["cod_attachments_labels"]
@@ -590,7 +589,6 @@ def renderpartial(va_sid, va_partial):
             va_partial = va_partial,
             summary = va_submission.va_summary,
             summary_items = summary_items,
-            visit_note = visit_note,
             reviewobject = artifacts.reviewobject,
             vafinexists = artifacts.vafinexists,
             vaerrexists = artifacts.vaerrexists,

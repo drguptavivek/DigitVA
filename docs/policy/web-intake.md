@@ -219,12 +219,12 @@ submission's organization unit, falling back to the form-level setting
   notes per row and links, for a viewer with the data manager's link, to the
   data manager's record list filtered to them (`visit_note=1`, plus `org_unit`
   or `site`); each such record shows its visit date, address and remarks in
-  that list's "Visit note" column and in its case view. The note is read from
+  that list's "Visit note" column and in the case page header. The note is read from
   the active payload (`app/services/visit_note.py`). `visit_address` is a PII
   location field and `visit_remarks` is free text that can name people, so
   both are withheld from a viewer `should_redact_pii` redacts: that viewer
   sees the visit date only, decided server-side in the list API and in the
-  cached case-view section data (its own `redacted` cache variant). Server-side re-validation with
+  case page header (`coding_service`). Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
 - Submission is refused while the draft's organization unit is unplaced (no

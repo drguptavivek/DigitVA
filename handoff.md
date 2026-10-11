@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only; one full suite per
 > commit batch:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_runner minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (4025 passed, 7.5 min, 2026-10-06). Coding goes to Sonnet code-writers
+> (4209 passed, 6.7 min, 2026-10-11). Coding goes to Sonnet code-writers
 > (owner, 2026-10-04); code must be fast (bd memory `perf-first`). Shared
 > checkout: the Expo session owns `mobile/` and `vendor/`; this backend
 > session commits every other file. Build commit lists with

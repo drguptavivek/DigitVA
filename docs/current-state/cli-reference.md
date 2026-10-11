@@ -275,6 +275,18 @@ the Project Forms admin panel to remove the wrong one.
 
 ---
 
+## `kpi` — Daily KPI aggregates
+
+| Command | Description |
+|---------|-------------|
+| `kpi backfill --from D --to D [--site S]` | Recompute every column of `va_daily_kpi_aggregates` for each day in the range. Past days get today's `pending_count` and `upstream_changed_count`, so it does not preserve their backlog history. |
+| `kpi snapshot [--date D] [--site S]` | Compute one day (default yesterday). |
+| `kpi recount-day-events [--from D] [--to D] [--dry-run]` | Recompute only `consent_refused_count` and `not_codeable_count` of stored rows (default: all) from workflow events, one set-based `UPDATE`. Touches no other column, inserts no row, writes only rows whose value differs and prints how many. `--dry-run` reports the count and writes nothing. Repairs rows written before digitva-9uqn, which held a running stock. |
+
+Dates are `YYYY-MM-DD`. See [Data Manager Dashboard](data-manager-dashboard.md), "Daily Operations Grid".
+
+---
+
 ## `payload-backfill` — Enrichment and workflow repair
 
 | Command | Description |

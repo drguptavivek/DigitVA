@@ -133,6 +133,15 @@ TRANSITION_INCOMPLETE_FIRST_PASS_RESET = "incomplete_first_pass_reset"
 TRANSITION_INCOMPLETE_RECODE_RESET = "incomplete_recode_reset"
 TRANSITION_INCOMPLETE_REVIEWER_RESET = "incomplete_reviewer_reset"
 TRANSITION_DEMO_RESET = "demo_reset"
+
+#: SQL predicates over ``va_submission_workflow_events e`` for the C-01 grid's
+#: per-day "Not analysable" / "Not Codeable" counts. The live grid and the
+#: stored daily aggregates (app/tasks/kpi_tasks.py) both count these events, so
+#: the two definitions live here; docs/policy/kpis.md, C-01.
+EVENT_CONSENT_REFUSED_SQL = f"e.current_state = '{WORKFLOW_CONSENT_REFUSED}'"
+EVENT_NOT_CODEABLE_SQL = (
+    f"e.transition_id IN ('{TRANSITION_CODER_NOT_CODEABLE}', '{TRANSITION_DM_NOT_CODEABLE}')"
+)
 TRANSITION_DEMO_STARTED = "demo_started"
 # A coding_tester finished a real submission: its output is tester output and
 # the case returns to the pool (digitva-ggc3). Never counted as coded.

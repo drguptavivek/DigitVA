@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-01
+last_updated: 2026-10-11
 ---
 
 # Data Manager Dashboard
@@ -59,6 +59,26 @@ The coded COD snapshot export currently includes:
 - Social Autopsy analysis summary fields
 - raw Social Autopsy questionnaire payload fields (`sa*`) from the active
   submission payload
+
+## Daily Operations Grid
+
+C-01 reads `va_daily_kpi_aggregates` for stored days and counts the rest live
+(`app/routes/api/dm_kpi/dm_kpi_grid.py`). Both paths use the same per-day
+definitions for the two refusal columns, shared as
+`EVENT_CONSENT_REFUSED_SQL` / `EVENT_NOT_CODEABLE_SQL` in
+`app/services/workflow/definition.py`:
+
+- `consent_refused_count` ("Not analysable"): workflow events whose resulting
+  state is `consent_refused`, by `DATE(event_created_at)`.
+- `not_codeable_count`: `coder_not_codeable` and `data_manager_not_codeable`
+  events, by `DATE(event_created_at)`.
+
+They are per-day event counts like `coded_count`, not a running stock, so a
+recomputed past day refreshes them. Only `pending_count` and
+`upstream_changed_count` are end-of-day state counts that a past-day
+recompute preserves. Rows written before digitva-9uqn hold the old stock;
+repair them with `flask kpi recount-day-events` (see
+[CLI Reference](cli-reference.md)), not `kpi backfill`.
 
 ## Summary Cards
 

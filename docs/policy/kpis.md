@@ -240,11 +240,9 @@ every interview that cannot be analysed, whatever the reason.
   nothing stored: the API serves it as `not_analysable.by_reason`, the
   dashboard card as `not_analysable_by_reason`. The old `consent_refused`
   response key is kept with the same count. The daily grid shows the total
-  by default and offers Refused / Respondent unavailable / Partially completed
-  as optional columns the user turns on (owner, 2026-10-09; not built yet).
-  They follow the same reason rule as above and sum to the total; they must
-  come from the stored daily aggregates or one grouped query, never a query
-  per row.
+  only (owner, 2026-10-10: keep the grid simple). The per-reason split lives
+  on the C-06 card and the dashboard card, not in the grid; stored grid days
+  hold no reasons, and splitting them would mean estimates.
 - **Denominator:** COUNT of ALL-SYNCED
 - **Rate:** N / D × 100
 - **Time Frames:** Today, 7d, cumulative

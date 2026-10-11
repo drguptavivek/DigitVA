@@ -35,6 +35,7 @@ from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.definition import EVENT_CONSENT_REFUSED_SQL, EVENT_NOT_CODEABLE_SQL
 from app.routes.api.dm_kpi.dm_kpi_scope import DmScope, cached_kpi, dm_scope
 
 bp = Blueprint("dm_kpi_grid", __name__)
@@ -114,8 +115,8 @@ def _live_daily_counts(scope_sql: str, scope_params: dict, from_date: date) -> d
     params = {**IN_ODK_BIND, **scope_params, "from_date": from_date}
     event_counts = {
         "coded": "e.transition_id IN ('coder_finalized', 'recode_finalized')",
-        "not_codeable": "e.transition_id IN ('coder_not_codeable', 'data_manager_not_codeable')",
-        "consent_refused": "e.current_state = 'consent_refused'",
+        "not_codeable": EVENT_NOT_CODEABLE_SQL,
+        "consent_refused": EVENT_CONSENT_REFUSED_SQL,
     }
     counts: dict[str, dict[str, int]] = {}
 

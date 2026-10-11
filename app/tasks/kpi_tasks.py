@@ -13,6 +13,7 @@ import sqlalchemy as sa
 
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.definition import EVENT_CONSENT_REFUSED_SQL, EVENT_NOT_CODEABLE_SQL
 from app.services.workflow.revision_request_sql import odk_changed_sql
 
 log = get_task_logger(__name__)
@@ -20,10 +21,9 @@ log = get_task_logger(__name__)
 _IN_ODK_SQL = in_odk_sql("s")
 # Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
 _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
-#: Counted from current workflow state whatever the snapshot date.
-_END_OF_DAY_COLUMNS = (
-    "pending_count", "consent_refused_count", "not_codeable_count", "upstream_changed_count",
-)
+#: Counted from current workflow state whatever the snapshot date. The other
+#: columns, consent refused and not codeable included, are per-day event counts.
+_END_OF_DAY_COLUMNS = ("pending_count", "upstream_changed_count")
 
 
 @shared_task(
@@ -44,8 +44,8 @@ def compute_daily_kpi_snapshot(self, snapshot_date=None, site_ids=None):
       - updated_from_odk: submissions updated from ODK on snapshot_date
       - coded_count: submissions finalized/recoded on snapshot_date
       - pending_count: end-of-day count in pending states
-      - consent_refused_count: end-of-day count in consent_refused state
-      - not_codeable_count: end-of-day count in not_codeable states
+      - consent_refused_count: events that resulted in consent_refused on snapshot_date
+      - not_codeable_count: coder / data-manager not-codeable events on snapshot_date
       - coding_duration percentiles: min/max/p50/p90 of coding duration
       - reviewer_finalized_count: forms finalized by reviewer on snapshot_date
       - upstream_changed_count: forms with upstream changes as of snapshot_date
@@ -114,7 +114,7 @@ def recompute_kpi_days_for_submission(va_sid: str) -> dict:
     (app/services/case_transition_service.py), so stored rows agree with the
     live counts, which apply the predicate at query time. The days are the
     ones the per-day counts key on (created, last ODK update, and the
-    coded / reviewer-finalized / reopened events), found with the same
+    coded / reviewer-finalized / reopened / not-codeable / consent-refused events), found with the same
     ``DATE(...)`` expressions, on the submission's form site, and only where
     a row is already stored: a missing day is live-filled by its readers.
     Past days keep their end-of-day columns (``keep_end_of_day``); today's
@@ -128,7 +128,7 @@ def recompute_kpi_days_for_submission(va_sid: str) -> dict:
     from app import db
 
     rows = db.session.execute(
-        sa.text("""
+        sa.text(f"""
             WITH sub AS (
                 SELECT f.site_id, s.va_created_at, s.va_odk_updatedat
                 FROM va_submissions s
@@ -140,8 +140,12 @@ def recompute_kpi_days_for_submission(va_sid: str) -> dict:
                 UNION SELECT DATE(e.event_created_at)
                 FROM va_submission_workflow_events e
                 WHERE e.va_sid = :va_sid
-                  AND e.transition_id IN (
-                      'coder_finalized', 'recode_finalized', 'reviewer_finalized', 'reopened'
+                  AND (
+                      e.transition_id IN (
+                          'coder_finalized', 'recode_finalized', 'reviewer_finalized', 'reopened'
+                      )
+                      OR {EVENT_NOT_CODEABLE_SQL}
+                      OR {EVENT_CONSENT_REFUSED_SQL}
                   )
             )
             SELECT a.site_id, a.snapshot_date, a.snapshot_date < CURRENT_DATE AS past
@@ -161,8 +165,9 @@ def recompute_kpi_days_for_submission(va_sid: str) -> dict:
 def _compute_site_snapshot(db, snapshot_date: date, site_id: str, keep_end_of_day: bool = False) -> None:
     """Compute and upsert KPI aggregates for a single site and date.
 
-    The end-of-day columns (pending, consent refused, not codeable, upstream
-    changed) count *current* workflow state. ``keep_end_of_day`` recounts
+    The end-of-day columns (pending, upstream changed) count *current*
+    workflow state; consent refused and not codeable are per-day event counts
+    like coded, so a recompute refreshes them for a past day too. ``keep_end_of_day`` recounts
     only the other columns and keeps the stored end-of-day ones, so a past
     day recomputed later keeps the backlog it had (backlog_trend reads it as
     history); it is meant for rows that already exist.
@@ -194,6 +199,8 @@ def _compute_site_snapshot(db, snapshot_date: date, site_id: str, keep_end_of_da
         "coded_count": _count_coded(db, site_id, snapshot_date),
         "reviewer_finalized_count": _count_reviewer_finalized(db, site_id, snapshot_date),
         "reopened_count": _count_reopened(db, site_id, snapshot_date),
+        "consent_refused_count": _count_consent_refused(db, site_id, snapshot_date),
+        "not_codeable_count": _count_not_codeable(db, site_id, snapshot_date),
     }
     if keep_end_of_day:
         # NULL keeps the stored value (COALESCE in the upsert below).
@@ -201,8 +208,6 @@ def _compute_site_snapshot(db, snapshot_date: date, site_id: str, keep_end_of_da
     else:
         data.update({
             "pending_count": _count_pending_eod(db, site_id, snapshot_date),
-            "consent_refused_count": _count_consent_refused_eod(db, site_id, snapshot_date),
-            "not_codeable_count": _count_not_codeable_eod(db, site_id, snapshot_date),
             "upstream_changed_count": _count_upstream_changed_eod(db, site_id, snapshot_date),
         })
 
@@ -234,8 +239,8 @@ def _compute_site_snapshot(db, snapshot_date: date, site_id: str, keep_end_of_da
             updated_from_odk = EXCLUDED.updated_from_odk,
             coded_count = EXCLUDED.coded_count,
             pending_count = COALESCE(EXCLUDED.pending_count, va_daily_kpi_aggregates.pending_count),
-            consent_refused_count = COALESCE(EXCLUDED.consent_refused_count, va_daily_kpi_aggregates.consent_refused_count),
-            not_codeable_count = COALESCE(EXCLUDED.not_codeable_count, va_daily_kpi_aggregates.not_codeable_count),
+            consent_refused_count = EXCLUDED.consent_refused_count,
+            not_codeable_count = EXCLUDED.not_codeable_count,
             coding_duration_min = EXCLUDED.coding_duration_min,
             coding_duration_max = EXCLUDED.coding_duration_max,
             coding_duration_p50 = EXCLUDED.coding_duration_p50,
@@ -342,38 +347,38 @@ def _count_pending_eod(db, site_id: str, snapshot_date: date) -> int:
     return count
 
 
-def _count_consent_refused_eod(db, site_id: str, snapshot_date: date) -> int:
-    """Count submissions in consent_refused state as of end of snapshot_date."""
+def _count_consent_refused(db, site_id: str, snapshot_date: date) -> int:
+    """Count events that resulted in consent_refused on snapshot_date."""
     count = db.session.execute(
         sa.text(f"""
-            SELECT COUNT(*) FROM va_submission_workflow w
-            JOIN va_submissions s ON s.va_sid = w.va_sid
+            SELECT COUNT(*) FROM va_submission_workflow_events e
+            JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
-              AND w.workflow_state = 'consent_refused'
+              AND {EVENT_CONSENT_REFUSED_SQL}
+              AND DATE(e.event_created_at) = :snapshot_date
         """),
-        {**IN_ODK_BIND, "site_id": site_id},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 
 
-def _count_not_codeable_eod(db, site_id: str, snapshot_date: date) -> int:
-    """Count submissions in not_codeable states as of end of snapshot_date."""
+def _count_not_codeable(db, site_id: str, snapshot_date: date) -> int:
+    """Count coder / data-manager not-codeable events on snapshot_date."""
     count = db.session.execute(
         sa.text(f"""
-            SELECT COUNT(*) FROM va_submission_workflow w
-            JOIN va_submissions s ON s.va_sid = w.va_sid
+            SELECT COUNT(*) FROM va_submission_workflow_events e
+            JOIN va_submissions s ON s.va_sid = e.va_sid
             JOIN va_forms f ON f.form_id = s.va_form_id
             WHERE f.site_id = :site_id
               AND {_IN_ODK_SQL}
               AND {_NOT_DUPLICATE_SQL}
-              AND w.workflow_state IN (
-                  'not_codeable_by_coder', 'not_codeable_by_data_manager'
-              )
+              AND {EVENT_NOT_CODEABLE_SQL}
+              AND DATE(e.event_created_at) = :snapshot_date
         """),
-        {**IN_ODK_BIND, "site_id": site_id},
+        {**IN_ODK_BIND, "site_id": site_id, "snapshot_date": snapshot_date},
     ).scalar() or 0
     return count
 

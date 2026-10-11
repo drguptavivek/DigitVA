@@ -17,7 +17,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only; one full suite per
 > commit batch:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_runner minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (4209 passed, 6.7 min, 2026-10-11). Coding goes to Sonnet code-writers
+> (4224 passed, 6.0 min, 2026-10-11). Coding goes to Sonnet code-writers
 > (owner, 2026-10-04); code must be fast (bd memory `perf-first`). Shared
 > checkout: the Expo session owns `mobile/` and `vendor/`; this backend
 > session commits every other file. Build commit lists with
@@ -52,13 +52,10 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 4. **External**: `digitva-fb5` five wrong-wording translations need Odia, Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
    `digitva-ddv.5` report to WHO; `digitva-sn1.1.7` real-device passkey; Android `kmk.5`, `kfi`; production `ddv.2`.
-5. **Owner decisions of 2026-10-09, still to build**: `digitva-96a7` show the
-   intake visit note (area table count linking to the DM record list, note in
-   that list and the case view, address redacted for non-PII viewers;
-   `docs/policy/web-intake.md` "Visit note"); Expo `digitva-gqtp` shows an
-   intake 422's message beside its `fields` (server half landed). Browser
-   check owed for the area dashboard's two cards and Final COD column, as a
-   project-wide user and as a collaborator.
+5. **Visit note landed** (`digitva-96a7`, `50698bb6`): still unchecked in a browser (case-view block, DM column, filter pills, area column); no
+   index or `EXPLAIN` on the count. Also owed: browser check of the area dashboard's two cards and Final COD column, as a project-wide user and as a
+   collaborator. Expo `digitva-gqtp` shows an intake 422's message beside its `fields` (server half landed). Pending bead cleanup:
+   `digitva-943l` may no longer reproduce (full suite clean 2026-10-11); `digitva-sn1`/`sn1.1` kept open only for `sn1.1.7`.
 6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe` semantic ICD search (design and quality check done,
    `docs/planning/icd-semantic-search.md`; next is the two-stage causes prototype).
@@ -129,5 +126,5 @@ umn.
 - "Reset from source" on `WHO_2022_VA_2026` drops the Fresh stillbirth node and ICD-11 rows (a snapshot is taken first); run
   `flask cod-buckets generate-icd11` again after a whole-scheme reset.
 - `scheme.icd11_method` still accepts `crosswalk` though nothing uses it.
-- `docs/audits/11-authz-cross-app.md` is untracked and not from this session; leave it to its author.
+- `docs/audits/11-authz-cross-app.md` is committed (`b879c11d`, owner's own session).
 - `stash@{0}` (WIP on `a24ea0a`) is from an old incident; drop it only after someone confirms it holds nothing needed.

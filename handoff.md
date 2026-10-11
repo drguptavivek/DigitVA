@@ -52,10 +52,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 4. **External**: `digitva-fb5` five wrong-wording translations need Odia, Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
    `digitva-ddv.5` report to WHO; `digitva-sn1.1.7` real-device passkey; Android `kmk.5`, `kfi`; production `ddv.2`.
-5. **Visit note landed** (`digitva-96a7`, `50698bb6`): still unchecked in a browser (case-view block, DM column, filter pills, area column); no
-   index or `EXPLAIN` on the count. Also owed: browser check of the area dashboard's two cards and Final COD column, as a project-wide user and as a
-   collaborator. Expo `digitva-gqtp` shows an intake 422's message beside its `fields` (server half landed). Pending bead cleanup:
-   `digitva-943l` may no longer reproduce (full suite clean 2026-10-11); `digitva-sn1`/`sn1.1` kept open only for `sn1.1.7`.
+5. **Visit note and menu landed** (`digitva-96a7` `50698bb6`, header fix, Manage menu). Browser-verified as admin: DM list filter and column, case-page
+   header, area dashboard cards and Visit notes column. Still unchecked in a browser: a collaborator's area dashboard (and the Final COD column),
+   redaction (unit test only), phone-width menu, passkey login. A test visit note sits on dev case `uuid:26f10840-ca9e-4700-b8e0-9ae81f7ea9d8-icmr01nd0101`
+   (delete the `visit_*` payload keys to remove). No index or `EXPLAIN` on the count. Dead code: the panel-level note in the three category
+   templates and `get_section_data` is redundant now the header shows it; remove with its tests. Menu: Intake/Coding/Review flat, one "Manage" dropdown
+   (dashboards, Supervision, KPI, Reports=COD buckets, Data Manager, People, Translations, Admin); owner may want Reports named differently.
+   Expo `digitva-gqtp` shows an intake 422's message beside its `fields`. `digitva-943l` may no longer reproduce.
 6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe` semantic ICD search (design and quality check done,
    `docs/planning/icd-semantic-search.md`; next is the two-stage causes prototype).

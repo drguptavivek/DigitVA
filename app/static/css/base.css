@@ -128,9 +128,17 @@ footer {
 .navbar .nav-link {
   color: var(--color-white) !important;
   font-weight: 500;
-  padding: 0rem 1rem;
+  padding: 0rem 0.6rem;
   opacity: 0.9;
   font-size: 1rem;
+  white-space: nowrap;
+}
+
+/* Below the xl breakpoint the links stack inside the toggler; give them room. */
+@media (max-width: 1199.98px) {
+  .navbar .nav-link {
+    padding: 0.5rem 0.6rem;
+  }
 }
 
 .navbar-toggler {

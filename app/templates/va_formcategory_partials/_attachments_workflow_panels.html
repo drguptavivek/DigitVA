@@ -2,7 +2,7 @@
 {% set is_active_coding_session = va_actiontype == "vastartcoding" or va_actiontype == "vapickcoding" or va_actiontype == "varesumecoding" or va_actiontype == "vademo_start_coding" %}
 {% set is_active_reviewing_session = va_actiontype == "vastartreviewing" or va_actiontype == "varesumereviewing" %}
 {% set show_nqa_before_summary = narrative_qa_enabled and (is_active_coding_session or is_active_reviewing_session) %}
-{% if summary_items and not show_nqa_before_summary %}
+{% if (summary_items or visit_note) and not show_nqa_before_summary %}
   {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
 {% endif %}
 
@@ -385,6 +385,6 @@
     </script>
 {% endif %}
 
-{% if summary_items and show_nqa_before_summary %}
+{% if (summary_items or visit_note) and show_nqa_before_summary %}
   {% include 'va_formcategory_partials/_submission_summary_panel.html' %}
 {% endif %}

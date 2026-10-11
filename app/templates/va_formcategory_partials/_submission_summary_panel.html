@@ -1,3 +1,20 @@
+{% if visit_note %}
+  <div class="content-section-title mt-2">
+    <i class="fas fa-house-circle-xmark"></i>
+    Visit note
+  </div>
+  <table class="table table-sm border">
+    <tbody>
+      {% if visit_note.date %}<tr><th class="w-25">Visit date</th><td>{{ visit_note.date }}</td></tr>{% endif %}
+      {% if visit_note.redacted %}
+        <tr><th>Address and remarks</th><td class="text-muted">Withheld for your role.</td></tr>
+      {% else %}
+        {% if visit_note.address %}<tr><th>Address</th><td>{{ visit_note.address }}</td></tr>{% endif %}
+        {% if visit_note.remarks %}<tr><th>Remarks</th><td>{{ visit_note.remarks }}</td></tr>{% endif %}
+      {% endif %}
+    </tbody>
+  </table>
+{% endif %}
 {% if summary_items %}
   <div class="content-section-title mt-2">
     <i class="fas fa-file-alt"></i>

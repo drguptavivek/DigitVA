@@ -142,6 +142,7 @@ Current load path:
 - the Mermaid workflow guide is served from `static/js/data_manager_workflow_guide.js` and only loads Mermaid when the guide is opened
 - the table rows load lazily through the paginated API
 - AG Grid uses the infinite row model and fetches rows from `/api/v1/data-management/submissions`
+- the submissions API also takes `visit_note=1` (only cases whose active payload has a visit note) and `org_unit=<uuid>` (that unit's subtree, within the viewer's scope), both sent by the area dashboard's Visit notes link; each row carries `visit_note` (date, address, remarks; date only for a viewer `should_redact_pii` redacts), read in one query per page. The CSV exports do not take these two filters
 - the submissions API avoids a full `COUNT(*)` on each page request by over-fetching one row to detect the end of the result set
 - the page opts out of the shared DataTables, jQuery, Select2, Cropper, and HTMX assets from the VA base template
 - Chart.js is loaded only when deferred chart rendering begins

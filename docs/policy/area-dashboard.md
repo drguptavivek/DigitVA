@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-09
+last_updated: 2026-10-11
 ---
 
 # Area Dashboard Policy
@@ -120,13 +120,19 @@ finalized column, labelled "Coded (coder finalized)", and adds a live "Final
 COD" column on the authority definition. Every such heading carries a one-line definition (visible text or
 tooltip), and the two never share a label.
 
-**Visit notes column** (owner, 2026-10-09; not built yet). Each table row
-counts the nameless refusals that carry a visit note
-([Web Intake Policy](web-intake.md), "Visit note") and, for a viewer with the
-data manager's link, links to the record list filtered to them, where each
-record shows its note. The count carries no subject data. No coding
-turnaround yet: the data holds no cheap submission-to-final-COD pair on this
-path. Unit-scoped users see no card.
+**Visit notes column** (owner, 2026-10-09; built `digitva-96a7`). Each table
+row counts the nameless refusals that carry a visit note
+([Web Intake Policy](web-intake.md), "Visit note"): submissions whose active
+payload has a visit date or address, in the row's whole subtree (or site),
+live, with confirmed duplicates, retired submissions and inactive
+project-sites left out. For a viewer with the data manager's link the count
+links to the record list filtered to them (`visit_note=1` with `org_unit`,
+the subtree, or `site`; the list still applies the viewer's own scope), where
+each record shows its note, minus address and remarks for a viewer
+`should_redact_pii` redacts. The count carries no subject data. The Unrouted
+row is a count without a link. No coding turnaround yet: the data holds no
+cheap submission-to-final-COD pair on this path. Unit-scoped users see no
+card.
 
 **Freshness.** Snapshot counts carry the finish time of the last recorded
 snapshot refresh (hourly; an ad-hoc refresh records no run, so the time is a

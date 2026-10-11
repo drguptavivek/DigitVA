@@ -24,6 +24,7 @@ from app import db
 from app.models import (
     MasOdkConnections,
     MapProjectOdk,
+    MasOrgUnit,
     VaCoderReview,
     VaDataManagerReview,
     VaFinalAssessments,
@@ -110,6 +111,11 @@ from app.services.workflow.upstream_changes import (
 )
 from app.services.runtime_form_sync_service import sync_runtime_forms_from_site_mappings
 from app.services.viewer_pii_service import should_redact_pii
+from app.services.visit_note import (
+    has_visit_note_condition,
+    visit_note_for_viewer,
+    visit_notes_for,
+)
 
 
 log = logging.getLogger(__name__)
@@ -690,6 +696,20 @@ _SORT_FIELDS = {
 }
 
 
+def _org_unit_subtree_condition(raw_unit_id: str):
+    """SQL predicate: the submission is routed to *raw_unit_id* or below it.
+    A malformed id matches nothing. The caller's scope filter still applies."""
+    try:
+        unit_id = uuid.UUID(str(raw_unit_id))
+    except ValueError:
+        return sa.false()
+    anchor = sa.select(MasOrgUnit.path).where(MasOrgUnit.org_unit_id == unit_id).scalar_subquery()
+    sub = sa.orm.aliased(MasOrgUnit)
+    return VaSubmissions.org_unit_id.in_(
+        sa.select(sub.org_unit_id).where(sub.path.op("<@")(anchor))
+    )
+
+
 def dm_submissions_page(
     user,
     *,
@@ -706,13 +726,19 @@ def dm_submissions_page(
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> dict:
     """Return one page of submission rows for the data manager table.
 
     ``odk_sync`` defaults to "in sync": submissions retired from ODK are left
-    out unless it is ``"all"`` or ``"missing_in_odk"``.
+    out unless it is ``"all"`` or ``"missing_in_odk"``. ``visit_note`` ("1")
+    keeps only cases whose active payload carries a visit note; ``org_unit``
+    keeps the subtree of that organization unit (within the viewer's scope).
+    Each consent-refusal row carries ``visit_note`` (date only for a viewer
+    ``should_redact_pii`` redacts).
     """
     from app.utils import va_render_serialisedates
     coder_final_user = sa.orm.aliased(VaUsers)
@@ -804,6 +830,10 @@ def dm_submissions_page(
     if gender:
         conditions.append(VaSubmissions.va_deceased_gender == gender)
     conditions.append(_odk_sync_condition(odk_sync))
+    if visit_note == "1":
+        conditions.append(has_visit_note_condition())
+    if org_unit:
+        conditions.append(_org_unit_subtree_condition(org_unit))
     if workflow:
         if workflow == "pending_coding":
             conditions.append(VaSubmissionWorkflow.workflow_state.in_([
@@ -940,12 +970,18 @@ def dm_submissions_page(
         row["va_sid"] for row in rows if row.get("workflow_state") == "finalized_upstream_changed"
     )
 
+    # One query for the page's visit notes (consent refusals only).
+    visit_notes = visit_notes_for(
+        row["va_sid"] for row in rows if str(row.get("va_consent") or "").strip().lower() == "no"
+    )
+
     data = []
     for row in rows:
         r = va_render_serialisedates(
             dict(row),
             ["va_submission_date", "va_dmreview_createdat"],
         )
+        r["visit_note"] = visit_note_for_viewer(visit_notes.get(r["va_sid"]), redact_pii=redact_pii)
         r["coded_on"] = _format_datetime_for_current_user(row.get("coded_on"))
         r["workflow_label"] = _WORKFLOW_LABEL.get(r.get("workflow_state", ""), r.get("workflow_state", ""))
         r["revision_requested"] = r["va_sid"] in revision_sids

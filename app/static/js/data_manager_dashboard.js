@@ -44,6 +44,8 @@
     gender: '',
     odk_sync: 'in_sync',
     workflow: '',
+    visit_note: '',
+    org_unit: '',
   });
   let currentFilters = { ...DEFAULT_FILTERS };
   let currentPage = 1;
@@ -97,7 +99,7 @@
 
   function loadStateFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
       .forEach(key => {
         if (params.has(key)) currentFilters[key] = params.get(key) || '';
       });
@@ -543,6 +545,28 @@
     getGui() { return this.eGui; }
   }
 
+  /* Visit note of a nameless consent refusal. The server sends the date only
+     (redacted: true) to a viewer who may not see personal data. textContent
+     only: the address and remarks are free text. */
+  class VisitNoteRenderer {
+    init(params) {
+      this.eGui = document.createElement('span');
+      const note = params.value;
+      if (!note) {
+        this.eGui.textContent = '—';
+        return;
+      }
+      const date = note.date ? String(note.date).slice(0, 10) : '';
+      if (note.redacted) {
+        this.eGui.textContent = `${date} (address withheld)`.trim();
+        return;
+      }
+      this.eGui.textContent = [date, note.address].filter(Boolean).join(' · ');
+      if (note.remarks) this.eGui.title = note.remarks;
+    }
+    getGui() { return this.eGui; }
+  }
+
   class DateRenderer {
     init(params) {
       this.eGui = document.createElement('span');
@@ -582,6 +606,7 @@
       { field: 'coded_by', headerName: 'Coded By', width: 150 },
       { field: 'va_dmreview_createdat', headerName: 'Flagged At', width: 115, cellRenderer: DateTimeRenderer, hide: colVisibility.va_dmreview_createdat === false },
       { field: 'va_consent', headerName: 'Consent', width: 120, hide: colVisibility.va_consent === false },
+      { field: 'visit_note', headerName: 'Visit note', width: 260, cellRenderer: VisitNoteRenderer, sortable: false },
       { field: '_actions', headerName: 'Actions', width: 220, cellRenderer: ActionsRenderer, sortable: false },
     ];
   }
@@ -948,7 +973,12 @@
     gender: 'Gender',
     odk_sync: 'ODK Sync',
     workflow: 'Workflow',
+    visit_note: 'Visit note',
+    org_unit: 'Org unit',
   };
+
+  /* Filters whose pill never shows the raw URL value (an id, or a flag). */
+  const FIXED_PILL_TEXT = { visit_note: 'Only cases with a visit note', org_unit: 'Selected area' };
 
   /* Filter values whose pill text differs from the raw query value. */
   const FILTER_VALUE_LABELS = {
@@ -977,7 +1007,7 @@
       hasAny = true;
       renderTemplate.push({
         key,
-        value: (FILTER_VALUE_LABELS[key] && FILTER_VALUE_LABELS[key][val]) || val,
+        value: FIXED_PILL_TEXT[key] || (FILTER_VALUE_LABELS[key] && FILTER_VALUE_LABELS[key][val]) || val,
         label: FILTER_LABELS[key] || key,
       });
     });
@@ -1095,7 +1125,7 @@
     const includePagination = options && options.includePagination;
     const includeSelection = options && options.includeSelection;
     const params = new URLSearchParams();
-    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
       .forEach(key => {
         const value = currentFilters[key];
         if (value) params.set(key, value);

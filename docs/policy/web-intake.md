@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-11
 ---
 
 # Web Intake Policy
@@ -215,11 +215,16 @@ submission's organization unit, falling back to the form-level setting
   most 2000 characters), stores them in the submission payload and as
   `visitNote` in the draft meta, and the nameless case still closes
   `cancelled`. Every other interview is unchanged. The note is shown (owner,
-  2026-10-09; not built yet): the area dashboard table counts visit notes per
-  row and links to the data manager's record list filtered to them, and each
-  such record shows its address, visit date and remarks in that list and in
-  its case view. `visit_address` is a PII location field: a viewer
-  `should_redact_pii` redacts sees the visit date only. Server-side re-validation with
+  2026-10-09; built `digitva-96a7`): the area dashboard table counts visit
+  notes per row and links, for a viewer with the data manager's link, to the
+  data manager's record list filtered to them (`visit_note=1`, plus `org_unit`
+  or `site`); each such record shows its visit date, address and remarks in
+  that list's "Visit note" column and in its case view. The note is read from
+  the active payload (`app/services/visit_note.py`). `visit_address` is a PII
+  location field and `visit_remarks` is free text that can name people, so
+  both are withheld from a viewer `should_redact_pii` redacts: that viewer
+  sees the visit date only, decided server-side in the list API and in the
+  cached case-view section data (its own `redacted` cache variant). Server-side re-validation with
   the package's own validator is a planned sidecar (decision W1); until it
   exists the server performs structural checks only.
 - Submission is refused while the draft's organization unit is unplaced (no

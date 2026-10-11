@@ -45,7 +45,7 @@ window.DM_DASHBOARD_CONFIG = {
   mermaidSrc: {{ (url_for('static', filename='vendor/mermaid/mermaid.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }}
 };
 </script>
-<script src="{{ url_for('static', filename='js/data_manager_dashboard.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+<script src="{{ url_for('static', filename='js/data_manager_dashboard.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-vn1"></script>
 <script src="{{ url_for('static', filename='js/data_manager_workflow_guide.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
 
 {% include 'va_frontpages/data_manager_partials/_coder_daily_stats.html' %}

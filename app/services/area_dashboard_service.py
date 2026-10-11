@@ -62,6 +62,7 @@ from app.services.submission_analytics_mv import (
     get_dm_org_unit_stats_from_mv,
 )
 from app.services.viewer_pii_service import should_redact_pii
+from app.services.visit_note import has_visit_note_condition
 from app.services.workflow.definition import (
     CODING_BUCKETS,
     TRANSITION_CODER_FINALIZED,
@@ -433,16 +434,76 @@ def _final_cod_by_site(project_id: str, site_ids: list) -> dict:
     return dict(rows)
 
 
-def _counts(stats: dict | None, drafts: int, final_cod: int) -> dict:
+def _visit_note_submissions(project_id: str):
+    """(org_unit_id, site_id) of the project's submissions whose active payload
+    carries a visit note, live. Inactive project-sites, retired submissions and
+    confirmed duplicates are left out, as for the other live counts."""
+    return (
+        sa.select(VaSubmissions.va_sid, VaSubmissions.org_unit_id, VaForms.site_id)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            ),
+        )
+        .where(
+            VaForms.project_id == project_id,
+            submission_is_in_odk(VaSubmissions),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+            has_visit_note_condition(),
+        )
+        .subquery("visit_note_submissions")
+    )
+
+
+def _visit_notes_by_unit(project_id: str, unit_ids: list) -> dict:
+    """Visit-note submissions in each unit's subtree, one query."""
+    if not unit_ids:
+        return {}
+    notes = _visit_note_submissions(project_id)
+    sub_unit = sa.orm.aliased(MasOrgUnit, name="note_unit")
+    rows = db.session.execute(
+        sa.select(MasOrgUnit.org_unit_id, sa.func.count(notes.c.va_sid))
+        .select_from(MasOrgUnit)
+        .join(sub_unit, sub_unit.path.op("<@")(MasOrgUnit.path))
+        .join(notes, notes.c.org_unit_id == sub_unit.org_unit_id)
+        .where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)), sub_unit.project_id == project_id)
+        .group_by(MasOrgUnit.org_unit_id)
+    ).all()
+    return dict(rows)
+
+
+def _visit_notes_unrouted(project_id: str) -> int:
+    notes = _visit_note_submissions(project_id)
+    return db.session.scalar(
+        sa.select(sa.func.count(notes.c.va_sid)).where(notes.c.org_unit_id.is_(None))
+    ) or 0
+
+
+def _visit_notes_by_site(project_id: str, site_ids: list) -> dict:
+    notes = _visit_note_submissions(project_id)
+    rows = db.session.execute(
+        sa.select(notes.c.site_id, sa.func.count(notes.c.va_sid))
+        .where(notes.c.site_id.in_(sorted(site_ids)))
+        .group_by(notes.c.site_id)
+    ).all()
+    return dict(rows)
+
+
+def _counts(stats: dict | None, drafts: int, final_cod: int, visit_notes: int = 0) -> dict:
     stats = stats or {}
     counts = {"total_submissions": stats.get("total_submissions", 0)}
     counts.update({key: stats.get(key, 0) for key in AREA_BREAKDOWN_KEYS})
     counts["drafts_in_progress"] = drafts
     counts["final_cod"] = final_cod
+    counts["visit_notes"] = visit_notes
     return counts
 
 
-def _unit_summary_rows(scope: AreaScope, units: list) -> list[dict]:
+def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) -> list[dict]:
     unit_ids = [row.org_unit_id for row in units]
     stats = {}
     if unit_ids:
@@ -458,6 +519,7 @@ def _unit_summary_rows(scope: AreaScope, units: list) -> list[dict]:
         }
     drafts = _drafts_by_unit(scope.project_id, unit_ids)
     final_cod = _final_cod_by_unit(scope.project_id, unit_ids)
+    visit_notes = _visit_notes_by_unit(scope.project_id, unit_ids)
     return [
         {
             "kind": "unit",
@@ -469,6 +531,16 @@ def _unit_summary_rows(scope: AreaScope, units: list) -> list[dict]:
                 stats.get(str(row.org_unit_id)),
                 drafts.get(row.org_unit_id, 0),
                 final_cod.get(row.org_unit_id, 0),
+                visit_notes.get(row.org_unit_id, 0),
+            ),
+            "links": (
+                {
+                    "visit_notes": _dm_link(
+                        project=scope.project_id, org_unit=str(row.org_unit_id), visit_note="1"
+                    )
+                }
+                if dm_links
+                else {}
             ),
         }
         for row in units
@@ -486,6 +558,7 @@ def _unrouted_row(scope: AreaScope) -> dict:
             get_area_unrouted_stats_from_mv(project_id=scope.project_id),
             _unrouted_drafts(scope.project_id),
             _final_cod_unrouted(scope.project_id),
+            _visit_notes_unrouted(scope.project_id),
         ),
     }
 
@@ -525,6 +598,7 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
     }
     drafts = _drafts_by_site(scope.project_id, site_ids)
     final_cod = _final_cod_by_site(scope.project_id, site_ids)
+    visit_notes = _visit_notes_by_site(scope.project_id, site_ids)
     return [
         {
             "kind": "site",
@@ -533,10 +607,18 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
             "name": row.site_name,
             "has_children": False,
             "counts": _counts(
-                stats.get(row.site_id), drafts.get(row.site_id, 0), final_cod.get(row.site_id, 0)
+                stats.get(row.site_id),
+                drafts.get(row.site_id, 0),
+                final_cod.get(row.site_id, 0),
+                visit_notes.get(row.site_id, 0),
             ),
             "links": (
-                {"total_submissions": _dm_link(project=scope.project_id, site=row.site_id)}
+                {
+                    "total_submissions": _dm_link(project=scope.project_id, site=row.site_id),
+                    "visit_notes": _dm_link(
+                        project=scope.project_id, site=row.site_id, visit_note="1"
+                    ),
+                }
                 if dm_links
                 else {}
             ),
@@ -565,7 +647,7 @@ VIEWER_ROLE_NAMES = frozenset(role.value for role in VIEWER_ROLES)
 # the landing count disagree with the count that was clicked.
 DM_URL_FILTERS = (
     "search", "project", "site", "date_from", "date_to", "odk_status",
-    "smartva", "age_group", "gender", "odk_sync", "workflow",
+    "smartva", "age_group", "gender", "odk_sync", "workflow", "visit_note", "org_unit",
 )
 
 # Card counts that equal one data manager workflow filter exactly. The DM
@@ -744,7 +826,7 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
         "project_card": None,
     }
     at_root = not unit_id and not site_id
-    screens = link_screens(user, project_id) if at_root or not scope.has_tree else set()
+    screens = link_screens(user, project_id)
     with_card = at_root and scope.project_wide
 
     if not scope.has_tree:
@@ -773,10 +855,14 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
                 MasOrgUnit.parent_org_unit_id == unit.org_unit_id,
             ]
         )
-        result["rows"] = _unit_summary_rows(scope, units)
+        result["rows"] = _unit_summary_rows(
+            scope, units, dm_links=SCREEN_DATA_MANAGEMENT in screens
+        )
         return result
 
-    rows = _unit_summary_rows(scope, grant_root_units(scope))
+    rows = _unit_summary_rows(
+        scope, grant_root_units(scope), dm_links=SCREEN_DATA_MANAGEMENT in screens
+    )
     if scope.project_wide:
         rows.append(_unrouted_row(scope))
     result["rows"] = rows

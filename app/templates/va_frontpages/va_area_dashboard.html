@@ -64,6 +64,8 @@
           <th colspan="6" class="text-center border-start">Coding progress (snapshot)</th>
           <th rowspan="2" class="text-end border-start"
               title="Submissions with an authoritative final cause of death (coder or reviewer). Live; differs from Coded (coder finalized).">Final COD</th>
+          <th rowspan="2" class="text-end border-start"
+              title="Refusals with no identity that carry a visit note (address and visit date). Live. A count only; the data manager's list shows the notes.">Visit notes</th>
         </tr>
         <tr class="small">
           <th class="text-end border-start" title="Snapshot">Submitted</th>
@@ -85,7 +87,7 @@
   <p class="text-muted small mb-0">
     Each row counts its whole area once. Collection and coding counts come
     from the hourly snapshot; "In progress" (open web interviews) and
-    "Final COD" are live. "Coded (coder finalized)" and "Final COD" are
+    "Final COD" and "Visit notes" are live. "Coded (coder finalized)" and "Final COD" are
     different counts: the first follows the coder's finalize step, the second
     whether a final cause of death holds authority (for example, it can change
     when a reviewer takes over or a case is reopened).
@@ -119,9 +121,9 @@ document.addEventListener("DOMContentLoaded", function () {
   var COLUMNS = [
     "total_submissions", "last_7_days", "last_30_days", "drafts_in_progress",
     "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other",
-    "final_cod"
+    "final_cod", "visit_notes"
   ];
-  var BORDERED = { total_submissions: true, awaiting_coding: true, final_cod: true };
+  var BORDERED = { total_submissions: true, awaiting_coding: true, final_cod: true, visit_notes: true };
   var staffBlock = document.getElementById("area-staff-block");
   var staffToggle = document.getElementById("area-staff-toggle");
   var staffBox = document.getElementById("area-staff");
@@ -345,7 +347,7 @@ document.addEventListener("DOMContentLoaded", function () {
         ? "Snapshot counts as of " + freshness.snapshot_refreshed_display + " (refreshed hourly)"
         : "Snapshot counts: refresh time not recorded yet (refreshed hourly)";
     document.getElementById("area-live-label").textContent =
-      "In progress and Final COD: live, as of " + freshness.live_at_display;
+      "In progress, Final COD and Visit notes: live, as of " + freshness.live_at_display;
   }
 
   function staffTable(title, columns, rows) {

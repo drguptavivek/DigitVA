@@ -651,6 +651,7 @@ def category(va_sid, code):
         "label": config.display_label,
         "render_mode": config.render_mode,
         "summary_items": section["summary_items"],
+        "visit_note": section.get("visit_note"),
         "subcategories": subcategories,
         "blocked_by": [block] if block else [],
     }

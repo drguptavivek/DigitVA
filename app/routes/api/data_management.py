@@ -256,6 +256,8 @@ def submissions():
         gender=request.args.get("gender", ""),
         odk_sync=request.args.get("odk_sync", ""),
         workflow=request.args.get("workflow", ""),
+        visit_note=request.args.get("visit_note", ""),
+        org_unit=request.args.get("org_unit", ""),
         sort_field=sort_field,
         sort_dir=sort_dir,
     )

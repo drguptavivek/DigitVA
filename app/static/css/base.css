@@ -134,8 +134,8 @@ footer {
   white-space: nowrap;
 }
 
-/* Below the xl breakpoint the links stack inside the toggler; give them room. */
-@media (max-width: 1199.98px) {
+/* Below the lg breakpoint the links stack inside the toggler; give them room. */
+@media (max-width: 991.98px) {
   .navbar .nav-link {
     padding: 0.5rem 0.6rem;
   }

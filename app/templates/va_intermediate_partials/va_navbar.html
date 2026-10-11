@@ -1,4 +1,4 @@
-<nav class="navbar navbar-expand-xl navbar-dark fixed-top">
+<nav class="navbar navbar-expand-lg navbar-dark fixed-top">
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('va_main.va_index') }}">
       <img src="{{ url_for('static', filename='digitva_logo.png') }}" alt="DigitVA Logo" class="navbar-brand-logo">
@@ -12,108 +12,50 @@
 
         
 
-        {% if current_user.is_authenticated and (current_user.is_admin() or current_user.get_project_pi_projects()) %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('admin.admin_index') }}">
-              <i class="fa-solid fa-gear me-1"></i>
-              Admin
-            </a>
-          </li>
-        {% endif %}
+{% set u = current_user %}
+{% set can_admin = u.is_authenticated and (u.is_admin() or u.get_project_pi_projects()) %}
+{% set can_pi_dash = u.is_authenticated and (u.is_site_pi() or u.is_project_pi()) %}
+{% set can_supervise = u.is_authenticated and (u.is_interview_supervisor() or u.is_data_manager()) %}
+{% set has_grant = u.is_authenticated and u.has_any_active_grant() %}
+{% set is_dm = u.is_authenticated and u.is_data_manager() %}
+{% set is_viewer = u.is_authenticated and not is_dm and u.is_viewer() %}
 
-        {% if current_user.is_authenticated and (current_user.is_site_pi() or current_user.is_project_pi()) %}
-          <li class="nav-item">
-            <a class="nav-link" href="{{ url_for('sitepi.dashboard') }}">
-              <i class="fa-solid fa-chart-line"></i>
-              VA Dashboard
-            </a>
-          </li>
-        {% endif %}
+{% if u.is_authenticated and u.is_interviewer() %}
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('intake.dashboard') }}"><i class="fa-solid fa-clipboard-list me-1"></i>VA Intake</a>
+  </li>
+{% endif %}
+{% if u.is_authenticated and u.can_access_coding_dashboard() %}
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('coding.dashboard') }}"><i class="fa-solid fa-user-check me-1"></i>VA Coding</a>
+  </li>
+{% endif %}
+{% if u.is_authenticated and u.is_reviewer() %}
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('reviewing.dashboard') }}"><i class="fa-solid fa-clipboard-check me-1"></i>VA Review</a>
+  </li>
+{% endif %}
 
-  {% if current_user.is_authenticated and current_user.is_interviewer() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('intake.dashboard') }}">
-        <i class="fa-solid fa-clipboard-list me-1"></i>
-        VA Intake
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and (current_user.is_interview_supervisor() or current_user.is_data_manager()) %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('intake.supervision_page') }}">
-        <i class="fa-solid fa-user-shield me-1"></i>
-        Supervision
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and current_user.can_access_coding_dashboard() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('coding.dashboard') }}">
-        <i class="fa-solid fa-user-check me-1"></i>
-        VA Coding
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and current_user.is_reviewer() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('reviewing.dashboard') }}">
-        <i class="fa-solid fa-clipboard-check me-1"></i>
-        VA Review
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and current_user.has_any_active_grant() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('area.dashboard') }}">
-        <i class="fa-solid fa-chart-column me-1"></i>
-        Area
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and current_user.has_any_active_grant() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('people_roles_page.page') }}">
-        <i class="fa-solid fa-people-group me-1"></i>
-        People
-      </a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('translation_suggestions_page.page') }}">
-        <i class="fa-solid fa-language me-1"></i>
-        Translations
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and current_user.is_data_manager() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('data_management.dashboard') }}">
-        <i class="fa-solid fa-folder-open me-1"></i>
-        Data Manager
-      </a>
-    </li>
-  {% elif current_user.is_authenticated and current_user.is_viewer() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('data_management.dashboard') }}">
-        <i class="fa-solid fa-folder-open me-1"></i>
-        Data
-      </a>
-    </li>
-  {% endif %}
-
-  {% if current_user.is_authenticated and current_user.is_data_manager() %}
-    <li class="nav-item">
-      <a class="nav-link" href="{{ url_for('data_management.kpi_dashboard') }}">
-        <i class="fa-solid fa-chart-line me-1"></i>
-        KPI Dashboard
-      </a>
-    </li>
-  {% endif %}
+{# Oversight and management views share one menu; each entry keeps its own gate. #}
+{% if can_pi_dash or can_supervise or has_grant or is_dm or is_viewer or can_admin %}
+  <li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" href="#" id="manageDropdown" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+      <i class="fa-solid fa-sliders me-1"></i>Manage
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="manageDropdown">
+      {% if can_pi_dash %}<li><a class="dropdown-item" href="{{ url_for('sitepi.dashboard') }}"><i class="fa-solid fa-chart-line me-2"></i>VA Dashboard</a></li>{% endif %}
+      {% if has_grant %}<li><a class="dropdown-item" href="{{ url_for('area.dashboard') }}"><i class="fa-solid fa-chart-column me-2"></i>Area</a></li>{% endif %}
+      {% if can_supervise %}<li><a class="dropdown-item" href="{{ url_for('intake.supervision_page') }}"><i class="fa-solid fa-user-shield me-2"></i>Supervision</a></li>{% endif %}
+      {% if is_dm %}<li><a class="dropdown-item" href="{{ url_for('data_management.kpi_dashboard') }}"><i class="fa-solid fa-chart-line me-2"></i>KPI Dashboard</a></li>{% endif %}
+      {% if is_dm or is_viewer %}<li><a class="dropdown-item" href="{{ url_for('data_management.dashboard') }}"><i class="fa-solid fa-folder-open me-2"></i>{{ 'Data Manager' if is_dm else 'Data' }}</a></li>{% endif %}
+      {% if has_grant %}
+        <li><a class="dropdown-item" href="{{ url_for('people_roles_page.page') }}"><i class="fa-solid fa-people-group me-2"></i>People</a></li>
+        <li><a class="dropdown-item" href="{{ url_for('translation_suggestions_page.page') }}"><i class="fa-solid fa-language me-2"></i>Translations</a></li>
+      {% endif %}
+      {% if can_admin %}<li><a class="dropdown-item" href="{{ url_for('admin.admin_index') }}"><i class="fa-solid fa-gear me-2"></i>Admin</a></li>{% endif %}
+    </ul>
+  </li>
+{% endif %}
 
   {% if current_user.is_authenticated %}
           <li class="nav-item dropdown">

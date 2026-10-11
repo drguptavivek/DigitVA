@@ -47,6 +47,7 @@
       {% if has_grant %}<li><a class="dropdown-item" href="{{ url_for('area.dashboard') }}"><i class="fa-solid fa-chart-column me-2"></i>Area</a></li>{% endif %}
       {% if can_supervise %}<li><a class="dropdown-item" href="{{ url_for('intake.supervision_page') }}"><i class="fa-solid fa-user-shield me-2"></i>Supervision</a></li>{% endif %}
       {% if is_dm %}<li><a class="dropdown-item" href="{{ url_for('data_management.kpi_dashboard') }}"><i class="fa-solid fa-chart-line me-2"></i>KPI Dashboard</a></li>{% endif %}
+      {% if is_dm %}<li><a class="dropdown-item" href="{{ url_for('data_management.cod_bucket_reporting') }}"><i class="fa-solid fa-file-lines me-2"></i>Reports</a></li>{% endif %}
       {% if is_dm or is_viewer %}<li><a class="dropdown-item" href="{{ url_for('data_management.dashboard') }}"><i class="fa-solid fa-folder-open me-2"></i>{{ 'Data Manager' if is_dm else 'Data' }}</a></li>{% endif %}
       {% if has_grant %}
         <li><a class="dropdown-item" href="{{ url_for('people_roles_page.page') }}"><i class="fa-solid fa-people-group me-2"></i>People</a></li>

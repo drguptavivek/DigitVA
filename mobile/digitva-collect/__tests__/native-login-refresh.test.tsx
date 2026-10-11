@@ -4,6 +4,7 @@ import { act, create } from "react-test-renderer";
 const mockAccount = { user_id: "u1", name: "Interviewer" };
 const mockRouter = { replace: jest.fn(), back: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
+const mockLockNow = jest.fn(async () => true);
 const mockUnlocked = jest.fn();
 const mockSignIn = jest.fn(async () => mockAccount);
 const mockUnlockInterviewer = jest.fn(async () => ({ ok: true as const }));
@@ -14,7 +15,7 @@ const mockFailedAttempts = jest.fn(async () => 0);
 const mockBiometricEnabled = jest.fn(async () => false);
 const mockReadBiometricPin = jest.fn(async () => null);
 const mockEnableBiometric = jest.fn(async () => undefined);
-let mockParams: { userId?: string; refresh?: string } = { userId: "u1", refresh: "1" };
+let mockParams: { userId?: string; refresh?: string; enableBiometric?: string } = { userId: "u1", refresh: "1" };
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
@@ -25,6 +26,7 @@ jest.mock("../src/AppState", () => ({
   useAppState: () => ({
     accounts: [mockAccount],
     reload: mockReload,
+    lockNow: mockLockNow,
     unlocked: mockUnlocked
   })
 }));
@@ -53,7 +55,7 @@ jest.mock("../src/api", () => ({ ApiError: class ApiError extends Error {} }));
 jest.mock("../src/nativeAuthLinks", () => ({
   mobileDigitsFromInput: (value: string) => value,
   nativeAuthUrl: () => "http://localhost:8051/vaauth/sign-in",
-  NATIVE_AUTH_PATHS: { signIn: "sign-in", redeemCode: "redeem-code", forgotPassword: "forgot-password" },
+  NATIVE_AUTH_PATHS: { signIn: "sign-in", redeemCode: "redeem-code", forgotPassword: "forgot-password", passkeys: "passkeys" },
   normalizeMobileIdentifier: (value: string) => value
 }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
@@ -95,6 +97,11 @@ describe("native login refresh handoff", () => {
     mockHasInterviewerStore.mockResolvedValue(true);
     mockBiometricEnabled.mockResolvedValue(false);
     mockUnlockInterviewer.mockResolvedValue({ ok: true });
+    mockLockNow.mockClear();
+    mockLockNow.mockImplementation(async () => {
+      mockIsUnlocked.mockReturnValue(false);
+      return true;
+    });
   });
 
   it("passes refresh through after successful sign-in", async () => {
@@ -102,9 +109,12 @@ describe("native login refresh handoff", () => {
     await act(async () => {
       tree = create(<SignIn />);
     });
+    expect(tree!.root.findAllByProps({ "data-label": "passkeySignIn" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "otp" })).toHaveLength(0);
     act(() => input(tree!, "email")!.props.onChangeText("worker@example.org"));
     act(() => input(tree!, "password")!.props.onChangeText("secret"));
     await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
+    expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret");
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
     await act(async () => tree!.unmount());
   });
@@ -154,6 +164,63 @@ describe("native login refresh handoff", () => {
     act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
     await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    await act(async () => tree!.unmount());
+  });
+
+  it("locks an already-open store before accepting a PIN for biometric opt-in", async () => {
+    mockIsUnlocked.mockReturnValue(true);
+    mockParams = { userId: "u1", enableBiometric: "1" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
+    await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
+    expect(mockLockNow).toHaveBeenCalled();
+    expect(mockEnableBiometric).toHaveBeenCalledWith("u1", "123456", "biometricPrompt");
+    await act(async () => tree!.unmount());
+  });
+
+  it("refuses biometric enrollment if the existing store stays open", async () => {
+    mockIsUnlocked.mockReturnValue(true);
+    mockLockNow.mockImplementation(async () => false);
+    mockParams = { userId: "u1", enableBiometric: "1" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
+    await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
+    expect(mockEnableBiometric).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows a recoverable error when biometric state cannot be read", async () => {
+    mockBiometricEnabled.mockRejectedValueOnce(new Error("secure store unavailable"));
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    expect(tree!.root.findAll((node) => node.props.children === "errGeneric").length).toBeGreaterThan(0);
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps the verified PIN unlock open when biometric enrollment fails", async () => {
+    mockParams = { userId: "u1", enableBiometric: "1" };
+    mockEnableBiometric.mockRejectedValueOnce(new Error("secure store unavailable"));
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
+    await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
+    expect(mockUnlocked).toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    expect(tree!.root.findAll((node) => node.props.children === "errGeneric").length).toBeGreaterThan(0);
     await act(async () => tree!.unmount());
   });
 });

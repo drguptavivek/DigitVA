@@ -54,6 +54,12 @@
       ],
       "allowBackup": false
     },
+    "ios": {
+      "bundleIdentifier": "org.digitva.collect",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data."
+      }
+    },
     "web": {
       "output": "single",
       "bundler": "metro"

@@ -2547,9 +2547,8 @@ def admin_toggle_user_admin(target_user_id):
 @admin.post("/api/users/<uuid:target_user_id>/reset-factors")
 @role_required("admin")
 def admin_reset_user_factors(target_user_id):
-    """docs/policy/authentication-factors.md section 8: clear a user's
-    passkeys, TOTP and recovery codes, end every one of their sessions, log
-    the action and email them. Admin-only, refused for yourself, idempotent
+    """Clear stale sign-in credentials, end every one of their sessions, log
+    the action and email a reset notice. Admin-only, refused for yourself, idempotent
     (resetting a user with no factors still bumps their session version and
     is recorded)."""
     if not current_user.is_admin():

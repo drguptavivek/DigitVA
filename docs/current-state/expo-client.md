@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-11
 ---
 
 # Expo Client Hosting And Access
@@ -48,7 +48,8 @@ private to the current author and case. See
 [Coder Browser Presentation](../policy/coder-browser-presentation.md).
 
 On browser reload, routes wait for `GET /api/v1/me/access` before rendering. Ordinary
-sign-in recovery retains the current `/app/` route and query. Pending terms (403 `terms_required`) go to the terms screen and required factor
-setup (403 `factor_setup_required`) to `/profile/#passkeys-card`.
+sign-in recovery retains the current `/app/` route and query. Pending terms
+(403 `terms_required`) go to the terms screen; there is no mandatory factor
+setup redirect.
 
 Login, onboarding and device sign-in endpoints: [Authentication, Login and Onboarding](authentication-and-onboarding.md).

@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
 # Workflow And Permissions
@@ -1038,8 +1038,8 @@ It validates:
 
 ## Login Flow (two-step, digitva-sn1.1)
 
-Baseline: `docs/policy/authentication-factors.md`. As of 2026-09-28, `/vaauth/valogin`
-is step 1 only:
+Baseline: `docs/policy/authentication-factors.md`. `/vaauth/valogin` is the
+identifier step followed by the password/passkey page:
 
 1. **Email step** (`va_auth.va_login`, GET/POST). The browser solves a local
    proof-of-work CAPTCHA in a Web Worker
@@ -1090,25 +1090,9 @@ is step 1 only:
    section. Dismissing it (`POST /api/v1/profile/dismiss-passkey-nudge`)
    clears the session flag, so it does not reappear for the rest of the
    session. A passkey sign-in never sets the flag.
-7. **Second-factor step** (`va_auth.va_login_second_factor`, GET/POST,
-   `/vaauth/valogin/second-factor`). Only reached when
-   `app/services/totp_service.py:needs_second_factor()` says so: the user
-   holds a confirmed TOTP enrolment (any role), or is privileged (active
-   `admin`/`data_manager` grant) and holds any factor (passkey or confirmed
-   TOTP) — docs/policy/authentication-factors.md section 3. The password
-   step, on a correct password for such a user, stores
-   `second_factor_user_id`/`second_factor_failures`/`remember` on the same
-   pre-auth state instead of calling `_complete_login()`, and redirects
-   here; the page is unreachable without that verified-password marker on
-   the live pre-auth state. Accepts a current TOTP code
-   (`totp_service.verify()`, +/-1 step drift, atomic replay protection on
-   `auth_totp.last_used_step`) or an unused recovery code
-   (`totp_service.verify_recovery_code()`, atomic single-use consumption on
-   `auth_recovery_codes.used_at`; logs `recovery_code_used` with the
-   remaining count). A privileged user with only passkeys sees the
-   recovery-code field plus a "Use a passkey instead" link back to the
-   password page. Five failed attempts clear the pre-auth state, log
-   `second_factor_lockout`, and redirect to the email step.
+7. **No second-factor step.** A correct password or verified passkey completes
+   web sign-in for every role. Passkeys remain optional; there is no TOTP,
+   recovery-code prompt, or mandatory factor-setup redirect.
 
 **Sign-in by mobile number (digitva-l7c2).** Baseline
 `docs/policy/mobile-sign-in.md`. The email step's field is "Email or mobile
@@ -1116,7 +1100,7 @@ number": a value with `@` is an email (unchanged); anything else is
 canonicalised (`user_account_service.canonical_mobile`: digits only, a
 leading `0` or `91` dropped, exactly ten digits left) and stored in the
 pre-auth state as `mobile` (empty for an invalid value) without a lookup.
-The password, passkey and second-factor steps resolve the account through
+The password and passkey steps resolve the account through
 `_preauth_user()`, which matches only `va_users.mobile_login` (unique), so an
 unknown, shared or malformed number gets the same second page and the same
 wrong-credentials result. The "verified" check is `VaUsers.sign_in_verified`:
@@ -1205,77 +1189,26 @@ shared or malformed number, and a mobile-only account that never redeemed a
 code, get the same `invalid_credentials`; the per-account rate-limit key uses
 the canonical number.
 
-**TOTP and recovery codes** (`app/services/totp_service.py`). TOTP secrets
-are AES-256-GCM-encrypted at rest under a key derived (HKDF-SHA256) from
-`AUTH_FACTOR_ENCRYPTION_KEY`, bound to the owning user as associated data
-(`config.py`; production requires that key set to a valid 32-byte
-urlsafe-base64 value — see `create_app`; development/test derive one from
-`SECRET_KEY`). Values written before this scheme (legacy Fernet) still
-decrypt and are re-encrypted on next successful use. Recovery
-codes are stored only as HMAC-SHA256 hashes keyed off the same secret under
-a distinct label, shown to the caller exactly once at generation time.
-Recovery codes are issued automatically the moment a user enrols their
-*first* factor — at TOTP confirmation if they hold no passkey yet
-(`POST /api/v1/profile/totp/confirm`), or at first passkey registration if
-they hold no confirmed TOTP and no recovery-code set yet
-(`POST /api/v1/profile/passkeys`) — and returned once in that response
-body. Profile API (`app/routes/api/profile.py`, all reauth-gated like the
-passkey routes): `GET/POST/DELETE /api/v1/profile/totp` (status, start
-enrolment — returns the secret, provisioning URI and an inline SVG QR code
-from `segno` — and removal) plus `POST /api/v1/profile/totp/confirm`, and
-`GET /api/v1/profile/recovery-codes` / `POST .../regenerate` (regenerating
-voids the old set). **Last-factor removal guard**: once
-`AUTH_FACTOR_ENFORCE_FROM` is set and its date has passed
-(`totp_service.enforcement_active()`; unset/future means the guard is off),
-a privileged user cannot remove their last factor — checked in both the
-TOTP-removal route and the existing passkey-revoke route, `409` on
-violation.
+**8. Optional passkeys and account recovery.** Passkey registration,
+renaming and revocation are recent-reauthentication protected. TOTP,
+recovery-code prompts and mandatory factor setup are removed from the live
+login flow. Existing encrypted factor records may remain inert and are not
+read during sign-in.
 
-**8. Enrolment enforcement, admin reset and the break-glass CLI**
-(docs/policy/authentication-factors.md section 6, 8). Before
-`AUTH_FACTOR_ENFORCE_FROM`, a privileged user (admin or `data_manager`) with
-no factor sees a banner naming the deadline on every page
-(`app/__init__.py:_factor_enrollment_banner_context`, rendered in
-`va_base.html`); unset means no banner at all. On or after that date,
-`app/__init__.py`'s `enforce_factor_setup` before-request hook redirects
-every request from such a user to `profile.view#passkeys-card`, except the
-Profile page itself, the whole `api_v1.profile_api` blueprint, `va_auth.*`
-(login/auth/logout/recovery), static files and the health check; an API/admin
-path gets `403 {"error": "factor_setup_required"}` instead. No lock-out — a
-password sign-in still works. The "has a factor" answer is cached in
-`session["factor_setup_needed"]` and popped by the four routes that change a
-user's factor set (`register_passkey`, `revoke_passkey`, `totp_confirm`,
-`totp_remove`), so it costs no query once satisfied.
+**No mandatory factor setup.**
+Password and web passkey sign-in remain available to every role.
 
 **Admin reset** (`POST /admin/api/users/<id>/reset-factors`, `role_required("admin")`,
 refused for yourself, requires a non-empty `reason`) and the **break-glass
-CLI** (`flask auth reset-factors EMAIL --reason=...`) both call
-`totp_service.reset_factors()`: delete the user's passkeys/TOTP/recovery
-codes, `bump_session_version()` (ends every session and remember cookie),
-and record a `factor_reset` security event (`actor_user_id` set for the
-admin path, `NULL` for the CLI; `detail={"reason": ..., "via": "admin"|"cli"}`).
-The admin path emails the user with no link (`send_factor_reset_email`,
-async via Celery); the CLI additionally generates a `factor_reset` token
-(`token_service`, 1 hour, fingerprinted on the password hash *and*
-`auth_session_version` together, so either a password change or any other
-reset invalidates it) and emails a single-use magic link **synchronously**
-(`send_factor_reset_link_email` — the CLI's contract is "print the link only
-if sending failed", which a queued Celery task cannot report). The link lands
-on `va_auth.factor_reset` (public by design, `PUBLIC_BY_DESIGN` in
-`tests/test_route_auth_coverage.py`): GET shows a "Continue" button and
-changes nothing; the POST sets no password (the existing one keeps working;
-the fresh sign-in leaves Profile "Generate a new password" open for ten
-minutes), then `email_verified = True`,
-`bump_session_version()`, `_complete_login()`, and
-`session["factor_setup_forced"] = True` so the redirect guard holds a
-privileged user on the factor-setup page even if `AUTH_FACTOR_ENFORCE_FROM`
-is unset, until they enrol.
+CLI** (`flask auth reset-factors EMAIL --reason=...`) clear active passkeys
+and inert legacy factor records, bump the account session version, end
+sessions, and record `factor_reset`. The CLI sends a single-use, timed
+recovery link for a verified email; it does not set a password, and the
+existing generated password remains valid.
 
-Schema: `auth_webauthn_credentials`, `auth_totp`, `auth_recovery_codes`
-(all in use), `auth_security_events` (`passkey_registered`,
-`passkey_renamed`, `passkey_revoked`, `counter_regression`,
-`totp_enrolled`, `totp_removed`, `recovery_codes_generated`,
-`recovery_code_used`, `second_factor_lockout`, `factor_reset`,
+Schema: `auth_webauthn_credentials` and inert legacy factor records,
+`auth_security_events` (`passkey_registered`, `passkey_renamed`,
+`passkey_revoked`, `counter_regression`, `factor_reset`,
 `password_generated`, `email_verified` and the `mobile_code_*` events) plus
 `va_users.auth_session_version`.
 

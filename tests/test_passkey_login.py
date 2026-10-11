@@ -276,6 +276,95 @@ class PasskeySignInTests(PasskeyTestBase):
         )
         self.assertEqual(resp.status_code, 200, resp.data)
 
+    def test_counter_zero_assertion_replay_rejected_after_challenge_copy(self):
+        """A copied request-local session cannot replay a zero-counter assertion."""
+        cred, priv = self._add_credential(self.user, sign_count=0)
+        self._start_preauth(self.user.email)
+        options = self._passkey_options().get_json()
+        challenge = b64url_decode(options["challenge"])
+        with self.client.session_transaction() as sess:
+            original_state = dict(sess["webauthn_authentication"])
+        credential = build_authentication_credential(
+            rp_id=self._rp_id(),
+            origin=self._origin(),
+            challenge=challenge,
+            credential_id=cred.credential_id,
+            priv=priv,
+            sign_count=0,
+        )
+
+        first = self._passkey_verify(credential)
+        self.assertEqual(first.status_code, 200, first.data)
+
+        # Restore the exact challenge as a second worker would receive from a
+        # concurrent request's already-decoded session copy.
+        self.client.post("/vaauth/valogout", headers=self._csrf_headers())
+        self._start_preauth(self.user.email)
+        with self.client.session_transaction() as sess:
+            sess["webauthn_authentication"] = original_state
+        second = self._passkey_verify(credential)
+        self.assertEqual(second.status_code, 400, second.data)
+
+    def test_counter_zero_concurrent_assertions_only_one_claims_challenge(self):
+        """Two workers sharing a session snapshot cannot both verify once."""
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+
+        from flask import session
+
+        from app.services import webauthn_service
+
+        with self.app.test_request_context("/"):
+            options = webauthn_service.build_authentication_options()
+            original_state = dict(session["webauthn_authentication"])
+        challenge = b64url_decode(options["challenge"])
+        credential_id = uuid.uuid4().bytes
+        priv = new_keypair()
+        credential = build_authentication_credential(
+            rp_id=self._rp_id(),
+            origin=self._origin(),
+            challenge=challenge,
+            credential_id=credential_id,
+            priv=priv,
+            sign_count=0,
+        )
+        barrier = Barrier(2)
+
+        def verify_from_copied_session():
+            with self.app.test_request_context("/"):
+                session["webauthn_authentication"] = dict(original_state)
+                barrier.wait(timeout=5)
+                try:
+                    webauthn_service.verify_authentication(
+                        credential,
+                        credential_public_key=cose_public_key(priv),
+                    )
+                except webauthn_service.PasskeyVerificationError:
+                    return "rejected"
+                return "accepted"
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes = sorted(pool.map(lambda _: verify_from_copied_session(), (0, 1)))
+        self.assertEqual(outcomes, ["accepted", "rejected"])
+
+    def test_challenge_claim_fails_closed_when_cache_unavailable(self):
+        from unittest.mock import patch
+
+        from flask import session
+
+        from app import cache
+        from app.services import webauthn_service
+
+        with self.app.test_request_context("/"):
+            webauthn_service.build_authentication_options()
+            with patch.object(cache, "add", side_effect=RuntimeError("redis down")):
+                self.assertIsNone(
+                    webauthn_service._consume_challenge(
+                        webauthn_service.AUTHENTICATION_SESSION_KEY
+                    )
+                )
+            self.assertIn("webauthn_authentication", session)
+
     def test_counter_regression_rejected_and_audited(self):
         cred, priv = self._add_credential(self.user, sign_count=5)
         events_before = db.session.scalar(

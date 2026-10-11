@@ -2,7 +2,6 @@ from app.forms.va_login_form import (
     EmailStepForm,
     PasswordStepForm,
     RedeemCodeForm,
-    SecondFactorForm,
 )
 from app.forms.va_coderreview_form import VaCoderReviewForm
 from app.forms.va_datamanagerreview_form import VaDataManagerReviewForm
@@ -17,7 +16,6 @@ __all__ = [
     "EmailStepForm",
     "PasswordStepForm",
     "RedeemCodeForm",
-    "SecondFactorForm",
     "VaInitialAssessmentForm",
     "VaCoderReviewForm",
     "VaDataManagerReviewForm",

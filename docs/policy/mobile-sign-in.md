@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-11
 ---
 
 # Sign-in by Mobile Number
@@ -41,10 +41,10 @@ everything not said here.
   `@` is an email; anything else is read as a mobile number.
 - Everything else in authentication-factors.md section 1 applies unchanged:
   the same second page for every value (known or not), passkey or password,
-  second factor where required, rate limits per IP and per account, CAPTCHA.
-  The native app's device sign-in (field-data-collection.md) takes the same
-  email or mobile number with the same rules and the same indistinguishable
-  answer (digitva-kmoy).
+  no additional factor, rate limits per IP and per account, and CAPTCHA. The
+  native app's device sign-in (field-data-collection.md) takes the same email
+  or mobile number with the same rules and the same indistinguishable answer
+  (digitva-kmoy).
   A mobile number that matches no account, or matches a number shared by
   two accounts, gets the same page and the wrong-credentials result, never a
   message saying which.
@@ -70,9 +70,8 @@ passes a short numeric code to the person instead.
   or someone who may manage **every** active grant the person holds
   (`can_grant`); nobody but an admin issues a code for an admin, a project
   PI, a data manager, an In-charge (`site_pi`), or anyone holding a grant
-  the issuer could not write. Privileged accounts (authentication-factors.md
-  section 3) get their codes from an admin, and so does any account with
-  a verified email, which resets by email instead. A code lets its
+  the issuer could not write. An admin may issue a code for an administrator
+  or data-manager account. A code lets its
   redeemer sign in as the person, so partial authority over them is not
   enough. When a code is redeemed for an account with any email on file,
   that address is sent a short notice ("your password was changed using a
@@ -81,8 +80,8 @@ passes a short numeric code to the person instead.
 - **Redeeming it.** On the sign-in page the person chooses "I have a code",
   enters their email or mobile number and the code. If both match, the server
   generates a new password and shows it **once**, on that screen only, with
-  a prompt to write it down or save it. The code then stops working. The
-  same screen offers to add a passkey.
+  a prompt to write it down or save it. The code then stops working. After
+  signing in, a web user may add a passkey from Profile.
 - **The generated password**: words and digits that are easy to read aloud
   and type on a phone keypad (for example three short words and a 4-digit
   number), at least 16 characters, from a cryptographic random source,

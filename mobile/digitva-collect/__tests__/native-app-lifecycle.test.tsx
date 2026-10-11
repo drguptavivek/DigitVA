@@ -164,3 +164,17 @@ it("surfaces a save failure and aborts both foreground refresh and locking", asy
   expect(String(tree.toJSON())).toContain("error:Error: save failed again");
   await act(async () => tree.unmount());
 });
+
+it("surfaces a database close failure and keeps the app locked operation retryable", async () => {
+  const tree = await renderProbe();
+  mockLockAll.mockRejectedValue(new Error("close failed"));
+
+  await act(async () => {
+    await mockAutoLockCallback?.();
+  });
+
+  expect(mockLockAll).toHaveBeenCalledTimes(1);
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(String(tree.toJSON())).toContain("error:Error: close failed");
+  await act(async () => tree.unmount());
+});

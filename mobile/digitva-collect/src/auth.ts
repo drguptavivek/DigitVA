@@ -17,6 +17,7 @@
  * counter and biometric entry, the tokens and the account entry.
  */
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
 import { accessCapabilities, ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
@@ -51,7 +52,7 @@ export interface Account {
   needs_sign_in?: boolean;
   terms_required?: boolean;
   /** A global bearer gate keeps local work but blocks collection until fixed. */
-  access_blocked?: "factor_setup_required" | "maintenance";
+  access_blocked?: "maintenance";
 }
 
 interface Tokens {
@@ -205,8 +206,8 @@ async function setAccountAccess(
   for (const listener of accountListeners) listener();
 }
 
-function isGlobalAccessGate(code: string | undefined): code is "factor_setup_required" | "maintenance" {
-  return code === "factor_setup_required" || code === "maintenance";
+function isGlobalAccessGate(code: string | undefined): code is "maintenance" {
+  return code === "maintenance";
 }
 
 /** POST /enroll and keep the device record. The secret is stored apart and sent only to /sessions. */
@@ -225,7 +226,7 @@ export async function enrolDevice(
     body: {
       code,
       device_name: deviceName,
-      platform: "android",
+      platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
     },
   });
@@ -254,7 +255,6 @@ export async function forgetDevice(): Promise<void> {
 export async function signIn(
   identifier: string,
   password: string,
-  otp?: string,
 ): Promise<Account> {
   const device = await loadDevice();
   const secret = await loadDeviceSecret();
@@ -271,7 +271,6 @@ export async function signIn(
       email: identifier,
       password,
       app_version: APP_VERSION,
-      ...(otp ? { otp } : {}),
     },
   });
   const account: Account = {
@@ -586,7 +585,7 @@ async function setTermsRequired(
 
 async function setAccessBlocked(
   userId: string,
-  blocked: "factor_setup_required" | "maintenance" | undefined,
+  blocked: "maintenance" | undefined,
 ): Promise<void> {
   const accounts = await loadAccounts();
   let changed = false;

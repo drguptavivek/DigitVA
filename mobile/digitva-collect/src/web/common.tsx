@@ -16,7 +16,7 @@ const SIDEBAR_WIDTH = 240;
 export function browserErrorText(error: unknown): string {
   if (error instanceof ClientApiError) {
     if (error.code === "unauthorized" || error.status === 401) return t("serverUnauthorized");
-    if (error.code === "terms_required" || error.code === "factor_setup_required") return t("loginRequiredAction");
+    if (error.code === "terms_required") return t("loginRequiredAction");
     if (error.status === 403) return t("serverForbidden");
     if (error.status === 422 || error.status === 400) return t("serverValidation");
     if (error.status >= 500) return t("serverUnavailable");

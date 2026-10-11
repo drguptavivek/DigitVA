@@ -15,11 +15,17 @@ from flask import Blueprint, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
 
 from app import limiter
+from app.routes.api.request_helpers import browser_session_only
 from app.routes.api.request_helpers import error as api_error
 from app.services import area_dashboard_service as area
 from app.services import authz
 
 bp = Blueprint("area_api", __name__)
+
+
+@bp.before_request
+def _require_browser_session():
+    return browser_session_only()
 
 _MAX_PARAM_LENGTH = 64
 

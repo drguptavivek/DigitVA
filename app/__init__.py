@@ -30,9 +30,6 @@ from config import (
 )
 from celery import Celery, Task
 
-#: Readable ``error`` of the factor-setup refusal; its ``code`` is the contract.
-FACTOR_SETUP_REQUIRED_MESSAGE = "Set up a second sign-in factor to continue."
-
 # Deterministic names for constraints the models leave unnamed, so model metadata
 # and the live schema can be compared (see tests/migrations/test_schema_drift.py).
 #
@@ -98,30 +95,6 @@ def _current_user_timezone():
     except pytz.UnknownTimeZoneError:
         return pytz.timezone("Asia/Kolkata")
 
-
-
-def _factor_enrollment_banner_context():
-    """docs/policy/authentication-factors.md section 6: before
-    ``AUTH_FACTOR_ENFORCE_FROM``, a privileged user with no passkey and no
-    confirmed TOTP sees a banner naming the deadline on every page. Unset
-    deadline means the rollout has not been announced -- no banner at all.
-    Once the deadline has passed the redirect guard (``enforce_factor_setup``)
-    takes over instead, so this stops firing then too.
-    """
-    if not (current_user and current_user.is_authenticated):
-        return None
-    from app.services import totp_service
-
-    deadline = totp_service.enforcement_date()
-    if deadline is None:
-        return None
-    if datetime.now(pytz.UTC).date() >= deadline:
-        return None
-    if not (current_user.is_admin() or current_user.is_data_manager()):
-        return None
-    if totp_service.has_any_factor(current_user.user_id):
-        return None
-    return {"deadline": deadline.strftime("%B %d, %Y")}
 
 
 def _content_security_policy(app):
@@ -451,7 +424,6 @@ def create_app(config_class=None):
             ),
             "site_maintenance_watcher_enabled": is_authenticated,
             "site_maintenance_user_is_admin": is_admin,
-            "factor_enrollment_banner": _factor_enrollment_banner_context(),
         }
 
     @app.template_filter('user_timezone')
@@ -481,7 +453,6 @@ def create_app(config_class=None):
     def force_password_update():
         if request.path.startswith("/static") or request.path == "/health":
             return
-
         if request.path.startswith(timed_prefixes):
             g._request_started_at = perf_counter()
 
@@ -606,90 +577,6 @@ def create_app(config_class=None):
 
             response.headers["X-CSRFToken"] = generate_csrf()
             return response
-
-    # docs/policy/authentication-factors.md section 6: once
-    # AUTH_FACTOR_ENFORCE_FROM has passed, a privileged user (admin or
-    # data_manager) with no passkey and no confirmed TOTP is redirected to
-    # the Profile factor-setup section from every other page -- no lock-out,
-    # they can still sign in with their password. A break-glass reset
-    # (va_login_factor_reset) forces the same redirect regardless of the
-    # date via session["factor_setup_forced"], until they enrol.
-    #
-    # Uses current_user (not a raw session lookup) so it honours
-    # auth_session_version the way force_password_update's fresh_user does
-    # not: Flask-Login's user_loader already rejects a session whose version
-    # is stale, and current_user is cached on `g` once resolved, so this
-    # costs nothing extra when something upstream already touched it.
-    # profile.force_password_change must stay reachable: force_password_update
-    # (above) sends there first, and holding it here too looped a privileged
-    # user with pw_reset_t_and_c=False (e.g. after a forgot-password reset)
-    # between the two pages forever.
-    _FACTOR_SETUP_EXEMPT_ENDPOINTS = {
-        "static", "health.health_check", "profile.view", "profile.force_password_change",
-        "api_v1.me_api.accept_terms",
-    }
-
-    @app.before_request
-    def enforce_factor_setup():
-        if request.path.startswith("/static") or request.path == "/health":
-            return None
-        from app.services import totp_service
-        from app.services.device_auth_service import UNAUTHENTICATED_ENDPOINTS, request_bearer_token
-
-        # A bearer token reaches every /api/v1 route, so a privileged user
-        # with no factor is held here too once enforcement is on. No session
-        # cache: a bearer request never writes one. Sign-in and sign-out
-        # stay reachable.
-        if request_bearer_token(request) is not None:
-            if (
-                not current_user.is_authenticated
-                or request.endpoint in UNAUTHENTICATED_ENDPOINTS
-                or request.endpoint == "api_v1.auth_api.end_session"
-                or not totp_service.enforcement_active()
-                or not (current_user.is_admin() or current_user.is_data_manager())
-                or totp_service.has_any_factor(current_user.user_id)
-            ):
-                return None
-            response = jsonify({"error": FACTOR_SETUP_REQUIRED_MESSAGE, "code": "factor_setup_required"})
-            response.headers["Cache-Control"] = "no-store"
-            return response, 403
-        if not current_user.is_authenticated:
-            return None
-
-        # Cheap checks first: until the deadline (or a break-glass reset)
-        # nobody is held, so skip the grant queries entirely.
-        forced = session.get("factor_setup_forced")
-        if not (forced or totp_service.enforcement_active()):
-            return None
-
-        # ponytail: privileged status isn't cached, so a grant added mid-
-        # session takes effect immediately; two grant queries per request
-        # while enforcement is on. Cache in the session if that ever shows.
-        privileged = current_user.is_admin() or current_user.is_data_manager()
-        if not privileged:
-            return None
-
-        needed = session.get("factor_setup_needed")
-        if needed is None:
-            needed = not totp_service.has_any_factor(current_user.user_id)
-            session["factor_setup_needed"] = needed
-        if not needed:
-            session.pop("factor_setup_forced", None)
-            return None
-
-        endpoint = request.endpoint or ""
-        if (
-            endpoint in _FACTOR_SETUP_EXEMPT_ENDPOINTS
-            or endpoint.startswith("va_auth.")
-            or endpoint.startswith("api_v1.profile_api.")
-        ):
-            return None
-
-        from app.decorators.role_required import API_PATH_PREFIXES
-
-        if request.path.startswith(API_PATH_PREFIXES):
-            return jsonify({"error": FACTOR_SETUP_REQUIRED_MESSAGE, "code": "factor_setup_required"}), 403
-        return redirect(url_for("profile.view") + "#passkeys-card")
 
     @app.after_request
     def apply_static_cache_headers(response):

@@ -116,14 +116,6 @@ describe("browser client", () => {
     });
   });
 
-  it("recognizes factor setup code and uses its fixed browser destination", async () => {
-    jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ status: 403,
-      body: { error: "Configure another sign-in factor", code: "factor_setup_required" } }));
-    await expect(fetchClientBootstrap()).resolves.toMatchObject({
-      authenticated: false, loginUrl: "/profile/#passkeys-card", actionCode: "factor_setup_required"
-    });
-  });
-
   it("loads project form options through the authorized project endpoint", async () => {
     jest.spyOn(globalThis, "fetch").mockResolvedValue(
       response({

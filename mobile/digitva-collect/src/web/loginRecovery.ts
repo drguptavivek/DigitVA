@@ -1,4 +1,4 @@
-export type AccountActionCode = "terms_required" | "factor_setup_required";
+export type AccountActionCode = "terms_required";
 
 function currentAppRoute(currentHref?: string): string {
   const fallback = "/app/";
@@ -23,7 +23,6 @@ export function loginRecoveryUrl(
   currentHref?: string
 ): string {
   if (actionCode === "terms_required") return "/profile/force-password-change";
-  if (actionCode === "factor_setup_required") return "/profile/#passkeys-card";
   if (!loginUrl) return "/";
   try {
     const base = currentHref ?? (typeof window === "undefined" ? "https://digitva.invalid/app/" : window.location.href);

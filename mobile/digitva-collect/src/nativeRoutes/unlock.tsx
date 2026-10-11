@@ -15,6 +15,7 @@ import { hasInterviewerStore, isUnlocked } from "../interviewerDb";
 import { Button, Screen, useUiStyles } from "../ui";
 import {
   biometricEnabled,
+  enableBiometric,
   failedAttempts,
   readBiometricPin,
   WARN_AFTER_FAILURES,
@@ -29,8 +30,8 @@ const wrongPinText = (failures: number) =>
 export default function Unlock() {
   const styles = useUiStyles();
   const router = useRouter();
-  const { userId, refresh } = useLocalSearchParams<{ userId: string; refresh?: string }>();
-  const { accounts, reload, unlocked } = useAppState();
+  const { userId, refresh, enableBiometric: enableBiometricParam } = useLocalSearchParams<{ userId: string; refresh?: string; enableBiometric?: string }>();
+  const { accounts, reload, unlocked, lockNow } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
@@ -48,9 +49,26 @@ export default function Unlock() {
       setBusy(true);
       setError("");
       try {
+        if (enableBiometricParam === "1" && isUnlocked(userId)) {
+          await lockNow();
+          if (isUnlocked(userId)) {
+            setError(t("errGeneric"));
+            return;
+          }
+        }
         const result = await unlockInterviewer(userId, candidate);
         if (result.ok) {
+          let biometricSetupFailed = false;
+          if (enableBiometricParam === "1" && !(await biometricEnabled(userId))) {
+            try {
+              await enableBiometric(userId, candidate, t("biometricPrompt"));
+            } catch {
+              biometricSetupFailed = true;
+              setError(t("errGeneric"));
+            }
+          }
           unlocked();
+          if (biometricSetupFailed) return;
           toWorklist();
           return;
         }
@@ -68,7 +86,7 @@ export default function Unlock() {
         setBusy(false);
       }
     },
-    [userId, unlocked, toWorklist, reload, router]
+    [userId, enableBiometricParam, unlocked, toWorklist, reload, router, lockNow]
   );
 
   const tryBiometric = useCallback(async () => {
@@ -84,24 +102,32 @@ export default function Unlock() {
 
   useEffect(() => {
     if (!userId) return;
-    if (isUnlocked(userId)) {
+    if (isUnlocked(userId) && enableBiometricParam !== "1") {
       toWorklist();
       return;
     }
+    let active = true;
     void (async () => {
-      if (!(await hasInterviewerStore(userId))) {
-        router.replace({ pathname: "/pin-setup", params: { userId, ...(refresh === "1" ? { refresh: "1" } : {}) } });
-        return;
-      }
-      const failures = await failedAttempts(userId);
-      if (failures > 0) setError(wrongPinText(failures));
-      if (await biometricEnabled(userId)) {
-        setBiometric(true);
-        await tryBiometric();
+      try {
+        if (!(await hasInterviewerStore(userId))) {
+          router.replace({ pathname: "/pin-setup", params: { userId, ...(refresh === "1" ? { refresh: "1" } : {}) } });
+          return;
+        }
+        const failures = await failedAttempts(userId);
+        if (active && failures > 0) setError(wrongPinText(failures));
+        if (await biometricEnabled(userId)) {
+          if (active) setBiometric(true);
+          await tryBiometric();
+        }
+      } catch {
+        if (active) setError(t("errGeneric"));
       }
     })();
+    return () => {
+      active = false;
+    };
     // Once per screen: a failed biometric must not re-prompt on every render.
-  }, [userId]);
+  }, [userId, enableBiometricParam, lockNow]);
 
   if (!account) return <Redirect href="/" />;
   return (

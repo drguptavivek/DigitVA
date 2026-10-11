@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
 # CLI Reference
@@ -50,7 +50,7 @@ Detailed policy: [`docs/policy/authentication-factors.md`](../policy/authenticat
 
 | Command | Description |
 |---------|-------------|
-| `auth reset-factors EMAIL --reason="..."` | Clear a user's passkeys, TOTP and recovery codes; end every session; email them a single-use, one-hour sign-in link. Prints the link only if the email could not be sent. |
+| `auth reset-factors EMAIL --reason="..."` | Clear a user's active passkeys and inert legacy factor records; end every session; email a single-use, one-hour recovery link. Prints the link only if the email could not be sent. |
 
 Run from a shell in the app container (shell access is the safeguard — no
 further check). Never creates a user or changes a role; never prints an

@@ -46,11 +46,11 @@ sets it.
 import logging
 from functools import wraps
 
-from flask import jsonify, redirect, request, url_for
+from flask import g, jsonify, redirect, request, url_for
 from flask_login import current_user, logout_user
 
 from app.models import VaStatuses
-from app.services.authz import effective_roles
+from app.services.authz import NATIVE_DEVICE_ROLES, effective_roles
 from app.services.authz.consulted import mark_consulted
 from app.utils.va_permission.va_permission_01_abortwithflash import (
     va_permission_abortwithflash,
@@ -84,6 +84,7 @@ _ROLE_METHODS = {
     "collaborator":     _opens("collaborator"),
     "collaborator_pii": _opens("collaborator_pii"),
 }
+_NATIVE_ROLE_NAMES = frozenset(role.value for role in NATIVE_DEVICE_ROLES)
 
 
 # Request paths under these prefixes get a JSON error body instead of an HTML
@@ -162,7 +163,12 @@ def role_required(*roles):
 
             # ── Layer 3: Role check (authz decides) ─────────────────────────
             mark_consulted()
-            if not any(_ROLE_METHODS[role](current_user) for role in roles):
+            checked_roles = (
+                tuple(role for role in roles if role in _NATIVE_ROLE_NAMES)
+                if g.get("bearer_auth") else roles
+            )
+            native_forbidden = g.get("bearer_auth") and not checked_roles
+            if native_forbidden or not any(_ROLE_METHODS[role](current_user) for role in checked_roles):
                 role_label = " or ".join(roles)
                 log.warning(
                     "Access denied — insufficient role: user=%s required=%s path=%s ip=%s",

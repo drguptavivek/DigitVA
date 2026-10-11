@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
 # Access Control Model
@@ -870,7 +870,7 @@ window) stay with the workflow services. The legacy `permission` JSONB column is
   why. A second reviewed list covers signed-in **own-account** endpoints
   that touch only the signed-in person's own account or session, or public
   reference data: their profile, terms acceptance, password, passkeys,
-  reauthentication, second factor, timezone, ending their own device
+  reauthentication, timezone, ending their own device
   session, ICD-10 search and questionnaire strings, and data-free page
   shells whose data comes from authz-decided APIs (owner decision
   2026-10-04). Signing in is their check; they never return another

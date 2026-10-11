@@ -47,7 +47,7 @@ interface BrowserAppState {
   authenticated: boolean;
   bootstrap?: ClientBootstrap;
   loginUrl?: string;
-  actionCode?: "terms_required" | "factor_setup_required";
+  actionCode?: "terms_required";
   error?: string;
   uiLocale: string;
   chooseUiLocale(code: string): Promise<void>;

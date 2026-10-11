@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
 # Field Data Collection Policy
@@ -100,7 +100,7 @@ Requirements, all of which must hold before the app collects real data:
   holding; without it, unsent interviews are invisible to the organization
   until they arrive.
 
-### Path B design (proposed 2026-09-30, pending owner confirmation)
+### Path B design (updated 2026-10-11)
 
 Built to `.tasks/2026-09-30-android-collection-app.md` (epic
 `digitva-kmk`). The parts that are policy:
@@ -113,9 +113,8 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   secret it receives is used only to open interviewer sessions.
 - **Interviewer sign-in** takes the account's email or mobile number
   (unique, from a redeemed code or verified email; mobile-sign-in.md) and its
-  password and, when the account has factors, a TOTP or recovery code
-  ([Authentication Factors](authentication-factors.md)); a device session
-  requires an active grant that opens its gate for `interviewer`, `coder`,
+  password. Native passkey sign-in is deferred. A device session requires an
+  active grant that opens its gate for `interviewer`, `coder`,
   `coding_tester` or `reviewer` in at least one project (or a `death_reporter`
   grant in a project that keeps a death register) (see "Who may sign
   in on a device" and "Multi-project devices" below), checked again at every
@@ -132,7 +131,7 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   the worker has no access left (every interviewer, coder, coding_tester and
   reviewer grant withdrawn, or their last project closed). Closing the device's enrolment project alone ends nothing while
   the worker has another project, so moving between phones and projects is
-  not hampered. A password or factor reset or a deactivated account answers
+  not hampered. A password or security reset or a deactivated account answers
   `session_ended`:
   the session is over but a forgotten-password reset must not destroy unsent
   field work. Token reuse (`refresh_reused`, or `refresh_retry_race` when a refresh
@@ -140,10 +139,9 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   keep the data: the interviewer signs in again and the unsent interviews are
   still there. A replayed token is a theft signal, not proof the phone is
   lost, and wiping on it would turn a flaky network into data loss.
-- **Second factor on the device**: five wrong codes for an account within 15
-  minutes lock its device sign-in for the rest of the window
-  (`second_factor_lockout` event); every refused sign-in after the password
-  step is audited without secrets.
+- **Local unlock on the device**: after server sign-in, the encrypted store is
+  opened with the interviewer's PIN or optional device biometric. This local
+  unlock is not a server factor and does not add permissions.
 - **Store key**: a random per-store secret in the Android Keystore joined
   with the interviewer's PIN, fed to SQLCipher's key derivation; biometric
   unlock releases the PIN part from a Keystore entry that requires a strong
@@ -153,20 +151,20 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   submitted is kept as a superseded copy, never left on the phone.
 
 **Built, server side** (`digitva-kmk.1`, 2026-09-30): enrolment codes and
-QR, device enrolment, interviewer sessions with the second factor and the
-grant check, hashed opaque tokens with rotation and reuse revocation,
+QR, device enrolment, interviewer sessions with password and the grant check,
+hashed opaque tokens with rotation and reuse revocation,
 device revoke, access summary, idempotent upload with the superseded-copy path,
 and the outstanding-work report
 ([Device Collection API](../current-state/device-collection-api.md)).
 Hardened (`digitva-kmk.6`): request and answer size bounds, the 90-day
 absolute cap (`DEVICE_SESSION_MAX_DAYS`, proposed), device-bound refresh,
-reuse codes separate from revocation, the device second-factor lockout,
-device units and translations endpoints, outstanding draft ids, and refusal
+reuse codes separate from revocation, device units and translations endpoints,
+outstanding draft ids, and refusal
 of a plain-http `DEVICE_PUBLIC_URL` outside development. The refresh
 lifetime is the proposed 30 days (C1) behind `DEVICE_REFRESH_TTL_DAYS`, and
 enrolment codes are admin-only; both stay owner decisions.
 
-**Built, app phase 2a** (`mobile/digitva-collect`): enrolment, sign-in,
+**Built, app phase 2a** (`mobile/digitva-collect`): enrolment, password sign-in,
 per-interviewer plain SQLite drafts, upload gated on the form's verdict or an
 incomplete interview outcome, push and purge, wipe only on `session_revoked`
 (other refusals mark the account "sign in again"), units and translations
@@ -228,12 +226,10 @@ user holds none of these any more, and a worker with an interviewer grant in
 a web-intake-off project but a coder grant elsewhere keeps the session. The
 per-worker encrypted store and its wipe rules are unchanged; for a worker who
 only codes the store holds no collected interviews, so a wipe loses nothing
-that was not already on the server.
-Two groups newly get a device session this way: mentor-institute staff
-(coder, reviewer or coding tester grants only; they still cannot interview),
-and a data manager or admin who also holds a coder or reviewer grant, who then
-reaches their own data-manager routes by bearer as on the web, behind the same
-second-factor rules. A device refresh token lasts up to 30 days (90 at most),
+that was not already on the server. A data manager or admin may use the app
+only when they also hold an allowed collection or coding grant; the app has no
+data-manager or administrator functions, and the bearer token cannot reach
+those web routes. A device refresh token lasts up to 30 days (90 at most),
 longer than a 30-minute web session; a lost phone is handled by revoking the
 device.
 

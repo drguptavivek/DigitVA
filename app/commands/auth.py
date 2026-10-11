@@ -3,12 +3,12 @@
 Usage:
   flask auth reset-factors user@example.com --reason "lost authenticator"
 
-Baseline: docs/policy/authentication-factors.md section 8. Run from a shell
+Historical account reset. Run from a shell
 in the app container -- container shell access is the safeguard, there is no
 further authorization check. Does the same reset as the admin UI action
 (app/routes/admin.py:admin_reset_user_factors), with ``actor_user_id`` NULL
 and ``detail["via"] = "cli"``, then emails a single-use magic link that signs
-the person in and sends them to add a passkey or TOTP; it sets no password
+the person in; it sets no password
 (app/routes/va_auth.py ``factor_reset``). Never creates users or changes roles;
 never prints an existing secret. The link is printed only if email delivery
 fails, and only then -- never logged as a matter of course.
@@ -43,8 +43,8 @@ def auth_group():
 @click.argument("email")
 @click.option("--reason", required=True, help="Why this reset is being performed.")
 def reset_factors(email, reason):
-    """Break-glass factor reset: clear a user's passkeys/TOTP/recovery
-    codes, end their sessions, and email them a single-use sign-in link."""
+    """Break-glass account reset: clear stale sign-in credentials, end the
+    user's sessions, and email a single-use sign-in link."""
     reason = (reason or "").strip()
     if not reason:
         click.echo("A reason is required.")

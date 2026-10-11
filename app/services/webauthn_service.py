@@ -13,12 +13,15 @@ passkeys (docs/policy section 1). The user handle is a stable opaque value
 
 Challenges are base64url strings in the session (Flask-Session's storage is
 not guaranteed to round-trip raw bytes), one outstanding at a time, expiring
-after ``CHALLENGE_TTL`` and consumed on first use, success or failure.
+after ``CHALLENGE_TTL`` and consumed on first use, success or failure. An
+atomic Redis marker makes that single-use claim hold across concurrent workers.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import hashlib
+import logging
+from datetime import UTC, datetime, timedelta
 
 from flask import current_app, session
 from webauthn import (
@@ -38,9 +41,12 @@ from webauthn.helpers.structs import (
 )
 
 CHALLENGE_TTL = timedelta(minutes=5)
+CHALLENGE_REDIS_PREFIX = "webauthn_challenge_used:"
 
 REGISTRATION_SESSION_KEY = "webauthn_registration"
 AUTHENTICATION_SESSION_KEY = "webauthn_authentication"
+
+log = logging.getLogger(__name__)
 
 
 class PasskeyVerificationError(Exception):
@@ -60,7 +66,7 @@ def _origin() -> str:
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _store_challenge(session_key: str, challenge: bytes, *, email: str | None = None) -> None:
@@ -81,15 +87,40 @@ def _consume_challenge(session_key: str) -> dict | None:
     Consumed unconditionally (success or failure) so a challenge is never
     reusable, per docs/policy/authentication-factors.md section 1.
     """
-    state = session.pop(session_key, None)
+    state = session.get(session_key)
     if not isinstance(state, dict) or not state.get("challenge") or not state.get("issued_at"):
         return None
     try:
         issued_at = datetime.fromisoformat(state["issued_at"])
-    except (TypeError, ValueError):
+        if issued_at.tzinfo is None:
+            return None
+        issued_at = issued_at.astimezone(UTC)
+    except (TypeError, ValueError, OverflowError):
         return None
-    if _now() - issued_at > CHALLENGE_TTL:
+    now = _now()
+    if issued_at > now or now - issued_at > CHALLENGE_TTL:
         return None
+
+    # The Flask session is copied into each concurrent request. Claim the
+    # challenge in Redis before removing it from the request-local copy, so
+    # two workers cannot both verify the same assertion.
+    try:
+        from app import cache
+
+        digest = hashlib.sha256(state["challenge"].encode("ascii")).hexdigest()
+        # Flask-Caching's add() is an atomic SETNX and keeps this marker for
+        # the full challenge lifetime, even when claimed near expiry.
+        claimed = cache.add(
+            f"{CHALLENGE_REDIS_PREFIX}{session_key}:{digest}",
+            1,
+            timeout=max(1, int(CHALLENGE_TTL.total_seconds())),
+        )
+    except Exception as exc:  # Redis failure must fail closed for passkey auth.
+        log.warning("WebAuthn challenge claim unavailable: %s", type(exc).__name__)
+        return None
+    if not claimed:
+        return None
+    session.pop(session_key, None)
     return state
 
 

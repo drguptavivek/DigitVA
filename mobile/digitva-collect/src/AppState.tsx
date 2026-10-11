@@ -52,7 +52,7 @@ interface AppState {
   lockVersion: number;
   /** Run a full upload/download while coalescing with notification sync. */
   syncAccount(userId: string, db: Db, callbacks?: NativeSyncCallbacks): Promise<NativeSyncResult>;
-  lockNow(): Promise<void>;
+  lockNow(): Promise<boolean>;
   unlocked(): void;
   /** Restart the idle timer (touches are caught at the root; the form reports its saves). */
   activity(): void;
@@ -64,7 +64,7 @@ interface AppState {
   authenticated?: boolean;
   bootstrap?: ClientBootstrap;
   loginUrl?: string;
-  actionCode?: "terms_required" | "factor_setup_required";
+  actionCode?: "terms_required";
   error?: string;
   logout?: () => Promise<void>;
 }
@@ -85,20 +85,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const foregroundNotificationRefresh = useRef<(() => Promise<void>) | undefined>(undefined);
 
   const lockNow = useCallback(async () => {
-    if (!anyUnlocked()) return;
+    if (!anyUnlocked()) return true;
     try {
       for (const hook of [...beforeLock.current]) await hook();
     } catch (lockError) {
       setError(errorText(lockError));
-      return;
+      return false;
     }
     try {
       await lockAll();
       setError(undefined);
       router.replace("/");
       setLockVersion((v) => v + 1);
+      return true;
     } catch (lockError) {
       setError(errorText(lockError));
+      return false;
     }
   }, [router]);
 

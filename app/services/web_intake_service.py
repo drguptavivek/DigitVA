@@ -286,7 +286,12 @@ _INTERVIEWER = frozenset({VaAccessRoles.interviewer})
 _DEATH_REPORTER = frozenset({VaAccessRoles.death_reporter})
 
 
-def interviewer_context(user: VaUsers, roles: frozenset = _INTERVIEWER) -> list[dict]:
+def interviewer_context(
+    user: VaUsers,
+    roles: frozenset = _INTERVIEWER,
+    *,
+    _grants=None,
+) -> list[dict]:
     """Projects and sites where this user may fill questionnaires.
 
     One entry per (project, site) reachable through interviewer grants at
@@ -300,7 +305,8 @@ def interviewer_context(user: VaUsers, roles: frozenset = _INTERVIEWER) -> list[
     ``death_reporter``'s own reach is built from that role alone
     (``_DEATH_REPORTER``), so neither role widens the other's.
     """
-    grants = list(resolve_grants(user).of(roles, virtual=False))
+    resolved = _grants if _grants is not None else resolve_grants(user)
+    grants = list(resolved.of(roles, virtual=False))
     pairs: dict[tuple[str, str], dict] = {}
 
     # Project and project-site grants: the sites of the project's active
@@ -409,7 +415,12 @@ def interviewer_context(user: VaUsers, roles: frozenset = _INTERVIEWER) -> list[
     return context
 
 
-def register_death_context(user: VaUsers, interview_context: list[dict] | None = None) -> list[dict]:
+def register_death_context(
+    user: VaUsers,
+    interview_context: list[dict] | None = None,
+    *,
+    _grants=None,
+) -> list[dict]:
     """The ``interviewer_context`` entries where *user* may register a death:
     reached through an interviewer or death_reporter grant, in a project
     whose ``web_intake_mode`` keeps a death register. The one predicate of the
@@ -418,21 +429,20 @@ def register_death_context(user: VaUsers, interview_context: list[dict] | None =
     app's sign-in check. *interview_context*: the caller's already computed
     ``interviewer_context(user)``, reused when they hold no death_reporter
     grant (then it is the whole answer)."""
-    if interview_context is not None and not any(
-        resolve_grants(user).of(_DEATH_REPORTER, virtual=False)
-    ):
+    resolved = _grants if _grants is not None else resolve_grants(user)
+    if interview_context is not None and not any(resolved.of(_DEATH_REPORTER, virtual=False)):
         entries = interview_context
     else:
-        entries = interviewer_context(user, DEATH_REGISTERING_ROLES)
+        entries = interviewer_context(user, DEATH_REGISTERING_ROLES, _grants=resolved)
     return [e for e in entries if _mode_allows(e["web_intake_mode"], death_register=True)]
 
 
-def self_coding_project_ids(user: VaUsers) -> frozenset[str]:
+def self_coding_project_ids(user: VaUsers, *, _grants=None) -> frozenset[str]:
     """Projects where *user* may be offered "Code this case now": a self-coding
     project in which they hold a coder grant that codes (gate open, coding
     scope level met). Grants only, no query; the action itself re-checks scope
     and ownership (``coder_workflow_service.allocate_own_case``)."""
-    resolved = resolve_grants(user)
+    resolved = _grants if _grants is not None else resolve_grants(user)
     return frozenset(
         g.project_id
         for g in resolved.of({VaAccessRoles.coder}, virtual=False)

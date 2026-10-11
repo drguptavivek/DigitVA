@@ -1,218 +1,118 @@
 ---
-title: Login Factors, Passkeys and TOTP
+title: Login Passwords and Passkeys
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
-# Login Factors, Passkeys and TOTP
+# Login Passwords and Passkeys
 
-Baseline for the two-step login, passkeys (WebAuthn), TOTP, recovery codes,
-enrolment enforcement and factor recovery. Sign-in by mobile number, and the
-server-generated passwords of mobile-only accounts, are in
-[mobile-sign-in.md](mobile-sign-in.md); everything here applies to them
-unless that page says otherwise. Owner decisions of 2026-09-28;
-design record `.tasks/2026-09-28-passkey-login.md`; epic `digitva-sn1`,
-feature `digitva-sn1.1`.
+This policy applies to web sign-in and to the native collection app. A user
+may sign in on the web with either the account password or a registered
+WebAuthn passkey. This includes administrators and data managers. There is no
+TOTP, recovery-code, or mandatory-factor requirement.
 
-## 1. Login flow
+Existing encrypted TOTP and recovery-code records may remain as inert history;
+they are not read during sign-in and are not bulk-deleted by this change. Old
+factor endpoints and setup gates are removed or disabled. Account verification,
+active status, maintenance, access grants, session versions, rate limits and
+CSRF protections continue to apply.
 
-1. **Email step.** The user enters an email. The browser solves a local
-   proof-of-work challenge (section 5) in the background and submits it with
-   the email. The server verifies the challenge and stores a pre-authentication
-   state in the server-side session. It never creates a Flask-Login session or
-   remember cookie at this step.
-2. **Second page.** Every email, known or unknown, active or not, gets the same
-   page: a "Use a passkey" button and a password form. The response, its
-   timing and its content must not depend on whether the account exists or
-   has passkeys. Conditional (autofill) passkey UI is an optional enhancement;
-   the explicit button is always shown.
-3. **Passkey path.** A verified passkey for the pre-auth email's account
-   completes sign-in. The WebAuthn request carries no `allowCredentials` (the
-   browser offers discoverable credentials), so it cannot reveal which
-   accounts have passkeys. The server then checks that the credential belongs
-   to the account named in the pre-auth state.
-4. **Password path.** A correct password completes sign-in unless the user
-   must also give a second factor (section 3). Then a third page asks for a
-   TOTP code or a recovery code.
-5. Every path keeps the existing checks: verified email, `user_status` active
-   (inactive accounts get the wrong-credentials message), site maintenance,
-   per-IP and per-account rate limits, CSRF (forms and `X-CSRFToken` on JSON
-   posts), and the safe `next` redirect (`_safe_next_url`).
+## 1. Web login
 
-**Pre-authentication state** is bound to one email, allows one outstanding
-WebAuthn challenge at a time, is replaced by a new email step, is cleared on
-success, and expires five minutes after the email step. A second-factor page
-after a correct password is also bound to that state and expires with it.
+1. The user enters an email or mobile number. The browser completes the local
+   proof-of-work challenge, and the server stores a five-minute pre-auth state
+   without creating a login session.
+2. The second page is indistinguishable for known and unknown identifiers. It
+   offers both the password form and a passkey button. A discoverable passkey
+   challenge has no `allowCredentials`, so the page does not reveal whether an
+   account exists or has a passkey.
+3. A correct password or a verified passkey completes sign-in. Neither path
+   asks for another factor.
 
-**Rate limits.** Email step: 10 per minute per IP and 20 per hour per email.
-Password, passkey and TOTP/recovery attempts: 10 per minute per IP and 20 per
-hour per account. Five failed second-factor attempts clear the pre-auth state
-and send the user back to the email step.
+Unknown, inactive, or incorrectly authenticated accounts receive the existing
+generic response. A correctly authenticated but unverified account receives
+the existing verification notice. Safe redirects, CAPTCHA, per-IP and
+per-identifier limits, maintenance checks, and audit events remain in force.
+The server binds a passkey challenge to the pre-auth state, expires it after
+five minutes, and atomically claims it once before verification. If the claim
+store is unavailable, passkey verification fails closed.
 
-## 2. Passkeys (WebAuthn)
+## 2. WebAuthn passkeys
 
-- Standard W3C WebAuthn (`navigator.credentials.create()` / `get()`) with
-  FIDO2 authenticators, through the `webauthn` (py_webauthn) library. No
-  operating-system-specific code. Platform authenticators, synced passkeys,
-  roaming security keys and cross-device (hybrid) use are all accepted.
-- **User verification is required** (`userVerification: "required"`) at
-  registration and sign-in for every user. PIN, device password or screen
-  unlock satisfy it; a biometric sensor is never required.
-- Registration asks for a discoverable credential (`residentKey: "required"`)
-  so the passkey path works without `allowCredentials`.
-- **Relying party.** RP ID is the host of `MAIL_BASE_URL` and the expected
-  origin is its scheme and host (with port if present). `WEBAUTHN_RP_ID` and
-  `WEBAUTHN_ORIGIN` may override them, for development only. Production uses
-  RP ID `digitva.causeofdeathindia.com`. **Changing the RP ID invalidates every
-  registered passkey**, so it is fixed before the first production
-  registration and never changed afterwards.
-- A user may register several passkeys, name and rename them, and revoke any
-  of them. Each stores a unique credential ID, public key, signature counter,
-  backup-eligible/backed-up flags, transport hints, name, created and last-used
-  times.
-- **Signature counter.** Updated atomically on each sign-in. A counter of zero
-  on both sides (synced passkeys) is not a replay. A non-zero stored counter
-  that the new counter fails to exceed is a possible clone: the sign-in is
-  refused and a security event recorded.
-- After a password sign-in by a user with no passkey, a dismissible banner
-  says "Sign on faster using passkeys next time." and links to the Profile
-  passkey section.
+WebAuthn uses the configured relying-party ID and origin through the standard
+`webauthn` library. User verification is required, so the browser or platform
+authenticator may use a device PIN, device password, or biometric. A biometric
+sensor is not required by the server. Production RP ID remains
+`digitva.causeofdeathindia.com` with its existing HTTPS origin. Changing the
+RP ID invalidates registered passkeys; this change does not alter it.
 
-## 3. Who must give a second factor
+Passkeys are optional. A user may register, name, rename, and revoke several
+credentials from the browser Profile. Registration, renaming and revocation
+require recent password or passkey reauthentication and a browser session with
+CSRF protection. A bearer device token cannot change account factors.
 
-- **Privileged users** are those holding an active `admin` or `data_manager`
-  grant. They must enrol a passkey or TOTP.
-- **Coders and every other role** may sign in with password alone. They may
-  register passkeys, and may enrol TOTP.
-- **Password sign-in needs a second factor** when the user has TOTP enrolled
-  (any role), or is a privileged user with any factor enrolled. The second
-  factor is a current TOTP code or an unused recovery code. A privileged user
-  with only passkeys signs in with a passkey, or with password plus a recovery
-  code.
-- A passkey sign-in satisfies both factors; nothing further is asked.
+Credential ownership, signature validation, replay-counter handling, account
+verification and status, maintenance, and access grants are checked before a
+session is issued. A counter of zero on both sides is accepted for synced
+credentials; a non-zero regression is refused and audited.
 
-## 4. TOTP and recovery codes
+## 3. Native collection app
 
-- TOTP (RFC 6238, 30-second step, 6 digits, SHA-1 for authenticator-app
-  compatibility) through `pyotp`, accepting one step of clock drift either
-  way. Enrolment shows a QR code and the secret once and needs a valid code to
-  complete.
-- Secrets are stored encrypted with AES-256-GCM under a key derived
-  (HKDF-SHA256) from `AUTH_FACTOR_ENCRYPTION_KEY`, with the secret bound to
-  its owning user as associated data so a ciphertext copied to another
-  user's row cannot be decrypted. Production must set that key; development
-  derives one from `SECRET_KEY`. Losing the key makes every TOTP secret
-  unreadable, so it is backed up with the other deployment secrets. Values
-  written before this scheme (legacy Fernet) still decrypt and are
-  re-encrypted the next time a code against them is accepted.
-- **Replay protection:** the last accepted time step is stored; a code for
-  that step or an earlier one is refused.
-- **Recovery codes:** ten codes are issued when a user enrols their first
-  factor, shown once, and stored only as keyed hashes (HMAC-SHA256 under the
-  factor key). Each works once. The user can regenerate them, which voids the
-  old set.
+Native passkey sign-in is deferred until the signed Android and iOS identity
+and domain-association work is complete. The native app signs in with the
+account password and an enrolled device, subject to the normal verification,
+status, maintenance, and collection-access checks. It has no administrator or
+data-manager functionality, even when the account has one of those roles.
 
-## 5. Proof-of-work CAPTCHA
+After native sign-in, the encrypted local collection store is unlocked with
+the user's PIN or optional device biometric. This is a local data-protection
+step, not a second-factor request and not a source of server permissions. A
+biometric template or image never leaves the operating system.
 
-- Local only: no third-party service, no external script, no visitor data
-  leaving the server, so no outage elsewhere can block sign-in.
-- The server issues a challenge (random salt, difficulty, expiry) signed with
-  HMAC-SHA256 under `CAPTCHA_HMAC_KEY` (development derives it from
-  `SECRET_KEY`). The browser finds a number whose SHA-256 with the salt meets
-  the difficulty, in a Web Worker, and submits it with the email.
-- The server checks signature, expiry (five minutes), solution and single use
-  (the challenge is recorded in the cache until it expires). A failed check
-  returns the email page with a generic message.
-- Difficulty is set by `CAPTCHA_DIFFICULTY` and should take about a second on
-  a modest phone.
+Device bearer credentials remain limited to supported collection and coding
+APIs. They cannot authorize administrator or data-manager web functions.
+Device revocation, account status changes, session-version changes, grant
+checks, refresh-token rotation, and unsent-data recovery rules remain in
+force.
 
-## 6. Enrolment window and enforcement
+## 4. Reauthentication, recovery and sessions
 
-- `AUTH_FACTOR_ENFORCE_FROM` (an ISO date, set at release to launch + 30 days)
-  starts enforcement. Unset means no enforcement.
-- Before that date, a privileged user without a factor sees a banner on every
-  sign-in asking them to enrol, with the deadline.
-- From that date, such a user can still sign in with a password, but every
-  page except the factor setup page, logout and static assets redirects to
-  setup until a passkey or TOTP is enrolled. There is no lock-out.
+Security-sensitive Profile changes require recent password or passkey
+reauthentication. Password generation and reset continue to use the verified
+email or the controlled mobile sign-in-code flow described in
+[account-onboarding-and-passwords.md](account-onboarding-and-passwords.md).
+An administrator may reset another user's passkey credentials through the
+audited reset flow; the reset bumps the user's session version, may clear
+inert legacy factor records, and sends the account a reset notice. The
+`flask auth reset-factors` recovery command emails a single-use, one-hour link;
+GET displays a confirmation and only a CSRF-protected POST signs the user in. The account's generated password remains a
+valid alternative after recovery. An administrator may not use the admin reset
+action on their own account.
 
-## 7. Reauthentication for factor changes
+Every completed sign-in records its method (`password` or `passkey`) and the
+subject, actor, time, and non-secret result. Failed attempts record only a
+safe reason. Credential IDs, public keys, passwords, challenges, biometrics,
+and other secrets are never logged.
 
-Adding, renaming or revoking a passkey, enrolling or removing TOTP, and
-regenerating recovery codes need a sign-in or reauthentication (password or
-passkey) within the last ten minutes. A user cannot remove their last factor
-while privileged and past the enforcement date.
+Completed web sign-ins also record the validated client IP in the security
+event, using the existing one-hop trusted proxy configuration. IPs are removed
+from those events after 210 days by the daily retention job; the event itself
+remains. Other security events and application logs do not gain IP fields.
 
-## 8. Sessions and factor reset
+A password reset, account deactivation, factor-record reset, or explicit
+session-version bump ends existing sessions according to the normal session
+rules. No destructive migration is required for inert legacy TOTP data.
 
-- **Session version.** Each user has an integer session version. Flask-Login
-  identifies the session by user ID plus version; a version mismatch logs the
-  user out. Sessions issued before this change carry no version and are
-  treated as version 0, so they stay valid until the first bump. A factor
-  reset, a password reset and a break-glass reset bump the version, ending
-  every session and remember cookie for that user.
-- **Admin reset.** An admin can reset another user's factors, including
-  another admin's; nobody resets their own. It needs a reason, clears the
-  user's passkeys, TOTP and recovery codes, bumps the session version, records
-  a security event and emails the user. The user then sets up a factor at next
-  sign-in if privileged.
-- **Break-glass CLI.** `flask auth reset-factors <email> --reason "..."`, run in
-  the app container (shell access is the safeguard), does what an admin reset
-  does, then emails a magic link. The link is single-use and expires in one
-  hour: it carries a fingerprint of the password hash and session version, so
-  its first use invalidates it. The link opens a page with a button (it
-  changes nothing until pressed); pressing it verifies the email, signs the
-  person in and leads to enrolling a passkey or TOTP (required for
-  privileged users, offered to others). It sets no password: the existing
-  one keeps working, and the fresh sign-in lets the person use Profile
-  "Generate a new password" at once (account-onboarding-and-passwords.md). The command prints the link only if mail delivery fails,
-  never shows existing secrets, and never creates users or changes roles.
+## 5. Verification
 
-## 9. Audit
+Server tests cover password and passkey success and failure, account gates,
+challenge expiry and replay, credential ownership, counter handling, CSRF,
+reauthentication, rate limits, and session invalidation. Browser tests with a
+virtual authenticator cover the WebAuthn path. Real browser and native-device
+testing must record the OS, browser/app version, and the authenticator used;
+unit tests do not establish platform support.
 
-Security events are written to `auth_security_events`: passkey registered,
-renamed, revoked; TOTP enrolled or removed; recovery codes regenerated or
-used; factor reset (admin or CLI, with actor and reason); counter regression;
-second-factor lockout; every completed web sign-in (`web_sign_in`,
-`detail.method` one of `password`, `second_factor`, `passkey`, `factor_reset`)
-and every refused one (`web_sign_in_failed`, `detail.reason`); every device
-session opening (`device_session_opened`). Each records the subject user, the
-actor (null for CLI), event type, time and a small non-secret detail. Never
-credential IDs in full, public keys, TOTP secrets, codes or challenges.
-
-**IP address (owner, 2026-10-01).** `web_sign_in` alone also carries the
-client address in `detail.ip`, to correlate sign-ins with firewall logs. It
-is `request.remote_addr` after the proxy fix (`ProxyFix`, one trusted
-`X-Forwarded-For` hop), never a client-supplied header read directly, and it
-never goes to the application log. It relies on the reverse proxy in front
-of the ingress appending or overwriting `X-Forwarded-For` (`ProxyFix(x_for=1)`
-trusts one hop), never passing the client's own header through; a value that
-does not parse as an IP address is not stored. No other event carries an IP. A sign-in
-that fails or stops after the first step (second factor pending) writes no
-`web_sign_in`. A completed web sign-in or device session opening also stamps
-`va_users.last_signed_in_at`. **Retention of the IP (owner, 2026-10-01, final): 210 days**, the same as
-the log files. The daily Celery beat task `wipe_sign_in_ips_task`
-(`app/tasks/security_event_tasks.py`, constant `SIGN_IN_IP_RETENTION_DAYS`)
-removes `ip` from the `detail` of `web_sign_in` events older than that in one
-UPDATE and keeps the event (method, user and time stay). It logs a count,
-never an address.
-
-## 10. Coordination
-
-Per-project SSO (`digitva-roq`, `.tasks/2026-09-26-project-sso-oauth2.md`)
-will hook into the email step: once a project uses an external identity
-provider, the email step hands off to it instead of showing the second page.
-That decision must keep the second page identical for unknown emails.
-
-## 11. Verification
-
-Server-side rules are covered by focused tests. The browser flow is checked
-with Chrome's virtual authenticator. Real-device checks (Chrome/Edge on
-Windows, Safari and Chrome on macOS, Safari on iOS, Chrome on Android; a
-platform passkey, a synced or cross-device passkey and a security key where
-available) are recorded with exact OS and browser versions; a passing unit
-test is not evidence of platform support.
-
-Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).
+Shipped endpoint and response details are in
+[Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

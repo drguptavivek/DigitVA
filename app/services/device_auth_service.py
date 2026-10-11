@@ -27,11 +27,9 @@ account (active, session version) and the device, so a withdrawn grant (the
 worker holds no interviewer, coder, coding_tester or reviewer access left) ends
 the session at the next refresh, within ``ACCESS_TTL``.
 
-Second factor. Failed device second-factor attempts are counted per account
-from the audit trail (``SECOND_FACTOR_MAX_FAILURES`` in
-``SECOND_FACTOR_WINDOW`` since the last successful device sign-in); the fifth
-records ``second_factor_lockout`` and sign-in is refused, 429
-``second_factor_locked``, until the window passes.
+Native sign-in uses the account password after device authentication. TOTP and
+recovery records remain historical compatibility data and are not consulted by
+this flow.
 
 Nothing here logs a token, secret, code, email or password.
 """
@@ -56,13 +54,11 @@ from app.models import (
     AuthDevice,
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
-    AuthSecurityEvent,
     VaAccessRoles,
     VaProjectMaster,
     VaStatuses,
     VaUsers,
 )
-from app.services import totp_service
 from app.services.authz import resolve_grants
 from app.services.security_event_service import record_security_event
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
@@ -83,8 +79,6 @@ RETIRED_REFRESH_KEEP = 5
 #: A retry with the token rotated away less than this ago is treated as a lost
 #: response (409 ``refresh_retry_race``), not as theft (401 ``refresh_reused``).
 REFRESH_RETRY_GRACE = timedelta(seconds=60)
-SECOND_FACTOR_MAX_FAILURES = 5
-SECOND_FACTOR_WINDOW = timedelta(minutes=15)
 #: Revocation reasons that mean "the refresh token was replayed". They answer
 #: refresh_reused / refresh_retry_race so the app keeps the interviewer's data;
 #: every other reason answers session_revoked, on which the app wipes.
@@ -104,7 +98,7 @@ LAST_SEEN_INTERVAL = timedelta(seconds=60)
 OUTSTANDING_MAX_IDS = 1000
 _DEVICE_NAME_MAX = 64
 _APP_VERSION_MAX = 32
-_PLATFORMS = frozenset({"android"})
+_PLATFORMS = frozenset({"android", "ios"})
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-device-timing-equaliser")
 
 
@@ -190,8 +184,13 @@ _DEVICE_CODING_ROLES = frozenset(
 )
 
 
-def has_device_access(user: VaUsers, context: list[dict] | None = None,
-                      register_context: list[dict] | None = None) -> bool:
+def has_device_access(
+    user: VaUsers,
+    context: list[dict] | None = None,
+    register_context: list[dict] | None = None,
+    *,
+    _grants=None,
+) -> bool:
     """The sign-in, refresh and automatic-revocation grant check: the user
     may interview in at least one project (``interviewer_context``, which
     skips a project whose ``web_intake_mode`` is ``off``, so a session never
@@ -208,7 +207,8 @@ def has_device_access(user: VaUsers, context: list[dict] | None = None,
 
     if (interviewer_context(user) if context is None else context):
         return True
-    if any(g.opens_gate for g in resolve_grants(user).of(_DEVICE_CODING_ROLES, virtual=False)):
+    resolved = _grants if _grants is not None else resolve_grants(user)
+    if any(g.opens_gate for g in resolved.of(_DEVICE_CODING_ROLES, virtual=False)):
         return True
     return bool(register_death_context(user, []) if register_context is None else register_context)
 
@@ -287,7 +287,7 @@ def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevic
     name = _clean_text(device_name, limit=_DEVICE_NAME_MAX, name="device_name", required=True)
     version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
     if platform not in _PLATFORMS:
-        raise DeviceAuthError("platform must be android.", "invalid_request", 400)
+        raise DeviceAuthError("platform must be android or ios.", "invalid_request", 400)
     if not isinstance(code, str) or not code.strip():
         raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
 
@@ -389,28 +389,6 @@ def _sign_in_failed(device: AuthDevice, user: VaUsers | None, reason: str) -> No
     log.warning("device sign-in refused | device=%s | reason=%s", device.device_id, reason)
 
 
-def _second_factor_failures(user: VaUsers) -> int:
-    """Failed device second-factor attempts for *user* in the window, counted
-    since their last successful device sign-in (a success resets the count,
-    as the web flow's pre-auth state does)."""
-    since = _now() - SECOND_FACTOR_WINDOW
-    last_success = db.session.scalar(
-        sa.select(sa.func.max(AuthSecurityEvent.occurred_at)).where(
-            AuthSecurityEvent.user_id == user.user_id,
-            AuthSecurityEvent.event_type == "device_session_opened",
-            AuthSecurityEvent.occurred_at > since,
-        )
-    )
-    return db.session.scalar(
-        sa.select(sa.func.count()).select_from(AuthSecurityEvent).where(
-            AuthSecurityEvent.user_id == user.user_id,
-            AuthSecurityEvent.event_type == "device_session_failed",
-            AuthSecurityEvent.occurred_at > max(since, last_success or since),
-            AuthSecurityEvent.detail["reason"].astext == "second_factor_invalid",
-        )
-    ) or 0
-
-
 def _refuse(device: AuthDevice, user: VaUsers, message: str, code: str, status_code: int) -> DeviceAuthError:
     """Audit a post-password refusal (reason = the contract code) and return
     the error to raise."""
@@ -443,7 +421,33 @@ def _sign_in_user(identifier: str) -> VaUsers | None:
     return db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == mobile))
 
 
-def open_session(*, device_id, device_secret, email, password, otp=None) -> tuple[IssuedTokens, VaUsers]:
+def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, VaUsers]:
+    """Issue the normal device session after authentication and access checks."""
+    if not has_device_access(user):
+        _sign_in_failed(device, user, "no_interviewer_grant")
+        raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
+    session = AuthDeviceSession(
+        device_id=device.device_id,
+        user_id=user.user_id,
+        user_session_version=user.auth_session_version or 0,
+    )
+    issued = _issue(session)
+    db.session.add(session)
+    device.last_seen_at = session.last_seen_at
+    db.session.flush()
+    user.mark_signed_in()
+    record_security_event(
+        user_id=user.user_id, event_type="device_session_opened",
+        detail={"device_id": str(device.device_id)},
+    )
+    log.info(
+        "device session opened | device=%s | session=%s | user=%s",
+        device.device_id, session.session_id, user.user_id,
+    )
+    return issued, user
+
+
+def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTokens, VaUsers]:
     """Sign an interviewer in on an enrolled device (the web login's checks,
     with the device credential in place of the CAPTCHA). *email* is the
     contract's field name; it holds an email or a mobile number. Raises
@@ -470,52 +474,8 @@ def open_session(*, device_id, device_secret, email, password, otp=None) -> tupl
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         raise _refuse(device, user, "Site is under maintenance.", "maintenance", 403)
 
-    if totp_service.needs_second_factor(user):
-        # Checked before the code is: a locked account gets no more guesses.
-        if _second_factor_failures(user) >= SECOND_FACTOR_MAX_FAILURES:
-            raise _refuse(device, user, "Too many wrong codes. Try again later.", "second_factor_locked", 429)
-        code = otp.strip() if isinstance(otp, str) else ""
-        if not code:
-            raise _refuse(device, user, "A TOTP or recovery code is required.", "second_factor_required", 401)
-        by_totp = totp_service.has_confirmed_totp(user.user_id) and totp_service.verify(user, code)
-        by_recovery = (not by_totp) and totp_service.verify_recovery_code(user, code)
-        if not (by_totp or by_recovery):
-            db.session.rollback()
-            _sign_in_failed(device, user, "second_factor_invalid")
-            if _second_factor_failures(user) == SECOND_FACTOR_MAX_FAILURES:
-                record_security_event(
-                    user_id=user.user_id, event_type="second_factor_lockout",
-                    detail={"device_id": str(device.device_id), "channel": "device"},
-                )
-                db.session.commit()
-            raise DeviceAuthError("A TOTP or recovery code is required.", "second_factor_required", 401)
-        if by_recovery:
-            record_security_event(
-                user_id=user.user_id, event_type="recovery_code_used",
-                detail={"remaining": totp_service.remaining_recovery_code_count(user.user_id)},
-            )
-
     # The code stays ``no_interviewer_grant``: the app matches on it.
-    if not has_device_access(user):
-        _sign_in_failed(device, user, "no_interviewer_grant")
-        raise DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
-
-    session = AuthDeviceSession(
-        device_id=device.device_id,
-        user_id=user.user_id,
-        user_session_version=user.auth_session_version or 0,
-    )
-    issued = _issue(session)
-    db.session.add(session)
-    device.last_seen_at = session.last_seen_at
-    db.session.flush()
-    user.mark_signed_in()
-    record_security_event(
-        user_id=user.user_id, event_type="device_session_opened",
-        detail={"device_id": str(device.device_id)},
-    )
-    log.info("device session opened | device=%s | session=%s | user=%s", device.device_id, session.session_id, user.user_id)
-    return issued, user
+    return _open_authorized_session(device, user)
 
 
 def _revoke(session: AuthDeviceSession, reason: str) -> None:

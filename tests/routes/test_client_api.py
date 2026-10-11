@@ -27,10 +27,7 @@ class ExpoWebAccessTests(BaseTestCase):
     """Expo web learns who is signed in, its access and its CSRF token from
     GET /api/v1/me/access (the removed /api/v1/client/bootstrap)."""
 
-    def test_factor_setup_gate_answers_json_403(self):
-        previous = self.app.config.get("AUTH_FACTOR_ENFORCE_FROM")
-        self.addCleanup(lambda: self.app.config.__setitem__("AUTH_FACTOR_ENFORCE_FROM", previous))
-        self.app.config["AUTH_FACTOR_ENFORCE_FROM"] = "2000-01-01"
+    def test_privileged_access_is_not_blocked_by_factor_setup(self):
         db.session.add(VaUserAccessGrants(
             user_id=self.base_coder_user.user_id,
             role=VaAccessRoles.admin,
@@ -42,9 +39,7 @@ class ExpoWebAccessTests(BaseTestCase):
 
         response = self.client.get(ME_ACCESS)
 
-        self.assertEqual(response.status_code, 403)
-        self.assertEqual(response.get_json()["code"], "factor_setup_required")
-        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        self.assertEqual(response.status_code, 200)
 
     def test_pending_terms_remain_enforced_as_json(self):
         self.base_coder_user.pw_reset_t_and_c = False

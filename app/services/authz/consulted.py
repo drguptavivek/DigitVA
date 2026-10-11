@@ -67,9 +67,6 @@ PUBLIC_ENDPOINTS = {
                                         "account (section 1).",
     "va_auth.va_login_passkey_verify": "Two-step login, passkey verify: checks the "
                                        "credential belongs to the pre-auth account.",
-    "va_auth.va_login_second_factor": "Two-step login, TOTP or recovery code: only "
-                                      "after the password step set the pre-auth "
-                                      "state (section 3).",
     "va_auth.va_login_redeem_code": "Sign-in code redeem: one-time code from a data "
                                     "manager, CAPTCHA-gated and rate-limited "
                                     "(mobile-sign-in.md section 3).",
@@ -82,8 +79,8 @@ PUBLIC_ENDPOINTS = {
     "va_auth.reset_password": "Password reset link; reachable only with a signed token.",
     "va_auth.resend_verification": "Verification email resend; runs with no session.",
     "va_auth.verify_email": "Verification link; reachable only with a signed token.",
-    "va_auth.factor_reset": "Break-glass factor reset link; single-use one-hour token "
-                            "(authentication-factors.md section 8).",
+    "va_auth.factor_reset": "Break-glass account recovery link; single-use one-hour "
+                            "token after an administrator reset.",
     "va_main.va_index": "Public landing page; renders no user data.",
     "va_main.who_va_document": "Published WHO VA reference PDFs from a fixed registry.",
     "help.index": "Public help index; pages filtered per user in the body.",
@@ -112,7 +109,7 @@ PUBLIC_ENDPOINTS = {
     "api_v1.auth_api.enroll": "Device enrol: authenticates (one-time hashed enrolment "
                             "code), does not authorize; rate-limited.",
     "api_v1.auth_api.open_session": "Device sign-in: authenticates (device secret, "
-                                  "password, second factor), does not authorize.",
+                                  "password), does not authorize.",
     "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "
                                      "refresh token, reuse revokes), does not authorize.",
 }
@@ -150,12 +147,6 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.profile_api.reauth": "Own re-authentication.",
     "api_v1.profile_api.reauth_passkey": "Own re-authentication.",
     "api_v1.profile_api.reauth_passkey_options": "Own re-authentication.",
-    "api_v1.profile_api.recovery_codes_regenerate": "Own recovery codes.",
-    "api_v1.profile_api.recovery_codes_status": "Own recovery codes.",
-    "api_v1.profile_api.totp_confirm": "Own TOTP factor.",
-    "api_v1.profile_api.totp_enroll": "Own TOTP factor.",
-    "api_v1.profile_api.totp_remove": "Own TOTP factor.",
-    "api_v1.profile_api.totp_status": "Own TOTP factor.",
     "api_v1.profile_api.update_interviewer_profile": "Own year of birth and sex.",
     "api_v1.profile_api.update_job_title": "Own job title (public text, grants nothing).",
     "api_v1.profile_api.update_timezone": "Own timezone.",

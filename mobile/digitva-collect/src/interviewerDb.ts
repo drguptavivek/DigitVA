@@ -119,9 +119,16 @@ export async function unlockInterviewerDb(userId: string, pin: string): Promise<
 
 /** Close every unlocked database and drop the handles. */
 export async function lockAll(): Promise<void> {
-  const handles = [...unlocked.values()];
-  unlocked.clear();
-  await Promise.all(handles.map((db) => db.closeAsync().catch(() => undefined)));
+  const failures: unknown[] = [];
+  await Promise.all([...unlocked.entries()].map(async ([userId, db]) => {
+    try {
+      await db.closeAsync();
+      if (unlocked.get(userId) === db) unlocked.delete(userId);
+    } catch (error) {
+      failures.push(error);
+    }
+  }));
+  if (failures.length) throw failures[0];
 }
 
 /** Close and delete the interviewer's database file and forget its keys. Other interviewers are untouched. */

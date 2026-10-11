@@ -460,7 +460,6 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
     def test_the_account_block(self):
         coder = self._body("coder_p1")["account"]
         self.assertEqual(coder["privileged"], False)
-        self.assertEqual(coder["second_factor"], {"required": False, "configured": False})
         self.assertTrue(coder["pii_visible"])
         self.assertEqual(coder["mentor"], {"member": False, "admin_of": []})
         self.assertTrue(self._body("dm_ta")["account"]["privileged"])

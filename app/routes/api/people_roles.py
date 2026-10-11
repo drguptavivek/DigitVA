@@ -15,11 +15,17 @@ from flask import Blueprint, Response, jsonify, request
 from flask_login import current_user, login_required
 
 from app import limiter
+from app.routes.api.request_helpers import browser_session_only
 from app.routes.api.request_helpers import error as api_error
 from app.services import people_roles_service as service
 
 bp = Blueprint("people_roles_api", __name__)
 log = logging.getLogger(__name__)
+
+
+@bp.before_request
+def _require_browser_session():
+    return browser_session_only()
 
 
 @bp.get("/<project_id>/people-roles")

@@ -18,9 +18,9 @@ bp = Blueprint("me_api", __name__)
 def access():
     """Everything about the caller's access in one body
     (docs/current-state/api-v1.md). JSON 401 when signed out. A cookie
-    request also gets the CSRF token in the ``X-CSRFToken`` header (the body
-    is the same for both credentials); a bearer request never does, since
-    generating one writes the session."""
+    request gets full account access and a CSRF token in ``X-CSRFToken``.
+    A bearer request gets native worker grants only and no CSRF token,
+    since generating one writes the session."""
     response = jsonify(build_access_summary(current_user._get_current_object()))
     if not g.get("bearer_auth"):
         response.headers["X-CSRFToken"] = generate_csrf()

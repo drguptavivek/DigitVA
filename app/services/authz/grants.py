@@ -20,7 +20,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 
 import sqlalchemy as sa
-from flask import has_request_context, request
+from flask import g, has_request_context, request
 
 from app import db
 from app.models import (
@@ -51,6 +51,18 @@ _U = VaAccessScopeTypes.org_unit
 # Roles whose gate opens on a project or pair grant only once it reaches a form.
 _NEEDS_FORM_ON_ACTIVE_PAIR = frozenset({VaAccessRoles.coder, VaAccessRoles.coding_tester})
 _NEEDS_FORM = frozenset({VaAccessRoles.reviewer, VaAccessRoles.interviewer})
+
+# A device bearer credential is a collection/coding credential.  Keeping this
+# projection here means every authz predicate, including the admin bypasses,
+# sees the same credential-scoped grants.  Browser sessions continue to use
+# the complete resolved set.
+NATIVE_DEVICE_ROLES = frozenset({
+    VaAccessRoles.interviewer,
+    VaAccessRoles.death_reporter,
+    VaAccessRoles.coder,
+    VaAccessRoles.coding_tester,
+    VaAccessRoles.reviewer,
+})
 
 
 @dataclass(frozen=True)
@@ -386,7 +398,37 @@ def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
     )
 
 
-def resolve_grants(user) -> ResolvedGrants:
+def _device_projection(resolved: ResolvedGrants) -> ResolvedGrants:
+    """Restrict a resolved account to roles supported by a device token.
+
+    The Redis/request memo stores the full account result.  Return a fresh
+    immutable result so a bearer request cannot mutate the browser result or
+    leak admin/data-manager projects through the shared cache.
+    """
+    explicit_native = tuple(
+        g for g in resolved.grants
+        if not g.virtual and g.role in NATIVE_DEVICE_ROLES
+    )
+    demo_eligible = any(g.role in DEMO_VIRTUAL_ROLES for g in explicit_native)
+    grants = tuple(
+        g for g in resolved.grants
+        if g.role in NATIVE_DEVICE_ROLES and (not g.virtual or demo_eligible)
+    )
+    project_ids = {grant.project_id for grant in grants}
+    projects = {
+        project_id: settings
+        for project_id, settings in resolved.projects.items()
+        if project_id in project_ids
+    }
+    return dataclasses.replace(
+        resolved,
+        is_admin=False,
+        grants=grants,
+        projects=projects,
+    )
+
+
+def resolve_grants(user, *, native: bool | None = None) -> ResolvedGrants:
     """The user's ``ResolvedGrants``, memoised for the current request.
 
     Kept in the WSGI environ, not ``flask.g``: the app context (and so ``g``)
@@ -402,9 +444,13 @@ def resolve_grants(user) -> ResolvedGrants:
     """
     from app.services.authz import grant_cache
 
+    if native is None:
+        native = bool(has_request_context() and g.get("bearer_auth"))
+
     user_id = user.user_id
     if not has_request_context():
-        return _resolve(user_id)
+        resolved = _resolve(user_id)
+        return _device_projection(resolved) if native else resolved
     memo = request.environ.setdefault(_ENVIRON_KEY, {})
     resolved = memo.get(user_id)
     if resolved is None:
@@ -415,7 +461,7 @@ def resolve_grants(user) -> ResolvedGrants:
             resolved = memo[user_id] = _resolve(user_id)
         else:
             resolved = memo[user_id] = grant_cache.load(user_id, _resolve)
-    return resolved
+    return _device_projection(resolved) if native else resolved
 
 
 def invalidate(user_id: uuid.UUID) -> None:

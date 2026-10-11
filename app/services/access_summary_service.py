@@ -32,7 +32,7 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
 )
-from app.services import mentor_institute_service, totp_service
+from app.services import mentor_institute_service
 from app.services.authz import action_reach, resolve_grants, role_flags
 from app.services.authz.actions import ADMIN_BYPASS
 from app.services.authz.consulted import mark_consulted
@@ -46,7 +46,7 @@ _CODING_ROLES = frozenset(
     {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.reviewer})
 
 
-def build_access_summary(user) -> dict:
+def build_access_summary(user, *, native: bool | None = None) -> dict:
     """The access summary of *user*; see docs/current-state/api-v1.md."""
     # Imported here: these import this package or route modules at load.
     from app.services.device_auth_service import has_device_access
@@ -57,19 +57,19 @@ def build_access_summary(user) -> dict:
     )
 
     mark_consulted()
-    resolved = resolve_grants(user)
+    resolved = resolve_grants(user, native=native)
     # Once per call: the intake routes' check, shared with has_device_access.
-    context = interviewer_context(user)
+    context = interviewer_context(user, _grants=resolved)
     # Where the register-death routes accept the caller (an interviewer's
     # entries, or a death_reporter's as well): actions.register_death.
-    register_context = register_death_context(user, context)
+    register_context = register_death_context(user, context, _grants=resolved)
     interviewing: dict[str, list[dict]] = {}
     for entry in context:
         interviewing.setdefault(entry["project_id"], []).append(entry)
     registering: dict[str, list[dict]] = {}
     for entry in register_context:
         registering.setdefault(entry["project_id"], []).append(entry)
-    self_coding = self_coding_project_ids(user)
+    self_coding = self_coding_project_ids(user, _grants=resolved)
     explicit = [g for g in resolved.grants if not g.virtual]
     by_project: dict[str, list] = {}
     for grant in explicit:
@@ -117,13 +117,13 @@ def build_access_summary(user) -> dict:
         },
         "is_admin": resolved.is_admin,
         "account": {
-            "privileged": totp_service.is_privileged(user),
-            "second_factor": {
-                "required": totp_service.needs_second_factor(user),
-                "configured": totp_service.has_any_factor(user.user_id),
-            },
-            "pii_visible": not should_redact_pii(user),
-            "device_access": has_device_access(user, context, register_context),
+            "privileged": bool(
+                {"admin", "data_manager"} & role_flags(user, _grants=resolved)
+            ),
+            "pii_visible": not should_redact_pii(user, _grants=resolved),
+            "device_access": has_device_access(
+                user, context, register_context, _grants=resolved
+            ),
             "mentor": {
                 "member": user.user_id in mentor_institute_service.member_user_ids([user.user_id]),
                 "admin_of": [
@@ -132,7 +132,7 @@ def build_access_summary(user) -> dict:
                 ],
             },
         },
-        "roles": sorted(role_flags(user, virtual=False)),
+        "roles": sorted(role_flags(user, _grants=resolved, virtual=False)),
         "admin_actions": sorted(a.value for a in ADMIN_BYPASS) if resolved.is_admin else [],
         "projects": projects,
         "demo_coding": {"available": bool(demo_projects), "project_ids": demo_projects},

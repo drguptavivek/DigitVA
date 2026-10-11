@@ -15,11 +15,17 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
 from app import db, limiter
+from app.routes.api.request_helpers import browser_session_only
 from app.routes.api.request_helpers import error as api_error
 from app.routes.api.request_helpers import parse_body
 from app.services import instrument_translation_suggestion_service as service
 
 bp = Blueprint("translation_suggestions_api", __name__)
+
+
+@bp.before_request
+def _require_browser_session():
+    return browser_session_only()
 
 _MAX_SEARCH_CHARS = 64
 

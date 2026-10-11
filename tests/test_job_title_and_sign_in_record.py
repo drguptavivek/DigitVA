@@ -7,7 +7,6 @@ docs/policy/authentication-factors.md section 9.
 import uuid
 from datetime import UTC, datetime
 
-import pyotp
 import sqlalchemy as sa
 
 from app import db
@@ -264,21 +263,13 @@ class PasswordSignInRecordTests(WebSignInRecordMixin, OnboardingTestBase):
         self.assertFalse(any("203.0.113.77" in line for line in logs.output))
 
 
-class SecondFactorSignInRecordTests(WebSignInRecordMixin, TotpTestBase):
-    def test_nothing_is_written_until_the_second_factor_completes(self):
-        secret = self._enroll_totp(self.user)
+class PasswordSignInRecordTests(WebSignInRecordMixin, TotpTestBase):
+    def test_password_sign_in_records_without_a_second_factor(self):
+        self._enroll_totp(self.user)
         step = self._login_via_form(self.user.email, TOTP_PASSWORD)
-        self.assertIn("/second-factor", step.headers["Location"])
-        self.assertEqual(_events(self.user.user_id, "web_sign_in"), [])
-        self.assertIsNone(_refresh(self.user).last_signed_in_at)
-        wrong = self.client.post(step.headers["Location"], data={"code": "000000"},
-                                 headers=self._csrf_headers())
-        self.assertEqual(wrong.status_code, 302)
-        self.assertEqual(_events(self.user.user_id, "web_sign_in"), [])
-        done = self.client.post(step.headers["Location"], data={"code": pyotp.TOTP(secret).now()},
-                                headers=self._csrf_headers())
-        self.assertEqual(done.status_code, 302)
-        self._assert_one_sign_in(self.user, "second_factor")
+        self.assertEqual(step.status_code, 302)
+        self.assertNotIn("second-factor", step.headers["Location"])
+        self._assert_one_sign_in(self.user, "password")
 
 
 class PasskeySignInRecordTests(WebSignInRecordMixin, PasskeyTestBase):

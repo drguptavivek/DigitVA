@@ -275,6 +275,14 @@ class VaUsers(UserMixin, db.Model):
         return bool(administered_institutes(self.user_id))
 
     def is_admin(self):
+        # A device bearer token carries a credential-scoped view of the
+        # account.  Do not let a mixed collector/admin account regain the
+        # browser's global admin bypass through a direct model check.
+        from flask import g, has_request_context
+        if has_request_context() and g.get("bearer_auth"):
+            from app.services.authz import resolve_grants
+
+            return resolve_grants(self).is_admin
         from app.models import (
             VaAccessRoles,
             VaAccessScopeTypes,
@@ -297,6 +305,9 @@ class VaUsers(UserMixin, db.Model):
         this is an EXISTS over the same four conditions plus the active-project
         rule, so the gate costs one indexed lookup instead of a project-id set.
         """
+        from flask import g, has_request_context
+        if has_request_context() and g.get("bearer_auth"):
+            return bool(self.get_project_pi_projects())
         from app.models import (
             VaAccessRoles,
             VaAccessScopeTypes,
@@ -343,6 +354,15 @@ class VaUsers(UserMixin, db.Model):
         )
 
     def get_project_pi_projects(self):
+        from flask import g, has_request_context
+        if has_request_context() and g.get("bearer_auth"):
+            from app.models import VaAccessRoles
+            from app.services.authz import resolve_grants
+
+            return {
+                grant.project_id
+                for grant in resolve_grants(self).of((VaAccessRoles.project_pi,))
+            }
         from app.models import (
             VaAccessRoles,
             VaAccessScopeTypes,

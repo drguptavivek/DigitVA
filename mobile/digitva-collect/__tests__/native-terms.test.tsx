@@ -2,7 +2,7 @@ import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 let mockRequired = true;
-let mockBlocked: "maintenance" | "factor_setup_required" | undefined;
+let mockBlocked: "maintenance" | undefined;
 let mockAppError: string | undefined;
 let mockRouteUser: string | undefined = "worker";
 const mockClearError = jest.fn(() => { mockAppError = undefined; });

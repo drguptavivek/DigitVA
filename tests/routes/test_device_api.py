@@ -334,52 +334,27 @@ class DeviceApiTests(BaseTestCase):
         db.session.commit()
         return secret
 
-    def test_second_factor_required_then_accepted_by_totp_or_recovery_code(self):
-        secret = self._enrol_totp(self.interviewer)
+    def test_password_sign_in_ignores_historical_totp_and_recovery_codes(self):
+        """A native password login is complete even for legacy TOTP users."""
+        self._enrol_totp(self.interviewer)
         codes = totp_service.generate_recovery_codes(self.interviewer)
         db.session.commit()
+        before = totp_service.remaining_recovery_code_count(self.interviewer.user_id)
         device = self._enrol()
 
-        missing = self._sign_in(device)
-        self.assertEqual((missing.status_code, missing.get_json()["code"]), (401, "second_factor_required"))
-        wrong = self._sign_in(device, otp="000000")
-        self.assertEqual((wrong.status_code, wrong.get_json()["code"]), (401, "second_factor_required"))
-
-        self.assertEqual(self._sign_in(device, otp=pyotp.TOTP(secret).now()).status_code, 201)
+        self.assertEqual(self._sign_in(device, otp="000000").status_code, 201)
         self.assertEqual(self._sign_in(device, otp=codes[0]).status_code, 201)
-        # A recovery code works once.
-        self.assertEqual(self._sign_in(device, otp=codes[0]).status_code, 401)
+        self.assertEqual(totp_service.remaining_recovery_code_count(self.interviewer.user_id), before)
 
-    def test_five_wrong_second_factor_codes_lock_the_account_on_devices(self):
-        secret = self._enrol_totp(self.interviewer)
+    def test_repeated_old_otp_does_not_lock_native_password_sign_in(self):
+        self._enrol_totp(self.interviewer)
         device = self._enrol()
-        statuses = [self._sign_in(device, otp="000000").get_json()["code"] for _ in range(5)]
-        self.assertEqual(statuses, ["second_factor_required"] * 5)
+        statuses = [self._sign_in(device, otp="000000").status_code for _ in range(5)]
+        self.assertEqual(statuses, [201] * 5)
         lockouts = db.session.scalars(sa.select(AuthSecurityEvent).where(
             AuthSecurityEvent.user_id == self.interviewer.user_id,
             AuthSecurityEvent.event_type == "second_factor_lockout")).all()
-        self.assertEqual(len(lockouts), 1)
-        self.assertEqual(lockouts[0].detail, {"device_id": device["device_id"], "channel": "device"})
-        # Even the right code is refused now, without being checked.
-        locked = self._sign_in(device, otp=pyotp.TOTP(secret).now())
-        self.assertEqual((locked.status_code, locked.get_json()["code"]), (429, "second_factor_locked"))
-        # The window passes: the right code works again.
-        db.session.execute(sa.update(AuthSecurityEvent).where(
-            AuthSecurityEvent.user_id == self.interviewer.user_id
-        ).values(occurred_at=datetime.now(UTC) - devices.SECOND_FACTOR_WINDOW - timedelta(seconds=1)))
-        db.session.commit()
-        self.assertEqual(self._sign_in(device, otp=pyotp.TOTP(secret).now()).status_code, 201)
-
-    def test_a_successful_sign_in_resets_the_second_factor_count(self):
-        secret = self._enrol_totp(self.interviewer)
-        codes = totp_service.generate_recovery_codes(self.interviewer)
-        db.session.commit()
-        device = self._enrol()
-        for _ in range(4):
-            self._sign_in(device, otp="000000")
-        self.assertEqual(self._sign_in(device, otp=codes[0]).status_code, 201)
-        self._sign_in(device, otp="000000")
-        self.assertEqual(self._sign_in(device, otp=pyotp.TOTP(secret).now()).status_code, 201)
+        self.assertEqual(lockouts, [])
 
     def test_post_password_refusals_are_audited_without_secrets(self):
         device = self._enrol()
@@ -399,16 +374,13 @@ class DeviceApiTests(BaseTestCase):
                 db.session.commit()
         with mock.patch.object(devices, "should_block_non_admin_after_cutoff", return_value=True):
             self.assertEqual(self._sign_in(device, email="device.teammate@test.local").get_json()["code"], "maintenance")
-        self._enrol_totp(user)
-        self.assertEqual(
-            self._sign_in(device, email="device.teammate@test.local").get_json()["code"], "second_factor_required")
         events = db.session.scalars(sa.select(AuthSecurityEvent).where(
             AuthSecurityEvent.user_id == user.user_id,
             AuthSecurityEvent.event_type == "device_session_failed",
         ).order_by(AuthSecurityEvent.occurred_at)).all()
         self.assertEqual(
             [e.detail["reason"] for e in events],
-            ["email_unverified", "maintenance", "second_factor_required"],
+            ["email_unverified", "maintenance"],
         )
         for event in events:
             self.assertEqual(set(event.detail), {"device_id", "reason"})
@@ -841,6 +813,163 @@ class DeviceApiTests(BaseTestCase):
         body = response.get_json()
         self.assertTrue(body["terms_required"])
         self.assertEqual([p["project_id"] for p in body["access"]["projects"]], [self.PROJECT_ID])
+
+    def test_native_session_refresh_and_me_access_are_credential_scoped(self):
+        """A mixed account receives only the roles a device can exercise."""
+        user, _ = self._worker(
+            "device.native.mixed.summary@test.local", VaAccessRoles.coder)
+        db.session.add_all([
+            VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.admin,
+                scope_type=VaAccessScopeTypes.global_scope,
+                notes="native boundary test", grant_status=VaStatuses.active,
+            ),
+            VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.data_manager,
+                scope_type=VaAccessScopeTypes.project, project_id=self.OTHER_PROJECT_ID,
+                notes="native boundary test", grant_status=VaStatuses.active,
+            ),
+        ])
+        db.session.commit()
+
+        _device, tokens = self._session(email=user.email)
+        native = tokens["access"]
+        refreshed = self._refresh(tokens["refresh_token"])
+        self.assertEqual(refreshed.status_code, 200, refreshed.get_json())
+        refreshed_access = refreshed.get_json()["access"]
+        refreshed_tokens = refreshed.get_json()
+        bearer_access_response = self.client.get(ME_ACCESS, headers=self._bearer(refreshed_tokens))
+        self.assertEqual(bearer_access_response.status_code, 200)
+        self.assertEqual(native, refreshed_access)
+        self.assertEqual(native, bearer_access_response.get_json())
+        self.assertEqual(native["roles"], [VaAccessRoles.coder.value])
+        self.assertFalse(native["is_admin"])
+        self.assertFalse(native["account"]["privileged"])
+        self.assertTrue(native["account"]["pii_visible"])
+        self.assertEqual(native["admin_actions"], [])
+        self.assertEqual([p["project_id"] for p in native["projects"]], [self.PROJECT_ID])
+        self.assertEqual(native["demo_coding"], {"available": False, "project_ids": []})
+
+        # The browser credential remains capable of using the account's full
+        # grants after native responses have been built.
+        self._login(str(user.user_id))
+        cookie = self.client.get(ME_ACCESS)
+        self.assertEqual(cookie.status_code, 200)
+        browser = cookie.get_json()
+        self.assertTrue(browser["is_admin"])
+        self.assertTrue(browser["account"]["privileged"])
+        self.assertIn(self.OTHER_PROJECT_ID, [p["project_id"] for p in browser["projects"]])
+        self.assertNotEqual(browser, native)
+
+    def test_admin_interviewer_has_no_native_demo_coding_grant(self):
+        user, _ = self._worker(
+            "device.native.admin.interviewer@test.local", VaAccessRoles.interviewer)
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=VaAccessRoles.admin,
+            scope_type=VaAccessScopeTypes.global_scope,
+            notes="native demo boundary test", grant_status=VaStatuses.active,
+        ))
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        project.demo_training_enabled = True
+        db.session.commit()
+
+        _device, tokens = self._session(email=user.email)
+        access = tokens["access"]
+        self.assertFalse(access["is_admin"])
+        self.assertEqual(access["demo_coding"], {"available": False, "project_ids": []})
+        self.assertNotIn(self.PROJECT_ID, access["demo_coding"]["project_ids"])
+
+    def test_native_bearer_refuses_privileged_and_browser_only_api_surfaces(self):
+        user, _ = self._worker(
+            "device.native.surface.boundary@test.local", VaAccessRoles.coder)
+        db.session.add_all([
+            VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.admin,
+                scope_type=VaAccessScopeTypes.global_scope,
+                notes="native surface boundary test", grant_status=VaStatuses.active,
+            ),
+            VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles.data_manager,
+                scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+                notes="native surface boundary test", grant_status=VaStatuses.active,
+            ),
+        ])
+        db.session.commit()
+        _device, tokens = self._session(email=user.email)
+        bearer = self._bearer(tokens)
+
+        for path in (
+            "/api/v1/data-management/submissions",
+            "/api/v1/analytics/kpi",
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path, headers=bearer)
+                self.assertEqual(response.status_code, 403, response.get_json())
+
+        for method, path in (
+            ("get", "/api/v1/translations/NOPE"),
+            ("get", "/api/v1/projects/NOPE/people-roles"),
+            ("get", "/api/v1/projects/NOPE/people-roles.csv"),
+            ("get", "/api/v1/area/projects"),
+            ("get", "/api/v1/area/staff?project=NOPE"),
+            ("get", "/api/v1/area/summary?project=NOPE"),
+            ("post", "/api/v1/profile/password/generate"),
+            ("post", "/api/v1/profile/passkeys/options"),
+        ):
+            with self.subTest(path=path):
+                response = getattr(self.client, method)(path, json={} if method == "post" else None, headers=bearer)
+                self.assertEqual(response.status_code, 403, response.get_json())
+                self.assertEqual(response.get_json()["code"], "cookie_session_required")
+
+    def test_native_coder_scope_is_positive_only_for_its_project(self):
+        user, _ = self._worker(
+            "device.native.coder.scope@test.local", VaAccessRoles.coder)
+        _device, tokens = self._session(email=user.email)
+        headers = self._bearer(tokens)
+        projects = self.client.get("/api/v1/coding/projects", headers=headers)
+        self.assertEqual(projects.status_code, 200, projects.get_json())
+        self.assertIn(self.PROJECT_ID, projects.get_json()["projects"])
+        self.assertNotIn(self.OTHER_PROJECT_ID, projects.get_json()["projects"])
+        inside = self.client.get(
+            "/api/v1/coding/available", query_string={"project_id": self.PROJECT_ID}, headers=headers)
+        outside = self.client.get(
+            "/api/v1/coding/available", query_string={"project_id": self.OTHER_PROJECT_ID}, headers=headers)
+        self.assertEqual(inside.status_code, 200, inside.get_json())
+        self.assertEqual(outside.status_code, 200, outside.get_json())
+        self.assertEqual(outside.get_json()["count"], 0)
+
+    def test_native_mixed_interviewer_dm_cannot_supervise_but_cookie_dm_can(self):
+        user, _ = self._worker(
+            "device.native.interviewer.dm@test.local", VaAccessRoles.interviewer)
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project, project_id=self.OTHER_PROJECT_ID,
+            notes="native supervision boundary test", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        other = self._web_case(project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID)
+        inside = self._web_case()
+        _device, tokens = self._session(email=user.email)
+        headers = self._bearer(tokens)
+
+        outside_update = self.client.patch(
+            f"{INTAKE}/deaths/{other.death_id}",
+            json={"deceased_name": "Should Stay Hidden"}, headers=headers)
+        self.assertEqual(outside_update.status_code, 404, outside_update.get_json())
+
+        flagged = self.client.post(
+            f"{INTAKE}/cases/{inside.death_id}/flags",
+            json={"kind": "cancel", "reason": "native boundary test"}, headers=headers)
+        self.assertEqual(flagged.status_code, 200, flagged.get_json())
+        self.assertEqual(flagged.get_json()["case"]["pending_flag"], "cancel")
+        self.assertEqual(db.session.get(VaDeathRegister, inside.death_id).status, "registered")
+
+        self._login(str(user.user_id))
+        cookie_update = self.client.patch(
+            f"{INTAKE}/deaths/{other.death_id}",
+            json={"deceased_name": "Cookie DM Update"}, headers=self._csrf_headers())
+        self.assertEqual(cookie_update.status_code, 200, cookie_update.get_json())
+        self.assertEqual(cookie_update.get_json()["case"]["deceased"]["name"], "Cookie DM Update")
 
     # ── submissions ────────────────────────────────────────────────────────
 

@@ -25,6 +25,7 @@ jest.mock("expo-crypto", () => ({
 }));
 const mockFiles = new Map<string, string | null>();
 const mockOpenHandles = new Set<string>();
+const mockCloseFailures = new Set<string>();
 jest.mock("expo-sqlite", () => ({
   openDatabaseAsync: async (name: string) => {
     let key: string | null = null;
@@ -42,7 +43,10 @@ jest.mock("expo-sqlite", () => ({
         if (mockFiles.get(name) !== key) throw new Error("Error code 26: file is not a database");
         return { n: 0 };
       },
-      closeAsync: async () => void mockOpenHandles.delete(id)
+      closeAsync: async () => {
+        if (mockCloseFailures.has(name)) throw new Error(`close failed: ${name}`);
+        mockOpenHandles.delete(id);
+      }
     };
   },
   deleteDatabaseAsync: async (name: string) => {
@@ -106,6 +110,7 @@ async function setUpBoth() {
 }
 
 beforeEach(async () => {
+  mockCloseFailures.clear();
   await lockAll();
   mockSecure.clear();
   mockFiles.clear();
@@ -177,6 +182,23 @@ describe("store setup, unlock and lock", () => {
   it("refuses to unlock an interviewer who has no PIN yet", async () => {
     seedAccounts();
     await expect(unlockInterviewer(A, PIN)).rejects.toBeInstanceOf(StoreLockedError);
+  });
+
+  it("retains a database whose close fails and closes it on retry", async () => {
+    seedAccounts();
+    await createInterviewerDb(A, PIN);
+    await createInterviewerDb(B, "135790");
+    mockCloseFailures.add(fileOf(A));
+
+    await expect(lockAll()).rejects.toThrow(`close failed: ${fileOf(A)}`);
+    expect(isUnlocked(A)).toBe(true);
+    expect(isUnlocked(B)).toBe(false);
+    expect(mockOpenHandles.size).toBe(1);
+
+    mockCloseFailures.clear();
+    await lockAll();
+    expect(isUnlocked(A)).toBe(false);
+    expect(mockOpenHandles.size).toBe(0);
   });
 });
 

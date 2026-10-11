@@ -179,8 +179,8 @@ it("keeps the total deadline active while reading raw response text", async () =
 });
 
 it("branches only on code, never on error text", async () => {
-  jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ error: "factor_setup_required" }, 403));
-  await expect(requestClientJson("/api/v1/profile/security")).rejects.toMatchObject({ status: 403, code: undefined, payload: { error: "factor_setup_required" } });
+  jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ error: "maintenance" }, 403));
+  await expect(requestClientJson("/api/v1/profile/security")).rejects.toMatchObject({ status: 403, code: undefined, payload: { error: "maintenance" } });
 });
 
 it("aborts while consuming the response body and clears its timeout", async () => {

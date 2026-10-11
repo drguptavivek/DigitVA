@@ -174,6 +174,25 @@ it("retains the terms flag returned at sign-in", async () => {
   expect(mockDeleteDb).not.toHaveBeenCalled();
 });
 
+it("signs in an admin with password alone and sends no OTP field", async () => {
+  mockSecure.set("device_secret", "dev-secret");
+  mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
+  const adminAccess = { ...ACCESS, is_admin: true, roles: ["admin"] };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, adminAccess) : json(201, {
+    access_token: "a",
+    access_expires_at: "",
+    refresh_token: "r",
+    refresh_expires_at: "",
+    user: { user_id: USER, name: "Admin" },
+    access: adminAccess,
+  }));
+
+  await signIn("admin@example.org", "pw");
+
+  expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "admin@example.org", password: "pw" });
+  expect(JSON.parse(calls[0].body!)).not.toHaveProperty("otp");
+});
+
 it("clears notification cursors when a different account signs in", async () => {
   seed({ access: "a", refresh: "r1" });
   await recordNotificationPoll(USER, 12, true);
@@ -379,7 +398,7 @@ it("persists global access gates and clears them after a fresh summary", async (
   expect((await loadAccounts())[0].access_blocked).toBeUndefined();
 });
 
-it.each(["terms_required", "factor_setup_required", "forbidden"])(
+it.each(["terms_required", "forbidden"])(
   "does not recurse when an access refresh returns %s",
   async (code) => {
     seed({ access: "a", refresh: "r1" });

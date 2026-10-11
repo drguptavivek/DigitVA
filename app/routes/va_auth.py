@@ -7,7 +7,6 @@ from app.forms import (
     EmailStepForm,
     PasswordStepForm,
     RedeemCodeForm,
-    SecondFactorForm,
     ForgotPasswordForm,
 )
 import ipaddress
@@ -29,7 +28,7 @@ from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.services import mobile_sign_in_service, totp_service
+from app.services import mobile_sign_in_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services import user_account_service as accounts
@@ -55,7 +54,6 @@ va_auth = Blueprint("va_auth", __name__)
 # after the email step.
 PREAUTH_TTL = timedelta(minutes=5)
 INVALID_LOGIN_MESSAGE = "Invalid email or password. Please, re-check and login again."
-INVALID_SECOND_FACTOR_MESSAGE = "Invalid code. Please try again."
 INVALID_SIGN_IN_CODE_MESSAGE = (
     "That email or mobile number and code do not match. Please check and try again."
 )
@@ -72,11 +70,6 @@ MOBILE_FORGOT_MESSAGE = (
 )
 PASSWORD_EMAILED_MESSAGE = "Your password has been emailed to you."
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-timing-equaliser")
-
-# docs/policy/authentication-factors.md section 1: five failed second-factor
-# attempts clear the pre-auth state and send the user back to the email step.
-SECOND_FACTOR_MAX_FAILURES = 5
-
 
 def _preauth_email_key_func():
     """Per-account limiter key for the password step: the pre-auth email or
@@ -180,8 +173,8 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: 
     the password path passes True, the passkey path False (a passkey
     sign-in needs no nudge to use a passkey).
 
-    ``method`` (``password``, ``second_factor``, ``passkey``,
-    ``factor_reset``) and the client IP go into the ``web_sign_in`` audit
+    ``method`` (``password`` or ``passkey``) and the client IP go into the
+    ``web_sign_in`` audit
     event; ``va_users.last_signed_in_at`` is stamped.
 
     Caller is responsible for every check that must pass first (active,
@@ -336,16 +329,6 @@ def va_login_password():
             )
             return redirect(_password_step_url(next_url))
 
-        if totp_service.needs_second_factor(user):
-            # Bind the verified password to the same pre-auth state (same
-            # email, same 5-minute expiry) rather than completing sign-in --
-            # docs/policy/authentication-factors.md section 3.
-            preauth["second_factor_user_id"] = str(user.user_id)
-            preauth["second_factor_failures"] = 0
-            preauth["remember"] = bool(form.remember_me.data)
-            session["preauth"] = preauth
-            return redirect(_second_factor_step_url(next_url))
-
         _complete_login(
             user, remember=form.remember_me.data, nudge_if_no_passkey=True, method="password"
         )
@@ -363,113 +346,6 @@ def _password_step_url(next_url):
     if next_url:
         return url_for("va_auth.va_login_password", next=next_url)
     return url_for("va_auth.va_login_password")
-
-
-def _second_factor_step_url(next_url):
-    if next_url:
-        return url_for("va_auth.va_login_second_factor", next=next_url)
-    return url_for("va_auth.va_login_second_factor")
-
-
-def _second_factor_state() -> dict | None:
-    """The pre-auth state, only if a password has already been verified for
-    it in this same state -- the second-factor page is unreachable without
-    that (docs/policy/authentication-factors.md section 1)."""
-    preauth = _preauth_state()
-    if preauth is None or not preauth.get("second_factor_user_id"):
-        return None
-    return preauth
-
-
-@va_auth.route("/valogin/second-factor", methods=["GET", "POST"])
-@limiter.limit("10 per minute", methods=["POST"])
-@limiter.limit("20 per hour", methods=["POST"], key_func=_preauth_email_key_func)
-def va_login_second_factor():
-    """Step 3, only for users who must give a second factor: a TOTP code or
-    a recovery code (docs/policy/authentication-factors.md section 3).
-    Reachable only after a correct password in the same pre-auth state.
-    """
-    if current_user.is_authenticated:
-        return redirect(current_user.landing_url())
-    preauth = _second_factor_state()
-    if preauth is None:
-        flash("Please sign in again.", "primary")
-        return redirect(url_for("va_auth.va_login"))
-
-    user = db.session.scalar(
-        sa.select(VaUsers).where(VaUsers.user_id == uuid.UUID(preauth["second_factor_user_id"]))
-    )
-    if user is None or not user.is_active or not _preauth_names(user, preauth):
-        _clear_preauth()
-        flash("Please sign in again.", "primary")
-        return redirect(url_for("va_auth.va_login"))
-
-    has_passkey = db.session.scalar(
-        sa.select(sa.exists().where(AuthWebauthnCredential.user_id == user.user_id))
-    )
-    has_totp = totp_service.has_confirmed_totp(user.user_id)
-    next_url = _safe_next_url(request.args.get("next")) or preauth.get("next")
-    form = SecondFactorForm()
-
-    if form.validate_on_submit():
-        # Re-check freshness and state: a long-open tab could submit after
-        # expiry, or after the pre-auth state was cleared some other way.
-        preauth = _second_factor_state()
-        if preauth is None:
-            flash("Please sign in again.", "primary")
-            return redirect(url_for("va_auth.va_login"))
-
-        code = (form.code.data or "").strip()
-        verified_by_totp = has_totp and totp_service.verify(user, code)
-        verified_by_recovery = (not verified_by_totp) and totp_service.verify_recovery_code(user, code)
-        verified = verified_by_totp or verified_by_recovery
-
-        if not verified:
-            db.session.rollback()
-            _web_sign_in_failed(user, "second_factor_invalid")
-            failures = preauth.get("second_factor_failures", 0) + 1
-            if failures >= SECOND_FACTOR_MAX_FAILURES:
-                _clear_preauth()
-                record_security_event(user_id=user.user_id, event_type="second_factor_lockout")
-                db.session.commit()
-                flash("Too many attempts. Please sign in again.", "primary")
-                return redirect(url_for("va_auth.va_login"))
-            preauth["second_factor_failures"] = failures
-            session["preauth"] = preauth
-            flash(INVALID_SECOND_FACTOR_MESSAGE, "primary")
-            return redirect(_second_factor_step_url(next_url))
-
-        if verified_by_recovery:
-            remaining = totp_service.remaining_recovery_code_count(user.user_id)
-            record_security_event(
-                user_id=user.user_id,
-                event_type="recovery_code_used",
-                detail={"remaining": remaining},
-            )
-
-        if not user.is_admin() and should_block_non_admin_after_cutoff():
-            db.session.commit()
-            flash(
-                "Site is under maintenance. Only admin login is allowed right now.",
-                "warning",
-            )
-            return redirect(_second_factor_step_url(next_url))
-
-        remember = bool(preauth.get("remember"))
-        _complete_login(
-            user, remember=remember, nudge_if_no_passkey=not has_passkey, method="second_factor"
-        )
-        db.session.commit()
-        return redirect(next_url or current_user.landing_url())
-
-    return render_template(
-        "va_frontpages/va_login_second_factor.html",
-        form=form,
-        email=_preauth_display(preauth),
-        next_url=next_url,
-        has_totp=has_totp,
-        has_passkey=has_passkey,
-    )
 
 
 @va_auth.route("/valogin/passkey/options", methods=["POST"])
@@ -775,27 +651,23 @@ def reset_password(token):
 
 
 # ---------------------------------------------------------------------------
-# Break-glass factor reset (docs/policy/authentication-factors.md section 8)
+# Break-glass account recovery
 # ---------------------------------------------------------------------------
 
 @va_auth.route("/factor-reset/<token>", methods=["GET", "POST"])
 @limiter.limit("5 per minute", methods=["POST"])
 def factor_reset(token):
-    """Land the break-glass CLI's single-use magic link. GET shows a button
-    and changes nothing; POST verifies the email, ends every other session
-    (which also spends this and any other factor-reset token), signs the
-    user straight in and sends them to the Profile factor-setup section. No
-    password is chosen or changed here: the existing one keeps working, and
-    a fresh sign-in leaves Profile's "Generate a new password" open for ten
-    minutes. Public by design -- reachable only with a valid, unexpired,
-    single-use token; see ``PUBLIC_BY_DESIGN`` in tests/test_route_auth_coverage.py.
+    """Use a single-use recovery link to end stale sessions and sign in.
+
+    This recovery path does not require or enroll a TOTP/recovery factor. It
+    remains available to recover access after an administrator reset of stale
+    passkeys or sessions.
     """
     if current_user.is_authenticated:
         return redirect(current_user.landing_url())
     template = "va_frontpages/va_reset_password.html"
     action_url = url_for("va_auth.factor_reset", token=token)
     user = _link_user(token, "factor_reset")
-    # login_user() refuses an inactive user silently: refuse here instead.
     if user is None or not user.is_active:
         return _confirm_page(template, token, valid=False, action_url=action_url)
     if request.method == "GET":
@@ -808,12 +680,9 @@ def factor_reset(token):
         user.email_verified = True
     user.bump_session_version()
     _complete_login(user, remember=False, nudge_if_no_passkey=False, method="factor_reset")
-    # Set after _complete_login: it calls session.clear() first.
-    session["factor_setup_forced"] = True
     db.session.commit()
     flash(
-        "You are signed in. Please add a passkey or authenticator app. If you "
-        "need a new password, use \"Generate a new password\" below now.",
+        "You are signed in. You may manage your passkeys from your profile.",
         "success",
     )
     return redirect(url_for("profile.view") + "#passkeys-card")

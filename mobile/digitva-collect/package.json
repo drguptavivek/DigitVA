@@ -14,6 +14,13 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "moduleDirectories": [
+      "node_modules",
+      "<rootDir>/node_modules"
+    ],
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup.js"
+    ],
     "moduleNameMapper": {
       "^@drguptavivek/who-2022-va$": "<rootDir>/../../vendor/who-va-2022/dist/index.js"
     }

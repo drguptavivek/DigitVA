@@ -2,9 +2,9 @@
 
 Enrol a device, open and refresh a device session, end it. Rules live in
 ``device_auth_service`` (enrolment, sessions, tokens); this layer parses and
-serializes. The sign-in and refresh replies carry ``access``, the exact body of
-``GET /api/v1/me/access`` (docs/current-state/api-v1.md), so a client learns
-everything the user may do in one call. Policy:
+serializes. Sign-in and refresh replies carry ``access`` with native worker
+grants, matching bearer ``GET /api/v1/me/access`` (docs/current-state/api-v1.md).
+Cookie requests to that endpoint retain full account access. Policy:
 docs/policy/field-data-collection.md, docs/policy/api-v1.md.
 
 Errors are ``{"error": ..., "code": ...}``. Request bodies are capped
@@ -96,7 +96,14 @@ def _device_auth_error(exc):
 def _session_body(issued, user) -> dict:
     """The token reply plus ``access``. Display-only, so a user with pending
     terms still gets it; the terms gate is a request hook, not this service."""
-    return {**devices.serialize_tokens(issued, user), "access": build_access_summary(user)}
+    # Session replies are issued to the native app, so their access summary
+    # must use the same device credential projection as bearer requests.  A
+    # mixed admin/collector account must not receive admin or data-manager
+    # reach merely because this response is built before bearer auth exists.
+    return {
+        **devices.serialize_tokens(issued, user),
+        "access": build_access_summary(user, native=True),
+    }
 
 
 @bp.post("/enroll")
@@ -130,7 +137,7 @@ def open_session():
     p = _body()
     issued, user = devices.open_session(
         device_id=p.get("device_id"), device_secret=p.get("device_secret"),
-        email=p.get("email"), password=p.get("password"), otp=p.get("otp"),
+        email=p.get("email"), password=p.get("password"),
     )
     devices.record_app_version(issued.session, p.get("app_version"))
     db.session.commit()

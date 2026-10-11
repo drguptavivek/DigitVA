@@ -59,7 +59,7 @@ _PII_GRANTING_ROLES = frozenset({
 })
 
 
-def should_redact_pii(user) -> bool:
+def should_redact_pii(user, *, _grants=None) -> bool:
     """Return True if ``user`` must not see subject PII or staff identity.
 
     False (do not redact) when the user holds a live grant in
@@ -80,7 +80,7 @@ def should_redact_pii(user) -> bool:
 
     if not getattr(user, "user_id", None):
         return True
-    resolved = resolve_grants(user)
+    resolved = _grants if _grants is not None else resolve_grants(user)
     if resolved.is_admin:
         return False
     return not any(

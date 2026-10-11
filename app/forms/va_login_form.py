@@ -46,17 +46,6 @@ class PasswordStepForm(FlaskForm):
     submit = SubmitField("Login")
 
 
-class SecondFactorForm(FlaskForm):
-    """Step 3 of login, only for users who must give a second factor (docs/
-    policy/authentication-factors.md section 3): a TOTP code or a recovery
-    code, accepted in either field."""
-
-    code = StringField(
-        "Code:", validators=[DataRequired(message="Code is required.")]
-    )
-    submit = SubmitField("Verify")
-
-
 class RedeemCodeForm(FlaskForm):
     """"I have a code": the person's email or mobile number (field name kept
     as ``mobile``) and the one-time code their data manager gave them, plus

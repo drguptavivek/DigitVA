@@ -42,6 +42,7 @@ Read these documents in this order:
 19. [Expo Client Hosting And Bootstrap](expo-client.md)
 20. [Authentication, Login and Onboarding](authentication-and-onboarding.md)
 21. [Coder Workspace Component Inventory](coder-component-inventory.md)
+22. [Native Passkey Status](native-passkeys.md)
 
 Related planning:
 

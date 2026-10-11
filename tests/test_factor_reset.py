@@ -335,8 +335,7 @@ class FactorResetLinkRouteTests(FactorResetTestBase):
         with self.client.session_transaction() as sess:
             self.assertIn("_user_id", sess)
 
-    def test_forced_setup_holds_privileged_user_even_with_enforcement_unset(self):
-        self.app.config["AUTH_FACTOR_ENFORCE_FROM"] = ""
+    def test_recovery_link_does_not_force_factor_setup(self):
         db.session.add(VaUserAccessGrants(
             user_id=self.target.user_id,
             role=VaAccessRoles.admin,
@@ -350,5 +349,4 @@ class FactorResetLinkRouteTests(FactorResetTestBase):
         self._post(token)
 
         resp = self.client.get("/coding/dashboard")
-        self.assertEqual(resp.status_code, 302)
-        self.assertIn("passkeys-card", resp.headers["Location"])
+        self.assertNotEqual(resp.status_code, 302)

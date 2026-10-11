@@ -3,15 +3,15 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-11
 ---
 
 # Account Onboarding and Password Policy
 
 One onboarding and password policy for every DigitVA account, on the web
 and in the mobile app (browser and native). Owner decisions of 2026-10-03
-(digitva-l7c2). Sign-in factors, passkeys, TOTP, CAPTCHA and rate limits
-stay in [authentication-factors.md](authentication-factors.md); mobile-number
+(digitva-l7c2), revised 2026-10-11. Password and passkey sign-in, CAPTCHA
+and rate limits stay in [authentication-factors.md](authentication-factors.md); mobile-number
 details are in [mobile-sign-in.md](mobile-sign-in.md).
 
 ## 1. Principles
@@ -26,8 +26,10 @@ details are in [mobile-sign-in.md](mobile-sign-in.md).
 - **One flow for web and app.** The mobile app uses the same server pages
   and endpoints; it adds device unlock (PIN or biometric) on top, never a
   second password.
-- **Passkeys are encouraged** everywhere, and required (or TOTP) for
-  privileged users as authentication-factors.md section 3 says.
+- **Passkeys are optional** on the web. Password sign-in remains available to
+  every role, including administrators and data managers. Native passkey
+  sign-in is deferred; native local protection uses the account PIN or
+  optional device biometric.
 
 ## 2. Identifiers
 
@@ -73,9 +75,7 @@ mobile, cadre and unit where the grant needs them.
    password and the login page address; if it cannot be sent nothing
    changes and the person tries again.
 3. The person signs in (web or app) with email (or mobile, if set and
-   unique) and the emailed password, and is offered to add a passkey.
-   Privileged users must enrol a passkey or TOTP within the enrolment
-   window (authentication-factors.md section 6).
+   unique) and the emailed password, and may add a passkey on the web.
 4. If they also have a mobile number, it becomes usable for sign-in at this
    point (their email verification proves the account; no code is needed).
 
@@ -95,7 +95,7 @@ redeemed a sign-in code; its password is never replaced by verifying.
    use the app straight away).
 3. The server generates the password and **shows it once** on that screen:
    "Write this down. It will not be shown again." The screen offers to add
-   a passkey (and, in the native app, to set the device PIN).
+   a passkey on the web and, in the native app, to set the local device PIN.
 4. The person signs in with mobile number and that password.
 
 Details (hashing, five-try limit, same answer for a wrong number or a wrong
@@ -125,8 +125,8 @@ use "Forgot password" by email (section 6).
 | --- | --- |
 | Account has a verified email | "Forgot password" takes email or mobile. A single-use link (existing `password_reset` token) goes to the verified email (never to an unverified one). Opening it and pressing "Email me a new password" generates a new password and emails it; the page says so and shows no password. The same message is shown whether or not the identifier exists. |
 | Mobile only | "Forgot password" with a mobile number says "Ask your data manager for a sign-in code", whether or not the number exists. The data manager issues a code; redeeming it shows a new password once (5.2). |
-| Signed in, wants a new one | Profile: "Generate a new password", after reauthentication (authentication-factors.md section 7). Verified email accounts get it by email; mobile-only accounts see it once on screen; an email account still awaiting verification is refused (409 `email_unverified`) until it verifies, since a password never goes to an unverified address (digitva-9an9). |
-| Admin or data manager action | They can resend verification (email), issue a code (a data manager only for someone without a verified email -- mobile-only or an email never verified -- all of whose grants they may manage; an admin for any account; mobile-sign-in.md section 3; redeeming a code for an account with an email on file sends that address a notice with no password or code), or, admin only, email a reset link to a verified email ("send a new password": the person still opens the link, so a wrong address on file never receives a live password) or reset factors. They never set or see a password. |
+| Signed in, wants a new one | Profile: "Generate a new password", after recent password or passkey reauthentication. Verified email accounts get it by email; mobile-only accounts see it once on screen; an email account still awaiting verification is refused (409 `email_unverified`) until it verifies, since a password never goes to an unverified address (digitva-9an9). |
+| Admin or data manager action | They can resend verification (email), issue a code (a data manager only for someone without a verified email -- mobile-only or an email never verified -- all of whose grants they may manage; an admin for any account; mobile-sign-in.md section 3; redeeming a code for an account with an email on file sends that address a notice with no password or code), or, admin only, email a reset link to a verified email ("send a new password": the person still opens the link, so a wrong address on file never receives a live password). They never set or see a password. |
 | Break-glass CLI | `flask users reset-password` generates the password and prints it once to the operator's terminal (shell access is the safeguard), and ends sessions. |
 
 Opening a reset link is required before anything changes: typing someone's

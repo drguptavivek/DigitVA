@@ -18,12 +18,9 @@ describe("browser login recovery", () => {
     expect(loginRecoveryUrl("/unexpected-route", undefined, "https://digitva.test/app/")).toBe("/");
   });
 
-  it("uses fixed internal terms and factor setup actions", () => {
+  it("uses the fixed internal terms action", () => {
     expect(loginRecoveryUrl("/profile/password?next=%2Fapp%2F", "terms_required", "https://digitva.test/app/collection")).toBe(
       "/profile/force-password-change"
-    );
-    expect(loginRecoveryUrl("/profile/factors", "factor_setup_required", "https://digitva.test/app/collection")).toBe(
-      "/profile/#passkeys-card"
     );
   });
 });

@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
 # Policy Docs
@@ -40,7 +40,7 @@ Current policy docs:
 - [SmartVA Generation Policy](smartva-generation-policy.md) — when SmartVA runs
 - [Social Autopsy Analysis Policy](social-autopsy-analysis.md)
 - [Password Breach Check Policy](password-breach-checks.md)
-- [Login Factors, Passkeys and TOTP](authentication-factors.md) — two-step login, passkeys, TOTP, factor reset
+- [Login Passwords and Passkeys](authentication-factors.md) — password/passkey web sign-in, native local unlock, and audited passkey reset
 - [Request Method Abuse Control Policy](request-method-abuse-control.md)
 - [Site Maintenance Mode Policy](site-maintenance-mode.md)
 - [VA Cause Definitions](va-cause-definitions.md) — WHO VA codes and definitions in the database, admin rich-text editing, coder lookup

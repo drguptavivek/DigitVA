@@ -268,25 +268,18 @@ class ApiV1CredentialTests(BaseTestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.get_json()["code"], "maintenance")
 
-    def test_factor_setup_holds_a_privileged_bearer_with_no_factor(self):
+    def test_privileged_bearer_is_not_held_for_factor_setup(self):
         tokens = self._tokens()
         self.assertEqual(self.client.get(PROFILE, headers=self._bearer(tokens)).status_code, 200)
         with mock.patch.object(VaUsers, "is_data_manager", return_value=True), \
                 mock.patch("app.services.totp_service.enforcement_active", return_value=True), \
                 mock.patch("app.services.totp_service.has_any_factor", return_value=False):
             response = self.client.get(PROFILE, headers=self._bearer(tokens))
-            self.assertEqual(response.status_code, 403)
-            self.assertEqual(response.get_json()["code"], "factor_setup_required")
-            self.assertEqual(response.headers["Cache-Control"], "no-store")
+            self.assertEqual(response.status_code, 200)
             self.assertNotIn("Set-Cookie", response.headers)
             # Signing out stays reachable.
             self.assertNotEqual(
                 self.client.delete("/api/v1/auth/sessions/current", headers=self._bearer(tokens)).status_code, 403)
-        # A factor-holder, or enforcement off, is not held.
-        with mock.patch.object(VaUsers, "is_data_manager", return_value=True), \
-                mock.patch("app.services.totp_service.enforcement_active", return_value=False):
-            fresh = self._tokens()
-            self.assertEqual(self.client.get(PROFILE, headers=self._bearer(fresh)).status_code, 200)
 
     def test_account_security_routes_refuse_a_bearer(self):
         tokens = self._tokens()
@@ -296,13 +289,16 @@ class ApiV1CredentialTests(BaseTestCase):
             ("post", "/api/v1/profile/password/generate"),
             ("get", "/api/v1/profile/passkeys"),
             ("post", "/api/v1/profile/passkeys/options"),
-            ("get", "/api/v1/profile/totp"),
-            ("post", "/api/v1/profile/totp/enroll"),
-            ("post", "/api/v1/profile/recovery-codes/regenerate"),
+            ("get", "/api/v1/translations/NOPE"),
+            ("get", "/api/v1/projects/NOPE/people-roles"),
+            ("get", "/api/v1/projects/NOPE/people-roles.csv"),
+            ("get", "/api/v1/area/projects"),
+            ("get", "/api/v1/area/staff"),
+            ("get", "/api/v1/area/summary"),
         ):
             response = getattr(self.client, method)(path, json={}, headers=self._bearer(tokens))
             self.assertEqual(response.status_code, 403, path)
             self.assertEqual(response.get_json()["code"], "cookie_session_required", path)
         # The cookie user still reaches them (reauth answers, not 403).
         self._login(str(self.interviewer.user_id))
-        self.assertNotEqual(self.client.get("/api/v1/profile/totp").status_code, 403)
+        self.assertNotEqual(self.client.get("/api/v1/profile/passkeys").status_code, 403)

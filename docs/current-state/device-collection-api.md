@@ -3,10 +3,17 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-11
 ---
 
 # Device Collection API (Path B server side)
+
+Native passkey sign-in is deferred. Enrolled devices currently open a session
+with the account password. The local encrypted store still requires the user's
+PIN or optional device biometric; this is independent of web sign-in factors.
+Web passkeys are created and managed through the browser Profile. See
+[Authentication, Login and Onboarding](authentication-and-onboarding.md) for
+the web contract.
 
 Server side of the Android collection app (beads `digitva-kmk.1`, hardened
 in `digitva-kmk.6`, offline cases in `digitva-kmk.4`, case detail, one
@@ -75,10 +82,12 @@ values). The device secret is compared with `hmac.compare_digest`.
 
 ## Authentication
 
-- Every `/api/v1/` route accepts a device bearer token beside the browser
-  cookie (`authenticate_bearer` in `app/__init__.py`, bead `digitva-uzhq`);
-  a bearer request is exempt from CSRF and sets no cookie. Outside
-  `/api/v1/` a device token is ignored.
+- The `/api/v1/` authentication hook accepts device bearer credentials for
+  supported collection/coding APIs. Authorization projects the account onto
+  its native worker grants; admin, data-manager, PI and supervisory powers
+  are excluded. Account-security, area, people/roles and translation-suggestion
+  APIs require a browser session. A bearer request is exempt from CSRF and
+  sets no cookie; outside `/api/v1/` a device token is ignored.
 - Only `DELETE /auth/sessions/current` needs the device session the loader
   stamped on `g.device_session` (a cookie: 401); the sign-in calls are
   exempt from the bearer pre-step (`UNAUTHENTICATED_ENDPOINTS`, full
@@ -86,7 +95,7 @@ values). The device secret is compared with `hmac.compare_digest`.
   nothing in it acts on a cookie. Bearer responses set no cookie.
 - The loader resolves only an unexpired, unrevoked session on an unrevoked
   device whose user is active with an unchanged `auth_session_version` (a
-  password or factor reset ends device sessions too). `last_seen_at` is
+  password or security reset ends device sessions too). `last_seen_at` is
   written at most once a minute.
 - The grant is checked at sign-in and at every refresh, not per request:
   the worker needs access in at least one project (`has_device_access`:
@@ -105,15 +114,13 @@ values). The device secret is compared with `hmac.compare_digest`.
   malformed number -- and a mobile-only account that never redeemed a code --
   gets the same timing-equalised `invalid_credentials` as an unknown email.
   Then: active, `sign_in_verified` (verified email or redeemed code), the
-  maintenance cutoff, and a TOTP or recovery code when
-  `totp_service.needs_second_factor`. Rate limits: 10/min per IP, 10/min per
+  maintenance cutoff. Rate limits: 10/min per IP, 10/min per
   device, 20/hour per account (keyed on the canonical number for a mobile). Every refused
   sign-in is audited as `device_session_failed` with the device id and the
-  reason only (`invalid_credentials`, `email_unverified`, `maintenance`, `second_factor_required`,
-  `second_factor_invalid`, `second_factor_locked`, `no_interviewer_grant`).
+  reason only (`invalid_credentials`, `email_unverified`, `maintenance`,
+  `no_interviewer_grant`).
   Other security events: `device_enrolment_code_created`, `device_enrolled`,
-  `device_session_opened`, `device_session_revoked`, `device_revoked`,
-  `second_factor_lockout`.
+  `device_session_opened`, `device_session_revoked`, `device_revoked`.
 - **Pending terms do not refuse sign-in** (digitva-9an9; onboarding policy
   5.4). The session opens and the token body carries `terms_required: true`
   (refresh too); until `POST /api/v1/me/terms` with `{"accept_terms": true}` records
@@ -122,13 +129,6 @@ values). The device secret is compared with `hmac.compare_digest`.
   `terms_required`,
   and a refresh does not record the outstanding-work report. Contract:
   `docs/current-state/authentication-and-onboarding.md` section 6.5.
-- Second-factor lockout: `second_factor_invalid` failures for the account in
-  the last 15 minutes, counted from the audit trail since its last
-  `device_session_opened`. The fifth records `second_factor_lockout`
-  (`{device_id, channel: "device"}`); from then sign-in answers 429
-  `second_factor_locked` before any code is checked, until the window
-  passes. Device failures only; the web flow keeps its own per-attempt
-  counter.
 - Refresh presents the device id and secret (constant-time), rotates both
   tokens, and slides the refresh lifetime (`DEVICE_REFRESH_TTL_DAYS`,
   default 30, proposed C1) but never past `DEVICE_SESSION_MAX_DAYS` (default
@@ -138,7 +138,7 @@ values). The device secret is compared with `hmac.compare_digest`.
   (409 `refresh_retry_race`). `session_revoked` is kept for administrative
   or device revocation and for a worker left with no active project (grant
   withdrawn or last project closed), the only code the app wipes on; an
-  account change (password or factor reset, deactivation) answers 401
+  account change (password reset, security reset or deactivation) answers 401
   `session_ended`, which keeps the data.
 
 ## Endpoints

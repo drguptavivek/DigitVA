@@ -397,7 +397,6 @@ class Config:
         os.environ.get("MAIL_BASE_URL", "")
     )
     WEBAUTHN_RP_NAME = "DigitVA"
-
     # --- Collection devices (Path B) --------------------------------------
     # docs/policy/field-data-collection.md. The server URL an enrolment QR
     # carries: the public scheme+host of MAIL_BASE_URL unless overridden (an
@@ -412,18 +411,10 @@ class Config:
     DEVICE_REFRESH_TTL_DAYS = int(os.environ.get("DEVICE_REFRESH_TTL_DAYS", "30"))
     DEVICE_SESSION_MAX_DAYS = int(os.environ.get("DEVICE_SESSION_MAX_DAYS", "90"))
 
-    # --- TOTP and recovery codes -----------------------------------------
-    # docs/policy/authentication-factors.md section 4. Encrypts TOTP secrets
-    # at rest (AES-256-GCM via HKDF; legacy values were Fernet) and keys the
-    # recovery-code HMAC; empty here derives a key from SECRET_KEY for
-    # development/test convenience only -- production must set this
-    # explicitly (see create_app). Back it up: losing it makes every stored
-    # TOTP secret unreadable.
+    # --- Historical factor records ---------------------------------------
+    # TOTP and recovery rows remain readable for explicit account resets and
+    # audit compatibility. They are not a live sign-in requirement.
     AUTH_FACTOR_ENCRYPTION_KEY = os.environ.get("AUTH_FACTOR_ENCRYPTION_KEY", "")
-    # ISO date (YYYY-MM-DD). Unset means no enforcement (section 6). Phase 6
-    # builds the mid-session setup redirect this drives; for now it only
-    # gates the last-factor removal guard in app/routes/api/profile.py.
-    AUTH_FACTOR_ENFORCE_FROM = os.environ.get("AUTH_FACTOR_ENFORCE_FROM", "").strip()
 
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
 

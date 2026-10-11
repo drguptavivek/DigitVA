@@ -3,7 +3,7 @@ title: User Management CLI Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-28
+last_updated: 2026-10-11
 ---
 
 # User Management CLI Policy
@@ -12,7 +12,7 @@ last_updated: 2026-09-28
 
 DigitVA exposes a small Flask CLI surface for operational user recovery and bootstrap tasks that may need to run inside the application container when the web admin path is unavailable.
 
-Sign-in *factor* recovery (passkeys/TOTP) is a separate command group,
+Passkey and account recovery is a separate command group,
 `flask auth reset-factors`, not part of `flask users ...` — see
 [`docs/policy/authentication-factors.md`](authentication-factors.md) section 8
 and [`docs/current-state/cli-reference.md`](../current-state/cli-reference.md).

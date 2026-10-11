@@ -52,6 +52,22 @@ def error(message, code=None, status_code=400, **extra):
     return jsonify({"error": message, "code": code or status_code_name(status_code), **extra}), status_code
 
 
+def browser_session_only():
+    """Refuse device credentials on browser-only APIs.
+
+    The bearer authentication hook has already established the user when this
+    runs.  A separate guard keeps read-only APIs from accidentally accepting a
+    mixed account's native token as a browser credential.
+    """
+    if devices.request_bearer_token(request) is not None:
+        return error(
+            "This endpoint requires a browser session.",
+            "cookie_session_required",
+            403,
+        )
+    return None
+
+
 #: Page-size ceiling of the optional-paging list routes (``GET /coding/available``,
 #: ``/coding/history``, ``/workflow/events/<sid>``); ``limit`` is clamped by
 #: refusal (400), not silently.

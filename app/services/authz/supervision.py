@@ -19,6 +19,7 @@ from __future__ import annotations
 import uuid
 
 import sqlalchemy as sa
+from flask import g, has_request_context
 from sqlalchemy.orm import aliased
 
 from app import db
@@ -151,6 +152,10 @@ def _covering_grants(
 
 def supervised_case_condition(user):
     """SQL condition on ``VaDeathRegister``: the cases *user* supervises."""
+    if has_request_context() and g.get("bearer_auth"):
+        # Native credentials do not carry the browser-only supervisor or
+        # data-manager roles, even when the account also has collection work.
+        return sa.false()
     return sa.or_(*(
         select.exists()
         for select in _covering_grants(
@@ -183,6 +188,8 @@ def supervising_grant(user_id: uuid.UUID, case):
     """The grant *user_id* supervises *case* through, as ``(grant_id,
     cadre_id)``, or None. What a supervisor action's audit row names
     (decision 15); ``can(SUPERVISE_INTAKE)`` allows exactly when it exists."""
+    if has_request_context() and g.get("bearer_auth"):
+        return None
     return _grant_for(user_id, case, _SUPERVISING_ROLES)
 
 
@@ -191,4 +198,6 @@ def dm_shaped_grant(user_id: uuid.UUID, case):
     None: what confirming an already coded duplicate relies on (decisions
     10, 14). An In-charge and a project_pi on a tree project hold every
     data-manager power (access-control-model.md, "In-charge")."""
+    if has_request_context() and g.get("bearer_auth"):
+        return None
     return _grant_for(user_id, case, _DM_SHAPED_ROLES)

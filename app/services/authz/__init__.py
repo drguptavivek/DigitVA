@@ -51,6 +51,7 @@ from app.services.authz.grant_writes import (
     writer_grants,
 )
 from app.services.authz.grants import (
+    NATIVE_DEVICE_ROLES,
     Grant,
     ResolvedGrants,
     invalidate,
@@ -86,6 +87,7 @@ __all__ = [
     "CodingWaivers",
     "Decision",
     "Grant",
+    "NATIVE_DEVICE_ROLES",
     "GrantTarget",
     "Lens",
     "Reason",

@@ -3,7 +3,7 @@ title: People and Roles Page (Roles Matrix and Access Audit)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-11
 ---
 
 # People and Roles Page
@@ -159,9 +159,9 @@ For admins, project PIs and data managers only.
 - **Web sign-in is recorded (`digitva-ci8`, built).** Owner, 2026-10-01:
   record every web sign-in.
   - Each completed web sign-in writes an `auth_security_events` row,
-    `event_type="web_sign_in"` (the name already in use; there is no second
+    `event_type="web_sign_in"` (the name already in use; there is no separate
     `signed_in` event), `detail={"method": ..., "ip": ...}` (method:
-    `password`, `second_factor`, `passkey` or `factor_reset`). The IP is the
+    `password`, `passkey` or `factor_reset`). The IP is the
     client address behind the proxy, never a client-supplied header
     (authentication-factors.md section 9). Purpose: correlating sign-ins with
     firewall logs. Nothing is written for a failed sign-in or one stopped

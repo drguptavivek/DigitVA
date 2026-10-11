@@ -63,8 +63,6 @@
   "mobile": "Mobile",
   "countryCodeIndia": "India country code plus 91",
   "password": "Password",
-  "otp": "Authenticator or recovery code",
-  "otpRequired": "Enter the code from your authenticator app, or a recovery code.",
   "signIn": "Sign in",
   "forgotPassword": "Forgot password?",
   "redeemCode": "I have a sign-in code",

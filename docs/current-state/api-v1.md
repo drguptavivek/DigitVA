@@ -20,15 +20,22 @@ Design of the device side (tables, sessions, uploads, cases):
 
 ## Credentials
 
-Every `/api/v1` route takes either credential: the browser session cookie, or
-`Authorization: Bearer <access token>` from a device sign-in (a bearer request
-is authenticated by the token alone, the cookie on the same request is
-ignored, and a bad token is 401 `unauthorized`). Bodies are identical for
-both. Account security routes (`/api/v1/profile/*` passkeys, TOTP, password)
-stay cookie-only (403 `cookie_session_required` for a bearer). The terms,
-maintenance and factor-setup gates apply to both (JSON 403 `terms_required`,
-`maintenance`, `factor_setup_required`); sign-in, refresh, sign-out and
-accepting terms stay open under them as stated below.
+Shared collection and coding APIs accept the browser session cookie or
+`Authorization: Bearer <access token>` from device sign-in. A bearer request
+uses the token alone, ignores a cookie on the same request, and answers 401
+`unauthorized` for an invalid token. Shared request bodies are identical.
+Device authorization includes only interviewer, death_reporter, coder,
+coding_tester and reviewer grants, with their normal scope. An account's
+admin, data-manager, PI, collaborator and supervisory powers do not carry
+into its device token, and token/refresh replies expose the same restricted
+access summary as bearer `GET /me/access`.
+
+Account security (Profile passkeys/password), area dashboards, people/roles
+and translation suggestions require a browser cookie session; a bearer gets
+403 `cookie_session_required`. Management role gates also deny device tokens.
+Terms and maintenance gates still apply (JSON 403 `terms_required` or
+`maintenance`); sign-in, refresh, sign-out and accepting terms remain reachable
+as specified below.
 
 CSRF: a cookie request that changes state sends `X-CSRFToken`; a bearer
 request sends none and never gets one, and sets no cookie. The browser client
@@ -81,8 +88,8 @@ answered (a bare `abort`, 403, 405, 413, 415, 422, 500) is the same JSON, its
 `error` the exception's description and its `code` from the table above.
 Redirects (3xx) and every path outside `/api/v1/` are unchanged. The role
 gate's 401/403, the login gate, CSRF (`csrf_failed`, 400), rate limits
-(`rate_limited`) and the terms and factor-setup refusals (`terms_required`,
-`factor_setup_required`, 403; `error` is a readable sentence, `code` is the
+(`rate_limited`) and the terms refusal (`terms_required`, 403; `error` is a
+readable sentence, `code` is the
 contract) use the same body.
 
 Codes now returned by the blueprints that used to answer without one:
@@ -110,7 +117,7 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | Call | Notes |
 |---|---|
 | `POST /auth/enroll` | Body `code`, `device_name`, `platform`, `app_version`. 201 `{device_id, device_secret, project, server_time}`. 10/min per IP. Code consumed atomically (`use_count < max_uses`). |
-| `POST /auth/sessions` | Body `device_id`, `device_secret`, `email` (an email or a mobile number), `password`, optional `otp`. 201 `{access_token, access_expires_at, refresh_token, refresh_expires_at, user {user_id, name, email}, terms_required, access}`. `access` is the `GET /me/access` body for that user, shown even while terms are pending (it is display only; the terms gate is on requests). Refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 401/403 `second_factor_required`, 429 `second_factor_locked`, 403 `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` (no interviewer, coder, coding_tester or reviewer access in any active project; code kept for the app). Limits: 10/min per IP, 10/min per device, 20/hour per account. |
+| `POST /auth/sessions` | Body `device_id`, `device_secret`, `email` (an email or a mobile number), `password`. 201 `{access_token, access_expires_at, refresh_token, refresh_expires_at, user {user_id, name, email}, terms_required, access}`. `access` is the `GET /me/access` body for that user, shown even while terms are pending (it is display only; the terms gate is on requests). Refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` (no interviewer, coder, coding_tester or reviewer access in any active project; code kept for the app). Limits: 10/min per IP, 10/min per device, 20/hour per account. |
 | `POST /auth/sessions/refresh` | Body `refresh_token`, `device_id`, `device_secret` (else 401 `device_invalid`, nothing revoked); optional outstanding-work report `count`, `unique_ids`, `client_draft_ids`, `client_death_ids` (not recorded while terms are pending). 200, the same body as sign-in, `access` included. 401 `refresh_reused` / 409 `refresh_retry_race` (reuse; session revoked); 401 `session_revoked` (device or admin revoke, no active project left, signed out); 401 `session_ended` (account changed; keeps data); 401 `session_expired` and `refresh_invalid` revoke nothing. 30/min per IP. |
 | `DELETE /auth/sessions/current` | Bearer only (a cookie: 401 `unauthorized`). 204. `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out; open while terms are pending. |
 
@@ -727,7 +734,6 @@ virtual grants are never listed.
   "is_admin": false,
   "account": {
     "privileged": true,
-    "second_factor": {"required": true, "configured": true},
     "pii_visible": true,
     "device_access": true,
     "mentor": {"member": false, "admin_of": [{"institute_code": "...", "institute_name": "..."}]}
@@ -786,11 +792,9 @@ site or unit.
   names as in `actions`; `list_unrouted` only on tree projects); `[]` for
   everyone else. Coding and reviewing are not bypassed.
 - `account`:
-  - `privileged`: an active admin or data_manager grant
-    (`totp_service.is_privileged`), the users factor enforcement applies to.
-  - `second_factor`: `required` is `totp_service.needs_second_factor` (sign-in
-    asks for a second factor), `configured` is `totp_service.has_any_factor`
-    (a confirmed TOTP enrolment or any passkey).
+  - `privileged`: an admin or effective data_manager role within the current
+    credential scope; false for device credentials. Web password and passkey
+    sign-in are both available; there is no factor-enrolment gate.
   - `pii_visible`: `not viewer_pii_service.should_redact_pii(user)`.
   - `device_access`: `device_auth_service.has_device_access`, the sign-in and
     refresh check: an interviewing context in some project, or an open
@@ -886,10 +890,9 @@ global version so no old-format entry lingers (an entry of another format is
 discarded and re-read from the database in any case).
 
 Errors: 401 `unauthorized` when signed out or on a bad bearer; 403
-`terms_required`, `maintenance`, `factor_setup_required` from the gates (the
-same codes for every `/api/v1` route; the old browser bootstrap's
-`password_change_required` and `redirect_url` are gone: terms are
-`terms_required`, factor setup goes to `/profile/#passkeys-card`); 429 over
+`terms_required`, `maintenance` from the gates (the same codes for every
+`/api/v1` route; the old browser bootstrap's `password_change_required` and
+`redirect_url` are gone); 429 over
 the limit. Response header (cookie request only): `X-CSRFToken`.
 
 ## GET /api/v1/me/notifications (body)

@@ -190,7 +190,7 @@ export interface ClientBootstrap {
 export interface AuthenticationRequired {
   authenticated: false;
   loginUrl: string;
-  actionCode?: "terms_required" | "factor_setup_required";
+  actionCode?: "terms_required";
   csrf?: ClientCsrf;
 }
 
@@ -699,10 +699,9 @@ export async function fetchClientBootstrap(): Promise<BootstrapResult> {
     if (error instanceof ApiError && error.code === "unauthorized") {
       return { authenticated: false, loginUrl: login };
     }
-    if (error instanceof ApiError && error.status === 403 &&
-        (error.code === "terms_required" || error.code === "factor_setup_required")) {
+    if (error instanceof ApiError && error.status === 403 && error.code === "terms_required") {
       return { authenticated: false,
-        loginUrl: error.code === "terms_required" ? "/profile/force-password-change" : "/profile/#passkeys-card",
+        loginUrl: "/profile/force-password-change",
         actionCode: error.code, ...(error.csrf ? { csrf: error.csrf } : {})
       };
     }

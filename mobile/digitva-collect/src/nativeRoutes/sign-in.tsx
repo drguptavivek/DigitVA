@@ -1,4 +1,4 @@
-/** Interviewer sign-in on this device; the code field appears when the account has factors. */
+/** Interviewer sign-in on this device. */
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Linking, Text, TextInput, View } from "react-native";
@@ -22,8 +22,6 @@ export default function SignIn() {
   const [mode, setMode] = useState<"email" | "mobile">("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [otp, setOtp] = useState("");
-  const [needsOtp, setNeedsOtp] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -46,12 +44,11 @@ export default function SignIn() {
     setBusy(true);
     setError("");
     try {
-      const account = await signIn(submittedIdentifier, password, needsOtp ? otp.trim() : undefined);
+      const account = await signIn(submittedIdentifier, password);
       await reload();
       // Unlock sends an interviewer without a PIN yet to PIN setup.
       router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
-      if (caught instanceof ApiError && caught.code === "second_factor_required") setNeedsOtp(true);
       if (caught instanceof ApiError && caught.code === "device_revoked") {
         await forgetDevice();
         await reload();
@@ -116,19 +113,6 @@ export default function SignIn() {
       )}
       <Text style={styles.muted}>{t("password")}</Text>
       <TextInput accessibilityLabel={t("password")} style={styles.input} secureTextEntry value={password} onChangeText={setPassword} />
-      {needsOtp ? (
-        <>
-          <Text style={styles.muted}>{t("otp")}</Text>
-          <TextInput
-            style={styles.input}
-            accessibilityLabel={t("otp")}
-            autoCapitalize="none"
-            autoComplete="one-time-code"
-            value={otp}
-            onChangeText={setOtp}
-          />
-        </>
-      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button
         label={t("signIn")}

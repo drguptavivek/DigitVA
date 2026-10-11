@@ -52,8 +52,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 4. **External**: `digitva-fb5` five wrong-wording translations need Odia, Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
    `digitva-ddv.5` report to WHO; `digitva-sn1.1.7` real-device passkey; Android `kmk.5`, `kfi`; production `ddv.2`.
-5. **Owner decisions of 2026-10-09** (below): `0wm9`, `8xbo`, `1zdi`,
-   `dhmc`, `bed0`, `96a7`, `rrev`; Expo `gqtp`.
+5. **Owner decisions of 2026-10-09, still to build**: `digitva-96a7` show the
+   intake visit note (area table count linking to the DM record list, note in
+   that list and the case view, address redacted for non-PII viewers;
+   `docs/policy/web-intake.md` "Visit note"); Expo `digitva-gqtp` shows an
+   intake 422's message beside its `fields` (server half landed). Browser
+   check owed for the area dashboard's two cards and Final COD column, as a
+   project-wide user and as a collaborator.
 6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe` semantic ICD search (design and quality check done,
    `docs/planning/icd-semantic-search.md`; next is the two-stage causes prototype).
@@ -80,24 +85,25 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 - Recreate Redis for `volatile-lru` (drain Celery queues first); rebuild
   `app/data/who-va-2022.composed.json` after any `vendor/who-va-2022` change; rebuild the SmartVA image and restart worker and beat. The app build with
   `expo-handoff.md` section 1 ships with this server.
+- Stored KPI grid days counted Not analysable and Not codeable as a running
+  stock (`digitva-9uqn`). After deploy, back up, then
+  `flask kpi recount-day-events --dry-run` and without `--dry-run`; never
+  `flask kpi backfill` for this (it overwrites past pending backlogs).
 - `AUTHZ_ENFORCE_CONSULTED` is on in production: a non-public request that never consulted authz is refused.
 
 ## Production release notes
 
-- Production DB is at `d3f1a7c92b64` (2026-09-17), about 80 migrations behind head and before org units exist; the release is one large upgrade (backup first).
-- Every password is now server-generated; verification links sent before the deploy stop working (resend). Mail must work.
-- Dev has a test account "Test ASHA Mobile" (mobile 9000000111, landing page set to coder by mistake); remove or fix.
-- Review 10 behaviour changes: see closed bead `digitva-4lv4`.
+- Production DB is at `d3f1a7c92b64` (2026-09-17), about 80 migrations behind head and before org units exist;## Owner decisions of 2026-10-09 and 2026-10-10 (recorded in docs/policy)
 
-## Owner decisions taken 2026-10-09 (in docs/policy, not built)
+- Form-options and prefill-policy stay out of `me/access`.
+- The daily KPI grid keeps one Not analysable total (`bed0` closed).
+- Landed: consent/outcome 422, last-word surname, duplicate hint's
+  reported-by (`ddeaa449`); area cards, Final COD column, collaborator links
+  (`663cba6a`); stored grid day counts (`1569719c`).
 
-- Form-options and prefill-policy stay out of `me/access` (no code).
-- Outcome "refused" with consent yes: specific 422 naming both questions, shown beside them: server `digitva-0wm9`, Expo `digitva-gqtp`. Today a
-  valid form there is silently stored `completed`.
-- Name split: last word is the surname `digitva-8xbo`.
-- Area dashboard: collaborators get DM links `digitva-1zdi`; two labelled cards plus a Final COD column `digitva-dhmc`; visit-note count column.
-- DM daily grid: Not analysable total plus optional reason columns
-  `digitva-bed0`.
+umn.
+- DM daily grid: Not analysable stays a single total (2026-10-10; `bed0`
+  closed). Stored grid days count a running stock, not the day: `digitva-9uqn`.
 - Visit note shown on the area table, the DM record list and the case view, address redacted for non-PII viewers `digitva-96a7`.
 - Duplicate hint also names who reported the death `digitva-rrev`.
 

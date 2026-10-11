@@ -78,6 +78,8 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     )
     from app.services.coder_workflow_service import is_upstream_recode
     from app.services.demo_project_service import is_demo_training_submission
+    from app.services.visit_note import note_from_payload, visit_note_for_viewer
+    from app.services.viewer_pii_service import should_redact_pii
     from app.services.submission_payload_version_service import get_active_payload_version
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
     from app.tasks.sync_tasks import run_open_submission_repair
@@ -113,6 +115,11 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     category_service = get_category_rendering_service()
     active_version = get_active_payload_version(submission.va_sid)
     payload_data = active_version.payload_data if active_version else {}
+    # A nameless refusal has no category data to carry its visit note, so the
+    # page header does (redacted for a viewer who may not see PII).
+    visit_note = visit_note_for_viewer(
+        note_from_payload(payload_data), redact_pii=should_redact_pii(current_user)
+    )
     visible_codes = get_visible_category_codes(payload_data, submission.va_form_id)
     category_nav = category_service.get_category_nav(form_type_code, va_action, visible_codes)
     default_category_code = category_service.get_default_category_code(form_type_code, va_action, visible_codes)
@@ -132,6 +139,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     return render_template(
         "va_frontpages/va_coding.html",
         va_sid=submission.va_sid,
+        visit_note=visit_note,
         va_action=va_action,
         va_actiontype=va_actiontype,
         catlist=visible_codes,

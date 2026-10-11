@@ -167,3 +167,27 @@ class VisitNoteCaseViewTests(AreaDashboardFixture):
     def test_no_note_is_none(self):
         self.assertIsNone(visit_note_for_viewer(note_from_payload({"Id10013": "yes"}), redact_pii=False))
         self.assertIsNone(visit_note_for_viewer(note_from_payload(None), redact_pii=True))
+
+
+class VisitNoteHeaderRenderTests(VisitNoteFixture):
+    """The note rides in the case page header (a nameless refusal has no
+    category data to carry it), redacted per viewer."""
+
+    def _open(self, user):
+        self._login(str(user.user_id))
+        return self.client.get("/coding/area/uuid:area-pa1")
+
+    def test_pii_viewer_sees_address_then_plain_collaborator_does_not(self):
+        pii = self._get_or_make_user("area.vn.collabpii@test.local", "AreaUser123")
+        self._grant(pii, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.project,
+                    project_id=self.TREE)
+        db.session.commit()
+        body = self._open(pii).get_data(as_text=True)
+        self.assertEqual(self.client.get("/coding/area/uuid:area-pa1").status_code, 200)
+        self.assertIn(ADDRESS, body)
+        self.assertIn(REMARKS, body)
+
+        body = self._open(self.collaborator).get_data(as_text=True)
+        self.assertIn("2026-10-01", body)
+        self.assertNotIn(ADDRESS, body)
+        self.assertNotIn(REMARKS, body)

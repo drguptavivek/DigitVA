@@ -57,7 +57,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    Manage menu at 375px as collaborator and coder (no overflow; admin earlier); web passkey register and login (Playwright virtual authenticator, credential removed).
    Not checked: a "viewer" role distinct from collaborator. Test note and temp grants removed. EXPLAIN on the visit-note count: 4.7 ms on 8.3k
    submissions, no index needed. `digitva-943l` did not reproduce (4225 passed): closed. Open: `digitva-4ufj` (collaborator Data page toasts
-   "data_manager access is required" for charts and coder stats); owner to say whether "Reports" is the right menu label for the COD buckets page.
+   "data_manager access is required" for charts and coder stats); menu label for the COD buckets page is now "COD reports" (owner, 2026-10-11).
    Panel-level note removed (`digitva-a9kn`). Expo `digitva-gqtp` shows an intake 422's message beside its `fields`.
 6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe` semantic ICD search (design and quality check done,

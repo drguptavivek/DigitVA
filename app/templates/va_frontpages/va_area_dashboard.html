@@ -33,12 +33,20 @@
   </nav>
 
   <div id="area-card" class="mb-3 d-none">
-    <h6 class="mb-2">Project overview <span class="text-muted small fw-normal">(live, whole project)</span></h6>
-    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-2" id="area-card-tiles"></div>
-    <p class="text-muted small mb-0 mt-2">
-      Coded and not codeable here follow the final cause-of-death authority,
-      so they can differ from the coding columns below.
+    <h6 class="mb-1">Coding progress <span class="text-muted small fw-normal">(snapshot, whole project)</span></h6>
+    <p class="text-muted small mb-2">
+      Where each submission is in the coding workflow, as in the table below:
+      coded means a coder has finalized it (including cases in or past review);
+      consent refused counts as not codeable.
     </p>
+    <div class="row row-cols-2 row-cols-md-4 g-2 mb-3" id="area-card-coding-tiles"></div>
+    <h6 class="mb-1">Final cause of death <span class="text-muted small fw-normal">(live, whole project)</span></h6>
+    <p class="text-muted small mb-2">
+      Whether a final cause of death holds authority (the Site PI's counts):
+      not codeable here means marked so by a coder or data manager, and
+      consent refused is not counted.
+    </p>
+    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-2" id="area-card-tiles"></div>
   </div>
 
   <div class="small text-muted mb-2 d-none" id="area-freshness">
@@ -53,19 +61,21 @@
         <tr>
           <th rowspan="2">Area</th>
           <th colspan="4" class="text-center border-start">Collection</th>
-          <th colspan="6" class="text-center border-start">Coding</th>
+          <th colspan="6" class="text-center border-start">Coding progress (snapshot)</th>
+          <th rowspan="2" class="text-end border-start"
+              title="Submissions with an authoritative final cause of death (coder or reviewer). Live; differs from Coded (coder finalized).">Final COD</th>
         </tr>
         <tr class="small">
           <th class="text-end border-start" title="Snapshot">Submitted</th>
           <th class="text-end" title="Snapshot">Last 7 days</th>
           <th class="text-end" title="Snapshot">Last 30 days</th>
           <th class="text-end" title="Live">In progress</th>
-          <th class="text-end border-start">Awaiting coding</th>
-          <th class="text-end">In coding</th>
-          <th class="text-end">In review</th>
-          <th class="text-end">Coded</th>
-          <th class="text-end">Not codeable</th>
-          <th class="text-end">Other</th>
+          <th class="text-end border-start" title="Screening, attachment sync, SmartVA or ready for coding">Awaiting coding</th>
+          <th class="text-end" title="A coder has started or saved step 1">In coding</th>
+          <th class="text-end" title="Reviewer coding in progress">In review</th>
+          <th class="text-end" title="A coder has finalized, including cases open to review, reviewer finalized or changed in ODK after coding">Coded (coder finalized)</th>
+          <th class="text-end" title="Not codeable by a coder or data manager, or consent refused">Not codeable</th>
+          <th class="text-end" title="No workflow row yet">Other</th>
         </tr>
       </thead>
       <tbody id="area-rows"></tbody>
@@ -73,9 +83,12 @@
     </table>
   </div>
   <p class="text-muted small mb-0">
-    Each row counts its whole area once. Collection counts except
-    "In progress" come from the hourly snapshot; "In progress" (open web
-    interviews) is live.
+    Each row counts its whole area once. Collection and coding counts come
+    from the hourly snapshot; "In progress" (open web interviews) and
+    "Final COD" are live. "Coded (coder finalized)" and "Final COD" are
+    different counts: the first follows the coder's finalize step, the second
+    whether a final cause of death holds authority (for example, it can change
+    when a reviewer takes over or a case is reopened).
   </p>
 
   <div id="area-staff-block" class="mt-3 d-none">
@@ -105,9 +118,10 @@ document.addEventListener("DOMContentLoaded", function () {
   var errorBox = document.getElementById("area-error");
   var COLUMNS = [
     "total_submissions", "last_7_days", "last_30_days", "drafts_in_progress",
-    "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other"
+    "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other",
+    "final_cod"
   ];
-  var BORDERED = { total_submissions: true, awaiting_coding: true };
+  var BORDERED = { total_submissions: true, awaiting_coding: true, final_cod: true };
   var staffBlock = document.getElementById("area-staff-block");
   var staffToggle = document.getElementById("area-staff-toggle");
   var staffBox = document.getElementById("area-staff");
@@ -127,16 +141,42 @@ document.addEventListener("DOMContentLoaded", function () {
       ["not_codeable_30_days", "Not codeable (30 days)"]
     ]]
   ];
+  // [key, label, value, show share of submitted, one-line definition]
+  var CODING_TILES = [
+    ["total_submissions", "Submitted", function (c) { return c.coding_progress.total_submissions; }, false,
+      "Submissions received, from the snapshot"],
+    ["awaiting_coding", "Awaiting coding", function (c) { return c.coding_progress.awaiting_coding; }, true,
+      "Screening, attachment sync, SmartVA or ready for coding"],
+    ["in_coding", "In coding", function (c) { return c.coding_progress.in_coding; }, true,
+      "A coder has started or saved step 1"],
+    ["in_review", "In review", function (c) { return c.coding_progress.in_review; }, true,
+      "Reviewer coding in progress"],
+    ["coded", "Coded (coder finalized)", function (c) { return c.coding_progress.coded; }, true,
+      "A coder has finalized, including cases open to review, reviewer finalized or changed in ODK after coding"],
+    ["not_codeable", "Not codeable (incl. consent refused)", function (c) { return c.coding_progress.not_codeable; }, true,
+      "Not codeable by a coder or data manager, or consent refused"],
+    ["other", "Other", function (c) { return c.coding_progress.other; }, true,
+      "No workflow row yet"]
+  ];
   var CARD_TILES = [
-    ["total_submissions", "Submitted", function (c) { return c.total_submissions; }],
-    ["total_coded", "Final cause of death", function (c) { return c.total_coded; }, true],
-    ["total_not_codeable", "Not codeable", function (c) { return c.total_not_codeable; }, true],
-    ["pending_or_active", "Awaiting or in coding", function (c) { return c.current_state_kpis.pending_or_active; }],
-    ["reviewer_eligible", "Coded, open to review", function (c) { return c.current_state_kpis.reviewer_eligible; }],
-    ["reviewer_finalized", "Reviewer finalized", function (c) { return c.current_state_kpis.reviewer_finalized; }],
-    ["upstream_changed", "Changed in ODK after coding", function (c) { return c.current_state_kpis.upstream_changed; }],
-    ["coder_authority", "Final by coder", function (c) { return c.authority_kpis.coder_authority; }],
-    ["reviewer_authority", "Final by reviewer", function (c) { return c.authority_kpis.reviewer_authority; }]
+    ["total_submissions", "Submitted", function (c) { return c.total_submissions; }, false,
+      "Submissions received, live"],
+    ["total_coded", "Final COD", function (c) { return c.final_cod.coded; }, true,
+      "A final cause of death holds authority (by coder or reviewer)"],
+    ["total_not_codeable", "Not codeable (coder or data manager)", function (c) { return c.final_cod.not_codeable; }, true,
+      "Marked not codeable by a coder or data manager; consent refused is not counted"],
+    ["pending_or_active", "Awaiting or in coding", function (c) { return c.current_state_kpis.pending_or_active; }, false,
+      "Screening, attachment sync, SmartVA, ready, in coding or step 1 saved"],
+    ["reviewer_eligible", "Coded, open to review", function (c) { return c.current_state_kpis.reviewer_eligible; }, false,
+      "Coder finalized and waiting for an optional review"],
+    ["reviewer_finalized", "Reviewer finalized", function (c) { return c.current_state_kpis.reviewer_finalized; }, false,
+      "A reviewer has finalized"],
+    ["upstream_changed", "Changed in ODK after coding", function (c) { return c.current_state_kpis.upstream_changed; }, false,
+      "The ODK record changed after it was coded"],
+    ["coder_authority", "Final COD by coder", function (c) { return c.final_cod.by_coder; }, false,
+      "The coder's final cause of death holds authority"],
+    ["reviewer_authority", "Final COD by reviewer", function (c) { return c.final_cod.by_reviewer; }, false,
+      "The reviewer's final cause of death holds authority"]
   ];
 
   function el(tag, className, text) {
@@ -189,21 +229,17 @@ document.addEventListener("DOMContentLoaded", function () {
     return cell;
   }
 
-  function renderCard(card) {
-    var box = document.getElementById("area-card");
-    var tiles = document.getElementById("area-card-tiles");
+  function renderTiles(tiles, defs, card, total, links) {
     tiles.replaceChildren();
-    box.classList.toggle("d-none", !card);
-    if (!card) return;
-    var links = card.links || {};
-    CARD_TILES.forEach(function (tile) {
+    defs.forEach(function (tile) {
       var value = tile[2](card) || 0;
       var body = el("div", "border rounded p-2 h-100");
+      body.title = tile[4];
       var number = el("div", "fs-5 fw-semibold");
       number.appendChild(linkOrText(links[tile[0]], String(value)));
-      if (tile[3] && card.total_submissions) {
+      if (tile[3] && total) {
         number.appendChild(el("span", "text-muted small fw-normal ms-1",
-          "(" + Math.round(100 * value / card.total_submissions) + "%)"));
+          "(" + Math.round(100 * value / total) + "%)"));
       }
       body.appendChild(number);
       body.appendChild(el("div", "text-muted small", tile[1]));
@@ -211,6 +247,20 @@ document.addEventListener("DOMContentLoaded", function () {
       col.appendChild(body);
       tiles.appendChild(col);
     });
+  }
+
+  function renderCard(card) {
+    var box = document.getElementById("area-card");
+    box.classList.toggle("d-none", !card);
+    if (!card) {
+      document.getElementById("area-card-coding-tiles").replaceChildren();
+      document.getElementById("area-card-tiles").replaceChildren();
+      return;
+    }
+    renderTiles(document.getElementById("area-card-coding-tiles"), CODING_TILES, card,
+      card.coding_progress.total_submissions, {});
+    renderTiles(document.getElementById("area-card-tiles"), CARD_TILES, card,
+      card.total_submissions, card.links || {});
   }
 
   function renderBreadcrumb(data) {
@@ -295,7 +345,7 @@ document.addEventListener("DOMContentLoaded", function () {
         ? "Snapshot counts as of " + freshness.snapshot_refreshed_display + " (refreshed hourly)"
         : "Snapshot counts: refresh time not recorded yet (refreshed hourly)";
     document.getElementById("area-live-label").textContent =
-      "In progress: live, as of " + freshness.live_at_display;
+      "In progress and Final COD: live, as of " + freshness.live_at_display;
   }
 
   function staffTable(title, columns, rows) {

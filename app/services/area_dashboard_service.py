@@ -35,6 +35,7 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
+    VaFinalCodAuthority,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -62,6 +63,7 @@ from app.services.submission_analytics_mv import (
 )
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
+    CODING_BUCKETS,
     TRANSITION_CODER_FINALIZED,
     TRANSITION_CODER_NOT_CODEABLE,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
@@ -362,11 +364,81 @@ def _drafts_by_site(project_id: str, site_ids: list) -> dict:
     return dict(rows)
 
 
-def _counts(stats: dict | None, drafts: int) -> dict:
+def _authoritative_submissions(project_id: str):
+    """(va_sid, org_unit_id, site_id) of the project's submissions whose final
+    cause of death holds authority (``final-cod-authority.md``), live.
+
+    The Site PI KPIs' authority definition (``sitepi_reporting_service``):
+    an authority row naming a coder or reviewer assessment, retired
+    submissions, confirmed duplicates and inactive project-sites left out.
+    """
+    return (
+        sa.select(VaSubmissions.va_sid, VaSubmissions.org_unit_id, VaForms.site_id)
+        .join(VaFinalCodAuthority, VaFinalCodAuthority.va_sid == VaSubmissions.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(
+            VaProjectSites,
+            sa.and_(
+                VaProjectSites.project_id == VaForms.project_id,
+                VaProjectSites.site_id == VaForms.site_id,
+                VaProjectSites.project_site_status == VaStatuses.active,
+            ),
+        )
+        .where(
+            VaForms.project_id == project_id,
+            sa.or_(
+                VaFinalCodAuthority.authoritative_final_assessment_id.is_not(None),
+                VaFinalCodAuthority.authoritative_reviewer_final_assessment_id.is_not(None),
+            ),
+            submission_is_in_odk(VaSubmissions),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+        )
+        .subquery("authoritative_submissions")
+    )
+
+
+def _final_cod_by_unit(project_id: str, unit_ids: list) -> dict:
+    """Authoritative-final-COD submissions in each unit's subtree, one query."""
+    if not unit_ids:
+        return {}
+    authoritative = _authoritative_submissions(project_id)
+    sub_unit = sa.orm.aliased(MasOrgUnit, name="cod_unit")
+    rows = db.session.execute(
+        sa.select(MasOrgUnit.org_unit_id, sa.func.count(authoritative.c.va_sid))
+        .select_from(MasOrgUnit)
+        .join(sub_unit, sub_unit.path.op("<@")(MasOrgUnit.path))
+        .join(authoritative, authoritative.c.org_unit_id == sub_unit.org_unit_id)
+        .where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)), sub_unit.project_id == project_id)
+        .group_by(MasOrgUnit.org_unit_id)
+    ).all()
+    return dict(rows)
+
+
+def _final_cod_unrouted(project_id: str) -> int:
+    authoritative = _authoritative_submissions(project_id)
+    return db.session.scalar(
+        sa.select(sa.func.count(authoritative.c.va_sid)).where(
+            authoritative.c.org_unit_id.is_(None)
+        )
+    ) or 0
+
+
+def _final_cod_by_site(project_id: str, site_ids: list) -> dict:
+    authoritative = _authoritative_submissions(project_id)
+    rows = db.session.execute(
+        sa.select(authoritative.c.site_id, sa.func.count(authoritative.c.va_sid))
+        .where(authoritative.c.site_id.in_(sorted(site_ids)))
+        .group_by(authoritative.c.site_id)
+    ).all()
+    return dict(rows)
+
+
+def _counts(stats: dict | None, drafts: int, final_cod: int) -> dict:
     stats = stats or {}
     counts = {"total_submissions": stats.get("total_submissions", 0)}
     counts.update({key: stats.get(key, 0) for key in AREA_BREAKDOWN_KEYS})
     counts["drafts_in_progress"] = drafts
+    counts["final_cod"] = final_cod
     return counts
 
 
@@ -385,6 +457,7 @@ def _unit_summary_rows(scope: AreaScope, units: list) -> list[dict]:
             )
         }
     drafts = _drafts_by_unit(scope.project_id, unit_ids)
+    final_cod = _final_cod_by_unit(scope.project_id, unit_ids)
     return [
         {
             "kind": "unit",
@@ -392,7 +465,11 @@ def _unit_summary_rows(scope: AreaScope, units: list) -> list[dict]:
             "code": row.unit_code,
             "name": row.unit_name,
             "has_children": bool(row.has_children),
-            "counts": _counts(stats.get(str(row.org_unit_id)), drafts.get(row.org_unit_id, 0)),
+            "counts": _counts(
+                stats.get(str(row.org_unit_id)),
+                drafts.get(row.org_unit_id, 0),
+                final_cod.get(row.org_unit_id, 0),
+            ),
         }
         for row in units
     ]
@@ -408,6 +485,7 @@ def _unrouted_row(scope: AreaScope) -> dict:
         "counts": _counts(
             get_area_unrouted_stats_from_mv(project_id=scope.project_id),
             _unrouted_drafts(scope.project_id),
+            _final_cod_unrouted(scope.project_id),
         ),
     }
 
@@ -446,6 +524,7 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
         )
     }
     drafts = _drafts_by_site(scope.project_id, site_ids)
+    final_cod = _final_cod_by_site(scope.project_id, site_ids)
     return [
         {
             "kind": "site",
@@ -453,7 +532,9 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
             "code": row.site_id,
             "name": row.site_name,
             "has_children": False,
-            "counts": _counts(stats.get(row.site_id), drafts.get(row.site_id, 0)),
+            "counts": _counts(
+                stats.get(row.site_id), drafts.get(row.site_id, 0), final_cod.get(row.site_id, 0)
+            ),
             "links": (
                 {"total_submissions": _dm_link(project=scope.project_id, site=row.site_id)}
                 if dm_links
@@ -471,6 +552,11 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
 SCREEN_DATA_MANAGEMENT = "data_management.dashboard"
 SCREEN_CODING = "coding.dashboard"
 SCREEN_INTAKE = "intake.dashboard"
+
+# The data manager dashboard admits both viewer roles
+# (``role_required`` on data_management.dashboard).
+VIEWER_ROLES = frozenset({VaAccessRoles.collaborator, VaAccessRoles.collaborator_pii})
+VIEWER_ROLE_NAMES = frozenset(role.value for role in VIEWER_ROLES)
 
 # Every filter the data manager page reads from its URL
 # (loadStateFromUrl in app/static/js/data_manager_dashboard.js). A link sends
@@ -506,13 +592,18 @@ def link_screens(user, project_id: str) -> set[str]:
 
     A screen is offered only when the user holds the role that does that
     work on this project, and passes the target route's own role gate, so a
-    link never leads to a 403: data managers (and admin) the data manager
-    dashboard, coders the coding dashboard, interviewers web intake. The
-    target screens still enforce their own scope on every request.
+    link never leads to a 403: data managers, collaborators (either kind) and
+    admin the data manager dashboard, coders the coding dashboard,
+    interviewers web intake. The target screens still enforce their own scope
+    on every request.
     """
     roles = _project_roles(user, project_id)
     screens = set()
-    if user.is_admin() or (VaAccessRoles.data_manager in roles and user.is_data_manager()):
+    if (
+        user.is_admin()
+        or (VaAccessRoles.data_manager in roles and user.is_data_manager())
+        or (roles & VIEWER_ROLES and VIEWER_ROLE_NAMES & authz.role_flags(user))
+    ):
         screens.add(SCREEN_DATA_MANAGEMENT)
     if VaAccessRoles.coder in roles and user.is_coder():
         screens.add(SCREEN_CODING)
@@ -527,8 +618,16 @@ def link_screens(user, project_id: str) -> set[str]:
     return screens
 
 
-def project_card(scope: AreaScope, screens: set[str]) -> dict:
-    """The project-wide operational card: the Site PI KPIs over the whole project.
+def project_card(scope: AreaScope, screens: set[str], rows: list[dict]) -> dict:
+    """The project-wide operational card, as two named definitions.
+
+    ``coding_progress`` is the table's definition (coding buckets, snapshot),
+    summed from the root *rows* the table already shows, so it needs no query
+    and reconciles with the table's total row. ``final_cod`` is the Site PI's
+    (a final cause of death holds authority, live): ``get_project_workflow_kpis``.
+    The legacy flat keys (``total_coded``, ``total_not_codeable``,
+    ``authority_kpis``, ...) are the same Site PI numbers and stay for
+    existing consumers.
 
     Counts only. The coder names and per-submission rows the Site PI page
     also shows never reach it. ``links`` maps a count key to
@@ -544,7 +643,17 @@ def project_card(scope: AreaScope, screens: set[str]) -> dict:
         links["total_submissions"] = {"endpoint": SCREEN_INTAKE, "params": {}}
     if SCREEN_CODING in screens:
         links["pending_or_active"] = {"endpoint": SCREEN_CODING, "params": {}}
+    coding_progress = {
+        key: sum(row["counts"][key] for row in rows) for key in ("total_submissions", *CODING_BUCKETS)
+    }
     return {
+        "coding_progress": coding_progress,
+        "final_cod": {
+            "coded": kpis["total_coded"],
+            "not_codeable": kpis["total_not_codeable"],
+            "by_coder": kpis["authority_kpis"]["coder_authority"],
+            "by_reviewer": kpis["authority_kpis"]["reviewer_authority"],
+        },
         "total_submissions": kpis["total_submissions"],
         "total_coded": kpis["total_coded"],
         "total_not_codeable": kpis["total_not_codeable"],
@@ -618,7 +727,7 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
     in-scope site (just *site_id* when given).
 
     At the project root (no unit, no site) a project-wide scope also gets
-    ``project_card``; it is None otherwise.
+    ``project_card`` (built from the root rows); it is None otherwise.
 
     Raises AreaNotFound for a project, unit or site outside the user's area.
     """
@@ -636,8 +745,7 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
     }
     at_root = not unit_id and not site_id
     screens = link_screens(user, project_id) if at_root or not scope.has_tree else set()
-    if at_root and scope.project_wide:
-        result["project_card"] = project_card(scope, screens)
+    with_card = at_root and scope.project_wide
 
     if not scope.has_tree:
         if unit_id:
@@ -645,6 +753,8 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
         result["rows"] = _site_rows(
             scope, site_id or None, dm_links=SCREEN_DATA_MANAGEMENT in screens
         )
+        if with_card:
+            result["project_card"] = project_card(scope, screens, result["rows"])
         return result
 
     if site_id:
@@ -670,6 +780,8 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
     if scope.project_wide:
         rows.append(_unrouted_row(scope))
     result["rows"] = rows
+    if with_card:
+        result["project_card"] = project_card(scope, screens, rows)
     return result
 
 

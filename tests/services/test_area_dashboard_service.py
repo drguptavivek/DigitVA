@@ -14,6 +14,8 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
+    VaFinalAssessments,
+    VaFinalCodAuthority,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
@@ -29,6 +31,7 @@ from app.models import (
 )
 from app.services import area_dashboard_service as area
 from app.services import organization_service as org
+from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.submission_analytics_mv import (
     COD_MV_NAME,
     COD_SNAPSHOT_MV_NAME,
@@ -290,6 +293,24 @@ class AreaDashboardFixture(BaseTestCase):
     @staticmethod
     def _by_key(summary):
         return {row["key"]: row for row in summary["rows"]}
+
+    def _give_authority(self, sid):
+        """A coder final assessment holding authority on *sid* (rolled back per test)."""
+        assessment = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.unit_user.user_id,
+            va_conclusive_cod="I10 - Essential Hypertension",
+        )
+        db.session.add(assessment)
+        db.session.flush()
+        authority = VaFinalCodAuthority(
+            va_sid=sid,
+            authoritative_final_assessment_id=assessment.va_finassess_id,
+            authority_source_role="vacoder",
+            authority_reason="final_cod_submitted",
+        )
+        db.session.add(authority)
+        db.session.commit()
 
 
 def refresh_submission_analytics_mv_core_and_demographics():
@@ -614,6 +635,38 @@ class AreaProjectCardTests(AreaDashboardFixture):
         card = area.area_summary(self.site_user, self.TREE)["project_card"]
         self.assertIsNotNone(card)
         self.assertEqual(card["links"], {})
+        self.assertEqual(area.link_screens(self.site_user, self.TREE), set())
+
+    def test_collaborators_get_the_data_manager_links(self):
+        """digitva-1zdi: the data manager dashboard admits both viewer roles."""
+        for role in (VaAccessRoles.collaborator, VaAccessRoles.collaborator_pii):
+            user = self._get_or_make_user(f"area.card.{role.value}@test.local", "AreaUser123")
+            self._grant(user, role, VaAccessScopeTypes.project, project_id=self.TREE)
+            self.assertEqual(area.link_screens(user, self.TREE), {area.SCREEN_DATA_MANAGEMENT})
+            card = area.area_summary(user, self.TREE)["project_card"]
+            self.assertIsNotNone(card)
+            self.assertEqual(
+                self._screen_endpoints(card["links"]),
+                {
+                    key: area.SCREEN_DATA_MANAGEMENT
+                    for key in ("total_submissions", "reviewer_eligible",
+                                "reviewer_finalized", "upstream_changed")
+                },
+            )
+
+    def test_collaborator_link_follows_the_role_on_that_project(self):
+        """A collaborator on the sites project only gets no link on the tree project."""
+        user = self._get_or_make_user("area.card.collab.cross@test.local", "AreaUser123")
+        self._grant(user, VaAccessRoles.collaborator, VaAccessScopeTypes.project,
+                    project_id=self.SITES)
+        self._grant(user, VaAccessRoles.interviewer, VaAccessScopeTypes.project,
+                    project_id=self.TREE)
+        self.assertEqual(area.link_screens(user, self.SITES), {area.SCREEN_DATA_MANAGEMENT})
+        self.assertEqual(area.link_screens(user, self.TREE), {area.SCREEN_INTAKE})
+        rows = self._by_key(area.area_summary(user, self.SITES))
+        self.assertIn(
+            "total_submissions", rows[self.SITE_ONE]["links"]
+        )
 
     def test_project_coder_gets_coding_link(self):
         user = self._get_or_make_user("area.card.coder@test.local", "AreaUser123")
@@ -647,6 +700,114 @@ class AreaProjectCardTests(AreaDashboardFixture):
         site_pi_rows = self._by_key(area.area_summary(self.sites_mode_site_user, self.SITES))
         self.assertIn(self.SITE_ONE, site_pi_rows)
         self.assertEqual(site_pi_rows[self.SITE_ONE]["links"], {})
+
+
+class AreaTwoDefinitionsTests(AreaDashboardFixture):
+    """digitva-dhmc: "Coded (coder finalized)" and "Final COD" are named and counted apart.
+
+    Fixture: uuid:area-ca1 is coder_finalized at CHC A (District 1) and
+    uuid:area-un2 has no workflow row and no unit; neither holds authority
+    until a test gives it one.
+    """
+
+    def _chc_a_counts(self):
+        rows = self._by_key(area.area_summary(self.project_user, self.TREE, unit_id=str(self.district_1.org_unit_id)))
+        return rows[str(self.chc_a.org_unit_id)]["counts"]
+
+    def test_coder_finalized_without_authority_is_coded_but_not_final_cod(self):
+        counts = self._chc_a_counts()
+        self.assertEqual(counts["coded"], 1)
+        self.assertEqual(counts["final_cod"], 0)
+        card = area.area_summary(self.project_user, self.TREE)["project_card"]
+        self.assertEqual(card["coding_progress"]["coded"], 1)
+        self.assertEqual(card["final_cod"]["coded"], 0)
+        self.assertEqual(card["total_coded"], card["final_cod"]["coded"])
+
+    def test_authority_counts_in_the_column_the_subtree_and_the_card(self):
+        self._give_authority("uuid:area-ca1")
+        self._give_authority("uuid:area-un2")
+        self._give_authority("uuid:area-pa1")  # still ready_for_coding: not "coded"
+        summary = area.area_summary(self.project_user, self.TREE)
+        rows = self._by_key(summary)
+        district_1 = rows[str(self.district_1.org_unit_id)]["counts"]
+        # CHC A (1) + PHC A1 (1) are in District 1's subtree, counted once each.
+        self.assertEqual(district_1["final_cod"], 2)
+        self.assertEqual(district_1["coded"], 1)
+        self.assertEqual(rows[area.UNROUTED_KEY]["counts"]["final_cod"], 1)
+        self.assertEqual(rows[str(self.district_2.org_unit_id)]["counts"]["final_cod"], 0)
+        # Drilled down, the same authority rows count at the child.
+        chc_a = self._chc_a_counts()
+        self.assertEqual((chc_a["final_cod"], chc_a["coded"]), (2, 1))
+        card = summary["project_card"]
+        self.assertEqual(card["final_cod"]["coded"], 3)
+        self.assertEqual(card["authority_kpis"]["coder_authority"], 3)
+        self.assertEqual(card["coding_progress"]["coded"], 1)
+        self.assertEqual(
+            sum(row["counts"]["final_cod"] for row in summary["rows"]), card["final_cod"]["coded"]
+        )
+
+    def test_card_coding_progress_is_the_tables_totals(self):
+        summary = area.area_summary(self.project_user, self.TREE)
+        progress = summary["project_card"]["coding_progress"]
+        self.assertEqual(progress["total_submissions"], 7)
+        for key in ("awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other"):
+            self.assertEqual(
+                progress[key], sum(row["counts"][key] for row in summary["rows"]), key
+            )
+        self.assertEqual(
+            sum(progress[key] for key in CODING_BUCKETS), progress["total_submissions"]
+        )
+        # The tree project's unrouted "not_codeable_by_coder" is one of them.
+        self.assertEqual(progress["not_codeable"], 1)
+
+    def test_consent_refused_is_not_codeable_in_progress_but_not_in_final_cod(self):
+        """Sites-mode site two holds a consent_refused submission."""
+        self._give_authority("uuid:area-s11")
+        summary = area.area_summary(self.base_admin_user, self.SITES)
+        rows = self._by_key(summary)
+        self.assertEqual(rows[self.SITE_TWO]["counts"]["not_codeable"], 1)
+        self.assertEqual(rows[self.SITE_ONE]["counts"]["final_cod"], 1)
+        self.assertEqual(rows[self.SITE_TWO]["counts"]["final_cod"], 0)
+        card = summary["project_card"]
+        self.assertEqual(card["coding_progress"]["not_codeable"], 1)
+        self.assertEqual(card["final_cod"]["not_codeable"], 0)
+        self.assertEqual(card["final_cod"]["coded"], 1)
+
+    def test_a_confirmed_duplicate_leaves_final_cod(self):
+        self._give_authority("uuid:area-ca1")
+        self.assertEqual(self._chc_a_counts()["final_cod"], 1)
+        case = VaDeathRegister(
+            project_id=self.TREE, site_id=self.TREE_SITE, death_number=990201,
+            unique_id="AREA-DUP-2", deceased_name="Asha Devi", deceased_sex="female",
+            date_of_death=datetime.now(UTC).date(), registered_by=self.interviewer.user_id,
+            status="duplicate", va_sid="uuid:area-ca1",
+        )
+        db.session.add(case)
+        db.session.commit()
+        self.assertEqual(self._chc_a_counts()["final_cod"], 0)
+
+    def test_a_retired_submission_leaves_final_cod(self):
+        self._give_authority("uuid:area-ca1")
+        self.assertEqual(self._chc_a_counts()["final_cod"], 1)
+        db.session.get(VaSubmissions, "uuid:area-ca1").va_sync_issue_code = MISSING_IN_ODK
+        db.session.commit()
+        self.assertEqual(self._chc_a_counts()["final_cod"], 0)
+
+    def test_an_inactive_project_site_leaves_final_cod(self):
+        self._give_authority("uuid:area-ca1")
+        self.assertEqual(self._chc_a_counts()["final_cod"], 1)
+        project_site = db.session.scalar(sa.select(VaProjectSites).where(
+            VaProjectSites.project_id == self.TREE, VaProjectSites.site_id == self.TREE_SITE))
+        project_site.project_site_status = VaStatuses.deactive
+        db.session.commit()
+        self.assertEqual(self._chc_a_counts()["final_cod"], 0)
+
+    def test_a_unit_user_counts_final_cod_only_in_their_subtree(self):
+        self._give_authority("uuid:area-pa1")  # PHC A1, under the user's CHC A
+        self._give_authority("uuid:area-cb1")  # CHC B, outside it
+        rows = area.area_summary(self.unit_user, self.TREE)["rows"]
+        self.assertTrue(rows)
+        self.assertEqual(sum(row["counts"]["final_cod"] for row in rows), 1)
 
 
 class AreaStaffFixture(AreaDashboardFixture):

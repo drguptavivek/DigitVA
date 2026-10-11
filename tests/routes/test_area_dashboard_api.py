@@ -7,6 +7,7 @@ routes would 405 and trip the IP ban. Policy: docs/policy/area-dashboard.md.
 from urllib.parse import parse_qs, urlsplit
 
 from app import db
+from app.models import VaAccessRoles, VaAccessScopeTypes
 from app.services import area_dashboard_service as area
 from tests.services.test_area_dashboard_service import AreaDashboardFixture, AreaStaffFixture
 
@@ -85,6 +86,41 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
         self.assertEqual(query["project"], [self.TREE])
         self.assertEqual(query["workflow"], ["reviewer_eligible"])
         self.assertNotIn("pending_or_active", card["links"])
+
+    def test_card_and_rows_carry_both_coded_definitions(self):
+        self._give_authority("uuid:area-ca1")
+        self._as(self.project_user)
+        body = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()
+        card = body["project_card"]
+        self.assertEqual(card["coding_progress"]["total_submissions"], 7)
+        self.assertEqual(card["coding_progress"]["coded"], 1)
+        self.assertEqual(
+            card["final_cod"], {"coded": 1, "not_codeable": 1, "by_coder": 1, "by_reviewer": 0}
+        )
+        # Existing keys stay as they were.
+        self.assertEqual(card["total_coded"], 1)
+        self.assertEqual(card["authority_kpis"], {"coder_authority": 1, "reviewer_authority": 0})
+        self.assertTrue(body["rows"])
+        for row in body["rows"]:
+            self.assertIn("final_cod", row["counts"])
+            self.assertIn("coded", row["counts"])
+        district_1 = next(r for r in body["rows"] if r["key"] == str(self.district_1.org_unit_id))
+        self.assertEqual(district_1["counts"]["final_cod"], 1)
+
+    def test_collaborator_card_links_to_the_data_manager_dashboard(self):
+        user = self._get_or_make_user("area.api.collab@test.local", "AreaUser123")
+        self._grant(user, VaAccessRoles.collaborator, VaAccessScopeTypes.project,
+                    project_id=self.TREE)
+        db.session.commit()
+        self._as(user)
+        card = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["project_card"]
+        self.assertIsNotNone(card)
+        self.assertEqual(urlsplit(card["links"]["total_submissions"]).path, "/data-management/")
+        # A reviewer reaches the card but no data manager link (the subject exists first).
+        self._as(self.site_user)
+        reviewer_card = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["project_card"]
+        self.assertIsNotNone(reviewer_card)
+        self.assertEqual(reviewer_card["links"], {})
 
     def test_unit_scoped_user_gets_no_card(self):
         self._as(self.interviewer)

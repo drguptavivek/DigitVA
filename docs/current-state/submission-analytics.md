@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-09
 ---
 
 # Submission Analytics Materialized Views
@@ -234,19 +234,41 @@ counts for the part of a project a user holds a grant for
   manager and analytics screens are not recorded there, so the label is a
   lower bound. Both labels are formatted in the user's timezone.
 - Project card (`project_card` in the summary, null otherwise): only at the
-  project root (no unit, no site) for a project-wide scope. Live, not from
-  the MV: `sitepi_reporting_service.get_project_workflow_kpis`, the Site PI
-  KPI query run once over the project's active project-sites (totals, final
-  COD authority coded, not codeable, workflow-state and authority counts;
-  the Site PI page's coder names and per-submission rows are not passed on).
-  Its coded and not-codeable follow the Site PI definitions, so they differ
-  from the table's coding buckets. No turnaround figure: the only
-  submission-to-final-COD pair is in the COD snapshot MV, which is not
-  guaranteed to exist and is not on this path.
+  project root (no unit, no site) for a project-wide scope. Two named
+  definitions of "coded" (`digitva-dhmc`; the page labels them "Coding
+  progress" and "Final cause of death" and never gives them one label):
+  - `coding_progress` (snapshot): `total_submissions` plus one key per coding
+    bucket (`awaiting_coding`, `in_coding`, `in_review`, `coded`,
+    `not_codeable`, `other`), summed in Python from the root rows the table
+    already built, so it costs no query and equals the table's total row.
+    Coded = coder finalized (and later review states); consent refused is in
+    `not_codeable`.
+  - `final_cod` (live): `coded` (a final COD holds authority), `not_codeable`
+    (coder or data manager not-codeable only; consent refused is not
+    counted), `by_coder`, `by_reviewer`. From
+    `sitepi_reporting_service.get_project_workflow_kpis`, the Site PI KPI
+    query run once over the project's active project-sites; the Site PI
+    page's coder names and per-submission rows are not passed on.
+  - The legacy flat keys (`total_submissions`, `total_coded`,
+    `total_not_codeable`, `current_state_kpis`, `authority_kpis`, `links`)
+    are unchanged and carry the Site PI (Final COD) numbers.
+  No turnaround figure: the only submission-to-final-COD pair is in the COD
+  snapshot MV, which is not guaranteed to exist and is not on this path.
+- Row `counts` gained `final_cod`: submissions in the row's subtree (or site,
+  or the unrouted row) whose final COD holds authority, live. The snapshot
+  MVs cannot answer it (`has_human_final_cod` in the demographics MV also
+  counts a bare active assessment without an authority row), so
+  `_final_cod_by_unit` / `_final_cod_by_site` / `_final_cod_unrouted` each run
+  one grouped query over `va_submissions` joined to `va_final_cod_authority`
+  (a coder or reviewer assessment id set), with retired submissions, confirmed
+  duplicates and inactive project-sites left out, as the card's authority
+  count does. No materialized-view change. Unit rows join to the authority
+  submissions on ltree `<@` like the draft counts.
 - Links (`links` on the card and on sites-mode rows, count key -> URL):
   `area_dashboard_service.link_screens` offers a screen only when the user
   holds that role on the project (one grant query) and passes the target
-  route's own role gate. Data manager or admin: `/data-management/` with
+  route's own role gate. Data manager, collaborator or collaborator_pii (the
+  dashboard route admits both; `digitva-1zdi`) or admin: `/data-management/` with
   every URL filter it reads, blank unless set (project; site on site rows;
   `workflow` only for the three card counts equal to one workflow state).
   Coder: `/coding/` on the pending count. Interviewer (without data

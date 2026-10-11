@@ -53,6 +53,25 @@ function WebLink({ href, children }: { href: string; children: React.ReactNode }
   }, children);
 }
 
+function IcdBrowserLink({ classification }: { classification?: "icd10" | "icd11" | null }) {
+  const browser = classification === "icd11"
+    ? { href: "https://icd.who.int/browse/2026-01/mms/en", label: "ICD-11 Browser" }
+    : classification === "icd10"
+      ? { href: "https://icd.who.int/browse10/2019/en", label: "ICD-10 Browser" }
+      : null;
+  if (!browser) return null;
+  return <View style={webStyles.icdBrowserCard}>
+    <a
+      href={browser.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Open ${browser.label}`}
+      aria-label={browser.label}
+      style={webStyles.icdBrowserLink}
+    ><FaIcon name="fa-book-medical" color={BLUE} /> {browser.label}</a>
+  </View>;
+}
+
 function DetailsItem({ icon, label, value, demo, flex }: { icon: string; label: string; value: string; demo?: boolean; flex: number }) {
   return <View style={[webStyles.detailItem, { flex }]}>
     <View style={webStyles.detailLabel}><FaIcon name={icon} color={BLUE} /><Text style={webStyles.detailLabelText}>{label}</Text>{demo ? <Text style={webStyles.demo}>DEMO</Text> : null}</View>
@@ -79,13 +98,14 @@ function CategoryNavigation({
   categories,
   formId,
   smartvaAvailable,
+  icdClassification,
   selectedCode,
   onSelectCategory,
   open,
   narrow,
   setOpen,
   smartvaPanel,
-}: Pick<WorkspaceLayoutProps, "categories" | "selectedCode" | "onSelectCategory"> & { formId: string; smartvaAvailable: boolean; open: boolean; narrow: boolean; setOpen: (open: boolean) => void; smartvaPanel?: React.ReactNode }) {
+}: Pick<WorkspaceLayoutProps, "categories" | "selectedCode" | "onSelectCategory"> & { formId: string; smartvaAvailable: boolean; icdClassification?: "icd10" | "icd11" | null; open: boolean; narrow: boolean; setOpen: (open: boolean) => void; smartvaPanel?: React.ReactNode }) {
   const categoryItem = (item: (typeof categories)[number], compact: boolean) => {
     const selected = selectedCode === item.code;
     const attachmentCount = typeof (item as { attachment_count?: unknown }).attachment_count === "number"
@@ -121,10 +141,11 @@ function CategoryNavigation({
       <Text style={webStyles.smartvaTitle}><FaIcon name="fa-chart-pie" color={BLUE} /> SmartVA</Text>
       <Text style={webStyles.smartvaText}>{smartvaAvailable ? "Done (result shown in the assessment steps)" : "Results are shown in COD Assessment when available."}</Text>
     </View>}
+    <IcdBrowserLink classification={icdClassification} />
   </View>;
 
   return <View style={webStyles.categoryRailColumn}>
-    <View style={webStyles.categoryRail} accessibilityLabel="Case category shortcuts">
+    <View nativeID="digitva-category-rail" style={webStyles.categoryRail} accessibilityLabel="Case category shortcuts">
       <Pressable
         nativeID="digitva-category-drawer-trigger"
         accessibilityRole="button"
@@ -252,6 +273,12 @@ export function WorkspaceLayout({
       link.href = href;
       document.head.appendChild(link);
     }
+    if (!document.getElementById("digitva-workspace-scrollbars")) {
+      const style = document.createElement("style");
+      style.id = "digitva-workspace-scrollbars";
+      style.textContent = "#digitva-category-rail::-webkit-scrollbar{width:0;height:0}";
+      document.head.appendChild(style);
+    }
   }, []);
 
   const selectedIndex = Math.max(0, categories.findIndex((item) => item.code === selectedCode));
@@ -275,11 +302,17 @@ export function WorkspaceLayout({
       {hints.map((hint) => <Text key={hint} style={webStyles.hint}><Text style={webStyles.hintNumber}>• </Text>{hint}</Text>)}
     </View>
   </View>;
+  const caseSummary = <View style={webStyles.caseSummary} accessibilityLabel={`Age ${age}, ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}${workspace.case.is_demo_project ? ", DEMO" : ""}`}>
+    <Text style={webStyles.caseSummaryText}>Age {age}</Text>
+    <Text style={webStyles.caseSummaryText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text>
+    {workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}
+  </View>;
   const detailsCard = <View style={webStyles.detailsCard}>
     <View style={webStyles.cardHeadingRow}>
       <Text style={webStyles.blueHeading}><FaIcon name="fa-file-alt" color={BLUE} /> VA Form Details</Text>
       <Text style={webStyles.sidPill}><FaIcon name="fa-clipboard-check" color={BLUE} /> SID: {workspace.case.va_sid}</Text>
     </View>
+    {caseSummary}
     <View style={webStyles.rule} />
     <View style={[webStyles.detailsGrid, !wide && { flexDirection: "column" }]}>
       <DetailsItem icon="fa-fingerprint" label="VA Form ID" value={workspace.case.instance_name} flex={2} />
@@ -304,7 +337,7 @@ export function WorkspaceLayout({
         {wide ? hintsCard : <View style={webStyles.mobileDisclosure}>
           <View style={webStyles.mobileCaseHeader}>
             <Text style={webStyles.mobileCaseId}>{workspace.case.instance_name}</Text>
-            <View style={webStyles.mobileCaseMeta}><Text style={webStyles.mobileCaseMetaText}>Age {age}</Text><Text style={webStyles.mobileCaseMetaText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text></View>
+            <View style={webStyles.mobileCaseMeta} accessibilityLabel={`Age ${age}, ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}${workspace.case.is_demo_project ? ", DEMO" : ""}`}><Text style={webStyles.mobileCaseMetaText}>Age {age}</Text><Text style={webStyles.mobileCaseMetaText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text>{workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}</View>
           </View>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded: hintsOpen }} onPress={() => setHintsOpen((value) => !value)} style={webStyles.mobileDisclosureButton}>
             <Text style={webStyles.mobileDisclosureText}><FaIcon name="fa-info-circle" color={BLUE} /> Hints</Text><FaIcon name={hintsOpen ? "fa-chevron-up" : "fa-chevron-down"} color={BLUE} />
@@ -319,7 +352,7 @@ export function WorkspaceLayout({
         </View>}
 
       <View style={[webStyles.workspaceGrid, !wide && webStyles.workspaceGridNarrow]}>
-          <CategoryNavigation categories={categories} formId={workspace.case.instance_name} smartvaAvailable={workspace.smartva_status === "done" || workspace.smartva !== null} selectedCode={selectedCode} onSelectCategory={onSelectCategory} open={categoriesOpen} narrow={!wide} setOpen={setCategoriesOpen} smartvaPanel={smartvaPanel} />
+          <CategoryNavigation categories={categories} formId={workspace.case.instance_name} smartvaAvailable={workspace.smartva_status === "done" || workspace.smartva !== null} icdClassification={workspace.case.icd_classification} selectedCode={selectedCode} onSelectCategory={onSelectCategory} open={categoriesOpen} narrow={!wide} setOpen={setCategoriesOpen} smartvaPanel={smartvaPanel} />
           <View style={webStyles.mainColumn}>
             <View style={webStyles.mainCard}>
               {categoryLoading ? <Text style={webStyles.muted}>Loading category…</Text> : null}
@@ -351,13 +384,13 @@ export function WorkspaceLayout({
 }
 
 const webStyles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: PAGE, fontFamily: ROBOTO } as any,
+  safe: { flex: 1, width: "100%", minHeight: "100vh", backgroundColor: PAGE, fontFamily: ROBOTO } as any,
   appHeader: { backgroundColor: BLUE, width: "100%", minHeight: 48 } as any,
   headerInner: { width: "100%", maxWidth: 1270, minHeight: 48, alignSelf: "center", paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 24, flexWrap: "wrap" } as any,
   logo: { width: 92, height: 40, backgroundColor: "#fff" } as any,
   headerLinks: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 18 },
   headerLink: { color: "#fff", fontFamily: ROBOTO, fontWeight: "700", fontSize: 12 },
-  page: { paddingVertical: 16, paddingHorizontal: 16, alignItems: "center", backgroundColor: PAGE, minHeight: "100%" } as any,
+  page: { paddingVertical: 16, paddingHorizontal: 16, alignItems: "center", backgroundColor: PAGE, minHeight: "100%", width: "100%", boxSizing: "border-box" } as any,
   content: { width: "100%", maxWidth: 1270, gap: 24 } as any,
   hintsCard: { backgroundColor: CARD, padding: 24, borderRadius: 3, borderWidth: 1, borderColor: "#ededed", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, gap: 10, minHeight: 199 } as any,
   detailsCard: { backgroundColor: CARD, padding: 24, borderRadius: 3, borderWidth: 1, borderColor: "#ededed", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, gap: 12, minHeight: 206 } as any,
@@ -387,11 +420,13 @@ const webStyles = StyleSheet.create({
   mobileCaseId: { color: BLUE, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18, lineHeight: 24 },
   mobileCaseMeta: { flexDirection: "row", gap: 18, flexWrap: "wrap" },
   mobileCaseMetaText: { color: TEXT, fontFamily: ROBOTO, fontSize: 14, lineHeight: 20 },
+  caseSummary: { flexDirection: "row", alignItems: "center", gap: 14, flexWrap: "wrap" },
+  caseSummaryText: { color: TEXT, fontFamily: ROBOTO, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   mobileDisclosureButton: { minHeight: 44, paddingHorizontal: 14, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 3, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   mobileDisclosureText: { color: BLUE, fontFamily: ROBOTO, fontWeight: "700", fontSize: 15 },
   categoryColumn: { width: 299, minWidth: 260, gap: 16 },
   categoryRailColumn: { width: 52, minWidth: 52, position: "sticky", top: 12, alignSelf: "flex-start", zIndex: 20 } as any,
-  categoryRail: { width: 52, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 3, maxHeight: "calc(100vh - 24px)", overflowY: "auto", overflowX: "hidden", alignItems: "center" } as any,
+  categoryRail: { width: 52, backgroundColor: CARD, borderWidth: 1, borderColor: BORDER, borderRadius: 3, maxHeight: "calc(100dvh - 24px)", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none", msOverflowStyle: "none", alignItems: "center" } as any,
   categoryRailMenu: { width: 50, minHeight: 48, backgroundColor: BLUE, alignItems: "center", justifyContent: "center" } as any,
   categoryRailItem: { width: 50, minHeight: 48, borderBottomWidth: 1, borderBottomColor: "#edf0f3", alignItems: "center", justifyContent: "center" } as any,
   smartvaRail: { width: 50, minHeight: 48, alignItems: "center", justifyContent: "center", borderTopWidth: 1, borderTopColor: "#edf0f3" } as any,
@@ -440,4 +475,6 @@ const webStyles = StyleSheet.create({
   closeNotes: { color: "#fff", fontSize: 28, lineHeight: 28, paddingHorizontal: 8 },
   noteFormId: { color: "#687482", fontFamily: ROBOTO, fontSize: 12, padding: 12, borderBottomWidth: 1, borderBottomColor: BORDER },
   notesBody: { padding: 12, flex: 1 },
+  icdBrowserCard: { borderTopWidth: 1, borderTopColor: BORDER, padding: 12 },
+  icdBrowserLink: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: BLUE, borderRadius: 4, color: BLUE, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: ROBOTO, fontSize: 14, fontWeight: "700", textDecoration: "none", boxSizing: "border-box" } as any,
 });

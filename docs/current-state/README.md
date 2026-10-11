@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-09-30
+last_updated: 2026-10-11
 ---
 
 # Current State Index
@@ -41,6 +41,7 @@ Read these documents in this order:
 18. [Test Project TST001](test-project-tst001.md)
 19. [Expo Client Hosting And Bootstrap](expo-client.md)
 20. [Authentication, Login and Onboarding](authentication-and-onboarding.md)
+21. [Coder Workspace Component Inventory](coder-component-inventory.md)
 
 Related planning:
 

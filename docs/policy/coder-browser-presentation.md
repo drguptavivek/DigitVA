@@ -3,7 +3,7 @@ title: Coder Browser Presentation
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-11
 ---
 
 # Coder browser presentation
@@ -61,3 +61,19 @@ metadata includes status-only `smartva_status` and `smartva_can_run`; masked
 Step 1 still withholds result content. SmartVA buttons use the existing coding
 submission action and its authorization and CSRF protections. Read-only views
 never offer execution. No schema or stored clinical data changes are needed.
+
+## Component presentation
+
+Reusable visual elements in the HTMX coding workspace guide the surrounding
+Expo browser layout, badges, alerts and evidence panels. Editable questions
+reuse the Expo native controls already used in the VA collection interview.
+DORIS reuses the existing WHO-standard certificate component and structure.
+Response badges must retain readable text and real inner padding; informational
+responses must not collapse into tiny circles. Questionnaires group each
+question with its choices, distinguish selected answers, and use compact
+responsive layouts with touch targets at least 44 pixels high.
+
+The compact case header shows form ID, age, sex and the DEMO marker in that
+order when demo metadata is true, at every viewport width. The category rail
+remains independently scrollable with no scrollbar obscuring its icons.
+Presentation changes preserve scoring, save payloads and workflow gates.

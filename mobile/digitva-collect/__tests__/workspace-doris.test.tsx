@@ -11,6 +11,32 @@ jest.mock("../src/ui", () => {
   };
 });
 
+jest.mock("@drguptavivek/who-2022-va/native", () => {
+  const React = require("react") as typeof import("react");
+  const { Pressable: MockPressable, Text: MockText, View: MockView } = require("react-native") as typeof import("react-native");
+  const Choice = ({ question, value, onAnswer, multiple }: any) => React.createElement(
+    MockView,
+    null,
+    question.choices.map((choice: any) => {
+      const selected = multiple ? value.includes(choice.value) : value === choice.value;
+      return React.createElement(
+        MockPressable,
+        {
+          key: choice.value,
+          accessibilityRole: multiple ? "checkbox" : "radio",
+          accessibilityLabel: `${question.label.en}: ${choice.label.en}`,
+          accessibilityState: multiple ? { checked: selected, disabled: question.readOnly } : { selected, disabled: question.readOnly },
+          disabled: question.readOnly,
+          testID: `question-${question.name}-choice-${choice.value}`,
+          onPress: () => onAnswer(multiple ? (selected ? value.filter((item: string) => item !== choice.value) : [...value, choice.value]) : choice.value),
+        },
+        React.createElement(MockText, null, choice.label.en),
+      );
+    }),
+  );
+  return { WhoVaQuestionControls: { SingleChoice: (props: any) => React.createElement(Choice, { ...props, multiple: false }), MultipleChoice: (props: any) => React.createElement(Choice, { ...props, multiple: true }) } };
+});
+
 import { ApiError } from "../src/api";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
 import type { DorisProcessReply, DorisTerm, JsonObject, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
@@ -90,6 +116,18 @@ it("accepts a redacted seed without fabricating administrative data", async () =
   const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
   expect(tree.root.findAllByProps({ accessibilityLabel: "Date of birth" })).toHaveLength(0);
   expect(JSON.stringify(tree.toJSON())).toContain("Administrative data was not supplied");
+  await act(async () => tree.unmount());
+});
+
+it("uses the WHO question control for grouped choices with a real selected radio indicator", async () => {
+  const seed: JsonObject = { ...certificate, AdministrativeData: { Sex: 2 } };
+  const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+  const selected = tree.root.findAllByProps({ testID: "question-doris_sex-choice-2" }).find((node) => node.props.accessibilityRole === "radio");
+  expect(selected).toBeDefined();
+  expect(selected?.props.accessibilityState).toEqual({ selected: true, disabled: false });
+  expect(selected?.props.accessibilityLabel).toBe("Sex: Female");
+  expect(JSON.stringify(tree.toJSON())).not.toContain("◉");
+  expect(JSON.stringify(tree.toJSON())).not.toContain("○");
   await act(async () => tree.unmount());
 });
 

@@ -282,8 +282,10 @@ const webStyles = {
   query: { padding: "8px 9px", border: `1px solid ${BORDER}`, color: TEXT, fontFamily: ROBOTO, fontSize: 17, lineHeight: "27.2px", verticalAlign: "middle", overflowWrap: "anywhere", boxSizing: "border-box" } as React.CSSProperties,
   responseCell: { padding: "6px 9px", border: `1px solid ${BORDER}`, verticalAlign: "middle", overflowWrap: "anywhere", boxSizing: "border-box" } as React.CSSProperties,
   response: { color: TEXT, fontFamily: ROBOTO, fontSize: 17, lineHeight: "27.2px", flexShrink: 1 } as any,
-  answer: { color: "#fff", borderRadius: 3, padding: "8px 16px", fontFamily: ROBOTO, fontWeight: "700", fontSize: 13, lineHeight: "20px" } as any,
-  info: { color: "#fff", backgroundColor: BLUE, borderRadius: 9, minWidth: 18, height: 18, textAlign: "center", fontFamily: ROBOTO, fontWeight: "700", fontSize: 12, lineHeight: "18px" } as any,
+  // Keep the HTMX px-3/py-2 badge rhythm. Numeric padding is required here:
+  // React Native Web drops CSS shorthand strings from Text styles.
+  answer: { color: "#fff", display: "inline-block", alignSelf: "flex-start", borderRadius: 4, paddingVertical: 8, paddingHorizontal: 16, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: 24 } as any,
+  info: { color: "#fff", display: "inline-block", alignSelf: "flex-start", backgroundColor: BLUE, borderRadius: 4, paddingVertical: 8, paddingHorizontal: 16, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: 24 } as any,
   valueList: { gap: 3 },
   valueLabel: { color: "#687482", fontFamily: ROBOTO, fontSize: 12 },
   diseaseHistory: { gap: 18 },

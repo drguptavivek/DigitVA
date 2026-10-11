@@ -14,6 +14,31 @@ jest.mock("../src/ui", () => {
   };
 });
 
+jest.mock("@drguptavivek/who-2022-va/native", () => {
+  const React = require("react") as typeof import("react");
+  const { Pressable: MockPressable, Text: MockText, View: MockView } = require("react-native") as typeof import("react-native");
+  const Choice = ({ question, value, onAnswer, multiple }: any) => React.createElement(
+    MockView,
+    null,
+    question.choices.map((choice: any) => {
+      const selected = multiple ? value.includes(choice.value) : value === choice.value;
+      return React.createElement(
+        MockPressable,
+        {
+          key: choice.value,
+          accessibilityRole: multiple ? "checkbox" : "radio",
+          accessibilityState: multiple ? { checked: selected, disabled: question.readOnly } : { selected, disabled: question.readOnly },
+          disabled: question.readOnly,
+          testID: `question-${question.name}-choice-${choice.value}`,
+          onPress: () => onAnswer(multiple ? (selected ? value.filter((item: string) => item !== choice.value) : [...value, choice.value]) : choice.value)
+        },
+        React.createElement(MockText, null, choice.label.en)
+      );
+    })
+  );
+  return { WhoVaQuestionControls: { SingleChoice: (props: any) => React.createElement(Choice, { ...props, multiple: false }), MultipleChoice: (props: any) => React.createElement(Choice, { ...props, multiple: true }) } };
+});
+
 jest.mock("../src/workspace/WorkspaceLayout", () => {
   const React = require("react") as typeof import("react");
   const actual = jest.requireActual("../src/workspace/WorkspaceLayout");
@@ -80,6 +105,12 @@ function pressByLabel(tree: ReactTestRenderer, label: string) {
   const button = tree.root.findAllByProps({ accessibilityLabel: label })
     .find((node) => typeof node.props.onPress === "function");
   if (!button) throw new Error(`Missing button: ${label}`);
+  button.props.onPress();
+}
+
+function pressByTestID(tree: ReactTestRenderer, testID: string) {
+  const button = tree.root.findAllByProps({ testID }).find((node) => typeof node.props.onPress === "function");
+  if (!button) throw new Error(`Missing control: ${testID}`);
   button.props.onPress();
 }
 
@@ -695,12 +726,16 @@ it("keeps narrative field order and makes None exclusive while answering every S
   let tree!: ReactTestRenderer;
   await act(async () => { tree = create(<QualityPanels narrative={data} socialAutopsy={social} onSaveNarrative={onSaveNarrative} onSaveSocialAutopsy={onSaveSocialAutopsy} />); });
   const rendered = JSON.stringify(tree.toJSON());
-  expect(rendered.indexOf("Narrative length: Poor")).toBeLessThan(rendered.indexOf("Chronology: Poor"));
-  expect(() => byLabel(tree, "Narrative length: Good")).not.toThrow();
-  expect(() => byLabel(tree, "Chronology: Good")).not.toThrow();
-  for (const label of ["Narrative length: Good", "Chronology: Good", "First delay: Factor", "First delay: None", "Second delay: Factor"]) {
-    await act(async () => byLabel(tree, label).props.onPress());
+  expect(rendered.indexOf("Narrative length")).toBeLessThan(rendered.indexOf("Chronology"));
+  expect(() => tree.root.findByProps({ testID: "question-nqa_length-choice-2" })).not.toThrow();
+  expect(() => tree.root.findByProps({ testID: "question-nqa_chronology-choice-2" })).not.toThrow();
+  for (const testID of ["question-nqa_length-choice-2", "question-nqa_chronology-choice-2", "question-social_autopsy_1-choice-factor", "question-social_autopsy_1-choice-none", "question-social_autopsy_2-choice-factor"]) {
+    await act(async () => pressByTestID(tree, testID));
   }
+  await act(async () => pressByTestID(tree, "question-social_autopsy_1-choice-factor"));
+  expect(tree.root.findByProps({ testID: "question-social_autopsy_1-choice-none" }).props.accessibilityState).toEqual({ checked: false, disabled: false });
+  expect(tree.root.findByProps({ testID: "question-social_autopsy_1-choice-factor" }).props.accessibilityState).toEqual({ checked: true, disabled: false });
+  await act(async () => pressByTestID(tree, "question-social_autopsy_1-choice-none"));
   await act(async () => byLabel(tree, "Save narrative quality").props.onPress());
   await act(async () => byLabel(tree, "Save social autopsy").props.onPress());
   expect(onSaveNarrative).toHaveBeenCalledWith({ cannot_grade: false, length: 2, chronology: 2 });
@@ -748,11 +783,13 @@ it("updates the narrative score and exposes checked radio state before saving", 
   const narrative = { fields: [{ key: "q1", label: "Detail", options: [{ value: 2, label: "Complete" }] }], max_score: 2, saved: null };
   await act(async () => { tree = create(<QualityPanels narrative={narrative} socialAutopsy={null} onSaveNarrative={jest.fn()} onSaveSocialAutopsy={jest.fn()} />); });
   expect(JSON.stringify(tree.toJSON())).toContain("Not Assessed");
-  await act(async () => pressByLabel(tree, "Detail: Complete"));
-  expect(byLabel(tree, "Detail: Complete").props.accessibilityState).toEqual({ checked: true });
+  await act(async () => pressByTestID(tree, "question-nqa_q1-choice-2"));
+  expect(tree.root.findByProps({ testID: "question-nqa_q1-choice-2" }).props.accessibilityState).toEqual({ selected: true, disabled: false });
   expect(textContent(tree.root)).toContain("Score: 2 / 2 · Poor");
-  await act(async () => pressByLabel(tree, "Cannot grade"));
+  await act(async () => pressByTestID(tree, "question-nqa-cannot_grade-choice-cannot_grade"));
   expect(textContent(tree.root)).toContain("Score: 0 / 2 · Cannot Grade");
+  expect(tree.root.findByProps({ testID: "question-nqa_q1-choice-2" }).props.accessibilityState).toEqual({ selected: true, disabled: true });
+  expect(tree.root.findByProps({ testID: "question-nqa-cannot_grade-choice-cannot_grade" }).props.accessibilityState).toEqual({ checked: true, disabled: false });
   await act(async () => tree.unmount());
 });
 

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
+import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
+import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 
 import { ApiError } from "../api";
 import { Button, errorText, styles } from "../ui";
@@ -170,11 +172,14 @@ function NotCodeablePanel({ api, vaSid, reason, other, onReason, onOther, onDone
   return (
     <View>
       <Text style={styles.muted}>Report not codeable</Text>
-      {reasons.map(([value, label]) => (
-        <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`Not-codeable reason: ${label}`} accessibilityState={{ selected: reason === value }} onPress={() => onReason(value)}>
-          <Text style={styles.text}>{reason === value ? "◉" : "○"} {label}</Text>
-        </Pressable>
-      ))}
+      <WhoVaQuestionControls.SingleChoice
+        question={choiceQuestion("simple_cod_not_codeable", "Not-codeable reason", reasons.map(([value, label]) => ({ value, label })), busy)}
+        value={reason || undefined}
+        data={{}}
+        locale="en"
+        issues={[]}
+        onAnswer={(value) => { if (typeof value === "string") onReason(value); }}
+      />
       {reason === "others" ? <TextInput accessibilityLabel="Other not-codeable reason" placeholder="Reason" value={other} onChangeText={onOther} style={styles.input} /> : null}
       <Button label="Submit not-codeable report" kind="secondary" disabled={busy || !reason || (reason === "others" && !other.trim())} loading={busy} onPress={() => {
         const request = ++requestGeneration.current;
@@ -295,16 +300,36 @@ function ConditionChoices({ options, selected, onChange }: { options: string[]; 
   return (
     <View>
       <Text style={styles.muted}>Other conditions</Text>
-      {options.map((option) => {
-        const checked = selected.includes(option);
-        return (
-          <Pressable key={option} accessibilityRole="checkbox" accessibilityLabel={`Other condition: ${option}`} accessibilityState={{ checked }} onPress={() => onChange(checked ? selected.filter((value) => value !== option) : [...selected, option])}>
-            <Text style={styles.text}>{checked ? "☑" : "☐"} {option}</Text>
-          </Pressable>
-        );
-      })}
+      <WhoVaQuestionControls.MultipleChoice
+        question={choiceQuestion("simple_cod_other_conditions", "Other conditions", options.map((option) => ({ value: option, label: option })), false, "multipleChoice")}
+        value={selected}
+        data={{}}
+        locale="en"
+        issues={[]}
+        onAnswer={(value) => { if (Array.isArray(value)) onChange(value.map(String)); }}
+      />
     </View>
   );
+}
+
+/** Adapt simple-COD metadata to the same WHO choice controls used by the VA interview. */
+function choiceQuestion(name: string, label: string, options: Array<{ value: string; label: string }>, readOnly = false, control: "singleChoice" | "multipleChoice" = "singleChoice"): InstrumentQuestion {
+  return {
+    name,
+    order: 0,
+    sourceRow: 0,
+    sourceType: "simple_cod",
+    dataType: control === "multipleChoice" ? "string[]" : "string",
+    control,
+    label: { en: label },
+    hint: {},
+    guidance: {},
+    required: false,
+    readOnly,
+    constraintMessage: {},
+    sectionPath: [],
+    choices: options.map((option, index) => ({ ...option, label: { en: option.label }, sourceRow: index })),
+  };
 }
 
 /** Copy only the COD fields served for the caller's current step. */

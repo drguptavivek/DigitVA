@@ -1,6 +1,6 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { Text } from "react-native";
+import { StyleSheet, Text } from "react-native";
 
 import { CategoryPanel } from "../src/workspace/CategoryPanel.web";
 import { WorkspaceLayout } from "../src/workspace/WorkspaceLayout.web";
@@ -35,6 +35,14 @@ test("browser category panel keeps the HTMX query/response table and flip colour
   expect(output.match(/"children":\["Yes"\]/g)).toHaveLength(2);
   expect(output).toContain("#004687");
   expect(output).toContain("#3f9366");
+  const yesBadges = renderer.root.findAllByType(Text).filter((node) => node.props.children === "Yes");
+  expect(yesBadges).toHaveLength(2);
+  const informational = yesBadges.find((node) => node.props.accessibilityLabel === "Informational response: Yes");
+  const answer = yesBadges.find((node) => node.props.accessibilityLabel === undefined);
+  expect(informational).toBeDefined();
+  expect(answer).toBeDefined();
+  expect(StyleSheet.flatten(informational?.props.style)).toMatchObject({ paddingVertical: 8, paddingHorizontal: 16, fontSize: 16, lineHeight: 24 });
+  expect(StyleSheet.flatten(answer?.props.style)).toMatchObject({ paddingVertical: 8, paddingHorizontal: 16, fontSize: 16, lineHeight: 24, display: "inline-block" });
 });
 
 test("browser disease history groups explicit answers without using flip or hiding other values", async () => {
@@ -143,4 +151,42 @@ test("browser layout keeps notes mounted and exposes functional category navigat
   expect(next).toBeDefined();
   await act(async () => next?.props.onClick());
   expect(onSelectCategory).toHaveBeenCalledWith("two");
+});
+
+test("browser layout keeps the rail scrollable without an overlay scrollbar and shows demo case metadata", async () => {
+  const demoWorkspace: WorkspacePayload = { ...layoutWorkspace, case: { ...layoutWorkspace.case, age: 74, gender: "female", is_demo_project: true } };
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(<WorkspaceLayout identity={{ vaSid: "sid-1", mode: "coding" }} workspace={demoWorkspace} categories={demoWorkspace.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()}><Text>category content</Text></WorkspaceLayout>);
+    await Promise.resolve();
+  });
+  const output = JSON.stringify(renderer.toJSON());
+  expect(output).toContain('"74"');
+  expect(output).toContain("Female");
+  expect(output).toContain("DEMO");
+  expect(renderer.root.findAll((node) => node.props.accessibilityLabel === "Age 74, Female, DEMO").length).toBeGreaterThan(0);
+  const rail = renderer.root.findAll((node) => node.props.nativeID === "digitva-category-rail")[0];
+  expect(StyleSheet.flatten(rail.props.style)).toMatchObject({ maxHeight: "calc(100dvh - 24px)", scrollbarWidth: "none", msOverflowStyle: "none" });
+});
+
+test("browser layout exposes the matching WHO ICD browser only for a valid classification", async () => {
+  const icd11Workspace: WorkspacePayload = { ...layoutWorkspace, case: { ...layoutWorkspace.case, icd_classification: "icd11" } };
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(<WorkspaceLayout identity={{ vaSid: "sid-1", mode: "coding" }} workspace={icd11Workspace} categories={icd11Workspace.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()}><Text>category content</Text></WorkspaceLayout>);
+    await Promise.resolve();
+  });
+  act(() => renderer.root.findAll((node) => node.props.nativeID === "digitva-category-drawer-trigger")[0].props.onPress());
+  const browserLink = renderer.root.findAllByType("a" as never).find((node) => node.props.title === "Open ICD-11 Browser");
+  expect(browserLink?.props.href).toBe("https://icd.who.int/browse/2026-01/mms/en");
+  expect(browserLink?.props.target).toBe("_blank");
+  expect(browserLink?.props.rel).toBe("noopener noreferrer");
+
+  const missingClassification = { ...layoutWorkspace, case: { ...layoutWorkspace.case, icd_classification: undefined } } as unknown as WorkspacePayload;
+  await act(async () => {
+    renderer = create(<WorkspaceLayout identity={{ vaSid: "sid-1", mode: "coding" }} workspace={missingClassification} categories={missingClassification.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()}><Text>category content</Text></WorkspaceLayout>);
+    await Promise.resolve();
+  });
+  act(() => renderer.root.findAll((node) => node.props.nativeID === "digitva-category-drawer-trigger")[0].props.onPress());
+  expect(renderer.root.findAllByType("a" as never).some((node) => String(node.props.title ?? "").includes("ICD"))).toBe(false);
 });

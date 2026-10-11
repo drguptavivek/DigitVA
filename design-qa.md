@@ -47,4 +47,29 @@ browser verification. This demo has no audio sample; actual browser audio
 playback and physical-device touch acceptance were not performed. Temporary
 viewport overrides were cleared. Screenshots are retained with this chat.
 
-final result: passed
+Prior visual QA result: passed.
+
+## Component audit, 11 October
+
+Yes/No badges were measured in the rebuilt maternal table: 16px text,
+8px vertical padding, 16px horizontal padding, and 40px total badge height.
+At 652px the document had no horizontal overflow. The compact form header
+showed Age 74, Female, DEMO in that order.
+
+Quality, social-autopsy, simple-COD and DORIS choices now import the actual
+WHO VA native interview controls; the existing shared certificate component
+retains its WHO structure. Full component inventory is in
+`docs/current-state/coder-component-inventory.md`.
+
+The browser account changed to Test CHO SC01 during verification and cannot
+open the coding case. Final questionnaire visual checks and final sticky-rail
+checks on that rebuilt case could therefore not be repeated. Existing focus,
+selection and payload regression tests remain required.
+
+Sign-out verification: the existing action issued POST logout (302), the
+access API returned 401, and the sign-in landing persisted after reload. No
+authentication code was changed. No clinical writes were submitted.
+
+Final component checks: 67 suites / 746 tests, typecheck, web and Android
+exports passed. Read-only quality audit found no material defects. Remaining
+case visual verification is tracked as `digitva-uoe5`.

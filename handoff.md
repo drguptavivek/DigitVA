@@ -56,6 +56,13 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    device re-run (server regression test added), `p6fs.32`, vendor
    typecheck `digitva-i793`/`surw`, vendor flake `digitva-3jj`, device
    acceptance `p6fs.5`.
+   Coder component audit (`digitva-r0fa`) reuses the WHO interview controls
+   for quality, simple COD and the existing shared DORIS editor; see
+   `docs/current-state/coder-component-inventory.md`. Sign-out repair is
+   verified through POST/401/reload (`digitva-rcte`), without auth changes.
+   Latest badge/header browser checks passed, but final questionnaire/rail
+   visual checks (`digitva-uoe5`) need a coding-capable login; Test CHO cannot open
+   the demo case. Physical acceptance remains `p6fs.5`.
    Browser coder experience (`digitva-ks4m`) has responsive browser QA;
    physical-device acceptance remains under `p6fs.5`, including real audio
    playback and touch gestures. Demo browser QA did not submit assessments,

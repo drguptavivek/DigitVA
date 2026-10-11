@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState as NativeAppState, Pressable, Text, TextInput, View } from "react-native";
+import { AppState as NativeAppState, Text, TextInput, View } from "react-native";
+import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
+import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 
 import { ApiError } from "../../api";
 import { Button, errorText, styles } from "../../ui";
@@ -22,6 +24,7 @@ type CertificateState = {
 };
 
 type CertificateLine = JsonObject & { Conditions: JsonObject[] };
+const NOT_SET_VALUE = "__not_set__";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -432,11 +435,14 @@ function NotCodeableAction({ reason, other, busy, onReason, onOther, onSubmit }:
   return (
     <View>
       <Text style={styles.muted}>Report not codeable</Text>
-      {reasons.map(([value, label]) => (
-        <Pressable key={value} accessibilityRole="radio" accessibilityLabel={`Not-codeable reason: ${label}`} accessibilityState={{ selected: reason === value }} onPress={() => onReason(value)}>
-          <Text style={styles.text}>{reason === value ? "◉" : "○"} {label}</Text>
-        </Pressable>
-      ))}
+      <WhoVaQuestionControls.SingleChoice
+        question={choiceQuestion("doris_not_codeable", "Not-codeable reason", reasons.map(([value, label]) => ({ value, label })), busy)}
+        value={reason || undefined}
+        data={{}}
+        locale="en"
+        issues={[]}
+        onAnswer={(value) => { if (typeof value === "string") onReason(value); }}
+      />
       {reason === "others" ? <TextInput accessibilityLabel="Other not-codeable reason" placeholder="Reason" value={other} onChangeText={onOther} style={styles.input} /> : null}
       <Button label="Submit not-codeable report" kind="secondary" disabled={busy || !reason || (reason === "others" && !other.trim())} loading={busy} onPress={onSubmit} />
     </View>
@@ -576,16 +582,37 @@ function ChoiceField({ label, value, options, onChange }: { label: string; value
   return (
     <View>
       <Text style={styles.text}>{label}</Text>
-      <Pressable accessibilityRole="radio" accessibilityLabel={`${label}: not set`} accessibilityState={{ selected: value === undefined }} onPress={() => onChange(undefined)}>
-        <Text style={styles.text}>{value === undefined ? "◉" : "○"} Not set</Text>
-      </Pressable>
-      {options.map(([code, title]) => (
-        <Pressable key={code} accessibilityRole="radio" accessibilityLabel={`${label}: ${title}`} accessibilityState={{ selected: value === code }} onPress={() => onChange(code)}>
-          <Text style={styles.text}>{value === code ? "◉" : "○"} {title}</Text>
-        </Pressable>
-      ))}
+      <WhoVaQuestionControls.SingleChoice
+        question={choiceQuestion(`doris_${label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, label, options.map(([code, title]) => ({ value: String(code), label: title })), false, true)}
+        value={value === undefined ? NOT_SET_VALUE : String(value)}
+        data={{}}
+        locale="en"
+        issues={[]}
+        onAnswer={(next) => onChange(typeof next === "string" && next !== NOT_SET_VALUE ? Number(next) : undefined)}
+      />
     </View>
   );
+}
+
+/** Adapt DORIS metadata to the same WHO choice control used by the VA interview. */
+function choiceQuestion(name: string, label: string, options: Array<{ value: string; label: string }>, readOnly = false, includeNotSet = false): InstrumentQuestion {
+  const choices = includeNotSet ? [{ value: NOT_SET_VALUE, label: "Not set" }, ...options] : options;
+  return {
+    name,
+    order: 0,
+    sourceRow: 0,
+    sourceType: "doris_certificate",
+    dataType: "string",
+    control: "singleChoice",
+    label: { en: label },
+    hint: {},
+    guidance: {},
+    required: false,
+    readOnly,
+    constraintMessage: {},
+    sectionPath: [],
+    choices: choices.map((choice, index) => ({ ...choice, label: { en: choice.label }, sourceRow: index })),
+  };
 }
 
 function ProcessingSummary({ processing, saved }: { processing: DorisProcessReply | null; saved?: JsonObject }) {

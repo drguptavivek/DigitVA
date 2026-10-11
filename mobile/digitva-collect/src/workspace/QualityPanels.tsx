@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View, useWindowDimensions } from "react-native";
+import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
+import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 
 import { Button, styles } from "../ui";
 import type { NarrativeQuality, SocialAutopsy } from "./contracts";
@@ -16,16 +18,18 @@ export function QualityPanels({
   onSaveNarrative: (body: { cannot_grade: boolean; [key: string]: string | number | boolean }) => Promise<void>;
   onSaveSocialAutopsy: (body: { selected_options: Array<{ delay_level: string; option_code: string }>; remark: string }) => Promise<void>;
 }) {
+  const { width } = useWindowDimensions();
+  const choiceColumns = width < 480 ? 1 : width < 900 ? 2 : 3;
   return (
     <View>
-      {narrative ? <NarrativePanel key="narrative" data={narrative} onSave={onSaveNarrative} /> : null}
-      {socialAutopsy ? <SocialAutopsyPanel key="social-autopsy" data={socialAutopsy} onSave={onSaveSocialAutopsy} /> : null}
+      {narrative ? <NarrativePanel key="narrative" data={narrative} choiceColumns={choiceColumns} onSave={onSaveNarrative} /> : null}
+      {socialAutopsy ? <SocialAutopsyPanel key="social-autopsy" data={socialAutopsy} choiceColumns={choiceColumns} onSave={onSaveSocialAutopsy} /> : null}
     </View>
   );
 }
 
 /** Render and save the ordered server-defined narrative quality fields. */
-function NarrativePanel({ data, onSave }: { data: NarrativeQuality; onSave(body: { cannot_grade: boolean; [key: string]: string | number | boolean }): Promise<void> }) {
+function NarrativePanel({ data, choiceColumns, onSave }: { data: NarrativeQuality; choiceColumns: number; onSave(body: { cannot_grade: boolean; [key: string]: string | number | boolean }): Promise<void> }) {
   const [values, setValues] = useState<Record<string, number>>(() => data.saved?.values ?? {});
   const [cannotGrade, setCannotGrade] = useState(() => data.saved?.cannot_grade ?? false);
   const [busy, setBusy] = useState(false);
@@ -43,19 +47,33 @@ function NarrativePanel({ data, onSave }: { data: NarrativeQuality; onSave(body:
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Narrative quality</Text>
       {data.fields.map((field) => (
-        <View key={field.key}>
-          <Text style={styles.muted}>{field.label}</Text>
-          {field.options.map((option) => (
-            <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={`${field.label}: ${option.label}`} accessibilityState={{ checked: values[field.key] === option.value }} style={{ minHeight: 44, justifyContent: "center" }} disabled={cannotGrade} onPress={() => setValues((current) => ({ ...current, [field.key]: option.value }))}>
-              <Text style={styles.text}>{values[field.key] === option.value ? "◉" : "○"} {option.label}</Text>
-            </Pressable>
-          ))}
+        <View key={field.key} style={{ marginTop: 16 }}>
+          <Text style={styles.headline}>{field.label}</Text>
+          <WhoVaQuestionControls.SingleChoice
+            question={choiceQuestion(`nqa_${field.key}`, field.label, "singleChoice", field.options.map((option) => ({ value: String(option.value), label: option.label })), cannotGrade)}
+            value={values[field.key] === undefined ? undefined : String(values[field.key])}
+            data={{}}
+            locale="en"
+            issues={[]}
+            choiceColumns={choiceColumns}
+            onAnswer={(value) => {
+              if (typeof value === "string" && /^-?\d+$/.test(value)) {
+                setValues((current) => ({ ...current, [field.key]: Number(value) }));
+              }
+            }}
+          />
         </View>
       ))}
       <Text accessibilityLiveRegion="polite" style={styles.text}>Score: {complete || cannotGrade ? score : "—"} / {data.max_score} · {rating}</Text>
-      <Pressable accessibilityRole="checkbox" accessibilityLabel="Cannot grade" accessibilityState={{ checked: cannotGrade }} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => setCannotGrade((value) => !value)}>
-        <Text style={styles.text}>{cannotGrade ? "☑" : "☐"} Cannot grade</Text>
-      </Pressable>
+      <WhoVaQuestionControls.MultipleChoice
+        question={choiceQuestion("nqa-cannot_grade", "Cannot grade", "multipleChoice", [{ value: "cannot_grade", label: "Cannot grade" }])}
+        value={cannotGrade ? ["cannot_grade"] : []}
+        data={{}}
+        locale="en"
+        issues={[]}
+        choiceColumns={1}
+        onAnswer={(value) => setCannotGrade(Array.isArray(value) && value.includes("cannot_grade"))}
+      />
       <Button label="Save narrative quality" onPress={() => {
         setBusy(true);
         void onSave({ cannot_grade: cannotGrade, ...(cannotGrade ? {} : values) }).finally(() => setBusy(false));
@@ -65,7 +83,7 @@ function NarrativePanel({ data, onSave }: { data: NarrativeQuality; onSave(body:
 }
 
 /** Require an answer for each server-defined delay level and keep `none` exclusive. */
-function SocialAutopsyPanel({ data, onSave }: { data: SocialAutopsy; onSave(body: { selected_options: Array<{ delay_level: string; option_code: string }>; remark: string }): Promise<void> }) {
+function SocialAutopsyPanel({ data, choiceColumns, onSave }: { data: SocialAutopsy; choiceColumns: number; onSave(body: { selected_options: Array<{ delay_level: string; option_code: string }>; remark: string }): Promise<void> }) {
   const [selected, setSelected] = useState<Record<string, string[]>>(() => selectedMap(data));
   const [remark, setRemark] = useState(data.saved?.remark ?? "");
   const [busy, setBusy] = useState(false);
@@ -80,25 +98,23 @@ function SocialAutopsyPanel({ data, onSave }: { data: SocialAutopsy; onSave(body
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Social autopsy</Text>
       {data.questions.map((question) => (
-        <View key={question.delay_level}>
-          <Text style={styles.muted}>{question.title}</Text>
-          {question.options.map((option) => {
-            const values = selected[question.delay_level] ?? [];
-            const checked = values.includes(option.option_code);
-            return (
-              <Pressable key={option.option_code} accessibilityRole="checkbox" accessibilityLabel={`${question.title}: ${option.label}`} accessibilityState={{ checked }} style={{ minHeight: 44, justifyContent: "center" }} onPress={() => setSelected((current) => {
-                const currentValues = current[question.delay_level] ?? [];
-                const next = checked
-                  ? currentValues.filter((value) => value !== option.option_code)
-                  : option.option_code === "none"
-                    ? ["none"]
-                    : [...currentValues.filter((value) => value !== "none"), option.option_code];
-                return { ...current, [question.delay_level]: next };
-              })}>
-                <Text style={styles.text}>{checked ? "☑" : "☐"} {option.label}{option.description ? ` — ${option.description}` : ""}</Text>
-              </Pressable>
-            );
-          })}
+        <View key={question.delay_level} style={{ marginTop: 16 }}>
+          <Text style={styles.headline}>{question.title}</Text>
+          <WhoVaQuestionControls.MultipleChoice
+            question={choiceQuestion(`social_autopsy_${question.delay_level}`, question.title, "multipleChoice", question.options.map((option) => ({ value: option.option_code, label: option.description ? `${option.label} — ${option.description}` : option.label })))}
+            value={selected[question.delay_level] ?? []}
+            data={{}}
+            locale="en"
+            issues={[]}
+            choiceColumns={choiceColumns}
+            onAnswer={(value) => {
+              if (!Array.isArray(value)) return;
+              const next = value.map(String);
+              const currentOptions = selected[question.delay_level] ?? [];
+              const choseNone = next.includes("none") && !currentOptions.includes("none");
+              setSelected((state) => ({ ...state, [question.delay_level]: choseNone ? ["none"] : next.filter((option) => option !== "none") }));
+            }}
+          />
         </View>
       ))}
       <TextInput accessibilityLabel="Social autopsy remark" placeholder="Remark" value={remark} onChangeText={setRemark} style={styles.input} multiline />
@@ -118,4 +134,24 @@ function selectedMap(data: SocialAutopsy): Record<string, string[]> {
     selected[delay_level] = [...(selected[delay_level] ?? []), option_code];
   }
   return selected;
+}
+
+/** Adapt quality metadata to the same native choice controls used by the VA form. */
+function choiceQuestion(name: string, label: string, control: "singleChoice" | "multipleChoice", options: Array<{ value: string; label: string }>, readOnly = false): InstrumentQuestion {
+  return {
+    name,
+    order: 0,
+    sourceRow: 0,
+    sourceType: "coding_quality",
+    dataType: control === "multipleChoice" ? "string[]" : "string",
+    control,
+    label: { en: label },
+    hint: {},
+    guidance: {},
+    required: true,
+    readOnly,
+    constraintMessage: {},
+    sectionPath: [],
+    choices: options.map((option, index) => ({ ...option, label: { en: option.label }, sourceRow: index }))
+  };
 }

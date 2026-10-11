@@ -44,6 +44,11 @@ jest.mock("../src/ui", () => {
     useUiStyles: () => ({ text: {}, error: {} }),
   };
 });
+// The gate assertions never render questionnaire controls; keep this test
+// isolated from the vendor package's ESM native entry point.
+jest.mock("@drguptavivek/who-2022-va/native", () => ({
+  WhoVaQuestionControls: { SingleChoice: () => null, MultipleChoice: () => null },
+}));
 jest.mock("../src/web/common", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {

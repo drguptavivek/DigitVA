@@ -735,6 +735,30 @@ class IntakeApiTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 422)
 
+    def test_a_refused_outcome_with_consent_yes_names_both_questions(self):
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        response = self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
+            json={"completion": {"valid": True, "data": {"Id10013": "yes", "interview_outcome": "refused"}}},
+            headers=self._csrf_headers(),
+        )
+        body = response.get_json()
+        self.assertEqual(response.status_code, 422, body)
+        self.assertEqual(body["code"], "outcome_conflicts_consent")
+        self.assertEqual(body["fields"], ["Id10013", "interview_outcome"])
+        # Every other intake error body keeps its two keys.
+        other = self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
+            json={"completion": {"valid": False, "data": {"Id10013": "yes"}}},
+            headers=self._csrf_headers(),
+        )
+        other_body = other.get_json()
+        self.assertEqual(other.status_code, 422, other_body)
+        self.assertEqual(other_body["code"], "invalid_interview")
+        self.assertIn("error", other_body)
+        self.assertNotIn("fields", other_body)
+
     def test_an_incomplete_interview_is_stored_and_the_case_waits(self):
         """Decision 8: an invalid form with an incomplete interview_outcome and
         the minimum identity is accepted; the case goes to not_reachable."""

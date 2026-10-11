@@ -1168,8 +1168,8 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     ``createWhoVaInitialDataFromPrefill``; ``answers`` are WHO answers merged
     on top; ``lockedQuestionNames`` are the read-only ones (interviewer
     name, sex and id, area presets, ABHA). Everything else is an ordinary editable
-    answer. Name split: the first word is the given name (Id10017), the rest
-    the surname (Id10018).
+    answer. Name split: the last word is the surname (Id10018), the words
+    before it the given name (Id10017); a one-word name is a given name only.
 
     Birth date: an exact ``date_of_birth`` goes as ``deceased.dateOfBirth``
     (prefill.ts sets Id10020 = yes, Id10021). A ``date_of_birth_partial``
@@ -1225,9 +1225,9 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
             if value:
                 answers[name] = value
     if death is not None and cases.identity_complete(death):
-        names = death.deceased_name.strip().split(None, 1)
+        names = death.deceased_name.split()
         deceased = {
-            "givenNames": names[0],
+            "givenNames": " ".join(names[:-1] or names),
             "sex": death.deceased_sex if death.deceased_sex in ("male", "female") else "undetermined",
             # Only one of dateOfDeath/yearOfDeath may be sent -- prefill.ts
             # throws on both (WhoVaDeathEvidence). A case with its identity
@@ -1236,7 +1236,7 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
             "dateOfDeath": death.date_of_death.isoformat(),
         }
         if len(names) > 1:
-            deceased["surname"] = names[1]
+            deceased["surname"] = names[-1]
         if death.date_of_birth:
             deceased["dateOfBirth"] = death.date_of_birth.isoformat()
         elif death.age_years is not None and 12 <= death.age_years <= 119:
@@ -1932,11 +1932,19 @@ def _interview_outcome(data: dict, completion: dict) -> str:
     no; ``completed`` when the form reports every required question answered;
     otherwise the interviewer's own pick, which must be ``partially_completed`` or
     ``respondent_unavailable``. Raises 422 for an invalid form with no such
-    pick, or a valid one without consent.
+    pick, or a valid one without consent. Also 422 (``outcome_conflicts_consent``)
+    when the pick is ``refused`` while consent is yes, valid form or not.
     """
     consent = normalize_consent(data.get("Id10013"))
     if consent.lower() == "no":
         return "refused"
+    if consent.lower() == "yes" and data.get("interview_outcome") == "refused":
+        raise WebIntakeError(
+            "Consent is recorded as yes, but the interview outcome says refused. Change one of them.",
+            422,
+            "outcome_conflicts_consent",
+            ["Id10013", "interview_outcome"],
+        )
     if completion.get("valid") is True:
         if not consent:
             raise WebIntakeError("The consent question (Id10013) must be answered.", 422)
@@ -2375,7 +2383,13 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
             return kept_apart(closed=True)
         if completed_at < stored_at:
             return kept_apart(closed=False)
-    outcome = _interview_outcome(data, completion)
+    # Only consent = no stores ``refused``, and the server writes it, so a
+    # revision that corrects consent to yes may send it back unchanged. It
+    # was never the interviewer's pick: not a conflict with consent.
+    picked = data
+    if previous == "refused" and data.get("interview_outcome") == "refused":
+        picked = {name: value for name, value in data.items() if name != "interview_outcome"}
+    outcome = _interview_outcome(picked, completion)
     regressing = previous == "completed" and outcome != "completed"
     completing = outcome == "completed" and previous != "completed"
     # Locked answers keep the value the interview was submitted with; one the
@@ -3739,8 +3753,9 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
     ``unique_id``, ``status``, ``unit_name``, ``score``, and the candidate's
     ``deceased_name``, ``date_of_death``, ``deceased_sex``, ``age_years``,
     ``informant_name``, ``address_village_ward`` and ``interviewer_name`` (who started its
-    interview, NULL when nobody did: a registrant may not be an interviewer),
-    all from the same statement.
+    interview, NULL when nobody did: a registrant may not be an interviewer)
+    and ``registrant_name`` (who registered the death), all from the same
+    statement.
     """
     if not subject_ids or scope is None:
         return []
@@ -3748,6 +3763,7 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
     subject_unit = aliased(MasOrgUnit)
     unit = aliased(MasOrgUnit)
     interviewer = aliased(VaUsers)
+    registrant = aliased(VaUsers)
     closed = ("cancelled", "duplicate")
     days = sa.literal_column(str(DUPLICATE_DAYS), sa.Integer)  # a constant, never input
     score = sa.func.similarity(
@@ -3767,6 +3783,7 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
             VaDeathRegister.informant_name,
             VaDeathRegister.address_village_ward,
             interviewer.name.label("interviewer_name"),
+            registrant.name.label("registrant_name"),
             score.label("score"),
             sa.func.row_number()
             .over(partition_by=subject.death_id, order_by=(score.desc(), VaDeathRegister.death_id))
@@ -3791,6 +3808,7 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
             interviewer,
             interviewer.user_id == VaDeathRegister.started_by_user_id,
         )
+        .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
         .where(
             subject.death_id.in_(subject_ids),
             subject.status.not_in(closed),
@@ -3830,7 +3848,7 @@ def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
     checked *user* may see *case* (``get_death``). Rules in
     ``_possible_duplicate_rows``. Each candidate carries what tells a person
     whether it is the same death (name, date of death, village, age, sex,
-    informant, previous interviewer); the candidates are only cases inside
+    informant, previous interviewer, who reported the death); the candidates are only cases inside
     *user*'s scope, so nothing of any other case is returned
     (docs/policy/web-intake.md, "Duplicate and cancel flags"). ``village`` is
     the village or ward of the candidate's recorded address, None when empty
@@ -3851,6 +3869,7 @@ def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
             "sex": row.deceased_sex,
             "informant_name": row.informant_name,
             "previous_interviewer_name": row.interviewer_name,
+            "reported_by_name": row.registrant_name,
         }
         for row in rows
     ]

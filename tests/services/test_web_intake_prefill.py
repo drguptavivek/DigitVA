@@ -154,8 +154,8 @@ class WebIntakePrefillTests(BaseTestCase):
         prefill = self._start(self._register()).prefill
         deceased, answers = prefill["deceased"], prefill["answers"]
 
-        # Id10017/Id10018: first word given name, the rest surname.
-        self.assertEqual((deceased["givenNames"], deceased["surname"]), ("Ram", "Kumar Sharma"))
+        # Id10017/Id10018: last word surname, the words before it the given name.
+        self.assertEqual((deceased["givenNames"], deceased["surname"]), ("Ram Kumar", "Sharma"))
         self.assertEqual(deceased["sex"], "male")  # Id10019
         self.assertEqual(deceased["ageInYears"], 64)  # age_group adult + age_adult
         self.assertNotIn("dateOfBirth", deceased)
@@ -170,6 +170,17 @@ class WebIntakePrefillTests(BaseTestCase):
         self.assertEqual(prefill["interviewer"], {
             "name": "Meera Thakur", "id": str(self.interviewer.user_id), "sex": "female",
         })
+
+    def test_name_split_takes_the_last_word_as_surname(self):
+        for name, given, surname in (
+            ("Ram", "Ram", None),
+            ("Asha Devi", "Asha", "Devi"),
+            ("Ram  Kumar   Sharma ", "Ram Kumar", "Sharma"),
+        ):
+            with self.subTest(name=name):
+                deceased = self._start(self._register(deceased_name=name)).prefill["deceased"]
+                self.assertEqual(deceased["givenNames"], given)
+                self.assertEqual(deceased.get("surname"), surname)
 
     def test_only_interviewer_presets_and_abha_are_locked(self):
         prefill = self._start(self._register(abha_number="12345678901234")).prefill

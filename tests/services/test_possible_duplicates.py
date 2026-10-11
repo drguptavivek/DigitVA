@@ -237,6 +237,7 @@ class PossibleDuplicateTests(BaseTestCase):
             "state": near.status, "score": 1.0, "deceased_name": "Sita Rani",
             "date_of_death": DOD.isoformat(), "village": "Kandaghat", "age_years": 61, "sex": "female",
             "informant_name": "Mohan Rani", "previous_interviewer_name": self.carol.name,
+            "reported_by_name": self.alice.name,
         })
         # Alice reaches both: with nobody having started it, no interviewer is named
         # (the registrant is not assumed to be one).
@@ -249,6 +250,24 @@ class PossibleDuplicateTests(BaseTestCase):
         # Carol never sees the other one: no id, no detail.
         self.assertNotIn(far.unique_id, repr(hints))
         self.assertNotIn("Hidden Informant", repr(hints))
+
+    def test_the_hint_names_who_reported_the_death_apart_from_who_interviewed(self):
+        subject = self._case(unit="PDB3", name="Uma Devi")
+        # Carol registered it and nobody started the interview: she is no interviewer.
+        reported = self._case(unit="PDB3", name="Uma Devi")
+        reported.registered_by = self.carol.user_id
+        # Alice registered it, Carol started the interview.
+        both = self._case(unit="PDB3", name="Uma Devi", user=self.alice)
+        both.started_by_user_id = self.carol.user_id
+        db.session.flush()
+
+        by_id = {h["death_id"]: h for h in intake_svc.possible_duplicates(self.carol, subject)}
+        self.assertIn(str(reported.death_id), by_id)
+        self.assertIn(str(both.death_id), by_id)
+        self.assertEqual(by_id[str(reported.death_id)]["reported_by_name"], self.carol.name)
+        self.assertIsNone(by_id[str(reported.death_id)]["previous_interviewer_name"])
+        self.assertEqual(by_id[str(both.death_id)]["reported_by_name"], self.alice.name)
+        self.assertEqual(by_id[str(both.death_id)]["previous_interviewer_name"], self.carol.name)
 
     def test_pending_cancelled_and_duplicate_candidates_leave_no_id_or_name(self):
         subject = self._case(unit="PDB3", name="Gita Bai")
@@ -343,7 +362,7 @@ class PossibleDuplicateTests(BaseTestCase):
         # Identity of an in-scope case, never phone or address.
         self.assertEqual(set(rows[0]), {
             "death_id", "unique_id", "unit_name", "state", "score", "deceased_name", "date_of_death",
-            "village", "age_years", "sex", "informant_name", "previous_interviewer_name",
+            "village", "age_years", "sex", "informant_name", "previous_interviewer_name", "reported_by_name",
         })
         self.assertEqual((rows[0]["deceased_name"], rows[0]["sex"]), ("Kamla Devi", "female"))
 

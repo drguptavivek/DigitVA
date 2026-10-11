@@ -36,7 +36,7 @@ if ("Id10021" in ageOnly) throw new Error("no dateOfBirth was given, Id10021 sho
 // Case 2: a death-register row with a known date of birth.
 const withDob = assertNoThrow("death with date of birth", {
   interviewer: { name: "Web Interviewer", id: "11111111-1111-1111-1111-111111111111" },
-  deceased: { givenNames: "Ram", surname: "Kumar", sex: "male", dateOfDeath: "2026-09-01", dateOfBirth: "1960-01-01" },
+  deceased: { givenNames: "Ram Kumar", surname: "Sharma", sex: "male", dateOfDeath: "2026-09-01", dateOfBirth: "1960-01-01" },
   answers: {},
 });
 if (!("Id10023_a" in withDob)) throw new Error("dateOfDeath with a known DOB should set Id10023_a, not _b");

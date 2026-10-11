@@ -116,7 +116,10 @@ def project_filter_arg() -> str | None:
 
 
 def intake_error(exc: intake_svc.WebIntakeError):
-    return error(str(exc), exc.code or INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code)
+    """The error reply of a refused intake action; ``fields`` joins the body
+    only when the error names the questions to fix."""
+    extra = {"fields": exc.fields} if exc.fields else {}
+    return error(str(exc), exc.code or INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code, **extra)
 
 
 def parse_body() -> dict:

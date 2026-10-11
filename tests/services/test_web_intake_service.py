@@ -980,6 +980,33 @@ class WebIntakeServiceTests(BaseTestCase):
                 self.assertEqual(ctx.exception.status_code, 422)
                 self.assertEqual(draft.status, "draft")
 
+    def test_a_refused_pick_with_consent_yes_is_its_own_422(self):
+        for valid in (True, False):
+            with self.subTest(valid=valid):
+                death = self._register_death()
+                draft = intake_svc.start_draft(
+                    self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
+                    death_id=death.death_id,
+                )
+                with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+                    intake_svc.submit_draft(
+                        draft, self.interviewer,
+                        completion=self._completion(valid=valid, data={"interview_outcome": "refused"}),
+                    )
+                self.assertEqual(ctx.exception.status_code, 422)
+                self.assertEqual(ctx.exception.code, "outcome_conflicts_consent")
+                self.assertEqual(ctx.exception.fields, ["Id10013", "interview_outcome"])
+                self.assertEqual(draft.status, "draft")
+
+    def test_consent_no_with_a_refused_pick_is_stored_refused_and_a_valid_form_with_no_pick_completes(self):
+        _d, refused = self._submit_for_new_draft(
+            self._register_death(), self._completion(data={"Id10013": "no", "interview_outcome": "refused"})
+        )
+        self.assertIsNotNone(db.session.get(VaSubmissions, refused.va_sid))
+        self.assertEqual(self._stored_outcome(refused), "refused")
+        _d, completed = self._submit_for_new_draft(self._register_death(), self._completion())
+        self.assertEqual(self._stored_outcome(completed), "completed")
+
     def test_a_later_complete_submission_wins_over_a_refusal_and_an_incomplete_one(self):
         death = self._register_death()
         _d, refused = self._submit_for_new_draft(death, self._completion(data={"Id10013": "no"}))
@@ -1052,6 +1079,18 @@ class WebIntakeServiceTests(BaseTestCase):
         reply = self._resubmit(draft, self._completion(data={"Id10017": "Late"})["data"])
         self.assertEqual((reply["kept"], reply["locked"], reply["changed"]), ("server", True, False))
         self.assertEqual(death.status, "cancelled")
+
+    def test_a_revision_correcting_consent_to_yes_drops_the_servers_own_refused(self):
+        death = self._register_death()
+        draft, submission = self._submit_for_new_draft(death, self._completion(data={"Id10013": "no"}))
+        self.assertEqual(self._stored_outcome(submission), "refused")
+        # The client sends the stored answers back, the server's outcome included.
+        self._resubmit(draft, self._completion(data={"interview_outcome": "refused"})["data"])
+        self.assertEqual(self._stored_outcome(submission), "completed")
+        # Once completed, refused with consent yes is the interviewer's own pick.
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            self._resubmit(draft, self._completion(data={"interview_outcome": "refused"})["data"])
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (422, "outcome_conflicts_consent"))
 
     # -- a second draft on a case the caller's own earlier draft won (digitva-9kqk) --
 

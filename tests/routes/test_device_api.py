@@ -1458,7 +1458,7 @@ class DeviceApiTests(BaseTestCase):
         detail = self._detail(tokens, case["death_id"]).get_json()["case"]
         self.assertEqual(case, detail)
         self.assertEqual(case["informant"]["phone"], "9876543210")
-        self.assertEqual(case["prefill"]["deceased"]["givenNames"], "Ram")
+        self.assertEqual(case["prefill"]["deceased"]["givenNames"], "Ram Lal")
         death = db.session.get(VaDeathRegister, uuid.UUID(case["death_id"]))
         self.assertEqual((death.client_death_id, death.informant_phone), (client_death_id, "9876543210"))
 

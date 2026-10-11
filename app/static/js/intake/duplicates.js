@@ -30,6 +30,7 @@ export function renderPossibleDuplicates(box, cases, onFlag) {
       c.unique_id, c.deceased_name, c.date_of_death, c.village, c.unit_name,
       c.age_years != null ? c.age_years + " y" : null, c.sex,
       c.informant_name ? "informant " + c.informant_name : null,
+      c.reported_by_name ? "reported by " + c.reported_by_name : null,
       c.previous_interviewer_name ? "interviewer " + c.previous_interviewer_name : null,
       c.state,
     ];

@@ -190,11 +190,15 @@ submission's organization unit, falling back to the form-level setting
   closed state the identity constraint allows without an identity. A register
   case already has its identity and goes to `refused` as before. An invalid form with neither refusal nor an
   incomplete outcome is refused (422).
-- **Outcome that contradicts consent** (owner, 2026-10-09; not built yet):
+- **Outcome that contradicts consent** (owner, 2026-10-09; server built, the
+  Expo client's display is `digitva-gqtp`):
   `interview_outcome` = `refused` while `Id10013` (consent) = yes is refused
   with 422 and its own code, naming both questions, so the interviewer can
-  correct one of them. Today a valid form in that state is silently stored as
-  `completed` and the pick is dropped. Every intake 422 the interviewer can
+  correct one of them. (Before 2026-10-09 a valid form in that state was
+  stored as `completed` and the pick dropped.) A revision of a refused
+  interview is the exception: consent = no stores the server's own `refused`,
+  so a revision that corrects consent to yes and sends that `refused` back
+  unchanged is treated as no pick, not as a conflict. Every intake 422 the interviewer can
   fix carries a specific `code`, a message written for the interviewer and
   the question names involved (`fields`), and the client shows that message
   beside those questions, not a generic "check the highlighted fields".
@@ -1051,8 +1055,7 @@ Rules as built:
 - **Name split** (owner, 2026-10-09): the last word of the case name is the
   surname (`Id10018`), the words before it the given name (`Id10017`):
   "Ram Kumar Sharma" gives "Ram Kumar" / "Sharma". A one-word name is the
-  given name with no surname. (Until this lands the first word is the given
-  name and the rest the surname.)
+  given name with no surname.
 - **Case address**: house or street, village or ward, landmark, then the
   free-text address, comma-joined.
 - **`Id10058`**: the register's place of death is free text (the form offers
@@ -1352,7 +1355,7 @@ its name and date of death.
   detail deliberately never name another interviewer, and it is shown only
   because the owner's 2026-10-01 rule names it, for in-scope candidates only.
   Beside it, `reported_by_name` names the user who registered the death
-  (`registered_by`; owner, 2026-10-09, not built yet), who may be a data
+  (`registered_by`; owner, 2026-10-09), who may be a data
   manager or death reporter rather than an interviewer; the form page shows
   both, labelled. No phone or address. The worklist's per-row `possible_duplicates`
   stays `death_id` and `unique_id` only.

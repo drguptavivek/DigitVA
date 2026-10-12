@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { Text } from "react-native";
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ClientApiError } from "../src/client/api";
 import en from "../src/strings/en.json";
@@ -69,6 +70,11 @@ function text(tree: ReactTestRenderer): string {
   return JSON.stringify(tree.toJSON());
 }
 
+/** Host elements only: a composite View and the host node beneath it would otherwise both match. */
+const host = (n: { type: unknown }) => typeof n.type === "string";
+const textOf = (node: ReactTestInstance) =>
+  node.findAllByType(Text).map((n) => [n.props.children].flat().join("")).join("|");
+
 const HAMLET_PEOPLE = {
   unit: { org_unit_id: "U4", unit_name: "Hamlet Y", level_name: "Hamlet" },
   people: [{ name: "Kofi", cadre: "ASHA" }],
@@ -95,21 +101,50 @@ describe("OrganizationScreen", () => {
     mockBootstrap = { csrf: { header: "X-CSRFToken", token: "csrf-token" }, access: { roles: ["coder"] } };
   });
 
-  it("renders the four sections for each project", async () => {
+  it("renders one tree: ancestors nested root-first, then my level, then the units below", async () => {
     mockRequest.mockResolvedValue({ projects: [project()] });
     const tree = await render();
 
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/organization/me");
     const shown = text(tree);
     for (const heading of [en.orgWhereIAm, en.orgAbove, en.orgMyLevel, en.orgBelow]) {
-      expect(shown).toContain(heading);
+      expect(shown).not.toContain(heading);
     }
     expect(shown).toContain("Dr Root · CS");
     expect(shown).toContain("Asha Mid · MO");
     expect(shown).toContain("Meena · ANM");
-    expect(shown).toContain("Village X");
     expect(shown).toContain("2 people");
     expect(shown).not.toContain("Project One");
+
+    const items = (node: { findAll: (p: (n: any) => boolean) => any[] }) => node.findAll((n) => host(n) && n.props.role === "treeitem");
+    const [root] = tree.root.findAll((n) => host(n) && n.props.role === "tree");
+    const [district, phc, subcentre, village] = items(root);
+    expect(textOf(district)).toContain("District · District");
+    // Each treeitem contains the next one: ancestors are nested root-first, not listed side by side.
+    expect(items(district)).toContain(phc);
+    expect(items(phc)).toContain(subcentre);
+    expect(items(subcentre)).toContain(village);
+    expect(textOf(village)).toContain("Village X · Village");
+    expect(textOf(district).indexOf("District")).toBeLessThan(textOf(district).indexOf("PHC A"));
+  });
+
+  it("highlights the user's own unit with a You badge and cadres, and no other node", async () => {
+    mockRequest.mockResolvedValue({
+      projects: [project({ my_level: [
+        { org_unit_id: "U2", unit_name: "Sub-centre B", people: [] },
+        { org_unit_id: "U9", unit_name: "Sub-centre C", people: [] },
+      ] })],
+    });
+    const tree = await render();
+
+    const selected = tree.root.findAll((n) => host(n) && n.props["aria-selected"] === true);
+    expect(selected).toHaveLength(1);
+    const shown = textOf(selected[0]);
+    expect(shown).toContain("Sub-centre B · Sub-centre");
+    expect(shown).toContain(en.orgYou);
+    expect(shown).toContain("Cadres: ANM, MPW");
+    expect(text(tree)).toContain("Sub-centre C");
+    expect(text(tree).split(en.orgCadres.split("{")[0]).length - 1).toBe(1);
   });
 
   it("opening a below unit fetches its people and children, and closing it hides them", async () => {
@@ -208,8 +243,16 @@ describe("OrganizationScreen", () => {
     await pressOpen(tree);
     const shown = text(tree);
     expect(shown).toContain(en.orgUnitNotAllowed);
-    expect(shown).toContain(en.orgWhereIAm);
+    expect(shown).toContain("Sub-centre B");
     expect(shown).toContain("Village X");
+  });
+
+  it("keeps the no-placement message when the user holds no unit", async () => {
+    mockRequest.mockResolvedValue({ projects: [project({ my_units: [], my_level: [] })] });
+    const tree = await render();
+
+    expect(text(tree)).toContain(en.orgNoPlacement);
+    expect(tree.root.findAll((n) => host(n) && n.props["aria-selected"] === true)).toHaveLength(0);
   });
 
   it("shows the project name only when there are two projects", async () => {
@@ -226,7 +269,7 @@ describe("OrganizationScreen", () => {
 
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/organization/me");
     expect(text(tree)).toContain(en.orgNotInTree);
-    expect(text(tree)).not.toContain(en.orgWhereIAm);
+    expect(text(tree)).not.toContain("Sub-centre B");
   });
 
   it("shows the error and no sections when the list call fails", async () => {
@@ -235,7 +278,7 @@ describe("OrganizationScreen", () => {
 
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/organization/me");
     expect(text(tree)).toContain("server error");
-    expect(text(tree)).not.toContain(en.orgWhereIAm);
+    expect(text(tree)).not.toContain("Sub-centre B");
   });
 });
 
@@ -245,6 +288,11 @@ describe("My organization strings", () => {
     "orgCadres", "orgAbove", "orgMyLevel", "orgBelow", "orgNone", "orgNoPeople", "orgPersonLine",
     "orgPeopleCount", "orgOpen", "orgClose", "orgOpenUnit", "orgCloseUnit", "orgUnitNotAllowed", "kpiLine",
   ] as const;
+
+  it("has the tree strings in English (other locales fall back to it)", () => {
+    expect(en.orgYouAreHere).toBeTruthy();
+    expect(en.orgYou).toBeTruthy();
+  });
 
   it.each(keys)("has %s in English and Hindi", (key) => {
     expect(en[key]).toBeTruthy();

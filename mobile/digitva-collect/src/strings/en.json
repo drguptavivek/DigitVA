@@ -366,6 +366,8 @@
   "orgClose": "Close",
   "orgOpenUnit": "Open {unit}",
   "orgCloseUnit": "Close {unit}",
+  "orgYouAreHere": "You are here",
+  "orgYou": "You",
   "orgUnitNotAllowed": "You cannot open this unit.",
   "kpiLine": "Deaths reported {deaths} · Interviews done {interviews} ({interviewsPct}) · Coded {coded} ({codedPct})"
 }

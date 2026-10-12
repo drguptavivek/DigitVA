@@ -33,13 +33,17 @@ from app.models import (
     MasOrgUnit,
     MasOrgUnitWorker,
     VaAccessRoles,
+    VaAccessScopeTypes,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
     VaSites,
     VaStatuses,
+    VaUserAccessGrants,
     VaUsers,
 )
+from app.services import authz
+from app.services.authz.consulted import mark_consulted
 from app.services.tabular_import_service import (
     TabularImportError,
     parse_rows,
@@ -77,6 +81,8 @@ __all__ = [
     "parse_organization_workbook", "parse_organization_csv", "import_organization",
     # serializers
     "serialize_level", "serialize_unit", "serialize_cadre", "serialize_level_cadre", "serialize_worker",
+    # my organization page (digitva-e7sz)
+    "my_organization", "unit_people", "MY_ORG_PEOPLE_CAP",
     # export dimensions
     "resolve_org_unit_export_labels",
     # project structure
@@ -2245,3 +2251,279 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
             if code not in seen and w["is_active"]:
                 update_worker(project_id, w["worker_id"], is_active=False)
                 plan.deactivates["workers"].append(code)
+
+
+# ---------------------------------------------------------------------------
+# My organization page (digitva-e7sz). Read-only; names and cadres only.
+# Policy: docs/policy/organization-model.md, "Who sees worker names".
+# ---------------------------------------------------------------------------
+
+#: Most people returned for one unit. Bounds the response, not the roster.
+MY_ORG_PEOPLE_CAP = 500
+
+
+def _granted_project_ids(user) -> set[str]:
+    """Active projects in which the user holds any live grant, from authz's
+    resolved grants (closed projects and inactive grants are already out).
+
+    Not gated on ``effective_roles``: a grant whose role gate is still closed
+    (an interviewer on a project with no form yet) still lists its project.
+    Demo-training grants are virtual and do not count. ``resolve_grants`` does
+    not mark the request consulted itself, so this does it, as the other
+    services that read resolved grants do.
+    """
+    mark_consulted()
+    return {grant.project_id for grant in authz.resolve_grants(user).grants if not grant.virtual}
+
+
+def _my_units(user_id: uuid.UUID, project_id: str) -> dict[str, dict]:
+    """Units the user is placed at in *project_id*: its unit grants and its own
+    worker rows. Keyed by unit id; two queries whatever the unit count.
+    """
+    grant_rows = db.session.execute(
+        sa.select(MasOrgUnit, MasOrgLevel, MasCadre.cadre_name)
+        .select_from(VaUserAccessGrants)
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .outerjoin(MasCadre, MasCadre.cadre_id == VaUserAccessGrants.cadre_id)
+        .where(
+            VaUserAccessGrants.user_id == user_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.is_active.is_(True),
+        )
+    ).all()
+    worker_rows = db.session.execute(
+        sa.select(MasOrgUnit, MasOrgLevel, MasCadre.cadre_name)
+        .select_from(MasOrgUnitWorker)
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == MasOrgUnitWorker.org_unit_id)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .join(MasCadre, MasCadre.cadre_id == MasOrgUnitWorker.cadre_id)
+        .where(
+            MasOrgUnitWorker.user_id == user_id,
+            MasOrgUnitWorker.is_active.is_(True),
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.is_active.is_(True),
+        )
+    ).all()
+    mine: dict[str, dict] = {}
+    for unit, level, cadre_name in [*grant_rows, *worker_rows]:
+        entry = mine.setdefault(str(unit.org_unit_id), {"unit": unit, "level": level, "cadres": set()})
+        if cadre_name:
+            entry["cadres"].add(cadre_name)
+    return mine
+
+
+def _ancestor_units(project_id: str, mine: dict[str, dict]) -> list[dict]:
+    """Active units above any of *mine*, root first, in one query.
+
+    The ancestors are named by the codes in each unit's ltree path (the path
+    is the chain of unit codes). Units of *mine* are left out: they are shown
+    as the user's own level, not as context above it.
+    """
+    codes = {
+        code
+        for entry in mine.values()
+        for code in str(entry["unit"].path).split(".")[:-1]
+    }
+    if not codes:
+        return []
+    return [
+        unit
+        for unit in list_units_by_codes(project_id, codes)
+        if unit["org_unit_id"] not in mine
+    ]
+
+
+def _people_by_unit(unit_ids: Iterable[str]) -> dict[str, list[dict]]:
+    """Active workers of *unit_ids*, as ``{name, cadre}``, one query.
+
+    Name and cadre only: never phone, email, worker code or user id
+    (docs/policy/organization-model.md, "Who sees worker names"). Each unit
+    is capped at ``MY_ORG_PEOPLE_CAP`` by a window over the same query.
+    """
+    ids = [uuid.UUID(unit_id) for unit_id in unit_ids]
+    if not ids:
+        return {}
+    ranked = (
+        sa.select(
+            MasOrgUnitWorker.org_unit_id.label("org_unit_id"),
+            MasOrgUnitWorker.worker_name.label("name"),
+            MasCadre.cadre_name.label("cadre"),
+            sa.func.row_number()
+            .over(
+                partition_by=MasOrgUnitWorker.org_unit_id,
+                order_by=(MasOrgUnitWorker.worker_name, MasOrgUnitWorker.worker_id),
+            )
+            .label("rank"),
+        )
+        .select_from(MasOrgUnitWorker)
+        .join(MasCadre, MasCadre.cadre_id == MasOrgUnitWorker.cadre_id)
+        .where(MasOrgUnitWorker.org_unit_id.in_(ids), MasOrgUnitWorker.is_active.is_(True))
+        .subquery()
+    )
+    rows = db.session.execute(
+        sa.select(ranked.c.org_unit_id, ranked.c.name, ranked.c.cadre)
+        .where(ranked.c.rank <= MY_ORG_PEOPLE_CAP)
+        .order_by(ranked.c.rank)
+    ).all()
+    people: dict[str, list[dict]] = {}
+    for org_unit_id, name, cadre in rows:
+        people.setdefault(str(org_unit_id), []).append({"name": name, "cadre": cadre})
+    return people
+
+
+def _unit_summaries(project_id: str, *conditions) -> list[dict]:
+    """Active units of *project_id* matching *conditions*, with their worker
+    count and whether they have child units. One query: both are correlated
+    scalars on the unit row, so the cost does not grow per unit in Python.
+    """
+    child = sa.orm.aliased(MasOrgUnit, name="child_unit")
+    people_count = (
+        sa.select(sa.func.count(MasOrgUnitWorker.worker_id))
+        .where(
+            MasOrgUnitWorker.org_unit_id == MasOrgUnit.org_unit_id,
+            MasOrgUnitWorker.is_active.is_(True),
+        )
+        .correlate(MasOrgUnit)
+        .scalar_subquery()
+    )
+    has_children = sa.exists().where(
+        child.parent_org_unit_id == MasOrgUnit.org_unit_id,
+        child.is_active.is_(True),
+    )
+    rows = db.session.execute(
+        sa.select(
+            MasOrgUnit,
+            MasOrgLevel.level_name,
+            people_count.label("people_count"),
+            has_children.label("has_children"),
+        )
+        .select_from(MasOrgUnit)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .where(MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True), *conditions)
+        .order_by(MasOrgUnit.unit_name, MasOrgUnit.unit_code)
+    ).all()
+    return [
+        {
+            "org_unit_id": str(unit.org_unit_id),
+            "unit_name": unit.unit_name,
+            "level_name": level_name,
+            "people_count": people_count_value,
+            "has_children": bool(has_children_value),
+        }
+        for unit, level_name, people_count_value, has_children_value in rows
+    ]
+
+
+def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
+    """One project's block of the My organization page.
+
+    The user's own units, the units above them (with their people), their
+    level, and the units one level below. A user with no unit placement (a
+    project- or site-scoped grant) gets no ``my_units``; ``below`` is then the
+    tree's root units, which sit above every grant.
+    """
+    mine = _my_units(user_id, project_id)
+    ancestors = _ancestor_units(project_id, mine)
+    if mine:
+        mine_ids = [uuid.UUID(unit_id) for unit_id in mine]
+        below = _unit_summaries(
+            project_id,
+            MasOrgUnit.parent_org_unit_id.in_(mine_ids),
+            # A unit the user is placed at is shown as their own level, not as a
+            # child below it.
+            MasOrgUnit.org_unit_id.not_in(mine_ids),
+        )
+    else:
+        below = _unit_summaries(
+            project_id,
+            MasOrgUnit.parent_org_unit_id.is_(None),
+            MasOrgLevel.depth == _top_level_depth(project_id),
+        )
+    people = _people_by_unit([*mine, *(unit["org_unit_id"] for unit in ancestors)])
+    ordered = sorted(mine.items(), key=lambda item: str(item[1]["unit"].path))
+    return {
+        "project_id": project_id,
+        "project_name": project_name,
+        "my_units": [
+            {
+                "org_unit_id": unit_id,
+                "unit_name": entry["unit"].unit_name,
+                "level_name": entry["level"].level_name,
+                "cadres": sorted(entry["cadres"]),
+            }
+            for unit_id, entry in ordered
+        ],
+        "above": [
+            {
+                "org_unit_id": unit["org_unit_id"],
+                "unit_name": unit["unit_name"],
+                "level_name": unit["level_name"],
+                "people": people.get(unit["org_unit_id"], []),
+            }
+            for unit in ancestors
+        ],
+        "my_level": [
+            {
+                "org_unit_id": unit_id,
+                "unit_name": entry["unit"].unit_name,
+                "people": people.get(unit_id, []),
+            }
+            for unit_id, entry in ordered
+        ],
+        "below": below,
+    }
+
+
+def my_organization(user) -> dict:
+    """The My organization page's data: every org-tree project the user holds
+    a grant in. Sites-mode projects are left out (they have no tree).
+    """
+    from app.services.org_grant_service import projects_with_org_tree
+
+    granted = _granted_project_ids(user)
+    tree_projects = sorted(projects_with_org_tree(granted)) if granted else []
+    if not tree_projects:
+        return {"projects": []}
+    names = dict(
+        db.session.execute(
+            sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name).where(
+                VaProjectMaster.project_id.in_(tree_projects)
+            )
+        ).all()
+    )
+    return {"projects": [_my_project(user.user_id, pid, names[pid]) for pid in tree_projects]}
+
+
+def unit_people(user, org_unit_id: object) -> dict | None:
+    """One unit's people and its child units, for opening a unit on the page.
+
+    Allowed to any user holding an active grant in the unit's project. Returns
+    ``None`` (the route answers 404) for a bad id, an unknown or inactive unit,
+    or a project the user holds no grant in: the same answer in every case, so
+    the reply does not reveal that a unit exists elsewhere.
+    """
+    # Decided first, so a bad id also consults authz (the reach is the same).
+    granted = _granted_project_ids(user)
+    try:
+        unit_uuid = _uuid(org_unit_id, what="Unit")
+    except OrganizationError:
+        return None
+    row = db.session.execute(
+        sa.select(MasOrgUnit, MasOrgLevel.level_name)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .where(MasOrgUnit.org_unit_id == unit_uuid, MasOrgUnit.is_active.is_(True))
+    ).first()
+    if row is None:
+        return None
+    unit, level_name = row
+    if unit.project_id not in granted:
+        return None
+    unit_id = str(unit.org_unit_id)
+    return {
+        "unit": {"org_unit_id": unit_id, "unit_name": unit.unit_name, "level_name": level_name},
+        "people": _people_by_unit([unit_id]).get(unit_id, []),
+        "children": _unit_summaries(unit.project_id, MasOrgUnit.parent_org_unit_id == unit.org_unit_id),
+    }

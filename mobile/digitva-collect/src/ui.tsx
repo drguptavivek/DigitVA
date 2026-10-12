@@ -82,6 +82,7 @@ export function Button({
   disabled,
   loading = false,
   accessibilityLabel,
+  expanded,
   style
 }: {
   label: string;
@@ -90,6 +91,8 @@ export function Button({
   disabled?: boolean;
   loading?: boolean;
   accessibilityLabel?: string;
+  /** Set on a button that shows or hides a section, so screen readers hear its state. */
+  expanded?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const theme = useTheme();
@@ -102,7 +105,7 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: disabledOrBusy, busy: loading }}
+      accessibilityState={{ disabled: disabledOrBusy, busy: loading, expanded }}
       disabled={disabledOrBusy}
       onPress={onPress}
       onFocus={() => setFocused(true)}

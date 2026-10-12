@@ -32,6 +32,7 @@ from app.models.mas_instrument_locales import (
     MasInstrumentLocales,
 )
 from app.models.mas_instrument_versions import MasInstrumentVersions
+from app.models.mas_ui_string_override import MasUiStringOverride
 from app.models.mas_languages import MapLanguageAliases, MasLanguages
 from app.models.mas_mentor_institute import (
     MapMentorInstituteOrgUnit,
@@ -197,6 +198,7 @@ __all__ = [
     "MapLanguageAliases",
     "MasInstrumentLocales",
     "MasInstrumentVersions",
+    "MasUiStringOverride",
     "MapInstrumentTranslations",
     "MapInstrumentTranslationSuggestions",
     "MasMentorInstitute",

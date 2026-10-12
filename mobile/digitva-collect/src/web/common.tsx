@@ -7,6 +7,7 @@ import { ClientApiError } from "../client/api";
 import { t, UI_LOCALES } from "../i18n";
 import { useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
+import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
 import { loginRecoveryUrl } from "./loginRecovery";
 import { openServerPage, rememberVisit, ROLE_SCREENS } from "./roleHome";
 
@@ -260,6 +261,13 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
     items.push({ key: "area", label: t("navArea"), icon: "▦", action: () => openServerPage(bootstrap.user.user_id, "/area/") });
     items.push({ key: "dataManagement", label: t("navDataManagement"), icon: "▤", action: () => openServerPage(bootstrap.user.user_id, "/data-management/") });
   }
+  const organization: NavigationItem = {
+    key: "organization",
+    label: t("navOrganization"),
+    icon: "⚲",
+    route: "/organization",
+    action: () => router.push("/organization"),
+  };
   const settings: NavigationItem = {
     key: "settings",
     label: t("navSettings"),
@@ -294,6 +302,12 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
         ))}
       </View>
       <View style={[navigationStyles.divider, { backgroundColor: theme.colors.border }]} />
+      <NavigationLink
+        item={organization}
+        compact={compact}
+        active={activeRoute(pathname, organization.route!)}
+        onPress={() => void navigate(organization.action)}
+      />
       <NavigationLink
         item={settings}
         compact={compact}
@@ -394,6 +408,7 @@ export function WebShell({
   const resolvedHeaderAction = headerAction === undefined ? <UiLanguageSwitcher /> : headerAction;
   return (
     <Screen title={title} sidebar={<NavigationMenu beforeNavigate={beforeNavigate} />} headerAction={resolvedHeaderAction} footer={footer}>
+      {KPI_SCREENS.includes(pathname) ? <KpiStrip csrf={bootstrap.csrf} /> : null}
       {children}
     </Screen>
   );

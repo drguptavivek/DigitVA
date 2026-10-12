@@ -58,6 +58,6 @@ Unknown key refused; placeholder or markup the English lacks refused; empty
 refused; version bumps on edit and on revert; the API returns only that
 locale's overrides; a non-admin cannot edit; CSRF on the edit calls.
 
-## Open
+## Decided
 
-- Who edits: admin only for now, or a translator role per language.
+- Admin only (owner, 2026-10-12), as Setup is; no translator role.

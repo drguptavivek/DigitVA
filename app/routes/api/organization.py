@@ -752,3 +752,31 @@ def form_options_payload(project: VaProjectMaster) -> dict:
         "instrument_version": instrument_version,
         "definition_sha256": definition_sha256,
     }
+
+
+@bp.get("/me")
+@login_required
+@limiter.limit("120 per minute")
+def my_organization():
+    """The My organization page: the signed-in user's units, the units above
+    them with their people, their level, and the units below.
+
+    Org-tree projects only, where the user holds a grant. Names and cadres
+    only (docs/policy/organization-model.md, "Who sees worker names").
+    """
+    return jsonify(org.my_organization(current_user))
+
+
+@bp.get("/units/<org_unit_id>/people")
+@login_required
+@limiter.limit("120 per minute")
+def unit_people(org_unit_id: str):
+    """One unit's people and child units, opened from the My organization page.
+
+    404 for an unknown unit and for a unit in a project the user holds no grant
+    in: the same answer either way.
+    """
+    payload = org.unit_people(current_user, org_unit_id)
+    if payload is None:
+        return api_error("Organization unit not found.", status_code=404)
+    return jsonify(payload)

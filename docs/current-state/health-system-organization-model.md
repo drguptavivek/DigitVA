@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-12
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -478,6 +478,27 @@ labels, hints and choice labels. It is hidden for `en`, on by default, and
 remembered per browser (`localStorage` key `digitva.intake.showEnglish`). For a
 locale whose `available_locales` entry has `under_review: true` it is checked
 and disabled, with a note, without overwriting the remembered choice.
+
+## My organization page API (digitva-e7sz)
+
+Two read-only endpoints on the same blueprint, for the "My organization"
+page. Org-tree projects only; sites-mode projects are omitted. Policy:
+"Who sees worker names" in `docs/policy/organization-model.md`.
+
+- `GET /api/v1/organization/me` returns `{"projects": [...]}`, one block per
+  org-tree project where the caller holds any active grant: `my_units` (the
+  caller's unit grants and worker rows, with cadre names), `above` (ancestor
+  units root first, each with its people), `my_level` (the people at each of
+  the caller's units) and `below` (child units of the caller's units, or the
+  root units when the caller has no unit placement).
+- `GET /api/v1/organization/units/<org_unit_id>/people` returns
+  `{"unit", "people", "children"}` for one unit. 404 for an unknown or
+  inactive unit and for a unit in a project the caller holds no grant in.
+
+People are name and cadre only, capped at 500 per unit. Both endpoints are
+`login_required` with the 120/minute limiter, like `/units`. Service:
+`my_organization` and `unit_people` in `app/services/organization_service.py`.
+The query count is constant per project, whatever the number of units.
 
 ## Where the code lives
 

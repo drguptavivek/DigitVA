@@ -37,12 +37,12 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
    ODK-only VA in tree projects that follows the VA's unit pin (`l8y3`; backfill `flask web-intake backfill-odk-cases
    --dry-run` first). Close those beads after a dev browser check: TST001 `test.cho.sc01` -> Collection,
    `test.mo.phc01` -> Coding with Supervision in the nav, `test.cs.dh01` -> Supervision, `test.dpm.dh01` -> `/area/`,
-   sign out and in to see last-visit resume; the area table; a death reporter's new-death page. Next: `digitva-qu7x` home
-   KPIs (deaths reported, interviews done %, coded %, both % of deaths reported), `digitva-e7sz` organization page (worker
-   roster, names visible to everyone in the project), `digitva-fsjz` UI-string editor with Google Translate links (open:
-   admin-only or a translator role), `digitva-1g1h` eight more UI languages (queue strings still hard-coded English),
-   `digitva-dt1e` overlay. DM Expo screen deferred (`digitva-qirs`). Dev serves `mobile/digitva-collect/dist`: rebuild
-   with `npx expo export --platform web` after Expo changes.
+   sign out and in to see last-visit resume; the area table; a death reporter's new-death page. Also committed: home KPI strip (`qu7x`), My organization page (`e7sz`), UI-string editor
+   under admin with Google Translate links (`fsjz`); check those in the browser too (the strip on Coding and absent
+   inside a case; `/organization` as a CHO and as a PHC MO; Admin > UI Strings, edit and revert a Hindi string). Next:
+   `digitva-dt1e` Expo overlay of the corrections, `digitva-1g1h` eight more UI languages (queue strings still
+   hard-coded English). DM Expo screen deferred (`digitva-qirs`). Rebuild the web export with `npm run export:web` in
+   `mobile/digitva-collect` (copies the strings into `dist/ui-strings/`, which the editor reads).
 2. **Translation drafts**: dev is at `e9h3k6p2s8v4` (429 Hindi machine drafts of guidance and constraint messages, `689bb139`; a Hindi reader
    accepts them in the translations editor). Other locales still need drafts; then `digitva-zyf` (DORIS override messages; needs a vendor regeneration by the Expo session).
 3. **Owner decisions and checks still open**:
@@ -81,7 +81,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   `d8q4e1h6n3v9` (`map_case_transitions.changes`), `e9h3k6p2s8v4` (Hindi note drafts, data only), `f2j6n9r4u1x7` (death_reporter role, grid flag,
   reporter list index), `g3k7o1s5w9a2` (grid default roles),
   `g3k7n1s5v9y2` (translation suggestions), `g4k8p2t6x1b5` (web intake attachments), `h5m2r8v4z1d9` (index for the daily upload purge). Dev is
-  at `k8p4r2w6y3f1` (ODK-only cases: `odk` source, unique index, ODK sync account; after `j7n3q9w5y2e8`, the allocation index for the queue's last project). Restart the Celery worker and beat so the "Web intake
+  at `m4v8r2t6q1w9` (UI string corrections table, after `k8p4r2w6y3f1` ODK-only cases: `odk` source, unique index, ODK sync account; after `j7n3q9w5y2e8`, the allocation index for the queue's last project). Build the Expo export with `npm run export:web`, not plain `expo export`. Restart the Celery worker and beat so the "Web intake
   upload purge — daily" row is seeded (30-day rule, `b29d4c59`). Earlier field-collection migrations: `d5f1b8a3c6e2`,
   `e6a2c9d4f1b7` (fails loudly if a user has two open drafts on one case: check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`, `h2n5q8t1v4w7`,
   `b4k8m2r6w9x3`.

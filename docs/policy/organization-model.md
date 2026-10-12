@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-08
+last_updated: 2026-10-12
 ---
 
 # Organization Model Policy
@@ -354,6 +354,25 @@ import/export is already restricted to admins and project PIs.
   a runtime authorization path. Runtime access comes from explicit
   user × role × scope grants (see
   [Access Control Model](access-control-model.md)).
+
+### Who sees worker names (digitva-e7sz)
+
+This is an explicit exception to the personal-data rule for worker names
+(see "Import and export" and "Unit columns in submission exports" above).
+
+- Any user holding an active grant in an organization-tree project may see
+  the **names and cadres** of that project's active unit workers, through
+  the "My organization" endpoints (`GET /api/v1/organization/me` and
+  `GET /api/v1/organization/units/<org_unit_id>/people`). Owner decision,
+  2026-10-12: people in an organization tree know each other, so name and
+  cadre disclose nothing new to them.
+- The exception covers **name and cadre only**. Phone, email, address,
+  `worker_code` and user id are never returned by these endpoints.
+- It is read-only and has no export. The worker export in "Import and
+  export" stays restricted to admins and project PIs.
+- Staff who never log in are included: the roster is the unit's worker
+  list, not the set of users.
+- Capped at 500 people per unit per response.
 
 ## Unit-scoped grants
 

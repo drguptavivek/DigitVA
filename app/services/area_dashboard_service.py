@@ -28,7 +28,7 @@ from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 
-from app import db
+from app import cache, db
 from app.models import (
     MapCaseContactAttempt,
     MasOrgUnit,
@@ -926,6 +926,113 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
     if with_card:
         result["project_card"] = project_card(scope, screens, rows)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Home KPIs
+# ---------------------------------------------------------------------------
+
+HOME_KPI_CACHE_PREFIX = "home_kpis:"
+#: Seconds a user's home strip may trail the live counts.
+HOME_KPI_CACHE_TTL = 60
+
+
+def _percent(part: int, whole: int) -> int | None:
+    """*part* as a whole percentage of *whole*, half up; None when *whole* is 0."""
+    if not whole:
+        return None
+    return (200 * part + whole) // (2 * whole)
+
+
+def _active_site_ids(scope: AreaScope) -> list[str]:
+    where = [
+        VaProjectSites.project_id == scope.project_id,
+        VaProjectSites.project_site_status == VaStatuses.active,
+    ]
+    if scope.site_ids is not None:
+        where.append(VaProjectSites.site_id.in_(sorted(scope.site_ids)))
+    return list(db.session.scalars(sa.select(VaProjectSites.site_id).where(*where)))
+
+
+def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
+    """(deaths reported, VA submissions, final COD) over the scope's roots.
+
+    Roots of a grant never overlap, so summing each root's subtree counts
+    every record once. Grouped queries only: the count does not grow with
+    the number of units or sites.
+    """
+    project_id = scope.project_id
+    if scope.has_tree:
+        unit_ids = [row.org_unit_id for row in grant_root_units(scope)]
+        submissions = 0
+        if unit_ids:
+            stats = get_dm_org_unit_stats_from_mv(
+                project_id=project_id,
+                project_ids=[project_id],
+                project_site_pairs=[],
+                unit_ids=unit_ids,
+            )
+            submissions = sum(row["total_submissions"] for row in stats)
+        deaths = sum(_deaths_reported_by_unit(project_id, unit_ids).values())
+        final_cod = sum(_final_cod_by_unit(project_id, unit_ids).values())
+        if scope.project_wide:
+            unrouted = get_area_unrouted_stats_from_mv(project_id=project_id)
+            submissions += unrouted.get("total_submissions", 0)
+            deaths += _deaths_reported_unrouted(project_id)
+            final_cod += _final_cod_unrouted(project_id)
+        return deaths, submissions, final_cod
+
+    site_ids = _active_site_ids(scope)
+    if not site_ids:
+        return 0, 0, 0
+    stats = get_area_site_stats_from_mv(
+        project_ids=[], project_site_pairs=[(project_id, s) for s in site_ids]
+    )
+    return (
+        sum(_deaths_reported_by_site(project_id, site_ids).values()),
+        sum(row["total_submissions"] for row in stats),
+        sum(_final_cod_by_site(project_id, site_ids).values()),
+    )
+
+
+def home_kpis(user) -> list[dict]:
+    """One KPI row per project in the user's area, cached per user for a minute.
+
+    ``interviews_pct`` and ``coded_pct`` are percentages of ``deaths_reported``,
+    None when that is 0. Names only; no per-unit rows. Policy: "Home KPIs" in
+    docs/policy/area-dashboard.md.
+    """
+    cache_key = f"{HOME_KPI_CACHE_PREFIX}{user.user_id}"
+    try:
+        cached = cache.get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached
+
+    projects = []
+    if authz.effective_roles(user):
+        for project_id, project_name in candidate_projects(user):
+            scope = resolve_area_scope(user, project_id, project_name)
+            if scope is None:
+                continue
+            deaths, interviews, coded = _scope_totals(scope)
+            projects.append(
+                {
+                    "project_id": project_id,
+                    "project_name": project_name,
+                    "deaths_reported": deaths,
+                    "interviews_done": interviews,
+                    "coded": coded,
+                    "interviews_pct": _percent(interviews, deaths),
+                    "coded_pct": _percent(coded, deaths),
+                }
+            )
+    try:
+        cache.set(cache_key, projects, timeout=HOME_KPI_CACHE_TTL)
+    except Exception:
+        pass
+    return projects
 
 
 # ---------------------------------------------------------------------------

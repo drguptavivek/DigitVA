@@ -43,6 +43,7 @@ Current policy docs:
 - [Login Passwords and Passkeys](authentication-factors.md) — password/passkey web sign-in, native local unlock, and audited passkey reset
 - [Request Method Abuse Control Policy](request-method-abuse-control.md)
 - [Site Maintenance Mode Policy](site-maintenance-mode.md)
+- [UI String Corrections Policy](ui-strings.md) — admin corrections to Expo UI strings, served without a new build
 - [VA Cause Definitions](va-cause-definitions.md) — WHO VA codes and definitions in the database, admin rich-text editing, coder lookup
 - [Sync Dashboard Operations Policy](sync-dashboard-operations.md)
 - [Test Harness Policy](test-harness.md) — session-scoped schema, savepoint isolation, fixture rules

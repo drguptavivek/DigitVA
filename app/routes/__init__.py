@@ -17,6 +17,7 @@ from app.routes.translation_suggestions_page import translation_suggestions_page
 # Extends the `admin` blueprint in place (like app/routes/admin_organization.py);
 # imported here so its rules are registered before the blueprint is.
 from app.routes import admin_translations  # noqa: F401
+from app.routes import admin_ui_strings  # noqa: F401
 from app.routes import admin_va_definitions  # noqa: F401
 from app.routes import admin_coding_search_telemetry  # noqa: F401
 from app.routes import admin_devices  # noqa: F401

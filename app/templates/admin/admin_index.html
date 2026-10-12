@@ -211,6 +211,17 @@
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#"
+           title="UI Strings"
+           data-panel="/admin/panels/ui-strings"
+           hx-get="/admin/panels/ui-strings"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-spell-check admin-nav-icon"></i>
+          <span class="admin-nav-label">UI Strings</span>
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
            title="Data Sync"
            data-panel="/admin/panels/sync"
            hx-get="/admin/panels/sync"

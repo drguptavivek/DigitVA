@@ -6,7 +6,7 @@ from flask_wtf.csrf import generate_csrf
 from app import limiter
 from app.routes.api import profile
 from app.routes.api.request_helpers import error
-from app.services import notification_service
+from app.services import area_dashboard_service, notification_service
 from app.services.access_summary_service import build_access_summary
 
 bp = Blueprint("me_api", __name__)
@@ -25,6 +25,16 @@ def access():
     if not g.get("bearer_auth"):
         response.headers["X-CSRFToken"] = generate_csrf()
     return response
+
+
+@bp.get("/kpis")
+@login_required
+@limiter.limit("120 per minute")
+def kpis():
+    """Home KPI strip: one row per project in the caller's area, names and
+    counts only (docs/policy/area-dashboard.md, "Home KPIs"). Cached per user
+    for a minute. JSON 401 when signed out."""
+    return jsonify({"projects": area_dashboard_service.home_kpis(current_user)})
 
 
 @bp.get("/notifications")

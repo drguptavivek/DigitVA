@@ -173,11 +173,29 @@ unlocks personal data sees names here too, as on every other screen.
 Counts are live and capped at 500 people per list; a longer list says it is
 cut. No per-person case lists.
 
+## Home KPIs
+
+The strip at the top of the home page (owner, 2026-10-12), one row per
+project in the user's area, over the same scope `/area/` uses (any grant,
+viewing scope):
+
+- **Deaths reported**: cases in the death register, every source, minus
+  confirmed duplicates and cancelled cases.
+- **Interviews done**: total VA submissions in scope, as `/area/` shows them.
+- **Coded**: submissions with a final COD.
+- **Interviews %** and **Coded %**: each as a percentage of deaths reported,
+  integers rounded half up. Null when deaths reported is 0.
+
+Totals only, no unit or site rows, and no names. Each grant's root units
+(or, in sites mode, the active sites in scope) are summed; the unrouted
+bucket counts for a project-wide scope. Cached per user for 60 seconds. A grant added or revoked shows in the strip within that minute; the strip carries counts and project names only, so this window is accepted rather than clearing the cache on every grant write.
+
 ## Performance
 
 One query per section for the selected level: children are joined to
 submissions on ltree containment, as `get_dm_org_unit_stats_from_mv` does.
-No query per unit, no scan outside the user's scope.
+No query per unit, no scan outside the user's scope. Home KPIs run one
+grouped query per measure per project, whatever the unit count.
 
 ## Not in scope yet
 

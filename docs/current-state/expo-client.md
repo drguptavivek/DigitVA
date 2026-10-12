@@ -53,6 +53,17 @@ duplicates, Choose interview and Reopen for revision (not for ODK cases).
 Server refusals are shown by error code through `t()`. Browser session
 only: device tokens carry no supervisory powers.
 
+`WebShell` shows a one-line KPI strip on the home and the five role screens
+(coding, reviewing, collection, death registration, supervision):
+per project, deaths reported, interviews done and coded with both
+percentages of deaths reported, from `GET /api/v1/me/kpis` (cached 60 s per
+user on the server). It renders nothing when the list is empty or the call
+fails. The user menu links every signed-in user to `/organization`
+(`src/web/OrganizationScreen.tsx`): where the user sits in each org-tree
+project, the units above with their people, the people at the user's own
+unit, and the units below, which open in place. People are shown by name and
+cadre only.
+
 Signed-in browser routes use `WebShell`, which supplies the shared left
 sidebar or phone rail and the screen header. It forwards optional header actions
 and a footer slot to `Screen`; page content does not construct its own main
@@ -73,3 +84,16 @@ sign-in recovery retains the current `/app/` route and query. Pending terms
 setup redirect.
 
 Login, onboarding and device sign-in endpoints: [Authentication, Login and Onboarding](authentication-and-onboarding.md).
+
+## Web export and UI string corrections
+
+`npm run export:web` in `mobile/digitva-collect` runs `expo export --platform web`
+and then copies `src/strings/*.json` into `dist/ui-strings/`. The server reads
+those files for the UI string corrections (digitva-fsjz): the reference is
+`dist/ui-strings/en.json`, and each other `<locale>.json` is the bundled text a
+correction is checked against. Only the export is in the server image (see
+`.dockerignore`), so rebuild the export after changing a bundled string.
+
+The loader reads a file again only when its mtime changes, so a rebuilt export
+is seen without a restart. A locale is served through `GET /api/v1/ui-strings/<locale>`;
+the policy and the admin page are in `docs/policy/ui-strings.md`.

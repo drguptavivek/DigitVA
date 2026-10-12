@@ -505,6 +505,24 @@ instrument translation string; accepting writes through `update_string`
   read by a migration: `resource/icd11_mms_2026_01_hierarchy.csv` /
   `mas_icd11_mms`, below.
 
+### `mas_ui_string_override`
+
+Migration `m4v8r2t6q1w9` (digitva-fsjz). One administrator's correction to one
+Expo UI string in one locale, served to every browser and phone without a new
+build. The bundled JSON under `mobile/digitva-collect/src/strings` is untouched.
+
+- PK (`locale_code`, `string_key`): one correction per key and locale, so the
+  pair is also the unique key. `locale_code` `String(16)`, `string_key`
+  `String(255)`.
+- `text` (Text, NOT NULL); `updated_by` FK -> `va_users` (NULL allowed);
+  `updated_at` (timestamptz, NOT NULL, server default `now()`; the service sets
+  it in Python).
+- No CHECK, index or table of its own beyond the PK. A revert deletes the row.
+  The version of a locale is computed from `count(*)` and `max(updated_at)` over
+  its rows, not stored.
+- Downgrade refuses while rows exist (corrections are data).
+- Written by `app/services/ui_string_service.py`; policy `docs/policy/ui-strings.md`.
+
 ### The reference an item's key is checked against
 
 `instrument_translation_service.reference_items()` is the WHO base workbook

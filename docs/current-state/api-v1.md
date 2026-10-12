@@ -906,6 +906,47 @@ Errors: 401 `unauthorized` when signed out or on a bad bearer; 403
 `redirect_url` are gone); 429 over
 the limit. Response header (cookie request only): `X-CSRFToken`.
 
+## GET /api/v1/me/kpis (body)
+
+The home KPI strip (`digitva-qu7x`, `app/routes/api/me.py`,
+`area_dashboard_service.home_kpis`). Signed in only; JSON 401 otherwise.
+`{"projects": [{project_id, project_name, deaths_reported, interviews_done,
+coded, interviews_pct, coded_pct}]}`, one row per active project in the
+caller's area (the scope of `/api/v1/area/projects`, any grant). Totals only,
+no names. `deaths_reported` excludes duplicate and cancelled cases;
+`interviews_done` is total VA submissions in scope; `coded` is submissions
+with a final COD. Both percentages are integers of `deaths_reported`, rounded
+half up, `null` when it is 0 (policy: `docs/policy/area-dashboard.md`, "Home
+KPIs"). A user with no grants gets `{"projects": []}`. Cached 60 seconds per
+user; 120 requests per minute.
+
+## My organization (`GET /api/v1/organization/me` and `.../units/<org_unit_id>/people`, `app/routes/api/organization.py`)
+
+`digitva-e7sz`. Org-tree projects where the caller holds any active grant;
+sites-mode projects are omitted.
+
+- `GET /me`: per project `my_units` (own unit grants and worker placements,
+  with cadre names), `above` (ancestor units, root first, each with
+  `people`), `my_level` (people at each own unit), `below` (child units of
+  own units with `people_count` and `has_children`, or the root units when the
+  caller has no unit).
+- `GET /units/<org_unit_id>/people`: `{unit, people, children}` for one unit;
+  404 when the unit is unknown, inactive, or in a project the caller holds no
+  grant in.
+
+People are `{name, cadre}` only, at most 500 per unit; never phone, email,
+worker code or user id (policy: `docs/policy/organization-model.md`, "Who sees
+worker names").
+
+## UI string corrections (`GET /api/v1/ui-strings/<locale>`, `app/routes/api/ui_strings.py`)
+
+`digitva-fsjz`. Public, no sign-in (the sign-in screen is translated too).
+Returns `{version, strings}`, where `strings` holds an administrator's
+corrections for one bundled locale only; the app keeps its bundled text for
+every other key. `version` is the ETag; a matching `If-None-Match` gets 304.
+`Cache-Control: public, max-age=60`. `en` and unknown or unshipped locales
+return 404 `not_found`. Policy: `docs/policy/ui-strings.md`.
+
 ## GET /api/v1/me/notifications (body)
 
 `app/routes/api/me.py`, `notification_service.poll`; policy

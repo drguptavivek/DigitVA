@@ -57,6 +57,9 @@ PUBLIC_ENDPOINTS = {
               "the probe asserts it.",
     "expo_client.expo_index": "Public Expo web-app shell; no case data.",
     "expo_client.expo_asset": "Public Expo bundle assets; no case data.",
+    "api_v1.ui_strings_api.ui_string_overrides": "Public UI string corrections (the sign-in "
+                                          "screen is translated too); reference text "
+                                          "only, no personal data (ui-strings.md).",
     "health.health_check": "Liveness probe; must answer before login.",
     "va_auth.va_login": "Sign-in form and its POST; cannot require a session.",
     "va_auth.va_login_password": "Two-step login, password step: guarded in body by "

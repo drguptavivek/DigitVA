@@ -1,0 +1,196 @@
+{#
+  UI Strings panel (digitva-fsjz)
+  Corrects the Expo app's UI strings for one language without a new build.
+  The table is rendered here, Google Translate link included; the script only
+  sends the edit and revert calls to /admin/api/ui-strings/... and reloads this
+  panel. The English column is the reference and is never edited here.
+  Policy: docs/policy/ui-strings.md.
+#}
+<div id="panel-ui-strings">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-spell-check me-2 text-secondary"></i>UI Strings
+    </h5>
+  </div>
+
+  <div class="alert alert-light border small py-2">
+    Corrections here replace the app's text for every user of that language on
+    their next sign-in or language switch, with no new build. English is the
+    reference and is not edited here. Keep each <code>{placeholder}</code>
+    exactly as in the English; it is where the app fills in a value.
+  </div>
+
+  {% if error %}
+    <div class="alert alert-danger small py-2">{{ error }}</div>
+  {% endif %}
+
+  <div id="uis-alert" class="alert d-none small py-2"></div>
+
+  {% if not locales %}
+    <div class="alert alert-warning small py-2">
+      No UI language is bundled in this server's Expo export. Run
+      <code>npm run export:web</code> in <code>mobile/digitva-collect</code>.
+    </div>
+  {% else %}
+
+  <div class="row g-2 align-items-end mb-3">
+    <div class="col-sm-3">
+      <label class="form-label small mb-1" for="uis-locale">Language</label>
+      <select class="form-select form-select-sm" id="uis-locale" name="locale"
+              hx-get="/admin/panels/ui-strings" hx-target="#admin-panel"
+              hx-include="this" hx-trigger="change">
+        {% for code in locales %}
+          <option value="{{ code }}" {% if code == locale %}selected{% endif %}>{{ code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-sm-9 d-flex gap-2 flex-wrap justify-content-sm-end">
+      {% for f in filters %}
+        <a class="btn btn-sm {% if f == status %}btn-primary{% else %}btn-outline-secondary{% endif %}"
+           href="#" hx-get="{{ panel_url(locale, f, 1) }}" hx-target="#admin-panel">
+          {% if f == 'all' %}All{% elif f == 'corrected' %}Corrected{% else %}Missing{% endif %}
+          {% if data %}<span class="badge bg-light text-dark ms-1">{{ data.counts[f] }}</span>{% endif %}
+        </a>
+      {% endfor %}
+      {% if locale and data %}
+        <a class="btn btn-sm btn-outline-secondary" href="/admin/api/ui-strings/{{ locale|urlencode }}/export"
+           download>
+          <i class="fa-solid fa-file-arrow-down me-1"></i>Export JSON
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if data %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle small" id="uis-table">
+      <thead>
+        <tr>
+          <th scope="col">Key</th>
+          <th scope="col">English (reference)</th>
+          <th scope="col">Current text</th>
+          <th scope="col">Status</th>
+          <th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in data.rows %}
+        <tr data-key="{{ row.key }}">
+          <td><code>{{ row.key }}</code></td>
+          <td>{{ row.english }}</td>
+          <td>
+            {% if row.corrected is not none %}{{ row.corrected }}
+            {% elif row.bundled %}{{ row.bundled }}
+            {% else %}<span class="text-muted">none</span>{% endif %}
+          </td>
+          <td>
+            {% if row.status == 'corrected' %}<span class="badge bg-success">corrected</span>
+            {% elif row.status == 'missing' %}<span class="badge bg-warning text-dark">missing</span>
+            {% else %}<span class="badge bg-secondary">bundled</span>{% endif %}
+          </td>
+          <td class="text-nowrap">
+            <a href="https://translate.google.com/?sl=en&amp;tl={{ locale|urlencode }}&amp;text={{ row.english|urlencode }}&amp;op=translate"
+               target="_blank" rel="noopener noreferrer" class="me-2">Google Translate</a>
+            <button type="button" class="btn btn-sm btn-outline-primary uis-edit-btn"
+                    data-key="{{ row.key }}">Edit</button>
+            {% if row.status == 'corrected' %}
+            <button type="button" class="btn btn-sm btn-outline-danger uis-revert-btn"
+                    data-key="{{ row.key }}">Revert</button>
+            {% endif %}
+          </td>
+        </tr>
+        <tr class="d-none uis-edit-row" data-key="{{ row.key }}">
+          <td colspan="5">
+            <label class="form-label small mb-1" for="uis-text-{{ loop.index }}">New text for <code>{{ row.key }}</code></label>
+            <textarea class="form-control form-control-sm mb-2" id="uis-text-{{ loop.index }}" rows="2"
+                      maxlength="16000">{{ row.corrected if row.corrected is not none else (row.bundled or '') }}</textarea>
+            <button type="button" class="btn btn-sm btn-primary uis-save-btn" data-key="{{ row.key }}"
+                    data-index="{{ loop.index }}">Save</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary uis-cancel-btn"
+                    data-key="{{ row.key }}">Cancel</button>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="text-muted">No strings match this filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if data.total > data.page_size %}
+  <nav class="d-flex justify-content-between align-items-center small" aria-label="UI strings pages">
+    {% if page > 1 %}
+      <a href="#" hx-get="{{ panel_url(locale, status, page - 1) }}" hx-target="#admin-panel">Previous</a>
+    {% else %}<span></span>{% endif %}
+    <span class="text-muted">Page {{ page }} of {{ last_page }}</span>
+    {% if page < last_page %}
+      <a href="#" hx-get="{{ panel_url(locale, status, page + 1) }}" hx-target="#admin-panel">Next</a>
+    {% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+  {% endif %}
+  {% endif %}
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ROOT = document.getElementById('panel-ui-strings');
+  var LOCALE = document.getElementById('uis-locale') ? document.getElementById('uis-locale').value : '';
+  var API = '/admin/api/ui-strings/';
+  var PANEL_URL = {{ panel_url(locale, status, page)|tojson }};
+  var alertBox = document.getElementById('uis-alert');
+
+  function csrf() { return window._adminCsrf || ''; }
+
+  function showAlert(message) {
+    alertBox.textContent = message;
+    alertBox.className = 'alert alert-danger small py-2';
+  }
+
+  function reload() {
+    if (window.htmx) {
+      window.htmx.ajax('GET', PANEL_URL, { target: '#admin-panel', swap: 'innerHTML' });
+    }
+  }
+
+  function send(method, key, body) {
+    var headers = { 'X-CSRFToken': csrf() };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(API + encodeURIComponent(LOCALE) + '/' + encodeURIComponent(key), {
+      method: method, headers: headers, body: body ? JSON.stringify(body) : undefined,
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    });
+  }
+
+  ROOT.addEventListener('click', function (evt) {
+    var target = evt.target;
+    var key = target.getAttribute && target.getAttribute('data-key');
+    if (!key) return;
+
+    if (target.classList.contains('uis-edit-btn')) {
+      ROOT.querySelectorAll('tr.uis-edit-row[data-key]').forEach(function (row) {
+        if (row.getAttribute('data-key') === key) row.classList.remove('d-none');
+      });
+    } else if (target.classList.contains('uis-cancel-btn')) {
+      target.closest('tr').classList.add('d-none');
+    } else if (target.classList.contains('uis-save-btn')) {
+      var text = document.getElementById('uis-text-' + target.getAttribute('data-index')).value;
+      send('PUT', key, { text: text }).then(function (res) {
+        if (res.ok) { reload(); return; }
+        showAlert(res.data.error || 'The correction was not saved.');
+      });
+    } else if (target.classList.contains('uis-revert-btn')) {
+      if (!window.confirm('Revert this string to the bundled text?')) return;
+      send('DELETE', key).then(function (res) {
+        if (res.ok) { reload(); return; }
+        showAlert(res.data.error || 'The correction was not reverted.');
+      });
+    }
+  });
+})();
+</script>

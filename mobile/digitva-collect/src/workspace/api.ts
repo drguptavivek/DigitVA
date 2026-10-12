@@ -16,6 +16,7 @@ import {
   parseNote,
   parseOptionalAllocation,
   parseReviewerHistory,
+  parseReviewerProjects,
   parseReviewerQueue,
   parseReviewerStats,
   parseSmartvaRun,
@@ -38,6 +39,7 @@ import {
   type JsonObject,
   type NotePayload,
   type ReviewerHistory,
+  type ReviewerProjects,
   type ReviewerQueue,
   type ReviewerStats,
   type SmartvaRunReply,
@@ -61,6 +63,7 @@ export interface WorkspaceApi {
   getCodingHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderHistory>;
   getCodingProjects(): Promise<CoderProjects>;
   getCodingAllocation(): Promise<{ va_sid: string } | null>;
+  getReviewerProjects(): Promise<ReviewerProjects>;
   getReviewerStats(projectId?: string): Promise<ReviewerStats>;
   getReviewerAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerQueue>;
   getReviewerHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerHistory>;
@@ -167,6 +170,7 @@ export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
     },
     async getCodingProjects() { return parsed(await get("/coding/projects"), parseCoderProjects); },
     async getCodingAllocation() { return parsed(await get("/coding/allocation"), parseOptionalAllocation); },
+    async getReviewerProjects() { return parsed(await get("/reviewing/projects"), parseReviewerProjects); },
     async getReviewerStats(projectId) { return parsed(await get(`/reviewing/stats${projectQuery(projectId)}`), parseReviewerStats); },
     async getReviewerAvailable(options) {
       const limit = options?.limit ?? 50;

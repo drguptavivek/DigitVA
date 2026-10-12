@@ -241,8 +241,9 @@ it("uses authoritative interview entries and preserves only authorized subtrees 
   expect(context[0].org_units?.[2].selectable).toBe(true);
   expect(context[0].org_units?.[3].selectable).toBe(false);
   expect(context[0].web_intake_mode).toBe("both");
-  expect(accessCapabilities(access)).toEqual({ intake: true, registerDeath: false, registeredDeaths: false, coding: true, reviewing: false });
+  expect(accessCapabilities(access)).toEqual({ intake: true, registerDeath: false, registeredDeaths: false, coding: true, reviewing: false, supervision: false });
   expect(accessCapabilities({ ...access, roles: ["reviewer"] }).reviewing).toBe(true);
+  expect(accessCapabilities({ ...access, roles: ["data_manager"] }).supervision).toBe(true);
   expect(accessCapabilities({ ...access, roles: [], demo_coding: { available: true, project_ids: ["D"] } }).coding).toBe(true);
 });
 

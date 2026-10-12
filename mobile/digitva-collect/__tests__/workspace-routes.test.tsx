@@ -15,7 +15,7 @@ function bootstrap(userId: string, roles: string[], isAdmin = false): ClientBoot
     csrf: { header: "X-CSRFToken", token: "csrf" },
     access: { user: { user_id: userId, name: "Worker" }, roles, is_admin: isAdmin,
       demo_coding: { available: isAdmin, project_ids: ["P1"] }, projects: [] },
-    capabilities: { intake: false, registerDeath: false, registeredDeaths: false, coding: roles.includes("coder"), reviewing: roles.includes("reviewer") },
+    capabilities: { intake: false, registerDeath: false, registeredDeaths: false, coding: roles.includes("coder"), reviewing: roles.includes("reviewer"), supervision: roles.includes("interview_supervisor") || roles.includes("data_manager") },
     links: { login: "/login", logout: "/logout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" },
   } as ClientBootstrap;
 }

@@ -6,6 +6,7 @@ jest.mock("../src/preferences", () => ({ getUiLocalePreference: async () => "en"
 jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value }));
 
 import { AppStateProvider, useAppState } from "../src/AppState.web";
+import { claimFirstHomeLoad } from "../src/web/roleHome";
 import { loadBrowserSession } from "../src/client/session";
 import { ApiError } from "../src/api";
 
@@ -86,6 +87,17 @@ it("removes cached browser definitions when interviewer actions disappear", asyn
   await act(async () => tree.unmount());
 });
 
+function useSessionStorage(): void {
+  const store = new Map<string, string>();
+  Object.defineProperty(window, "sessionStorage", { configurable: true, value: {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => { store.set(key, String(value)); },
+    removeItem: (key: string) => { store.delete(key); },
+    key: (index: number) => [...store.keys()][index] ?? null,
+    get length() { return store.size; },
+  } });
+}
+
 it("signs out using the browser route with the current cookie CSRF token", async () => {
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
@@ -100,5 +112,31 @@ it("signs out using the browser route with the current cookie CSRF token", async
   }));
   expect(loadBrowserSession).toHaveBeenCalledTimes(2);
   fetch.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("lands on the home again after sign-out in the same tab", async () => {
+  useSessionStorage();
+  expect(claimFirstHomeLoad("u1")).toBe(true);
+  expect(claimFirstHomeLoad("u1")).toBe(false);
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  jest.spyOn(globalThis, "fetch").mockResolvedValue({
+    status: 0, type: "opaqueredirect", ok: false, redirected: false,
+    headers: { get: () => null }, text: async () => ""
+  } as unknown as Response);
+  await act(async () => { await state.logout(); });
+  expect(claimFirstHomeLoad("u1")).toBe(true);
+  await act(async () => tree.unmount());
+});
+
+it("lands on the home again after the session expires in the same tab", async () => {
+  useSessionStorage();
+  expect(claimFirstHomeLoad("u1")).toBe(true);
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  (loadBrowserSession as jest.Mock).mockRejectedValue(new ApiError(401, "unauthorized", "/vaauth/valogin"));
+  await act(async () => { handlers["digitva-access-stale"](); });
+  expect(claimFirstHomeLoad("u1")).toBe(true);
   await act(async () => tree.unmount());
 });

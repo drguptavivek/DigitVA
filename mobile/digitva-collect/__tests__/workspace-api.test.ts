@@ -242,3 +242,26 @@ describe("workspace contracts and API", () => {
     native.mockRestore();
   });
 });
+
+describe("project catalogues", () => {
+  test("reviewer projects read the reviewing route and keep a null last project", async () => {
+    const request = jest.fn().mockResolvedValue({ project_options: [{ project_id: "P1", project_name: "One" }], last_project_id: null });
+    const api = createWorkspaceApi(request);
+    await expect(api.getReviewerProjects()).resolves.toEqual({ project_options: [{ project_id: "P1", project_name: "One" }], last_project_id: null });
+    expect(request).toHaveBeenCalledWith("/api/v1/reviewing/projects");
+  });
+
+  test("coding projects carry last_project_id and tolerate its absence", async () => {
+    const request = jest.fn()
+      .mockResolvedValueOnce({ projects: ["P1"], project_options: [], last_project_id: "P1" })
+      .mockResolvedValueOnce({ projects: [], project_options: [] });
+    const api = createWorkspaceApi(request);
+    await expect(api.getCodingProjects()).resolves.toMatchObject({ last_project_id: "P1" });
+    await expect(api.getCodingProjects()).resolves.toMatchObject({ last_project_id: null });
+  });
+
+  test("a malformed last project is a contract error", async () => {
+    const request = jest.fn().mockResolvedValue({ project_options: [], last_project_id: 7 });
+    await expect(createWorkspaceApi(request).getReviewerProjects()).rejects.toThrow(WorkspaceContractError);
+  });
+});

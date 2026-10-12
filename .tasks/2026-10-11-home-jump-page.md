@@ -38,9 +38,14 @@ only (Expo export at `/app/`); the native device app keeps its worklist.
 
 ## Shape
 
-- One role: `/app/` renders that role's screen directly.
-- More than one role: the same, with a strip of role tabs on top. The last
-  tab used is remembered per browser (localStorage, convenience only).
+- `/app/` is a router, not a screen (2026-10-12, no nesting): on the first
+  load after sign-in it goes to the user's last visited screen, else to the
+  first role screen (coding, reviewing, collection, death registration,
+  supervision; a data manager with none of those goes to `/area/`). Each
+  role screen keeps its own shell. A user with several roles switches with
+  the existing sidebar navigation, gated by role, which gains Area and Data
+  management links for data managers. After that first redirect, `/app/`
+  shows the existing button list.
 - Login: every user holding one of the six roles (data_manager included)
   lands on `/app/`. A data manager's tabs there are "Area" and "Data
   management", which open the server pages `/area/` and

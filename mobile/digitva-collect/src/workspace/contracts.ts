@@ -271,10 +271,17 @@ export interface CoderHistory {
   has_more: boolean;
 }
 
-export interface CoderProjects {
-  projects: string[];
+export interface ProjectOptions {
   project_options: Array<{ project_id: string; project_name: string }>;
+  /** Project of the user's newest allocation; null when they have none. */
+  last_project_id: string | null;
 }
+
+export interface CoderProjects extends ProjectOptions {
+  projects: string[];
+}
+
+export type ReviewerProjects = ProjectOptions;
 
 export interface ReviewerStats {
   in_scope: number;
@@ -689,12 +696,23 @@ export function parseCoderHistory(value: unknown, expectedLimit: number, expecte
   return { history, count, limit, offset, has_more };
 }
 
+function parseProjectOptions(source: Record<string, unknown>, field: string): ProjectOptions {
+  return {
+    project_options: array(source.project_options, `${field}.project_options`, (item, optionField) => {
+      const option = record(item, optionField);
+      return { project_id: string(option.project_id, `${optionField}.project_id`), project_name: string(option.project_name, `${optionField}.project_name`) };
+    }),
+    last_project_id: source.last_project_id === null || source.last_project_id === undefined ? null : string(source.last_project_id, `${field}.last_project_id`),
+  };
+}
+
 export function parseCoderProjects(value: unknown): CoderProjects {
   const source = record(value, "coding.projects");
-  return { projects: stringArray(source.projects, "coding.projects.projects"), project_options: array(source.project_options, "coding.projects.project_options", (item, field) => {
-    const option = record(item, field);
-    return { project_id: string(option.project_id, `${field}.project_id`), project_name: string(option.project_name, `${field}.project_name`) };
-  }) };
+  return { projects: stringArray(source.projects, "coding.projects.projects"), ...parseProjectOptions(source, "coding.projects") };
+}
+
+export function parseReviewerProjects(value: unknown): ReviewerProjects {
+  return parseProjectOptions(record(value, "reviewing.projects"), "reviewing.projects");
 }
 
 export function parseReviewerStats(value: unknown): ReviewerStats {

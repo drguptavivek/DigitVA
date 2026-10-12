@@ -137,7 +137,7 @@ function selectedMap(data: SocialAutopsy): Record<string, string[]> {
 }
 
 /** Adapt quality metadata to the same native choice controls used by the VA form. */
-function choiceQuestion(name: string, label: string, control: "singleChoice" | "multipleChoice", options: Array<{ value: string; label: string }>, readOnly = false): InstrumentQuestion {
+export function choiceQuestion(name: string, label: string, control: "singleChoice" | "multipleChoice", options: Array<{ value: string; label: string }>, readOnly = false): InstrumentQuestion {
   return {
     name,
     order: 0,

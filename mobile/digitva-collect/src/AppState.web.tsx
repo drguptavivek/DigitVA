@@ -17,6 +17,7 @@ import { createBrowserDefinitionCache } from "./client/formDefinitionCache";
 import { loadBrowserSession } from "./client/session";
 import type { BootstrapResult } from "./client/api";
 import { createNotificationPollGate, drainNotificationPages } from "./notificationPoll";
+import { resetFirstHomeLoad } from "./web/roleHome";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 const NOTIFICATION_AUTH_RETRY_MS = 60_000;
@@ -178,6 +179,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setLoginUrl(undefined);
       setActionCode(undefined);
     } else {
+      resetFirstHomeLoad();
       if (notificationSession.current) clearNotificationSession();
       setError(undefined);
       setAuthenticated(false);
@@ -198,6 +200,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (generation === browserRequestGeneration.current) {
           if (error instanceof ApiError && [401, 403].includes(error.status)) {
+            resetFirstHomeLoad();
             clearDefinitionSession();
             clearNotificationSession();
             setSessionGeneration((current) => current + 1);
@@ -338,6 +341,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const link = bootstrap?.links.logout;
     if (!link || !bootstrap) return;
+    resetFirstHomeLoad();
     browserRequestGeneration.current += 1;
     clearDefinitionSession();
     clearNotificationSession();

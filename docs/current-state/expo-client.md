@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-12
 ---
 
 # Expo Client Hosting And Access
@@ -32,6 +32,26 @@ The first UI locales are English and Hindi. Interview language drives app UI
 language on start, resume and successful switches. The top-right language icon
 opens project-configured questionnaire choices; unsupported UI languages fall
 back to English. Login retains a language choice before an interview is opened.
+
+The browser home (`/app/`, `src/web/WorkspaceScreen.tsx` with
+`src/web/roleHome.ts`) is a router. On the first load after a sign-in it
+opens the user's last visited screen (stored per user id in localStorage by
+`WebShell`), else the first role screen: coding, reviewing, collection, death
+registration, supervision; a data manager with none of those goes to the
+server page `/area/`. Later loads show the button list. A user with several
+roles switches through the `WebShell` navigation, gated by role, which also
+links data managers to `/area/` and `/data-management/`. Coding and
+reviewing queues open on `last_project_id` from `/coding/projects` and
+`/reviewing/projects`. Every sign-out and a lapsed session clear the
+first-load flag.
+
+Interview supervisors (and data managers) have `/supervision`
+(`src/web/SupervisionScreen.tsx`): flags and all-cases lists, state and
+visit-note filters, confirm or reject a flag, mark duplicate, cancel, reopen,
+and a case detail with the visit note (redacted per viewer), possible
+duplicates, Choose interview and Reopen for revision (not for ODK cases).
+Server refusals are shown by error code through `t()`. Browser session
+only: device tokens carry no supervisory powers.
 
 Signed-in browser routes use `WebShell`, which supplies the shared left
 sidebar or phone rail and the screen header. It forwards optional header actions

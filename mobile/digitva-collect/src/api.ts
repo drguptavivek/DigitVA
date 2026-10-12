@@ -115,6 +115,9 @@ export async function getAccessSummary(csrf?: ClientCsrf, server = "", token?: s
   return parseAccessSummary((await requestJson<unknown>(server, "/api/v1/me/access", { csrf, token })).body);
 }
 
+/** Roles the supervision API admits (the server re-checks each supervised case). */
+export const SUPERVISION_ROLES = ["interview_supervisor", "data_manager"];
+
 /** Navigation is advisory; each action remains authorised by the server. */
 export function accessCapabilities(access: AccessSummary): ClientBootstrap["capabilities"] {
   return {
@@ -122,7 +125,8 @@ export function accessCapabilities(access: AccessSummary): ClientBootstrap["capa
     registerDeath: access.projects.some((project) => project.actions.register_death.length > 0),
     registeredDeaths: access.roles.includes("death_reporter"),
     coding: access.roles.some((role) => ["coder", "coding_tester"].includes(role)) || access.demo_coding.available,
-    reviewing: access.roles.includes("reviewer")
+    reviewing: access.roles.includes("reviewer"),
+    supervision: access.roles.some((role) => SUPERVISION_ROLES.includes(role))
   };
 }
 
@@ -182,7 +186,7 @@ export interface ClientLinks {
 export interface ClientBootstrap {
   user: { user_id: string; name: string };
   csrf: ClientCsrf;
-  capabilities: { intake: boolean; registerDeath: boolean; registeredDeaths: boolean; coding: boolean; reviewing: boolean };
+  capabilities: { intake: boolean; registerDeath: boolean; registeredDeaths: boolean; coding: boolean; reviewing: boolean; supervision: boolean };
   access: AccessSummary;
   links: ClientLinks;
 }

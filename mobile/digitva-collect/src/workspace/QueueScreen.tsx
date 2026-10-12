@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, AppState, Platform, Text, View } from "react-
 
 import { Button, Row, Screen, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
-import type { AllocationSnapshot, CoderHistory, CoderProjects, CoderQueue, CodingStats, ReviewerHistory, ReviewerQueue, ReviewerStats, WorkspaceIdentity } from "./contracts";
+import type { AllocationSnapshot, CoderHistory, CoderQueue, ProjectOptions, CodingStats, ReviewerHistory, ReviewerQueue, ReviewerStats, WorkspaceIdentity } from "./contracts";
 
 const PAGE_SIZE = 50;
 const MAX_OFFSET = 1_000_000;
@@ -47,7 +47,7 @@ export function QueueScreen({
   const [showHistory, setShowHistory] = useState(false);
   const [data, setData] = useState<QueueData | null>(null);
   const [allocationData, setAllocationData] = useState<AllocationData | null>(null);
-  const [coderProjects, setCoderProjects] = useState<{ api: WorkspaceApi; projects: CoderProjects } | null>(null);
+  const [catalog, setCatalog] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; projects?: ProjectOptions } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<QueueMessage | null>(null);
@@ -78,9 +78,12 @@ export function QueueScreen({
       && current.showHistory === requestScope.showHistory;
   }
 
+  // The queue waits for the project catalogue, so the first load already uses the last project.
+  const catalogReady = catalog?.api === api && catalog.mode === mode;
+
   const load = useCallback(async () => {
     const requestScope = { api, mode, projectId, offset, showHistory };
-    if (!isCurrent(generation.current, requestScope)) return;
+    if (!isCurrent(generation.current, requestScope) || !catalogReady) return;
     const requestGeneration = ++generation.current;
     setAllocationData({ api, mode, generation: requestGeneration, verified: false, snapshot: null });
     setLoading(true);
@@ -98,9 +101,8 @@ export function QueueScreen({
     try {
       let next: QueueData;
       if (mode === "coding") {
-        const [stats, projects, page] = await Promise.all([
+        const [stats, page] = await Promise.all([
           api.getCodingStats(projectId),
-          api.getCodingProjects(),
           showHistory
             ? api.getCodingHistory({ projectId, limit: PAGE_SIZE, offset })
             : api.getCodingAvailable({ projectId, limit: PAGE_SIZE, offset }),
@@ -114,13 +116,12 @@ export function QueueScreen({
           stats,
           ...(showHistory ? { coderHistory: page as CoderHistory } : { coderAvailable: page as CoderQueue }),
         };
-        if (isCurrent(requestGeneration, requestScope)) setCoderProjects({ api, projects });
       } else {
         const [stats, page] = await Promise.all([
-          api.getReviewerStats(),
+          api.getReviewerStats(projectId),
           showHistory
-            ? api.getReviewerHistory({ limit: PAGE_SIZE, offset })
-            : api.getReviewerAvailable({ limit: PAGE_SIZE, offset }),
+            ? api.getReviewerHistory({ projectId, limit: PAGE_SIZE, offset })
+            : api.getReviewerAvailable({ projectId, limit: PAGE_SIZE, offset }),
         ]);
         next = {
           api,
@@ -147,7 +148,26 @@ export function QueueScreen({
     } finally {
       if (isCurrent(requestGeneration, requestScope)) setLoading(false);
     }
-  }, [api, mode, offset, projectId, showHistory]);
+  }, [api, catalogReady, mode, offset, projectId, showHistory]);
+
+  // Load the project catalogue once per api and mode; the last project is the default, when still offered.
+  useEffect(() => {
+    let active = true;
+    const request = mode === "coding" ? api.getCodingProjects() : api.getReviewerProjects();
+    void request.then((projects) => {
+      if (!active) return;
+      const last = projects.last_project_id;
+      if (last && projects.project_options.some((option) => option.project_id === last)) {
+        setProjectId((current) => current ?? last);
+      }
+      setCatalog({ api, mode, projects });
+    }).catch(() => {
+      if (active) setCatalog({ api, mode });
+    });
+    return () => {
+      active = false;
+    };
+  }, [api, mode]);
 
   useEffect(() => {
     setData(null);
@@ -334,7 +354,7 @@ export function QueueScreen({
   const allocationVerified = allocationData?.api === api && allocationData.mode === mode
     && allocationData.generation === generation.current && allocationData.verified;
   const stats = currentData?.stats;
-  const projects = coderProjects?.api === api && mode === "coding" ? coderProjects.projects : undefined;
+  const projects = catalogReady ? catalog?.projects : undefined;
   const coderStats = mode === "coding" && stats && "random_ready" in stats ? stats : undefined;
   const randomReady = coderStats?.random_ready;
   const canAllocateRandom = mode === "coding"
@@ -409,7 +429,7 @@ export function QueueScreen({
       {loading ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole="alert" style={styles.error}>{currentMessage}</Text> : null}
 
-      {mode === "coding" && projects?.project_options.length ? (
+      {projects?.project_options.length ? (
         <View style={styles.card}>
           <Text style={styles.headline}>Project</Text>
           <Row>

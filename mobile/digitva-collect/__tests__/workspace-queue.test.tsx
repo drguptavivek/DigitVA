@@ -38,7 +38,8 @@ const coderRow = {
 function makeApi(overrides: Partial<WorkspaceApi> = {}): WorkspaceApi {
   return {
     getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: true }),
-    getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }] }),
+    getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }], last_project_id: null }),
+    getReviewerProjects: jest.fn().mockResolvedValue({ project_options: [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }], last_project_id: null }),
     getCodingAllocation: jest.fn().mockResolvedValue(null),
     getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 3, completed: 1, available: 2, allocation: null }),
     getReviewerAllocation: jest.fn().mockResolvedValue(null),
@@ -444,5 +445,45 @@ describe("QueueScreen", () => {
     const visibleError = errorText(new ApiError(403, "forbidden"));
     expect(JSON.stringify(screen.renderer.toJSON())).toContain(visibleError);
     await unmount(screen.renderer);
+  });
+});
+
+describe("queue project defaults", () => {
+  const projectOptions = [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }];
+
+  async function flush() {
+    await act(async () => {
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+    });
+  }
+
+  test("the coding queue opens on the last project when it is offered", async () => {
+    const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: projectOptions, last_project_id: "P2" }) });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} />); });
+    await flush();
+    expect(api.getCodingStats).toHaveBeenCalledWith("P2");
+    expect(api.getCodingAvailable).toHaveBeenCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    expect(api.getCodingAvailable).not.toHaveBeenCalledWith(expect.objectContaining({ projectId: undefined }));
+  });
+
+  test("a last project that is not offered is ignored and the queue starts on all projects", async () => {
+    const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: projectOptions, last_project_id: "OTHER" }) });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} />); });
+    await flush();
+    expect(api.getCodingAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(api.getCodingAvailable).not.toHaveBeenCalledWith(expect.objectContaining({ projectId: "OTHER" }));
+  });
+
+  test("the reviewing queue reads its projects and opens on the last project", async () => {
+    const api = makeApi({ getReviewerProjects: jest.fn().mockResolvedValue({ project_options: projectOptions, last_project_id: "P2" }) });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="reviewing" onOpen={jest.fn()} />); });
+    await flush();
+    expect(api.getReviewerProjects).toHaveBeenCalled();
+    expect(api.getReviewerStats).toHaveBeenCalledWith("P2");
+    expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    expect(button(renderer.root, "Project Two")).toBeDefined();
   });
 });

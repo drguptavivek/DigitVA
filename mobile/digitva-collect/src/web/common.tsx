@@ -8,6 +8,7 @@ import { t, UI_LOCALES } from "../i18n";
 import { useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { loginRecoveryUrl } from "./loginRecovery";
+import { openServerPage, rememberVisit, ROLE_SCREENS } from "./roleHome";
 
 const DESKTOP_BREAKPOINT = 900;
 const RAIL_WIDTH = 56;
@@ -234,10 +235,30 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
 
   if (!bootstrap) return null;
 
-  const { capabilities } = bootstrap;
+  const { capabilities, access } = bootstrap;
+  const roles = access.roles;
   const items: NavigationItem[] = [];
+  if (roles.some((role) => role === "coder" || role === "coding_tester")) {
+    items.push({ key: "coding", label: t("navCoding"), icon: "✎", route: "/coding", action: () => router.push("/coding") });
+  }
+  if (roles.includes("reviewer")) {
+    items.push({ key: "reviewing", label: t("navReview"), icon: "✓", route: "/reviewing", action: () => router.push("/reviewing") });
+  }
   if (capabilities.intake) {
     items.push({ key: "collection", label: t("reportedDeaths"), icon: "☷", route: "/collection", action: () => router.push("/collection") });
+  }
+  if (capabilities.registerDeath) {
+    items.push({ key: "registerDeath", label: t("registerDeath"), icon: "+", route: "/death-registration", action: () => router.push("/death-registration") });
+  }
+  if (capabilities.registeredDeaths) {
+    items.push({ key: "registeredDeaths", label: t("myRegisteredDeaths"), icon: "≡", route: "/death-registration", action: () => router.push({ pathname: "/death-registration", params: { view: "mine" } }) });
+  }
+  if (capabilities.supervision) {
+    items.push({ key: "supervision", label: t("supervisionTitle"), icon: "⚑", route: "/supervision", action: () => router.push("/supervision") });
+  }
+  if (roles.includes("data_manager")) {
+    items.push({ key: "area", label: t("navArea"), icon: "▦", action: () => openServerPage(bootstrap.user.user_id, "/area/") });
+    items.push({ key: "dataManagement", label: t("navDataManagement"), icon: "▤", action: () => openServerPage(bootstrap.user.user_id, "/data-management/") });
   }
   const settings: NavigationItem = {
     key: "settings",
@@ -362,7 +383,12 @@ export function WebShell({
   footer?: React.ReactNode;
 }) {
   const { bootstrap, ready } = useAppState();
+  const pathname = usePathname();
   const uiStyles = useUiStyles();
+  const userId = bootstrap?.user.user_id;
+  useEffect(() => {
+    if (userId && ROLE_SCREENS.includes(pathname)) rememberVisit(userId, pathname);
+  }, [pathname, userId]);
   if (!ready) return <Screen title={t("appName")}><Text style={uiStyles.muted}>{t("loading")}</Text></Screen>;
   if (!bootstrap) return <LoginLanding />;
   const resolvedHeaderAction = headerAction === undefined ? <UiLanguageSwitcher /> : headerAction;

@@ -14,6 +14,7 @@ import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { AttachmentMedia } from "../workspace/media/AttachmentMedia.web";
 import { browserErrorText, LoginLanding, WebShell } from "./common";
+import { claimFirstHomeLoad, homeLanding, openServerPage, readLastVisit, SERVER_SCREENS } from "./roleHome";
 
 type RouteParams = { vaSid?: string | string[]; mode?: string | string[] };
 type SessionCheck = { key: string; bootstrap: NonNullable<ReturnType<typeof useAppState>["bootstrap"]> };
@@ -45,6 +46,8 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   const [sessionError, setSessionError] = useState("");
   const [viewVaSid, setViewVaSid] = useState("");
   const requestGeneration = useRef(0);
+  const homeDecided = useRef<string | undefined>(undefined);
+  const [homeState, setHomeState] = useState<{ key: string; redirecting: boolean }>();
   const userId = bootstrap?.user.user_id;
   const checkKey = `${userId ?? ""}:${mode}`;
 
@@ -85,10 +88,24 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
     [requester],
   );
 
+  // The first home load of a sign-in goes to the last visit or the first role screen; later loads show the list.
+  useEffect(() => {
+    if (mode !== "home" || !activeBootstrap || homeDecided.current === checkKey) return;
+    homeDecided.current = checkKey;
+    const homeUserId = activeBootstrap.user.user_id;
+    const target = claimFirstHomeLoad(homeUserId) ? homeLanding(activeBootstrap, readLastVisit(homeUserId)) : undefined;
+    setHomeState({ key: checkKey, redirecting: Boolean(target) });
+    if (!target) return;
+    if (SERVER_SCREENS.includes(target)) window.location.assign(target);
+    else router.replace(target);
+  }, [activeBootstrap, checkKey, mode, router]);
+
   if (loginUrl && !bootstrap) return <LoginLanding />;
   if (!activeBootstrap) return <WebShell title={t("workspaceTitle")}>
     {sessionError ? <Text role="alert" style={styles.error}>{sessionError}</Text> : <Text style={styles.muted}>{t("loading")}</Text>}
   </WebShell>;
+  const homeRouting = mode === "home" && (!homeState || homeState.key !== checkKey || homeState.redirecting);
+  if (homeRouting) return <WebShell title={t("workspaceTitle")}><Text style={styles.muted}>{t("loading")}</Text></WebShell>;
 
   if (mode !== "home" && !hasWorkspaceRole(activeBootstrap.access.roles, mode)) {
     return <WebShell title={t("workspaceTitle")}>
@@ -135,6 +152,8 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
     {activeBootstrap.capabilities.registeredDeaths ? <Button label={t("myRegisteredDeaths")} onPress={() => router.push({ pathname: "/death-registration", params: { view: "mine" } })} /> : null}
     {activeBootstrap.access.roles.some((role) => role === "coder" || role === "coding_tester") ? <Button label={t("navCoding")} onPress={() => router.push("/coding")} /> : null}
     {activeBootstrap.access.roles.includes("reviewer") ? <Button label={t("navReview")} onPress={() => router.push("/reviewing")} /> : null}
+    {activeBootstrap.access.roles.includes("data_manager") ? <Button label={t("navArea")} onPress={() => openServerPage(activeBootstrap.user.user_id, "/area/")} /> : null}
+    {activeBootstrap.access.roles.includes("data_manager") ? <Button label={t("navDataManagement")} onPress={() => openServerPage(activeBootstrap.user.user_id, "/data-management/")} /> : null}
     {!activeBootstrap.capabilities.intake && !activeBootstrap.access.roles.some((role) => ["coder", "coding_tester", "reviewer"].includes(role)) ? <Text style={styles.muted}>{t("codingReviewPending")}</Text> : null}
     <View style={styles.card}>
       <Text style={styles.headline}>{t("viewCase")}</Text>

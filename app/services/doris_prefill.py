@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import math
 
-from app.services.doris_certificate import MAX_TEXT_LENGTH
+from app.services.doris_certificate import MAX_TEXT_LENGTH, drop_inapplicable_sections
 from app.services.who_va_answers import age_field, birth_answer
 from app.services.who_va_answers import calendar_date as _date
 from app.services.who_va_answers import choice as _choice
@@ -355,10 +355,9 @@ def doris_prefill_from_payload(payload: dict | None) -> tuple[dict, dict]:
         put("AdministrativeData", "DateBirth", birth[0], birth[1])
     if death is not None:
         put("AdministrativeData", "DateDeath", death[0], death[1])
-    if birth is None or death is None:
-        age = _estimated_age(payload)
-        if age is not None:
-            put("AdministrativeData", "EstimatedAge", age[0], age[1])
+    age = _estimated_age(payload)  # always (rule V7), even when both dates are known
+    if age is not None:
+        put("AdministrativeData", "EstimatedAge", age[0], age[1])
 
     if _under_one_year(payload):
         _fetal(payload, put)
@@ -366,6 +365,10 @@ def doris_prefill_from_payload(payload: dict | None) -> tuple[dict, dict]:
     _manner(payload, put)
     _surgery(payload, put)
     _autopsy(payload, put)
+    # Never prefill what the certificate rules hide (V1-V6), so provenance
+    # markers and the "changed" record only cover visible controls.
+    for path in drop_inapplicable_sections(certificate):
+        provenance.pop(path, None)
     return certificate, provenance
 
 

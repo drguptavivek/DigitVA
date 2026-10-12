@@ -122,7 +122,31 @@ class SeedTestProjectTests(BaseTestCase):
         workers = db.session.scalar(
             sa.select(sa.func.count()).where(MasOrgUnitWorker.project_id == TEST_PROJECT_ID)
         )
-        self.assertEqual(workers, sum(1 for spec in _TST_USERS if spec[2]))
+        self.assertEqual(workers, len({spec[0] for spec in _TST_USERS if spec[2]}))
+
+    def test_roster_roles_are_known_and_test_all_holds_every_surface(self):
+        known = {role.value for role in VaAccessRoles}
+        self.assertLessEqual({r for *_x, roles in _TST_USERS for r in roles}, known)
+        mine = {(unit, cadre, r) for local, _l, unit, cadre, roles in _TST_USERS
+                if local == "test.all" for r in roles}
+        self.assertEqual(
+            mine,
+            {(None, None, "coder"), (None, None, "reviewer"),
+             ("SC01", "ANM", "death_reporter"), ("PHC01", "MO", "interview_supervisor")},
+        )
+        self.assertEqual(
+            {(unit, cadre) for unit, cadre, _r in mine if unit},
+            {("SC01", "ANM"), ("PHC01", "MO")},
+        )
+        # Every unit-scope entry is a (level, cadre) the template grid allows
+        # for that role's flag.
+        flag = {"death_reporter": 3, "interview_supervisor": 2}
+        level = {"SC01": "subcentre", "PHC01": "phc"}
+        for unit, cadre, role in mine:
+            if unit:
+                self.assertTrue(
+                    org.DEFAULT_LEVEL_CADRE_TEMPLATE[(level[unit], cadre)][flag[role]]
+                )
 
     def test_refuses_a_non_debug_app_without_the_staging_opt_in(self):
         runner = self.app.test_cli_runner()

@@ -83,7 +83,34 @@ onboarded, Asia/Kolkata, English. Unit-scoped grants carry the cadre.
 | test.cho.sc01 .. sc06 | SC01 .. SC06 CHO | interviewer | intake |
 | test.anm.sc01 | SC01 ANM | death_reporter | intake |
 | test.mpw.sc04 | SC04 MPW | death_reporter | intake |
+| test.all | project (TST001), SC01 ANM, PHC01 MO; plus SADEMO project scope | coder + reviewer (project), death_reporter (SC01 ANM), interview_supervisor (PHC01 MO), coder in SADEMO | coder |
 
 ANM and MPW hold only a `death_reporter` grant at their sub-centre: they register
 deaths in the app and do not interview (`digitva-t6q`). Their grid row permits
 Fill VA since 2026-10-12, so an `interviewer` grant could be added.
+
+`test.all` is the one login for every surface. The unit-scope roles need a cadre
+the grid permits: `death_reporter` needs `can_report_deaths` (SC01 ANM),
+`interview_supervisor` needs `can_supervise_interviews` (PHC01 MO); coder and
+reviewer are project-scope grants (no cadre). No single (unit, cadre) permits
+all four roles, hence three roster rows for the same person; the first row sets
+the landing page and the unit-placed worker is SC01 ANM. It also holds a
+project-scope `coder` grant in SADEMO (classical, sites, random allocation),
+written by the seed directly because the user import is organization-only.
+The SADEMO grant is skipped when that project does not exist.
+
+## make test-projects
+
+`make test-projects` (dev/staging only) runs `flask db upgrade`, then
+`flask seed test-project` (same guard: debug or testing app, or `--staging` with
+`DIGITVA_ALLOW_TEST_SEED=1`), then prints the logins, the shared password,
+`http://localhost:8051/`, and a read-only list of the classical (sites)
+projects with active coders. Safe to run twice: the second run reports every
+grant "already in place". It never resets the schema; the classical test
+dataset comes from `scripts/restore-test-db.sh`, which does, so run that by hand.
+
+| To see | Project | Mode | Login |
+| --- | --- | --- | --- |
+| Pick-and-choose coding | TST001 (also HP2026) | organization, `pick_and_choose` | test.all, test.mo.dh01 |
+| Organization project | TST001 | organization, web intake `both` | test.all, test.anm.sc01, test.cho.sc01 |
+| Classical project, random allocation | SADEMO (also ICMR01, UNSW01, KEM001 in dev) | sites, `random_form_allocation` | test.all, test.coder.nc01 (restored dataset) |

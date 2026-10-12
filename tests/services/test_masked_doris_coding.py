@@ -771,7 +771,7 @@ class TestMaskedDorisCoding(BaseTestCase):
 
         body = self.client.get(_STEP1_URL.format(sid=sid)).get_data(as_text=True)
 
-        self.assertIn(">DORIS certificate</h4>", body)
+        self.assertIn(">DORIS certificate</h2>", body)
         self.assertIn("Underlying cause of death <span", body)
         self.assertNotIn("Step 1: DORIS", body)
         self.assertNotIn("Step 2: Final underlying cause of death", body)
@@ -784,10 +784,10 @@ class TestMaskedDorisCoding(BaseTestCase):
         body = self.client.get(_STEP2_URL.format(sid=sid)).get_data(as_text=True)
 
         self.assertIn("data-doris-editor", body)
-        self.assertIn(">Step 1: DORIS</h4>", body)
+        self.assertIn(">Step 1: DORIS</h2>", body)
         self.assertIn("Step 2: Final underlying cause of death <span", body)
         self.assertIn("Process the certificate in Step 1 first.", body)
-        self.assertNotIn("DORIS certificate</h4>", body)
+        self.assertNotIn("DORIS certificate</h2>", body)
 
     @patch("app.services.coder_cod_service._social_autopsy_required", return_value=False)
     @patch("app.services.coder_cod_service.build_icd11_provenance_for_values", return_value={})

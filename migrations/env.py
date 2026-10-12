@@ -12,8 +12,10 @@ from alembic import context
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
-fileConfig(config.config_file_name)
+# This line sets up loggers basically. Keep the loggers that already exist: Alembic
+# also runs in-process (tests, the app), and muting them would silence every
+# module logger that was created before the upgrade.
+fileConfig(config.config_file_name, disable_existing_loggers=False)
 logger = logging.getLogger('alembic.env')
 
 

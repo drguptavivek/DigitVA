@@ -73,8 +73,11 @@ class PrefillCaseTests(unittest.TestCase):
         ("death from Id10023_a", {**ADULT, "Id10023": None, "Id10023_a": "2025-08-05"}, "AdministrativeData.DateDeath", "2025-08-05", ["Id10023"]),
         ("death year only", {**ADULT, "Id10022": "no", "Id10023": None, "Id10024": "2024-01-01"}, "AdministrativeData.DateDeath", "2024", ["Id10024"]),
         ("death refused, year", {**ADULT, "Id10022": "ref", "Id10023": None, "Id10024": "2024-01-01"}, "AdministrativeData.DateDeath", "2024", ["Id10024"]),
-        # EstimatedAge only when a date is missing
-        ("no age when both dates", {**ADULT, "age_adult": 65}, "AdministrativeData.EstimatedAge", ABSENT, None),
+        # EstimatedAge always when the interview answered the age (rule V7), even with both dates known
+        ("age answered, both dates known", {**ADULT, "age_group": "adult", "age_adult": 65}, "AdministrativeData.EstimatedAge", "P65Y", ["age_adult"]),
+        ("age not answered", {**ADULT, "age_adult": 65}, "AdministrativeData.EstimatedAge", ABSENT, None),
+        ("neonate hours, both dates known", {**NEONATE, "age_group": "neonate", "age_neonate_days": 0, "age_neonate_hours": 5}, "AdministrativeData.EstimatedAge", "PT5H", ["age_neonate_hours"]),
+        ("neonate days, both dates known", {**NEONATE, "age_group": "neonate", "age_neonate_days": 3}, "AdministrativeData.EstimatedAge", "P3D", ["age_neonate_days"]),
         ("adult age", {**ADULT, "Id10020": "no", "Id10021": None, "age_group": "adult", "age_adult": "65"}, "AdministrativeData.EstimatedAge", "P65Y", ["age_adult"]),
         ("neonate hours", {**NEONATE, "Id10022": "no", "Id10023": None, "age_group": "neonate", "age_neonate_days": 0, "age_neonate_hours": "5"}, "AdministrativeData.EstimatedAge", "PT5H", ["age_neonate_hours"]),
         ("neonate days", {**NEONATE, "Id10020": "no", "age_group": "neonate", "age_neonate_days": "3.0"}, "AdministrativeData.EstimatedAge", "P3D", ["age_neonate_days"]),

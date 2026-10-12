@@ -34,6 +34,7 @@ from app.services.case_content_service import (
     get_active_smartva,
     get_case_artifacts,
     get_section_data,
+    payload_for_viewer,
     get_step1_prefill,
     reviewing_step,
     smartva_summary,
@@ -82,6 +83,8 @@ from app.services.workflow.definition import (
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.utils import va_get_form_type_code_for_form
+from app.utils.va_render.va_render_05_mapchoicevalue import va_render_mapchoicevalue
+from app.utils.va_routes.va_api_helpers import va_get_render_datalevel
 
 bp = Blueprint("va_case_api", __name__)
 
@@ -210,6 +213,30 @@ def _authorize(va_sid: str):
         ),
         recode_active=recode_active,
     )
+
+
+def _survey_location(case: _Case, nav, viewer_payload) -> dict:
+    """Survey district/state labels for the case header, as the category tables show them.
+
+    ``viewer_payload`` is the PII-redacted payload (``payload_for_viewer``,
+    computed once per request); a field counts only if a category the viewer
+    can open (``nav``) lists it, so the header never shows what the tables omit.
+    """
+    datalevel = va_get_render_datalevel(case.va_action, case.form_type_code, case.visible_category_codes)
+    shown = {
+        field
+        for item in nav
+        for fields in datalevel.get(item.category_code, {}).values()
+        for field in fields
+    }
+    choices = get_mapping_service().get_choices(case.form_type_code)
+    out = {}
+    for field in ("survey_district", "survey_state"):
+        value = (viewer_payload or {}).get(field) if field in shown else None
+        # The payload holds a code; the table shows its choice label, so does the header.
+        label = None if value is None else va_render_mapchoicevalue(field, value, choices)
+        out[field] = (str(label).strip() or None) if label is not None else None
+    return out
 
 
 def _may_see_cod_reference(va_sid: str, workflow_state: str | None, user_id) -> bool:
@@ -484,6 +511,15 @@ def workspace(va_sid):
     if show_reference or (not view and (not masked or has_initial)):
         smartva = smartva_summary(get_active_smartva(va_sid))
     smartva_panel = smartva_service.smartva_panel(va_sid)
+    survey = _survey_location(
+        case,
+        nav,
+        payload_for_viewer(
+            case.active_version.payload_data if case.active_version else None,
+            case.form_type_code,
+            should_redact_pii(current_user),
+        ),
+    )
     body = {
         "case": {
             "va_sid": va_sid,
@@ -493,6 +529,7 @@ def workspace(va_sid):
             "site_code": case.site_code,
             "age": case.submission.va_deceased_age,
             "gender": case.submission.va_deceased_gender,
+            **survey,
             "is_demo_project": case.is_demo_project,
             "project_mode": case.project_mode,
             # get_icd_classification_for_submission's answer from the project

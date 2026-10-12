@@ -474,7 +474,10 @@ for a redacted viewer the staff free text (`remark`, `not_codeable.other`) is
 
 Browser presentation also receives additive case fields: `project_code` and
 `site_code` (nullable strings), `age` (nullable string or number), `gender`
-(nullable string), and `is_demo_project` (boolean). Ordered category entries
+(nullable string), `survey_district` (nullable string; the payload's survey district
+under the same PII redaction and category visibility as the category tables, so null for a
+viewer whose tables withhold it, and absent from older servers), `survey_state` (nullable string; same rule and
+redaction, shown after the district as `Raisen, Madhya Pradesh`), and `is_demo_project` (boolean). Ordered category entries
 include `icon_name` (nullable configured Font Awesome class) and `count`
 (nonnegative integer, zero when missing). `attachment_count` is the
 nonnegative count derived from the current payload by the shared HTMX helper. These carry the same display

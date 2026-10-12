@@ -418,6 +418,10 @@ def create_app(config_class=None):
             "current_year": datetime.now(pytz.UTC).astimezone(
                 _current_user_timezone()
             ).year,
+            # Today in the user's zone, for date inputs' max (never the UTC date).
+            "current_user_today": datetime.now(pytz.UTC).astimezone(
+                _current_user_timezone()
+            ).date().isoformat(),
             "site_maintenance_banner": get_site_maintenance_banner_context(
                 is_authenticated=is_authenticated,
                 is_admin=is_admin,

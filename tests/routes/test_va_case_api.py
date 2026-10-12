@@ -136,6 +136,8 @@ class VaCaseApiTests(BaseTestCase):
             ("FldA", "cat1", "sub1", "Alpha", False, 2),
             ("FldM", "cat1", "sub1", "Mike", False, 3),
             ("FldPii", "cat1", "sub1", "Real Name", True, 4),
+            ("survey_district", "cat1", "sub1", "Survey district", True, 5),
+            ("survey_state", "cat1", "sub1", "Survey state", True, 6),
             ("FldC", "catc", "subc", "Coder Field", False, 1),
         ):
             if db.session.scalar(sa.select(MasFieldDisplayConfig).where(
@@ -1295,6 +1297,70 @@ class VaCaseApiTests(BaseTestCase):
         self.assertNotIn("vacodassessment", codes)
         # collaborator_pii sees the value.
         self.assertEqual(values(self._collaborator(VaAccessRoles.collaborator_pii)), {"z-val", "Jane Realname"})
+
+    def test_the_header_survey_state_follows_the_district_and_the_tables_redaction(self):
+        sid = self._case(payload={"FldZ": "z-val", "survey_state": " Madhya Pradesh "})
+        self.assertEqual(self._workspace(sid, mode="view", user=self.base_coder_id)["case"]["survey_state"], "Madhya Pradesh")
+        body = self._workspace(sid, mode="view", user=self._collaborator())
+        self.assertIsNone(body["case"]["survey_state"])
+        self.assertNotIn("Madhya Pradesh", str(body))
+        coded = self._case(payload={"FldZ": "z-val", "survey_state": "23"})
+        with patch("app.routes.api.va_case.get_mapping_service") as svc:
+            svc.return_value.get_choices.return_value = {"survey_state": {"23": "Madhya Pradesh"}}
+            self.assertEqual(self._workspace(coded, mode="view", user=self.base_coder_id)["case"]["survey_state"], "Madhya Pradesh")
+        blank = self._case(payload={"FldZ": "z-val"})
+        self.assertIsNone(self._workspace(blank, mode="view", user=self.base_coder_id)["case"]["survey_state"])
+
+    def test_the_header_survey_district_follows_the_tables_redaction(self):
+        sid = self._case(payload={"FldZ": "z-val", "survey_district": " Raisen "})
+        # Present: the unredacted viewer sees it, trimmed.
+        self.assertEqual(self._workspace(sid, mode="view", user=self.base_coder_id)["case"]["survey_district"], "Raisen")
+        body = self._workspace(sid, mode="view", user=self._collaborator())
+        self.assertIsNone(body["case"]["survey_district"])
+        self.assertNotIn("Raisen", str(body))
+        self.assertEqual(
+            self._workspace(sid, mode="view", user=self._collaborator(VaAccessRoles.collaborator_pii))["case"]["survey_district"],
+            "Raisen",
+        )
+        # A code is shown as the table shows it: its choice label.
+        coded = self._case(payload={"FldZ": "z-val", "survey_district": "313"})
+        with patch(
+            "app.routes.api.va_case.get_mapping_service"
+        ) as svc:
+            svc.return_value.get_choices.return_value = {"survey_district": {"313": "Raisen"}}
+            self.assertEqual(self._workspace(coded, mode="view", user=self.base_coder_id)["case"]["survey_district"], "Raisen")
+        # Absent or blank in the payload: null.
+        blank = self._case(payload={"FldZ": "z-val", "survey_district": "  "})
+        self.assertIsNone(self._workspace(blank, mode="view", user=self.base_coder_id)["case"]["survey_district"])
+
+    def test_the_header_survey_location_hides_with_its_category_and_filters_once(self):
+        sid = self._case(payload={"FldZ": "z-val", "survey_district": "Raisen", "survey_state": "Bhopalstate"})
+        # Present: the category is visible, both values are served.
+        case = self._workspace(sid, mode="view", user=self.base_coder_id)["case"]
+        self.assertEqual((case["survey_district"], case["survey_state"]), ("Raisen", "Bhopalstate"))
+        # Hidden category: the tables omit the fields, so the header does too.
+        svc = get_category_rendering_service()
+        real_nav = svc.get_category_nav
+        with patch.object(
+            svc, "get_category_nav",
+            side_effect=lambda *a, **k: [i for i in real_nav(*a, **k) if i.category_code != "cat1"],
+        ):
+            body = self._workspace(sid, mode="view", user=self.base_coder_id)
+        self.assertIsNone(body["case"]["survey_district"])
+        self.assertIsNone(body["case"]["survey_state"])
+        self.assertNotIn("Raisen", str(body))
+        self.assertNotIn("Bhopalstate", str(body))
+        # One payload_for_viewer call per request.
+        with patch("app.routes.api.va_case.payload_for_viewer", wraps=case_content.payload_for_viewer) as spy:
+            self._workspace(sid, mode="view", user=self._collaborator())
+        self.assertEqual(spy.call_count, 1)
+
+    def test_the_unconfirmed_pii_set_logs_once_per_workspace_request(self):
+        sid = self._case(payload={"FldZ": "z-val", "survey_district": "Raisen"})
+        with patch.object(case_content.current_app.logger.__class__, "warning") as warn:
+            self._workspace(sid, mode="view", user=self._collaborator())
+        logged = [c for c in warn.call_args_list if "pii set unconfirmed" in str(c)]
+        self.assertLessEqual(len(logged), 1)
 
     def test_a_view_never_returns_editable_blocks(self):
         self._mode(nqa=True, social_autopsy=True)

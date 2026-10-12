@@ -5,7 +5,7 @@ APP_SERVICE  = minerva_app_service
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
         prod prod-build prod-rebuild prod-down \
         logs logs-app ps shell \
-        migrate db-head test \
+        migrate db-head test test-projects \
         restart-celery backup-db ensure-secrets help
 
 .DEFAULT_GOAL := help
@@ -41,6 +41,9 @@ help:
 	@echo "  make restart-celery  Restart celery worker and beat"
 	@echo ""
 	@echo "  make ensure-secrets  Add missing CAPTCHA/TOTP keys to .env (run by dev/prod targets)"
+	@echo ""
+	@echo "Test data (dev/staging only)"
+	@echo "  make test-projects   Seed test projects and accounts, print who sees what"
 	@echo ""
 	@echo "Database"
 	@echo "  make backup-db       Dump DB and .env to ~/dailybackups/"
@@ -125,6 +128,28 @@ db-head:
 
 test:
 	$(COMPOSE) exec $(APP_SERVICE) uv run pytest
+
+# Seeds TST001 (organization, pick-and-choose) and its accounts, then lists the
+# classical (sites) projects already in the DB. Idempotent. The seed itself
+# refuses a non-debug app; this target does not weaken that guard. It never
+# resets the schema: scripts/restore-test-db.sh does, so run it by hand for
+# the classical test dataset (private/test_data.sql).
+test-projects:
+	$(COMPOSE) exec -T $(APP_SERVICE) uv run --no-sync flask db upgrade
+	$(COMPOSE) exec -T $(APP_SERVICE) uv run --no-sync flask seed test-project
+	@echo ""
+	@echo "Login http://localhost:8051/   password Aiims@123 (dev only)"
+	@echo "  test.all@digitva.com       ONE login: report deaths, review, code, supervise"
+	@echo "                             TST001 organization + pick_and_choose; SADEMO classical + random allocation"
+	@echo "  testadmin@digitva.com      Admin@123, admin and project PI"
+	@echo "  test.mo.dh01@digitva.com   coder, TST001 (pick_and_choose)"
+	@echo "  test.rev.dh01@digitva.com  reviewer, TST001"
+	@echo "  test.anm.sc01@digitva.com  death reporter, TST001"
+	@echo "  test.cho.sc01@digitva.com  interviewer, TST001 (more: docs/current-state/test-project-tst001.md)"
+	@echo ""
+	@echo "Classical (sites) projects with active coders in this DB (project, intake mode, coders):"
+	@$(COMPOSE) exec -T minerva_db_service sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -At -F "  " -c "select p.project_id, p.coding_intake_mode, count(distinct g.user_id) from va_user_access_grants g left join va_project_sites s on s.project_site_id = g.project_site_id join va_project_master p on p.project_id = coalesce(g.project_id, s.project_id) where g.role = '"'"'coder'"'"' and g.grant_status = '"'"'active'"'"' and p.project_structure_mode = '"'"'sites'"'"' group by 1, 2 order by 1"'
+	@echo "No classical coders? ./scripts/restore-test-db.sh loads the classical dataset (resets the schema)."
 
 restart-celery:
 	$(COMPOSE) restart minerva_celery_worker minerva_celery_beat

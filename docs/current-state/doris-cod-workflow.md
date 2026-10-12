@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-12
 ---
 
 # DORIS COD Workflow
@@ -153,6 +153,9 @@ rows. An interval edit clears the clinical processor results and final UCOD.
 The server validates nonempty interval durations before WHO processing and
 final save; empty and WHO unknown markers remain accepted.
 
+The editor and picker look (native components, shadcn tokens, light and dark)
+is described in [DORIS Editor UI Tokens](doris-ui-tokens.md).
+
 The public Help certificate and the clinical coder/reviewer certificate
 share one framework-free ES module, `app/static/js/digitva_icd11_picker.js`
 (`createIcd11Picker({mount, transport, onSelect, onClose, revision})`). The
@@ -163,8 +166,20 @@ maps logical route names (`terms`, `codeinfo`, `selection-check`,
 globals, cookies or dataset values. `doris_demo.js` and `doris_clinical.js`
 are ES module hosts loaded with `type="module"`; the clinical host owns the
 HTMX close hook. `doris_interval.js` is a separate module owned by the
-certificate line. A WebView-based mobile shell can load the same module
-with a transport that adds its own authorization header. Search results with WHO
+certificate line. The Expo app (browser and native) reuses the same picker
+through `app/static/doris_picker_host.html` and `digitva_icd11_embed.js`,
+shown in an iframe (browser build) or a WebView (native, from the enrolled
+server). That page holds no credentials: each WHO call is a `{path, body}`
+message answered by `mobile/digitva-collect/src/workspace/doris/pickerBridge.ts`
+through the authenticated client, and only a code the server verified with
+selection-check reaches the certificate. The shared `renderResults` draws the
+result rows for both hosts. A `doris_demo.css` media query at 768px makes the
+modal a single full-screen column, the host page takes `?theme=dark|light` (default
+the system setting; `data-bs-theme` on `<html>` drives the `doris_demo.css` dark
+block) and `?q=<term>` (or a `{t:'search', query}` message) to search a typed
+term as soon as the modal opens, and a host can tint the modal header per
+certificate line with `doris-line-accented` and `--doris-line-accent`.
+Search results with WHO
 postcoordination availability offer a stem builder, while complete expressions
 remain directly selectable. The builder obtains the pinned WHO release's axes
 through DigitVA's CSRF-protected public or clinical POST API, labels required
@@ -178,8 +193,11 @@ vendored WHO ECT remains available from the editor.
 
 The condition search now opens in a large modal. The code row, `+ Build`,
 maternal `J`, perinatal `K`, coding-note marker and Details action have distinct
-click targets. Selecting a code stages its code and title in a footer; `OK`
-checks it against WHO before adding the chip. A code with required
+click targets. Selecting a code stages its code and title in a prominent footer
+(`SELECTED`, or `BUILDING` during a guided build; see `doris-ui-tokens.md`); `OK`
+checks it against WHO before adding the chip. On a phone, `+ Build`, Details and
+related-term links scroll their card to the top of the results pane and offer
+"Back to results". A code with required
 postcoordination opens its details and choices immediately. Required choices
 appear first on screen, each axis is headed with WHO's instruction wording
 and offers a search limited to that axis's WHO subtree, and a final "Other
@@ -224,10 +242,63 @@ warnings and CoDEdit report sentences as one "Check before you decide" list,
 or "No problems found". A rejected or failed run says so in place of the
 code. Engine status, stem, URI, readable reports and the Help rule trace sit
 in a collapsed "Technical details" section at the bottom, after Step 2. Both editors are two steps.
-"Step 1: DORIS" holds the certificate in DORIS's order (sex, age and dates,
-Part I, Part II, fetal or infant, pregnancy context, manner of death,
-surgery and autopsy), the Process button and the result. The pregnancy
-context shows for a recorded sex of female or unknown.
+"Step 1: DORIS" holds the certificate in the WHO DORIS screen's wording and
+order, in the web editor and the Expo app alike: "Administrative Data" (sex,
+estimated age and age unit, date of birth, date of death), "Frame A: Medical
+data" with "Part 1: Cause of death" (lines lettered A to E; our "Immediate
+cause" / "Due to" titles stay, each line has "Interval" and "Time unit"),
+"Part 2: Other significant conditions contributing to death" (one heading,
+one "Significant conditions contributing to death" tile), then the separate
+cards "Manner of death", "Fetal or infant death *", "Information on
+pregnancy", "Surgery" and "Autopsy", a "*fields are not mandatory" footnote,
+the Process button and the result. The blank choice reads "Not stated".
+Which controls show is set by the field rules in
+`docs/policy/doris-certificate-rules.md` (V1 to V12): the fetal card only under
+one year (hours survived only under 7 days and not stillborn), "Information on
+pregnancy" only for sex female (its two follow-up questions stay disabled until
+the first answer is Yes; while it is not Yes they are blanked and not sent, and
+`drop_inapplicable_sections` drops them server-side too), surgery date and reason only after Yes, autopsy
+findings only after "requested", and the external-cause fields only for manner
+codes 1 to 7. `app/static/js/doris_rules.js` is the pure module (no DOM) that
+`doris_clinical.js` calls on every edit. A whole card that does not apply (fetal, pregnancy)
+keeps its title and shows a yellow `alert-warning` note ("This section is not
+applicable when ...", `NOT_APPLICABLE` in `doris_rules.js`, identical wording in
+the Expo editor); single follow-up fields just hide. Hidden controls get `hidden`, are
+emptied, and are dropped from the certificate sent to `/process` and saved, so
+they start blank if shown again. Soft warnings (pregnancy age band 10 to 54,
+interval longer than the age or shorter than the line above, date order,
+estimated age against the dates, plausibility ranges) appear under the field in
+the form-text style and never block Process or Save; interval units longer than
+the age at death are greyed. The reported age is the editor's estimated age,
+and the data attribute `data-today` carries the user's local day.
+`normalize_certificate` also drops the hidden keys
+(`drop_inapplicable_sections`), so a stale client cannot send a fetal section for
+an adult, and the prefill applies the same function. Node check:
+`node tests/js/doris_rules_check.mjs`. Each Part I/II line reads "Onset to
+death [Interval] [Units]" (the age control keeps "Age" / "Age unit"), each Part I
+line has its own "Add line" that inserts below it (cap 5, letters renumber), and
+the editor and picker tint outline buttons for dark mode in `doris_demo.css`. Dates
+(birth, death, injury, surgery) hold the ISO day, with no `max` (native
+validation would block Save in the htmx form; problems are soft warnings,
+V10). Date of birth, Date of injury and Date of surgery have a precision
+select (Date / Year-Month / Year) beside the input, which switches between a
+date, a month and a 4-digit year input and stores `YYYY-MM-DD`, `YYYY-MM` or
+`YYYY` (`doris_fields.js`; a saved value opens in its own precision). Date of
+death is a plain calendar input; a saved partial value shows in a text input
+until replaced. Every question in Administrative Data, Manner of death, Fetal
+or infant death, Information on pregnancy, Surgery and Autopsy has a clear
+button (`data-doris-clear`, shown only with a value; clearing fires input and
+change, so rules, warnings and the "from interview" badge update). The line and
+final-cause search boxes start searching after 3 characters and a 500 ms pause
+(`attachAutoSearch` in `digitva_icd11_picker.js`); Search and Enter stay
+immediate. Node check: `NODE_PATH=mobile/digitva-collect/node_modules node
+tests/js/doris_fields_check.mjs`. The web user's day comes from
+`current_user_today` (user profile zone; Expo: the device zone). Option codes in the
+Expo app are DORIS's own (Manner of death 0 = Disease), the same as the web.
+Fields the interview prefilled carry "from interview (IdNNNNN)" in both.
+Estimated age is always prefilled when the interview answered the age, even
+with both dates known. The Part I move up, move down and remove buttons have a
+solid 1.5px border (remove in red) in light and dark.
 "Step 2: Final underlying cause of death" is always shown, says to process
 Step 1 first, and shows the final UCOD field once a result exists. Each
 step is its own card. Step 2 offers "Use DORIS result: <code>" when DORIS

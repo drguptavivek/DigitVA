@@ -120,6 +120,7 @@ class TestDorisProcessing(BaseTestCase):
 
     def test_normalizes_release_and_omits_unknown_fetal_measurements(self):
         certificate = _payload()["certificate"]
+        certificate["AdministrativeData"]["EstimatedAge"] = "P2D"  # the fetal card applies under a year
         certificate["FetalOrInfantDeath"] = {
             "Stillborn": 9,
             "BirthWeight": None,
@@ -142,15 +143,15 @@ class TestDorisProcessing(BaseTestCase):
                 "AdministrativeData": {
                     "DateBirth": "1980-01-02",
                     "DateDeath": "2020-06-03T12:30:00Z",
-                    "Sex": 1,
-                    "EstimatedAge": "P40Y",
+                    "Sex": 2,  # the pregnancy card is for women
+                    "EstimatedAge": "P3D",  # the fetal card is for under one year
                 },
                 "Surgery": {
                     "WasPerformed": 1,
                     "Date": "2020-05-25",
                     "Reason": "Emergency operation",
                 },
-                "Autopsy": {"WasRequested": 9, "Findings": 0},
+                "Autopsy": {"WasRequested": 1, "Findings": 0},
                 "MannerOfDeath": {
                     "MannerOfDeath": 1,
                     "DateOfExternalCauseOrPoisoning": "2020-06-02",
@@ -167,7 +168,7 @@ class TestDorisProcessing(BaseTestCase):
                     "PerinatalDescription": "Prematurity",
                 },
                 "MaternalDeath": {
-                    "WasPregnant": 0,
+                    "WasPregnant": 1,
                     "TimeFromPregnancy": 1,
                     "PregnancyContribute": 1,
                 },
@@ -176,7 +177,7 @@ class TestDorisProcessing(BaseTestCase):
 
         normalized = normalize_certificate(certificate)
 
-        self.assertEqual(normalized["AdministrativeData"]["Sex"], 1)
+        self.assertEqual(normalized["AdministrativeData"]["Sex"], 2)
         self.assertEqual(normalized["Surgery"]["Date"], "2020-05-25")
         self.assertEqual(normalized["Autopsy"]["Findings"], 0)
         self.assertEqual(

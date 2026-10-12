@@ -142,7 +142,7 @@ prefilled.
 | `Sex` | Id10019 | male 1, female 2, undetermined 9 |
 | `DateBirth` | Id10021 when Id10020 = yes; else `dob_month_year` -> `YYYY-MM`, `dob_year` -> `YYYY` | as recorded; 1 January at age >= 50 -> `YYYY` (year-only answers keyed as 1 January) |
 | `DateDeath` | Id10023 when Id10022 = yes; else Id10024 year | |
-| `EstimatedAge` | `age_neonate_*`, `age_child_*`, `age_adult` | ISO duration, only when a date is missing |
+| `EstimatedAge` | `age_neonate_*`, `age_child_*`, `age_adult` | ISO duration, always (rule V7 in `doris-certificate-rules.md`) |
 | `Stillborn` | Id10104, Id10109 or Id10110 = yes -> 0; else Id10114 | neonates; yes 1, no 0, dk/ref 9 |
 | `DeathWithin24h` | `age_neonate_hours` < 24; else `doris_hours_survived` (asked when birth and death dates are the same day) | hours survived, not a flag |
 | `MultiplePregnancy` | Id10354 | under one year |

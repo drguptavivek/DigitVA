@@ -315,7 +315,18 @@ _TST_USERS = (
     # the web landing page falls through to the home page.
     ("test.anm.sc01", "intake", "SC01", "ANM", ("death_reporter",)),
     ("test.mpw.sc04", "intake", "SC04", "MPW", ("death_reporter",)),
+    # One login for every surface: project-scope coder and reviewer (pick and
+    # choose coding), a unit-scope death reporter (SC01 ANM) and supervisor
+    # (PHC01 MO), since those two roles need a cadre the grid permits. The
+    # same person repeats across rows; the first row sets the landing page.
+    ("test.all", "coder", None, None, ("coder", "reviewer")),
+    ("test.all", "coder", "SC01", "ANM", ("death_reporter",)),
+    ("test.all", "coder", "PHC01", "MO", ("interview_supervisor",)),
 )
+
+#: (email local part, existing classical project, role): project-scope grants
+#: in sites projects, written when the project exists (e.g. SADEMO in dev).
+_TST_CLASSICAL_GRANTS = (("test.all", "SADEMO", "coder"),)
 
 
 def _tst_email(local: str) -> str:
@@ -364,7 +375,10 @@ def seed_test_project(staging):
 
 def _build_test_project(org, user_import) -> dict:
     """Write everything in the caller's transaction; return counts for the summary."""
-    from app.models import MasOrgUnitWorker, VaProjectMaster, VaStatuses, VaUsers
+    from app.models import (
+        MasOrgUnitWorker, VaAccessRoles, VaAccessScopeTypes, VaProjectMaster,
+        VaStatuses, VaUserAccessGrants, VaUsers,
+    )
     from app.routes.admin import _with_web_project_defaults
 
     summary = {}
@@ -525,7 +539,39 @@ def _build_test_project(org, user_import) -> dict:
     actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
     _new_users, audit, _codes = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
-    summary["grants"] = f"{len(audit)} written, {len(plan) - len(audit)} already in place"
+    written, total = len(audit), len(plan)
+    # Sites projects: the import is organization-only, so write the one
+    # project-scope grant the way the admin panel does (admin.py grants).
+    for local, project_id, role in _TST_CLASSICAL_GRANTS:
+        user = users[_tst_email(local)]
+        if db.session.get(VaProjectMaster, project_id) is None or user.user_status != VaStatuses.active:
+            continue
+        total += 1
+        grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == user.user_id,
+            VaUserAccessGrants.role == VaAccessRoles(role),
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+            VaUserAccessGrants.project_id == project_id,
+        ))
+        if grant is None:
+            grant = VaUserAccessGrants(
+                user_id=user.user_id, role=VaAccessRoles(role),
+                scope_type=VaAccessScopeTypes.project, project_id=project_id,
+                grant_status=VaStatuses.active, created_by_user_id=actor.user_id,
+            )
+            db.session.add(grant)
+            action = "grant_created"
+        elif grant.grant_status != VaStatuses.active:
+            grant.grant_status = VaStatuses.active
+            action = "grant_reactivated"
+        else:
+            continue
+        db.session.flush()
+        audit.append((dict(user_id=user.user_id, grant_id=grant.grant_id, role=role,
+                           scope_type="project", org_unit_id=None, cadre_id=None,
+                           project_id=project_id), action))
+        written += 1
+    summary["grants"] = f"{written} written, {total - written} already in place"
     summary["audit"] = audit
     summary["actor_user_id"] = actor.user_id
     return summary
@@ -539,7 +585,7 @@ def _log_test_project_grants(audit, actor_user_id) -> None:
         log_grant_action(
             action=action, actor_user_id=actor_user_id, actor_role="admin",
             target_user_id=grant["user_id"], grant_id=grant["grant_id"], role=grant["role"],
-            scope_type=grant["scope_type"], project_id=TEST_PROJECT_ID,
+            scope_type=grant["scope_type"], project_id=grant.get("project_id", TEST_PROJECT_ID),
             org_unit_id=grant["org_unit_id"], cadre_id=grant["cadre_id"],
         )
 

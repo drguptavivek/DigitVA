@@ -328,6 +328,71 @@ def _normalize_maternal_death(value: object, path: str) -> dict:
     )
 
 
+_AGE_UNIT_DAYS = {"Y": 365.25, "M": 30.4375, "W": 7.0, "D": 1.0}
+# Time part units H/M/S (hours, minutes, seconds), as doris_rules.js durationDays.
+_TIME_UNIT_DAYS = {"H": 1 / 24, "M": 1 / 1440, "S": 1 / 86400}
+_AGE_RE = re.compile(r"^P(?:(\d+(?:\.\d+)?)([YMWD]))?(?:T(\d+(?:\.\d+)?)([HMS]))?$")
+_EXTERNAL_CAUSE_KEYS = (
+    "DateOfExternalCauseOrPoisoning",
+    "DescriptionExternalCause",
+    "PlaceOfOccuranceExternalCause",
+)
+
+
+def _age_days(duration: object) -> float | None:
+    """Days in a simple ISO age (``P65Y``, ``P3D``, ``PT5H``, ``PT30M``, ``PT90S``); ``None`` if blank or odd.
+
+    Mirrors ``durationDays`` in ``app/static/js/doris_rules.js`` so the server guard
+    and the editor agree."""
+
+    match = _AGE_RE.match(duration.strip()) if isinstance(duration, str) else None
+    if not match or not (match[1] or match[3]):
+        return None
+    return float(match[1] or 0) * _AGE_UNIT_DAYS.get(match[2], 0) + float(match[3] or 0) * _TIME_UNIT_DAYS.get(match[4], 0)
+
+
+def drop_inapplicable_sections(certificate: dict) -> list[str]:
+    """Remove the keys rules V1-V6 hide, in place; return the dropped ``Section.Field`` paths.
+
+    Pure function of the certificate's own age, sex and answers, so a stale
+    client cannot send FetalOrInfantDeath for an adult. Rules:
+    docs/policy/doris-certificate-rules.md. An unknown age hides nothing.
+    """
+
+    def get(section: str, field: str):
+        value = certificate.get(section)
+        return value.get(field) if isinstance(value, dict) else None
+
+    def drop(section: str, fields: tuple[str, ...] | None = None) -> None:
+        value = certificate.get(section)
+        if not isinstance(value, dict):
+            return
+        for field in fields or tuple(value):
+            if field in value:
+                del value[field]
+                dropped.append(f"{section}.{field}")
+        if not value:
+            del certificate[section]
+
+    dropped: list[str] = []
+    days = _age_days(get("AdministrativeData", "EstimatedAge"))
+    if days is not None and days >= 365:
+        drop("FetalOrInfantDeath")
+    elif (days is not None and days >= 7) or get("FetalOrInfantDeath", "Stillborn") == 1:
+        drop("FetalOrInfantDeath", ("DeathWithin24h",))
+    if get("AdministrativeData", "Sex") != 2:
+        drop("MaternalDeath")
+    elif get("MaternalDeath", "WasPregnant") != 1:
+        drop("MaternalDeath", ("TimeFromPregnancy", "PregnancyContribute"))
+    if get("Surgery", "WasPerformed") != 1:
+        drop("Surgery", ("Date", "Reason"))
+    if get("Autopsy", "WasRequested") != 1:
+        drop("Autopsy", ("Findings",))
+    if get("MannerOfDeath", "MannerOfDeath") not in range(1, 8):
+        drop("MannerOfDeath", _EXTERNAL_CAUSE_KEYS)
+    return dropped
+
+
 def normalize_certificate(certificate: object, release: str = DEFAULT_ICD11_RELEASE) -> dict:
     """Return a bounded copy suitable for WHO, without mutating caller data."""
 
@@ -354,6 +419,7 @@ def normalize_certificate(certificate: object, release: str = DEFAULT_ICD11_RELE
     for key, normalizer in nested_normalizers.items():
         if key in result:
             result[key] = normalizer(result[key], f"certificate.{key}")
+    drop_inapplicable_sections(result)
 
     part1 = result.get("Part1")
     if not isinstance(part1, list) or not part1:

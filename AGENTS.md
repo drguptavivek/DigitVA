@@ -135,6 +135,8 @@ docker compose up -d
 docker compose exec minerva_app_service uv run flask seed run
 ```
 
+`make test-projects` (seed the test projects and accounts)
+
 Restore the baseline test dataset (`private/test_data.sql`): `./scripts/restore-test-db.sh`
 (resets schema, restores, migrates, seeds testadmin).
 

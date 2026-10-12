@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-12
 ---
 
 # Current State Index
@@ -43,6 +43,7 @@ Read these documents in this order:
 20. [Authentication, Login and Onboarding](authentication-and-onboarding.md)
 21. [Coder Workspace Component Inventory](coder-component-inventory.md)
 22. [Native Passkey Status](native-passkeys.md)
+23. [DORIS Editor UI Tokens](doris-ui-tokens.md)
 
 Related planning:
 

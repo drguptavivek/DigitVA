@@ -142,6 +142,25 @@ def get_active_smartva(va_sid: str):
     )
 
 
+def payload_for_viewer(payload_data, form_type_code: str, redact_pii: bool):
+    """The submission payload a viewer may see: the one redaction rule.
+
+    A no-PII viewer gets the payload minus the confirmed PII set and the
+    always-omitted export fields; an unconfirmed PII set withholds all of it.
+    Shared by the category tables and the case header so they cannot differ.
+    """
+    if not (redact_pii and payload_data):
+        return payload_data
+    pii_status = get_mapping_service().get_pii_set_status(form_type_code)
+    if not pii_status.confirmed:
+        current_app.logger.warning(
+            "pii set unconfirmed | %s | payload withheld", form_type_code
+        )
+        return {}
+    withheld = pii_status.field_ids | CSV_EXPORT_OMIT_PAYLOAD_FIELDS
+    return {k: v for k, v in payload_data.items() if k not in withheld}
+
+
 def get_section_data(
     *,
     va_submission,
@@ -184,21 +203,7 @@ def get_section_data(
 
     mapping_svc = get_mapping_service()
     payload_data = active_version.payload_data if active_version else None
-    render_payload = payload_data
-    if redact_pii and payload_data:
-        pii_status = mapping_svc.get_pii_set_status(form_type_code)
-        if not pii_status.confirmed:
-            current_app.logger.warning(
-                "pii set unconfirmed | %s | payload withheld", form_type_code
-            )
-            render_payload = {}
-        else:
-            withheld = pii_status.field_ids | CSV_EXPORT_OMIT_PAYLOAD_FIELDS
-            render_payload = {
-                field_id: value
-                for field_id, value in payload_data.items()
-                if field_id not in withheld
-            }
+    render_payload = payload_for_viewer(payload_data, form_type_code, redact_pii)
     choices = mapping_svc.get_choices(form_type_code)
     datalevel = va_get_render_datalevel(va_action, form_type_code, visible_category_codes)
     form_id = va_submission.va_form_id

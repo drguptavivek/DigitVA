@@ -190,9 +190,9 @@ test("phone: bottom bar on the queue and home, a compact header without the tab 
   mountAll();
   expect(host.querySelector("nav[aria-label='Main']")).toBeNull();
   const bar = host.querySelector("nav[aria-label='Primary']")!;
-  expect(Array.from(bar.querySelectorAll("a,button")).map((el) => el.textContent)).toEqual(["Coding", "Review", "Help", "More"]);
+  expect(Array.from(bar.querySelectorAll("a,button")).map((el) => el.textContent)).toEqual(["Coding", "Review", "More"]);
   expect(bar.querySelector("a[href='/app/coding']")!.getAttribute("aria-current")).toBe("page");
-  expect(bar.querySelector<HTMLAnchorElement>("a[href='/help']")!.target).toBe("_blank");
+  expect(bar.querySelector("a[href='/help']")).toBeNull();
   mockPathname = "/";
   mountAll();
   expect(host.querySelector("nav[aria-label='Primary']")).not.toBeNull();
@@ -216,7 +216,8 @@ test("phone: in-app click on a bottom tab navigates without leaving, and the Mor
   const more = () => Array.from(host.querySelectorAll<HTMLButtonElement>("nav[aria-label='Primary'] button")).find((b) => b.textContent === "More")!;
   act(() => more().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Supervision", "My organization", "Settings", "Profile", "Sign out"]);
+  expect(labels).toEqual(["My organization", "Settings", "Help", "Profile", "Sign out"]);
+  expect(host.querySelector<HTMLAnchorElement>("[role='menuitem'][href='/help']")!.target).toBe("_blank");
   act(() => { document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });
   expect(host.querySelector("[role='menu']")).toBeNull();
   act(() => more().click());

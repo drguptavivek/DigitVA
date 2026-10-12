@@ -50,7 +50,7 @@ function ActivityRoot() {
       <AppHeader />
       <NativeTermsGate>
         <Stack
-          screenOptions={{ headerShown: false }}
+          screenOptions={{ headerShown: false, animation: "none" }}
           screenLayout={({ children, route }) => (
             <NativeCollectionGate routeName={route.name} routeParams={route.params}>
               {children}

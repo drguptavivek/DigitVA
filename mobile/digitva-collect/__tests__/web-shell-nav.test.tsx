@@ -22,6 +22,7 @@ function bootstrap(roles: string[], capabilities: Partial<ClientBootstrap["capab
 jest.mock("expo-router", () => ({
   usePathname: () => mockPathname,
   useRouter: () => mockRouter,
+  useGlobalSearchParams: () => ({}),
 }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({ bootstrap: mockBootstrap, ready: true, logout: mockLogout, uiLocale: "en", chooseUiLocale: jest.fn() }),

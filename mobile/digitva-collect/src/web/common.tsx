@@ -1,4 +1,4 @@
-import { usePathname, useRouter } from "expo-router";
+import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useId, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewProps } from "react-native";
 
@@ -9,6 +9,7 @@ import { radius, useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
 import { loginRecoveryUrl } from "./loginRecovery";
+import { showBottomTabs, type NavParams } from "./navTabs";
 import { openServerPage, rememberVisit, ROLE_SCREENS } from "./roleHome";
 
 const DESKTOP_BREAKPOINT = 900;
@@ -187,6 +188,7 @@ function NavigationLink({
 function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boolean> }) {
   const router = useRouter();
   const pathname = usePathname();
+  const params = useGlobalSearchParams() as NavParams;
   const { width } = useWindowDimensions();
   const { bootstrap, logout } = useAppState();
   const theme = useTheme();
@@ -234,7 +236,8 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
     }
   }, [drawerOpen, wide]);
 
-  if (!bootstrap) return null;
+  // The phone bottom bar already carries these destinations.
+  if (!bootstrap || (Platform.OS === "web" && width < 768 && showBottomTabs(pathname, params))) return null;
 
   const { capabilities, access } = bootstrap;
   const roles = access.roles;

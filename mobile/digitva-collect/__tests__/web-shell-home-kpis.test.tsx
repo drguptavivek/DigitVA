@@ -24,6 +24,7 @@ let mockPathname = "/coding";
 jest.mock("expo-router", () => ({
   usePathname: () => mockPathname,
   useRouter: () => mockRouter,
+  useGlobalSearchParams: () => ({}),
 }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({ bootstrap: mockBootstrap, ready: true, logout: jest.fn(), uiLocale: "en", chooseUiLocale: jest.fn() }),

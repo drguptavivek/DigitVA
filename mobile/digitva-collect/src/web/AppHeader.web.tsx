@@ -166,7 +166,7 @@ const itemStyle = (tokens: typeof ui.light): React.CSSProperties => ({
 function MenuEntries({ entries, go, close, tokens, extra }: { entries: NavItem[]; go: (path: string) => void; close: () => void; tokens: typeof ui.light; extra?: React.ReactNode }) {
   return h(React.Fragment, null,
     entries.map((item) => h(HeaderLink, {
-      key: item.key, href: item.href, to: item.to, onNavigate: go, onActivate: close, role: "menuitem", className: "dva-sheet-item", style: { ...itemStyle(tokens), color: tokens.popoverForeground },
+      key: item.key, href: item.href, to: item.to, newTab: item.newTab, onNavigate: go, onActivate: close, role: "menuitem", className: "dva-sheet-item", style: { ...itemStyle(tokens), color: tokens.popoverForeground },
     }, h(Icon, { name: item.icon }), item.label)),
     extra);
 }
@@ -297,8 +297,11 @@ export function BottomTabs() {
   useEffect(() => setOpen(false), [pathname]);
   if (nav.hidden || width >= PHONE_BREAKPOINT || keyboard || !showBottomTabs(pathname, params)) return null;
 
-  const primary = items.slice(0, 2);
-  const rest = [...items.slice(2), ...more];
+  // Role screens get the bar (up to four); Reports/dashboard (server pages), Organization, Settings and Help live in More.
+  const isRole = (item: NavItem) => item.key in ROLE_ITEMS;
+  const primary = items.filter(isRole).slice(0, 4);
+  const help: NavItem = { key: "/help", href: "/help", newTab: true, label: "Help", short: "Help", icon: "help" };
+  const rest = [...items.filter((item) => !primary.includes(item)), ...more, help];
   const moreCurrent = rest.some((item) => item.key === current);
   const entry = itemStyle(tokens);
   return h(React.Fragment, null,
@@ -322,7 +325,6 @@ export function BottomTabs() {
     primary.map((item) => h(HeaderLink, { key: item.key, href: item.href, to: item.to, onNavigate: go, current: current === item.key, className: "dva-bottom-tab", style: { color: undefined, flexDirection: "column", gap: 2 } },
       current === item.key ? h("span", { "aria-hidden": true, style: { position: "absolute", left: 8, right: 8, top: 0, height: 3, borderRadius: 4, background: tokens.primary } }) : null,
       h(Icon, { name: item.icon, size: 22 }), item.short)),
-    h(HeaderLink, { href: "/help", newTab: true, className: "dva-bottom-tab", style: { color: undefined, flexDirection: "column", gap: 2 } }, h(Icon, { name: "help", size: 22 }), "Help"),
     h("button", {
       ref: trigger, type: "button", className: "dva-bottom-tab", "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": open ? id : undefined,
       onClick: () => (open ? close() : setOpen(true)), ...(moreCurrent ? { "data-current": "true" } : {}),

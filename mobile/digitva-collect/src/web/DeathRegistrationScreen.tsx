@@ -414,7 +414,7 @@ export default function DeathRegistrationScreen() {
 
   const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => (
     <View key={field.key}>
-      <Text style={styles.muted}>{t(field.label)}</Text>
+      <Text style={styles.fieldLabel}>{t(field.label)}</Text>
       <RegistrationFieldControl
         field={field.key}
         label={t(field.label)}
@@ -565,7 +565,8 @@ export default function DeathRegistrationScreen() {
   return (
     <WebShell title={t("registrationTitle")}>
       {privateUiReady ? <>
-      {bootstrap?.capabilities.registeredDeaths ? (
+      {/* The add form stays clear of the list switch: the list is one tap away from the home page and the list view itself. */}
+      {bootstrap?.capabilities.registeredDeaths && (listMode || editingDeathId) ? (
         <Button
           kind="secondary"
           label={listMode ? t("registerDeath") : t("myRegisteredDeaths")}
@@ -618,7 +619,7 @@ export default function DeathRegistrationScreen() {
             <Text style={styles.muted}>{projectId} · {siteId}</Text>
           ) : (
             <>
-              <Text style={styles.muted}>{t("chooseSite")}</Text>
+              <Text style={styles.fieldLabel}>{t("chooseSite")}</Text>
               <View style={styles.row} accessibilityRole="radiogroup">
                 {intake?.context.map((entry) => (
                   <Button
@@ -637,7 +638,7 @@ export default function DeathRegistrationScreen() {
           )}
           {!editingDeathId && context?.org_units?.filter((unit) => unit.selectable !== false).length ? (
             <View>
-              <Text style={styles.muted}>{t("chooseUnit")}</Text>
+              <Text style={styles.fieldLabel}>{t("chooseUnit")}</Text>
               <View style={styles.row} accessibilityRole="radiogroup">
                 {context.org_units.filter((unit) => unit.is_active !== false && unit.selectable !== false).map((unit) => (
                   <Button
@@ -651,8 +652,8 @@ export default function DeathRegistrationScreen() {
             </View>
           ) : null}
           {renderField(FIELD_DEFINITIONS[0])}
-          <Text style={styles.muted}>{t("fieldDateOfBirth")}</Text>
-          <Text style={styles.muted}>{t("dobPrecision")}</Text>
+          <Text style={styles.fieldLabel}>{t("fieldDateOfBirth")}</Text>
+          <Text style={styles.fieldLabel}>{t("dobPrecision")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
             {(
               [
@@ -695,7 +696,7 @@ export default function DeathRegistrationScreen() {
           {ageDisplay ? <Text style={styles.muted}>{formatRegistrationAge(ageDisplay)}</Text> : null}
           {birthMode !== "exact" ? (
             <View>
-              <Text style={styles.muted}>{t("fieldAge")}</Text>
+              <Text style={styles.fieldLabel}>{t("fieldAge")}</Text>
               <RegistrationFieldControl
                 field="age_years"
                 label={t("fieldAge")}
@@ -706,7 +707,7 @@ export default function DeathRegistrationScreen() {
               />
             </View>
           ) : null}
-          <Text style={styles.muted}>{t("fieldSex")}</Text>
+          <Text style={styles.fieldLabel}>{t("fieldSex")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
             {(["male", "female", "undetermined", "unknown"] as const).map((value) => (
               <Button

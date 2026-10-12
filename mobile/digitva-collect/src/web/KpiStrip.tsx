@@ -11,7 +11,7 @@ import { createWebWorkspaceTransport } from "../workspace/transport.web";
 const NO_VALUE = "—";
 
 /** Pages that show the strip: the home and the five role screens. Exact paths, so case and form pages beneath them do not. */
-export const KPI_SCREENS = ["/", "/workspace", "/coding", "/reviewing", "/collection", "/death-registration", "/supervision"];
+export const KPI_SCREENS = ["/", "/workspace", "/coding", "/reviewing", "/collection", "/supervision"];
 
 /** Space held while the call runs, about one project line, so the page below does not jump when the counts arrive. */
 const LOADING_MIN_HEIGHT = 56;

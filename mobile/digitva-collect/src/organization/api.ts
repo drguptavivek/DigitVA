@@ -19,12 +19,15 @@ export interface AboveUnit {
   org_unit_id: string;
   unit_name: string;
   level_name: string;
+  /** Absent on an older server; the tree then falls back to a flat layout. */
+  parent_org_unit_id?: string | null;
   people: OrgPerson[];
 }
 
 export interface LevelUnit {
   org_unit_id: string;
   unit_name: string;
+  parent_org_unit_id?: string | null;
   people: OrgPerson[];
 }
 
@@ -33,6 +36,7 @@ export interface BelowUnit {
   org_unit_id: string;
   unit_name: string;
   level_name: string;
+  parent_org_unit_id?: string | null;
   people_count: number;
   has_children: boolean;
 }

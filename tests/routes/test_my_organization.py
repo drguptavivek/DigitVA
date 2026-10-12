@@ -196,9 +196,35 @@ class MyOrganizationTests(BaseTestCase):
         self.assertEqual(below["My Sub-centre B"]["people_count"], 2)
         self.assertFalse(below["My Sub-centre A"]["has_children"])
         self.assertEqual(set(below["My Sub-centre A"]), {
-            "org_unit_id", "unit_name", "level_name", "people_count", "has_children",
+            "org_unit_id", "unit_name", "level_name", "parent_org_unit_id", "people_count", "has_children",
         })
         self._assert_no_contact_fields(body)
+
+    def test_two_own_units_on_one_branch_carry_real_parent_ids(self):
+        self._grant(self.mo_user, VaAccessRoles.coder,
+                    scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc.org_unit_id,
+                    cadre_id=self.cadre_mo)
+        self._grant(self.mo_user, VaAccessRoles.interviewer,
+                    scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.sub_a.org_unit_id,
+                    cadre_id=self.cadre_cho)
+        self._login(str(self.mo_user.user_id))
+
+        block = self._project_block(self._get("/me").get_json(), self.PROJECT)
+        phc_id, chc_id = str(self.phc.org_unit_id), str(self.chc.org_unit_id)
+        own = {u["unit_name"]: u for u in block["my_level"]}
+        self.assertEqual(set(own), {"My PHC", "My Sub-centre A"})
+        self.assertEqual(own["My PHC"]["parent_org_unit_id"], chc_id)
+        self.assertEqual(own["My Sub-centre A"]["parent_org_unit_id"], phc_id)
+        # Own units are left out of below, so the sibling is the only entry; it
+        # shares the own sub-centre's parent.
+        self.assertEqual([u["unit_name"] for u in block["below"]], ["My Sub-centre B"])
+        self.assertEqual(block["below"][0]["parent_org_unit_id"], own["My Sub-centre A"]["parent_org_unit_id"])
+        above = {u["unit_name"]: u["parent_org_unit_id"] for u in block["above"]}
+        self.assertEqual(above["My District"], None)
+        self.assertEqual(above["My CHC"], str(self.district.org_unit_id))
+
+        children = self._get(f"/units/{self.phc.org_unit_id}/people").get_json()["children"]
+        self.assertEqual({c["parent_org_unit_id"] for c in children}, {phc_id})
 
     def test_opening_a_child_lists_its_people(self):
         self._grant(self.mo_user, VaAccessRoles.coder,

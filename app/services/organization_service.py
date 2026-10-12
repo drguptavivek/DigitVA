@@ -2410,6 +2410,7 @@ def _unit_summaries(project_id: str, *conditions) -> list[dict]:
             "org_unit_id": str(unit.org_unit_id),
             "unit_name": unit.unit_name,
             "level_name": level_name,
+            "parent_org_unit_id": str(unit.parent_org_unit_id) if unit.parent_org_unit_id else None,
             "people_count": people_count_value,
             "has_children": bool(has_children_value),
         }
@@ -2461,6 +2462,7 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
                 "org_unit_id": unit["org_unit_id"],
                 "unit_name": unit["unit_name"],
                 "level_name": unit["level_name"],
+                "parent_org_unit_id": unit["parent_org_unit_id"],
                 "people": people.get(unit["org_unit_id"], []),
             }
             for unit in ancestors
@@ -2469,6 +2471,9 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
             {
                 "org_unit_id": unit_id,
                 "unit_name": entry["unit"].unit_name,
+                "parent_org_unit_id": (
+                    str(entry["unit"].parent_org_unit_id) if entry["unit"].parent_org_unit_id else None
+                ),
                 "people": people.get(unit_id, []),
             }
             for unit_id, entry in ordered

@@ -365,9 +365,13 @@
   "orgOpen": "खोलें",
   "orgClose": "बंद करें",
   "orgOpenUnit": "{unit} खोलें",
+  "orgShowMembers": "{unit} के सदस्य दिखाएँ",
   "orgCloseUnit": "{unit} बंद करें",
   "orgYouAreHere": "आप यहाँ हैं",
   "orgYou": "आप",
   "orgUnitNotAllowed": "आप इस इकाई को नहीं खोल सकते।",
-  "kpiLine": "दर्ज मौतें {deaths} · पूरे हुए साक्षात्कार {interviews} ({interviewsPct}) · कोड किए गए {coded} ({codedPct})"
+  "kpiLine": "दर्ज मौतें {deaths} · पूरे हुए साक्षात्कार {interviews} ({interviewsPct}) · कोड किए गए {coded} ({codedPct})",
+  "orgFoldBranch": "{unit} के नीचे की इकाइयाँ समेटें",
+  "orgUnfoldBranch": "{unit} के नीचे की इकाइयाँ खोलें",
+  "orgBranchUnits": "नीचे {count} इकाइयाँ"
 }

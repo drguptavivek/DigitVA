@@ -16,22 +16,14 @@ jest.mock("../src/web/common", () => ({
   browserErrorText: () => "server error",
 }));
 jest.mock("../src/ui", () => ({
-  Button: ({ label, onPress, loading, accessibilityLabel, expanded }: { label: string; onPress: () => void; loading?: boolean; accessibilityLabel?: string; expanded?: boolean }) => (
-    <button
-      data-label={label}
-      data-a11y-label={accessibilityLabel}
-      data-expanded={expanded ? "yes" : "no"}
-      data-loading={loading ? "yes" : "no"}
-      onClick={onPress}
-    />
-  ),
+  Button: () => null,
   useUiStyles: () => ({ card: {}, text: {}, muted: {}, headline: {}, error: {} }),
 }));
 
 import OrganizationScreen from "../src/web/OrganizationScreen";
 
-const ROOT_UNIT = { org_unit_id: "U0", unit_name: "District", level_name: "District", people: [{ name: "Dr Root", cadre: "CS" }] };
-const MID_UNIT = { org_unit_id: "U1", unit_name: "PHC A", level_name: "PHC", people: [{ name: "Asha Mid", cadre: "MO" }] };
+const ROOT_UNIT = { org_unit_id: "U0", unit_name: "District", level_name: "District", parent_org_unit_id: null, people: [{ name: "Dr Root", cadre: "CS" }] };
+const MID_UNIT = { org_unit_id: "U1", unit_name: "PHC A", level_name: "PHC", parent_org_unit_id: "U0", people: [{ name: "Asha Mid", cadre: "MO" }] };
 
 function project(overrides: Record<string, unknown> = {}) {
   return {
@@ -39,8 +31,8 @@ function project(overrides: Record<string, unknown> = {}) {
     project_name: "Project One",
     my_units: [{ org_unit_id: "U2", unit_name: "Sub-centre B", level_name: "Sub-centre", cadres: ["ANM", "MPW"] }],
     above: [ROOT_UNIT, MID_UNIT],
-    my_level: [{ org_unit_id: "U2", unit_name: "Sub-centre B", people: [{ name: "Meena", cadre: "ANM" }] }],
-    below: [{ org_unit_id: "U3", unit_name: "Village X", level_name: "Village", people_count: 2, has_children: true }],
+    my_level: [{ org_unit_id: "U2", unit_name: "Sub-centre B", parent_org_unit_id: "U1", people: [{ name: "Meena", cadre: "ANM" }] }],
+    below: [{ org_unit_id: "U3", unit_name: "Village X", level_name: "Village", parent_org_unit_id: "U2", people_count: 2, has_children: true }],
     ...overrides,
   };
 }
@@ -48,7 +40,7 @@ function project(overrides: Record<string, unknown> = {}) {
 const VILLAGE_PEOPLE = {
   unit: { org_unit_id: "U3", unit_name: "Village X", level_name: "Village" },
   people: [{ name: "Ravi", cadre: "CHO" }],
-  children: [{ org_unit_id: "U4", unit_name: "Hamlet Y", level_name: "Hamlet", people_count: 1, has_children: false }],
+  children: [{ org_unit_id: "U4", unit_name: "Hamlet Y", level_name: "Hamlet", people_count: 1, has_children: true }],
 };
 
 async function settle(): Promise<void> {
@@ -81,24 +73,68 @@ const HAMLET_PEOPLE = {
   children: [],
 };
 
-function findButton(tree: ReactTestRenderer, accessibilityLabel: string) {
-  return tree.root.findAll((node) => node.type === "button" && node.props["data-a11y-label"] === accessibilityLabel)[0];
+/** The header Pressable carrying this accessibilityLabel (the node that carries onPress). */
+function findButton(tree: ReactTestRenderer, label: string) {
+  return tree.root.findAll(
+    (n) => typeof n.props.onPress === "function" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label,
+  )[0];
 }
 
-async function pressOpen(tree: ReactTestRenderer, index = 0) {
-  const buttons = tree.root.findAll((node) => node.type === "button" && node.props["data-label"] !== undefined);
-  const target = buttons.filter((node) => node.props["data-label"] === en.orgOpen || node.props["data-label"] === en.orgClose)[index];
-  if (!target) throw new Error(`no open button at ${index}`);
+const expandedOf = (tree: ReactTestRenderer, label: string) => findButton(tree, label).props.accessibilityState.expanded;
+
+async function press(tree: ReactTestRenderer, label: string) {
+  const target = findButton(tree, label);
+  if (!target) throw new Error(`no button labelled ${label}`);
   await act(async () => {
-    target.props.onClick();
+    target.props.onPress();
   });
   await settle();
 }
+
+/** The people badge of a unit, found by its show-members label. */
+const badge = (name: string) => `Show members of ${name}`;
+const dialogs = (tree: ReactTestRenderer) => tree.root.findAll((n) => host(n) && n.props.role === "dialog");
+
+/** Press by label prefix (the badge label carries the count after the unit name). */
+async function pressBadge(tree: ReactTestRenderer, name: string) {
+  const target = tree.root.findAll(
+    (n) => typeof n.props.onPress === "function" && String(n.props.accessibilityLabel ?? "").startsWith(badge(name)),
+  )[0];
+  if (!target) throw new Error(`no badge for ${name}`);
+  await act(async () => {
+    target.props.onPress();
+  });
+  await settle();
+}
+
+async function closeFlyout(tree: ReactTestRenderer) {
+  const close = tree.root.findAll((n) => n.props.nativeID === "org-people-close" && typeof n.props.onPress === "function")[0];
+  await act(async () => {
+    close.props.onPress();
+  });
+}
+
+const CADRES = ["ANM", "MPW", "CS", "MO", "CHO", "ASHA", "Cadres"];
 
 describe("OrganizationScreen", () => {
   beforeEach(() => {
     mockRequest.mockReset();
     mockBootstrap = { csrf: { header: "X-CSRFToken", token: "csrf-token" }, access: { roles: ["coder"] } };
+  });
+
+  it("folds a branch on its own arrow", async () => {
+    mockRequest.mockResolvedValue({ projects: [project()] });
+    const tree = await render();
+    const fold = "Fold units under District · District";
+    expect(text(tree)).toContain("Village X");
+    expect(expandedOf(tree, fold)).toBe(true);
+    await press(tree, fold);
+    expect(text(tree)).not.toContain("Village X");
+    expect(text(tree)).not.toContain("Sub-centre B");
+    expect(text(tree)).not.toContain("Dr Root");
+    expect(expandedOf(tree, "Unfold units under District · District")).toBe(false);
+    await press(tree, "Unfold units under District · District");
+    expect(text(tree)).toContain("Village X");
   });
 
   it("renders one tree: ancestors nested root-first, then my level, then the units below", async () => {
@@ -110,11 +146,11 @@ describe("OrganizationScreen", () => {
     for (const heading of [en.orgWhereIAm, en.orgAbove, en.orgMyLevel, en.orgBelow]) {
       expect(shown).not.toContain(heading);
     }
-    expect(shown).toContain("Dr Root · CS");
-    expect(shown).toContain("Asha Mid · MO");
-    expect(shown).toContain("Meena · ANM");
-    expect(shown).toContain("2 people");
+    // People appear only in the flyout opened from a badge.
+    for (const name of ["Dr Root", "Asha Mid", "Meena"]) expect(shown).not.toContain(name);
+    expect(shown).not.toContain('"1 people"');
     expect(shown).not.toContain("Project One");
+    expect(findButton(tree, "District · District")).toBeUndefined();
 
     const items = (node: { findAll: (p: (n: any) => boolean) => any[] }) => node.findAll((n) => host(n) && n.props.role === "treeitem");
     const [root] = tree.root.findAll((n) => host(n) && n.props.role === "tree");
@@ -128,11 +164,110 @@ describe("OrganizationScreen", () => {
     expect(textOf(district).indexOf("District")).toBeLessThan(textOf(district).indexOf("PHC A"));
   });
 
-  it("highlights the user's own unit with a You badge and cadres, and no other node", async () => {
+  it("opens one flyout of names only from the badge, and Close hides it", async () => {
+    const leaky = { name: "Dr Root", cadre: "CS", email: "root@example.com", phone: "9000000001" };
+    mockRequest.mockResolvedValue({ projects: [project({ above: [{ ...ROOT_UNIT, people: [leaky] }, MID_UNIT] })] });
+    const tree = await render();
+
+    expect(dialogs(tree)).toHaveLength(0);
+    expect(text(tree)).not.toContain("Dr Root");
+    await pressBadge(tree, "District");
+    const [dialog] = dialogs(tree);
+    expect(dialog.props["aria-modal"]).toBe(true);
+    const shown = textOf(dialog);
+    expect(shown).toContain("District · District");
+    expect(shown).toContain("Dr Root");
+    expect(shown).not.toContain("Asha Mid");
+    for (const hidden of [...CADRES, "root@example.com", "9000000001"]) expect(shown).not.toContain(hidden);
+
+    await closeFlyout(tree);
+    expect(dialogs(tree)).toHaveLength(0);
+    expect(text(tree)).not.toContain("Dr Root");
+  });
+
+  it("closes on Escape and on the scrim, and a zero count still opens", async () => {
+    const listeners: Record<string, (e: { key: string; preventDefault: () => void }) => void> = {};
+    const g = globalThis as any;
+    g.window = { addEventListener: (k: string, f: any) => { listeners[k] = f; }, removeEventListener: () => { delete listeners.keydown; } };
+    g.document = { getElementById: () => null };
+    try {
+      mockRequest.mockResolvedValue({ projects: [project({ my_level: [{ org_unit_id: "U2", unit_name: "Sub-centre B", parent_org_unit_id: "U1", people: [] }] })] });
+      const tree = await render();
+
+      await pressBadge(tree, "Sub-centre B");
+      expect(textOf(dialogs(tree)[0])).toContain(en.orgNoPeople);
+      await act(async () => listeners.keydown({ key: "Escape", preventDefault() {} }));
+      expect(dialogs(tree)).toHaveLength(0);
+
+      await pressBadge(tree, "District");
+      const scrim = tree.root.findAll((n) => typeof n.props.onPress === "function" && n.props.accessibilityLabel === "Close")[0];
+      await act(async () => scrim.props.onPress());
+      expect(dialogs(tree)).toHaveLength(0);
+    } finally {
+      delete g.window;
+      delete g.document;
+    }
+  });
+
+  it("a below unit's badge loads it, shows names, and a failed load shows the error", async () => {
+    let calls = 0;
+    mockRequest.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/organization/me") return { projects: [project()] };
+      if (path === "/api/v1/organization/units/U3/people") {
+        calls += 1;
+        if (calls === 1) throw new ClientApiError(500, "server_error");
+        return VILLAGE_PEOPLE;
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+    const tree = await render();
+
+    await pressBadge(tree, "Village X");
+    expect(textOf(dialogs(tree)[0])).toContain("server error");
+    expect(dialogs(tree)[0].findAll((n) => host(n) && n.props.accessibilityRole === "alert")).not.toHaveLength(0);
+    await closeFlyout(tree);
+
+    await pressBadge(tree, "Village X");
+    expect(calls).toBe(2);
+    expect(textOf(dialogs(tree)[0])).toContain("Ravi");
+    expect(textOf(dialogs(tree)[0])).not.toContain("CHO");
+
+    // Already loaded: opening the flyout again must not toggle the branch shut.
+    await closeFlyout(tree);
+    await pressBadge(tree, "Village X");
+    expect(calls).toBe(2);
+    expect(textOf(dialogs(tree)[0])).toContain("Ravi");
+    expect(expandedOf(tree, "Close Village X")).toBe(true);
+  });
+
+  it("tints cards by unit type: same level shares colours, different levels differ", async () => {
+    mockRequest.mockResolvedValue({
+      projects: [project({
+        below: [
+          { org_unit_id: "U3", unit_name: "Village X", level_name: "Village", parent_org_unit_id: "U2", people_count: 2, has_children: false },
+          { org_unit_id: "U5", unit_name: "Village Z", level_name: "Village", parent_org_unit_id: "U2", people_count: 1, has_children: false },
+        ],
+      })],
+    });
+    const tree = await render();
+    const flat = (style: unknown): Record<string, any> => Object.assign({}, ...[style].flat(Infinity).filter(Boolean));
+    const card = (name: string) => {
+      const item = tree.root.findAll((n) => host(n) && n.props.role === "treeitem" && textOf(n).startsWith(name))[0];
+      return flat(item.findAll((n) => host(n) && n.props.style && flat(n.props.style).borderLeftWidth === 3)[0].props.style);
+    };
+    const [x, z, phc, district] = [card("Village X"), card("Village Z"), card("PHC A"), card("District")];
+    expect(x.backgroundColor).toBeTruthy();
+    expect(x.backgroundColor).toBe(z.backgroundColor);
+    expect(x.borderLeftColor).toBe(z.borderLeftColor);
+    expect(x.backgroundColor).not.toBe(phc.backgroundColor);
+    expect(phc.borderLeftColor).not.toBe(district.borderLeftColor);
+  });
+
+  it("highlights the user's own unit with a You badge and no cadres line, and no other node", async () => {
     mockRequest.mockResolvedValue({
       projects: [project({ my_level: [
         { org_unit_id: "U2", unit_name: "Sub-centre B", people: [] },
-        { org_unit_id: "U9", unit_name: "Sub-centre C", people: [] },
+        { org_unit_id: "U9", unit_name: "Sub-centre C", parent_org_unit_id: "U1", people: [] },
       ] })],
     });
     const tree = await render();
@@ -142,9 +277,55 @@ describe("OrganizationScreen", () => {
     const shown = textOf(selected[0]);
     expect(shown).toContain("Sub-centre B · Sub-centre");
     expect(shown).toContain(en.orgYou);
-    expect(shown).toContain("Cadres: ANM, MPW");
     expect(text(tree)).toContain("Sub-centre C");
-    expect(text(tree).split(en.orgCadres.split("{")[0]).length - 1).toBe(1);
+    for (const cadre of ["Cadres", "ANM", "MPW"]) expect(text(tree)).not.toContain(cadre);
+  });
+
+  it("nests two own units on one branch and their below siblings by real parentage", async () => {
+    mockRequest.mockResolvedValue({
+      projects: [project({
+        my_units: [
+          { org_unit_id: "U1", unit_name: "PHC A", level_name: "PHC", cadres: ["MO"] },
+          { org_unit_id: "U2", unit_name: "SC 1", level_name: "Sub-centre", cadres: ["ANM"] },
+        ],
+        above: [ROOT_UNIT],
+        my_level: [
+          { org_unit_id: "U1", unit_name: "PHC A", parent_org_unit_id: "U0", people: [] },
+          { org_unit_id: "U2", unit_name: "SC 1", parent_org_unit_id: "U1", people: [] },
+        ],
+        below: [
+          { org_unit_id: "U5", unit_name: "SC 2", level_name: "Sub-centre", parent_org_unit_id: "U1", people_count: 1, has_children: false },
+          { org_unit_id: "U6", unit_name: "SC 3", level_name: "Sub-centre", parent_org_unit_id: "U1", people_count: 1, has_children: false },
+        ],
+      })],
+    });
+    const tree = await render();
+
+    const items = (node: { findAll: (p: (n: any) => boolean) => any[] }) => node.findAll((n) => host(n) && n.props.role === "treeitem");
+    const [root] = tree.root.findAll((n) => host(n) && n.props.role === "tree");
+    const [district, phc] = items(root);
+    expect(items(district)).toContain(phc);
+    const inner = items(phc).filter((n) => n !== phc);
+    expect(inner.map((n) => /SC \d/.exec(textOf(n))?.[0])).toEqual(["SC 1", "SC 2", "SC 3"]);
+    // Siblings: none of the three contains another.
+    for (const sc of inner) expect(items(sc).filter((n) => n !== sc)).toHaveLength(0);
+    expect(root.findAll((n) => host(n) && n.props["aria-selected"] === true)).toHaveLength(2);
+  });
+
+  it("falls back to the flat layout when the server sends no parent ids", async () => {
+    const strip = ({ parent_org_unit_id: _p, ...rest }: Record<string, unknown>) => rest;
+    const base = project();
+    mockRequest.mockResolvedValue({
+      projects: [{ ...base, above: base.above.map(strip), my_level: base.my_level.map(strip), below: base.below.map(strip) }],
+    });
+    const tree = await render();
+
+    const items = (node: { findAll: (p: (n: any) => boolean) => any[] }) => node.findAll((n) => host(n) && n.props.role === "treeitem");
+    const [root] = tree.root.findAll((n) => host(n) && n.props.role === "tree");
+    const [district, phc, subcentre, village] = items(root);
+    expect(items(district)).toContain(phc);
+    expect(items(phc)).toContain(subcentre);
+    expect(items(subcentre)).toContain(village);
   });
 
   it("opening a below unit fetches its people and children, and closing it hides them", async () => {
@@ -155,13 +336,17 @@ describe("OrganizationScreen", () => {
     });
     const tree = await render();
 
-    await pressOpen(tree);
+    await press(tree, "Open Village X");
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/organization/units/U3/people");
-    expect(text(tree)).toContain("Ravi · CHO");
+    expect(text(tree)).not.toContain("Ravi");
     expect(text(tree)).toContain("Hamlet Y");
+    await pressBadge(tree, "Village X");
+    expect(textOf(dialogs(tree)[0])).toContain("Ravi");
+    expect(textOf(dialogs(tree)[0])).not.toContain("CHO");
+    await closeFlyout(tree);
 
-    await pressOpen(tree);
-    expect(text(tree)).not.toContain("Ravi · CHO");
+    await press(tree, "Close Village X");
+    expect(text(tree)).not.toContain("Hamlet Y");
   });
 
   it("closing a unit collapses its children, so reopening it shows them closed", async () => {
@@ -173,15 +358,14 @@ describe("OrganizationScreen", () => {
     });
     const tree = await render();
 
-    await pressOpen(tree, 0);
-    await pressOpen(tree, 1);
-    expect(text(tree)).toContain("Kofi · ASHA");
+    await press(tree, "Open Village X");
+    await press(tree, "Open Hamlet Y");
+    expect(expandedOf(tree, "Close Hamlet Y")).toBe(true);
 
-    await pressOpen(tree, 0);
-    await pressOpen(tree, 0);
+    await press(tree, "Close Village X");
+    await press(tree, "Open Village X");
     expect(text(tree)).toContain("Hamlet Y");
-    expect(text(tree)).not.toContain("Kofi · ASHA");
-    expect(findButton(tree, "Open Hamlet Y").props["data-expanded"]).toBe("no");
+    expect(expandedOf(tree, "Open Hamlet Y")).toBe(false);
   });
 
   it("names each open button after its unit and exposes whether it is expanded", async () => {
@@ -192,9 +376,9 @@ describe("OrganizationScreen", () => {
     });
     const tree = await render();
 
-    expect(findButton(tree, "Open Village X").props["data-expanded"]).toBe("no");
-    await pressOpen(tree);
-    expect(findButton(tree, "Close Village X").props["data-expanded"]).toBe("yes");
+    expect(expandedOf(tree, "Open Village X")).toBe(false);
+    await press(tree, "Open Village X");
+    expect(expandedOf(tree, "Close Village X")).toBe(true);
     expect(findButton(tree, "Open Village X")).toBeUndefined();
   });
 
@@ -211,26 +395,14 @@ describe("OrganizationScreen", () => {
     });
     const tree = await render();
 
-    await pressOpen(tree);
+    await press(tree, "Open Village X");
     expect(text(tree)).toContain("server error");
-    expect(findButton(tree, "Open Village X").props["data-expanded"]).toBe("no");
+    expect(expandedOf(tree, "Open Village X")).toBe(false);
 
-    await pressOpen(tree);
+    await press(tree, "Open Village X");
     expect(villageCalls).toBe(2);
-    expect(text(tree)).toContain("Ravi · CHO");
-    expect(findButton(tree, "Close Village X").props["data-expanded"]).toBe("yes");
-  });
-
-  it("shows only name and cadre for each person, even when the API sends contact fields", async () => {
-    const leaky = { name: "Dr Root", cadre: "CS", email: "root@example.com", phone: "9000000001", worker_code: "WC-77", user_id: "uid-9" };
-    mockRequest.mockResolvedValue({ projects: [project({ above: [{ ...ROOT_UNIT, people: [leaky] }] })] });
-    const tree = await render();
-
-    const shown = text(tree);
-    expect(shown).toContain("Dr Root · CS");
-    for (const hidden of ["root@example.com", "9000000001", "WC-77", "uid-9"]) {
-      expect(shown).not.toContain(hidden);
-    }
+    expect(text(tree)).toContain("Hamlet Y");
+    expect(expandedOf(tree, "Close Village X")).toBe(true);
   });
 
   it("a unit the user may not open shows an error and the page still renders", async () => {
@@ -240,7 +412,7 @@ describe("OrganizationScreen", () => {
     });
     const tree = await render();
 
-    await pressOpen(tree);
+    await press(tree, "Open Village X");
     const shown = text(tree);
     expect(shown).toContain(en.orgUnitNotAllowed);
     expect(shown).toContain("Sub-centre B");
@@ -286,7 +458,7 @@ describe("My organization strings", () => {
   const keys = [
     "navOrganization", "organizationTitle", "orgNotInTree", "orgWhereIAm", "orgNoPlacement", "orgUnitLine",
     "orgCadres", "orgAbove", "orgMyLevel", "orgBelow", "orgNone", "orgNoPeople", "orgPersonLine",
-    "orgPeopleCount", "orgOpen", "orgClose", "orgOpenUnit", "orgCloseUnit", "orgUnitNotAllowed", "kpiLine",
+    "orgPeopleCount", "orgShowMembers", "orgOpen", "orgClose", "orgOpenUnit", "orgCloseUnit", "orgUnitNotAllowed", "kpiLine",
   ] as const;
 
   it("has the tree strings in English (other locales fall back to it)", () => {

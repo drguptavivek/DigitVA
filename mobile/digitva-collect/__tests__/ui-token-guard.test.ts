@@ -20,6 +20,7 @@ const FONT_SCALE = new Set([12, 14, 16, 18, 20, 24, 26]);
  */
 const COLOUR_ALLOW: ReadonlyArray<{ file: string; text: string; why: string }> = [
   { file: "src/web/common.tsx", text: "rgba(0,0,0,0.45)", why: "navigation drawer scrim" },
+  { file: "src/web/OrgTree.tsx", text: "rgba(0,0,0,0.45)", why: "people flyout scrim" },
   { file: "src/web/common.tsx", text: "shadowColor", why: "popover shadow" },
   { file: "src/web/InterviewScreen.tsx", text: "shadowColor", why: "popover shadow" },
   { file: "src/workspace/QueueScreen.tsx", text: "rgba(0,0,0,0.5)", why: "modal scrim" },

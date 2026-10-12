@@ -47,6 +47,16 @@ import {
 } from "./question-control-support.js";
 import { englishAlongside, plainText } from "./localize.js";
 
+/** Tabler "calendar" outline (24 grid, stroke 2): the same line-icon family as the app header, drawn in the glyph colour. Only rendered where the web date input exists. */
+const CALENDAR_ICON = React.createElement(
+  "svg",
+  { width: 22, height: 22, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", focusable: "false", style: { display: "block" } },
+  React.createElement("path", { d: "M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z" }),
+  React.createElement("path", { d: "M16 3v4" }),
+  React.createElement("path", { d: "M8 3v4" }),
+  React.createElement("path", { d: "M4 11h16" }),
+);
+
 export { questionControlStyles } from "./question-control-support.js";
 
 export interface WhoVaPlatformServices {
@@ -1435,7 +1445,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                 testID={`question-${question.name}-calendar`}
               >
                 <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
-                  📅
+                  {CALENDAR_ICON}
                 </PrimitiveText>
               </Pressable>
             </>

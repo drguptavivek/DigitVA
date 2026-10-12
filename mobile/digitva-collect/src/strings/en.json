@@ -365,9 +365,13 @@
   "orgOpen": "Open",
   "orgClose": "Close",
   "orgOpenUnit": "Open {unit}",
+  "orgShowMembers": "Show members of {unit}",
   "orgCloseUnit": "Close {unit}",
   "orgYouAreHere": "You are here",
   "orgYou": "You",
   "orgUnitNotAllowed": "You cannot open this unit.",
-  "kpiLine": "Deaths reported {deaths} · Interviews done {interviews} ({interviewsPct}) · Coded {coded} ({codedPct})"
+  "kpiLine": "Deaths reported {deaths} · Interviews done {interviews} ({interviewsPct}) · Coded {coded} ({codedPct})",
+  "orgFoldBranch": "Fold units under {unit}",
+  "orgUnfoldBranch": "Unfold units under {unit}",
+  "orgBranchUnits": "{count} units below"
 }

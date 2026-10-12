@@ -190,6 +190,8 @@ function createStyles(t: UiTokens, controlHeight: number = controls.minHeight) {
     titleBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, paddingTop: spacing.sm },
     text: { ...typography.body, color: t.foreground, fontFamily: controls.fontFamily },
     headline: { ...typography.headline, color: t.foreground, fontFamily: controls.fontFamily },
+    /** A form question's label: larger and bolder than helper text so the questions lead. */
+    fieldLabel: { ...typography.body, lineHeight: 22, fontWeight: "600" as const, color: t.foreground, fontFamily: controls.fontFamily },
     muted: { ...typography.subhead, color: t.mutedForeground, fontFamily: controls.fontFamily },
     error: { ...typography.subhead, color: t.destructiveText, fontFamily: controls.fontFamily },
     input: {

@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-13
 ---
 
 # API v1 Reference
@@ -932,7 +932,10 @@ sites-mode projects are omitted.
   with cadre names), `above` (ancestor units, root first, each with
   `people`), `my_level` (people at each own unit), `below` (child units of
   own units with `people_count` and `has_children`, or the root units when the
-  caller has no unit).
+  caller has no unit). Every unit in `above`, `my_level`, `below` and
+  `children` also carries `parent_org_unit_id` (uuid string or `null`), so a
+  client can nest units by real parentage (an own unit can sit under another
+  own unit, and `below` excludes own units).
 - `GET /units/<org_unit_id>/people`: `{unit, people, children}` for one unit;
   404 when the unit is unknown, inactive, or in a project the caller holds no
   grant in.

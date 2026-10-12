@@ -55,6 +55,7 @@ from app.services import notification_service, org_grant_service, served_form_se
 from app.services import web_intake_attachment_service as attachments
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
+from app.services.visit_note import has_visit_note_condition
 from app.services.authz import resolve_grants, subtree_select, supervision
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.authz.consulted import mark_consulted
@@ -3840,7 +3841,7 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
     ).all()
 
 
-def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
+def possible_duplicates(user: VaUsers, case: VaDeathRegister, scope=None) -> list[dict]:
     """Cases in *user*'s worklist reach that may be the same death as *case*.
 
     A warning for the interviewer, never a block and never a merge: flagging
@@ -3849,12 +3850,14 @@ def possible_duplicates(user: VaUsers, case: VaDeathRegister) -> list[dict]:
     ``_possible_duplicate_rows``. Each candidate carries what tells a person
     whether it is the same death (name, date of death, village, age, sex,
     informant, previous interviewer, who reported the death); the candidates are only cases inside
-    *user*'s scope, so nothing of any other case is returned
-    (docs/policy/web-intake.md, "Duplicate and cancel flags"). ``village`` is
+    *scope* (default: *user*'s worklist reach), so nothing of any other case is
+    returned (docs/policy/web-intake.md, "Duplicate and cancel flags"). ``village`` is
     the village or ward of the candidate's recorded address, None when empty
     (never the org unit, which comes as ``unit_name``).
     """
-    rows = _possible_duplicate_rows([case.death_id], _worklist_scope(user), per_case=DUPLICATE_CANDIDATES_MAX)
+    if scope is None:
+        scope = _worklist_scope(user)
+    rows = _possible_duplicate_rows([case.death_id], scope, per_case=DUPLICATE_CANDIDATES_MAX)
     return [
         {
             "death_id": str(row.death_id),
@@ -3911,16 +3914,17 @@ def supervised_case_row(death: VaDeathRegister) -> tuple:
 
 
 def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, flagged: bool = False,
-                          candidates: bool = False, cursor: str | None = None,
-                          limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
+                          candidates: bool = False, visit_note: bool = False,
+                          cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
     """Every case in the supervisor's scope, "details pending" included.
 
     Returns ``{"cases": [(case, unit_name, registered_by_name,
     started_by_name, other_complete_interview), ...], "counts": {state: n},
     "next_cursor": ...}``; *flagged* keeps cases with a flag waiting for a
     supervisor, *candidates* those with a second complete interview to choose
-    (``_has_candidate``). ``counts`` ignore *states*, *flagged* and
-    *candidates*. Keyset-paged like ``list_worklist``.
+    (``_has_candidate``), *visit_note* those whose submission holds a visit
+    note (one EXISTS, no extra query). ``counts`` ignore *states*, *flagged*,
+    *candidates* and *visit_note*. Keyset-paged like ``list_worklist``.
     """
     for state in states or []:
         if state not in CASE_STATES:
@@ -3939,6 +3943,11 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
         filters.append(VaDeathRegister.pending_flag.is_not(None))
     if candidates:
         filters.append(_has_candidate())
+    if visit_note:
+        # The note's predicate reads VaSubmissions, so it is correlated here.
+        filters.append(sa.exists(sa.select(1).where(
+            VaSubmissions.va_sid == VaDeathRegister.va_sid, has_visit_note_condition(),
+        )))
     if cursor:
         at, death_id = _decode_cursor(cursor)
         filters.append(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))

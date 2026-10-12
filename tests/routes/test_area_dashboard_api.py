@@ -146,6 +146,17 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
         self.assertIn(response.status_code, (302, 401))
 
 
+    def test_rows_carry_deaths_reported_without_a_link(self):
+        self._as(self.project_user)
+        self.assertIn(b"Deaths reported", self.client.get(PAGE).data)
+        rows = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["rows"]
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertIn("deaths_reported", row["counts"])
+            # No data manager filter selects death-register cases, so no link.
+            self.assertNotIn("deaths_reported", row.get("links", {}))
+
+
 class AreaStaffRouteTests(AreaStaffFixture):
     def _as(self, user):
         self._login(str(user.user_id))

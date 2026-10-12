@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-12
 ---
 
 # Expo Web Client Boundary
@@ -53,6 +53,25 @@ send the browser to `/vaauth/valogin?next=/app/` (sign out:
 `/vaauth/valogout`). The response, including errors, is `Cache-Control:
 no-store`. No sign-in bypass, device-token fallback, or new authentication
 factor is introduced.
+
+## Role home and login landing
+
+Owner decision, 2026-10-11 and 2026-10-12 (design: `.tasks/2026-10-11-home-jump-page.md`).
+After login, a user holding one of the field, coding or data manager roles
+lands on the Expo role home at `/app/`:
+
+- `admin` or `project_pi`: unchanged (today's landing).
+- Any of `interviewer`, `death_reporter`, `interview_supervisor`, `coder`,
+  `coding_tester`, `reviewer`, `data_manager`, in the user's effective roles:
+  `/app/`. A data manager reaches the area view from the data manager tab on `/app/`.
+- Anything else (collaborators, viewers, `site_pi` alone): today's landing,
+  unchanged. If the Expo export is missing (no `index.html`), every user
+  keeps today's landing. `/app/` resumes the user's last visited screen
+  client-side (Expo bead digitva-k6i9).
+
+Effective roles come from the authz helper, so a `site_pi` held at an org
+unit (the In-charge) counts as `data_manager` and `interview_supervisor`.
+`VaUsers.landing_url()` implements the rule.
 
 ## Hosting and languages
 

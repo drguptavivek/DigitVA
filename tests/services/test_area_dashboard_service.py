@@ -970,3 +970,123 @@ class AreaStaffTests(AreaStaffFixture):
         self.assertFalse(self._staff(
             self.sites_mode_site_user, project=self.SITES, site_id=self.SITE_ONE
         )["staff_identity_redacted"])
+
+
+def _count_statements(fn):
+    """How many SQL statements *fn* runs."""
+    seen = []
+
+    def listener(conn, cursor, statement, parameters, context, executemany):
+        seen.append(statement)
+
+    sa.event.listen(db.engine, "before_cursor_execute", listener)
+    try:
+        fn()
+    finally:
+        sa.event.remove(db.engine, "before_cursor_execute", listener)
+    return len(seen)
+
+
+class AreaDeathsReportedTests(AreaDashboardFixture):
+    """Deaths reported: death-register cases per unit subtree, site and unrouted.
+
+    Baselines are read first because other fixtures may leave cases behind;
+    every case a test adds is deleted on cleanup.
+    """
+
+    def _death(self, number, status, unit=None, site=None, project=None, source="register"):
+        case = VaDeathRegister(
+            project_id=project or self.TREE,
+            site_id=site or self.TREE_SITE,
+            org_unit_id=unit.org_unit_id if unit else None,
+            death_number=number,
+            unique_id=f"AREA-DEATH-{number}",
+            deceased_name="Test Case",
+            deceased_sex="female",
+            date_of_death=datetime.now(UTC).date(),
+            registered_by=self.interviewer.user_id,
+            source=source,
+            status=status,
+        )
+        db.session.add(case)
+        db.session.commit()
+        self.addCleanup(self._delete_death, case.death_id)
+        return case
+
+    @staticmethod
+    def _delete_death(death_id):
+        case = db.session.get(VaDeathRegister, death_id)
+        if case is not None:
+            db.session.delete(case)
+            db.session.commit()
+
+    def _rows(self, user, **kwargs):
+        return self._by_key(area.area_summary(user, self.TREE, **kwargs))
+
+    def test_unit_counts_its_subtree_and_leaves_out_duplicates_and_cancelled(self):
+        key = str(self.chc_a.org_unit_id)
+
+        def chc_a_deaths():
+            return self._rows(self.unit_user)[key]["counts"]["deaths_reported"]
+
+        base = chc_a_deaths()
+        self._death(990401, "registered", unit=self.phc_a1)
+        self._death(990402, "submitted", unit=self.chc_a, source="direct")
+        # Both counted cases (one in a child unit, one on CHC A itself) show first.
+        self.assertEqual(chc_a_deaths(), base + 2)
+        self._death(990403, "duplicate", unit=self.phc_a1)
+        self._death(990404, "cancelled", unit=self.phc_a1)
+        self.assertEqual(chc_a_deaths(), base + 2)
+
+    def test_a_district_rolls_up_its_units_and_an_unrouted_case_counts_once(self):
+        district_1 = str(self.district_1.org_unit_id)
+        district_2 = str(self.district_2.org_unit_id)
+        base = self._rows(self.project_user)
+        base_counts = {k: base[k]["counts"]["deaths_reported"] for k in (district_1, district_2, area.UNROUTED_KEY)}
+        self._death(990411, "registered", unit=self.chc_b)
+        self._death(990412, "registered", unit=self.district_2)
+        self._death(990413, "registered", unit=None)
+        rows = self._rows(self.project_user)
+        self.assertEqual(rows[district_1]["counts"]["deaths_reported"], base_counts[district_1] + 1)
+        self.assertEqual(rows[district_2]["counts"]["deaths_reported"], base_counts[district_2] + 1)
+        self.assertEqual(rows[area.UNROUTED_KEY]["counts"]["deaths_reported"], base_counts[area.UNROUTED_KEY] + 1)
+
+    def test_a_unit_outside_the_viewers_reach_is_not_counted(self):
+        key = str(self.chc_a.org_unit_id)
+        chc_b = str(self.chc_b.org_unit_id)
+        district_1 = str(self.district_1.org_unit_id)
+        base = self._rows(self.unit_user)[key]["counts"]["deaths_reported"]
+        base_district = self._rows(self.project_user)[district_1]["counts"]["deaths_reported"]
+        self._death(990421, "registered", unit=self.chc_b)
+        # Counted for a viewer who reaches CHC B, so its absence below is meaningful.
+        self.assertEqual(
+            self._rows(self.project_user)[district_1]["counts"]["deaths_reported"], base_district + 1
+        )
+        self.assertEqual(self._rows(self.unit_user)[key]["counts"]["deaths_reported"], base)
+        self.assertNotIn(chc_b, self._rows(self.unit_user))
+        with self.assertRaises(area.AreaNotFound):
+            area.area_summary(self.unit_user, self.TREE, unit_id=chc_b)
+
+    def test_sites_mode_counts_per_site(self):
+        def rows():
+            return self._by_key(area.area_summary(self.base_admin_user, self.SITES))
+
+        base_one = rows()[self.SITE_ONE]["counts"]["deaths_reported"]
+        base_two = rows()[self.SITE_TWO]["counts"]["deaths_reported"]
+        self._death(990431, "submitted", site=self.SITE_TWO, project=self.SITES)
+        self.assertEqual(rows()[self.SITE_TWO]["counts"]["deaths_reported"], base_two + 1)
+        self._death(990432, "duplicate", site=self.SITE_TWO, project=self.SITES)
+        self._death(990433, "cancelled", site=self.SITE_TWO, project=self.SITES)
+        self.assertEqual(rows()[self.SITE_TWO]["counts"]["deaths_reported"], base_two + 1)
+        self.assertEqual(rows()[self.SITE_ONE]["counts"]["deaths_reported"], base_one)
+
+    def test_query_count_does_not_grow_with_units(self):
+        # Ids read before measuring: an expired instance refreshes on access.
+        one_id = self.chc_a.org_unit_id
+        all_ids = [
+            u.org_unit_id for u in (self.district_1, self.chc_a, self.chc_b, self.chc_c, self.phc_a1)
+        ]
+        one = _count_statements(lambda: area._deaths_reported_by_unit(self.TREE, [one_id]))
+        many = _count_statements(lambda: area._deaths_reported_by_unit(self.TREE, all_ids))
+        self.assertEqual(one, 1)
+        self.assertEqual(many, one)

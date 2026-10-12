@@ -7,7 +7,14 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db, limiter
 from app.decorators import role_required
-from app.models import VaForms, VaProjectSites, VaStatuses, VaSubmissionWorkflow, VaSubmissions
+from app.models import (
+    VaAllocation,
+    VaForms,
+    VaProjectSites,
+    VaStatuses,
+    VaSubmissionWorkflow,
+    VaSubmissions,
+)
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
@@ -17,6 +24,7 @@ from app.services.coder_dashboard_service import (
     get_coder_project_options,
     get_coder_project_ids,
     get_coder_recodeable_sids,
+    last_allocated_project_id,
 )
 
 from app.services.coder_workflow_service import (
@@ -662,13 +670,21 @@ def history():
 @bp.get("/projects")
 @role_required("coder", "coding_tester", "admin")
 def projects():
-    """Return distinct project IDs accessible to the current coding user."""
+    """Return distinct project IDs accessible to the current coding user.
+
+    ``last_project_id`` is the project of their newest coding allocation, or
+    null when it is not among ``project_options``.
+    """
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
     project_ids = get_coder_project_ids(va_form_access)
     project_options = get_coder_project_options(va_form_access)
+    last_project_id = last_allocated_project_id(
+        current_user.user_id, VaAllocation.coding, {option["project_id"] for option in project_options}
+    )
     return jsonify({
         "projects": list(project_ids),
         "project_options": project_options,
+        "last_project_id": last_project_id,
     })
 
 

@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-12
 ---
 
 # Area Dashboard Policy
@@ -75,6 +75,11 @@ The page opens at the user's grant roots and drills down one level at a time
 (the selected unit's direct children, with a breadcrumb back up). Each row
 is the unit's whole subtree, counted once.
 
+- **Deaths reported**: death-register cases (`VaDeathRegister`, every
+  source: register and direct) in the unit subtree or the site, live. Confirmed
+  duplicates and cancelled cases are left out. An unrouted case counts in the
+  Unrouted row. It has no link: no data manager filter selects death-register
+  cases, so the count goes nowhere rather than to a different number.
 - **Collection progress**: submissions received (web and ODK alike, from the
   submission analytics snapshot) in total and in the last 7 and 30 days,
   and web interviews in progress (open drafts, live).

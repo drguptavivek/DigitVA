@@ -5,6 +5,7 @@ returns a normal 404, which keeps a server-only deployment usable while the
 client is being built.
 """
 
+import functools
 import os
 from pathlib import Path
 
@@ -47,6 +48,16 @@ def _dist_root() -> Path:
     if configured:
         return Path(configured).expanduser().resolve()
     return (Path(current_app.root_path).parent / "mobile" / "digitva-collect" / "dist").resolve()
+
+
+@functools.cache
+def export_ready() -> bool:
+    """Whether the export has its ``index.html``, so ``/app/`` can serve.
+
+    Memoised per process: a rebuilt export is seen after a restart, which
+    keeps the login landing from touching the filesystem on every call.
+    """
+    return (_dist_root() / "index.html").is_file()
 
 
 def _safe_file(root: Path, relative_path: str) -> Path | None:

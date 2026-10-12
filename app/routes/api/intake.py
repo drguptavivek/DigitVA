@@ -38,6 +38,8 @@ from app.services import interview_send_back_service as send_back_svc
 from app.services import web_intake_attachment_service as attachments_svc
 from app.services import web_intake_service as intake_svc
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
+from app.services.viewer_pii_service import should_redact_pii
+from app.services.visit_note import visit_note_for_viewer, visit_notes_for
 
 bp = Blueprint("intake_api", __name__)
 
@@ -890,13 +892,17 @@ def _supervisor_reply(death):
 def supervised_cases():
     """All cases in the caller's supervisor scope, with who registered and
     started each. Query: ``state``, ``flagged``, ``candidates`` (only cases
-    with a second complete interview to choose), ``limit``, ``cursor``."""
+    with a second complete interview to choose), ``visit_note`` (only cases
+    with a visit note), ``limit``, ``cursor``."""
     flagged_raw = (request.args.get("flagged") or "").lower()
     if flagged_raw not in _TRUE + _FALSE:
         return error("flagged must be true or false.", "invalid_request", 400)
     candidates_raw = (request.args.get("candidates") or "").lower()
     if candidates_raw not in _TRUE + _FALSE:
         return error("candidates must be true or false.", "invalid_request", 400)
+    visit_note_raw = (request.args.get("visit_note") or "").lower()
+    if visit_note_raw not in _TRUE + _FALSE:
+        return error("visit_note must be true or false.", "invalid_request", 400)
     states = [s for s in (request.args.get("state") or "").split(",") if s]
     try:
         limit = int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT)
@@ -907,6 +913,7 @@ def supervised_cases():
         states=states,
         flagged=flagged_raw in _TRUE,
         candidates=candidates_raw in _TRUE,
+        visit_note=visit_note_raw in _TRUE,
         cursor=request.args.get("cursor") or None,
         limit=limit,
     )
@@ -925,11 +932,37 @@ def supervised_case_detail(death_id):
     """One supervised case (the list's row) with its ``candidates``: the other
     complete interviews a supervisor may choose, each ``{draft_id,
     interviewer_name, completed_at, outcome}``. Interviewers never see these
-    names. 404 outside the caller's reach."""
+    names. ``visit_note``: the case's visit note as the viewer may see it
+    (``visit_note_for_viewer``), or null. 404 outside the caller's reach."""
     death = intake_svc.get_supervised_case(current_user, death_id)
+    note = visit_notes_for([death.va_sid] if death.va_sid else []).get(death.va_sid)
     return jsonify({
         "case": intake_svc.serialize_supervised_row(current_user, *intake_svc.supervised_case_row(death)),
         "candidates": intake_svc.list_candidates(death),
+        "visit_note": visit_note_for_viewer(note, redact_pii=should_redact_pii(current_user)),
+    })
+
+
+# The only keys a supervisor's duplicate candidate carries: no informant name,
+# village or phone (docs/policy/web-intake.md, "Supervisors").
+_SUPERVISOR_DUPLICATE_KEYS = (
+    "death_id", "unique_id", "unit_name", "state", "score",
+    "deceased_name", "date_of_death", "age_years", "sex",
+)
+
+
+@bp.get("/supervision/cases/<death_id>/possible-duplicates")
+@role_required("interview_supervisor", "data_manager", "admin")
+def supervised_possible_duplicates(death_id):
+    """Cases in the caller's supervision reach that may be the same death as
+    this one (a warning; never blocks, never merges). Only supervisor-row
+    fields. 404 outside the caller's reach."""
+    death = intake_svc.get_supervised_case(current_user, death_id)
+    rows = intake_svc.possible_duplicates(
+        current_user, death, scope=case_svc.supervised_case_condition(current_user)
+    )
+    return jsonify({
+        "possible_duplicates": [{k: row[k] for k in _SUPERVISOR_DUPLICATE_KEYS} for row in rows],
     })
 
 

@@ -40,7 +40,7 @@ def dashboard():
 
 
 @intake.get("/deaths/new")
-@role_required("interviewer")
+@role_required("interviewer", "death_reporter")
 def new_death_page():
     return render_template("va_frontpages/va_intake_death.html")
 

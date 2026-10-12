@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-12
 ---
 
 # Web Intake Policy
@@ -808,6 +808,18 @@ section, so the phone's old value is not removed).
     project; both cases outside the caller's supervision read as 404. It is
     confirmed at once unless the data-manager rule holds it as a pending
     flag.
+- **Possible duplicates and visit notes (digitva-umc4, 2026-10-12).**
+  - A supervisor sees the possible duplicates of a case in reach
+    (`GET /api/v1/intake/supervision/cases/<id>/possible-duplicates`, the
+    interviewer's matching rules with the supervisor's reach as scope). Only
+    cases in that reach are candidates, and each carries supervisor-row fields
+    only (`death_id`, `unique_id`, `unit_name`, `state`, `score`,
+    `deceased_name`, `date_of_death`, `age_years`, `sex`): no informant name,
+    village or phone. 404 outside reach.
+  - A supervisor sees the visit note of a case in reach on the case detail,
+    redacted by the usual rule (`should_redact_pii`: a viewer without PII
+    access gets the date only). The supervision list filters to cases whose
+    submission holds a visit note (`visit_note=true`).
 - Authorization stays explicit: project, project-site, form and unit grants
   are not interchangeable, and no supervisory reach is inferred from another
   grant. Supervisor power is bounded by grant scope, grant status and

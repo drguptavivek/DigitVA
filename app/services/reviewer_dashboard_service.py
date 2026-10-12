@@ -13,6 +13,7 @@ from app.models import (
     VaFinalAssessments,
     VaForms,
     VaProjectSites,
+    VaResearchProjects,
     VaReviewerFinalAssessments,
     VaStatuses,
     VaSubmissions,
@@ -67,6 +68,36 @@ def count_in_scope(user, project_id: str | None = None) -> int:
     if project_id:
         stmt = stmt.where(VaForms.project_id == project_id)
     return db.session.scalar(stmt)
+
+
+def get_project_options(user) -> list[dict[str, str]]:
+    """Projects the reviewer's queue reaches, one row per project.
+
+    Same scope as ``/stats`` and ``/available`` (``count_in_scope``), so the
+    picker never offers a project whose count is always zero. Each form is
+    tested with EXISTS, which stops at its first in-scope submission (index on
+    va_form_id), so no DISTINCT runs over every in-scope submission.
+    """
+    review_scope = scope_filter(user, Action.REVIEW)
+    has_work = sa.exists().where(
+        VaSubmissions.va_form_id == VaForms.form_id,
+        review_scope,
+        VaSubmissions.va_narration_language.in_(user.vacode_language),
+        not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+    )
+    rows = db.session.execute(
+        sa.select(VaForms.project_id, VaResearchProjects.project_name)
+        .select_from(VaForms)
+        .join(VaProjectSites, _active_project_site())
+        .outerjoin(VaResearchProjects, VaResearchProjects.project_id == VaForms.project_id)
+        .where(has_work)
+        .group_by(VaForms.project_id, VaResearchProjects.project_name)
+        .order_by(VaForms.project_id)
+    ).all()
+    return [
+        {"project_id": project_id, "project_name": project_name or project_id}
+        for project_id, project_name in rows
+    ]
 
 
 def count_completed(user, project_id: str | None = None) -> int:

@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-12
 ---
 
 # Current Data Model
@@ -863,6 +863,11 @@ Key fields:
 - `va_allocation_for`
 - `va_allocation_status`
 - timestamps
+
+Indexes: `ix_va_allocations_to_for_createdat` on (`va_allocated_to`,
+`va_allocation_for`, `va_allocation_createdat`) serves "this user's most
+recent coding or reviewing allocation", which picks the project a queue
+opens on (`digitva-umc4`, migration `j7n3q9w5y2e8`).
 
 ### `va_submission_payload_versions`
 

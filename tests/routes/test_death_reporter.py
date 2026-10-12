@@ -213,6 +213,15 @@ class DeathReporterTests(BaseTestCase):
 
     # -- no interviewing, no worklist ------------------------------------------------
 
+    def test_the_new_death_page_offers_the_questionnaire_start_only_to_an_interviewer(self):
+        start = 'id="death-save-start"'
+        self._login(str(self.interviewer.user_id))
+        self.assertIn(start, self.client.get("/intake/deaths/new").get_data(as_text=True))
+        self._login(str(self.reporter.user_id))
+        page = self.client.get("/intake/deaths/new").get_data(as_text=True)
+        self.assertNotIn(start, page)
+        self.assertIn('id="death-save"', page)
+
     def test_a_reporter_cannot_interview_log_visits_or_use_the_worklist(self):
         case = self._register(self.reporter, self.sca)
         death_id = case["death_id"]

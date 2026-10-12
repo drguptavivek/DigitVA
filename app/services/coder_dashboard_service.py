@@ -10,6 +10,8 @@ import sqlalchemy as sa
 
 from app import cache, db
 from app.models import (
+    VaAllocation,
+    VaAllocations,
     VaCoderReview,
     VaFinalAssessments,
     VaForms,
@@ -549,3 +551,28 @@ def get_coder_project_options(accessible_form_ids: Sequence[str]) -> list[dict[s
         }
         for project_id, project_name in rows
     ]
+
+
+def last_allocated_project_id(
+    user_id, allocation_for: VaAllocation, reachable_project_ids: set[str]
+) -> str | None:
+    """Project of the user's newest allocation for *allocation_for*, any status.
+
+    None when the user has no such allocation or no longer reaches that project
+    (*reachable_project_ids* is their own project options). One LIMIT 1 read on
+    the allocated_to / allocation_for / createdat indexes. Not cached: a new
+    allocation must show at once, and the cached KPIs do not carry it.
+    """
+    project_id = db.session.scalar(
+        sa.select(VaForms.project_id)
+        .select_from(VaAllocations)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaAllocations.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaAllocations.va_allocated_to == user_id,
+            VaAllocations.va_allocation_for == allocation_for,
+        )
+        .order_by(VaAllocations.va_allocation_createdat.desc())
+        .limit(1)
+    )
+    return project_id if project_id in reachable_project_ids else None

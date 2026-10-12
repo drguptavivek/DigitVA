@@ -42,5 +42,15 @@ class VaAllocations(db.Model):
         nullable=False,
     )
 
+    __table_args__ = (
+        # Serves "user's most recent allocation of a kind" (last_allocated_project_id).
+        sa.Index(
+            "ix_va_allocations_to_for_createdat",
+            "va_allocated_to",
+            "va_allocation_for",
+            "va_allocation_createdat",
+        ),
+    )
+
     def __repr__(self):
         return f"VA Allocation -> {self.va_sid} ({self.va_allocation_status}): for {self.va_allocation_for} to {self.va_allocated_to}"

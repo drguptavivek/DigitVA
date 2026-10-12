@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-04
+last_updated: 2026-10-12
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -301,7 +301,9 @@ stays as a second guard.
   `app/routes/va_auth.py` follows `next` only when it is a path starting with
   a single `/`, or an absolute http/https URL on the request's own host. It
   refuses backslashes, whitespace, control characters and anything starting
-  with `//`; everything else lands on the user's home page.
+  with `//`; everything else lands on the user's home page, which is chosen
+  by the login landing rule in `docs/policy/expo-client.md` ("Role home and
+  login landing").
 - **Password reset links work once.** A `password_reset` token carries a
   fingerprint of the user's stored password hash
   (`app/services/token_service.py`). Setting a password changes the hash, so

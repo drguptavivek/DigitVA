@@ -17,8 +17,8 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 > it when committed; writers run targeted tests only; one full suite per
 > commit batch:
 > `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_runner minerva_app_service uv run --no-sync python -m pytest tests --ignore=tests/migrations -q -p no:cacheprovider`
-> (4225 passed, 10 min, 2026-10-11). Coding goes to Sonnet code-writers
-> (owner, 2026-10-04); code must be fast (bd memory `perf-first`). Shared
+> (4225 passed, 10 min, 2026-10-11). Coding goes to Haiku code-writers
+> (owner, 2026-10-12); code must be fast (bd memory `perf-first`). Shared
 > checkout: the Expo session owns `mobile/` and `vendor/`; this backend
 > session commits every other file. Build commit lists with
 > `grep -Ev '^(mobile|vendor)/'` and check the staged list; never stash. When
@@ -31,9 +31,18 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **Translation drafts**: dev is at `e9h3k6p2s8v4` (429 Hindi machine drafts of guidance and constraint messages, `689bb139`; a Hindi reader
+1. **Role home on the Expo web app** (design `.tasks/2026-10-11-home-jump-page.md`):
+   backend `digitva-umc4` (landing to `/app/` for the six roles with a fallback when the export is missing, last project on the coding and
+   reviewing project lists, supervisor possible duplicates and visit notes, death reporters on the new-death page) and `digitva-b3pt` (area
+   deaths reported) are committed; close both once the browser check is done. Expo session: `digitva-k6i9` role home and last-visit
+   resume, `digitva-xqta` supervision screen, `digitva-1g1h` UI in pa/mr/kn/ta/ml/te/gu/or, `digitva-dt1e` UI-string overlay. Until
+   `k6i9` and `xqta` ship, a supervisor landing on `/app/` finds no supervision link. Next here: `digitva-l8y3` (a case for each ODK-only
+   VA; few expected), then `digitva-qu7x` home KPIs, `digitva-e7sz` organization page (worker roster, names visible to everyone in the
+   project), `digitva-fsjz` UI-string editor with Google Translate links (`.tasks/2026-10-12-ui-string-editor.md`; open: admin-only or a
+   translator role). DM Expo screen deferred (`digitva-qirs`).
+2. **Translation drafts**: dev is at `e9h3k6p2s8v4` (429 Hindi machine drafts of guidance and constraint messages, `689bb139`; a Hindi reader
    accepts them in the translations editor). Other locales still need drafts; then `digitva-zyf` (DORIS override messages; needs a vendor regeneration by the Expo session).
-2. **Owner decisions and checks still open**:
+3. **Owner decisions and checks still open**:
    - Browser check owed for web intake uploads (`c8b8edfa`, `digitva-ej1`): record, attach, go offline, reconnect, submit; the logout wipe; the
      7-day warning. Only server and node tests ran.
    - `digitva-0lf7` send WHO the `Id10365` birth-size constraint defect (`docs/kb/WHO_VA_2022_Docs/id10365-birth-size-flow.md`) with `Id10304_a`.
@@ -42,24 +51,24 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
      Id10002/3/4/57 in or and ar): admin edits must drop the span, since
      `update_string` now refuses markup the English lacks.
    - People & roles: per-row links to Access Grants are deferred (the API has no edit flag); PIs use `/people-roles`.
-3. **Expo session's halves** (not this session's files): `digitva-p6fs.4.3` coder pick/history queues (server paging built `dfdfe624`), `p6fs.27`
+4. **Expo session's halves** (not this session's files): `digitva-p6fs.4.3` coder pick/history queues (server paging built `dfdfe624`), `p6fs.27`
    device re-run (server regression test added), `p6fs.32`, vendor typecheck `digitva-i793`/`surw`, vendor flake `digitva-3jj`, device acceptance `p6fs.5`.
    Coder component audit (`digitva-r0fa`) reuses the WHO interview controls for quality, simple COD and the existing shared DORIS editor; see
    `docs/current-state/coder-component-inventory.md`. Sign-out repair is verified through POST/401/reload (`digitva-rcte`), without auth changes.
    Latest badge/header browser checks passed, but final questionnaire/rail visual checks (`digitva-uoe5`) need a coding-capable login; Test CHO cannot open
    the demo case. Physical acceptance remains `p6fs.5`. Browser coder experience (`digitva-ks4m`) has responsive browser QA;
    physical-device acceptance remains under `p6fs.5`, including real audio playback and touch gestures. Demo browser QA did not submit assessments, private notes or SmartVA runs.
-4. **External**: `digitva-fb5` five wrong-wording translations need Odia, Kannada, French and Malayalam readers (locales demoted meanwhile);
+5. **External**: `digitva-fb5` five wrong-wording translations need Odia, Kannada, French and Malayalam readers (locales demoted meanwhile);
    `digitva-mdj` waits on WHO's reply to SwissTPH/WHO-VA#94;
    `digitva-ddv.5` report to WHO; `digitva-sn1.1.7` real-device passkey; Android `kmk.5`, `kfi`; production `ddv.2`.
-5. **Visit note and menu: browser checks done 2026-10-11** (dev). Verified: collaborator area dashboard (Final COD 820, Visit notes 1 for ND01);
+6. **Visit note and menu: browser checks done 2026-10-11** (dev). Verified: collaborator area dashboard (Final COD 820, Visit notes 1 for ND01);
    visit-note redaction in the case header (plain collaborator: date only, "Withheld for your role"; collaborator_pii: address and remarks);
    Manage menu at 375px as collaborator and coder (no overflow; admin earlier); web passkey register and login (Playwright virtual authenticator, credential removed).
    Not checked: a "viewer" role distinct from collaborator. Test note and temp grants removed. EXPLAIN on the visit-note count: 4.7 ms on 8.3k
    submissions, no index needed. `digitva-943l` did not reproduce (4225 passed): closed. Open: `digitva-4ufj` (collaborator Data page toasts
    "data_manager access is required" for charts and coder stats); menu label for the COD buckets page is now "COD reports" (owner, 2026-10-11).
    Panel-level note removed (`digitva-a9kn`). Expo `digitva-gqtp` shows an intake 422's message beside its `fields`.
-6. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
+7. **Parked proposals**: `digitva-394` training module, `digitva-roq` SSO,
    `digitva-d1x` PHMRC, `digitva-1eq` more ML coders, `digitva-zpe` semantic ICD search (design and quality check done,
    `docs/planning/icd-semantic-search.md`; next is the two-stage causes prototype).
 
@@ -69,7 +78,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   `d8q4e1h6n3v9` (`map_case_transitions.changes`), `e9h3k6p2s8v4` (Hindi note drafts, data only), `f2j6n9r4u1x7` (death_reporter role, grid flag,
   reporter list index), `g3k7o1s5w9a2` (grid default roles),
   `g3k7n1s5v9y2` (translation suggestions), `g4k8p2t6x1b5` (web intake attachments), `h5m2r8v4z1d9` (index for the daily upload purge). Dev is
-  at `h5m2r8v4z1d9`. Restart the Celery worker and beat so the "Web intake
+  at `j7n3q9w5y2e8` (allocation index for the queue's last project, after `h5m2r8v4z1d9`). Restart the Celery worker and beat so the "Web intake
   upload purge — daily" row is seeded (30-day rule, `b29d4c59`). Earlier field-collection migrations: `d5f1b8a3c6e2`,
   `e6a2c9d4f1b7` (fails loudly if a user has two open drafts on one case: check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`, `h2n5q8t1v4w7`,
   `b4k8m2r6w9x3`.
@@ -89,11 +98,15 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   stock (`digitva-9uqn`). After deploy, back up, then
   `flask kpi recount-day-events --dry-run` and without `--dry-run`; never
   `flask kpi backfill` for this (it overwrites past pending backlogs).
+- Org template (2026-10-12): ASHA loses Fill VA, ANM and MPW gain it, for projects populated after that date. Existing grids keep
+  their rows: HP2026 still shows ASHA with Fill VA ticked; its admin unticks it in the grid editor.
 - `AUTHZ_ENFORCE_CONSULTED` is on in production: a non-public request that never consulted authz is refused.
 
 ## Production release notes
 
-- Production DB is at `d3f1a7c92b64` (2026-09-17), about 80 migrations behind head and before org units exist;## Owner decisions of 2026-10-09 and 2026-10-10 (recorded in docs/policy)
+- Production DB is at `d3f1a7c92b64` (2026-09-17), about 80 migrations behind head and before org units exist.
+
+## Owner decisions of 2026-10-09 and 2026-10-10 (recorded in docs/policy)
 
 - Form-options and prefill-policy stay out of `me/access`.
 - The daily KPI grid keeps one Not analysable total (`bed0` closed).

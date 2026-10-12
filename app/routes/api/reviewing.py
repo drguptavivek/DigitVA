@@ -4,10 +4,12 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from app.decorators import role_required
+from app.models import VaAllocation
 from app.services import coding_search_telemetry_service
 from app.services import reviewer_dashboard_service as _svc
 from app.services.authz import Action, can
 from app.services.cod_entry_mode import project_mode
+from app.services.coder_dashboard_service import last_allocated_project_id
 from app.services.coding_service import get_project_for_submission
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
@@ -145,6 +147,19 @@ def stats():
         "available": _svc.count_available(current_user, project_id),
         "allocation": {"va_sid": va_sid} if va_sid else None,
     }))
+
+
+@bp.get("/projects")
+@role_required("reviewer")
+def projects():
+    """``{project_options, last_project_id}``: the projects the reviewer's queue
+    reaches, and the project of their newest reviewing allocation (any status)
+    when it is among them, else null."""
+    project_options = _svc.get_project_options(current_user)
+    last_project_id = last_allocated_project_id(
+        current_user.user_id, VaAllocation.reviewing, {option["project_id"] for option in project_options}
+    )
+    return _private(jsonify({"project_options": project_options, "last_project_id": last_project_id}))
 
 
 @bp.get("/available")

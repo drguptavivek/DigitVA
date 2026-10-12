@@ -30,6 +30,7 @@ from app.models import (
     VaProjectSites,
     VaSiteMaster,
     VaStatuses,
+    VaSubmissionPayloadVersion,
     VaSubmissions,
     VaSubmissionWorkflow,
     VaUserAccessGrants,
@@ -102,6 +103,8 @@ class InterviewSupervisorTests(BaseTestCase):
         cls.p1 = unit("phc", "SP1", cls.c1)
         cls.s1 = unit("subcentre", "SS1", cls.p1)
         cls.c2 = unit("chc", "SC2", district)
+        # A PHC beside P1 under C1: a neighbour of P1 that Sam does not supervise.
+        cls.p2 = unit("phc", "SP2", cls.c1)
         cls.phc_level_id = levels["phc"].org_level_id
         # MO may supervise at a PHC (decision 12); the template leaves it off.
         org.upsert_level_cadre(
@@ -154,14 +157,14 @@ class InterviewSupervisorTests(BaseTestCase):
             org_unit_id=str((unit or self.s1).org_unit_id), **fields,
         )
 
-    def _submitted_with_workflow(self, workflow_state):
-        case = self._register()
+    def _submitted_with_workflow(self, workflow_state, consent="yes", unit=None):
+        case = self._register(unit=unit)
         sid = f"uuid:sup-{uuid.uuid4()}"
         now = datetime.now(UTC)
         db.session.add(VaSubmissions(
             va_sid=sid, va_form_id=f"{self.PROJECT_ID}{self.SITE_ID}01", va_submission_date=now,
             va_odk_updatedat=now, va_data_collector="sup", va_odk_reviewstate="reviewed",
-            va_instance_name=sid, va_uniqueid_real=sid, va_uniqueid_masked=sid, va_consent="yes",
+            va_instance_name=sid, va_uniqueid_real=sid, va_uniqueid_masked=sid, va_consent=consent,
             va_narration_language="English", va_deceased_age=50, va_deceased_gender="male",
             va_summary=[], va_catcount={}, va_category_list=[],
         ))
@@ -171,6 +174,14 @@ class InterviewSupervisorTests(BaseTestCase):
         cases.transition(case, "in_progress", actor=self.ian, action="test")
         cases.transition(case, "submitted", actor=self.ian, action="test")
         return case
+
+    def _add_visit_note(self, case, address="12 Lane 4", date="2026-10-01", remarks="Met the widow"):
+        db.session.add(VaSubmissionPayloadVersion(
+            va_sid=case.va_sid, payload_fingerprint=uuid.uuid4().hex, version_status="active",
+            has_required_metadata=True,
+            payload_data={"visit_address": address, "visit_date": date, "visit_remarks": remarks},
+        ))
+        db.session.flush()
 
     def _grant_row(self, **kwargs):
         return VaUserAccessGrants(user_id=self.ian.user_id, grant_status=VaStatuses.active, **kwargs)
@@ -641,6 +652,98 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertIn("registered_by_name", row)
         for key in ("informant_phone_masked", "informant_phone_2_masked", "informant_phone", "address"):
             self.assertNotIn(key, row)
+
+    def test_supervisor_duplicates_hold_the_in_reach_match_and_never_the_outside_one(self):
+        subject = self._register(unit=self.p1)
+        inside = self._register(unit=self.s1, informant_name="Ravi Kumar", address_village_ward="Rampur")
+        outside = self._register(unit=self.p2, informant_name="Meena Rao", address_village_ward="Tikri")
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        response = self.client.get(f"/api/v1/intake/supervision/cases/{subject.death_id}/possible-duplicates")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        rows = response.get_json()["possible_duplicates"]
+        ids = {row["death_id"] for row in rows}
+        self.assertIn(str(inside.death_id), ids)  # the match in reach is there first
+        self.assertNotIn(str(outside.death_id), ids)
+        self.assertNotIn(str(subject.death_id), ids)
+        for row in rows:
+            self.assertEqual(set(row), {
+                "death_id", "unique_id", "unit_name", "state", "score",
+                "deceased_name", "date_of_death", "age_years", "sex",
+            })
+            for key in ("informant_name", "village", "previous_interviewer_name", "reported_by_name"):
+                self.assertNotIn(key, row)
+
+    def test_supervisor_duplicates_404_outside_reach_and_refuse_interviewers(self):
+        inside_subject = self._register(unit=self.p1)
+        outside_subject = self._register(unit=self.p2)
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        base = "/api/v1/intake/supervision/cases"
+        self.assertEqual(
+            self.client.get(f"{base}/{outside_subject.death_id}/possible-duplicates").status_code, 404
+        )
+        self.assertEqual(
+            self.client.get(f"{base}/{inside_subject.death_id}/possible-duplicates").status_code, 200
+        )
+        self._login(str(self.ian.user_id))
+        self.assertEqual(
+            self.client.get(f"{base}/{inside_subject.death_id}/possible-duplicates").status_code, 403
+        )
+
+    def test_supervised_detail_shows_the_visit_note_full_or_redacted_and_null_when_none(self):
+        noted = self._submitted_with_workflow("ready_for_coding", consent="no")
+        self._add_visit_note(noted)
+        plain = self._submitted_with_workflow("coder_finalized")
+        db.session.commit()
+        url = f"/api/v1/intake/supervision/cases/{noted.death_id}"
+
+        self._login(str(self.dana.user_id))  # data_manager: PII allowed
+        full = self.client.get(url).get_json()["visit_note"]
+        self.assertEqual(full, {"date": "2026-10-01", "address": "12 Lane 4", "remarks": "Met the widow", "redacted": False})
+
+        self._login(str(self.sam.user_id))  # interview_supervisor: redacted
+        self.assertEqual(
+            self.client.get(url).get_json()["visit_note"],
+            {"date": "2026-10-01", "address": None, "remarks": None, "redacted": True},
+        )
+        self.assertIsNone(self.client.get(f"/api/v1/intake/supervision/cases/{plain.death_id}").get_json()["visit_note"])
+
+    def test_visit_note_filter_returns_only_noted_cases_in_one_query(self):
+        noted = self._submitted_with_workflow("ready_for_coding", consent="no")
+        self._add_visit_note(noted)
+        plain = self._submitted_with_workflow("ready_for_coding", consent="no")
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        base = "/api/v1/intake/supervision/cases"
+        ids = {row["death_id"] for row in self.client.get(f"{base}?visit_note=1").get_json()["cases"]}
+        self.assertIn(str(noted.death_id), ids)
+        self.assertNotIn(str(plain.death_id), ids)
+        # The state filter reads the case status (both cases are "submitted").
+        combined = self.client.get(f"{base}?visit_note=1&state=submitted").get_json()["cases"]
+        self.assertIn(str(noted.death_id), {row["death_id"] for row in combined})
+        self.assertNotIn(str(plain.death_id), {row["death_id"] for row in combined})
+        excluded = self.client.get(f"{base}?visit_note=1&state=registered").get_json()["cases"]
+        self.assertNotIn(str(noted.death_id), {row["death_id"] for row in excluded})
+        self.assertEqual(self.client.get(f"{base}?visit_note=maybe").status_code, 400)
+
+        def count_statements(**filters):
+            statements = []
+
+            def record(conn, cursor, statement, parameters, context, executemany):
+                statements.append(statement)
+
+            sa.event.listen(db.engine, "before_cursor_execute", record)
+            try:
+                intake_svc.list_supervised_cases(self.sam, **filters)
+            finally:
+                sa.event.remove(db.engine, "before_cursor_execute", record)
+            return statements
+
+        plain_list = count_statements()
+        filtered = count_statements(visit_note=True)
+        self.assertEqual(len(filtered), len(plain_list))
+        self.assertEqual(sum("va_submission_payload_versions" in s for s in filtered), 1)
 
     def test_a_supervisor_marks_a_duplicate_directly(self):
         kept, duplicate = self._register(), self._register()

@@ -30,8 +30,11 @@
   <div class="col-md-5"><label class="form-label">Remarks</label><input name="remarks" class="form-control"></div>
   <div class="col-12 d-flex gap-2">
     <button type="submit" class="btn btn-primary" id="death-save">Save</button>
+    {# Starting a questionnaire posts to /drafts, which only interviewers may use. #}
+    {% if current_user.is_interviewer() %}
     <button type="button" class="btn btn-success" id="death-save-start">Save and start questionnaire</button>
-    <a class="btn btn-outline-secondary" href="{{ url_for('intake.dashboard') }}">Cancel</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary" href="{{ url_for('intake.dashboard') if current_user.is_interviewer() else current_user.landing_url() }}">Cancel</a>
   </div>
 </form>
 <div id="death-result" class="alert alert-success mt-3 d-none"></div>
@@ -49,15 +52,17 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
   }
   function alertBox(msg) { var el = $('death-alert'); if (!msg) { el.classList.add('d-none'); return; } el.className = 'alert alert-danger small py-2'; el.textContent = msg; }
+  var startBtn = $('death-save-start');
+  function setBusy(busy) { $('death-save').disabled = busy; if (startBtn) startBtn.disabled = busy; }
   function save(startAfter) {
     alertBox();
     var form = $('death-form');
     if (!form.reportValidity()) return;
     var body = Object.assign({}, SCOPE);
     new FormData(form).forEach(function (v, k) { body[k] = v; });
-    $('death-save').disabled = $('death-save-start').disabled = true;
+    setBusy(true);
     api('/api/v1/intake/deaths', 'POST', body).then(function (res) {
-      $('death-save').disabled = $('death-save-start').disabled = false;
+      setBusy(false);
       if (!res.ok) { alertBox(res.data.error || 'Could not save.'); return; }
       var d = res.data.case;
       if (startAfter) {
@@ -73,7 +78,7 @@
     });
   }
   $('death-form').addEventListener('submit', function (e) { e.preventDefault(); save(false); });
-  $('death-save-start').addEventListener('click', function () { save(true); });
+  if (startBtn) startBtn.addEventListener('click', function () { save(true); });
 }());
 </script>
 {% endblock %}

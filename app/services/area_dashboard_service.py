@@ -73,6 +73,9 @@ from app.services.workflow.definition import (
 )
 
 DRAFT_STATUS_IN_PROGRESS = "draft"
+# No shared constant exists for a cancelled case (web_intake_service compares
+# the literal); duplicates use DUPLICATE_CASE_STATUS from duplicate_exclusion.
+CANCELLED_CASE_STATUS = "cancelled"
 UNROUTED_KEY = "unrouted"
 
 
@@ -365,6 +368,52 @@ def _drafts_by_site(project_id: str, site_ids: list) -> dict:
     return dict(rows)
 
 
+def _reported_deaths(project_id: str):
+    """Death-register cases of *project_id* that count as reported: every source,
+    minus confirmed duplicates and cancelled cases."""
+    return sa.and_(
+        VaDeathRegister.project_id == project_id,
+        VaDeathRegister.status.not_in([DUPLICATE_CASE_STATUS, CANCELLED_CASE_STATUS]),
+    )
+
+
+def _deaths_reported_by_unit(project_id: str, unit_ids: list) -> dict:
+    """Reported deaths in each unit's subtree, live, in one query."""
+    if not unit_ids:
+        return {}
+    death_unit = sa.orm.aliased(MasOrgUnit, name="death_unit")
+    rows = db.session.execute(
+        sa.select(MasOrgUnit.org_unit_id, sa.func.count(VaDeathRegister.death_id))
+        .select_from(MasOrgUnit)
+        .join(death_unit, death_unit.path.op("<@")(MasOrgUnit.path))
+        .join(VaDeathRegister, VaDeathRegister.org_unit_id == death_unit.org_unit_id)
+        .where(
+            MasOrgUnit.org_unit_id.in_(sorted(unit_ids)),
+            death_unit.project_id == project_id,
+            _reported_deaths(project_id),
+        )
+        .group_by(MasOrgUnit.org_unit_id)
+    ).all()
+    return dict(rows)
+
+
+def _deaths_reported_unrouted(project_id: str) -> int:
+    return db.session.scalar(
+        sa.select(sa.func.count(VaDeathRegister.death_id)).where(
+            _reported_deaths(project_id), VaDeathRegister.org_unit_id.is_(None)
+        )
+    ) or 0
+
+
+def _deaths_reported_by_site(project_id: str, site_ids: list) -> dict:
+    rows = db.session.execute(
+        sa.select(VaDeathRegister.site_id, sa.func.count(VaDeathRegister.death_id))
+        .where(_reported_deaths(project_id), VaDeathRegister.site_id.in_(sorted(site_ids)))
+        .group_by(VaDeathRegister.site_id)
+    ).all()
+    return dict(rows)
+
+
 def _authoritative_submissions(project_id: str):
     """(va_sid, org_unit_id, site_id) of the project's submissions whose final
     cause of death holds authority (``final-cod-authority.md``), live.
@@ -493,13 +542,16 @@ def _visit_notes_by_site(project_id: str, site_ids: list) -> dict:
     return dict(rows)
 
 
-def _counts(stats: dict | None, drafts: int, final_cod: int, visit_notes: int = 0) -> dict:
+def _counts(
+    stats: dict | None, drafts: int, final_cod: int, visit_notes: int = 0, deaths: int = 0
+) -> dict:
     stats = stats or {}
     counts = {"total_submissions": stats.get("total_submissions", 0)}
     counts.update({key: stats.get(key, 0) for key in AREA_BREAKDOWN_KEYS})
     counts["drafts_in_progress"] = drafts
     counts["final_cod"] = final_cod
     counts["visit_notes"] = visit_notes
+    counts["deaths_reported"] = deaths
     return counts
 
 
@@ -520,6 +572,7 @@ def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) ->
     drafts = _drafts_by_unit(scope.project_id, unit_ids)
     final_cod = _final_cod_by_unit(scope.project_id, unit_ids)
     visit_notes = _visit_notes_by_unit(scope.project_id, unit_ids)
+    deaths = _deaths_reported_by_unit(scope.project_id, unit_ids)
     return [
         {
             "kind": "unit",
@@ -532,6 +585,7 @@ def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) ->
                 drafts.get(row.org_unit_id, 0),
                 final_cod.get(row.org_unit_id, 0),
                 visit_notes.get(row.org_unit_id, 0),
+                deaths.get(row.org_unit_id, 0),
             ),
             "links": (
                 {
@@ -559,6 +613,7 @@ def _unrouted_row(scope: AreaScope) -> dict:
             _unrouted_drafts(scope.project_id),
             _final_cod_unrouted(scope.project_id),
             _visit_notes_unrouted(scope.project_id),
+            _deaths_reported_unrouted(scope.project_id),
         ),
     }
 
@@ -599,6 +654,7 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
     drafts = _drafts_by_site(scope.project_id, site_ids)
     final_cod = _final_cod_by_site(scope.project_id, site_ids)
     visit_notes = _visit_notes_by_site(scope.project_id, site_ids)
+    deaths = _deaths_reported_by_site(scope.project_id, site_ids)
     return [
         {
             "kind": "site",
@@ -611,6 +667,7 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
                 drafts.get(row.site_id, 0),
                 final_cod.get(row.site_id, 0),
                 visit_notes.get(row.site_id, 0),
+                deaths.get(row.site_id, 0),
             ),
             "links": (
                 {

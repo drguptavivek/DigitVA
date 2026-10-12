@@ -1,5 +1,7 @@
-import { createIcd11Picker } from './digitva_icd11_picker.js';
-import { mount as mountInterval } from './doris_interval.js';
+import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=4';
+import { mount as mountInterval } from './doris_interval.js?v=2';
+import * as Rules from './doris_rules.js?v=2';
+import * as Fields from './doris_fields.js?v=2';
 import { renderSummary, usableDorisCode } from './doris_result_summary.js';
 
 (function () {
@@ -16,9 +18,15 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
   function hidden(editor, selector, value) { var node = query(editor, selector); if (node) node.value = value || ''; }
   function finalInput(editor) { return document.getElementById(editor.dataset.finalCodInput); }
   function numberOrNull(element) { return element.value === '' ? null : Number(element.value); }
-  // Maternal questions apply to women and to a recorded undetermined sex,
-  // as the interview's own pregnancy section does.
-  function maternalSex(sex) { return sex === '2' || sex === '9'; }
+  // Controls a hide rule (V1-V6, docs/policy/doris-certificate-rules.md) has
+  // hidden are emptied, so they start blank if the rule later shows them.
+  function clearControls(node) {
+    Fields.removePrefillMarkers(node);
+    node.querySelectorAll('input,select,textarea').forEach(function (control) {
+      if (control.hasAttribute('data-doris-precision')) return;
+      if (control.hasAttribute('data-doris-date')) Fields.resetDate(control); else control.value = '';
+    });
+  }
   // Certificate sections the editor carries beyond Part I/II, fetal and
   // maternal: [DORIS field, control selector, 'number' | 'text'].
   var EXTRA_SECTIONS = [
@@ -119,7 +127,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       var condition = {Text: choice.selected_text || choice.matching_text || choice.title, Code: choice.code, LinearizationURI: choice.uri};
       line.conditions.push(condition); chip(line, condition);
       var input = line.element.querySelector('[data-doris-search]');
-      input.value = ''; line.element.querySelector('[data-doris-search-results]').replaceChildren(); input.focus();
+      input.value = ''; if (line.resetAuto) line.resetAuto(); line.element.querySelector('[data-doris-search-results]').replaceChildren(); input.focus();
       invalidate('Certificate changed. Process it again.');
     }
     function clearFinal() {
@@ -140,6 +148,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       var save = form && form.querySelector('[type="submit"]'); if (save) save.disabled = true;
       if (message) status(message);
       else if (hadResult) status('Certificate changed. Process it again before saving.');
+      applyRules();
     }
     function chip(line, condition) {
       var item = document.createElement('span'); item.className = 'badge text-bg-light border text-wrap';
@@ -157,7 +166,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       var resultList = finalMode ? query(editor, '[data-doris-final-results]') : line.element.querySelector('[data-doris-search-results]');
       var message = finalMode ? query(editor, '[data-doris-final-choice]') : line.element.querySelector('[data-doris-search-status]');
       var container = finalMode ? query(editor, '[data-doris-final-panel]') : line.element;
-      var value = text(input.value); resultList.replaceChildren();
+      var value = text(input.value); picker.clearPanels(container); resultList.replaceChildren();
       if (value.length < 2) { message.textContent = 'Type at least 2 characters.'; return; }
       var currentRequest = ++state.searchRequest;
       var sentRevision = state.revision;
@@ -168,58 +177,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
         : lookup(editor.dataset.termsUrl, {schema_version: 1, query: value, limit: 20, cursor: null}).then(function (data) { return data.items || []; });
       promise.then(function (items) {
         if (currentRequest !== state.searchRequest || sentRevision !== state.revision || value !== text(input.value)) return;
-        message.textContent = items.length ? 'Choose a result.' : 'No matching conditions.';
-        var mandatory = [];
-        items.forEach(function (item) {
-          var row = document.createElement('div'); row.className = 'list-group-item doris-search-result';
-          var main = document.createElement('div'); main.className = 'doris-search-result-main';
-          var header = document.createElement('div'); header.className = 'doris-search-result-header';
-          var title = document.createElement('button'); title.type = 'button'; title.className = 'doris-search-title doris-search-title-button';
-      var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = item.code || '';
-      var titleNode = document.createElement('span'); titleNode.className = 'doris-search-name fw-semibold'; titleNode.textContent = item.title || '';
-      title.append(codeNode, ' — ', titleNode);
-          title.addEventListener('click', function () {
-            if (item.postcoordination_availability === 2 && !picker.isCompleteExpression(item.code)) {
-              if (!finalMode) picker.showDetails(container, item);
-              picker.openPostcoordination(container, item, title);
-            } else picker.stage(container, item, message);
-          });
-          header.appendChild(title);
-          var meta = document.createElement('div'); meta.className = 'doris-search-meta';
-          if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; meta.appendChild(match); }
-          var complete = picker.isCompleteExpression(item.code);
-          var buildIcon = picker.addContextIcons(meta, item, function (chapter, selected) {
-            picker.openRelated(container, chapter, selected, function (term) {
-              if (term.requires_postcoordination || finalMode) { input.value = term.code; search(line, finalMode); }
-              else if (!term.uri && picker.isCompleteExpression(term.code)) { var partsOfTerm = term.code.split(/[&/]/); picker.openPostcoordination(container, {code: partsOfTerm[0], title: '', uri: '', preselect: partsOfTerm.slice(1)}, null); }
-              else if (!term.uri) picker.resolveAndStage(container, term.code, message);
-              else picker.stage(container, term, message);
-            });
-          }, item.postcoordination ? function (button) {
-            var parts = item.code.split(/[&/]/);
-            var stem = complete ? {code: parts[0], title: '', uri: '', preselect: parts.slice(1)} : item;
-            if (!finalMode) picker.showDetails(container, item);
-            picker.openPostcoordination(container, stem, button);
-          } : null, function () { picker.showDetails(container, item); });
-          var actions = document.createElement('div'); actions.className = 'doris-search-actions';
-          if (complete || item.postcoordination_availability !== 2) {
-            var use = document.createElement('button'); use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
-            use.title = 'Select this code';
-            use.addEventListener('click', function () { picker.stage(container, item, message); });
-            actions.appendChild(use);
-          }
-          var details = document.createElement('button'); details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
-          details.addEventListener('click', function () { picker.showDetails(container, item); });
-          actions.appendChild(details);
-          if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
-          var controls = document.createElement('div'); controls.className = 'doris-search-controls'; controls.append(meta, actions);
-          header.appendChild(controls); main.appendChild(header); row.appendChild(main); resultList.appendChild(row);
-        });
-        var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
-        if (automatic) {
-          if (!finalMode) picker.showDetails(container, automatic.item);
-          picker.openPostcoordination(container, automatic.item, automatic.trigger, true);
-        }
+        picker.renderResults(container, items, {input: input, statusEl: message, resultList: resultList, finalMode: finalMode, onRequery: function () { search(line, finalMode); }});
       }).catch(function (error) { if (currentRequest === state.searchRequest && sentRevision === state.revision) message.textContent = error.message; });
     }
     function makeLine(source, isPart2) {
@@ -231,42 +189,53 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       if (line.interval.value) line.interval.value.addEventListener('input', function () { invalidate(); });
       if (line.interval.unit) line.interval.unit.addEventListener('change', function () { invalidate(); });
       var searchInput = element.querySelector('[data-doris-search]');
-      var searchTimer = null;
+      var searchTimer = null; var modalOpen = false;
+      // The box only opens the search modal on Search/Enter or once 3+ characters rest for 500 ms; inside the open modal each pause searches (250 ms) as before.
+      var auto = attachAutoSearch(searchInput, function () { if (modalOpen) return; openSearch(); search(line, false); });
       function openSearch() {
+        clearTimeout(searchTimer); auto.cancel(); modalOpen = true;
         picker.open(element, searchInput, function () {
-          clearTimeout(searchTimer); state.searchRequest += 1;
+          modalOpen = false; clearTimeout(searchTimer); state.searchRequest += 1;
           element.querySelector('[data-doris-search-results]').replaceChildren();
         }, function () {
-          clearTimeout(searchTimer); state.searchRequest += 1;
+          auto.reset(); clearTimeout(searchTimer); state.searchRequest += 1;
           element.querySelector('[data-doris-search-results]').replaceChildren();
           element.querySelector('[data-doris-search-status]').textContent = '';
           picker.closePostcoordination(element);
         });
       }
-      element.querySelector('[data-doris-search-button]').addEventListener('click', function () { openSearch(); search(line, false); });
-      element.querySelector('[data-doris-add-uncoded]').addEventListener('click', function () { var value = text(searchInput.value); if (!value) { element.querySelector('[data-doris-search-status]').textContent = 'Enter the condition text first.'; return; } var condition = {Text:value,Code:'',LinearizationURI:''}; line.conditions.push(condition); chip(line, condition); searchInput.value=''; element.querySelector('[data-doris-search-status]').textContent='Uncoded text added. DORIS may reject it.'; invalidate(); picker.close(); });
-      searchInput.addEventListener('input', function () { openSearch(); picker.clearSelection(element); picker.clearDetails(element); clearTimeout(searchTimer); if (text(searchInput.value).length >= 2) searchTimer = setTimeout(function () { search(line, false); }, 250); else { state.searchRequest += 1; element.querySelector('[data-doris-search-results]').replaceChildren(); picker.closePostcoordination(element); } });
-      searchInput.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); clearTimeout(searchTimer); openSearch(); search(line, false); } });
-      if (isPart2) { element.querySelector('[data-doris-line-title]').textContent = 'Contributing conditions'; element.querySelector('[data-doris-up]').remove(); element.querySelector('[data-doris-down]').remove(); element.querySelector('[data-doris-remove]').remove(); }
+      line.resetAuto = auto.reset;
+      function runSearch() { auto.mark(); clearTimeout(searchTimer); openSearch(); search(line, false); }
+      element.querySelector('[data-doris-search-button]').addEventListener('click', runSearch);
+      element.querySelector('[data-doris-add-uncoded]').addEventListener('click', function () { var value = text(searchInput.value); if (!value) { element.querySelector('[data-doris-search-status]').textContent = 'Enter the condition text first.'; return; } var condition = {Text:value,Code:'',LinearizationURI:''}; line.conditions.push(condition); chip(line, condition); searchInput.value=''; auto.reset(); element.querySelector('[data-doris-search-status]').textContent='Uncoded text added. DORIS may reject it.'; invalidate(); picker.close(); });
+      searchInput.addEventListener('input', function () { if (!modalOpen) return; picker.clearSelection(element); picker.clearDetails(element); clearTimeout(searchTimer); if (text(searchInput.value).length >= 2) searchTimer = setTimeout(function () { search(line, false); }, 250); else { state.searchRequest += 1; element.querySelector('[data-doris-search-results]').replaceChildren(); picker.closePostcoordination(element); } });
+      searchInput.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); runSearch(); } });
+      if (isPart2) { element.querySelector('[data-doris-line-title]').textContent = 'Significant conditions contributing to death'; element.querySelector('[data-doris-line-letter]').remove(); element.querySelector('[data-doris-up]').remove(); element.querySelector('[data-doris-down]').remove(); element.querySelector('[data-doris-remove]').remove(); element.querySelector('[data-doris-add-below-row]').remove(); }
       else {
         element.querySelector('[data-doris-up]').addEventListener('click', function () { var index = state.lines.indexOf(line); if (index > 0) { state.lines.splice(index, 1); state.lines.splice(index - 1, 0, line); renderOrder(); invalidate('Line moved. Process again.'); } });
         element.querySelector('[data-doris-down]').addEventListener('click', function () { var index = state.lines.indexOf(line); if (index < state.lines.length - 1) { state.lines.splice(index, 1); state.lines.splice(index + 1, 0, line); renderOrder(); invalidate('Line moved. Process again.'); } });
+        element.querySelector('[data-doris-add-below]').addEventListener('click', function () {
+          var index = state.lines.indexOf(line); if (state.lines.length >= MAX_LINES) return;
+          var added = makeLine({Conditions: []}, false); state.lines.splice(index + 1, 0, added); renderOrder(); invalidate('Line added. Process again.');
+          added.element.querySelector('[data-doris-search]').focus();
+        });
         element.querySelector('[data-doris-remove]').addEventListener('click', function () { if (state.lines.length === 1) return; picker.close(); state.lines.splice(state.lines.indexOf(line), 1); renderOrder(); invalidate('Line removed. Process again.'); });
       }
       return line;
     }
     function renderOrder() {
       var container = query(editor, '[data-doris-part1]'); container.replaceChildren();
-      state.lines.forEach(function (line, index) { line.element.querySelector('[data-doris-line-title]').textContent = (index === 0 ? 'Immediate cause' : 'Due to'); line.element.querySelector('[data-doris-up]').disabled = index === 0; line.element.querySelector('[data-doris-down]').disabled = index === state.lines.length - 1; line.element.querySelector('[data-doris-remove]').disabled = state.lines.length === 1; container.appendChild(line.element); });
+      state.lines.forEach(function (line, index) { line.element.querySelector('[data-doris-line-letter]').textContent = String.fromCharCode(65 + index); line.element.querySelector('[data-doris-line-title]').textContent = (index === 0 ? 'Immediate cause' : 'Due to'); line.element.querySelector('[data-doris-up]').disabled = index === 0; line.element.querySelector('[data-doris-down]').disabled = index === state.lines.length - 1; line.element.querySelector('[data-doris-remove]').disabled = state.lines.length === 1; line.element.querySelector('[data-doris-add-below]').disabled = state.lines.length >= MAX_LINES; container.appendChild(line.element); });
       query(editor, '[data-doris-add-line]').disabled = state.lines.length >= MAX_LINES;
     }
     function serializeLine(line) {
       var interval = line.interval ? line.interval.read().value : '';
       return {Conditions: line.conditions.map(function (condition) { var item={Text:condition.Text,Interval:interval}; if(condition.Code)item.Code=condition.Code;if(condition.LinearizationURI)item.LinearizationURI=condition.LinearizationURI;return item; })};
     }
-    function certificate() {
+    function certificate() { return Rules.dropHidden(rawCertificate()); }
+    function rawCertificate() {
       var result = {ICDVersion: 'ICD11', ICDMinorVersion: '2026-01', Part1: state.lines.filter(function (line) { return line.conditions.length; }).map(serializeLine)};
-      var sex = query(editor, '[data-doris-sex]').value; var age = ageControl.read().value;
+      var sex = query(editor, '[data-doris-sex]').value; var age = ageControl.peek();
       var admin = {}; if (sex) admin.Sex = Number(sex); if (age) admin.EstimatedAge = age;
       putText(admin, 'DateBirth', '[data-doris-date-birth]'); putText(admin, 'DateDeath', '[data-doris-date-death]');
       if (Object.keys(admin).length) result.AdministrativeData = admin;
@@ -274,7 +243,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       var fetal = {};
       [['Stillborn','[data-doris-stillborn]'],['MultiplePregnancy','[data-doris-multiple]'],['DeathWithin24h','[data-doris-within24]'],['BirthWeight','[data-doris-birth-weight]'],['PregnancyWeeks','[data-doris-pregnancy-weeks]'],['AgeMother','[data-doris-mother-age]']].forEach(function(entry){var value=numberOrNull(query(editor,entry[1]));if(value!==null)fetal[entry[0]]=value;});
       var perinatal=text(query(editor,'[data-doris-perinatal]').value);if(perinatal)fetal.PerinatalDescription=perinatal;if(Object.keys(fetal).length)result.FetalOrInfantDeath=fetal;
-      if (maternalSex(sex)) { var pregnant=numberOrNull(query(editor,'[data-doris-pregnant]'));if(pregnant!==null){result.MaternalDeath={WasPregnant:pregnant};if(pregnant!==9){var timing=numberOrNull(query(editor,'[data-doris-pregnancy-time]'));var contribute=numberOrNull(query(editor,'[data-doris-pregnancy-contribute]'));if(timing!==null)result.MaternalDeath.TimeFromPregnancy=timing;if(contribute!==null)result.MaternalDeath.PregnancyContribute=contribute;}} }
+      { var pregnant=numberOrNull(query(editor,'[data-doris-pregnant]'));if(pregnant!==null){result.MaternalDeath={WasPregnant:pregnant};if(pregnant===1){var timing=numberOrNull(query(editor,'[data-doris-pregnancy-time]'));var contribute=numberOrNull(query(editor,'[data-doris-pregnancy-contribute]'));if(timing!==null)result.MaternalDeath.TimeFromPregnancy=timing;if(contribute!==null)result.MaternalDeath.PregnancyContribute=contribute;}} }
       EXTRA_SECTIONS.forEach(function (section) {
         var values = {};
         section.fields.forEach(function (field) { if (field[2] === 'number') { var value = numberOrNull(query(editor, field[1])); if (value !== null) values[field[0]] = value; } else putText(values, field[0], field[1]); });
@@ -282,7 +251,12 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       });
       return result;
     }
-    function putText(target, key, selector) { var value = text(query(editor, selector).value); if (value) target[key] = value; }
+    // A date is sent only when complete for its precision: a half-typed year is not a date.
+    function putText(target, key, selector) {
+      var control = query(editor, selector); var value = text(control.value);
+      if (control.hasAttribute('data-doris-date') || control.hasAttribute('data-doris-date-plain')) { if (Fields.isDate(value)) target[key] = value; return; }
+      if (value) target[key] = value;
+    }
     function part1Gap() {
       var firstBlank = -1;
       for (var index = 0; index < state.lines.length; index += 1) {
@@ -353,21 +327,63 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     state.part2 = makeLine(initial.Part2 || {Conditions: []}, true); query(editor, '[data-doris-part2]').appendChild(state.part2.element); renderOrder();
     var admin = initial.AdministrativeData || {}; query(editor, '[data-doris-sex]').value = admin.Sex == null ? '' : String(admin.Sex); var ageControl = mountInterval(query(editor, '[data-doris-age-control]'), admin.EstimatedAge || '');
     var fetal=initial.FetalOrInfantDeath||{};[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
-    query(editor, '[data-doris-date-birth]').value = admin.DateBirth || ''; query(editor, '[data-doris-date-death]').value = admin.DateDeath || '';
-    EXTRA_SECTIONS.forEach(function (section) { var saved = initial[section.name] || {}; section.fields.forEach(function (field) { query(editor, field[1]).value = saved[field[0]] == null ? '' : String(saved[field[0]]); }); });
+    Fields.mountDates(editor);
+    Fields.setDate(query(editor, '[data-doris-date-birth]'), admin.DateBirth || ''); Fields.setPlainDate(query(editor, '[data-doris-date-death]'), admin.DateDeath || '');
+    EXTRA_SECTIONS.forEach(function (section) { var saved = initial[section.name] || {}; section.fields.forEach(function (field) { var control = query(editor, field[1]); var value = saved[field[0]] == null ? '' : String(saved[field[0]]); if (control.hasAttribute('data-doris-date')) Fields.setDate(control, value); else control.value = value; }); });
     var maternal=initial.MaternalDeath||{};[['[data-doris-pregnant]',maternal.WasPregnant],['[data-doris-pregnancy-time]',maternal.TimeFromPregnancy],['[data-doris-pregnancy-contribute]',maternal.PregnancyContribute]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
-    function conditionals(){var sexValue=query(editor,'[data-doris-sex]').value;query(editor,'[data-doris-maternal]').hidden=!maternalSex(sexValue);var pregnant=query(editor,'[data-doris-pregnant]').value;editor.querySelectorAll('[data-doris-maternal-followup]').forEach(function(node){node.hidden=pregnant===''||pregnant==='9';});}conditionals();
+    var rulesReady = false;
+    function warningNode(message) { var node = document.createElement('div'); node.className = 'form-text doris-warning'; node.setAttribute('role', 'status'); node.dataset.dorisWarning = ''; node.textContent = message; return node; }
+    // Rules V1-V6 hide (and empty) controls, V9 greys oversized interval units,
+    // V3/V9-V11 write soft warnings. Never blocks Process or Save.
+    function applyRules() {
+      if (!rulesReady) return;
+      var shown = Rules.visibility(rawCertificate());
+      editor.querySelectorAll('[data-doris-rule]').forEach(function (node) {
+        if (!shown[node.dataset.dorisRule]) clearControls(node);
+        node.hidden = !shown[node.dataset.dorisRule];
+      });
+      var raw = rawCertificate(); shown = Rules.visibility(raw);
+      var sex = (raw.AdministrativeData || {}).Sex;
+      editor.querySelectorAll('[data-doris-na]').forEach(function (note) {
+        var key = note.dataset.dorisNa; note.hidden = shown[key];
+        note.textContent = key === 'maternal' ? (sex === 1 ? Rules.NOT_APPLICABLE.maternalMale : Rules.NOT_APPLICABLE.maternal) : Rules.NOT_APPLICABLE[key];
+      });
+      editor.querySelectorAll('[data-doris-maternal-followup] select').forEach(function (select) { select.disabled = !shown.pregnancyFollowup; if (!shown.pregnancyFollowup) select.value = ''; });
+      var all = state.lines.map(function (line, index) { return {key: index, line: line, part1: true}; }).concat(state.part2 ? [{key: 'p2', line: state.part2, part1: false}] : []);
+      var oversized = Rules.oversizedUnits(raw);
+      all.forEach(function (entry) {
+        var unit = entry.line.interval.unit;
+        unit.querySelectorAll('option').forEach(function (option) { option.disabled = oversized.indexOf(option.value) !== -1 && option.value !== unit.value; });
+        entry.line.element.querySelector('[data-doris-interval-warning]').textContent = '';
+      });
+      editor.querySelectorAll('[data-doris-warning]').forEach(function (node) { node.remove(); });
+      var intervals = all.filter(function (entry) { return entry.line.conditions.length; }).map(function (entry) { return {key: entry.key, iso: entry.line.interval.peek(), part1: entry.part1}; });
+      Rules.warnings(raw, {today: editor.dataset.today, intervals: intervals}).forEach(function (warning) {
+        if (warning.path.indexOf('interval:') === 0) {
+          var key = warning.path.slice(9); var target = all.find(function (entry) { return String(entry.key) === key; });
+          if (target) target.line.element.querySelector('[data-doris-interval-warning]').textContent = warning.message;
+          return;
+        }
+        var host = editor.querySelector('[data-doris-field="' + warning.path + '"]');
+        if (host) host.appendChild(warningNode(warning.message));
+      });
+      clearButtons.refresh();
+    }
+    var clearButtons = Fields.mountClear(editor);
+    rulesReady = true; applyRules();
     showPrefillMarkers(editor);
-    editor.querySelectorAll('[data-doris-fetal] input,[data-doris-fetal] select,[data-doris-fetal] textarea,[data-doris-maternal] select,[data-doris-extra]').forEach(function(field){field.addEventListener('input',function(){conditionals();invalidate();});});
-    query(editor, '[data-doris-sex]').addEventListener('change', function () { conditionals(); invalidate(); }); ageControl.value.addEventListener('input', function () { invalidate(); }); ageControl.unit.addEventListener('change', function () { invalidate(); });
+    editor.querySelectorAll('[data-doris-fetal] input,[data-doris-fetal] select,[data-doris-fetal] textarea,[data-doris-maternal] select,[data-doris-extra]').forEach(function(field){field.addEventListener('input',function(){invalidate();});});
+    query(editor, '[data-doris-sex]').addEventListener('change', function () { invalidate(); }); ageControl.value.addEventListener('input', function () { invalidate(); }); ageControl.unit.addEventListener('change', function () { invalidate(); });
     query(editor, '[data-doris-add-line]').addEventListener('click', function () { if (state.lines.length < MAX_LINES) { state.lines.push(makeLine({Conditions: []}, false)); renderOrder(); invalidate('Line added. Process again.'); } });
     query(editor, '[data-doris-process]').addEventListener('click', process);
-    query(editor, '[data-doris-final-search-button]').addEventListener('click', function () { search(null, true); });
+    var finalBox = query(editor, '[data-doris-final-search]');
+    var autoFinal = attachAutoSearch(finalBox, function () { search(null, true); });
+    query(editor, '[data-doris-final-search-button]').addEventListener('click', function () { autoFinal.mark(); search(null, true); });
     // Copies DORIS's suggestion into Step 2 only on this click, verified like a searched code.
     query(editor, '[data-doris-final-use]').addEventListener('click', function () {
       if (state.dorisCode) picker.resolveAndStage(query(editor, '[data-doris-final-panel]'), state.dorisCode, query(editor, '[data-doris-final-choice]'));
     });
-    query(editor, '[data-doris-final-search]').addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); search(null, true); } });
+    finalBox.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); autoFinal.mark(); search(null, true); } });
     var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]'); if (save) save.disabled = true;
     editor._installFreshDorisResults = function (processing) { renderProcessing(processing, true); };
     // After a save refused for another reason, the server sends back the

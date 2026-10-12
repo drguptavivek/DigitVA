@@ -1,5 +1,5 @@
 {# Masked ICD-11 Step 2 (digitva-0n3): confirm the final underlying cause through the DORIS picker's search. No certificate and no Process: the DORIS run and its envelopes stay on the Step 1 row. The server derives which choice was used (doris = the Step 1 underlying cause | smartva | own). A recode presets the previous final code (data-preset-final). The reviewer's Step 2 passes masked_final_form_id / masked_final_cod_input. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-14">
 <section class="card border-primary mb-4" data-doris-final-host
          data-form-id="{{ masked_final_form_id|default('finalAssessmentForm') }}"
          data-final-cod-input="{{ masked_final_cod_input|default('va_conclusive_cod') }}"
@@ -49,4 +49,4 @@
     <div class="text-danger small mt-2" role="alert" data-step-error></div>
   </div>
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_final_cod.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-2"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_final_cod.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-4"></script>

@@ -34,7 +34,11 @@
  * that carries the picker's marker attributes: [data-line-title] or
  * [data-doris-line-title], [data-doris-details-panel],
  * [data-doris-guided-panel], and (for the modal) [data-doris-related-window]
- * is created on demand. The postcoordination builder keeps independent
+ * is created on demand. renderResults(container, items, opts) draws the
+ * shared search-result rows for hosts that fetch terms themselves. A host
+ * may add class `doris-line-accented` and set the CSS variable
+ * `--doris-line-accent` on the container to tint the open modal's header
+ * (see doris_demo.css). The postcoordination builder keeps independent
  * state per container (a WeakMap), so it works the same whether or not
  * that container currently owns the search modal.
  */
@@ -118,15 +122,19 @@ export function createIcd11Picker(options) {
     line.setAttribute('role', 'dialog');
     line.setAttribute('aria-modal', 'true');
     line.setAttribute('aria-label', 'Find an ICD-11 condition');
-    var footer = document.createElement('div'); footer.className = 'doris-selection-footer border-top';
-    var choice = document.createElement('div'); choice.className = 'doris-selection-choice'; choice.textContent = 'No code selected';
+    var footer = document.createElement('div'); footer.className = 'doris-selection-footer';
+    var caption = document.createElement('div'); caption.className = 'doris-selection-caption'; caption.hidden = true;
+    var choice = document.createElement('div'); choice.className = 'doris-selection-choice is-empty'; choice.textContent = 'No code selected';
+    var textBlock = document.createElement('div'); textBlock.className = 'doris-selection-text'; textBlock.append(caption, choice);
     var confirm = document.createElement('button'); confirm.type = 'button'; confirm.className = 'btn btn-primary'; confirm.textContent = 'OK'; confirm.disabled = true;
     confirm.addEventListener('click', function () {
       if (!active || active.line !== line || !active.selection) return;
       verifyAndSelect(line, active.selection, null, confirm);
     });
-    var builderActions = document.createElement('div'); builderActions.className = 'doris-footer-actions d-flex flex-wrap gap-2';
-    footer.append(choice, builderActions, confirm); line.appendChild(footer);
+    var builderActions = document.createElement('div'); builderActions.className = 'doris-footer-actions';
+    var actionsRow = document.createElement('div'); actionsRow.className = 'doris-footer-buttons d-flex flex-wrap gap-2';
+    actionsRow.append(builderActions, confirm);
+    footer.append(textBlock, actionsRow); line.appendChild(footer);
     document.body.classList.add('doris-modal-lock');
     function onKeydown(event) {
       if (event.key === 'Escape') { event.preventDefault(); close(); return; }
@@ -137,15 +145,58 @@ export function createIcd11Picker(options) {
       else if (!event.shiftKey && document.activeElement === controls[controls.length - 1]) { event.preventDefault(); controls[0].focus(); }
     }
     document.addEventListener('keydown', onKeydown, true);
-    active = {line: line, input: input, onClose: onClose, onReset: onReset, onKeydown: onKeydown, backdrop: backdrop, closeButton: closeButton, resetButton: resetButton, footer: footer, choice: choice, builderActions: builderActions, confirm: confirm, selection: null};
+    active = {line: line, input: input, onClose: onClose, onReset: onReset, onKeydown: onKeydown, backdrop: backdrop, closeButton: closeButton, resetButton: resetButton, footer: footer, caption: caption, choice: choice, builderActions: builderActions, confirm: confirm, selection: null};
     input.focus();
+  }
+
+  // Footer text: a plain muted message, or (caption + code chip + title) for a
+  // staged ('SELECTED') or in-progress ('BUILDING') choice.
+  function setFooterMessage(message) {
+    active.caption.hidden = true;
+    active.choice.className = 'doris-selection-choice is-empty';
+    active.choice.textContent = message;
+  }
+  function setFooterChoice(caption, code, title, note) {
+    active.caption.hidden = false; active.caption.textContent = caption;
+    active.choice.className = 'doris-selection-choice';
+    active.choice.replaceChildren();
+    var chip = document.createElement('span'); chip.className = 'doris-selection-code'; chip.textContent = code || '';
+    active.choice.appendChild(chip);
+    if (title) { var name = document.createElement('span'); name.className = 'doris-selection-title'; name.textContent = title; active.choice.appendChild(name); }
+    if (note) { var warn = document.createElement('span'); warn.className = 'doris-selection-note'; warn.textContent = note; active.choice.appendChild(warn); }
   }
 
   function clearSelection(line) {
     if (!active || active.line !== line) return;
     active.selection = null;
-    active.choice.textContent = 'No code selected';
+    setFooterMessage('No code selected');
     active.confirm.disabled = true;
+  }
+
+  // On a phone the results list and the details/builder card are one
+  // column, so a freshly opened card is off-screen below the list. Scroll it
+  // to the top of the pane and move focus to its heading. Two-pane layouts
+  // already show it; only focus moves there (no scroll jump).
+  function singleColumn() { return !(window.matchMedia && !window.matchMedia('(max-width: 768px)').matches); }
+  function reveal(card, heading) {
+    if (singleColumn() && typeof card.scrollIntoView === 'function') {
+      var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      card.scrollIntoView({block: 'start', behavior: calm ? 'auto' : 'smooth'});
+    }
+    if (heading) heading.focus({preventScroll: true});
+  }
+  // 'Back to results' button: scroll the row that opened the card (or the
+  // results list) back into view.
+  function backToResults(container, origin) {
+    var target = (origin && origin.closest && origin.closest('.doris-search-result')) || container.querySelector('[data-search-results], [data-doris-search-results]');
+    if (!target) return null;
+    var back = button('← Back to results', 'btn btn-link btn-sm doris-back-to-results p-0 mb-1');
+    back.addEventListener('click', function () {
+      var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      target.scrollIntoView({block: 'start', behavior: calm ? 'auto' : 'smooth'});
+      var focusTarget = target.querySelector('button'); if (focusTarget) focusTarget.focus({preventScroll: true});
+    });
+    return back;
   }
 
   function clearDetails(line) {
@@ -166,7 +217,7 @@ export function createIcd11Picker(options) {
   function stage(container, item, statusEl) {
     if (active && active.line === container) {
       active.selection = item;
-      codeTitle(active.choice, item.code, item.title, 'Selected: ');
+      setFooterChoice('SELECTED', item.code, item.title);
       active.confirm.disabled = false;
       showDetails(container, item);
       return true;
@@ -180,7 +231,7 @@ export function createIcd11Picker(options) {
     if (trigger) trigger.disabled = true;
     var verifying = 'Verifying ' + (item.code || 'selection') + '…';
     if (statusEl) statusEl.textContent = verifying;
-    else if (active && active.line === container) active.choice.textContent = verifying;
+    else if (active && active.line === container) setFooterMessage(verifying);
     return transport.post('selection-check', {schema_version: 1, code: item.code, uri: item.uri}).then(function (data) {
       if (currentRevision() !== sentRevision || !container.isConnected) return;
       var verified = data.item || data.selection || data;
@@ -194,19 +245,24 @@ export function createIcd11Picker(options) {
       if (trigger) trigger.disabled = false;
       var message = error.message || 'Could not verify this code.';
       if (statusEl) statusEl.textContent = message;
-      else if (active && active.line === container) active.choice.textContent = message;
+      else if (active && active.line === container) setFooterMessage(message);
     });
   }
 
-  function showDetails(container, item) {
+  // `origin` (the clicked control) is set only for a user-opened card: it
+  // scrolls into view and takes focus. Automatic opens leave the page alone.
+  function showDetails(container, item, origin) {
     var panel = container.querySelector('[data-doris-details-panel]');
     if (!panel) return;
     panel.hidden = false;
     panel.replaceChildren();
-    var heading = document.createElement('h4'); heading.className = 'h6 mb-2';
+    var heading = document.createElement('h4'); heading.className = 'h6 mb-2'; heading.tabIndex = -1;
     codeTitle(heading, item.code, item.title);
     var body = document.createElement('div'); body.className = 'small'; body.textContent = 'Loading WHO code details…';
+    var back = origin ? backToResults(container, origin) : null;
+    if (back) panel.appendChild(back);
     panel.append(heading, body);
+    if (origin) reveal(panel, heading);
     var current = Symbol(); panel._request = current;
     transport.post('details', {schema_version: 1, code: item.code}).then(function (data) {
       if (!panel.isConnected || panel._request !== current) return;
@@ -381,6 +437,7 @@ export function createIcd11Picker(options) {
     var restoreTrigger = null;
     var state = null;
     var preserveInputFocus = false;
+    var originEl = null; // control that opened the card; null for the automatic first-result build
 
     function stale(id) {
       if (id !== requestId) return true;
@@ -389,15 +446,19 @@ export function createIcd11Picker(options) {
     function closePanel() {
       requestId += 1;
       state = null;
-      if (active && active.line === container) { active.builderActions.replaceChildren(); if (!active.selection) active.choice.textContent = 'No code selected'; }
+      if (active && active.line === container) { active.builderActions.replaceChildren(); if (!active.selection) setFooterMessage('No code selected'); }
       panel.hidden = true;
       panel.replaceChildren();
       if (!preserveInputFocus && restoreTrigger && typeof restoreTrigger.focus === 'function') restoreTrigger.focus();
       restoreTrigger = null;
+      originEl = null;
       preserveInputFocus = false;
     }
     function header(title, description, skipFocus) {
       panel.replaceChildren();
+      panel.classList.add('doris-build-card');
+      var back = originEl ? backToResults(container, originEl) : null;
+      if (back) panel.appendChild(back);
       var row = document.createElement('div');
       row.className = 'd-flex justify-content-between align-items-start gap-2';
       var heading = document.createElement('div');
@@ -417,7 +478,9 @@ export function createIcd11Picker(options) {
       row.append(heading, closeButton);
       panel.appendChild(row);
       panel.hidden = false;
-      if (!preserveInputFocus && !skipFocus) { if (h) h.focus(); else closeButton.focus(); }
+      if (!preserveInputFocus && !skipFocus) {
+        if (originEl) reveal(panel, h || closeButton); else if (h) h.focus({preventScroll: true}); else closeButton.focus({preventScroll: true});
+      }
     }
     function error(message) {
       var p = document.createElement('p');
@@ -596,11 +659,17 @@ export function createIcd11Picker(options) {
       var rerender = Boolean(state.rendered);
       state.rendered = true;
       panel.replaceChildren();
-      header('', '', rerender);
+      header('Build expression', '', rerender);
       var stem = document.createElement('p');
       stem.className = 'small mb-2';
       stem.textContent = 'Stem: ' + state.stem.code + ' — ' + state.stem.title;
       panel.appendChild(stem);
+      if (!requiredSatisfied()) {
+        var required = document.createElement('p');
+        required.className = 'alert alert-warning small py-1 px-2 mb-2'; required.setAttribute('role', 'status');
+        required.textContent = 'A required axis is missing. Choose one option to complete the expression.';
+        panel.appendChild(required);
+      }
       state.axes.slice().sort(function (a, b) { return Number(b.required) - Number(a.required); }).forEach(function (axis) {
         var section = document.createElement('section');
         section.className = 'doris-axis border-top pt-2 mt-2';
@@ -675,7 +744,7 @@ export function createIcd11Picker(options) {
       var preview = complete();
       if (active && active.line === container && !active.selection) {
         // The modal footer is the stable area; show the live expression there.
-        codeTitle(active.choice, preview.code, preview.title, 'Building: ', requiredSatisfied() ? '' : ' (required axis missing)');
+        setFooterChoice('BUILDING', preview.code, preview.title, requiredSatisfied() ? '' : 'Required axis missing');
       } else {
         var previewLabel = document.createElement('p');
         previewLabel.className = 'small mt-3 mb-1'; previewLabel.textContent = 'Complete code preview';
@@ -685,7 +754,7 @@ export function createIcd11Picker(options) {
       }
       var inFooter = Boolean(active && active.line === container && !active.selection);
       var actions = inFooter ? active.builderActions : document.createElement('div');
-      actions.className = inFooter ? 'doris-footer-actions d-flex flex-wrap gap-2' : 'd-flex flex-wrap gap-2 mt-2';
+      actions.className = inFooter ? 'doris-footer-actions' : 'd-flex flex-wrap gap-2 mt-2';
       actions.replaceChildren();
       var use = button('Use complete expression', 'btn btn-sm btn-primary');
       use.setAttribute('data-doris-use-expression', '');
@@ -780,9 +849,10 @@ export function createIcd11Picker(options) {
       stateRevision = currentRevision();
       restoreTrigger = trigger || null;
       preserveInputFocus = Boolean(preserveFocus);
+      originEl = preserveFocus ? null : (trigger || container);
       if (item && item.mode === 'hierarchy') { openHierarchy(item.item, trigger); return; }
       state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false, other_postcoordination: null, other_selected: null};
-      header('', '');
+      header('Build expression', '');
       transport.post('postcoordination', {schema_version: 1, code: item.code}).then(function (data) {
         if (stale(id)) return;
         state.stem = Object.assign(state.stem, data.stem || {});
@@ -830,6 +900,14 @@ export function createIcd11Picker(options) {
     var controller = postcoordControllers.get(container);
     if (controller) controller.close();
   }
+  // A new search invalidates everything built from the previous results:
+  // staged choice, details, builder and related window. Call at the start of
+  // every search so the right pane never shows a stale stem.
+  function clearPanels(container) {
+    clearSelection(container); clearDetails(container); closePostcoordination(container);
+    var related = container.querySelector('[data-doris-related-window]');
+    if (related) related.remove();
+  }
   function isCompleteExpression(code) { return /[&/]/.test(text(code)); }
   // Every host's status/message element sits inside the container passed
   // to the picker, under one of these markers. Used only for the
@@ -856,16 +934,100 @@ export function createIcd11Picker(options) {
     }).catch(function (err) {
       var message = (err.response && err.response.error && err.response.error.message) || err.message || 'The code could not be checked.';
       if (statusEl) statusEl.textContent = message;
-      else if (active && active.line === container) active.choice.textContent = message;
+      else if (active && active.line === container) setFooterMessage(message);
       return false;
     });
   }
+  // Render WHO search results into `opts.resultList` and wire Use / Details /
+  // Build / related-term actions for `container`. Shared by every host so the
+  // result rows behave identically; the host owns fetching, staleness checks
+  // and what `onRequery()` does (re-run the search after a related-term pick).
+  // opts: {input, statusEl, resultList, finalMode, onRequery}
+  function renderResults(container, items, opts) {
+    var input = opts.input, statusEl = opts.statusEl, resultList = opts.resultList;
+    var finalMode = Boolean(opts.finalMode), onRequery = opts.onRequery;
+    statusEl.textContent = items.length ? 'Choose a result.' : 'No matching conditions.';
+    var mandatory = [];
+    items.forEach(function (item) {
+      var row = document.createElement('div'); row.className = 'list-group-item doris-search-result';
+      var main = document.createElement('div'); main.className = 'doris-search-result-main';
+      var header = document.createElement('div'); header.className = 'doris-search-result-header';
+      var title = document.createElement('button'); title.type = 'button'; title.className = 'doris-search-title doris-search-title-button';
+      var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = item.code || '';
+      var titleNode = document.createElement('span'); titleNode.className = 'doris-search-name fw-semibold'; titleNode.textContent = item.title || '';
+      title.append(codeNode, ' — ', titleNode);
+      title.addEventListener('click', function () {
+        if (item.postcoordination_availability === 2 && !isCompleteExpression(item.code)) {
+          if (!finalMode) showDetails(container, item);
+          openPostcoordination(container, item, title);
+        } else stage(container, item, statusEl);
+      });
+      header.appendChild(title);
+      var meta = document.createElement('div'); meta.className = 'doris-search-meta';
+      if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; meta.appendChild(match); }
+      var complete = isCompleteExpression(item.code);
+      var buildIcon = addContextIcons(meta, item, function (chapter, selected) {
+        openRelated(container, chapter, selected, function (term) {
+          if (term.requires_postcoordination || finalMode) { input.value = term.code; onRequery(); }
+          else if (!term.uri && isCompleteExpression(term.code)) { var partsOfTerm = term.code.split(/[&/]/); openPostcoordination(container, {code: partsOfTerm[0], title: '', uri: '', preselect: partsOfTerm.slice(1)}, null); }
+          else if (!term.uri) resolveAndStage(container, term.code, statusEl);
+          else stage(container, term, statusEl);
+        });
+      }, item.postcoordination ? function (button) {
+        var parts = item.code.split(/[&/]/);
+        var stem = complete ? {code: parts[0], title: '', uri: '', preselect: parts.slice(1)} : item;
+        if (!finalMode) showDetails(container, item);
+        openPostcoordination(container, stem, button);
+      } : null, function (event) { showDetails(container, item, event.currentTarget); });
+      var actions = document.createElement('div'); actions.className = 'doris-search-actions';
+      if (complete || item.postcoordination_availability !== 2) {
+        var use = document.createElement('button'); use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
+        use.title = 'Select this code';
+        use.addEventListener('click', function () { stage(container, item, statusEl); });
+        actions.appendChild(use);
+      }
+      var details = document.createElement('button'); details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
+      details.addEventListener('click', function (event) { showDetails(container, item, event.currentTarget); });
+      actions.appendChild(details);
+      if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
+      var controls = document.createElement('div'); controls.className = 'doris-search-controls'; controls.append(meta, actions);
+      header.appendChild(controls); main.appendChild(header); row.appendChild(main); resultList.appendChild(row);
+    });
+    var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
+    if (automatic) {
+      if (!finalMode) showDetails(container, automatic.item);
+      openPostcoordination(container, automatic.item, automatic.trigger, true);
+    }
+  }
   return {
+    renderResults: renderResults,
     open: open, close: close, reset: reset,
+    clearPanels: clearPanels,
     stage: stage, resolveAndStage: resolveAndStage, clearSelection: clearSelection,
     showDetails: showDetails, clearDetails: clearDetails,
     addContextIcons: addContextIcons, openRelated: openRelated,
     openPostcoordination: openPostcoordination, closePostcoordination: closePostcoordination,
     isCompleteExpression: isCompleteExpression
   };
+}
+
+/**
+ * Auto-search for a search box: run() fires once, `delay` ms after typing
+ * stops at 3 or more characters. 1-2 characters never fire; a term fires once
+ * until the box drops below 3 characters or reset() is called; blur cancels.
+ * mark() records the term of an explicit Search/Enter so it is not repeated.
+ */
+export function attachAutoSearch(input, run, delay) {
+  var timer = null; var last = '';
+  function value() { return typeof input.value === 'string' ? input.value.trim() : ''; }
+  function cancel() { clearTimeout(timer); timer = null; }
+  input.addEventListener('input', function () {
+    cancel();
+    var term = value();
+    if (term.length < 3) { last = ''; return; }
+    if (term === last) return;
+    timer = setTimeout(function () { timer = null; last = term; run(term); }, delay || 500);
+  });
+  input.addEventListener('blur', cancel);
+  return {cancel: cancel, mark: function () { cancel(); last = value(); }, reset: function () { cancel(); last = ''; }};
 }

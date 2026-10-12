@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ICD-11 condition picker</title>
+  <link href="/static/vendors/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+  <link href="/static/vendors/fontawesome/css/all.min.css" rel="stylesheet">
+  <link href="/static/css/doris_demo.css?v=14" rel="stylesheet">
+  <style>html, body { background: transparent; height: 100%; margin: 0; }</style>
+  <script>
+    // ?theme=dark|light from the host app; without it follow the system setting.
+    (function () {
+      var wanted = new URLSearchParams(window.location.search).get('theme');
+      var dark = wanted === 'dark' || (wanted !== 'light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+    }());
+  </script>
+</head>
+<body>
+  <div id="doris-embed" class="doris-clinical-editor"></div>
+  <script type="module" src="/static/js/digitva_icd11_embed.js?v=4"></script>
+</body>
+</html>

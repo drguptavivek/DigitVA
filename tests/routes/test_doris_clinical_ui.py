@@ -1,5 +1,6 @@
 """Mode-aware clinical DORIS editor and stale-state frontend contracts."""
 
+import re
 import unittest
 from pathlib import Path
 
@@ -81,11 +82,29 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertLess(partial.index("data-doris-part2"), partial.index("data-doris-maternal"))
         self.assertLess(partial.index("data-doris-maternal"), partial.index("data-doris-process"))
         self.assertIn("data-doris-maternal", partial)
+        # WHO wording and order: Administrative Data, Part 1, Part 2, then the WHO cards.
+        headings = ["Administrative Data", "Part 1: Cause of death",
+                    "Part 2: Other significant conditions contributing to death",
+                    "Manner of death", "Fetal or infant death *", "Information on pregnancy",
+                    "Surgery</h5>", "Autopsy</h5>", "*fields are not mandatory"]
+        positions = [partial.index(h) for h in headings]
+        self.assertEqual(positions, sorted(positions))
+        # Part I/II lines read "Onset to death [Interval] [Units]"; age keeps Age / Age unit.
+        self.assertIn(">Onset to death</label>", partial)
+        self.assertIn('placeholder="Interval"', partial)
+        self.assertIn('data-blank-label="Age unit"', partial)
+        self.assertIn("data-doris-add-below", partial)
+        self.assertIn("doris-section-heading", partial)
+        self.assertEqual(partial.count('type="date"'), 2)  # the precision macro (three fields) and the plain date of death
+        self.assertIn("data-doris-line-letter", partial)
+        self.assertIn('aria-label="Time unit"', partial)
         self.assertIn("data-postcoordination-url", partial)
         self.assertIn("data-postcoordination-options-url", partial)
         self.assertIn("data-hierarchy-url", partial)
         self.assertIn("data-doris-guided-panel", partial)
         self.assertIn("css/doris_demo.css", partial)
+        self.assertIn('class="doris-editor-heading"><h2', partial)
+        self.assertIn('class="doris-actions-separator"', partial)
         self.assertIn("X-CSRFToken", self._read("app/static/js/doris_clinical.js"))
         script = self._read("app/static/js/doris_clinical.js")
         self.assertIn("JSON.stringify(doris)", script)
@@ -95,7 +114,64 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("See in hierarchy", picker)
         self.assertIn("data-doris-interval-value", partial)
         self.assertIn("data-doris-interval-unit", partial)
-        self.assertIn("doris-search-result-main", script)
+        self.assertIn("doris-search-result-main", self._read("app/static/js/digitva_icd11_picker.js"))
+
+    def test_whole_cards_keep_their_title_and_show_a_not_applicable_note(self):
+        partial = self._read("app/templates/va_form_partials/_doris_certificate_editor.html")
+        script = self._read("app/static/js/doris_clinical.js")
+        rules = self._read("app/static/js/doris_rules.js")
+        for card, rule in (("Fetal or infant death *", "fetal"), ("Information on pregnancy", "maternal")):
+            self.assertIn(f"<h5 class=\"h6\">{card}</h5><div class=\"alert alert-warning", partial)
+            self.assertIn(f'data-doris-na="{rule}"', partial)
+            self.assertIn(f'<div class="row g-2" data-doris-rule="{rule}"', partial)
+        self.assertNotIn('data-doris-fetal data-doris-rule', partial)
+        self.assertIn("This section is not applicable when it is not a fetal or infant death", rules)
+        self.assertIn("This section is not applicable when the selected sex is male", rules)
+        self.assertIn("This section is not applicable when the selected sex is not female", rules)
+        self.assertIn("data-doris-na", script)
+        # Single follow-ups stay hidden with no note.
+        self.assertEqual(partial.count("data-doris-na="), 2)
+
+    def test_partial_dates_use_a_precision_dropdown_and_death_is_a_plain_date(self):
+        partial = self._read("app/templates/va_form_partials/_doris_certificate_editor.html")
+        fields = self._read("app/static/js/doris_fields.js")
+        self.assertNotIn("Year or month only", partial)
+        self.assertNotIn("data-doris-date-mode", partial + fields + self._read("app/static/js/doris_clinical.js"))
+        self.assertIn('<option value="date" selected>Date</option><option value="month">Year-Month</option><option value="year">Year</option>', partial)
+        # Exactly three dropdown fields, one per macro call; none for the date of death.
+        for hook, label in (("data-doris-date-birth", "Date of birth"), ("data-doris-external-date", "Date of injury"), ("data-doris-surgery-date", "Date of surgery")):
+            self.assertRegex(partial, r"doris_date\('%s[^']*', '%s'" % (hook, label))
+        self.assertEqual(partial.count("{{ doris_date("), 3)
+        self.assertIn('aria-label="{{ label }} precision"', partial)
+        death = re.search(r"<input[^>]*data-doris-date-death[^>]*>", partial).group(0)
+        self.assertIn('type="date"', death)
+        self.assertNotIn("data-doris-date ", death + " ")
+        self.assertNotIn("precision", death)
+        # Native validation would block Save in the htmx form: no max/min/pattern on any date control.
+        for tag in re.findall(r"<input[^>]*type=\"date\"[^>]*>", partial):
+            self.assertNotRegex(tag, r"\b(max|min|pattern)=")
+        self.assertNotRegex(fields, r"\.(max|min)\s*=|setAttribute\('(max|min|pattern)'")
+
+    def test_every_certificate_question_gets_a_clear_button_and_the_search_waits_for_three_characters(self):
+        fields = self._read("app/static/js/doris_fields.js")
+        script = self._read("app/static/js/doris_clinical.js")
+        css = self._read("app/static/css/doris_demo.css")
+        self.assertIn("data-doris-clear", fields)
+        self.assertIn("'Clear ' + label", fields)
+        self.assertIn("data-doris-prefill-marker", fields)
+        self.assertIn(".doris-clear", css)
+        self.assertIn("min-width: 2.75rem; min-height: 2.75rem", css)
+        self.assertIn("Fields.mountClear(editor)", script)
+        self.assertIn("clearButtons.refresh()", script)
+        picker = self._read("app/static/js/digitva_icd11_picker.js")
+        self.assertIn("export function attachAutoSearch", picker)
+        self.assertEqual(script.count("attachAutoSearch("), 2)  # line box + final box
+        self.assertIn("attachAutoSearch(input, search)", self._read("app/static/js/doris_final_cod.js"))
+
+    def test_add_line_below_inserts_after_its_line(self):
+        script = self._read("app/static/js/doris_clinical.js")
+        self.assertIn("state.lines.splice(index + 1, 0, added)", script)
+        self.assertIn("[data-doris-add-below]').disabled = state.lines.length >= MAX_LINES", script)
 
     def test_editor_loads_only_the_clinical_host_as_a_module(self):
         partial = self._read(
@@ -174,7 +250,8 @@ class DorisPostcoordinationJavascriptContractTests(unittest.TestCase):
     def test_clinical_search_counter_starts_defined_and_final_related_terms_research(self):
         source = (Path(__file__).resolve().parents[2] / "app/static/js/doris_clinical.js").read_text(encoding="utf-8")
         self.assertIn("searchRequest: 0,", source)
-        self.assertIn("|| finalMode) { input.value = term.code; search(line, finalMode); }", source)
+        picker = (Path(__file__).resolve().parents[2] / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
+        self.assertIn("|| finalMode) { input.value = term.code; onRequery(); }", picker)
 
     def setUp(self):
         root = Path(__file__).resolve().parents[2]

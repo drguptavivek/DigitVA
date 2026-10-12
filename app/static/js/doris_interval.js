@@ -57,7 +57,7 @@ export function serialize(value, unit) {
 function populateUnitOptions(select) {
   if (!select || select.options.length) return;
   var blank = document.createElement('option');
-  blank.value = ''; blank.textContent = 'Select unit';
+  blank.value = ''; blank.textContent = select.dataset.blankLabel || 'Units';
   select.appendChild(blank);
   units.forEach(function (unit) {
     var option = document.createElement('option');
@@ -98,6 +98,8 @@ export function mount(container, rawValue) {
       return result;
     },
     validate: function () { return this.read(); },
+    // The current ISO value without showing an error (for live rule checks).
+    peek: function () { return state.dirty ? serialize(valueInput.value, unitSelect.value).value : state.raw; },
     state: state,
     value: valueInput,
     unit: unitSelect

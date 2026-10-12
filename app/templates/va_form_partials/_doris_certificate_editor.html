@@ -1,5 +1,5 @@
 {# Reusable clinical DORIS editor. Required context is documented by its data attributes. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-15">
 {% set _doris_id = doris_editor_id|default('doris-clinical-editor') %}
 <section id="{{ _doris_id }}" class="doris-clinical-editor card border-primary mb-4"
          data-doris-editor
@@ -14,6 +14,7 @@
          data-hierarchy-url="{{ doris_hierarchy_url|default('/api/v1/doris-clinical/hierarchy/' ~ va_sid, true) }}"
          data-related-url="{{ doris_related_url|default('/api/v1/doris-clinical/related/' ~ va_sid, true) }}"
          data-details-url="{{ doris_details_url|default('/api/v1/doris-clinical/details/' ~ va_sid, true) }}"
+         data-today="{{ current_user_today|default('', true) }}"
          data-csrf="{{ csrf_token() }}"
          data-final-cod-input="{{ doris_final_cod_input }}">
   <div class="card-header bg-primary-subtle">
@@ -25,56 +26,65 @@
     <script type="application/json" data-doris-prefill>{{ doris_prefill_provenance|default({}, true)|tojson }}</script>
     <script type="application/json" data-doris-initial-processing>{{ doris_initial_processing|default(none)|tojson }}</script>
     <section class="card doris-step-card mb-3"><div class="card-body">
-    <h4 class="h5 doris-step-heading">{{ doris_step1_title|default('Step 1: DORIS') }}</h4>
-    <div class="row g-3 mb-3">
+    <div class="doris-editor-heading"><h2 class="h3">{{ doris_step1_title|default('Step 1: DORIS') }}</h2>{% if doris_step1_title %}<p>Step 1</p>{% endif %}</div>
+    {#- A DORIS date: a precision dropdown (Date, Year-Month, Year) beside the input it switches (date, month or a 4-digit year). The value is YYYY-MM-DD, YYYY-MM or YYYY. No `max`: native validation would block Save in the htmx form; date problems are soft warnings. -#}
+    {% macro doris_date(hook, label, ident='') %}<div class="input-group doris-date-group"><select class="form-select doris-precision" aria-label="{{ label }} precision" data-doris-precision><option value="date" selected>Date</option><option value="month">Year-Month</option><option value="year">Year</option></select><input {% if ident %}id="{{ ident }}" {% endif %}type="date" class="form-control" autocomplete="off" {{ hook }} data-doris-date></div>{% endmacro %}
+    <div class="border rounded p-3 mb-3"><h5 class="h6">Administrative Data</h5><div class="row g-3">
       <div class="col-sm-6" data-doris-field="AdministrativeData.Sex"><label class="form-label" for="{{ _doris_id }}-sex">Sex</label><select id="{{ _doris_id }}-sex" class="form-select" data-doris-sex><option value="">Not stated</option><option value="1">Male</option><option value="2">Female</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-6" data-doris-age-control data-doris-field="AdministrativeData.EstimatedAge"><label class="form-label" for="{{ _doris_id }}-age">Estimated age</label><div class="d-flex gap-2"><input id="{{ _doris_id }}-age" class="form-control" inputmode="decimal" maxlength="24" placeholder="Age" data-doris-interval-value><select class="form-select" aria-label="Age unit" data-doris-interval-unit></select></div><p class="small text-muted mb-0 mt-1" data-doris-interval-raw hidden></p></div>
-      <div class="col-sm-6" data-doris-field="AdministrativeData.DateBirth"><label class="form-label" for="{{ _doris_id }}-date-birth">Date of birth</label><input id="{{ _doris_id }}-date-birth" class="form-control" maxlength="10" placeholder="YYYY-MM-DD, YYYY-MM or YYYY" autocomplete="off" data-doris-date-birth data-doris-extra></div>
-      <div class="col-sm-6" data-doris-field="AdministrativeData.DateDeath"><label class="form-label" for="{{ _doris_id }}-date-death">Date of death</label><input id="{{ _doris_id }}-date-death" class="form-control" maxlength="10" placeholder="YYYY-MM-DD, YYYY-MM or YYYY" autocomplete="off" data-doris-date-death data-doris-extra></div>
-    </div>
+      <div class="col-sm-6" data-doris-age-control data-doris-field="AdministrativeData.EstimatedAge"><label class="form-label" for="{{ _doris_id }}-age">Estimated age</label><div class="d-flex gap-2"><input id="{{ _doris_id }}-age" class="form-control" inputmode="decimal" maxlength="24" placeholder="Age" data-doris-interval-value><select class="form-select" aria-label="Age unit" data-blank-label="Age unit" data-doris-interval-unit></select></div><p class="small text-muted mb-0 mt-1" data-doris-interval-raw hidden></p></div>
+      <div class="col-sm-6" data-doris-field="AdministrativeData.DateBirth"><label class="form-label" for="{{ _doris_id }}-date-birth">Date of birth</label>{{ doris_date('data-doris-date-birth data-doris-extra', 'Date of birth', _doris_id ~ '-date-birth') }}</div>
+      <div class="col-sm-6" data-doris-field="AdministrativeData.DateDeath"><label class="form-label" for="{{ _doris_id }}-date-death">Date of death</label><input id="{{ _doris_id }}-date-death" type="date" class="form-control" autocomplete="off" data-doris-date-death data-doris-date-plain data-doris-extra></div>
+    </div></div>
 
+    <h5 class="h6 doris-section-heading">Frame A: Medical data</h5>
     <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
-      <h5 class="h6 mb-0">Part I: Cause of death</h5>
+      <h5 class="h6 mb-0">Part 1: Cause of death</h5>
       <button type="button" class="btn btn-sm btn-outline-primary" data-doris-add-line>Add line</button>
     </div>
     <div data-doris-part1></div>
 
-    <h5 class="h6 mt-4">Part II: other significant conditions</h5>
+    <h5 class="h6 doris-section-heading">Part 2: Other significant conditions contributing to death</h5>
     <div data-doris-part2></div>
 
-    <div class="border rounded p-3 mb-3 mt-4" data-doris-fetal><h5 class="h6">Fetal or infant details</h5><p class="small text-muted">Leave unknown measurements blank; they will be omitted.</p><div class="row g-2">
-      <div class="col-sm-4" data-doris-field="FetalOrInfantDeath.Stillborn"><label class="form-label small">Stillborn</label><select class="form-select" data-doris-stillborn><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-4" data-doris-field="FetalOrInfantDeath.MultiplePregnancy"><label class="form-label small">Multiple pregnancy</label><select class="form-select" data-doris-multiple><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-4" data-doris-field="FetalOrInfantDeath.DeathWithin24h"><label class="form-label small">If death within 24 h, hours survived</label><input type="number" min="0" max="24" class="form-control" data-doris-within24></div>
-      <div class="col-sm-4" data-doris-field="FetalOrInfantDeath.BirthWeight"><label class="form-label small">Birth weight (g)</label><input type="number" min="1" max="9999" class="form-control" data-doris-birth-weight></div>
-      <div class="col-sm-4" data-doris-field="FetalOrInfantDeath.PregnancyWeeks"><label class="form-label small">Pregnancy weeks</label><input type="number" min="1" max="50" class="form-control" data-doris-pregnancy-weeks></div>
-      <div class="col-sm-4" data-doris-field="FetalOrInfantDeath.AgeMother"><label class="form-label small">Mother's age</label><input type="number" min="10" max="80" class="form-control" data-doris-mother-age></div>
-      <div class="col-12"><label class="form-label small">Maternal condition affecting fetus or infant</label><textarea class="form-control" rows="2" maxlength="500" data-doris-perinatal></textarea></div>
-    </div></div>
-    <div class="border rounded p-3 mb-3" data-doris-maternal hidden><h5 class="h6">Pregnancy context</h5><div class="row g-2">
-      <div class="col-sm-4" data-doris-field="MaternalDeath.WasPregnant"><label class="form-label small">Pregnant at death</label><select class="form-select" data-doris-pregnant><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-4" data-doris-maternal-followup data-doris-field="MaternalDeath.TimeFromPregnancy" hidden><label class="form-label small">Time from pregnancy</label><select class="form-select" data-doris-pregnancy-time><option value="">Not stated</option><option value="0">At death</option><option value="1">Within 42 days</option><option value="2">43 days to 1 year</option><option value="3">1 year or more</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-4" data-doris-maternal-followup hidden><label class="form-label small">Pregnancy contributed</label><select class="form-select" data-doris-pregnancy-contribute><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-    </div></div>
     {% set _yes_no_unknown %}<option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option>{% endset %}
-    <div class="border rounded p-3 mb-3"><h5 class="h6">Manner of death</h5><div class="row g-2">
-      <div class="col-sm-4" data-doris-field="MannerOfDeath.MannerOfDeath"><label class="form-label small">Manner of death</label><select class="form-select" data-doris-manner-of-death data-doris-extra><option value="">Not stated</option><option value="0">Disease</option><option value="1">Accident</option><option value="2">Intentional self-harm</option><option value="3">Assault</option><option value="4">Legal intervention</option><option value="5">War</option><option value="6">Could not be determined</option><option value="7">Pending investigation</option><option value="9">Unknown</option></select></div>
-      <div class="col-sm-4" data-doris-field="MannerOfDeath.DateOfExternalCauseOrPoisoning"><label class="form-label small">Date of injury or poisoning</label><input class="form-control" maxlength="10" placeholder="YYYY-MM-DD" autocomplete="off" data-doris-external-date data-doris-extra></div>
-      <div class="col-sm-4" data-doris-field="MannerOfDeath.PlaceOfOccuranceExternalCause"><label class="form-label small">Place of occurrence</label><select class="form-select" data-doris-external-place data-doris-extra><option value="">Not stated</option><option value="0">At home</option><option value="1">Residential institution</option><option value="2">School, other institution, public administration area</option><option value="3">Sports and athletics area</option><option value="4">Street and highway</option><option value="5">Trade and service area</option><option value="6">Industrial and construction area</option><option value="7">Farm</option><option value="8">Other place</option><option value="9">Unknown</option></select></div>
-      <div class="col-12" data-doris-field="MannerOfDeath.DescriptionExternalCause"><label class="form-label small">How the external cause occurred</label><textarea class="form-control" rows="2" maxlength="500" data-doris-external-description data-doris-extra></textarea></div>
+    <div class="border rounded p-3 mb-3 mt-3"><h5 class="h6">Manner of death</h5><div class="row g-2">
+      <div class="col-12" data-doris-field="MannerOfDeath.MannerOfDeath"><label class="form-label small">Manner of death</label><select class="form-select" data-doris-manner-of-death data-doris-extra><option value="">Not stated</option><option value="0">Disease</option><option value="1">Accident</option><option value="2">Intentional self-harm</option><option value="3">Assault</option><option value="4">Legal intervention</option><option value="5">War</option><option value="6">Could not be determined</option><option value="7">Pending investigation</option><option value="9">Unknown</option></select></div>
+      <p class="small fw-semibold mb-0 mt-2" data-doris-rule="external">If external cause or poisoning:*</p>
+      <div class="col-sm-6" data-doris-rule="external" data-doris-field="MannerOfDeath.DateOfExternalCauseOrPoisoning"><label class="form-label small">Date of injury</label>{{ doris_date('data-doris-external-date data-doris-extra', 'Date of injury') }}</div>
+      <div class="col-12" data-doris-rule="external" data-doris-field="MannerOfDeath.DescriptionExternalCause"><label class="form-label small">Please describe how external cause occurred (If poisoning please specify poisoning agent)</label><textarea class="form-control" rows="3" maxlength="500" data-doris-external-description data-doris-extra></textarea></div>
+      <p class="small fw-semibold mb-0 mt-2" data-doris-rule="external">Place of occurrence of the external cause:*</p>
+      <div class="col-12" data-doris-rule="external" data-doris-field="MannerOfDeath.PlaceOfOccuranceExternalCause"><label class="form-label small">Place</label><select class="form-select" data-doris-external-place data-doris-extra><option value="">Not stated</option><option value="0">At home</option><option value="1">Residential institution</option><option value="2">School, other institution, public administration area</option><option value="3">Sports and athletics area</option><option value="4">Street and highway</option><option value="5">Trade and service area</option><option value="6">Industrial and construction area</option><option value="7">Farm</option><option value="8">Other place</option><option value="9">Unknown</option></select></div>
     </div></div>
-    <div class="border rounded p-3 mb-3"><h5 class="h6">Surgery and autopsy</h5><div class="row g-2">
-      <div class="col-sm-4" data-doris-field="Surgery.WasPerformed"><label class="form-label small">Surgery within 4 weeks of death</label><select class="form-select" data-doris-surgery-performed data-doris-extra>{{ _yes_no_unknown }}</select></div>
-      <div class="col-sm-4" data-doris-field="Surgery.Date"><label class="form-label small">Date of surgery</label><input class="form-control" maxlength="10" placeholder="YYYY-MM-DD" autocomplete="off" data-doris-surgery-date data-doris-extra></div>
-      <div class="col-sm-4" data-doris-field="Surgery.Reason"><label class="form-label small">Reason for surgery</label><input class="form-control" maxlength="500" autocomplete="off" data-doris-surgery-reason data-doris-extra></div>
-      <div class="col-sm-4" data-doris-field="Autopsy.WasRequested"><label class="form-label small">Autopsy requested</label><select class="form-select" data-doris-autopsy-requested data-doris-extra>{{ _yes_no_unknown }}</select></div>
-      <div class="col-sm-4" data-doris-field="Autopsy.Findings"><label class="form-label small">Autopsy findings used in certification</label><select class="form-select" data-doris-autopsy-findings data-doris-extra>{{ _yes_no_unknown }}</select></div>
+    <div class="border rounded p-3 mb-3" data-doris-fetal><h5 class="h6">Fetal or infant death *</h5><div class="alert alert-warning py-2 px-3 mb-0 small doris-na-note" role="note" data-doris-na="fetal" hidden></div><div class="row g-2" data-doris-rule="fetal">
+      <div class="col-sm-6" data-doris-field="FetalOrInfantDeath.MultiplePregnancy"><label class="form-label small">Multiple pregnancy</label><select class="form-select" data-doris-multiple>{{ _yes_no_unknown }}</select></div>
+      <div class="col-sm-6" data-doris-field="FetalOrInfantDeath.Stillborn"><label class="form-label small">Stillborn?</label><select class="form-select" data-doris-stillborn>{{ _yes_no_unknown }}</select></div>
+      <div class="col-sm-6" data-doris-rule="within24" data-doris-field="FetalOrInfantDeath.DeathWithin24h"><label class="form-label small">If death within 24h specify number of hours survived</label><input type="number" min="0" max="24" class="form-control" data-doris-within24></div>
+      <div class="col-sm-6" data-doris-field="FetalOrInfantDeath.BirthWeight"><label class="form-label small">Birth weight (in grams)</label><input type="number" min="1" max="9999" class="form-control" data-doris-birth-weight></div>
+      <div class="col-sm-6" data-doris-field="FetalOrInfantDeath.PregnancyWeeks"><label class="form-label small">Number of completed weeks of pregnancy</label><input type="number" min="1" max="50" class="form-control" data-doris-pregnancy-weeks></div>
+      <div class="col-sm-6" data-doris-field="FetalOrInfantDeath.AgeMother"><label class="form-label small">Age of mother (years)</label><input type="number" min="10" max="80" class="form-control" data-doris-mother-age></div>
+      <div class="col-12"><label class="form-label small">If death was perinatal, please state conditions of mother that affected the fetus and newborn</label><textarea class="form-control" rows="3" maxlength="500" data-doris-perinatal></textarea></div>
     </div></div>
+    <div class="border rounded p-3 mb-3" data-doris-maternal><h5 class="h6">Information on pregnancy</h5><div class="alert alert-warning py-2 px-3 mb-0 small doris-na-note" role="note" data-doris-na="maternal" hidden></div><div class="row g-2" data-doris-rule="maternal" hidden>
+      <div class="col-sm-4" data-doris-field="MaternalDeath.WasPregnant"><label class="form-label small">For women, was the deceased pregnant?</label><select class="form-select" data-doris-pregnant>{{ _yes_no_unknown }}</select></div>
+      <div class="col-sm-4" data-doris-maternal-followup data-doris-field="MaternalDeath.TimeFromPregnancy"><label class="form-label small">If yes please specify the time from pregnancy</label><select class="form-select" data-doris-pregnancy-time disabled><option value="">Not stated</option><option value="0">At death</option><option value="1">Within 42 days</option><option value="2">43 days to 1 year</option><option value="3">1 year or more</option><option value="9">Unknown</option></select></div>
+      <div class="col-sm-4" data-doris-maternal-followup><label class="form-label small">Did the pregnancy contribute to the death?</label><select class="form-select" data-doris-pregnancy-contribute disabled>{{ _yes_no_unknown }}</select></div>
+    </div></div>
+    <div class="border rounded p-3 mb-3"><h5 class="h6">Surgery</h5><div class="row g-2">
+      <div class="col-12" data-doris-field="Surgery.WasPerformed"><label class="form-label small">Was surgery performed within the last 4 weeks?</label><select class="form-select" data-doris-surgery-performed data-doris-extra>{{ _yes_no_unknown }}</select></div>
+      <div class="col-sm-6" data-doris-rule="surgeryDetail" data-doris-field="Surgery.Date"><label class="form-label small">If yes please specify date of surgery*</label>{{ doris_date('data-doris-surgery-date data-doris-extra', 'Date of surgery') }}</div>
+      <div class="col-sm-6" data-doris-rule="surgeryDetail" data-doris-field="Surgery.Reason"><label class="form-label small">If yes please specify reason for surgery (disease or condition)*</label><input class="form-control" maxlength="500" autocomplete="off" data-doris-surgery-reason data-doris-extra></div>
+    </div></div>
+    <div class="border rounded p-3 mb-3"><h5 class="h6">Autopsy</h5><div class="row g-2">
+      <div class="col-sm-6" data-doris-field="Autopsy.WasRequested"><label class="form-label small">Was an autopsy requested?*</label><select class="form-select" data-doris-autopsy-requested data-doris-extra>{{ _yes_no_unknown }}</select></div>
+      <div class="col-sm-6" data-doris-rule="autopsyFindings" data-doris-field="Autopsy.Findings"><label class="form-label small">If yes were the findings used in the certification?*</label><select class="form-select" data-doris-autopsy-findings data-doris-extra>{{ _yes_no_unknown }}</select></div>
+    </div></div>
+    <p class="small text-muted">*fields are not mandatory</p>
 
     <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
-      <button type="button" class="btn btn-outline-primary" data-doris-process>Process with DORIS and CoDEdit</button>
+      <button type="button" class="btn btn-primary" data-doris-process>Process with DORIS and CoDEdit</button>
       <span class="small fw-semibold" role="status" aria-live="polite" data-doris-status></span>
     </div>
+    <hr class="doris-actions-separator" aria-hidden="true">
 
     <div class="mt-4" data-doris-results hidden>
       <div class="border rounded p-3 doris-summary" data-doris-summary></div>
@@ -107,17 +117,19 @@
 
   <template data-doris-line-template>
     <div class="border rounded p-3 mb-2" data-doris-line>
-      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><strong data-doris-line-title></strong><div class="d-flex align-items-center gap-3"><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-doris-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-doris-down aria-label="Move line down">↓</button></div><button type="button" class="btn btn-sm btn-outline-danger" data-doris-remove>Remove</button></div></div>
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><div class="d-flex align-items-center gap-2"><span class="badge text-bg-secondary" data-doris-line-letter></span><strong data-doris-line-title></strong></div><div class="d-flex align-items-center gap-3"><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-doris-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-doris-down aria-label="Move line down">↓</button></div><button type="button" class="btn btn-sm btn-outline-danger" data-doris-remove>Remove</button></div></div>
       <div class="d-flex flex-wrap gap-2 mb-2" data-doris-chips aria-live="polite"></div>
       <div class="input-group"><input class="form-control" maxlength="80" autocomplete="off" placeholder="Search a condition or ICD-11 code" data-doris-search><button type="button" class="btn btn-outline-secondary" data-doris-search-button>Search</button><button type="button" class="btn btn-outline-secondary" data-doris-add-uncoded>Add uncoded text</button></div>
       <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mb-0 mt-1" role="status" data-doris-search-status></p><div class="list-group mt-1" data-doris-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>
       <div class="doris-interval" data-doris-interval-control hidden>
-        <label class="form-label small mb-0">Onset to death</label>
-        <input class="form-control form-control-sm" data-doris-interval-value inputmode="decimal" maxlength="24" placeholder="Interval" aria-label="Interval value">
-        <select class="form-select form-select-sm" data-doris-interval-unit aria-label="Interval time unit"></select>
+        <label class="form-label small mb-0 doris-onset-label">Onset to death</label>
+        <input class="form-control form-control-sm" data-doris-interval-value inputmode="decimal" maxlength="24" placeholder="Interval" aria-label="Interval">
+        <select class="form-select form-select-sm" data-doris-interval-unit aria-label="Time unit"></select>
         <p class="small text-muted mb-0 mt-1" data-doris-interval-raw hidden></p>
         <p class="small text-danger mb-0 mt-1" data-doris-interval-error role="alert"></p>
+        <p class="small doris-warning mb-0 mt-1" data-doris-interval-warning role="status"></p>
       </div>
+      <div class="d-flex justify-content-end mt-2" data-doris-add-below-row><button type="button" class="btn btn-sm btn-outline-primary" data-doris-add-below>Add line</button></div>
     </div>
   </template>
 
@@ -127,4 +139,4 @@
   <input type="hidden" name="doris_process_token" data-doris-token>
   <input type="hidden" name="doris_result_digest" data-doris-digest>
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-6"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-15"></script>

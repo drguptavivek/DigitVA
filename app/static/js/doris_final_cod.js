@@ -2,7 +2,7 @@
 // cause with the shared ICD-11 picker. No certificate and no Process; the
 // Step 1 DORIS run is shown read-only through renderSummary. The server
 // derives which choice was used, so nothing here reports provenance.
-import { createIcd11Picker } from './digitva_icd11_picker.js';
+import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=4';
 import { renderSummary } from './doris_result_summary.js';
 
 (function () {
@@ -105,10 +105,12 @@ import { renderSummary } from './doris_result_summary.js';
     });
     // Several WHO alternatives: the coder chooses, starting from the first.
     host.querySelectorAll('[data-final-search-code]').forEach(function (node) {
-      node.addEventListener('click', function () { input.value = node.dataset.finalSearchCode; search(); input.focus(); });
+      node.addEventListener('click', function () { input.value = node.dataset.finalSearchCode; auto.mark(); search(); input.focus(); });
     });
-    host.querySelector('[data-doris-final-search-button]').addEventListener('click', search);
-    input.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); search(); } });
+    // 3+ characters resting 500 ms search without a click; Search/Enter stay immediate.
+    var auto = attachAutoSearch(input, search);
+    host.querySelector('[data-doris-final-search-button]').addEventListener('click', function () { auto.mark(); search(); });
+    input.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); auto.mark(); search(); } });
 
     // A refused save re-renders with the submitted choice kept; a recode
     // starts from the previous final code, as the masked simple picker does.

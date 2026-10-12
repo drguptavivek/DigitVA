@@ -1,18 +1,81 @@
-#doris-demo-app .doris-line { border-left: .3rem solid #dbeafe; }
-#doris-demo-app .doris-line, .doris-clinical-editor [data-doris-line] { padding: .65rem !important; margin-bottom: .4rem !important; }
-#doris-part1-lines > .doris-line:first-child, .doris-clinical-editor [data-doris-part1] > [data-doris-line]:first-child { border-left: .3rem solid #f1aeb5 !important; }
+/*
+ * DORIS editor design tokens: shadcn/ui "zinc" semantic names, native HTML elements,
+ * no UI library. Mirrors mobile/digitva-collect/src/theme.ts (`ui`, the single token source) and is documented in
+ * docs/current-state/doris-ui-tokens.md. `primary` and `ring` are the DigitVA brand blue
+ * (the Expo app accent); neutrals are zinc. The picker host page sets data-bs-theme on <html>.
+ */
+.doris-clinical-editor, #doris-demo-app, .doris-search-modal-open, .doris-search-backdrop, .doris-related-window {
+  --radius: .5rem; --radius-lg: var(--radius); --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px);
+  --background: hsl(0 0% 100%); --foreground: hsl(240 10% 3.9%);
+  --card: hsl(0 0% 100%); --card-foreground: hsl(240 10% 3.9%);
+  --popover: hsl(0 0% 100%); --popover-foreground: hsl(240 10% 3.9%);
+  --primary: #1D4ED8; --primary-foreground: #FFFFFF;
+  --secondary: #EEF3F8; --secondary-foreground: hsl(240 5.9% 10%);
+  --muted: #EEF3F8; --muted-foreground: #53657A;
+  --accent: #E8F0FF; --accent-foreground: #10233F;
+  --destructive: hsl(0 72.2% 50.6%); --destructive-foreground: hsl(0 0% 98%); --destructive-text: #B42318;
+  --warning: #FEF3C7; --warning-foreground: #3B2200; --warning-border: #B45309;
+  --build-tint: #EEF0FF; --build-border: #A5B4FC; --build-bar: #4338CA; --build-foreground: #FFFFFF;
+  --success-text: #146C43;
+  /* `border` is the card/divider hairline; `input` the stronger edge of every control and choice row (>= 3:1). */
+  --border: #CBD5E1; --input: #6B7C93; --ring: #2563EB;
+  --chart-1: #C2185B; --chart-1-tint: #FCE4EC; --chart-1-soft: #F8BBD0; --chart-1-foreground: #4A0A24;
+  --chart-2: #B45309; --chart-2-tint: #FEF3C7; --chart-2-soft: #FCD34D; --chart-2-foreground: #3B2200;
+  --chart-3: #0F766E; --chart-3-tint: #CCFBF1; --chart-3-soft: #99F6E4; --chart-3-foreground: #032F2B;
+  --chart-4: #4338CA; --chart-4-tint: #E0E7FF; --chart-4-soft: #C7D2FE; --chart-4-foreground: #1B1670;
+  --chart-5: #7E22CE; --chart-5-tint: #F3E8FF; --chart-5-soft: #E9D5FF; --chart-5-foreground: #3B0764;
+  --chart-part2: #475569; --chart-part2-tint: #F1F5F9; --chart-part2-soft: #E2E8F0; --chart-part2-foreground: #1E293B;
+  /* Bootstrap follows the tokens, so unclassed Bootstrap parts match the editor. */
+  --bs-body-bg: var(--background); --bs-body-color: var(--foreground); --bs-border-color: var(--border);
+  --bs-secondary-color: var(--muted-foreground); --bs-secondary-bg: var(--muted); --bs-tertiary-bg: var(--muted);
+  --bs-emphasis-color: var(--foreground); --bs-link-color: var(--primary); --bs-border-radius: var(--radius-md);
+  color: var(--foreground);
+}
+[data-bs-theme="dark"] .doris-clinical-editor,
+[data-bs-theme="dark"] #doris-demo-app,
+[data-bs-theme="dark"] .doris-search-modal-open,
+[data-bs-theme="dark"] .doris-search-backdrop,
+[data-bs-theme="dark"] .doris-related-window,
+.doris-clinical-editor[data-bs-theme="dark"],
+#doris-demo-app[data-bs-theme="dark"],
+.doris-search-modal-open[data-bs-theme="dark"],
+.doris-search-backdrop[data-bs-theme="dark"],
+.doris-related-window[data-bs-theme="dark"] {
+  --background: #131E2E; --foreground: #F4F7FB;
+  --card: #1B2A3D; --card-foreground: #F4F7FB;
+  --popover: #1B2A3D; --popover-foreground: #F4F7FB;
+  --primary: #78A9FF; --primary-foreground: #081429;
+  --secondary: #243449; --secondary-foreground: #F4F7FB;
+  --muted: #243449; --muted-foreground: #B5C2D1;
+  --accent: #1C3764; --accent-foreground: #F4F7FB;
+  --destructive: hsl(0 62.8% 30.6%); --destructive-foreground: hsl(0 0% 98%); --destructive-text: #FF8A80;
+  --warning: #38280B; --warning-foreground: #FFF3D1; --warning-border: #FBBF24;
+  --build-tint: #22264F; --build-border: #3B418D; --build-bar: #A5B4FC; --build-foreground: #0F1033;
+  --success-text: #75D5A4;
+  --border: #3E5068; --input: #7C90AB; --ring: #9CC0FF;
+  --chart-1: #F48FB1; --chart-1-tint: #3B1A27; --chart-1-soft: #6A2540; --chart-1-foreground: #FFE4EE;
+  --chart-2: #FBBF24; --chart-2-tint: #38280B; --chart-2-soft: #6B4A0C; --chart-2-foreground: #FFF3D1;
+  --chart-3: #2DD4BF; --chart-3-tint: #0E3330; --chart-3-soft: #145C55; --chart-3-foreground: #D9FFF8;
+  --chart-4: #A5B4FC; --chart-4-tint: #22264F; --chart-4-soft: #3B418D; --chart-4-foreground: #EEF0FF;
+  --chart-5: #D8B4FE; --chart-5-tint: #2E1A47; --chart-5-soft: #5B2A8C; --chart-5-foreground: #F7ECFF;
+  --chart-part2: #94A3B8; --chart-part2-tint: #1E2733; --chart-part2-soft: #334155; --chart-part2-foreground: #F1F5F9;
+}
+
+#doris-demo-app .doris-line { border-left: .3rem solid var(--chart-1-soft); }
+#doris-demo-app .doris-line, .doris-clinical-editor [data-doris-line] { padding: 1rem !important; margin-bottom: .4rem !important; }
+#doris-part1-lines > .doris-line:first-child { border-left: .3rem solid var(--chart-1) !important; }
 #doris-demo-app .doris-chips { display: flex; flex-wrap: wrap; gap: .4rem; min-height: 1rem; }
 #doris-demo-app .doris-chips:empty, .doris-clinical-editor [data-doris-chips]:empty { display: none !important; }
-#doris-demo-app .doris-chip { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .35rem .5rem; border: 1px solid #86b7fe; border-radius: .4rem; background: #eff6ff; }
+#doris-demo-app .doris-chip { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; padding: .35rem .5rem; border: 1px solid var(--primary); border-radius: var(--radius-md); background: var(--accent); color: var(--accent-foreground); }
 #doris-demo-app .doris-chip > span { overflow-wrap: anywhere; }
-#doris-demo-app .doris-chip button { border: 0; background: transparent; color: #842029; font-size: 1.1rem; line-height: 1; }
+#doris-demo-app .doris-chip button { border: 0; background: transparent; color: var(--destructive-text); font-size: 1.1rem; line-height: 1; }
 #doris-demo-app .doris-search-result, .doris-clinical-editor .doris-search-result { padding: .25rem .55rem; }
 #doris-demo-app .doris-search-result-main, .doris-clinical-editor .doris-search-result-main { display: block; }
 #doris-demo-app .doris-search-result-header, .doris-clinical-editor .doris-search-result-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: .4rem; }
 #doris-demo-app .doris-search-title, .doris-clinical-editor .doris-search-title { min-width: 0; overflow-wrap: anywhere; }
 #doris-demo-app .doris-search-controls, .doris-clinical-editor .doris-search-controls { display: flex; align-items: center; justify-content: flex-end; gap: .35rem; min-width: 0; }
 #doris-demo-app .doris-search-meta, .doris-clinical-editor .doris-search-meta { display: flex; justify-content: flex-end; align-items: center; min-width: 0; }
-#doris-demo-app .doris-search-match, .doris-clinical-editor .doris-search-match { font-size: .75rem; color: #495057; max-width: 24rem; overflow-wrap: anywhere; }
+#doris-demo-app .doris-search-match, .doris-clinical-editor .doris-search-match { font-size: .75rem; color: var(--muted-foreground); max-width: 24rem; overflow-wrap: anywhere; }
 #doris-demo-app .doris-search-badge, .doris-clinical-editor .doris-search-badge { font-size: .7rem; font-weight: 500; }
 #doris-demo-app .doris-search-actions, .doris-clinical-editor .doris-search-actions { display: flex; gap: .2rem; min-width: 4rem; }
 #doris-demo-app .doris-search-actions .btn, .doris-clinical-editor .doris-search-actions .btn { white-space: nowrap; }
@@ -25,15 +88,15 @@
 .doris-context-icons { display: inline-flex; align-items: center; gap: .2rem; }
 .doris-context-icon { display: inline-flex; align-items: center; justify-content: center; gap: .15rem; min-width: 2rem; height: 1.8rem; padding: 0 .32rem; border-radius: 1rem; border: 1px solid currentColor; font-size: .78rem; font-weight: 700; line-height: 1; white-space: nowrap; }
 .doris-context-icon[type="button"] { cursor: pointer; }
-.doris-context-icon[type="button"]:hover, .doris-context-icon[type="button"]:focus-visible { outline: 2px solid #0d6efd; outline-offset: 1px; }
-.doris-context-icon--post { color: #a34400; background: #fff0e2; }
-.doris-context-icon--required { color: #813300; background: #ffd9b5; }
-.doris-context-icon--maternal { color: #775f00; background: #fff3a9; }
-.doris-context-icon--perinatal { color: #76517f; background: #f2dcf4; }
-.doris-context-icon--note { color: #356341; background: #def0df; }
-.doris-search-backdrop { position: fixed; inset: 0; z-index: 1040; background: rgba(17, 24, 39, .62); }
+.doris-context-icon[type="button"]:hover, .doris-context-icon[type="button"]:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.doris-context-icon--post { color: var(--chart-2-foreground); background: var(--chart-2-tint); }
+.doris-context-icon--required { color: var(--chart-2-foreground); background: var(--chart-2-soft); }
+.doris-context-icon--maternal { color: var(--chart-1-foreground); background: var(--chart-1-soft); }
+.doris-context-icon--perinatal { color: var(--chart-5-foreground); background: var(--chart-5-soft); }
+.doris-context-icon--note { color: var(--chart-3-foreground); background: var(--chart-3-soft); }
+.doris-search-backdrop { position: fixed; inset: 0; z-index: 1040; background: rgba(9, 9, 11, .62); }
 .doris-modal-lock { overflow: hidden; }
-.doris-search-modal-open { position: fixed !important; inset: 2vh 2vw !important; z-index: 1050; width: auto !important; max-height: 96vh; overflow-y: auto; background: #fff; box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .35); }
+.doris-search-modal-open { position: fixed !important; inset: 2vh 2vw !important; z-index: 1050; width: auto !important; max-height: 96vh; overflow-y: auto; background: var(--popover); color: var(--popover-foreground); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .35); }
 .doris-search-modal-open .doris-search-close, .doris-search-modal-open .doris-search-reset { margin-left: .35rem; }
 .doris-search-modal-open { font-size: .8rem; }
 .doris-search-modal-open .doris-axis h5 { font-size: .78rem; }
@@ -44,9 +107,25 @@
 .doris-search-modal-open .btn-sm { font-size: .8rem; padding: .2rem .45rem; }
 .doris-guided-panel .btn-sm { font-size: .75rem; padding: .15rem .4rem; }
 .doris-search-modal-open .form-control { font-size: .9rem; }
-.doris-search-modal-open .doris-selection-footer { position: sticky; bottom: -.65rem; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: auto; padding: .55rem; background: #eef5ff; box-shadow: 0 -.2rem .5rem rgba(0,0,0,.08); }
-.doris-selection-choice { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; font-weight: 400; }
+/* Selection footer: the staged ('SELECTED') or in-progress ('BUILDING') code is the loudest thing in the modal. */
+.doris-search-modal-open .doris-selection-footer { position: sticky; bottom: -.65rem; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1rem; margin-top: auto; padding: .65rem .75rem; background: var(--accent); color: var(--accent-foreground); border-top: 2px solid var(--primary); }
+.doris-selection-text { min-width: 0; flex: 1 1 16rem; max-height: 28vh; overflow-y: auto; }
+.doris-selection-caption { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted-foreground); }
+.doris-selection-choice { min-width: 0; overflow-wrap: anywhere; font-size: 1.125rem; font-weight: 600; line-height: 1.3; color: var(--foreground); }
+.doris-selection-choice.is-empty { font-size: 1rem; font-weight: 400; color: var(--muted-foreground); }
+.doris-selection-code { display: inline-block; margin: .1rem .5rem .1rem 0; padding: .05rem .5rem; font: 700 1.25rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--primary); color: var(--primary-foreground); border-radius: var(--radius-sm); }
+.doris-selection-note { display: block; width: fit-content; margin-top: .25rem; padding: .1rem .5rem; font-size: .875rem; font-weight: 500; background: var(--warning); color: var(--warning-foreground); border-left: 3px solid var(--warning-border); border-radius: var(--radius-sm); }
+.doris-footer-buttons { min-width: 0; }
+.doris-footer-actions { display: contents; }
+.doris-search-modal-open .doris-selection-footer .btn { min-height: 3rem; min-width: 0; font-size: 1rem; font-weight: 700; white-space: normal; }
+.doris-search-modal-open .doris-selection-footer .btn:disabled { opacity: .5; cursor: not-allowed; }
 .doris-footer-actions:empty { display: none; }
+/* The guided build gets its own indigo family, apart from the neutral details card and the result rows. */
+.doris-search-modal-open .doris-guided-panel.doris-build-card, #doris-demo-app .doris-guided-panel.doris-build-card, .doris-clinical-editor .doris-guided-panel.doris-build-card { background: var(--build-tint); color: var(--foreground); border: 1px solid var(--build-border) !important; border-left: 4px solid var(--build-bar) !important; }
+.doris-build-card .doris-axis { border-color: var(--build-border) !important; }
+.doris-build-card .doris-axis-option .btn { --bs-btn-bg: var(--background); --bs-btn-color: var(--foreground); --bs-btn-border-color: var(--build-border); --bs-btn-hover-bg: var(--build-border); --bs-btn-hover-color: var(--foreground); --bs-btn-hover-border-color: var(--build-bar); --bs-btn-active-bg: var(--build-bar); --bs-btn-active-color: var(--build-foreground); --bs-btn-active-border-color: var(--build-bar); }
+.doris-build-card .doris-axis-option .btn.btn-link { --bs-btn-bg: transparent; --bs-btn-color: var(--build-bar); --bs-btn-border-color: transparent; }
+@media (min-width: 769px) { .doris-search-modal-open .btn.doris-back-to-results { display: none; } }
 .doris-search-workspace { min-width: 0; }
 .doris-search-side:has(> .doris-code-details[hidden]):has(.doris-guided-panel[hidden]) { display: none; }
 .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { display: grid; grid-template-columns: minmax(18rem, .65fr) minmax(0, 1.35fr); gap: .6rem; }
@@ -56,26 +135,27 @@
 .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 68vh; overflow-y: auto; }
 .doris-search-modal-open .doris-search-side { min-width: 0; max-height: 68vh; overflow-y: auto; }
 .doris-search-modal-open .doris-guided-panel { max-height: none; overflow: visible; }
-.doris-code-details { padding: .55rem .65rem; margin-top: .25rem; background: #eef5ff; border: 1px solid #b6d4fe; border-radius: .35rem; line-height: 1.3; }
+.doris-code-details { padding: .55rem .65rem; margin-top: .25rem; background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-md); line-height: 1.3; }
 .doris-code-details[hidden] { display: none; }
 .doris-details-list { padding-left: 1.25rem; }
 .doris-details-list li { margin-bottom: .15rem; }
-.doris-coding-note { padding: .45rem .55rem; background: #fff4d6; border-left: 3px solid #ad7600; line-height: 1.3; }
-.doris-search-title-button { border: 0; background: transparent; padding: .1rem .3rem; margin-left: -.3rem; border-radius: .3rem; text-align: left; color: #212529; }
-.doris-search-title-button:hover, .doris-search-title-button:focus-visible { background: #e7f0fd; outline: none; }
-.doris-search-code { font-weight: 400; font-variant-numeric: tabular-nums; color: #495057; }
-.doris-related-window { position: fixed; z-index: 1060; top: 12vh; right: 5vw; width: min(30rem, 80vw); max-height: 72vh; overflow: hidden; background: #fff7e8; border-color: #c79242 !important; }
+.doris-coding-note { padding: .45rem .55rem; background: var(--warning); color: var(--warning-foreground); border-left: 3px solid var(--warning-border); border-radius: var(--radius-sm); line-height: 1.3; }
+.doris-search-title-button { border: 0; background: transparent; padding: .1rem .3rem; margin-left: -.3rem; border-radius: var(--radius-sm); text-align: left; color: var(--foreground); }
+.doris-search-title-button:hover { background: var(--accent); }
+.doris-search-title-button:focus-visible { background: var(--accent); outline: 2px solid var(--ring); outline-offset: 1px; }
+.doris-search-code { font-weight: 400; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+.doris-related-window { position: fixed; z-index: 1060; top: 12vh; right: 5vw; width: min(30rem, 80vw); max-height: 72vh; overflow: hidden; background: var(--popover); color: var(--popover-foreground); border-color: var(--warning-border) !important; }
 .doris-related-content { max-height: 62vh; overflow-y: auto; }
-.doris-related-terms { margin-left: 1rem; border-left: 3px solid #c79242; }
+.doris-related-terms { margin-left: 1rem; border-left: 3px solid var(--warning-border); }
 .doris-related-terms .list-group-item { padding: .35rem .55rem; background: transparent; }
-#doris-demo-app .report-text { max-height: 18rem; overflow: auto; padding: .75rem; background: #f8f9fa; border: 1px solid #dee2e6; white-space: pre-wrap; overflow-wrap: anywhere; }
-#doris-demo-app .engine-status[data-status="completed"] { color: #146c43; }
-#doris-demo-app .engine-status[data-status="rejected"], #doris-demo-app .engine-status[data-status="unavailable"], #doris-demo-app .engine-status[data-status="timeout"], #doris-demo-app .engine-status[data-status="malformed_response"] { color: #b02a37; }
-#doris-demo-app .mermaid-output { min-height: 5rem; overflow-x: auto; border: 1px solid #dee2e6; border-radius: .25rem; padding: .5rem; }
-#doris-demo-app .doris-guided-panel, .doris-clinical-editor .doris-guided-panel { background: #f8fbff; border-color: #b6d4fe !important; }
+#doris-demo-app .report-text { max-height: 18rem; overflow: auto; padding: .75rem; background: var(--muted); border: 1px solid var(--border); white-space: pre-wrap; overflow-wrap: anywhere; }
+#doris-demo-app .engine-status[data-status="completed"] { color: var(--success-text); }
+#doris-demo-app .engine-status[data-status="rejected"], #doris-demo-app .engine-status[data-status="unavailable"], #doris-demo-app .engine-status[data-status="timeout"], #doris-demo-app .engine-status[data-status="malformed_response"] { color: var(--destructive-text); }
+#doris-demo-app .mermaid-output { min-height: 5rem; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .5rem; }
+#doris-demo-app .doris-guided-panel, .doris-clinical-editor .doris-guided-panel { background: var(--card); border-color: var(--border) !important; }
 #doris-demo-app .doris-guided-panel .doris-axis-option, .doris-clinical-editor .doris-guided-panel .doris-axis-option { min-width: 12rem; }
 #doris-demo-app .doris-guided-panel code, .doris-clinical-editor .doris-guided-panel code { white-space: pre-wrap; overflow-wrap: anywhere; }
-.doris-axis-children { flex-basis: 100%; width: calc(100% - 1rem); border-left: 2px solid #b6d4fe; padding-left: .45rem; }
+.doris-axis-children { flex-basis: 100%; width: calc(100% - 1rem); border-left: 2px solid var(--border); padding-left: .45rem; }
 @media (max-width: 575.98px) { #doris-demo-app .doris-line .btn-group { width: 100%; } #doris-demo-app .doris-line > .d-flex { align-items: flex-start !important; flex-direction: column; } }
 @media (max-width: 640px) { .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; } .doris-search-controls { justify-content: flex-end !important; } }
 @media (max-width: 767.98px) { .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { grid-template-columns: minmax(0, 1fr); } .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: 35vh; } }
@@ -84,6 +164,207 @@
 .doris-summary-headline { font-size: 1.1rem; }
 .doris-summary-checks { padding-left: 1.1rem; }
 .doris-summary-checks li + li { margin-top: .25rem; }
-.doris-step-heading { font-weight: 700; margin: 1.75rem 0 .75rem; padding-bottom: .35rem; border-bottom: 2px solid #1f3b73; }
+.doris-step-heading { font-weight: 700; margin: 1.75rem 0 .75rem; padding-bottom: .35rem; border-bottom: 1px solid var(--border); }
 .doris-step-card > .card-body > .doris-step-heading:first-child { margin-top: 0; }
-.doris-step-card { border: 1px solid #c9d3e6; }
+.doris-step-card { border: 1px solid var(--border); }
+
+/* Accented line: a host that sets class `doris-line-accented` and
+   --doris-line-accent on the container tints the modal's header so the
+   searcher can see which certificate line the search belongs to. */
+.doris-line-accented.doris-search-modal-open { border-top: .4rem solid var(--doris-line-accent, var(--muted-foreground)) !important; }
+.doris-line-accented .doris-search-head { border-left: .4rem solid var(--doris-line-accent, var(--muted-foreground)); border-radius: .3rem; padding: .35rem .6rem; background: color-mix(in srgb, var(--doris-line-accent, var(--muted-foreground)) 16%, transparent); }
+
+/* Phones and narrow panes: the search modal becomes one full-screen column --
+   header, search box, results, then details or the guided build, with the
+   selection and OK pinned at the bottom. */
+@media (max-width: 768px) {
+  .doris-search-modal-open { inset: 0 !important; max-height: none; height: 100dvh; border-radius: 0 !important; border-width: 0 !important; display: flex; flex-direction: column; overflow: hidden; padding: .6rem !important; font-size: 1rem; }
+  .doris-search-modal-open > * { flex: none; }
+  .doris-search-modal-open .doris-search-workspace,
+  .doris-search-modal-open .doris-search-workspace:has(.doris-code-details:not([hidden]), .doris-guided-panel:not([hidden])) { display: block !important; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .doris-search-modal-open [data-search-results], .doris-search-modal-open [data-doris-search-results] { max-height: none; overflow: visible; }
+  .doris-search-modal-open .doris-search-side { max-height: none; overflow: visible; margin-top: .5rem; }
+  .doris-search-modal-open .doris-search-side:has(> .doris-code-details[hidden]):has(.doris-guided-panel[hidden]) { display: none; }
+  .doris-search-modal-open .doris-search-result-header { grid-template-columns: minmax(0, 1fr) !important; row-gap: .2rem; }
+  .doris-search-modal-open .doris-search-result { padding: .5rem .55rem !important; }
+  .doris-search-modal-open .doris-search-controls { justify-content: space-between !important; flex-wrap: wrap; }
+  .doris-search-modal-open .doris-search-title { font-size: 1rem; }
+  .doris-search-modal-open .doris-search-title-button { min-height: 2.75rem; }
+  .doris-search-modal-open .btn, .doris-search-modal-open .btn-sm, .doris-search-modal-open .form-control, .doris-search-modal-open .form-select, .doris-guided-panel .btn-sm { min-height: 2.75rem; font-size: 1rem; padding: .35rem .75rem; }
+  .doris-search-modal-open .doris-context-icon { min-width: 2.75rem; height: 2.5rem; font-size: .9rem; }
+  .doris-search-modal-open .doris-selection-footer { position: static; flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: .5rem; max-height: 28vh; margin: .5rem -.6rem -.6rem; padding: .6rem .6rem calc(.6rem + env(safe-area-inset-bottom, 0px)); }
+  .doris-selection-text { flex: 1 1 auto; min-height: 0; max-height: none; }
+  .doris-footer-buttons { flex: none; }
+  .doris-search-modal-open .doris-selection-footer .btn { flex: 1 1 8rem; }
+  .doris-related-window { inset: 0; width: auto; max-height: none; border-radius: 0 !important; display: flex; flex-direction: column; }
+  .doris-related-content { flex: 1 1 auto; max-height: none; }
+}
+
+/* Soft field-rule warnings (docs/policy/doris-certificate-rules.md, V3/V9-V12). */
+.doris-warning { color: var(--warning-foreground); font-weight: 500; }
+.doris-warning:empty { display: none; }
+.doris-interval .doris-warning { flex-basis: 100%; }
+
+
+/* Section headings of the editor: equal rhythm, clear gap above Part 2. */
+.doris-clinical-editor .doris-section-heading { margin-top: 1.25rem; margin-bottom: .5rem; }
+/* Onset to death: label, number and unit on one row, wrapping on phones. */
+.doris-onset-label { white-space: nowrap; }
+@media (max-width: 575.98px) { .doris-interval .form-control { width: 5.5rem; flex-basis: 5.5rem; } .doris-interval .form-select { width: 7rem; flex-basis: 7rem; } }
+/* Not-applicable card note: an Alert (warning) from the tokens. */
+.doris-na-note[hidden] { display: none !important; }
+
+/* ---- shadcn-style primitives on native/Bootstrap elements (the look comes from the tokens) ---- */
+.doris-clinical-editor, #doris-demo-app, .doris-search-modal-open { font-size: .875rem; }
+.doris-clinical-editor.card { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--background); color: var(--foreground); box-shadow: none; }
+.doris-clinical-editor > .card-header { background: var(--muted) !important; border-bottom: 1px solid var(--border); color: var(--foreground); }
+.doris-clinical-editor .card, .doris-search-modal-open .card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.doris-clinical-editor .card.bg-light { background: var(--muted) !important; border: 0; }
+.doris-clinical-editor .border, .doris-search-modal-open .border { border-color: var(--border) !important; }
+.doris-clinical-editor .rounded, .doris-search-modal-open .rounded { border-radius: var(--radius-lg) !important; }
+.doris-clinical-editor .text-muted, .doris-search-modal-open .text-muted, .doris-related-window .text-muted { color: var(--muted-foreground) !important; }
+.doris-clinical-editor .text-danger, .doris-search-modal-open .text-danger { color: var(--destructive-text) !important; }
+.doris-clinical-editor .form-label, .doris-search-modal-open .form-label { color: var(--foreground); font-weight: 600; font-size: .875rem; margin-bottom: .25rem; }
+/* The "from interview (IdNNNNN)" marker sits inside the label but stays a small muted caption. */
+.doris-clinical-editor .form-label .badge { color: var(--muted-foreground) !important; font-size: .75rem; font-weight: 500; }
+.doris-clinical-editor .form-text { color: var(--muted-foreground); font-size: .75rem; }
+
+.doris-clinical-editor .form-control, .doris-clinical-editor .form-select, .doris-search-modal-open .form-control, .doris-search-modal-open .form-select,
+#doris-demo-app .form-control, #doris-demo-app .form-select {
+  min-height: 2.5rem; padding: .5rem .75rem; font-size: .875rem; line-height: 1.4; color: var(--foreground);
+  background-color: var(--background); border: 1px solid var(--input); border-radius: var(--radius-md); box-shadow: none;
+}
+.doris-clinical-editor textarea.form-control, .doris-search-modal-open textarea.form-control { min-height: 4.5rem; padding: .5rem .625rem; }
+.doris-clinical-editor .form-control-sm, .doris-clinical-editor .form-select-sm, .doris-search-modal-open .form-control-sm, .doris-search-modal-open .form-select-sm { min-height: 2.5rem; font-size: .875rem; }
+.doris-clinical-editor .form-select, .doris-search-modal-open .form-select { --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%2371717a' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e"); }
+.doris-clinical-editor .form-control::placeholder, .doris-search-modal-open .form-control::placeholder { color: var(--muted-foreground); opacity: 1; }
+.doris-clinical-editor .form-control:focus, .doris-clinical-editor .form-select:focus, .doris-search-modal-open .form-control:focus, .doris-search-modal-open .form-select:focus,
+#doris-demo-app .form-control:focus, #doris-demo-app .form-select:focus {
+  color: var(--foreground); background-color: var(--background); border-color: var(--ring); outline: 0;
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+}
+.doris-clinical-editor .form-control:disabled, .doris-clinical-editor .form-select:disabled, .doris-search-modal-open .form-control:disabled, .doris-search-modal-open .form-select:disabled { opacity: .5; cursor: not-allowed; background-color: var(--background); }
+.doris-clinical-editor input[type="date"], .doris-search-modal-open input[type="date"] { color-scheme: light; }
+[data-bs-theme="dark"] .doris-clinical-editor input[type="date"], [data-bs-theme="dark"] .doris-search-modal-open input[type="date"] { color-scheme: dark; }
+.doris-clinical-editor .input-group > .form-control:focus, .doris-clinical-editor .input-group > .form-select:focus { z-index: 3; }
+
+.doris-clinical-editor .btn, .doris-search-modal-open .btn, .doris-related-window .btn, #doris-demo-app .btn {
+  --bs-btn-border-radius: var(--radius-md); --bs-btn-font-size: .875rem; --bs-btn-font-weight: 500; --bs-btn-padding-y: .375rem; --bs-btn-padding-x: .875rem;
+  min-height: 2.5rem; min-width: 4.5rem; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; box-shadow: none;
+}
+.doris-clinical-editor .btn-sm, .doris-search-modal-open .btn-sm, .doris-related-window .btn-sm, #doris-demo-app .btn-sm { --bs-btn-padding-y: .25rem; --bs-btn-padding-x: .75rem; --bs-btn-font-size: .875rem; min-height: 2.5rem; }
+.doris-clinical-editor .btn:focus-visible, .doris-search-modal-open .btn:focus-visible, .doris-related-window .btn:focus-visible, #doris-demo-app .btn:focus-visible { outline: 0; box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring); }
+.doris-clinical-editor .btn:disabled, .doris-search-modal-open .btn:disabled, .doris-clinical-editor .btn.disabled { opacity: .5; cursor: not-allowed; }
+/* default */
+.doris-clinical-editor .btn-primary, .doris-search-modal-open .btn-primary, #doris-demo-app .btn-primary { --bs-btn-color: var(--primary-foreground); --bs-btn-bg: var(--primary); --bs-btn-border-color: var(--primary); --bs-btn-hover-color: var(--primary-foreground); --bs-btn-hover-bg: var(--primary); --bs-btn-hover-border-color: var(--primary); --bs-btn-active-color: var(--primary-foreground); --bs-btn-active-bg: var(--primary); --bs-btn-active-border-color: var(--primary); --bs-btn-disabled-color: var(--primary-foreground); --bs-btn-disabled-bg: var(--primary); --bs-btn-disabled-border-color: var(--primary); }
+.doris-clinical-editor .btn-primary:hover, .doris-search-modal-open .btn-primary:hover { opacity: .9; }
+/* secondary */
+.doris-clinical-editor .btn-secondary, .doris-search-modal-open .btn-secondary { --bs-btn-color: var(--secondary-foreground); --bs-btn-bg: var(--secondary); --bs-btn-border-color: var(--secondary); --bs-btn-hover-color: var(--secondary-foreground); --bs-btn-hover-bg: var(--secondary); --bs-btn-hover-border-color: var(--secondary); --bs-btn-active-color: var(--secondary-foreground); --bs-btn-active-bg: var(--secondary); --bs-btn-active-border-color: var(--secondary); }
+/* outline (both Bootstrap outline flavours: shadcn has one neutral outline) */
+.doris-clinical-editor .btn-outline-primary, .doris-clinical-editor .btn-outline-secondary, .doris-search-modal-open .btn-outline-primary, .doris-search-modal-open .btn-outline-secondary, .doris-related-window .btn-outline-secondary, #doris-demo-app .btn-outline-primary, #doris-demo-app .btn-outline-secondary {
+  --bs-btn-color: var(--foreground); --bs-btn-bg: var(--background); --bs-btn-border-color: var(--input);
+  --bs-btn-hover-color: var(--accent-foreground); --bs-btn-hover-bg: var(--accent); --bs-btn-hover-border-color: var(--input);
+  --bs-btn-active-color: var(--accent-foreground); --bs-btn-active-bg: var(--accent); --bs-btn-active-border-color: var(--input);
+  --bs-btn-disabled-color: var(--foreground); --bs-btn-disabled-bg: var(--background); --bs-btn-disabled-border-color: var(--input);
+}
+/* destructive: only for remove */
+.doris-clinical-editor .btn-outline-danger, .doris-search-modal-open .btn-outline-danger {
+  --bs-btn-color: var(--destructive-text); --bs-btn-bg: var(--background); --bs-btn-border-color: var(--destructive-text);
+  --bs-btn-hover-color: var(--destructive-foreground); --bs-btn-hover-bg: var(--destructive); --bs-btn-hover-border-color: var(--destructive);
+  --bs-btn-active-color: var(--destructive-foreground); --bs-btn-active-bg: var(--destructive); --bs-btn-active-border-color: var(--destructive);
+  --bs-btn-disabled-color: var(--destructive-text); --bs-btn-disabled-bg: var(--background); --bs-btn-disabled-border-color: var(--destructive-text);
+}
+/* ghost / link */
+.doris-clinical-editor .btn-link, .doris-search-modal-open .btn-link, .doris-related-window .btn-link { --bs-btn-color: var(--primary); --bs-btn-hover-color: var(--primary); --bs-btn-bg: transparent; --bs-btn-border-color: transparent; text-decoration: none; min-height: 0; }
+.doris-clinical-editor [data-doris-chips] .btn { min-height: 0; color: var(--destructive-text); }
+
+.doris-clinical-editor .alert, .doris-search-modal-open .alert, .doris-related-window .alert { border-radius: var(--radius-md); font-size: .75rem; padding: .5rem .75rem; margin-bottom: .5rem; }
+.doris-clinical-editor .alert-warning, .doris-search-modal-open .alert-warning, .doris-related-window .alert-warning { --bs-alert-bg: var(--warning); --bs-alert-color: var(--warning-foreground); --bs-alert-border-color: var(--warning-border); border-left-width: 4px; }
+.doris-clinical-editor .alert-danger, .doris-search-modal-open .alert-danger { --bs-alert-bg: var(--background); --bs-alert-color: var(--destructive-text); --bs-alert-border-color: var(--destructive-text); }
+
+.doris-clinical-editor .badge, .doris-search-modal-open .badge { border-radius: 9999px; font-size: .75rem; font-weight: 600; padding: .125rem .625rem; }
+.doris-clinical-editor .badge.text-bg-secondary { background-color: var(--secondary) !important; color: var(--secondary-foreground) !important; }
+.doris-clinical-editor .badge.text-bg-light { background-color: var(--secondary) !important; color: var(--secondary-foreground) !important; border-color: var(--border) !important; }
+.doris-clinical-editor .badge.text-bg-primary { background-color: var(--primary) !important; color: var(--primary-foreground) !important; }
+.doris-clinical-editor .badge.text-bg-danger { background-color: var(--destructive) !important; color: var(--destructive-foreground) !important; }
+
+.doris-clinical-editor .list-group, .doris-search-modal-open .list-group, .doris-related-window .list-group { --bs-list-group-bg: var(--card); --bs-list-group-color: var(--card-foreground); --bs-list-group-border-color: var(--border); --bs-list-group-border-radius: var(--radius-md); --bs-list-group-action-hover-bg: var(--accent); }
+.doris-clinical-editor hr, .doris-search-modal-open hr { border-color: var(--border); opacity: 1; }
+.doris-clinical-editor details > summary { cursor: pointer; color: var(--muted-foreground); }
+.doris-clinical-editor .border-top, .doris-search-modal-open .border-top { border-top-color: var(--border) !important; }
+
+/* Part I lines A-E take chart-1..5, Part II chart-part2 (same families as the Expo app). */
+.doris-clinical-editor [data-doris-line] { border-left: .3rem solid var(--chart-1) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(2) { border-left-color: var(--chart-2) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(3) { border-left-color: var(--chart-3) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(4) { border-left-color: var(--chart-4) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(5) { border-left-color: var(--chart-5) !important; }
+.doris-clinical-editor [data-doris-part2] > [data-doris-line] { border-left-color: var(--chart-part2) !important; }
+.doris-clinical-editor [data-doris-line] .badge.text-bg-secondary { background-color: var(--chart-1) !important; color: var(--background) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(2) .badge.text-bg-secondary { background-color: var(--chart-2) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(3) .badge.text-bg-secondary { background-color: var(--chart-3) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(4) .badge.text-bg-secondary { background-color: var(--chart-4) !important; }
+.doris-clinical-editor [data-doris-part1] > [data-doris-line]:nth-child(5) .badge.text-bg-secondary { background-color: var(--chart-5) !important; }
+.doris-clinical-editor [data-doris-chips] .badge { background-color: var(--secondary) !important; border: 1px solid var(--primary) !important; color: var(--foreground) !important; }
+
+/* Move up/down and remove keep a visible outline in both themes (outline buttons above). */
+.doris-clinical-editor [data-doris-up]:disabled, .doris-clinical-editor [data-doris-down]:disabled, .doris-clinical-editor [data-doris-remove]:disabled { opacity: .5; }
+.doris-clinical-editor [data-doris-up], .doris-clinical-editor [data-doris-down], .doris-clinical-editor [data-doris-remove] { min-width: 2.5rem; }
+
+/* Phones: 44px tap targets for the 40px controls, 16px control text so iOS does not zoom on focus. */
+@media (max-width: 768px) {
+  .doris-clinical-editor .form-control, .doris-clinical-editor .form-select, .doris-clinical-editor .form-control-sm, .doris-clinical-editor .form-select-sm { font-size: 1rem; }
+  .doris-clinical-editor .btn, .doris-clinical-editor .btn-sm, .doris-clinical-editor .form-control, .doris-clinical-editor .form-select, .doris-clinical-editor .form-control-sm, .doris-clinical-editor .form-select-sm { min-height: 2.75rem; }
+  .doris-clinical-editor [data-doris-chips] .btn { min-height: 2.75rem; min-width: 2.75rem; }
+  .doris-clinical-editor .doris-interval { gap: .5rem; }
+}
+/* Phone picker: the search box takes a full row; Search and Add uncoded text sit under it. */
+@media (max-width: 768px) {
+  .doris-search-modal-open .input-group { flex-wrap: wrap; gap: .5rem; }
+  .doris-search-modal-open .input-group > .form-control { flex: 1 1 100%; width: 100%; border-radius: var(--radius-md) !important; }
+  .doris-search-modal-open .input-group > .btn { border-radius: var(--radius-md) !important; margin-left: 0 !important; }
+}
+.doris-clinical-editor.border-primary { border-color: var(--border) !important; }
+/* Date + "Year or month only": the date keeps a readable width; the button wraps under it when the column is narrow. */
+.doris-clinical-editor .input-group:has(> input[type="date"]) { flex-wrap: wrap; gap: .5rem; }
+.doris-clinical-editor .input-group > input[type="date"] { flex: 1 1 9.5rem; min-width: 9.5rem; border-radius: var(--radius-md) !important; }
+.doris-clinical-editor .input-group:has(> input[type="date"]) > .btn { border-radius: var(--radius-md) !important; margin-left: 0 !important; }
+
+/* Editor title: centred h2 between a top rule and the step subtitle; the action row is closed by a rule. */
+.doris-clinical-editor .doris-editor-heading { text-align: center; border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 1rem; }
+.doris-clinical-editor .doris-editor-heading h2 { font-size: 1.625rem; font-weight: 700; line-height: 1.25; margin: 0 0 .25rem; color: var(--foreground); }
+.doris-clinical-editor .doris-editor-heading p { margin: 0; font-size: .875rem; color: var(--muted-foreground); }
+.doris-clinical-editor .doris-actions-separator { border: 0; border-top: 1px solid var(--border); opacity: 1; margin: 1rem 0; }
+
+/*
+ * Choice rows: the look of the Expo app's RadioRow and the Narrative-quality (WHO) rows. The editor uses
+ * selects today; a radio group wrapped as <label class="doris-choice"><input type="radio">text</label> gets the
+ * same fill, 1px input edge, 6px radius, 48px height, brand edge and brand-soft fill when selected.
+ */
+.doris-clinical-editor .doris-choice { display: flex; align-items: flex-start; gap: .75rem; min-height: 3rem; padding: .6875rem .75rem; margin: 0; font-size: 1rem; line-height: 1.5; color: var(--foreground); background: var(--background); border: 1px solid var(--input); border-radius: var(--radius-md); cursor: pointer; }
+.doris-clinical-editor .doris-choice:has(input:checked) { border-color: var(--primary); background: var(--accent); }
+.doris-clinical-editor .doris-choice:has(input:focus-visible) { outline: 2px solid var(--ring); outline-offset: 2px; }
+.doris-clinical-editor .doris-choice input[type="radio"] { appearance: none; flex: 0 0 auto; width: 1.375rem; height: 1.375rem; margin: .0625rem 0 0; border: 2px solid var(--input); border-radius: 50%; background: var(--background); display: grid; place-content: center; }
+.doris-clinical-editor .doris-choice input[type="radio"]::before { content: ""; width: .625rem; height: .625rem; border-radius: 50%; background: var(--primary); transform: scale(0); }
+.doris-clinical-editor .doris-choice input[type="radio"]:checked { border-color: var(--primary); }
+.doris-clinical-editor .doris-choice input[type="radio"]:checked::before { transform: scale(1); }
+.doris-clinical-editor .doris-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; padding: .25rem; }
+@media (min-width: 769px) { .doris-clinical-editor .doris-choices { grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); } }
+
+/* Date precision dropdown beside each partial-capable date (policy: Date precision). */
+.doris-clinical-editor .doris-date-group { flex-wrap: nowrap; }
+.doris-clinical-editor .doris-date-group .doris-precision { flex: 0 0 auto; width: auto; max-width: 10rem; min-width: 8.75rem; }
+.doris-clinical-editor .doris-date-group .form-control { min-width: 0; }
+
+/* Clear button of each question (policy: Clear button). The 44px target sits in a 2rem label row and overhangs it, so layout does not jump when it shows. */
+.doris-clinical-editor .doris-label-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 2rem; }
+.doris-clinical-editor .doris-label-row > label { margin-bottom: 0; }
+.doris-clinical-editor .doris-clear { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: 2.75rem; min-height: 2.75rem; margin: -.375rem -.5rem -.375rem 0; padding: 0; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--muted-foreground); }
+.doris-clinical-editor .doris-clear[hidden] { display: none; }
+.doris-clinical-editor .doris-clear:hover { background: var(--muted); color: var(--destructive-text); }
+.doris-clinical-editor .doris-clear:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.doris-clinical-editor .doris-inline-clear { position: relative; }
+.doris-clinical-editor .doris-inline-clear > .form-control { padding-right: 2.5rem; }
+.doris-clinical-editor .doris-clear-inline { position: absolute; top: 50%; right: .25rem; transform: translateY(-50%); width: 2rem; height: 2rem; min-width: 2rem; min-height: 2rem; margin: 0; }
+.doris-clinical-editor .doris-clear-inline.doris-clear-number { right: 1.6rem; }
+.doris-clinical-editor .doris-clear-inline.doris-clear-corner { top: .25rem; transform: none; }

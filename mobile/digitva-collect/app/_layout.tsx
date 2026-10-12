@@ -7,8 +7,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
 import { useTheme } from "../src/theme";
+import { useWhoWebTheme } from "../src/whoWebTheme";
 import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
+import AppHeader, { BottomTabs } from "../src/web/AppHeader";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 
@@ -45,6 +47,7 @@ function ActivityRoot() {
         return false;
       }}
     >
+      <AppHeader />
       <NativeTermsGate>
         <Stack
           screenOptions={{ headerShown: false }}
@@ -55,12 +58,14 @@ function ActivityRoot() {
           )}
         />
       </NativeTermsGate>
+      <BottomTabs />
     </View>
   );
 }
 
 export default function RootLayout() {
   const theme = useTheme();
+  useWhoWebTheme();
   useEffect(() => {
     if (Platform.OS !== "web" && !allowScreenshots) void preventScreenCaptureAsync();
   }, []);

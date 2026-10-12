@@ -1,10 +1,13 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { StyleSheet, Text } from "react-native";
+import { Dimensions, StyleSheet, Text } from "react-native";
 
 import { CategoryPanel } from "../src/workspace/CategoryPanel.web";
 import { WorkspaceLayout } from "../src/workspace/WorkspaceLayout.web";
 import type { WorkspacePayload } from "../src/workspace/contracts";
+
+// Desktop width so the section rail (hidden under 768px) is rendered.
+beforeAll(() => Dimensions.set({ window: { width: 1280, height: 900, scale: 1, fontScale: 1 } }));
 
 test("browser category panel keeps the HTMX query/response table and flip colours", async () => {
   let renderer!: ReactTestRenderer;
@@ -33,8 +36,8 @@ test("browser category panel keeps the HTMX query/response table and flip colour
   expect(output).toContain("Cough");
   expect(output).toContain("Informational response: Yes");
   expect(output.match(/"children":\["Yes"\]/g)).toHaveLength(2);
-  expect(output).toContain("#004687");
-  expect(output).toContain("#3f9366");
+  expect(output).toContain("#1D4ED8");
+  expect(output).toContain("#2f7a50");
   const yesBadges = renderer.root.findAllByType(Text).filter((node) => node.props.children === "Yes");
   expect(yesBadges).toHaveLength(2);
   const informational = yesBadges.find((node) => node.props.accessibilityLabel === "Informational response: Yes");
@@ -141,10 +144,8 @@ test("browser layout keeps notes mounted and exposes functional category navigat
   const output = JSON.stringify(renderer.toJSON());
   expect(output).toContain("unsaved note");
   expect(output).toContain("Open Notes");
-  expect(output).toContain("VA Coding");
-  expect(output).toContain("/vaindex");
-  expect(output).toContain("/coding");
-  expect(output).toContain("/help");
+  expect(output).not.toContain("VA Coding");
+  expect(output).not.toContain("digitva_logo");
   expect(output).toContain("fa-user");
   expect(output).toContain("attachments");
   const next = renderer.root.findAllByType("button" as never).find((node) => node.props.children === "Next");
@@ -166,7 +167,7 @@ test("browser layout keeps the rail scrollable without an overlay scrollbar and 
   expect(output).toContain("DEMO");
   expect(renderer.root.findAll((node) => node.props.accessibilityLabel === "Age 74, Female, DEMO").length).toBeGreaterThan(0);
   const rail = renderer.root.findAll((node) => node.props.nativeID === "digitva-category-rail")[0];
-  expect(StyleSheet.flatten(rail.props.style)).toMatchObject({ maxHeight: "calc(100dvh - 24px)", scrollbarWidth: "none", msOverflowStyle: "none" });
+  expect(StyleSheet.flatten(rail.props.style)).toMatchObject({ maxHeight: "calc(100dvh - 72px)", scrollbarWidth: "none", msOverflowStyle: "none" });
 });
 
 test("browser layout exposes the matching WHO ICD browser only for a valid classification", async () => {
@@ -189,4 +190,27 @@ test("browser layout exposes the matching WHO ICD browser only for a valid class
   });
   act(() => renderer.root.findAll((node) => node.props.nativeID === "digitva-category-drawer-trigger")[0].props.onPress());
   expect(renderer.root.findAllByType("a" as never).some((node) => String(node.props.title ?? "").includes("ICD"))).toBe(false);
+});
+
+test("the sections drawer locks body scrolling while open and restores it on close and unmount", async () => {
+  // Node test environment: a minimal document double covers what the layout touches.
+  const fakeDocument = { body: { style: { overflow: "auto" } }, getElementById: () => null, addEventListener: () => undefined, removeEventListener: () => undefined, querySelector: () => null, head: { appendChild: () => undefined }, createElement: () => ({ style: {}, setAttribute: () => undefined }) };
+  (globalThis as any).document = fakeDocument;
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(<WorkspaceLayout identity={{ vaSid: "sid-1", mode: "coding" }} workspace={layoutWorkspace} categories={layoutWorkspace.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()}><Text>category content</Text></WorkspaceLayout>);
+    await Promise.resolve();
+  });
+  expect(fakeDocument.body.style.overflow).toBe("auto");
+  const byId = (id: string) => renderer.root.findAll((node) => node.props.nativeID === id)[0];
+  act(() => byId("digitva-category-drawer-trigger").props.onPress());
+  expect(byId("digitva-category-drawer")).toBeDefined();
+  expect(fakeDocument.body.style.overflow).toBe("hidden");
+  act(() => byId("digitva-category-drawer-close").props.onPress());
+  expect(fakeDocument.body.style.overflow).toBe("auto");
+  act(() => byId("digitva-category-drawer-trigger").props.onPress());
+  expect(fakeDocument.body.style.overflow).toBe("hidden");
+  act(() => renderer.unmount());
+  expect(fakeDocument.body.style.overflow).toBe("auto");
+  delete (globalThis as any).document;
 });

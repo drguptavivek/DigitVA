@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState as NativeAppState, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "../api";
-import { Button, errorText, styles } from "../ui";
+import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { NotePayload } from "./contracts";
 
@@ -18,6 +18,7 @@ export function PrivateNotePanel({
   onAllocationLost: () => void;
   onNoteChanged?: (note: NotePayload | null) => void;
 }) {
+  const styles = useUiStyles();
   const [noteState, setNoteState] = useState<{ api: WorkspaceApi; vaSid: string; mode: "coding" | "reviewing"; note: NotePayload; content: string } | null>(null);
   const [busy, setBusy] = useState(true);
   const [saving, setSaving] = useState(false);

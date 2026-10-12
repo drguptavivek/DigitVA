@@ -5,7 +5,7 @@ import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions
 import { useAppState } from "../AppState";
 import { ClientApiError } from "../client/api";
 import { t, UI_LOCALES } from "../i18n";
-import { useTheme } from "../theme";
+import { radius, useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
 import { loginRecoveryUrl } from "./loginRecovery";
@@ -435,28 +435,28 @@ const navigationStyles = StyleSheet.create({
   brandLogo: { width: 208, height: 68 },
   user: { fontSize: 14, lineHeight: 20, paddingBottom: 8 },
   linkList: { gap: 8 },
-  link: { minHeight: 48, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 },
+  link: { minHeight: 48, borderWidth: 1, borderRadius: radius.md, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   compactLink: { width: 48, paddingHorizontal: 0, justifyContent: "center" },
   icon: { width: 22, textAlign: "center", fontSize: 18, fontWeight: "700" },
   linkText: { fontSize: 16, fontWeight: "600", flexShrink: 1 },
   spacer: { flex: 1 },
   divider: { height: 1, marginVertical: 4 },
-  menuButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  menuIcon: { fontSize: 22, lineHeight: 26 },
+  menuButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  menuIcon: { fontSize: 20, lineHeight: 26 },
   drawerLayer: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 10, flexDirection: "row" },
   scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
   drawer: { width: 280, maxWidth: "85%", height: "100%", padding: 16, borderRightWidth: 1, gap: 8, zIndex: 11 },
   drawerHeader: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   drawerTitle: { fontSize: 18, fontWeight: "700", flexShrink: 1 },
-  closeButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  closeIcon: { fontSize: 28, lineHeight: 32 }
+  closeButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  closeIcon: { fontSize: 26, lineHeight: 32 }
 });
 
 const languageStyles = StyleSheet.create({
   anchor: { position: "relative", zIndex: 20 },
-  trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  triggerText: { fontSize: 17, fontWeight: "700" },
-  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: 12, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  triggerText: { fontSize: 16, fontWeight: "700" },
+  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
   option: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
   optionLabel: { fontSize: 16, lineHeight: 22, flexShrink: 1 },
   check: { width: 20, fontSize: 18, fontWeight: "700", textAlign: "center" }

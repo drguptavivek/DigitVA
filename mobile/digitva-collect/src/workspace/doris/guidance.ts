@@ -94,7 +94,7 @@ function nestedDorisError(error: unknown): never {
 export async function dorisGuidance<T>(
   request: JsonRequester,
   identity: WorkspaceIdentity,
-  endpoint: "postcoordination" | "postcoordination-options" | "hierarchy" | "related",
+  endpoint: "postcoordination" | "postcoordination-options" | "hierarchy" | "related" | "details",
   body: JsonObject,
   parse: (value: unknown) => T,
 ): Promise<T> {

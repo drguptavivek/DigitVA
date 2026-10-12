@@ -9,6 +9,7 @@ import { Button, useUiStyles } from "../ui";
 import { createWorkspaceApi, type JsonRequester, type WorkspaceApi } from "../workspace/api";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import { QueueScreen } from "../workspace/QueueScreen";
+import { hasQueueParams, ownsQueueParams, parseQueueParams, serializeQueueParams } from "../workspace/viewState";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
@@ -16,7 +17,7 @@ import { AttachmentMedia } from "../workspace/media/AttachmentMedia.web";
 import { browserErrorText, LoginLanding, WebShell } from "./common";
 import { claimFirstHomeLoad, homeLanding, openServerPage, readLastVisit, SERVER_SCREENS } from "./roleHome";
 
-type RouteParams = { vaSid?: string | string[]; mode?: string | string[] };
+type RouteParams = { vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[] };
 type SessionCheck = { key: string; bootstrap: NonNullable<ReturnType<typeof useAppState>["bootstrap"]> };
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -50,6 +51,14 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   const [homeState, setHomeState] = useState<{ key: string; redirecting: boolean }>();
   const userId = bootstrap?.user.user_id;
   const checkKey = `${userId ?? ""}:${mode}`;
+
+  // Queue params belong to the queue routes only; drop any that a case URL inherited.
+  const caseWithQueueParams = Boolean(vaSid) && mode !== "home" && hasQueueParams(params);
+  const section = first(params.section);
+  useEffect(() => {
+    // replace, not setParams: setParams keeps keys it is not given a value for.
+    if (caseWithQueueParams) router.replace({ pathname: "/workspace", params: { vaSid, mode, ...(section ? { section } : {}) } });
+  }, [caseWithQueueParams, router, vaSid, mode, section]);
 
   useEffect(() => {
     const request = ++requestGeneration.current;
@@ -119,6 +128,8 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
     return <CaseWorkspaceScreen
       identity={identity}
       api={api}
+      section={first(params.section)}
+      onSectionChange={(code) => router.setParams({ section: code })}
       onExit={() => mode === "view" ? router.replace("/workspace") : router.replace(mode === "reviewing" ? "/reviewing" : "/coding")}
       renderDoris={(workspace, onSaved, onDone) => <DorisPanel
         workspace={workspace}
@@ -135,6 +146,8 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   if ((mode === "coding" || mode === "reviewing") && api) return <QueueScreen
     api={api}
     mode={mode}
+    initialView={parseQueueParams(params)}
+    onViewChange={(view) => { if (ownsQueueParams(window.location.search)) router.setParams(serializeQueueParams(view)); }}
     onExit={() => router.replace("/workspace")}
     onOpen={(identity) => router.push({ pathname: "/workspace", params: { vaSid: identity.vaSid, mode: identity.mode } })}
   />;

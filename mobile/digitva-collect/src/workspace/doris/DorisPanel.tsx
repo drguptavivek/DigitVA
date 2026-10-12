@@ -1,14 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState as NativeAppState, Text, TextInput, View } from "react-native";
-import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
-import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { AppState as NativeAppState, Text, View } from "react-native";
 
 import { ApiError } from "../../api";
-import { Button, errorText, styles } from "../../ui";
+import { errorText } from "../../ui";
 import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceIdentity, WorkspacePayload } from "../contracts";
 import { parseDorisProcess } from "../contracts";
-import { IcdSelector } from "./IcdSelector";
+import { radius, ui, useTheme } from "../../theme";
+import { Cell, ChipChoice, FieldLabel, IntervalField, SearchBox, Warn, lineShade } from "./compact";
+import { DateField } from "./DateField";
+import { todayIso } from "./dateFieldShared";
+import { IcdPickerModal } from "./IcdPickerModal";
+import type { PickerChoice, PickerInit } from "./pickerBridge";
+import { Alert, Body, Button, ButtonGlyph, Card, CardTitle, Chip, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
+import { applyVisibility, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 
 type CertificateState = {
   owner: { api: WorkspaceApi; request: JsonRequester; vaSid: string; mode: WorkspaceIdentity["mode"]; step: WorkspacePayload["step"]; projectMode: WorkspacePayload["case"]["project_mode"] };
@@ -21,10 +26,16 @@ type CertificateState = {
   busy: boolean;
   reconfirm: boolean;
   cleared: boolean;
+  /** Administrative data was supplied or entered; its card then stays even after every field is cleared. */
+  adminSeen: boolean;
 };
 
 type CertificateLine = JsonObject & { Conditions: JsonObject[] };
 const NOT_SET_VALUE = "__not_set__";
+/** The blank choice, worded as the web editor words it. */
+const NOT_STATED = "Not stated";
+const DEFAULT_PART1_LINES = 3;
+const MAX_PART1_LINES = 5;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -42,6 +53,36 @@ function text(value: JsonValue | undefined): string {
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 
+/** Adds a condition to a line; a new condition inherits the line's onset interval. */
+function appendCondition(line: JsonObject, condition: JsonObject): CertificateLine {
+  const conditions = lineConditions(line);
+  const interval = text(conditions[0]?.Interval);
+  return { ...line, Conditions: [...conditions, { ...condition, ...(interval ? { Interval: interval } : {}) }] };
+}
+
+/** `query` is what was typed in the line's search box ("" opens the picker with its own search focused). */
+type PickerTarget = ({ kind: "part1"; index: number } | { kind: "part2" } | { kind: "final" }) & { query: string };
+
+function lineTitle(index: number, part2: boolean): string {
+  return part2 ? "Significant conditions contributing to death" : index === 0 ? "Immediate cause" : "Due to";
+}
+
+/** WHO letter for a Part I line: A is the immediate cause, then B, C, D, E. */
+function lineLetter(index: number): string {
+  return String.fromCharCode(65 + index);
+}
+
+/** A field counts as answered when it holds anything but "" (the editor deletes cleared keys). */
+const hasValue = (value: JsonValue | undefined): boolean => value !== undefined && value !== "";
+
+/** "from interview (Id10077)" exactly as the web editor builds it from prefill_provenance; undefined when the field was not prefilled. */
+function provenanceBadge(provenance: JsonObject, path: string): string | undefined {
+  const entry = object(provenance[path]);
+  const sources = array(entry.sources).filter((item): item is string => typeof item === "string");
+  if (!sources.length) return undefined;
+  return `from interview (${sources.join(", ")}${typeof entry.note === "string" && entry.note ? `; ${entry.note}` : ""})`;
+}
+
 function copy(value: JsonObject): JsonObject {
   return JSON.parse(JSON.stringify(value)) as JsonObject;
 }
@@ -52,16 +93,27 @@ function lineConditions(value: JsonValue | undefined): JsonObject[] {
 
 function initialCertificate(workspace: WorkspacePayload): JsonObject {
   const seed = workspace.doris?.initial_certificate;
-  const certificate = seed ? copy(seed) : { ICDVersion: "ICD11", Part1: [] };
-  if (!Array.isArray(certificate.Part1) || certificate.Part1.length === 0) certificate.Part1 = [{ Conditions: [] }];
+  // Hidden sections never enter the editor, so they cannot resurface later if the age or sex is edited.
+  const certificate = seed ? applyVisibility(seed) : { ICDVersion: "ICD11", Part1: [] };
+  // The served seed holds only prefilled answers; DORIS rejects a certificate without its version.
+  certificate.ICDVersion = "ICD11";
+  if (!Array.isArray(certificate.Part1)) certificate.Part1 = [];
+  // Immediate cause plus two "Due to" lines; trailing empty lines are dropped by processCertificate.
+  while (certificate.Part1.length < DEFAULT_PART1_LINES) certificate.Part1.push({ Conditions: [] });
   return certificate;
+}
+
+function hasAdministrativeData(certificate: JsonObject): boolean {
+  return Object.keys(object(certificate.AdministrativeData)).length > 0;
 }
 
 function initialState(owner: CertificateState["owner"], workspace: WorkspacePayload): CertificateState {
   const maskedStepTwo = workspace.case.project_mode === "masked_doris" && workspace.step === "final";
+  const certificate = maskedStepTwo ? {} : initialCertificate(workspace);
   return {
     owner,
-    certificate: maskedStepTwo ? {} : initialCertificate(workspace),
+    certificate,
+    adminSeen: hasAdministrativeData(certificate),
     revision: 0,
     processing: null,
     selectedCause: null,
@@ -86,17 +138,9 @@ function processingResult(processing: DorisProcessReply | null, engine: "doris" 
   return object(processing?.[engine].result);
 }
 
-/** Removes only fields made inapplicable by the WHO sex/pregnancy rules. */
+/** Removes hidden sections/fields (rules.ts) (including the pregnancy follow-ups unless pregnancy is Yes). */
 function processCertificate(certificate: JsonObject): JsonObject {
-  const result = copy(certificate);
-  const sex = object(result.AdministrativeData).Sex;
-  const maternal = object(result.MaternalDeath);
-  if (sex !== undefined && sex !== 2 && sex !== 9) delete result.MaternalDeath;
-  else if (maternal.WasPregnant === 9 || maternal.WasPregnant === 0) {
-    delete maternal.TimeFromPregnancy;
-    delete maternal.PregnancyContribute;
-    if (Object.keys(maternal).length) result.MaternalDeath = maternal;
-  }
+  const result = applyVisibility(certificate);
   result.Part1 = array(result.Part1).filter((raw) => lineConditions(raw).length > 0);
   return result;
 }
@@ -129,6 +173,8 @@ export function DorisPanel({
   const [stored, setStored] = useState<CertificateState>(() => initialState(owner, workspace));
   const [notCodeableReason, setNotCodeableReason] = useState("");
   const [notCodeableOther, setNotCodeableOther] = useState("");
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
+  const { mode: colorMode, colors } = useTheme();
   const state = sameOwner(stored.owner, owner) ? stored : initialState(owner, workspace);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -144,6 +190,9 @@ export function DorisPanel({
   const certificate = state.certificate;
   const revision = state.revision;
 
+  const layout = useLayout();
+  // The outer card blends with the case workspace card (app palette); inner primitives keep the zinc tokens.
+  const pageCard = { backgroundColor: colors.surface, borderColor: colors.border };
   const update = useCallback((change: (current: CertificateState) => CertificateState) => {
     setStored((current) => {
       if (!live.current || !sameOwner(ownerRef.current, owner)) return current;
@@ -153,8 +202,8 @@ export function DorisPanel({
   }, [api, identity.mode, identity.vaSid, request, workspace]);
 
   const invalidate = useCallback((nextCertificate: JsonObject, message = "Certificate changed. Process it again before saving.") => {
-    update((current) => ({ ...current, certificate: nextCertificate, revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, notice: message, error: "" }));
-  }, [update]);
+    update((current) => ({ ...current, certificate: applyVisibility(nextCertificate), adminSeen: current.adminSeen || hasAdministrativeData(nextCertificate), revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, notice: message, error: "" }));
+  }, [update, workspace.case.age]);
 
   const setField = (section: string, key: string, value: JsonValue | undefined) => {
     const next = copy(certificate);
@@ -198,6 +247,8 @@ export function DorisPanel({
       const blank = initialState(owner, workspace);
       blank.certificate = {};
       blank.cleared = true;
+      // The picker holds the typed query, which can describe the deceased: it must not come back on return.
+      setPickerTarget(null);
       setStored(blank);
     };
     const native = NativeAppState.addEventListener("change", (next) => {
@@ -334,7 +385,37 @@ export function DorisPanel({
     update((current) => ({ ...current, selectedCause: choice, error: "", notice: choice ? "Final underlying cause selected independently from the DORIS result." : "" }));
   };
 
-  const loseAllocation = clearAllocation;
+  const loseAllocation = () => { setPickerTarget(null); clearAllocation(); };
+
+  const pickerInit = (target: PickerTarget, finalQuery: string): PickerInit => {
+    if (target.kind === "final") return { title: isInitial ? "Confirm Step 1 underlying cause" : "Final underlying cause", accent: ui.light.primary, allowUncoded: false, query: target.query || finalQuery, finalMode: true, theme: colorMode };
+    const index = target.kind === "part1" ? target.index : 0;
+    return { title: lineTitle(index, target.kind === "part2"), accent: lineShade(colorMode, index, target.kind === "part2").bar, allowUncoded: true, query: target.query, theme: colorMode };
+  };
+
+  const applyPicked = (target: PickerTarget, condition: JsonObject) => {
+    const lines = array(certificate.Part1).filter(isRecord) as JsonObject[];
+    if (target.kind === "part1") updatePart1(lines.map((item, index) => index === target.index ? appendCondition(item, condition) : item));
+    else if (target.kind === "part2") invalidate({ ...copy(certificate), Part2: appendCondition(object(certificate.Part2), condition) });
+  };
+
+  const picker = (finalQuery: string) => pickerTarget ? (
+    <IcdPickerModal
+      init={pickerInit(pickerTarget, finalQuery)}
+      api={api}
+      request={request}
+      identity={identity}
+      revision={revision}
+      onForbidden={loseAllocation}
+      onClose={() => setPickerTarget(null)}
+      onUncoded={(value) => { applyPicked(pickerTarget, { Text: value }); setPickerTarget(null); }}
+      onSelect={(choice: PickerChoice) => {
+        if (pickerTarget.kind === "final") chooseFinalCause(choice);
+        else applyPicked(pickerTarget, { Text: choice.title, Code: choice.code, LinearizationURI: choice.uri });
+        setPickerTarget(null);
+      }}
+    />
+  ) : null;
 
   if (identity.mode === "view" || workspace.doris === null || (workspace.step !== "initial" && workspace.step !== "final") || state.cleared) return null;
 
@@ -343,21 +424,27 @@ export function DorisPanel({
     const ownFinal = identity.mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final;
     const selected = state.selectedCause;
     return (
-      <View style={styles.card}>
-        <Text accessibilityRole="header" style={styles.headline}>Final underlying cause</Text>
-        {step1 ? <ProcessingSummary processing={null} saved={step1} /> : <Text style={styles.muted}>No Step 1 DORIS result was saved.</Text>}
+      <Card style={[layout.panel, pageCard]}>
+        <EditorHeading title="Final underlying cause" />
+        {step1 ? <ProcessingSummary processing={null} saved={step1} /> : <Muted>No Step 1 DORIS result was saved.</Muted>}
         <CertificateReference certificate={workspace.doris.step1_certificate ?? null} />
         {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
-        {ownFinal?.conclusive_cod ? <Text style={styles.muted}>Previously saved final: {ownFinal.conclusive_cod}</Text> : null}
-        <IcdSelector key={identityKey} label="Choose and confirm the final underlying cause" api={api} request={request} identity={identity} value={selected} onSelect={chooseFinalCause} onEdit={() => undefined} initialQuery={ownFinal?.conclusive_cod ?? ""} onForbidden={loseAllocation} />
-        {state.error ? <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text> : null}
+        {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
+        <FinalCausePicker label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })} />
+        {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
         <Button label="Save final cause" disabled={!selected || state.busy} loading={state.busy} onPress={() => void saveMaskedFinal()} />
+        <Separator testID="doris-actions-separator" />
         {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
-      </View>
+        {picker(ownFinal?.conclusive_cod ?? "")}
+      </Card>
     );
   }
 
   const part1 = array(certificate.Part1).filter(isRecord) as CertificateLine[];
+  const age = reportedAge(certificate);
+  const shown = visibility(certificate, age);
+  const warns = warnings(certificate, todayIso());
+  const provenance = object(workspace.doris.prefill_provenance);
   const processing = state.processing;
   const ownFinal = identity.mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final;
 
@@ -385,33 +472,51 @@ export function DorisPanel({
   }
 
   return (
-    <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.headline}>{isInitial ? "DORIS certificate — Step 1" : "DORIS certificate and final cause"}</Text>
-      {state.notice ? <Text style={styles.muted}>{state.notice}</Text> : null}
+    <Card style={[layout.panel, pageCard]}>
+      <EditorHeading title="DORIS certificate" subtitle={isInitial ? "Step 1" : "Final cause"} />
+      {state.notice ? <Muted>{state.notice}</Muted> : null}
       {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} /> : null}
-      {workspace.doris.prefill_provenance && Object.keys(object(workspace.doris.prefill_provenance)).length ? <Text style={styles.muted}>Some fields were prefilled from the interview.</Text> : null}
-      {Object.keys(object(certificate.AdministrativeData)).length ? <AdministrativeFields certificate={certificate} onChange={setField} /> : <Text style={styles.muted}>Administrative data was not supplied for this certificate.</Text>}
-      <Text style={styles.headline}>Part I — causal sequence</Text>
+      {state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
+      <SectionTitle style={{ marginTop: gap.xl }}>Frame A: Medical data</SectionTitle>
+      <View style={[layout.nowrap, { marginTop: gap.md, paddingRight: gap.xs }]}>
+        <SectionTitle numberOfLines={1} style={{ flex: 1, minWidth: 0 }}>Part 1: Cause of death</SectionTitle>
+        {part1.length < MAX_PART1_LINES ? <Button label="Add line" variant="secondary" style={{ flexShrink: 0 }} onPress={() => updatePart1([...part1, { Conditions: [] }])} /> : null}
+      </View>
       {part1.map((line, index) => (
-        <CertificateLine key={`${identityKey}:${index}`} index={index} line={line} api={api} request={request} identity={identity} onForbidden={loseAllocation} isLast={index === part1.length - 1} onChange={(next) => updatePart1(part1.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => updatePart1(part1.filter((_item, itemIndex) => itemIndex !== index))} onMove={(direction) => {
+        <CertificateLine key={`${identityKey}:${index}`} searching={pickerTarget !== null} index={index} line={line} age={age} warning={warns[`Part1.${index}`]} onSearch={(query) => setPickerTarget({ kind: "part1", index, query })} isLast={index === part1.length - 1} onAddBelow={part1.length < MAX_PART1_LINES ? () => updatePart1([...part1.slice(0, index + 1), { Conditions: [] }, ...part1.slice(index + 1)]) : undefined} onChange={(next) => updatePart1(part1.map((item, itemIndex) => itemIndex === index ? next : item))} onRemove={() => updatePart1(part1.filter((_item, itemIndex) => itemIndex !== index))} onMove={(direction) => {
           if ((direction < 0 && index === 0) || (direction > 0 && index === part1.length - 1)) return;
           const next = [...part1];
           [next[index + direction], next[index]] = [next[index], next[index + direction]];
           updatePart1(next);
         }} />
       ))}
-      {part1.length < 5 ? <Button label="Add Part I line" kind="secondary" onPress={() => updatePart1([...part1, { Conditions: [] }])} /> : null}
-      <CertificateLine key={`${identityKey}:part2`} index={0} line={object(certificate.Part2) as CertificateLine} part2 api={api} request={request} identity={identity} onForbidden={loseAllocation} onChange={(next) => { const copyCert = copy(certificate); copyCert.Part2 = next; invalidate(copyCert); }} onRemove={() => { const next = copy(certificate); delete next.Part2; invalidate(next); }} />
-      <CertificateDetails certificate={certificate} onChange={setField} />
+      <SectionTitle style={{ marginTop: gap.xl }}>Part 2: Other significant conditions contributing to death</SectionTitle>
+      <CertificateLine key={`${identityKey}:part2`} searching={pickerTarget !== null} index={0} line={object(certificate.Part2) as CertificateLine} part2 age={age} warning={warns.Part2} onSearch={(query) => setPickerTarget({ kind: "part2", query })} onChange={(next) => { const copyCert = copy(certificate); copyCert.Part2 = next; invalidate(copyCert); }} onRemove={() => { const next = copy(certificate); delete next.Part2; invalidate(next); }} />
+      <CertificateDetails certificate={certificate} provenance={provenance} shown={shown} warns={warns} onChange={setField} />
       {processing ? <ProcessingSummary processing={processing} /> : null}
       {processing ? (
-        <IcdSelector key={identityKey} label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} api={api} request={request} identity={identity} value={state.selectedCause} onSelect={chooseFinalCause} onEdit={() => undefined} initialQuery={isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? ""} onForbidden={loseAllocation} />
+        <FinalCausePicker label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })} />
       ) : null}
-      {state.reconfirm ? <Text accessibilityRole="alert" style={styles.error}>Fresh processing replaced the previous result; confirm your final cause again.</Text> : null}
-      {state.error ? <Text accessibilityRole="alert" style={styles.error}>{state.error}</Text> : null}
-      <Button label="Process current certificate" kind="secondary" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
+      {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
+      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
+      <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
       <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />
+      <Separator testID="doris-actions-separator" />
       {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
+      {picker(isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? "")}
+    </Card>
+  );
+}
+
+/** Section heading of the editor: top rule across the card, one h2 title, muted step line under it. */
+function EditorHeading({ title, subtitle }: { title: string; subtitle?: string }) {
+  const { t, phone } = useUi();
+  const pad = phone ? gap.sm : gap.lg;
+  return (
+    <View style={{ gap: gap.xs }}>
+      <Separator testID="doris-heading-separator" style={{ marginHorizontal: -pad, marginBottom: gap.md }} />
+      <Text accessibilityRole="header" aria-level={2} style={{ fontSize: phone ? 24 : 26, lineHeight: phone ? 30 : 32, fontWeight: "700", textAlign: "center", color: t.foreground }}>{title}</Text>
+      {subtitle ? <Text style={{ fontSize: 14, lineHeight: 20, textAlign: "center", color: t.mutedForeground }}>{subtitle}</Text> : null}
     </View>
   );
 }
@@ -433,186 +538,269 @@ function NotCodeableAction({ reason, other, busy, onReason, onOther, onSubmit }:
     ["others", "Other"],
   ] as const;
   return (
-    <View>
-      <Text style={styles.muted}>Report not codeable</Text>
-      <WhoVaQuestionControls.SingleChoice
-        question={choiceQuestion("doris_not_codeable", "Not-codeable reason", reasons.map(([value, label]) => ({ value, label })), busy)}
-        value={reason || undefined}
-        data={{}}
-        locale="en"
-        issues={[]}
-        onAnswer={(value) => { if (typeof value === "string") onReason(value); }}
-      />
-      {reason === "others" ? <TextInput accessibilityLabel="Other not-codeable reason" placeholder="Reason" value={other} onChangeText={onOther} style={styles.input} /> : null}
-      <Button label="Submit not-codeable report" kind="secondary" disabled={busy || !reason || (reason === "others" && !other.trim())} loading={busy} onPress={onSubmit} />
+    <View style={{ gap: gap.sm }}>
+      <Muted>Report not codeable</Muted>
+      <ChipChoice name="doris_not_codeable" label="Not-codeable reason" disabled={busy} options={reasons.map(([value, label]) => ({ value, label }))} value={reason} onChange={onReason} />
+      {reason === "others" ? <Input accessibilityLabel="Other not-codeable reason" placeholder="Reason" value={other} onChangeText={onOther} /> : null}
+      <Button label="Submit not-codeable report" variant="secondary" disabled={busy || !reason || (reason === "others" && !other.trim())} loading={busy} onPress={onSubmit} />
     </View>
   );
 }
 
-function CertificateLine({ index, line, part2 = false, api, request, identity, onForbidden, isLast, onChange, onRemove, onMove }: {
+/** Selected final cause with a button that opens the shared ICD-11 picker. */
+function FinalCausePicker({ label, value, onOpen, searching }: { label: string; value: PickerChoice | null; onOpen: (query: string) => void; searching: boolean }) {
+  return (
+    <Card>
+      <CardTitle>{label}</CardTitle>
+      {value ? <Body>{value.code} — {value.title}</Body> : null}
+      <SearchBox label={`${label} search`} iconLabel={`${label} open search`} onOpen={onOpen} suspended={searching} />
+    </Card>
+  );
+}
+
+function CertificateLine({ index, line, part2 = false, age, warning, searching, onSearch, isLast, onAddBelow, onChange, onRemove, onMove }: {
   index: number;
   line: CertificateLine;
   part2?: boolean;
-  api: WorkspaceApi;
-  request: JsonRequester;
-  identity: WorkspaceIdentity;
-  onForbidden: () => void;
+  age: Age | null;
+  warning?: string;
+  /** A picker is open: the search box must not auto-open another. */
+  searching: boolean;
+  onSearch: (query: string) => void;
   isLast?: boolean;
+  onAddBelow?: () => void;
   onChange: (line: CertificateLine) => void;
   onRemove: () => void;
   onMove?: (direction: -1 | 1) => void;
 }) {
-  const [uncodedText, setUncodedText] = useState("");
+  const layout = useLayout();
+  const { t } = useUi();
+  const shade = chartFor(t, index, part2);
   const conditions = lineConditions(line);
   const interval = text(conditions[0]?.Interval);
-  const updateCondition = (conditionIndex: number, update: JsonObject | null) => {
-    const next = conditions.flatMap((condition, current) => current === conditionIndex ? update ? [update] : [] : [condition]);
-    onChange({ ...line, Conditions: next });
-  };
-  const editCondition = (conditionIndex: number, key: string, value: JsonValue | undefined) => {
-    const next = conditions.map((condition, current) => {
-      if (current !== conditionIndex) return condition;
-      const updated = { ...condition };
-      if (value === undefined || value === "") delete updated[key]; else updated[key] = value;
-      return updated;
-    });
-    onChange({ ...line, Conditions: next });
-  };
-  const addCondition = (choice: { code: string; title: string; uri: string }) => {
-    onChange({ ...line, Conditions: [...conditions, { Text: choice.title, Code: choice.code, LinearizationURI: choice.uri, ...(interval ? { Interval: interval } : {}) }] });
-  };
+  const prefix = part2 ? "Part II" : `Part I line ${index + 1}`;
   const setInterval = (value: string) => onChange({ ...line, Conditions: conditions.map((condition) => {
     const next = { ...condition };
     if (value) next.Interval = value; else delete next.Interval;
     return next;
   }) });
+  const iconButton = (glyph: string, label: string, onPress: () => void, disabled: boolean, danger = false) => (
+    <Button size="icon" variant={danger ? "outline" : "outline"} accessibilityLabel={label} disabled={disabled} onPress={onPress} style={danger ? { borderColor: t.destructiveText } : undefined}>
+      <ButtonGlyph destructive={danger}>{glyph}</ButtonGlyph>
+    </Button>
+  );
 
   return (
-    <View style={styles.card}>
-      <Text style={styles.headline}>{part2 ? "Part II — contributing conditions" : `${index === 0 ? "Immediate cause" : "Due to"} (line ${index + 1})`}</Text>
-      {conditions.map((condition, conditionIndex) => {
-        const selected = typeof condition.Code === "string" && typeof condition.LinearizationURI === "string"
-          ? { code: condition.Code, title: text(condition.Text), uri: condition.LinearizationURI }
-          : null;
-        return (
-          <View key={`${conditionIndex}:${selected?.code ?? "uncoded"}`} style={styles.card}>
-            <TextInput accessibilityLabel={`${part2 ? "Part II" : `Part I line ${index + 1}`} condition text ${conditionIndex + 1}`} placeholder="Condition text" value={text(condition.Text)} onChangeText={(value) => editCondition(conditionIndex, "Text", value)} style={styles.input} />
-            {selected ? (
-              <IcdSelector key={`${identity.vaSid}:${identity.mode}:${conditionIndex}`} label={`Condition ${conditionIndex + 1} WHO code`} api={api} request={request} identity={identity} onForbidden={onForbidden} value={selected} onSelect={(choice) => {
-                const next = { ...condition };
-                if (choice) { next.Code = choice.code; next.LinearizationURI = choice.uri; next.Text = choice.title || next.Text; }
-                else { delete next.Code; delete next.LinearizationURI; }
-                updateCondition(conditionIndex, next);
-              }} onEdit={() => undefined} />
-            ) : (
-              <IcdSelector key={`${identity.vaSid}:${identity.mode}:empty:${conditionIndex}`} label={`Add WHO code to condition ${conditionIndex + 1}`} api={api} request={request} identity={identity} onForbidden={onForbidden} onSelect={(choice) => { if (choice) addCondition(choice); }} onEdit={() => undefined} />
-            )}
-            <Button label={`Remove condition ${conditionIndex + 1}`} kind="secondary" onPress={() => updateCondition(conditionIndex, null)} />
+    <Card style={{ borderLeftWidth: 4, borderLeftColor: shade.bar }}>
+      <View style={[layout.nowrap, { backgroundColor: shade.tint, borderRadius: uiRadius.sm + 2, paddingHorizontal: gap.sm, paddingVertical: gap.xs }]}>
+        <View style={[layout.row, { flexShrink: 1, flexWrap: "nowrap" }]}>
+          {part2 ? null : <View style={{ minWidth: 22, height: 22, borderRadius: radius.full, alignItems: "center", justifyContent: "center", paddingHorizontal: 4, backgroundColor: shade.bar }}><Text accessibilityLabel={`Line ${lineLetter(index)}`} style={{ fontSize: 12, fontWeight: "700", color: t.background }}>{lineLetter(index)}</Text></View>}
+          <CardTitle numberOfLines={1} style={{ color: shade.foreground }}>{lineTitle(index, part2)}</CardTitle>
+        </View>
+        {part2 ? (conditions.length ? iconButton("✕", "Remove Part II", onRemove, false, true) : null) : (
+          <View style={layout.iconRow}>
+            {onMove ? iconButton("↑", `Move Part I line ${index + 1} up`, () => onMove(-1), index === 0) : null}
+            {onMove ? iconButton("↓", `Move Part I line ${index + 1} down`, () => onMove(1), Boolean(isLast)) : null}
+            {iconButton("✕", `Remove Part I line ${index + 1}`, onRemove, index === 0, true)}
           </View>
-        );
-      })}
-      {conditions.length < 8 ? <IcdSelector key={`${identity.vaSid}:${identity.mode}:add`} label="Add a coded condition" api={api} request={request} identity={identity} onForbidden={onForbidden} onSelect={(choice) => { if (choice) addCondition(choice); }} onEdit={() => undefined} /> : null}
-      {conditions.length ? <TextInput accessibilityLabel={`${part2 ? "Part II" : `Part I line ${index + 1}`} interval`} placeholder="Interval, ISO 8601 duration (for example P2D)" value={interval} onChangeText={setInterval} style={styles.input} /> : null}
-      <TextInput accessibilityLabel={part2 ? "Part II uncoded condition" : `Part I line ${index + 1} uncoded condition`} placeholder="Uncoded condition text" value={uncodedText} onChangeText={setUncodedText} style={styles.input} />
-      {uncodedText.trim() ? <Button label="Add uncoded condition" kind="secondary" onPress={() => {
-        onChange({ ...line, Conditions: [...conditions, { Text: uncodedText.trim(), ...(interval ? { Interval: interval } : {}) }] });
-        setUncodedText("");
-      }} disabled={conditions.length >= 8} /> : null}
-      {!part2 ? (
-        <View>
-          {onMove ? <Button label={`Move Part I line ${index + 1} up`} kind="secondary" disabled={index === 0} onPress={() => onMove(-1)} /> : null}
-          {onMove ? <Button label={`Move Part I line ${index + 1} down`} kind="secondary" disabled={isLast} onPress={() => onMove(1)} /> : null}
-          <Button label={`Remove Part I line ${index + 1}`} kind="secondary" onPress={onRemove} disabled={index === 0} />
+        )}
+      </View>
+      {conditions.length ? (
+        <View style={layout.row}>
+          {conditions.map((condition, conditionIndex) => (
+            <Chip key={`${conditionIndex}:${text(condition.Code) || "uncoded"}`} accessibilityLabel={`Remove condition ${conditionIndex + 1}`} onPress={() => onChange({ ...line, Conditions: conditions.filter((_item, current) => current !== conditionIndex) })} style={{ backgroundColor: shade.soft, borderColor: shade.bar }} textStyle={{ color: shade.foreground }}>{`${text(condition.Code) ? `${text(condition.Code)} — ` : ""}${text(condition.Text)} ×`}</Chip>
+          ))}
         </View>
-      ) : conditions.length === 0 ? null : <Button label="Remove Part II" kind="secondary" onPress={onRemove} />}
-    </View>
+      ) : null}
+      <View style={layout.row}>
+        {conditions.length < 8 ? (
+          <SearchBox label={`Search ${prefix} condition`} iconLabel={`Open search ${prefix}`} onOpen={onSearch} suspended={searching} />
+        ) : null}
+        {conditions.length ? (
+          <View style={[layout.row, { flexShrink: 1, maxWidth: "100%" }]}>
+            <IntervalField raw={interval} onChange={setInterval} inputLabel={`${prefix} interval`} unitLabel={`${prefix} interval unit`} placeholder="Interval" unitPlaceholder="Units" label="Onset to death" age={age} />
+          </View>
+        ) : null}
+      </View>
+      <Warn id={part2 ? "Part2" : `Part1.${index}`} text={warning} />
+      {onAddBelow ? (
+        <Button variant="outline" size="sm" label="+ Add line" accessibilityLabel={`Add line below line ${index + 1}`} onPress={onAddBelow} style={{ alignSelf: "flex-start" }} />
+      ) : null}
+    </Card>
   );
 }
 
-function AdministrativeFields({ certificate, onChange }: { certificate: JsonObject; onChange: (section: string, key: string, value: JsonValue | undefined) => void }) {
+const YES_NO_UNKNOWN: ReadonlyArray<readonly [number, string]> = [[1, "Yes"], [0, "No"], [9, "Unknown"]];
+// Codes are DORIS's own (the web editor and doris_certificate.py use the same lists).
+const MANNER_OPTIONS: ReadonlyArray<readonly [number, string]> = [[0, "Disease"], [1, "Accident"], [2, "Intentional self-harm"], [3, "Assault"], [4, "Legal intervention"], [5, "War"], [6, "Could not be determined"], [7, "Pending investigation"], [9, "Unknown"]];
+const PLACE_OPTIONS: ReadonlyArray<readonly [number, string]> = [[0, "At home"], [1, "Residential institution"], [2, "School, other institution, public administration area"], [3, "Sports and athletics area"], [4, "Street and highway"], [5, "Trade and service area"], [6, "Industrial and construction area"], [7, "Farm"], [8, "Other place"], [9, "Unknown"]];
+const PREGNANCY_TIME_OPTIONS: ReadonlyArray<readonly [number, string]> = [[0, "At death"], [1, "Within 42 days"], [2, "43 days to 1 year"], [3, "1 year or more"], [9, "Unknown"]];
+
+type OnChange = (section: string, key: string, value: JsonValue | undefined) => void;
+
+function Tile({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Card>
+      <CardTitle>{title}</CardTitle>
+      {children}
+    </Card>
+  );
+}
+
+/** Compact amber strip shown under the title of a whole card that does not apply; no fields are rendered. */
+function NotApplicable({ text }: { text: string }) {
+  return <Alert variant="warning" testID="not-applicable">{text}</Alert>;
+}
+
+function AdministrativeFields({ certificate, provenance, warns, onChange }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange }) {
+  const layout = useLayout();
   const data = object(certificate.AdministrativeData);
+  // A cleared field loses its "from interview" badge until it is answered again.
+  const badge = (key: string) => hasValue(data[key]) ? provenanceBadge(provenance, `AdministrativeData.${key}`) : undefined;
+  const clear = (key: string) => hasValue(data[key]) ? () => onChange("AdministrativeData", key, undefined) : undefined;
   return (
-    <View>
-      <Text style={styles.headline}>Administrative data</Text>
-      <ChoiceField label="Sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Undetermined"]]} onChange={(value) => onChange("AdministrativeData", "Sex", value)} />
-      <TextInput accessibilityLabel="Date of birth" placeholder="Date of birth (WHO date)" value={text(data.DateBirth)} onChangeText={(value) => onChange("AdministrativeData", "DateBirth", value)} style={styles.input} />
-      <TextInput accessibilityLabel="Date of death" placeholder="Date of death (WHO date)" value={text(data.DateDeath)} onChangeText={(value) => onChange("AdministrativeData", "DateDeath", value)} style={styles.input} />
-      <TextInput accessibilityLabel="Estimated age" placeholder="Estimated age (ISO 8601 duration)" value={text(data.EstimatedAge)} onChangeText={(value) => onChange("AdministrativeData", "EstimatedAge", value)} style={styles.input} />
+    <Tile title="Administrative Data">
+      <View style={layout.grid}>
+        <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Undetermined"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
+        <Cell>
+          <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
+          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
+          <Warn id="AdministrativeData.EstimatedAge" text={warns["AdministrativeData.EstimatedAge"]} />
+        </Cell>
+        <Cell>
+          <FieldLabel text="Date of birth" badge={badge("DateBirth")} onClear={clear("DateBirth")} />
+          <DateField precision label="Date of birth" value={text(data.DateBirth)} onChange={(value) => onChange("AdministrativeData", "DateBirth", value)} />
+          <Warn id="AdministrativeData.DateBirth" text={warns["AdministrativeData.DateBirth"]} />
+        </Cell>
+        <Cell>
+          <FieldLabel text="Date of death" badge={badge("DateDeath")} onClear={clear("DateDeath")} />
+          <DateField label="Date of death" value={text(data.DateDeath)} onChange={(value) => onChange("AdministrativeData", "DateDeath", value)} />
+          <Warn id="AdministrativeData.DateDeath" text={warns["AdministrativeData.DateDeath"]} />
+        </Cell>
+      </View>
+    </Tile>
+  );
+}
+
+type FieldProps = { section: string; field: string; label: string; certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange };
+
+/** Digits only: these DORIS fields are whole numbers; a blank input omits the key. */
+function NumberField({ section, field, label, certificate, provenance, warns, onChange }: FieldProps) {
+  const stored = object(certificate[section])[field];
+  const clear = hasValue(stored) ? () => onChange(section, field, undefined) : undefined;
+  return (
+    <Cell>
+      <FieldLabel text={label} badge={hasValue(stored) ? provenanceBadge(provenance, `${section}.${field}`) : undefined} onClear={clear} />
+      <Input accessibilityLabel={label} placeholder="Number" keyboardType="numeric" inputMode="numeric" value={text(stored)} onChangeText={(value) => {
+        const digits = value.replace(/\D/g, "");
+        onChange(section, field, digits === "" ? undefined : Number(digits));
+      }} />
+      <Warn id={`${section}.${field}`} text={warns[`${section}.${field}`]} />
+    </Cell>
+  );
+}
+
+function TextField({ section, field, label, certificate, provenance, onChange, multiline }: Omit<FieldProps, "warns"> & { multiline?: boolean }) {
+  const stored = object(certificate[section])[field];
+  return (
+    <View style={{ gap: 4 }}>
+      <FieldLabel text={label} badge={hasValue(stored) ? provenanceBadge(provenance, `${section}.${field}`) : undefined} onClear={hasValue(stored) ? () => onChange(section, field, undefined) : undefined} />
+      {multiline ? <Textarea accessibilityLabel={label} numberOfLines={3} maxLength={500} value={text(stored)} onChangeText={(value) => onChange(section, field, value)} /> : <Input accessibilityLabel={label} numberOfLines={1} maxLength={500} value={text(stored)} onChangeText={(value) => onChange(section, field, value)} />}
     </View>
   );
 }
 
-function CertificateDetails({ certificate, onChange }: { certificate: JsonObject; onChange: (section: string, key: string, value: JsonValue | undefined) => void }) {
-  const sex = object(certificate.AdministrativeData).Sex;
-  const maternalApplies = sex === undefined || sex === 2 || sex === 9;
+/** A date answer with the precision dropdown (date of injury, date of surgery). */
+function DateValue({ section, field, label, certificate, provenance, warns, onChange }: FieldProps) {
+  const stored = object(certificate[section])[field];
+  return (
+    <View style={{ gap: 4 }}>
+      <FieldLabel text={label} badge={hasValue(stored) ? provenanceBadge(provenance, `${section}.${field}`) : undefined} onClear={hasValue(stored) ? () => onChange(section, field, undefined) : undefined} />
+      <DateField precision label={label} value={text(stored)} onChange={(value) => onChange(section, field, value)} />
+      <Warn id={`${section}.${field}`} text={warns[`${section}.${field}`]} />
+    </View>
+  );
+}
+
+/** The WHO cards that follow Part 2, each its own titled tile, then the "not mandatory" footnote. Hidden parts are not rendered (rules.ts). */
+function CertificateDetails({ certificate, provenance, shown, warns, onChange }: { certificate: JsonObject; provenance: JsonObject; shown: Visibility; warns: Warnings; onChange: OnChange }) {
+  const layout = useLayout();
   const pregnancy = object(certificate.MaternalDeath).WasPregnant;
+  const choice = (section: string, key: string, label: string, options: ReadonlyArray<readonly [number, string]>, name: string, disabled = false) => (
+    <ChoiceField name={name} label={label} value={object(certificate[section])[key]} options={options} badge={object(certificate[section])[key] === undefined ? undefined : provenanceBadge(provenance, `${section}.${key}`)} disabled={disabled} onChange={(value) => onChange(section, key, value)} />
+  );
+  const shared = { certificate, provenance, warns, onChange };
   return (
-    <View>
-      <Text style={styles.headline}>Certificate context</Text>
-      <ChoiceField label="Manner of death" value={object(certificate.MannerOfDeath).MannerOfDeath} options={[[1, "Natural"], [2, "Accident"], [3, "Suicide"], [4, "Homicide"], [5, "Legal intervention"], [6, "War"], [7, "Pending investigation"], [8, "Undetermined"], [9, "Unknown"]]} onChange={(value) => onChange("MannerOfDeath", "MannerOfDeath", value)} />
-      <TextInput accessibilityLabel="External cause date" placeholder="Date of external cause or poisoning" value={text(object(certificate.MannerOfDeath).DateOfExternalCauseOrPoisoning)} onChangeText={(value) => onChange("MannerOfDeath", "DateOfExternalCauseOrPoisoning", value)} style={styles.input} />
-      <TextInput accessibilityLabel="External cause description" placeholder="Description of external cause" value={text(object(certificate.MannerOfDeath).DescriptionExternalCause)} onChangeText={(value) => onChange("MannerOfDeath", "DescriptionExternalCause", value)} style={styles.input} />
-      <ChoiceField label="Place of external cause" value={object(certificate.MannerOfDeath).PlaceOfOccuranceExternalCause} options={[[1, "Home"], [2, "Residential institution"], [3, "School or public area"], [4, "Sports area"], [5, "Street or highway"], [6, "Trade or service area"], [7, "Industrial or construction area"], [8, "Farm"], [9, "Other or unknown"]]} onChange={(value) => onChange("MannerOfDeath", "PlaceOfOccuranceExternalCause", value)} />
-      <ChoiceField label="Surgery performed" value={object(certificate.Surgery).WasPerformed} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("Surgery", "WasPerformed", value)} />
-      <TextInput accessibilityLabel="Surgery date" placeholder="Surgery date" value={text(object(certificate.Surgery).Date)} onChangeText={(value) => onChange("Surgery", "Date", value)} style={styles.input} />
-      <TextInput accessibilityLabel="Surgery reason" placeholder="Reason for surgery" value={text(object(certificate.Surgery).Reason)} onChangeText={(value) => onChange("Surgery", "Reason", value)} style={styles.input} />
-      <ChoiceField label="Autopsy requested" value={object(certificate.Autopsy).WasRequested} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("Autopsy", "WasRequested", value)} />
-      <ChoiceField label="Autopsy findings used" value={object(certificate.Autopsy).Findings} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("Autopsy", "Findings", value)} />
-      <ChoiceField label="Stillborn" value={object(certificate.FetalOrInfantDeath).Stillborn} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("FetalOrInfantDeath", "Stillborn", value)} />
-      <ChoiceField label="Multiple pregnancy" value={object(certificate.FetalOrInfantDeath).MultiplePregnancy} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("FetalOrInfantDeath", "MultiplePregnancy", value)} />
-      {(["DeathWithin24h", "BirthWeight", "PregnancyWeeks", "AgeMother"] as const).map((field) => <TextInput key={field} accessibilityLabel={field} placeholder={field} keyboardType="numeric" value={text(object(certificate.FetalOrInfantDeath)[field])} onChangeText={(value) => onChange("FetalOrInfantDeath", field, value === "" ? undefined : Number(value))} style={styles.input} />)}
-      <TextInput accessibilityLabel="Perinatal description" placeholder="Perinatal description" value={text(object(certificate.FetalOrInfantDeath).PerinatalDescription)} onChangeText={(value) => onChange("FetalOrInfantDeath", "PerinatalDescription", value)} style={styles.input} />
-      {maternalApplies ? (
-        <View>
-          <ChoiceField label="Was the deceased pregnant?" value={object(certificate.MaternalDeath).WasPregnant} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("MaternalDeath", "WasPregnant", value)} />
-          {pregnancy === 1 ? (
-            <>
-              <ChoiceField label="Time from pregnancy" value={object(certificate.MaternalDeath).TimeFromPregnancy} options={[[1, "During pregnancy"], [2, "Delivery"], [3, "Within 42 days"], [4, "43 days to 1 year"]]} onChange={(value) => onChange("MaternalDeath", "TimeFromPregnancy", value)} />
-              <ChoiceField label="Pregnancy contributed to death" value={object(certificate.MaternalDeath).PregnancyContribute} options={[[1, "Yes"], [0, "No"], [9, "Unknown"]]} onChange={(value) => onChange("MaternalDeath", "PregnancyContribute", value)} />
-            </>
-          ) : null}
-        </View>
-      ) : <Text style={styles.muted}>Pregnancy fields are not applicable for this sex; existing follow-up answers will be excluded from processing.</Text>}
-      {maternalApplies && pregnancy !== 1 && pregnancy !== undefined ? <Text style={styles.muted}>Pregnancy follow-up answers are excluded from processing unless pregnancy is Yes.</Text> : null}
+    <View style={{ gap: 8 }}>
+      <Tile title="Manner of death">
+        {choice("MannerOfDeath", "MannerOfDeath", "Manner of death", MANNER_OPTIONS, "doris_manner_of_death")}
+        {shown.externalCause ? (
+          <>
+            <Label>If external cause or poisoning:*</Label>
+            <DateValue section="MannerOfDeath" field="DateOfExternalCauseOrPoisoning" label="Date of injury" {...shared} />
+            <TextField section="MannerOfDeath" field="DescriptionExternalCause" label="Please describe how external cause occurred (If poisoning please specify poisoning agent)" multiline {...shared} />
+            <Label>Place of occurrence of the external cause:*</Label>
+            {choice("MannerOfDeath", "PlaceOfOccuranceExternalCause", "Place", PLACE_OPTIONS, "doris_place")}
+          </>
+        ) : null}
+      </Tile>
+      {!shown.fetalOrInfant ? (
+        <Tile title="Fetal or infant death *"><NotApplicable text="This section is not applicable when it is not a fetal or infant death" /></Tile>
+      ) : (
+        <Tile title="Fetal or infant death *">
+          {choice("FetalOrInfantDeath", "MultiplePregnancy", "Multiple pregnancy", YES_NO_UNKNOWN, "doris_multiple_pregnancy")}
+          {choice("FetalOrInfantDeath", "Stillborn", "Stillborn?", YES_NO_UNKNOWN, "doris_stillborn")}
+          <View style={layout.grid}>
+            {shown.hoursSurvived ? <NumberField section="FetalOrInfantDeath" field="DeathWithin24h" label="If death within 24h specify number of hours survived" {...shared} /> : null}
+            <NumberField section="FetalOrInfantDeath" field="BirthWeight" label="Birth weight (in grams)" {...shared} />
+            <NumberField section="FetalOrInfantDeath" field="PregnancyWeeks" label="Number of completed weeks of pregnancy" {...shared} />
+            <NumberField section="FetalOrInfantDeath" field="AgeMother" label="Age of mother (years)" {...shared} />
+          </View>
+          <TextField section="FetalOrInfantDeath" field="PerinatalDescription" label="If death was perinatal, please state conditions of mother that affected the fetus and newborn" multiline {...shared} />
+        </Tile>
+      )}
+      {!shown.pregnancy ? (
+        <Tile title="Information on pregnancy"><NotApplicable text={`This section is not applicable when the selected sex is ${object(certificate.AdministrativeData).Sex === 1 ? "male" : "not female"}`} /></Tile>
+      ) : (
+        <Tile title="Information on pregnancy">
+          {choice("MaternalDeath", "WasPregnant", "For women, was the deceased pregnant?", YES_NO_UNKNOWN, "doris_was_pregnant")}
+          <Warn id="MaternalDeath.WasPregnant" text={warns["MaternalDeath.WasPregnant"]} />
+          {choice("MaternalDeath", "TimeFromPregnancy", "If yes please specify the time from pregnancy", PREGNANCY_TIME_OPTIONS, "doris_time_from_pregnancy", pregnancy !== 1)}
+          {choice("MaternalDeath", "PregnancyContribute", "Did the pregnancy contribute to the death?", YES_NO_UNKNOWN, "doris_pregnancy_contribute", pregnancy !== 1)}
+          {pregnancy !== 1 && pregnancy !== undefined ? <Muted>Pregnancy follow-up answers are excluded from processing unless pregnancy is Yes.</Muted> : null}
+        </Tile>
+      )}
+      <Tile title="Surgery">
+        {choice("Surgery", "WasPerformed", "Was surgery performed within the last 4 weeks?", YES_NO_UNKNOWN, "doris_surgery_performed")}
+        {shown.surgeryDetail ? (
+          <>
+            <DateValue section="Surgery" field="Date" label="If yes please specify date of surgery*" {...shared} />
+            <TextField section="Surgery" field="Reason" label="If yes please specify reason for surgery (disease or condition)*" {...shared} />
+          </>
+        ) : null}
+      </Tile>
+      <Tile title="Autopsy">
+        {choice("Autopsy", "WasRequested", "Was an autopsy requested?*", YES_NO_UNKNOWN, "doris_autopsy_requested")}
+        {shown.autopsyFindings ? choice("Autopsy", "Findings", "If yes were the findings used in the certification?*", YES_NO_UNKNOWN, "doris_autopsy_findings") : null}
+      </Tile>
+      <Muted>*fields are not mandatory</Muted>
     </View>
   );
 }
 
-function ChoiceField({ label, value, options, onChange }: { label: string; value: JsonValue | undefined; options: ReadonlyArray<readonly [number, string]>; onChange: (value: JsonValue | undefined) => void }) {
+function ChoiceField({ label, name, value, options, onChange, badge, disabled }: { label: string; name?: string; value: JsonValue | undefined; options: ReadonlyArray<readonly [number, string]>; onChange: (value: JsonValue | undefined) => void; badge?: string; disabled?: boolean }) {
   return (
-    <View>
-      <Text style={styles.text}>{label}</Text>
-      <WhoVaQuestionControls.SingleChoice
-        question={choiceQuestion(`doris_${label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`, label, options.map(([code, title]) => ({ value: String(code), label: title })), false, true)}
-        value={value === undefined ? NOT_SET_VALUE : String(value)}
-        data={{}}
-        locale="en"
-        issues={[]}
-        onAnswer={(next) => onChange(typeof next === "string" && next !== NOT_SET_VALUE ? Number(next) : undefined)}
-      />
-    </View>
+    <ChipChoice
+      name={name ?? `doris_${label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`}
+      label={label}
+      badge={badge}
+      disabled={disabled}
+      options={[{ value: NOT_SET_VALUE, label: NOT_STATED }, ...options.map(([code, title]) => ({ value: String(code), label: title }))]}
+      value={value === undefined ? NOT_SET_VALUE : String(value)}
+      onChange={(next) => onChange(next === NOT_SET_VALUE ? undefined : Number(next))}
+      onClear={value === undefined ? undefined : () => onChange(undefined)}
+    />
   );
-}
-
-/** Adapt DORIS metadata to the same WHO choice control used by the VA interview. */
-function choiceQuestion(name: string, label: string, options: Array<{ value: string; label: string }>, readOnly = false, includeNotSet = false): InstrumentQuestion {
-  const choices = includeNotSet ? [{ value: NOT_SET_VALUE, label: "Not set" }, ...options] : options;
-  return {
-    name,
-    order: 0,
-    sourceRow: 0,
-    sourceType: "doris_certificate",
-    dataType: "string",
-    control: "singleChoice",
-    label: { en: label },
-    hint: {},
-    guidance: {},
-    required: false,
-    readOnly,
-    constraintMessage: {},
-    sectionPath: [],
-    choices: choices.map((choice, index) => ({ ...choice, label: { en: choice.label }, sourceRow: index })),
-  };
 }
 
 function ProcessingSummary({ processing, saved }: { processing: DorisProcessReply | null; saved?: JsonObject }) {
@@ -622,22 +810,24 @@ function ProcessingSummary({ processing, saved }: { processing: DorisProcessRepl
   const codeditStatus = processing?.codedit.status ?? (typeof savedCodedit.status === "string" ? savedCodedit.status : undefined);
   const dr = object(processing?.doris.result ?? savedDoris.result);
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
+  const report = (value: unknown) => typeof value === "string" ? <ReportBox>{value}</ReportBox> : null;
   return (
-    <View>
-      <Text style={styles.headline}>DORIS and CoDEdit</Text>
-      <Text style={styles.text}>DORIS: {dorisStatus ?? "not processed"}</Text>
-      {typeof dr.warning === "string" ? <Text style={styles.muted}>Warning: {dr.warning}</Text> : null}
-      {typeof dr.error === "string" ? <Text style={styles.error}>{dr.error}</Text> : null}
-      {dr.reject === true ? <Text style={styles.error}>DORIS rejected the certificate result.</Text> : null}
-      {typeof dr.code === "string" ? <Text style={styles.text}>Computed UCOD: {dr.code}</Text> : null}
-      {typeof dr.stemCode === "string" ? <Text style={styles.text}>Computed stem: {dr.stemCode}</Text> : null}
-      {typeof dr.uri === "string" ? <Text style={styles.muted}>Computed URI: {dr.uri}</Text> : null}
-      {typeof dr.report === "string" ? <Text style={styles.muted}>{dr.report}</Text> : null}
-      <Text style={styles.text}>CoDEdit: {codeditStatus ?? "not processed"}</Text>
-      {typeof cr.report === "string" ? <Text style={styles.muted}>{cr.report}</Text> : null}
-      {typeof cr.tabularReport === "string" ? <Text style={styles.muted}>{cr.tabularReport}</Text> : null}
-      {saved && typeof saved.final_choice === "string" ? <Text style={styles.text}>Saved Step 1 choice: {saved.final_choice}</Text> : null}
-    </View>
+    <Card>
+      <CardTitle>DORIS and CoDEdit</CardTitle>
+      <Body>DORIS: {dorisStatus ?? "not processed"}</Body>
+      {typeof dr.warning === "string" ? <Muted>Warning: {dr.warning}</Muted> : null}
+      {typeof dr.error === "string" ? <Alert variant="destructive">{dr.error}</Alert> : null}
+      {dr.reject === true ? <Alert variant="destructive">DORIS rejected the certificate result.</Alert> : null}
+      {typeof dr.code === "string" ? <Body>Computed UCOD: {dr.code}</Body> : null}
+      {typeof dr.stemCode === "string" ? <Body>Computed stem: {dr.stemCode}</Body> : null}
+      {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
+      {report(dr.report)}
+      <Separator />
+      <Body>CoDEdit: {codeditStatus ?? "not processed"}</Body>
+      {report(cr.report)}
+      {report(cr.tabularReport)}
+      {saved && typeof saved.final_choice === "string" ? <Body>Saved Step 1 choice: {saved.final_choice}</Body> : null}
+    </Card>
   );
 }
 
@@ -647,23 +837,23 @@ function CertificateReference({ certificate }: { certificate: JsonObject | null 
   const part1 = array(certificate.Part1).filter(isRecord) as CertificateLine[];
   const part2 = lineConditions(certificate.Part2);
   return (
-    <View>
-      <Text style={styles.headline}>Your Step 1 certificate</Text>
+    <Card>
+      <CardTitle>Your Step 1 certificate</CardTitle>
       {part1.map((line, index) => (
         <View key={`p1:${index}`}>
-          <Text style={styles.text}>Part I, line {index + 1}</Text>
+          <Body>Part I, line {index + 1}</Body>
           {lineConditions(line).map((condition, conditionIndex) => (
-            <Text key={conditionIndex} style={styles.muted}>{text(condition.Text)}{text(condition.Code) ? ` — ${text(condition.Code)}` : ""}{text(condition.Interval) ? ` (${text(condition.Interval)})` : ""}</Text>
+            <Muted key={conditionIndex}>{text(condition.Text)}{text(condition.Code) ? ` — ${text(condition.Code)}` : ""}{text(condition.Interval) ? ` (${text(condition.Interval)})` : ""}</Muted>
           ))}
         </View>
       ))}
       {part2.length ? (
         <View>
-          <Text style={styles.text}>Part II</Text>
-          {part2.map((condition, index) => <Text key={index} style={styles.muted}>{text(condition.Text)}{text(condition.Code) ? ` — ${text(condition.Code)}` : ""}</Text>)}
+          <Body>Part II</Body>
+          {part2.map((condition, index) => <Muted key={index}>{text(condition.Text)}{text(condition.Code) ? ` — ${text(condition.Code)}` : ""}</Muted>)}
         </View>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
@@ -671,11 +861,11 @@ function SmartVaReference({ value }: { value: JsonValue }) {
   const data = object(value);
   const causes = array(data.causes).filter((item): item is JsonObject => isRecord(item));
   return (
-    <View>
-      <Text style={styles.headline}>SmartVA reference</Text>
-      {text(data.age) ? <Text style={styles.text}>Age: {text(data.age)}</Text> : null}
-      {text(data.gender) ? <Text style={styles.text}>Gender: {text(data.gender)}</Text> : null}
-      {causes.map((cause, index) => <Text key={index} style={styles.muted}>{text(cause.cause as JsonValue)} — ICD-11 {text(cause.icd11 as JsonValue)}</Text>)}
-    </View>
+    <Card>
+      <CardTitle>SmartVA reference</CardTitle>
+      {text(data.age) ? <Body>Age: {text(data.age)}</Body> : null}
+      {text(data.gender) ? <Body>Gender: {text(data.gender)}</Body> : null}
+      {causes.map((cause, index) => <Muted key={index}>{text(cause.cause as JsonValue)} — ICD-11 {text(cause.icd11 as JsonValue)}</Muted>)}
+    </Card>
   );
 }

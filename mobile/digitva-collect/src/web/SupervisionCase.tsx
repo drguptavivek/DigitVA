@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
-import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
+import { WhoVaQuestionControls } from "../whoControls";
 
 import {
   chooseInterview,

@@ -24,6 +24,20 @@ test("accepts optional browser workspace metadata and configured category badges
   expect(result.categories[0]).toMatchObject({ icon_name: "fa-user", count: 3, attachment_count: 2 });
 });
 
+test("survey_state is optional and nullable but must be a string", () => {
+  expect(parseWorkspace(payload(), "coding").case).not.toHaveProperty("survey_state");
+  expect(parseWorkspace(payload({ survey_state: "Madhya Pradesh" }), "coding").case.survey_state).toBe("Madhya Pradesh");
+  expect(parseWorkspace(payload({ survey_state: null }), "coding").case.survey_state).toBeNull();
+  expect(() => parseWorkspace(payload({ survey_state: 7 }), "coding")).toThrow(new WorkspaceContractError("workspace.case.survey_state"));
+});
+
+test("survey_district is optional and nullable but must be a string", () => {
+  expect(parseWorkspace(payload(), "coding").case).not.toHaveProperty("survey_district");
+  expect(parseWorkspace(payload({ survey_district: "Raisen" }), "coding").case.survey_district).toBe("Raisen");
+  expect(parseWorkspace(payload({ survey_district: null }), "coding").case.survey_district).toBeNull();
+  expect(() => parseWorkspace(payload({ survey_district: 7 }), "coding")).toThrow(new WorkspaceContractError("workspace.case.survey_district"));
+});
+
 test.each([
   ["negative attachment count", { categories: [{ code: "general", label: "General", nav_label: "General", render_mode: "table_sections", attachment_count: -1 }] }, "workspace.categories[0].attachment_count"],
   ["negative category count", { categories: [{ code: "general", label: "General", nav_label: "General", render_mode: "table_sections", count: -1 }] }, "workspace.categories[0].count"],

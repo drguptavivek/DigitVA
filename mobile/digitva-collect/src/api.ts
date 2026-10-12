@@ -473,6 +473,18 @@ function safeActionUrl(value: unknown): string | undefined {
  * Send JSON with bearer or cookie credentials. Refusals expose only status/code;
  * malformed success and HTML redirects fail explicitly, while network errors propagate.
  */
+/**
+ * Controllers of cookie-session requests still in flight. Sign-out aborts them first: the server saves
+ * the session it loaded when such a request ends, which would otherwise bring the old login back.
+ */
+const cookieRequests = new Set<AbortController>();
+
+/** Abort every in-flight cookie-session request; callers drop the results (they reject as aborted). */
+export function abortClientRequests(): void {
+  for (const controller of [...cookieRequests]) controller.abort();
+  cookieRequests.clear();
+}
+
 export async function requestJson<T>(
   server: string,
   path: string,
@@ -489,6 +501,8 @@ export async function requestJson<T>(
   if (options.signal?.aborted) abortFromCaller();
   else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const tracked = options.token === undefined && !server;
+  if (tracked) cookieRequests.add(controller);
   try {
     const response = await fetch(`${server}${path}`, {
       method: options.method ?? "GET",
@@ -559,6 +573,7 @@ export async function requestJson<T>(
     return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
   } finally {
     clearTimeout(timeout);
+    if (tracked) cookieRequests.delete(controller);
     options.signal?.removeEventListener("abort", abortFromCaller);
   }
 }
@@ -616,6 +631,8 @@ export async function requestRaw(
   if (options.signal?.aborted) abortFromCaller();
   else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const tracked = options.token === undefined && !server;
+  if (tracked) cookieRequests.add(controller);
   try {
     const response = await fetch(`${server}${path}`, {
       method: options.method ?? "GET",
@@ -676,6 +693,7 @@ export async function requestRaw(
     return { status: response.status, body, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
   } finally {
     clearTimeout(timeout);
+    if (tracked) cookieRequests.delete(controller);
     options.signal?.removeEventListener("abort", abortFromCaller);
   }
 }

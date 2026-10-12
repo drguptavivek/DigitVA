@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { radius } from "../../theme";
 import type { CategoryPayload, JsonValue } from "../contracts";
+import { useWebStyles, type WebPalette } from "../webPalette";
 import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
 
 type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];
 type GalleryAttachment = { path: string; label: string; kind: "image" | "audio" | "document" };
 
-const BLUE = "#004687";
-const BORDER = "#d9e0e7";
 const MAX_NODES = 300;
 const MAX_DEPTH = 8;
 
@@ -96,6 +96,7 @@ export function AttachmentGallery({
   workspaceIdentity?: string;
   renderMedia?: (attachmentPath: string) => React.ReactNode;
 }) {
+  const [styles] = useWebStyles(makeStyles);
   const collection = useMemo(() => collectPaths(items), [items]);
   const { attachments, truncated } = collection;
   const attachmentKey = attachments.map((item) => item.path).join("|");
@@ -313,25 +314,25 @@ export function AttachmentGallery({
   </section>;
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const makeStyles = (w: WebPalette): Record<string, React.CSSProperties> => ({
   root: { display: "grid", gap: 12, minWidth: 0, width: "100%", overflow: "hidden" },
   toolbar: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "space-between" },
-  badge: { background: BLUE, borderRadius: 999, color: "#fff", fontSize: 14, fontWeight: 700, maxWidth: "100%", overflow: "hidden", padding: "8px 14px", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  counter: { color: "#596674", fontSize: 14 },
-  truncated: { background: "#fff8e1", border: "1px solid #e0c36a", color: "#6a5311", fontSize: 14, margin: 0, padding: "8px 10px" },
-  viewer: { alignItems: "center", background: "#f7f9fb", border: `1px solid ${BORDER}`, borderRadius: 4, display: "flex", justifyContent: "center", minHeight: 220, overflow: "hidden", padding: 12, position: "relative" },
+  badge: { background: w.bar, borderRadius: radius.full, color: w.onBar, fontSize: 14, fontWeight: 700, maxWidth: "100%", overflow: "hidden", padding: "8px 14px", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  counter: { color: w.textMuted, fontSize: 14 },
+  truncated: { background: w.warnBg, border: `1px solid ${w.warnBorder}`, color: w.warnText, fontSize: 14, margin: 0, padding: "8px 10px" },
+  viewer: { alignItems: "center", background: w.viewerBg, border: `1px solid ${w.border}`, borderRadius: 4, display: "flex", justifyContent: "center", minHeight: 220, overflow: "hidden", padding: 12, position: "relative" },
   imageButton: { alignItems: "center", background: "transparent", border: 0, cursor: "zoom-in", display: "flex", justifyContent: "center", maxWidth: "100%", minHeight: 196, padding: 0 },
-  arrow: { alignItems: "center", background: BLUE, border: 0, borderRadius: 999, color: "#fff", cursor: "pointer", display: "flex", fontSize: 30, height: 44, justifyContent: "center", lineHeight: 1, position: "absolute", top: "50%", transform: "translateY(-50%)", width: 44 },
+  arrow: { alignItems: "center", background: w.bar, border: 0, borderRadius: radius.full, color: w.onBar, cursor: "pointer", display: "flex", fontSize: 26, height: 44, justifyContent: "center", lineHeight: 1, position: "absolute", top: "50%", transform: "translateY(-50%)", width: 44 },
   controls: { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" },
-  control: { alignItems: "center", background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 4, color: BLUE, cursor: "pointer", display: "inline-flex", fontSize: 14, fontWeight: 700, minHeight: 44, minWidth: 44, padding: "8px 12px" },
+  control: { alignItems: "center", background: w.card, border: `1px solid ${w.border}`, borderRadius: 4, color: w.blue, cursor: "pointer", display: "inline-flex", fontSize: 14, fontWeight: 700, minHeight: 44, minWidth: 44, padding: "8px 12px" },
   audio: { minWidth: 0, width: "100%" },
   thumbnails: { display: "flex", gap: 8, maxWidth: "100%", overflowX: "auto", padding: "2px 0 4px" },
-  thumbnail: { alignItems: "center", background: "#fff", border: `2px solid transparent`, borderRadius: 4, color: BLUE, cursor: "pointer", display: "flex", flex: "0 0 64px", height: 52, justifyContent: "center", minHeight: 44, minWidth: 44, overflow: "hidden", padding: 2 },
-  thumbnailActive: { borderColor: BLUE },
+  thumbnail: { alignItems: "center", background: w.card, border: `2px solid transparent`, borderRadius: 4, color: w.blue, cursor: "pointer", display: "flex", flex: "0 0 64px", height: 52, justifyContent: "center", minHeight: 44, minWidth: 44, overflow: "hidden", padding: 2 },
+  thumbnailActive: { borderColor: w.blue },
   thumbnailImage: { height: "100%", objectFit: "cover", width: "100%" },
   lightbox: { alignItems: "center", background: "rgba(8, 13, 20, 0.94)", display: "flex", flexDirection: "column", inset: 0, justifyContent: "center", padding: 16, position: "fixed", zIndex: 2000 },
-  close: { alignItems: "center", background: "#fff", border: 0, borderRadius: 999, color: "#111", cursor: "pointer", display: "flex", fontSize: 28, height: 44, justifyContent: "center", position: "absolute", right: 16, top: 16, width: 44, zIndex: 1 },
+  close: { alignItems: "center", background: w.closeBg, border: 0, borderRadius: radius.full, color: w.closeText, cursor: "pointer", display: "flex", fontSize: 26, height: 44, justifyContent: "center", position: "absolute", right: 16, top: 16, width: 44, zIndex: 1 },
   lightboxViewport: { alignItems: "center", display: "flex", flex: 1, justifyContent: "center", maxWidth: "100%", overflow: "hidden", touchAction: "none", width: "100%" },
   lightboxControls: { alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", padding: 8 },
   zoomLabel: { color: "#fff", minWidth: 52, textAlign: "center" },
-};
+});

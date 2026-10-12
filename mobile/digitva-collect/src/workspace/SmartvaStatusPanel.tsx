@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
-import { Button, errorText, styles } from "../ui";
+import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { SmartvaStatus, WorkspaceIdentity } from "./contracts";
 
@@ -33,6 +33,7 @@ export function SmartvaStatusPanel({
   visible = true,
   onChanged,
 }: SmartvaStatusPanelProps) {
+  const styles = useUiStyles();
   const contextKey = `${identity.vaSid}:${identity.mode}`;
   const contextRef = useRef({ api, contextKey });
   const generationRef = useRef(0);

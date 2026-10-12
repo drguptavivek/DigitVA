@@ -1,6 +1,6 @@
 import { Text, View } from "react-native";
 
-import { Button, styles } from "../ui";
+import { Button, useUiStyles } from "../ui";
 
 import type { WorkflowEvents } from "./contracts";
 
@@ -22,6 +22,7 @@ export function WorkflowHistory({
   onLatest: () => void;
   onRetry: () => void;
 }) {
+  const styles = useUiStyles();
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Workflow history</Text>

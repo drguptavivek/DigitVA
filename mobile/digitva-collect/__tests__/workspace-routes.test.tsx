@@ -6,7 +6,7 @@ import type { ClientBootstrap } from "../src/client/api";
 let mockRouteParams: Record<string, string> = {};
 let mockAppBootstrap: ClientBootstrap;
 let mockLoadedSession: { authenticated: boolean; bootstrap?: ClientBootstrap };
-const mockRouter = { push: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), setParams: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
 
 function bootstrap(userId: string, roles: string[], isAdmin = false): ClientBootstrap {
@@ -44,7 +44,7 @@ jest.mock("../src/web/common", () => {
 });
 jest.mock("../src/workspace/QueueScreen", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  return { QueueScreen: ({ mode }: { mode: string }) => ReactActual.createElement("queue-screen", { mode }) };
+  return { QueueScreen: ({ mode, onViewChange }: { mode: string; onViewChange: unknown }) => ReactActual.createElement("queue-screen", { mode, onViewChange }) };
 });
 jest.mock("../src/workspace/CaseWorkspaceScreen", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -78,6 +78,31 @@ describe("browser workspace routes", () => {
     const view = renderer.root.findByType("case-workspace" as never);
     expect(view.props).toMatchObject({ mode: "view", vaSid: "authorized-sid" });
     expect(renderer.root.findAllByType("queue-screen" as never)).toHaveLength(0);
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("drops queue params that a case URL inherited", async () => {
+    mockAppBootstrap = bootstrap("current-user", ["coder"]);
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    mockRouteParams = { vaSid: "sid-1", mode: "coding", project: "SADEMO", tab: "history", offset: "50" };
+    const renderer = await render(<WorkspaceScreen />);
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/workspace", params: { vaSid: "sid-1", mode: "coding" } });
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("writes queue params only while the URL names a queue, never onto a case URL", async () => {
+    mockAppBootstrap = bootstrap("current-user", ["coder"]);
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    const renderer = await render(<CodingScreen />);
+    const report = renderer.root.findByType("queue-screen" as never).props.onViewChange;
+    const view = { projectId: "SADEMO", showHistory: true, offset: 0 };
+    Object.defineProperty(window, "location", { configurable: true, value: { search: "" } });
+    report(view);
+    expect(mockRouter.setParams).toHaveBeenCalledWith({ project: "SADEMO", tab: "history", offset: undefined });
+    mockRouter.setParams.mockClear();
+    Object.defineProperty(window, "location", { configurable: true, value: { search: "?vaSid=sid-1&mode=coding" } });
+    report(view); // a late report from the queue that was just left
+    expect(mockRouter.setParams).not.toHaveBeenCalled();
     await act(async () => { renderer.unmount(); });
   });
 

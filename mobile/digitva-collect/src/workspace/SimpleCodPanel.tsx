@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
+import { WhoVaQuestionControls } from "../whoControls";
 import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 
 import { ApiError } from "../api";
-import { Button, errorText, styles } from "../ui";
+import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { IcdSearchItem, WorkspaceAssessment, WorkspacePayload } from "./contracts";
 
@@ -27,6 +27,7 @@ export function SimpleCodPanel({
   onAllocationLost: () => void;
   onDone: () => void;
 }) {
+  const styles = useUiStyles();
   const source = workspace.step === "initial"
     ? identity.mode === "reviewing"
       ? workspace.assessments.reviewer_initial
@@ -153,6 +154,7 @@ function NotCodeablePanel({ api, vaSid, reason, other, onReason, onOther, onDone
   onDone(): void;
   onError(value: string): void;
 }) {
+  const styles = useUiStyles();
   const [busy, setBusy] = useState(false);
   const active = useRef(true);
   const requestGeneration = useRef(0);
@@ -220,6 +222,7 @@ function IcdCodeField({
   onAllocationLost: () => void;
   onChange(value: string): void;
 }) {
+  const styles = useUiStyles();
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<IcdSearchItem[]>([]);
   const [searching, setSearching] = useState(false);
@@ -296,6 +299,7 @@ function IcdCodeField({
 
 /** Render the server-provided Step 1 other-condition choices in their order. */
 function ConditionChoices({ options, selected, onChange }: { options: string[]; selected: string[]; onChange(value: string[]): void }) {
+  const styles = useUiStyles();
   if (!options.length) return null;
   return (
     <View>

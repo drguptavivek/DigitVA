@@ -76,7 +76,7 @@ test("flips only Yes/No colours while retaining the served answer text", () => {
   expect(output).toContain('"children":["Yes"]');
   expect(output).toContain('"children":["No"]');
   expect(output).toContain("#bc2938");
-  expect(output).toContain("#3f9366");
+  expect(output).toContain("#2f7a50");
 });
 
 test("workflow panels order interview summary, source-grouped evidence and notes", () => {

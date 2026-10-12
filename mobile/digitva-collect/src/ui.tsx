@@ -1,13 +1,16 @@
 /** Shared screen chrome and controls. */
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { t, type StringKey } from "./i18n";
-import { controls, palette, radius, spacing, typography, useTheme } from "./theme";
+import { BUTTON_MIN_WIDTH, buttonTone, controls, fontSize, radius, spacing, typography, ui, useTheme, type ButtonSize, type ButtonVariant, type UiTokens } from "./theme";
+
+/** Same phone breakpoint as the DORIS kit. */
+const PHONE_BREAKPOINT = 768;
 
 export function Screen({
   title,
@@ -75,10 +78,20 @@ export function Screen({
   );
 }
 
+/** Legacy `kind` names of the queue and native routes, mapped onto the kit's variants. */
+const KIND_VARIANT = { primary: "default", secondary: "outline", danger: "destructive" } as const;
+
+/**
+ * The app's one button: the DORIS kit's variants (default, secondary, outline, ghost, destructive) and sizes
+ * (sm, default, icon), 40px high (44 on phones), 6px radius, 72px minimum width, 2px focus ring on the web.
+ * `kind` stays as an alias of `variant` for existing callers.
+ */
 export function Button({
   label,
   onPress,
-  kind = "primary",
+  kind,
+  variant = kind ? KIND_VARIANT[kind] : "default",
+  size = "default",
   disabled,
   loading = false,
   accessibilityLabel,
@@ -88,6 +101,8 @@ export function Button({
   label: string;
   onPress: () => void;
   kind?: "primary" | "secondary" | "danger";
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   disabled?: boolean;
   loading?: boolean;
   accessibilityLabel?: string;
@@ -97,42 +112,46 @@ export function Button({
 }) {
   const theme = useTheme();
   const [focused, setFocused] = useState(false);
+  const height = useControlHeight();
   const disabledOrBusy = Boolean(disabled || loading);
-  const colors = theme.colors;
-  const buttonColor = kind === "danger" ? colors.danger : kind === "secondary" ? colors.surface : colors.accent;
-  const textColor = kind === "secondary" ? colors.text : kind === "danger" ? colors.onAccent : colors.onAccent;
+  const tone = buttonTone(theme.ui, variant);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: disabledOrBusy, busy: loading, expanded }}
       disabled={disabledOrBusy}
+      hitSlop={spacing.xxs}
       onPress={onPress}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       style={({ pressed }) => [
         styles.button,
-        {
-          backgroundColor: buttonColor,
-          borderColor: kind === "secondary" ? colors.border : buttonColor,
-          opacity: disabledOrBusy ? 0.5 : pressed ? 0.78 : 1
-        },
-        focused && { borderColor: colors.focus, borderWidth: 2 },
+        { minHeight: height, backgroundColor: tone.bg, borderColor: tone.border, opacity: disabledOrBusy ? 0.5 : pressed ? 0.85 : 1 },
+        size === "sm" && { paddingHorizontal: spacing.sm },
+        size === "icon" && { minWidth: height, paddingHorizontal: 0 },
+        focused && Platform.OS === "web" && ({ outlineStyle: "solid", outlineWidth: 2, outlineColor: theme.ui.ring, outlineOffset: 2 } as ViewStyle),
         style
       ]}
     >
-      <Text style={[styles.buttonText, { color: textColor }]}>{loading ? t("loading") : label}</Text>
+      <Text style={[styles.buttonText, { color: tone.fg }]}>{loading ? t("loading") : label}</Text>
     </Pressable>
   );
+}
+
+/** 40px controls, 44px on phones (the minimum touch target). */
+export function useControlHeight(): number {
+  return useWindowDimensions().width < PHONE_BREAKPOINT ? controls.minTouchTarget : controls.minHeight;
 }
 
 export function Row({ children }: { children: ReactNode }) {
   return <View style={styles.row}>{children}</View>;
 }
 
-function createStyles(colors: (typeof palette)["light"] | (typeof palette)["dark"]) {
+/** Every value is a `ui` token or a theme scale step (src/theme.ts): 40px (44 phone) controls, 6px control radius, 8px card radius, 16px card padding, 12px gaps. */
+function createStyles(t: UiTokens, controlHeight: number = controls.minHeight) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
+    safe: { flex: 1, backgroundColor: t.page },
     body: {
       padding: controls.screenPadding,
       gap: spacing.sm,
@@ -141,23 +160,22 @@ function createStyles(colors: (typeof palette)["light"] | (typeof palette)["dark
       alignSelf: "center"
     },
     fill: { flex: 1 },
-    footer: { paddingHorizontal: controls.screenPadding, paddingVertical: spacing.xs, borderTopWidth: 1 },
+    footer: { paddingHorizontal: controls.screenPadding, paddingVertical: spacing.xs, borderTopWidth: controls.borderWidth },
     frame: { flex: 1, flexDirection: "row", width: "100%", minWidth: 0, position: "relative" },
     mainColumn: { flex: 1, minWidth: 0 },
     mainScroll: { flex: 1, minWidth: 0 },
     debug: {
-      backgroundColor: colors.warning,
-      color: colors.onAccent,
+      backgroundColor: t.warningText,
+      color: t.primaryForeground,
       padding: spacing.xs,
-      minHeight: controls.minHeight,
+      minHeight: controlHeight,
       textAlign: "center",
       textAlignVertical: "center",
       fontWeight: "600"
     },
     title: {
       ...typography.title,
-      paddingTop: spacing.sm,
-      color: colors.text,
+      color: t.foreground,
       fontFamily: controls.fontFamily
     },
     titleWrap: {
@@ -169,61 +187,63 @@ function createStyles(colors: (typeof palette)["light"] | (typeof palette)["dark
       zIndex: 30,
       overflow: "visible"
     },
-    titleBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
-    text: { ...typography.body, color: colors.text, fontFamily: controls.fontFamily },
-    headline: { ...typography.headline, color: colors.text, fontFamily: controls.fontFamily },
-    muted: { ...typography.subhead, color: colors.textMuted, fontFamily: controls.fontFamily },
-    error: { ...typography.subhead, color: colors.danger, fontFamily: controls.fontFamily },
+    titleBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, paddingTop: spacing.sm },
+    text: { ...typography.body, color: t.foreground, fontFamily: controls.fontFamily },
+    headline: { ...typography.headline, color: t.foreground, fontFamily: controls.fontFamily },
+    muted: { ...typography.subhead, color: t.mutedForeground, fontFamily: controls.fontFamily },
+    error: { ...typography.subhead, color: t.destructiveText, fontFamily: controls.fontFamily },
     input: {
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: t.input,
       borderRadius: radius.md,
-      minHeight: controls.minHeight,
+      minHeight: controlHeight,
       paddingHorizontal: spacing.md,
       paddingVertical: spacing.xs,
       ...typography.body,
-      backgroundColor: colors.surface,
-      color: colors.text,
+      backgroundColor: t.background,
+      color: t.foreground,
       fontFamily: controls.fontFamily
     },
     phoneInputRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    phonePrefix: { ...typography.body, color: colors.text, fontFamily: controls.fontFamily, minWidth: 40 },
+    phonePrefix: { ...typography.body, color: t.foreground, fontFamily: controls.fontFamily, minWidth: 40 },
     phoneInput: { flex: 1 },
     authLinks: { gap: spacing.xs },
     button: {
       borderRadius: radius.md,
       borderWidth: 1,
-      minHeight: controls.minHeight,
+      minHeight: controlHeight,
+      minWidth: BUTTON_MIN_WIDTH,
       paddingVertical: spacing.xs,
-      paddingHorizontal: spacing.md,
+      paddingHorizontal: spacing.lg,
       alignItems: "center",
       justifyContent: "center"
     },
-    primary: { backgroundColor: colors.accent },
-    secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-    danger: { backgroundColor: colors.danger },
+    primary: { backgroundColor: t.primary },
+    secondary: { backgroundColor: t.background, borderWidth: 1, borderColor: t.input },
+    danger: { backgroundColor: t.destructive },
     disabled: { opacity: 0.5 },
-    buttonText: { ...typography.headline, color: colors.onAccent, fontFamily: controls.fontFamily },
-    secondaryText: { ...typography.headline, color: colors.text, fontFamily: controls.fontFamily },
+    buttonText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "500", color: t.primaryForeground, fontFamily: controls.fontFamily },
+    secondaryText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "500", color: t.foreground, fontFamily: controls.fontFamily },
     row: { flexDirection: "row", gap: spacing.xs, alignItems: "center", flexWrap: "wrap" },
     card: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.md,
-      padding: spacing.sm,
+      backgroundColor: t.card,
+      borderRadius: radius.lg,
+      padding: controls.cardPadding,
       borderWidth: 1,
-      borderColor: colors.border,
-      gap: spacing.xxs
+      borderColor: t.border,
+      gap: controls.gap
     }
   });
 }
 
 /** Legacy static styles remain light-mode compatible for existing native routes. */
-export const styles = createStyles(palette.light);
+export const styles = createStyles(ui.light);
 
 /** Use this hook when a screen needs styles that follow the selected UI theme. */
 export function useUiStyles() {
   const theme = useTheme();
-  return useMemo(() => createStyles(theme.colors), [theme.mode]);
+  const height = useControlHeight();
+  return useMemo(() => createStyles(theme.ui, height), [theme.mode, height]);
 }
 
 /** The UI string for an error from the device API; never shows server text or answers. */

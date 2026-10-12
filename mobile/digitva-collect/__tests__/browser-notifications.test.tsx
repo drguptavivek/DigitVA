@@ -326,7 +326,7 @@ it("does not carry an old account's pending notification refresh into the next a
   await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
   expect(getCases).toHaveBeenCalledTimes(2);
 
-  await act(async () => { await state.logout(); });
+  await act(async () => { await state.reload(); });
   await settle();
   expect(state.bootstrap?.user.user_id).toBe("u2");
   expect(getCases).toHaveBeenCalledTimes(3);
@@ -381,7 +381,7 @@ it("reloads access after a poll is refused and gates immediate same-user retries
   await act(async () => tree.unmount());
 });
 
-it("ignores an old user's late poll after logout and starts the next user at cursor zero", async () => {
+it("ignores an old user's late poll after an account switch and starts the next user at cursor zero", async () => {
   const pending = deferred<unknown>();
   const userB = { ...userA, user: { user_id: "u2", name: "Next worker" }, access: { ...userA.access, user: { user_id: "u2", name: "Next worker" } } };
   (loadBrowserSession as jest.Mock).mockResolvedValueOnce(sessionA).mockResolvedValueOnce({ authenticated: true, bootstrap: userB });
@@ -396,7 +396,7 @@ it("ignores an old user's late poll after logout and starts the next user at cur
   const tree = await mountProvider();
   expect((requestClientJson as jest.Mock).mock.calls[0][0]).toBe("/api/v1/me/notifications?after=0");
 
-  await act(async () => { await state.logout(); });
+  await act(async () => { await state.reload(); });
   await settle();
   expect(state.bootstrap?.user.user_id).toBe("u2");
   const generationAfterSwitch = state.notificationGeneration;

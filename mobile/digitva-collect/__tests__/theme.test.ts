@@ -11,6 +11,6 @@ describe("shared theme", () => {
     expect(palette.light.accent).toBe("#1D4ED8");
     expect(palette.dark.accent).not.toBe(palette.light.accent);
     expect(getTheme("dark").colors.background).toBe(palette.dark.background);
-    expect(getTheme("light").controls.minTouchTarget).toBe(48);
+    expect(getTheme("light").controls.minTouchTarget).toBe(44);
   });
 });

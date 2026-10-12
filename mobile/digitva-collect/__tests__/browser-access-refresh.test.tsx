@@ -8,7 +8,7 @@ jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value }));
 import { AppStateProvider, useAppState } from "../src/AppState.web";
 import { claimFirstHomeLoad } from "../src/web/roleHome";
 import { loadBrowserSession } from "../src/client/session";
-import { ApiError } from "../src/api";
+import { ApiError, requestClientJson } from "../src/api";
 
 let state: ReturnType<typeof useAppState>;
 function Consumer() { state = useAppState(); return null; }
@@ -18,6 +18,9 @@ const bootstrap = {
   access: { user: { user_id: "u1", name: "Worker" }, is_admin: false, demo_coding: { available: false, project_ids: [] }, projects: [] }
 };
 const session = { authenticated: true, bootstrap };
+const signedOut = { authenticated: false as const, loginUrl: "/vaauth/valogin?next=%2Fapp%2F" };
+const assign = jest.fn();
+const redirect = { status: 0, type: "opaqueredirect", ok: false, redirected: false, headers: { get: () => null }, text: async () => "" } as unknown as Response;
 let handlers: Record<string, () => void>;
 
 beforeEach(() => {
@@ -30,6 +33,8 @@ beforeEach(() => {
     visibilityState: "visible", addEventListener: add, removeEventListener: jest.fn()
   } });
   (loadBrowserSession as jest.Mock).mockResolvedValue(session);
+  assign.mockClear();
+  Object.defineProperty(window, "location", { configurable: true, value: { assign } });
 });
 
 it("refreshes access after refusal and app resume, coalescing concurrent events", async () => {
@@ -98,20 +103,57 @@ function useSessionStorage(): void {
   } });
 }
 
-it("signs out using the browser route with the current cookie CSRF token", async () => {
+it("signs out using the browser route with the current cookie CSRF token, verifies it and navigates hard", async () => {
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
-  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValue({
-    status: 0, type: "opaqueredirect", ok: false, redirected: false,
-    headers: { get: () => null }, text: async () => ""
-  } as unknown as Response);
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValue(redirect);
+  (loadBrowserSession as jest.Mock).mockResolvedValue(signedOut);
   await act(async () => { await state.logout(); });
   expect(fetch).toHaveBeenCalledWith("/vaauth/valogout", expect.objectContaining({
     method: "POST", credentials: "include", redirect: "manual",
     headers: expect.objectContaining({ "X-CSRFToken": "csrf" })
   }));
   expect(loadBrowserSession).toHaveBeenCalledTimes(2);
+  expect(assign).toHaveBeenCalledWith("/vaauth/valogin?next=%2Fapp%2F");
   fetch.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("aborts in-flight requests and repeats the logout while a late request keeps the session alive", async () => {
+  jest.useFakeTimers();
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  const fetch = jest.spyOn(globalThis, "fetch").mockImplementation((_url, init) => {
+    if (init?.method === "POST") return Promise.resolve(redirect);
+    return new Promise((_done, fail) => init?.signal?.addEventListener("abort", () => fail(new Error("aborted"))));
+  });
+  const inFlight = requestClientJson("/api/v1/me/kpis").catch((error: Error) => error.message);
+  (loadBrowserSession as jest.Mock)
+    .mockResolvedValueOnce(session) // the first logout is undone by the request that was still finishing
+    .mockResolvedValue(signedOut);
+  const done = act(async () => { await state.logout(); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(1000); });
+  await done;
+  expect(await inFlight).toBe("aborted");
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2);
+  expect(assign).toHaveBeenCalledTimes(1);
+  fetch.mockRestore();
+  jest.useRealTimers();
+  await act(async () => tree.unmount());
+});
+
+it("does not navigate away while the session still answers after every attempt", async () => {
+  jest.useFakeTimers();
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  const fetch = jest.spyOn(globalThis, "fetch").mockResolvedValue(redirect);
+  const done = act(async () => { await state.logout(); });
+  await act(async () => { await jest.advanceTimersByTimeAsync(5000); });
+  await done;
+  expect(assign).not.toHaveBeenCalled();
+  expect(state.authenticated).toBe(true); // back in the signed-in app, not stranded signed out
+  fetch.mockRestore();
+  jest.useRealTimers();
   await act(async () => tree.unmount());
 });
 
@@ -121,10 +163,8 @@ it("lands on the home again after sign-out in the same tab", async () => {
   expect(claimFirstHomeLoad("u1")).toBe(false);
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
-  jest.spyOn(globalThis, "fetch").mockResolvedValue({
-    status: 0, type: "opaqueredirect", ok: false, redirected: false,
-    headers: { get: () => null }, text: async () => ""
-  } as unknown as Response);
+  jest.spyOn(globalThis, "fetch").mockResolvedValue(redirect);
+  (loadBrowserSession as jest.Mock).mockResolvedValue(signedOut);
   await act(async () => { await state.logout(); });
   expect(claimFirstHomeLoad("u1")).toBe(true);
   await act(async () => tree.unmount());

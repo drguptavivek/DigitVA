@@ -1,4 +1,5 @@
 import React from "react";
+import { AppState, Modal } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 jest.mock("../src/ui", () => {
@@ -8,7 +9,13 @@ jest.mock("../src/ui", () => {
     Button: ({ label, onPress, disabled, accessibilityLabel }: { label: string; onPress: () => void; disabled?: boolean; accessibilityLabel?: string }) => React.createElement(MockPressable, { accessibilityRole: "button", accessibilityLabel: accessibilityLabel ?? label, disabled, onPress }, React.createElement(MockText, null, label)),
     errorText: (error: unknown) => error instanceof Error ? error.message : "Generic error",
     styles: new Proxy({}, { get: () => undefined }),
+    useUiStyles: () => new Proxy({}, { get: () => undefined }),
   };
+});
+
+jest.mock("../src/theme", () => {
+  const actual = jest.requireActual("../src/theme");
+  return { ...actual, useTheme: () => actual.getTheme("light") };
 });
 
 jest.mock("@drguptavivek/who-2022-va/native", () => {
@@ -37,11 +44,15 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
   return { WhoVaQuestionControls: { SingleChoice: (props: any) => React.createElement(Choice, { ...props, multiple: false }), MultipleChoice: (props: any) => React.createElement(Choice, { ...props, multiple: true }) } };
 });
 
+const mockFrame: { props: any } = { props: null };
+jest.mock("../src/workspace/doris/IcdPickerFrame", () => ({ IcdPickerFrame: (props: any) => { mockFrame.props = props; return null; } }));
+
 import { ApiError } from "../src/api";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
-import type { DorisProcessReply, DorisTerm, JsonObject, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
+import type { DorisProcessReply, JsonObject, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
 import { DorisPanel } from "../src/workspace/doris/DorisPanel";
 import { dorisGuidance, parseDorisOptions } from "../src/workspace/doris/guidance";
+import { parseInterval, serializeInterval } from "../src/workspace/doris/interval";
 
 const identity: WorkspaceIdentity = { vaSid: "sid-1", mode: "coding" };
 const certificate: JsonObject = {
@@ -105,6 +116,19 @@ async function flush() {
   await Promise.resolve();
 }
 
+async function flushAll() {
+  for (let tick = 0; tick < 8; tick += 1) await Promise.resolve();
+}
+
+/** Drives the open picker page the way its script does: search, verify with selection-check, then select. */
+async function pickViaPicker(code: string, uri = "https://who.int/Y55") {
+  const reply = jest.fn();
+  await act(async () => { mockFrame.props.onMessage({ t: "req", id: 1, path: "terms", body: { schema_version: 1, query: code, limit: 20, cursor: null } }, reply); await flushAll(); });
+  await act(async () => { mockFrame.props.onMessage({ t: "req", id: 2, path: "selection-check", body: { schema_version: 1, code, uri } }, reply); await flushAll(); });
+  await act(async () => { mockFrame.props.onMessage({ t: "select", choice: { code, uri } }, reply); await flushAll(); });
+  return reply;
+}
+
 function renderPanel(workspace: WorkspacePayload, api: WorkspaceApi, onDone = jest.fn(), request: JsonRequester = jest.fn(async () => ({}))) {
   let tree!: ReactTestRenderer;
   act(() => { tree = create(<DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} />); });
@@ -116,6 +140,19 @@ it("accepts a redacted seed without fabricating administrative data", async () =
   const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
   expect(tree.root.findAllByProps({ accessibilityLabel: "Date of birth" })).toHaveLength(0);
   expect(JSON.stringify(tree.toJSON())).toContain("Administrative data was not supplied");
+  await act(async () => tree.unmount());
+});
+
+it("renders a centred h2 heading with a step subtitle and bounding separators", async () => {
+  const { tree } = renderPanel(makeWorkspace({ seed: certificate }), apiFor());
+  const heading = tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header" && n.props["aria-level"] === 2);
+  expect(heading).toHaveLength(1);
+  const style = Object.assign({}, ...[heading[0].props.style].flat(3).filter(Boolean));
+  expect(style).toMatchObject({ fontWeight: "700", textAlign: "center" });
+  expect(style.fontSize).toBeGreaterThanOrEqual(24);
+  expect(allText(tree)).toContain("DORIS certificate|Step 1");
+  expect(tree.root.findAllByProps({ testID: "doris-heading-separator" }).length).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ testID: "doris-actions-separator" }).length).toBeGreaterThan(0);
   await act(async () => tree.unmount());
 });
 
@@ -131,12 +168,37 @@ it("uses the WHO question control for grouped choices with a real selected radio
   await act(async () => tree.unmount());
 });
 
+it("renders Manner of death as nine radios plus Not stated and writes the numeric code", async () => {
+  const seed: JsonObject = { ...certificate, MannerOfDeath: { MannerOfDeath: 2 } };
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace({ seed }), api);
+  const radios = () => {
+    const seen = new Set<string>();
+    return tree.root.findAll((n) => {
+      const id = n.props.testID;
+      if (typeof id !== "string" || !id.startsWith("question-doris_manner_of_death-choice-") || n.props.accessibilityRole !== "radio" || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  };
+  expect(radios()).toHaveLength(10);
+  expect(radios()[0].props.accessibilityLabel).toBe("Manner of death: Not stated");
+  expect(radios().filter((n) => n.props.accessibilityState.selected).map((n) => n.props.accessibilityLabel)).toEqual(["Manner of death: Intentional self-harm"]);
+  // Choice rows draw the WHO-style 22px radio circle (2px border, full radius).
+  expect(radios()[2].findAll((n) => [n.props.style].flat(3).some((s: any) => s?.width === 22 && s?.borderWidth === 2 && s?.borderRadius === 9999)).length).toBeGreaterThan(0);
+  await act(async () => radios()[4].props.onPress());
+  expect(radios().filter((n) => n.props.accessibilityState.selected).map((n) => n.props.accessibilityLabel)).toEqual(["Manner of death: Assault"]);
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(JSON.stringify((api.processDoris as jest.Mock).mock.calls[0])).toContain('"MannerOfDeath":{"MannerOfDeath":3}');
+  await act(async () => tree.unmount());
+});
+
 it("invalidates the process proof and final choice after a certificate edit", async () => {
   const api = apiFor();
   const { tree } = renderPanel(makeWorkspace(), api);
   await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
   expect(JSON.stringify(tree.toJSON())).toContain("DORIS and CoDEdit");
-  await act(async () => byLabel(tree, "Part I line 1 condition text 1").props.onChangeText("Updated pneumonia"));
+  await act(async () => byLabel(tree, "Part I line 1 interval").props.onChangeText("3"));
   expect(JSON.stringify(tree.toJSON())).not.toContain("DORIS and CoDEdit");
   expect(byLabel(tree, "Save Step 1").props.disabled).toBe(true);
   expect(api.processDoris).toHaveBeenCalledTimes(1);
@@ -148,7 +210,7 @@ it("discards an in-flight process reply after an edit", async () => {
   const api = apiFor({ processDoris: jest.fn(() => new Promise((resolve) => { finish = resolve; })) });
   const { tree } = renderPanel(makeWorkspace(), api);
   await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-  await act(async () => byLabel(tree, "Part I line 1 condition text 1").props.onChangeText("Changed while processing"));
+  await act(async () => byLabel(tree, "Part I line 1 interval").props.onChangeText("4"));
   await act(async () => { finish(processReply); await flush(); });
   expect(JSON.stringify(tree.toJSON())).not.toContain("DORIS and CoDEdit");
   expect(byLabel(tree, "Save Step 1").props.disabled).toBe(true);
@@ -161,10 +223,8 @@ it("installs a fresh 409 result but clears the old final selection for reconfirm
   const api = apiFor({ saveInitial: jest.fn(async () => { throw conflict; }) });
   const { tree } = renderPanel(makeWorkspace(), api);
   await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-  const search = byLabel(tree, "Confirm Step 1 underlying cause search");
-  await act(async () => search.props.onChangeText("Y55"));
-  await act(async () => { byLabel(tree, "Confirm Step 1 underlying cause search").props.onSubmitEditing(); await flush(); });
-  await act(async () => { byLabel(tree, "Use Y55").props.onPress(); await flush(); });
+  await act(async () => byLabel(tree, "Confirm Step 1 underlying cause open search").props.onPress());
+  await pickViaPicker("Y55");
   await act(async () => { byLabel(tree, "Save Step 1").props.onPress(); await flush(); });
   expect(JSON.stringify(tree.toJSON())).toContain("fresh results");
   expect(JSON.stringify(tree.toJSON())).toContain("Fresh server certificate condition");
@@ -184,37 +244,15 @@ it("allows an uncoded immediate cause when the certificate text is valid", async
   await act(async () => tree.unmount());
 });
 
-it("requires WHO postcoordination choices before checking the expression URI", async () => {
-  const term: DorisTerm = { code: "CA40", title: "Pneumonia", uri: "https://who.int/CA40", release: "2025-01", matching_text: "Pneumonia", postcoordination: true, postcoordination_availability: 2, related_maternal: false, related_perinatal: false, has_coding_note: false };
-  const api = apiFor({ searchDorisTerms: jest.fn(async () => ({ schema_version: 1 as const, items: [term], truncated: false, next_cursor: null })) });
-  const request = jest.fn(async (path: string) => path.endsWith("/postcoordination/sid-1")
-    ? { schema_version: 1, stem: { code: "CA40", title: "Pneumonia", uri: "https://who.int/CA40", has_children: false }, axes: [{ id: "axis-1", label: "Laterality", required: true, allow_multiple_values: "NotAllowed", options: [{ code: "R", title: "Right", uri: "urn:right", has_children: false }], subtree_uris: ["urn:axis"], truncated: false }], other_postcoordination: null, truncated: false }
-    : { schema_version: 1, selected: { code: "CA40", title: "Pneumonia", uri: "https://who.int/CA40" }, ancestors: [], siblings: [], children: [], related_maternal: [], related_perinatal: [], truncated: false });
-  const { tree } = renderPanel(makeWorkspace(), api, jest.fn(), request);
-  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-  await act(async () => byLabel(tree, "Confirm Step 1 underlying cause search").props.onChangeText("Pneumonia"));
-  await act(async () => byLabel(tree, "Confirm Step 1 underlying cause search").props.onSubmitEditing());
-  await act(async () => { byLabel(tree, "Inspect WHO code").props.onPress(); await flush(); });
-  expect(request).toHaveBeenCalledWith("/api/v1/doris-clinical/postcoordination/sid-1", expect.anything());
-  expect(request).toHaveBeenCalledWith("/api/v1/doris-clinical/hierarchy/sid-1", expect.anything());
-  expect(api.checkDorisSelection).not.toHaveBeenCalled();
-  await act(async () => byLabel(tree, "Select Laterality R").props.onPress());
-  await act(async () => { byLabel(tree, "Use complete WHO expression").props.onPress(); await flush(); });
-  expect(api.getDorisCodeInfo).toHaveBeenCalledWith("sid-1", "CA40/R");
-  expect(api.checkDorisSelection).toHaveBeenCalledWith("sid-1", "CA40/R", "https://who.int/Y55");
-  await act(async () => tree.unmount());
-});
-
 it("keeps masked Step 2 readonly and sends only its final choice", async () => {
   const api = apiFor();
   const { tree } = renderPanel(makeWorkspace({ step: "final", masked: true, processing: { certificate: { secret: "must-not-render" }, process_token: "must-not-render-either", doris: { status: processReply.doris.status, result: processReply.doris.result }, codedit: { status: processReply.codedit.status, result: processReply.codedit.result } } }), api);
   expect(tree.root.findAllByProps({ accessibilityLabel: "Process current certificate" })).toHaveLength(0);
-  expect(tree.root.findAllByProps({ accessibilityLabel: "Part I line 1 condition text 1" })).toHaveLength(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Part I line 1 interval" })).toHaveLength(0);
   expect(JSON.stringify(tree.toJSON())).toContain("Pneumonia");
   expect(JSON.stringify(tree.toJSON())).not.toContain("must-not-render");
-  await act(async () => byLabel(tree, "Choose and confirm the final underlying cause search").props.onChangeText("Y55"));
-  await act(async () => { byLabel(tree, "Choose and confirm the final underlying cause search").props.onSubmitEditing(); await flush(); });
-  await act(async () => { byLabel(tree, "Use Y55").props.onPress(); await flush(); });
+  await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+  await pickViaPicker("Y55");
   await act(async () => { byLabel(tree, "Save final cause").props.onPress(); await flush(); });
   expect(api.processDoris).not.toHaveBeenCalled();
   expect(api.saveFinal).toHaveBeenCalledWith("sid-1", { conclusive_cod: "Y55" }, "coding");
@@ -241,4 +279,434 @@ it("normalizes nested DORIS guidance errors and validates consumed response fiel
   await expect(dorisGuidance(request, identity, "postcoordination-options", { stem_code: "CA40", axis_id: "axis-1", parent_uri: "urn:parent" }, parseDorisOptions)).rejects.toMatchObject({ code: "INVALID_INPUT", message: "WHO option request was invalid." });
   expect(request).toHaveBeenCalledWith("/api/v1/doris-clinical/postcoordination-options/sid%20with%20spaces", expect.objectContaining({ method: "POST" }));
   expect(() => parseDorisOptions({ schema_version: 1, items: [{}], truncated: false })).toThrow("Invalid DORIS response: items[0].code");
+});
+
+it("parses and serializes ISO 8601 intervals like the web editor", () => {
+  expect(parseInterval("P76Y")).toEqual({ value: "76", unit: "Y", representable: true });
+  expect(parseInterval("PT23H")).toEqual({ value: "23", unit: "H", representable: true });
+  expect(parseInterval("PT5M")).toEqual({ value: "5", unit: "MI", representable: true });
+  expect(parseInterval("P")).toMatchObject({ unit: "unknown", representable: true });
+  expect(parseInterval("P1Y2M").representable).toBe(false);
+  expect(parseInterval(undefined).representable).toBe(false);
+  expect(serializeInterval("76", "Y")).toEqual({ value: "P76Y", error: "" });
+  expect(serializeInterval("23", "H")).toEqual({ value: "PT23H", error: "" });
+  expect(serializeInterval("5", "MI")).toEqual({ value: "PT5M", error: "" });
+  expect(serializeInterval("", "")).toEqual({ value: "", error: "" });
+  expect(serializeInterval("x", "Y").error).not.toBe("");
+  expect(serializeInterval("2", "").error).not.toBe("");
+});
+
+it("starts with three Part I lines and processes with trailing empty lines", async () => {
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace(), api);
+  expect(() => byLabel(tree, "Remove Part I line 3")).not.toThrow();
+  expect(() => byLabel(tree, "Remove Part I line 4")).toThrow();
+  expect(byLabel(tree, "Remove Part I line 1").props.disabled).toBe(true);
+  expect(byLabel(tree, "Move Part I line 3 down").props.disabled).toBe(true);
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(api.processDoris).toHaveBeenCalledTimes(1);
+  expect(JSON.stringify(tree.toJSON())).not.toContain("Complete each Part I line");
+  await act(async () => byLabel(tree, "Remove Part I line 3").props.onPress());
+  expect(() => byLabel(tree, "Remove Part I line 3")).toThrow();
+  await act(async () => tree.unmount());
+});
+
+it("writes Estimated age as an ISO duration from number and unit, and shows unrepresentable values", async () => {
+  const seed: JsonObject = { ...certificate, AdministrativeData: { Sex: 1 } };
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace({ seed }), api);
+  await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
+  await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+  await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(api.processDoris).toHaveBeenCalledWith("sid-1", "coder", expect.any(Number), expect.objectContaining({ AdministrativeData: { Sex: 1, EstimatedAge: "P76Y" } }));
+  await act(async () => tree.unmount());
+
+  const odd = renderPanel(makeWorkspace({ seed: { ...certificate, AdministrativeData: { Sex: 1, EstimatedAge: "P1Y2M" } } }), apiFor());
+  expect(JSON.stringify(odd.tree.toJSON())).toContain("Existing value: P1Y2M");
+  await act(async () => odd.tree.unmount());
+});
+
+it("shows an empty Estimated age input with a placeholder when none is stored", async () => {
+  const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, AdministrativeData: { Sex: 1 } } }), apiFor());
+  const input = byLabel(tree, "Estimated age");
+  expect(input.props.value).toBe("");
+  expect(input.props.placeholder).toBe("Age");
+  expect(JSON.stringify(tree.toJSON())).toContain("Age unit");
+  await act(async () => tree.unmount());
+});
+
+it("adds uncoded text from the picker to a line and removes a condition chip", async () => {
+  const seed: JsonObject = { ICDVersion: "ICD11", Part1: [{ Conditions: [{ Text: "Pneumonia", Code: "CA40", LinearizationURI: "https://who.int/CA40", Interval: "P2D" }] }] };
+  const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+  await act(async () => byLabel(tree, "Open search Part I line 1").props.onPress());
+  expect(mockFrame.props.init).toMatchObject({ title: "Immediate cause", allowUncoded: true });
+  await act(async () => mockFrame.props.onMessage({ t: "uncoded", text: "Fever" }, jest.fn()));
+  expect(JSON.stringify(tree.toJSON())).toContain("Fever ×");
+  await act(async () => byLabel(tree, "Remove condition 2").props.onPress());
+  expect(JSON.stringify(tree.toJSON())).not.toContain("Fever ×");
+  await act(async () => tree.unmount());
+});
+
+it("adds a picker-verified code to the searched line with the line interval", async () => {
+  const seed: JsonObject = { ICDVersion: "ICD11", Part1: [{ Conditions: [{ Text: "Pneumonia", Code: "CA40", LinearizationURI: "https://who.int/CA40", Interval: "P2D" }] }, { Conditions: [] }] };
+  const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+  await act(async () => byLabel(tree, "Open search Part I line 2").props.onPress());
+  expect(mockFrame.props.init).toMatchObject({ title: "Due to", accent: "#B45309" });
+  await pickViaPicker("Y55");
+  expect(JSON.stringify(tree.toJSON())).toContain("Y55 — Selected cause ×");
+  await act(async () => tree.unmount());
+});
+
+function allText(tree: ReactTestRenderer): string {
+  const out: string[] = [];
+  const walk = (node: any) => { if (typeof node === "string") out.push(node); else if (node?.children) node.children.forEach(walk); };
+  walk(tree.toJSON());
+  return out.join("|");
+}
+
+const whoSeed: JsonObject = {
+  ...certificate,
+  AdministrativeData: { Sex: 2, DateBirth: "1990-05-06" },
+  MannerOfDeath: { MannerOfDeath: 0 },
+};
+
+const fullSeed: JsonObject = { ...whoSeed, MannerOfDeath: { MannerOfDeath: 2 }, Surgery: { WasPerformed: 1, Reason: "Appendectomy" }, Autopsy: { WasRequested: 1 } };
+
+it("uses the WHO headings, in WHO order, with Part 2 and each WHO card as its own tile", async () => {
+  const { tree } = renderPanel(makeWorkspace({ seed: fullSeed }), apiFor());
+  const text = allText(tree);
+  const order = ["Administrative Data", "Frame A: Medical data", "Part 1: Cause of death", "Part 2: Other significant conditions contributing to death", "Significant conditions contributing to death", "Manner of death", "Fetal or infant death *", "Information on pregnancy", "Surgery", "Autopsy", "*fields are not mandatory"];
+  const positions = order.map((heading) => text.indexOf(heading));
+  expect(positions.every((position) => position >= 0)).toBe(true);
+  expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+  // Part 2 is one heading; the other cards are not nested under it as extra "Part 2" headings.
+  expect(text.match(/Part 2:/g)).toHaveLength(1);
+  for (const gone of ["Certificate context", "Part II", "Not set", "Time unit"]) expect(text).not.toContain(gone);
+  for (const label of ["Stillborn?", "If death within 24h specify number of hours survived", "Birth weight (in grams)", "Number of completed weeks of pregnancy", "Age of mother (years)", "If yes please specify date of surgery*", "If yes please specify reason for surgery (disease or condition)*", "Was an autopsy requested?*", "If yes were the findings used in the certification?*", "If external cause or poisoning:*", "Place of occurrence of the external cause:*"]) expect(text).toContain(label);
+  await act(async () => tree.unmount());
+});
+
+it("prefixes Part I lines with A to E and labels the interval fields with one Onset to death label", async () => {
+  const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, Part1: [1, 2, 3, 4, 5].map((n) => ({ Conditions: [{ Text: `Cause ${n}`, Interval: "P1D" }] })) } }), apiFor());
+  for (const letter of ["A", "B", "C", "D", "E"]) expect(() => byLabel(tree, `Line ${letter}`)).not.toThrow();
+  const text = allText(tree);
+  expect(text).toContain("Immediate cause");
+  expect(text).toContain("Due to");
+  expect(text).not.toMatch(/Due to \d|Immediate cause \d/);
+  expect(text).toContain("Onset to death");
+  expect(text).not.toContain("Time unit");
+  expect(byLabel(tree, "Part I line 1 interval").props.placeholder).toBe("Interval");
+  await act(async () => tree.unmount());
+});
+
+it("shows a stored MannerOfDeath 0 as the Disease radio, keeps numeric fields numeric and omits blanks", async () => {
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+  const selected = tree.root.findAll((n) => typeof n.props.testID === "string" && n.props.testID.startsWith("question-doris_manner_of_death-") && n.props.accessibilityState?.selected === true);
+  expect([...new Set(selected.map((n) => n.props.accessibilityLabel))]).toEqual(["Manner of death: Disease"]);
+  const weeks = byLabel(tree, "Number of completed weeks of pregnancy");
+  expect(weeks.props.keyboardType).toBe("numeric");
+  await act(async () => weeks.props.onChangeText("3x6"));
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(((api.processDoris as jest.Mock).mock.calls[0][3] as JsonObject).FetalOrInfantDeath).toEqual({ PregnancyWeeks: 36 });
+  await act(async () => weeks.props.onChangeText(""));
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(((api.processDoris as jest.Mock).mock.calls[1][3] as JsonObject).FetalOrInfantDeath).toBeUndefined();
+  await act(async () => tree.unmount());
+});
+
+it("greys the pregnancy follow-ups until the first answer is Yes", async () => {
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace({ seed: { ...whoSeed, MaternalDeath: { WasPregnant: 0 } } }), api);
+  const followUp = () => tree.root.findAll((n) => n.props.testID === "question-doris_time_from_pregnancy-choice-1" && n.props.accessibilityRole === "radio")[0];
+  expect(followUp().props.accessibilityState.disabled).toBe(true);
+  await act(async () => tree.root.findAll((n) => n.props.testID === "question-doris_was_pregnant-choice-1")[0].props.onPress());
+  expect(followUp().props.accessibilityState.disabled).toBe(false);
+  await act(async () => followUp().props.onPress());
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(((api.processDoris as jest.Mock).mock.calls[0][3] as JsonObject).MaternalDeath).toEqual({ WasPregnant: 1, TimeFromPregnancy: 1 });
+  await act(async () => tree.unmount());
+});
+
+it("shows the interview provenance text beside every prefilled field", async () => {
+  const workspace = makeWorkspace({ seed: fullSeed });
+  workspace.doris!.prefill_provenance = {
+    "AdministrativeData.DateBirth": { sources: ["Id10020"] },
+    "MannerOfDeath.MannerOfDeath": { sources: ["Id10077"], note: "injury" },
+    "Surgery.Reason": { sources: ["Id10200", "Id10201"] },
+  };
+  const { tree } = renderPanel(workspace, apiFor());
+  const text = allText(tree);
+  expect(text).toContain("from interview (Id10020)");
+  expect(text).toContain("from interview (Id10077; injury)");
+  expect(text).toContain("from interview (Id10200, Id10201)");
+  await act(async () => tree.unmount());
+});
+
+it("renders the date fields as calendar fields and writes ISO dates", async () => {
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace({ seed: fullSeed }), api);
+  expect(byLabel(tree, "Date of birth").props.accessibilityValue).toEqual({ text: "1990-05-06" });
+  expect(() => byLabel(tree, "Date of death")).not.toThrow();
+  expect(() => byLabel(tree, "Date of injury")).not.toThrow();
+  expect(() => byLabel(tree, "If yes please specify date of surgery*")).not.toThrow();
+  await act(async () => tree.unmount());
+});
+
+it("restyles the not-codeable reasons as radio rows with their served ids", async () => {
+  const { tree } = renderPanel(makeWorkspace(), apiFor());
+  const row = tree.root.findAll((n) => n.props.testID === "question-doris_not_codeable-choice-no_info" && n.props.accessibilityRole === "radio")[0];
+  expect(row.findAll((n) => [n.props.style].flat(3).some((s: any) => s?.width === 22 && s?.borderWidth === 2 && s?.borderRadius === 9999)).length).toBeGreaterThan(0);
+  await act(async () => tree.unmount());
+});
+
+it("sends ICDVersion even when the served seed holds only prefilled answers", async () => {
+  const api = apiFor();
+  const seed: JsonObject = { AdministrativeData: { Sex: 1 }, Part1: [{ Conditions: [{ Text: "Pneumonia", Code: "CA40.Z", LinearizationURI: "https://who.int/CA40", Interval: "P2D" }] }] };
+  const { tree } = renderPanel(makeWorkspace({ seed }), api);
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(api.processDoris).toHaveBeenCalledWith("sid-1", "coder", expect.any(Number), expect.objectContaining({ ICDVersion: "ICD11" }));
+  await act(async () => tree.unmount());
+});
+
+// Policy docs/policy/doris-certificate-rules.md ("Hiding clears the control ... old values are never resurrected")
+// and the Flask editor (doris_clinical.js applyRules -> clearControls) both blank a hidden section the moment it hides.
+const choose = (tree: ReactTestRenderer, name: string, value: number) => act(async () => tree.root.findAll((n) => n.props.testID === `question-${name}-choice-${value}` && n.props.accessibilityRole === "radio")[0].props.onPress());
+const sentCertificate = async (tree: ReactTestRenderer, api: WorkspaceApi): Promise<JsonObject> => {
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  const calls = (api.processDoris as jest.Mock).mock.calls;
+  return calls[calls.length - 1][3] as JsonObject;
+};
+
+it("blanks MaternalDeath when sex goes Female to Male and back, as the web editor does", async () => {
+  const api = apiFor();
+  const seed: JsonObject = { ...whoSeed, MaternalDeath: { WasPregnant: 1, TimeFromPregnancy: 1 } };
+  const { tree } = renderPanel(makeWorkspace({ seed }), api);
+  expect((await sentCertificate(tree, api)).MaternalDeath).toEqual({ WasPregnant: 1, TimeFromPregnancy: 1 });
+  await choose(tree, "doris_sex", 1);
+  expect(allText(tree)).toContain("not applicable when the selected sex is male");
+  await choose(tree, "doris_sex", 2);
+  expect((await sentCertificate(tree, api)).MaternalDeath).toBeUndefined();
+  await act(async () => tree.unmount());
+});
+
+it("blanks surgery date and reason when Surgery goes Yes to No and back to Yes", async () => {
+  const api = apiFor();
+  const seed: JsonObject = { ...whoSeed, Surgery: { WasPerformed: 1, Date: "2025-01-02", Reason: "Appendicitis" } };
+  const { tree } = renderPanel(makeWorkspace({ seed }), api);
+  expect((await sentCertificate(tree, api)).Surgery).toEqual({ WasPerformed: 1, Date: "2025-01-02", Reason: "Appendicitis" });
+  await choose(tree, "doris_surgery_performed", 0);
+  await choose(tree, "doris_surgery_performed", 1);
+  expect((await sentCertificate(tree, api)).Surgery).toEqual({ WasPerformed: 1 });
+  await act(async () => tree.unmount());
+});
+
+it("blanks FetalOrInfantDeath when the age unit moves to Years and back to Months", async () => {
+  const api = apiFor();
+  const seed: JsonObject = { ...whoSeed, AdministrativeData: { Sex: 2, EstimatedAge: "P6M" }, FetalOrInfantDeath: { BirthWeight: 3000 } };
+  const { tree } = renderPanel(makeWorkspace({ seed }), api);
+  expect((await sentCertificate(tree, api)).FetalOrInfantDeath).toEqual({ BirthWeight: 3000 });
+  await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+  await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
+  await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+  await act(async () => byLabel(tree, "Estimated age unit: Months").props.onPress());
+  expect((await sentCertificate(tree, api)).FetalOrInfantDeath).toBeUndefined();
+  await act(async () => tree.unmount());
+});
+
+it("drops the open ICD picker and its typed query when the app goes to the background", async () => {
+  let onChange: ((state: string) => void) | undefined;
+  const spy = jest.spyOn(AppState, "addEventListener").mockImplementation((_event, listener) => { onChange = listener as (state: string) => void; return { remove: () => undefined } as never; });
+  mockFrame.props = null;
+  const api = apiFor();
+  const request: JsonRequester = jest.fn(async () => ({}));
+  const element = (workspace: WorkspacePayload) => <DorisPanel workspace={workspace} identity={identity} api={api} request={request} onSaved={async () => undefined} onDone={jest.fn()} />;
+  let tree!: ReactTestRenderer;
+  act(() => { tree = create(element(makeWorkspace({ seed: { ...certificate } }))); });
+  await act(async () => byLabel(tree, "Open search Part I line 1").props.onPress());
+  expect(mockFrame.props).not.toBeNull();
+  await act(async () => { onChange?.("background"); });
+  expect(onChange).toBeDefined();
+  // Returning reloads the workspace; the editor restarts but must not reopen the picker.
+  mockFrame.props = null;
+  await act(async () => { onChange?.("active"); tree.update(element(makeWorkspace({ seed: { ...certificate } }))); });
+  expect(byLabel(tree, "Process current certificate")).toBeTruthy();
+  expect(mockFrame.props).toBeNull();
+  spy.mockImplementation(() => ({ remove: () => undefined }) as never);
+  await act(async () => tree.unmount());
+});
+
+it("ignores an uncoded picker message in final-cause mode and keeps the picker open", async () => {
+  const api = apiFor();
+  const { tree } = renderPanel(makeWorkspace(), api);
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  await act(async () => byLabel(tree, "Confirm Step 1 underlying cause open search").props.onPress());
+  expect(mockFrame.props.init.allowUncoded).toBe(false);
+  expect(tree.root.findAllByType(Modal)).toHaveLength(1);
+  await act(async () => mockFrame.props.onMessage({ t: "uncoded", text: "Fever" }, jest.fn()));
+  expect(tree.root.findAllByType(Modal)).toHaveLength(1);
+  // Control: a close message does dismiss it.
+  await act(async () => mockFrame.props.onMessage({ t: "close" }, jest.fn()));
+  expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+  await act(async () => tree.unmount());
+});
+
+function processedCertificate(api: WorkspaceApi, call = 0): JsonObject {
+  return (api.processDoris as jest.Mock).mock.calls[call][3] as JsonObject;
+}
+
+describe("clear and precision controls", () => {
+  const withProvenance = (seed: JsonObject, provenance: JsonObject = {}) => {
+    const workspace = makeWorkspace({ seed });
+    workspace.doris!.prefill_provenance = provenance;
+    return workspace;
+  };
+  const process = async (tree: ReactTestRenderer) => { await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); }); };
+  const has = (tree: ReactTestRenderer, label: string) => tree.root.findAllByProps({ accessibilityLabel: label }).length > 0;
+
+  it("clears a choice group to unset, only while it has a value, and drops its interview badge", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(withProvenance({ ...whoSeed, MannerOfDeath: { MannerOfDeath: 1 } }, { "MannerOfDeath.MannerOfDeath": { sources: ["Id10077"] } }), api);
+    expect(has(tree, "Clear Stillborn?")).toBe(false);
+    expect(has(tree, "Clear Sex")).toBe(true);
+    expect(allText(tree)).toContain("from interview (Id10077)");
+    await act(async () => byLabel(tree, "Clear Manner of death").props.onPress());
+    expect(has(tree, "Clear Manner of death")).toBe(false);
+    expect(allText(tree)).not.toContain("from interview (Id10077)");
+    expect(has(tree, "If external cause or poisoning:*")).toBe(false);
+    await process(tree);
+    expect(processedCertificate(api).MannerOfDeath).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
+  it("clears a date with a precision but keeps the chosen precision", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...whoSeed, AdministrativeData: { Sex: 1, DateBirth: "1997" } } }), api);
+    expect(byLabel(tree, "Date of birth precision").props.accessibilityValue).toEqual({ text: "Year" });
+    expect(tree.root.findByProps({ accessibilityLabel: "Date of birth", placeholder: "Year" }).props.value).toBe("1997");
+    await act(async () => byLabel(tree, "Clear Date of birth").props.onPress());
+    expect(has(tree, "Clear Date of birth")).toBe(false);
+    expect(byLabel(tree, "Date of birth precision").props.accessibilityValue).toEqual({ text: "Year" });
+    expect(tree.root.findByProps({ accessibilityLabel: "Date of birth", placeholder: "Year" }).props.value).toBe("");
+    await act(async () => tree.unmount());
+  });
+
+  it("stores a year-month date of injury and a year-only date of surgery in the certificate", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...fullSeed, MannerOfDeath: { MannerOfDeath: 1 } } }), api);
+    for (const [label, name] of [["Date of injury", "Year-Month"], ["If yes please specify date of surgery*", "Year"]]) {
+      await act(async () => byLabel(tree, `${label} precision`).props.onPress());
+      await act(async () => byLabel(tree, `${label} precision: ${name}`).props.onPress());
+    }
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "If yes please specify date of surgery*", placeholder: "Year" }).props.onChangeText("2025"));
+    expect(has(tree, "Date of death precision")).toBe(false);
+    await process(tree);
+    expect((processedCertificate(api).Surgery as JsonObject).Date).toBe("2025");
+    await act(async () => tree.unmount());
+  });
+
+  it("keeps a prefilled partial date of death as stored, in a text field, until replaced", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...whoSeed, AdministrativeData: { DateDeath: "2020-05" } } }), api);
+    const text = () => tree.root.findByProps({ accessibilityLabel: "Date of death", placeholder: "YYYY-MM-DD" });
+    expect(text().props.value).toBe("2020-05");
+    await act(async () => text().props.onChangeText("2020-05-1"));
+    await act(async () => text().props.onChangeText("2020-05-14"));
+    await process(tree);
+    expect((processedCertificate(api).AdministrativeData as JsonObject).DateDeath).toBe("2020-05-14");
+    await act(async () => tree.unmount());
+  });
+
+  it("clears number and multi-line text inputs from the single ✕ in the label row", async () => {
+    const api = apiFor();
+    const seed = { ...whoSeed, FetalOrInfantDeath: { BirthWeight: 3200, PerinatalDescription: "Mother had fever" } };
+    const { tree } = renderPanel(makeWorkspace({ seed }), api);
+    await act(async () => byLabel(tree, "Clear Birth weight (in grams)").props.onPress());
+    expect(has(tree, "Clear Birth weight (in grams)")).toBe(false);
+    await act(async () => byLabel(tree, "Clear If death was perinatal, please state conditions of mother that affected the fetus and newborn").props.onPress());
+    await process(tree);
+    expect(processedCertificate(api).FetalOrInfantDeath).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
+  it("keeps the Administrative Data card after its last answered field is cleared", async () => {
+    const seed = { ...whoSeed, AdministrativeData: { Sex: 1, EstimatedAge: "P5Y", DateBirth: "1997", DateDeath: "2020-05-14" } };
+    const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+    expect(has(tree, "Clear Sex")).toBe(true);
+    for (const label of ["Clear Sex", "Clear Estimated age", "Clear Date of birth", "Clear Date of death"]) await act(async () => byLabel(tree, label).props.onPress());
+    expect(has(tree, "Clear Date of death")).toBe(false);
+    expect(allText(tree)).toContain("Administrative Data");
+    expect(has(tree, "Date of birth")).toBe(true);
+    expect(has(tree, "Estimated age")).toBe(true);
+    expect(allText(tree)).not.toContain("Administrative data was not supplied");
+    await act(async () => byLabel(tree, "Sex: Female").props.onPress());
+    expect(has(tree, "Clear Sex")).toBe(true);
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("search box auto-open", () => {
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.useRealTimers(); });
+  const seed: JsonObject = { ICDVersion: "ICD11", Part1: [{ Conditions: [{ Text: "Pneumonia", Code: "CA40", LinearizationURI: "https://who.int/CA40", Interval: "P2D" }] }] };
+  const type = async (tree: ReactTestRenderer, text: string) => act(async () => byLabel(tree, "Search Part I line 1 condition").props.onChangeText(text));
+  const wait = async (ms: number) => act(async () => { jest.advanceTimersByTime(ms); });
+
+  it("opens the picker on the typed term 500 ms after 3 characters and clears the box", async () => {
+    mockFrame.props = null;
+    const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+    await type(tree, "pne");
+    await wait(499);
+    expect(mockFrame.props).toBeNull();
+    await wait(1);
+    expect(mockFrame.props.init).toMatchObject({ title: "Immediate cause", query: "pne" });
+    expect(byLabel(tree, "Search Part I line 1 condition").props.value).toBe("");
+    await act(async () => tree.unmount());
+  });
+
+  it("restarts the pause on each keystroke and ignores 1-2 characters and whitespace", async () => {
+    mockFrame.props = null;
+    const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+    await type(tree, "pn");
+    await wait(2000);
+    await type(tree, "   ");
+    await wait(2000);
+    await type(tree, " pn ");
+    await wait(2000);
+    expect(mockFrame.props).toBeNull();
+    await type(tree, "pne");
+    await wait(400);
+    await type(tree, "pneu");
+    await wait(400);
+    expect(mockFrame.props).toBeNull();
+    await wait(100);
+    expect(mockFrame.props.init.query).toBe("pneu");
+    await act(async () => tree.unmount());
+  });
+
+  it("clearing the box cancels the pending open; Enter still opens at once and the timer does not fire after", async () => {
+    mockFrame.props = null;
+    const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+    await type(tree, "pneu");
+    await type(tree, "");
+    await wait(2000);
+    expect(mockFrame.props).toBeNull();
+    await type(tree, "fev");
+    await act(async () => byLabel(tree, "Search Part I line 1 condition").props.onSubmitEditing());
+    expect(mockFrame.props.init.query).toBe("fev");
+    mockFrame.props = null;
+    await wait(2000);
+    expect(mockFrame.props).toBeNull();
+    await act(async () => tree.unmount());
+  });
+
+  it("does not fire after unmount", async () => {
+    mockFrame.props = null;
+    const { tree } = renderPanel(makeWorkspace({ seed }), apiFor());
+    await type(tree, "pneu");
+    await act(async () => tree.unmount());
+    await wait(2000);
+    expect(mockFrame.props).toBeNull();
+  });
 });

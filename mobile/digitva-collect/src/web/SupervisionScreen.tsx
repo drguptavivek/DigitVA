@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
-import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
+import { WhoVaQuestionControls } from "../whoControls";
 
 import { useAppState } from "../AppState";
 import { listCases, SUPERVISION_STATES, type SupervisedCase } from "../supervision/api";

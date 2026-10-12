@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import { Button, Screen, styles } from "../ui";
+import { Button, Screen, useUiStyles } from "../ui";
 import type { WorkspaceCategoryNav, WorkspaceIdentity, WorkspacePayload } from "./contracts";
 
 export type WorkspaceLayoutProps = {
@@ -27,6 +27,7 @@ export function WorkspaceLayout({
   onExit,
   children,
 }: WorkspaceLayoutProps) {
+  const styles = useUiStyles();
   return (
     <Screen title={workspace.case.instance_name} headerAction={<Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={(
       <ScrollView accessibilityLabel="Case categories" style={styles.card}>

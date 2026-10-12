@@ -20,7 +20,7 @@ import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
-import { useTheme } from "../theme";
+import { radius, useTheme } from "../theme";
 import { applyTranslations } from "../translations";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
@@ -885,9 +885,9 @@ async function translatedInstrument(
 
 const languageStyles = StyleSheet.create({
   anchor: { position: "relative", zIndex: 20 },
-  trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  triggerText: { fontSize: 17, fontWeight: "700" },
-  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: 12, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
+  trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  triggerText: { fontSize: 16, fontWeight: "700" },
+  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4 },
   option: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
   optionLabel: { fontSize: 16, lineHeight: 22, flexShrink: 1 },
   check: { width: 20, fontSize: 18, fontWeight: "700", textAlign: "center" }

@@ -42,7 +42,7 @@ const mockHasServed = jest.fn(() => false);
 const mockMarkServed = jest.fn(async () => undefined);
 jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams}));
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
-jest.mock("../src/theme", () => ({useTheme: () => ({colors: {}})}));
+jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, useTheme: () => ({colors: {}})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
   useUiStyles: () => ({}),

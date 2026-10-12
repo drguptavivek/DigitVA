@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Text, TextInput, View, useWindowDimensions } from "react-native";
-import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
 import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 
-import { Button, styles } from "../ui";
+import { Button, useUiStyles } from "../ui";
+import { WhoVaQuestionControls } from "../whoControls";
+import { choiceColumnsFor } from "../whoWebTheme";
 import type { NarrativeQuality, SocialAutopsy } from "./contracts";
 
 /** Edits the server-ordered narrative quality and social-autopsy gates. */
@@ -19,17 +20,17 @@ export function QualityPanels({
   onSaveSocialAutopsy: (body: { selected_options: Array<{ delay_level: string; option_code: string }>; remark: string }) => Promise<void>;
 }) {
   const { width } = useWindowDimensions();
-  const choiceColumns = width < 480 ? 1 : width < 900 ? 2 : 3;
   return (
     <View>
-      {narrative ? <NarrativePanel key="narrative" data={narrative} choiceColumns={choiceColumns} onSave={onSaveNarrative} /> : null}
-      {socialAutopsy ? <SocialAutopsyPanel key="social-autopsy" data={socialAutopsy} choiceColumns={choiceColumns} onSave={onSaveSocialAutopsy} /> : null}
+      {narrative ? <NarrativePanel key="narrative" data={narrative} width={width} onSave={onSaveNarrative} /> : null}
+      {socialAutopsy ? <SocialAutopsyPanel key="social-autopsy" data={socialAutopsy} width={width} onSave={onSaveSocialAutopsy} /> : null}
     </View>
   );
 }
 
 /** Render and save the ordered server-defined narrative quality fields. */
-function NarrativePanel({ data, choiceColumns, onSave }: { data: NarrativeQuality; choiceColumns: number; onSave(body: { cannot_grade: boolean; [key: string]: string | number | boolean }): Promise<void> }) {
+function NarrativePanel({ data, width, onSave }: { data: NarrativeQuality; width: number; onSave(body: { cannot_grade: boolean; [key: string]: string | number | boolean }): Promise<void> }) {
+  const styles = useUiStyles();
   const [values, setValues] = useState<Record<string, number>>(() => data.saved?.values ?? {});
   const [cannotGrade, setCannotGrade] = useState(() => data.saved?.cannot_grade ?? false);
   const [busy, setBusy] = useState(false);
@@ -55,7 +56,7 @@ function NarrativePanel({ data, choiceColumns, onSave }: { data: NarrativeQualit
             data={{}}
             locale="en"
             issues={[]}
-            choiceColumns={choiceColumns}
+            choiceColumns={choiceColumnsFor(width, field.options.map((option) => option.label))}
             onAnswer={(value) => {
               if (typeof value === "string" && /^-?\d+$/.test(value)) {
                 setValues((current) => ({ ...current, [field.key]: Number(value) }));
@@ -83,7 +84,8 @@ function NarrativePanel({ data, choiceColumns, onSave }: { data: NarrativeQualit
 }
 
 /** Require an answer for each server-defined delay level and keep `none` exclusive. */
-function SocialAutopsyPanel({ data, choiceColumns, onSave }: { data: SocialAutopsy; choiceColumns: number; onSave(body: { selected_options: Array<{ delay_level: string; option_code: string }>; remark: string }): Promise<void> }) {
+function SocialAutopsyPanel({ data, width, onSave }: { data: SocialAutopsy; width: number; onSave(body: { selected_options: Array<{ delay_level: string; option_code: string }>; remark: string }): Promise<void> }) {
+  const styles = useUiStyles();
   const [selected, setSelected] = useState<Record<string, string[]>>(() => selectedMap(data));
   const [remark, setRemark] = useState(data.saved?.remark ?? "");
   const [busy, setBusy] = useState(false);
@@ -106,7 +108,7 @@ function SocialAutopsyPanel({ data, choiceColumns, onSave }: { data: SocialAutop
             data={{}}
             locale="en"
             issues={[]}
-            choiceColumns={choiceColumns}
+            choiceColumns={choiceColumnsFor(width, question.options.map((option) => option.description ? `${option.label} — ${option.description}` : option.label))}
             onAnswer={(value) => {
               if (!Array.isArray(value)) return;
               const next = value.map(String);

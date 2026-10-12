@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState as NativeAppState, Platform, Text, View } from "react-native";
 
 import { ApiError } from "../api";
-import { Button, Screen, errorText, styles } from "../ui";
+import { Button, Screen, errorText, useUiStyles } from "../ui";
 import { CategoryPanel, CategoryValue } from "./CategoryPanel";
 import { PrivateNotePanel } from "./PrivateNotePanel";
 import { QualityPanels } from "./QualityPanels";
@@ -12,6 +12,7 @@ import { SmartvaStatusPanel } from "./SmartvaStatusPanel";
 import { WorkflowHistory } from "./WorkflowHistory";
 import type { WorkspaceApi } from "./api";
 import type { CategoryPayload, NotePayload, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
+import { browserSessionStore, clearScroll, resolveSection } from "./viewState";
 import { WorkspaceLayout } from "./WorkspaceLayout";
 
 /** Own the secured, allocation-scoped workspace lifecycle and render its ordered categories. */
@@ -22,6 +23,8 @@ export function CaseWorkspaceScreen({
   onDone,
   renderDoris,
   renderMedia,
+  section,
+  onSectionChange,
 }: {
   identity: WorkspaceIdentity;
   api: WorkspaceApi;
@@ -29,7 +32,12 @@ export function CaseWorkspaceScreen({
   onDone?: () => void;
   renderDoris?: (workspace: WorkspacePayload, onSaved: () => Promise<void>, onDone: () => void) => ReactNode;
   renderMedia?: (attachmentPath: string) => ReactNode;
+  /** Section code from the route (`?section=`); unknown or missing falls back to the server default. */
+  section?: string;
+  /** Called when the user picks a section, so the route can record it (replace, not push). */
+  onSectionChange?: (code: string) => void;
 }) {
+  const styles = useUiStyles();
   const [loadedWorkspace, setLoadedWorkspace] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: WorkspacePayload } | null>(null);
   const [loadedCategory, setLoadedCategory] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: CategoryPayload } | null>(null);
   const [selectedCode, setSelectedCode] = useState("");
@@ -58,16 +66,20 @@ export function CaseWorkspaceScreen({
     && (typeof document === "undefined" || document.visibilityState === "visible"), []);
   const context = useRef({ api, vaSid: identity.vaSid, mode: identity.mode });
   context.current = { api, vaSid: identity.vaSid, mode: identity.mode };
-  const callbacks = useRef({ onExit, onDone });
-  callbacks.current = { onExit, onDone };
+  const pendingSection = useRef(section);
+  const callbacks = useRef({ onExit, onDone, onSectionChange });
+  callbacks.current = { onExit, onDone, onSectionChange };
+  /** Leaving the case forgets its saved scroll offsets. */
+  const leave = useCallback(() => clearScroll(browserSessionStore(), context.current.mode, context.current.vaSid), []);
   const workspace = loadedWorkspace?.vaSid === identity.vaSid && loadedWorkspace.mode === identity.mode && loadedWorkspace.api === api ? loadedWorkspace.payload : null;
   const category = loadedCategory?.vaSid === identity.vaSid && loadedCategory.mode === identity.mode && loadedCategory.api === api ? loadedCategory.payload : null;
   const currentEvents = loadedEvents?.vaSid === identity.vaSid && loadedEvents.mode === identity.mode && loadedEvents.api === api ? loadedEvents : null;
   const events = currentEvents?.payload ?? null;
 
   const finish = useCallback(() => {
+    leave();
     (callbacks.current.onDone ?? callbacks.current.onExit)();
-  }, []);
+  }, [leave]);
 
   const loseAllocation = useCallback(() => {
     generation.current += 1;
@@ -81,8 +93,9 @@ export function CaseWorkspaceScreen({
     setHistoryLoading(false);
     setHistoryRetryCursor(null);
     setError(identity.mode === "view" ? "You no longer have access to this case." : "Your case allocation is no longer active.");
+    leave();
     callbacks.current.onExit();
-  }, [identity.mode]);
+  }, [identity.mode, leave]);
 
   const loadEvents = useCallback(async (cursor: string | undefined, workspaceRequest: number) => {
     if (eventInFlight.current !== null || identity.mode !== "view" || !canReadPrivateData()) return;
@@ -115,7 +128,7 @@ export function CaseWorkspaceScreen({
     }
   }, [api, canReadPrivateData, identity.mode, identity.vaSid, loseAllocation]);
 
-  const loadCategory = useCallback(async (code: string, workspaceRequest: number) => {
+  const loadCategory = useCallback(async (code: string, workspaceRequest: number, keepContent = false) => {
     if (!canReadPrivateData()) return;
     const request = ++categoryGeneration.current;
     const current = () => generation.current === workspaceRequest
@@ -126,8 +139,12 @@ export function CaseWorkspaceScreen({
       && context.current.mode === identity.mode;
     setSelectedCode(code);
     selectedCategory.current = code;
-    setLoadedCategory(null);
-    setCategoryLoading(true);
+    // A refresh of the section already on screen (after a save) keeps its content until the new one
+    // arrives, so the page does not collapse and jump to the top.
+    if (!keepContent) {
+      setLoadedCategory(null);
+      setCategoryLoading(true);
+    }
     setError("");
     try {
       const result = await api.getCategory(identity.vaSid, code, identity.mode);
@@ -170,10 +187,12 @@ export function CaseWorkspaceScreen({
       if (!current()) return;
       setLoadedWorkspace({ vaSid: identity.vaSid, mode: identity.mode, api, payload: result });
       setLoading(false);
-      const preferred = preserveCategory === undefined ? result.default_category : selectedCategory.current || preserveCategory;
+      const wanted = preserveCategory === undefined ? resolveSection(result.categories, pendingSection.current) : undefined;
+      pendingSection.current = undefined;
+      const preferred = preserveCategory === undefined ? wanted ?? result.default_category : selectedCategory.current || preserveCategory;
       const defaultCategory = result.categories.find((item) => item.code === preferred)
         ?? result.categories.find((item) => item.code === result.default_category) ?? result.categories[0];
-      if (defaultCategory) void loadCategory(defaultCategory.code, request);
+      if (defaultCategory) void loadCategory(defaultCategory.code, request, preserveCategory !== undefined);
       if (identity.mode === "view") {
         void loadEvents(undefined, request);
       }
@@ -224,6 +243,8 @@ export function CaseWorkspaceScreen({
       wasNativeHidden = false;
       wasBrowserHidden = false;
       suspended.current = false;
+      // Coming back from the background keeps the section the user was on.
+      pendingSection.current = selectedCategory.current || pendingSection.current;
       void loadWorkspace();
     };
     const native = NativeAppState.addEventListener("change", (state) => {
@@ -312,8 +333,8 @@ export function CaseWorkspaceScreen({
       categories={workspace.categories}
       selectedCode={selectedCode}
       categoryLoading={categoryLoading}
-      onSelectCategory={(code) => void loadCategory(code, generation.current)}
-      onExit={onExit}
+      onSelectCategory={(code) => { void loadCategory(code, generation.current); callbacks.current.onSectionChange?.(code); }}
+      onExit={() => { leave(); onExit(); }}
       notes={Platform.OS === "web" ? privateNotes : undefined}
       nextBlockedReason={nextBlockedReason}
       smartvaPanel={browser ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} onChanged={() => loadWorkspace(selectedCategory.current)} /> : undefined}
@@ -366,6 +387,7 @@ function noteText(content: string): string {
 
 /** Show only assessment and SmartVA reference fields actually served by the API. */
 function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
+  const styles = useUiStyles();
   const artifacts = [
     ["Final COD", workspace.assessments.final],
     ["Reviewer final", workspace.assessments.reviewer_final],

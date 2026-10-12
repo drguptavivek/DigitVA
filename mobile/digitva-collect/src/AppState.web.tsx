@@ -12,16 +12,21 @@ import {
 
 import { setUiLocale } from "./i18n";
 import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
-import { ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
+import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
 import { createBrowserDefinitionCache } from "./client/formDefinitionCache";
 import { loadBrowserSession } from "./client/session";
 import type { BootstrapResult } from "./client/api";
 import { createNotificationPollGate, drainNotificationPages } from "./notificationPoll";
 import { resetFirstHomeLoad } from "./web/roleHome";
+import { browserSessionStore, clearAllScroll } from "./workspace/viewState";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 const NOTIFICATION_AUTH_RETRY_MS = 60_000;
 const AUTHORITATIVE_REFRESH_INTERVAL_MS = 15 * 60_000;
+// An aborted request can still be finishing on the server and re-save the session it loaded, so the
+// logout is repeated until the session answers 401.
+const LOGOUT_ATTEMPTS = 4;
+const LOGOUT_RETRY_MS = 400;
 
 type BrowserDefinitionCache = ReturnType<typeof createBrowserDefinitionCache>;
 
@@ -82,6 +87,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const notificationRevision = useRef(0);
   const [lockVersion] = useState(0);
   const browserRequestGeneration = useRef(0);
+  const loggingOut = useRef(false);
   const refreshInFlight = useRef<Promise<void> | undefined>(undefined);
   const definitionSession = useRef<BrowserDefinitionSession | undefined>(undefined);
   const notificationSession = useRef<BrowserNotificationSession | undefined>(undefined);
@@ -190,6 +196,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [applyDefinitionAccess, clearNotificationSession, resetNotificationSession]);
 
   const reload = useCallback(async () => {
+    if (loggingOut.current) return;
     if (refreshInFlight.current) return refreshInFlight.current;
     const generation = browserRequestGeneration.current;
     let task!: Promise<void>;
@@ -228,7 +235,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [bootstrap?.user.user_id]);
 
   const pollNotifications = useCallback(async () => {
-    if (!authenticated || !bootstrap || typeof document === "undefined" || document.visibilityState !== "visible") return;
+    if (loggingOut.current || !authenticated || !bootstrap || typeof document === "undefined" || document.visibilityState !== "visible") return;
     const current = notificationSession.current;
     const userId = bootstrap.user.user_id;
     if (!current || current.userId !== userId) return;
@@ -341,21 +348,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const link = bootstrap?.links.logout;
     if (!link || !bootstrap) return;
-    resetFirstHomeLoad();
+    // Stop every source of authenticated traffic first: a request that ends after the logout response
+    // would save the old session again and keep the user signed in. The signed-in state stays untouched
+    // until the page navigates away: clearing it re-mounts screens, and their loaders would send exactly
+    // such a request while the logout is in progress.
+    loggingOut.current = true;
     browserRequestGeneration.current += 1;
-    clearDefinitionSession();
-    clearNotificationSession();
-    setSessionGeneration((current) => current + 1);
-    refreshInFlight.current = undefined;
-    setAuthenticated(false);
-    setBootstrap(undefined);
+    abortClientRequests();
+    resetFirstHomeLoad();
+    clearAllScroll(browserSessionStore());
     try {
-      await requestClientJson(link, { method: "POST", csrf: bootstrap.csrf, allowRedirect: true });
-      await reload();
+      for (let attempt = 0; attempt < LOGOUT_ATTEMPTS; attempt += 1) {
+        if (attempt > 0) await new Promise((done) => setTimeout(done, LOGOUT_RETRY_MS));
+        await requestClientJson(link, { method: "POST", csrf: bootstrap.csrf, allowRedirect: true });
+        if (!(await loadBrowserSession()).authenticated) {
+          // A full navigation drops every in-memory cache, timer and pending promise of the old session.
+          window.location.assign(bootstrap.links.login);
+          return;
+        }
+      }
+      throw new Error("session_still_active");
     } catch {
+      loggingOut.current = false;
       setError("server_unavailable");
+      await reload();
     }
-  }, [bootstrap, clearDefinitionSession, clearNotificationSession, reload]);
+  }, [bootstrap, reload]);
 
   const value = useMemo<BrowserAppState>(
     () => ({

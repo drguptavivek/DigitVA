@@ -159,6 +159,8 @@ export interface WorkspacePayload {
     site_code?: string | null;
     age?: string | number | null;
     gender?: string | null;
+    survey_district?: string | null;
+    survey_state?: string | null;
     is_demo_project?: boolean;
     project_mode: ProjectMode;
     icd_classification: "icd10" | "icd11";
@@ -547,6 +549,8 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
       ...(caseSource.site_code !== undefined ? { site_code: nullableString(caseSource.site_code, "workspace.case.site_code") } : {}),
       ...(caseSource.age !== undefined ? { age: nullableStringNumber(caseSource.age, "workspace.case.age") } : {}),
       ...(caseSource.gender !== undefined ? { gender: nullableString(caseSource.gender, "workspace.case.gender") } : {}),
+      ...(caseSource.survey_district !== undefined ? { survey_district: nullableString(caseSource.survey_district, "workspace.case.survey_district") } : {}),
+      ...(caseSource.survey_state !== undefined ? { survey_state: nullableString(caseSource.survey_state, "workspace.case.survey_state") } : {}),
       ...(caseSource.is_demo_project !== undefined ? { is_demo_project: boolean(caseSource.is_demo_project, "workspace.case.is_demo_project") } : {}),
       project_mode: projectMode as ProjectMode,
       icd_classification: classification,

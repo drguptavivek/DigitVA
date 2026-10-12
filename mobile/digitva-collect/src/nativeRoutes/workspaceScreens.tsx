@@ -9,13 +9,14 @@ import { isUnlocked } from "../interviewerDb";
 import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 import { createWorkspaceApi, type WorkspaceApi } from "../workspace/api";
 import { QueueScreen } from "../workspace/QueueScreen";
+import { parseQueueParams, serializeQueueParams } from "../workspace/viewState";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { AttachmentMedia } from "../workspace/media/AttachmentMedia";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 
-type RouteParams = { userId?: string | string[]; vaSid?: string | string[]; mode?: string | string[] };
+type RouteParams = { userId?: string | string[]; vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[] };
 type AccessResult = { userId: string; roles: string[] };
 type BoundMode = WorkspaceMode | "home";
 
@@ -69,10 +70,12 @@ function BoundScreen({
   userId,
   mode,
   vaSid,
+  params,
 }: {
   userId: string;
   mode: BoundMode;
   vaSid?: string;
+  params?: RouteParams;
 }) {
   const router = useRouter();
   const styles = useUiStyles();
@@ -115,6 +118,8 @@ function BoundScreen({
   if (identity && api && requester) return <CaseWorkspaceScreen
     identity={identity}
     api={api}
+    section={first(params?.section)}
+    onSectionChange={(code) => router.setParams({ section: code })}
     onExit={mode === "view" ? () => router.replace({ pathname: "/workspace", params: { userId } }) : backToQueue}
     renderDoris={(workspace, onSaved, onDone) => <DorisPanel
       workspace={workspace}
@@ -135,6 +140,8 @@ function BoundScreen({
   if ((mode === "coding" || mode === "reviewing") && api) return <QueueScreen
     api={api}
     mode={mode}
+    initialView={parseQueueParams(params ?? {})}
+    onViewChange={(view) => router.setParams(serializeQueueParams(view))}
     onExit={() => router.replace({ pathname: "/workspace", params: { userId } })}
     onOpen={(next) => {
       if (currentUser.current !== userId) return;
@@ -178,15 +185,17 @@ export function WorkspaceScreen() {
   const mode: BoundMode = rawMode === "coding" || rawMode === "reviewing" || rawMode === "view" ? rawMode : "home";
   const vaSid = first(params.vaSid);
   if (!userId) return <Screen title={t("workspaceTitle")}><Text>{t("accountsEmpty")}</Text></Screen>;
-  return <BoundScreen userId={userId} mode={mode} vaSid={vaSid} />;
+  return <BoundScreen userId={userId} mode={mode} vaSid={vaSid} params={params} />;
 }
 
 export function CodingScreen() {
-  const userId = first(useLocalSearchParams<RouteParams>().userId);
-  return userId ? <BoundScreen userId={userId} mode="coding" /> : <Screen title={t("workspaceTitle")}><Text>{t("accountsEmpty")}</Text></Screen>;
+  const params = useLocalSearchParams<RouteParams>();
+  const userId = first(params.userId);
+  return userId ? <BoundScreen userId={userId} mode="coding" params={params} /> : <Screen title={t("workspaceTitle")}><Text>{t("accountsEmpty")}</Text></Screen>;
 }
 
 export function ReviewingScreen() {
-  const userId = first(useLocalSearchParams<RouteParams>().userId);
-  return userId ? <BoundScreen userId={userId} mode="reviewing" /> : <Screen title={t("workspaceTitle")}><Text>{t("accountsEmpty")}</Text></Screen>;
+  const params = useLocalSearchParams<RouteParams>();
+  const userId = first(params.userId);
+  return userId ? <BoundScreen userId={userId} mode="reviewing" params={params} /> : <Screen title={t("workspaceTitle")}><Text>{t("accountsEmpty")}</Text></Screen>;
 }

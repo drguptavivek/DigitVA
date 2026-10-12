@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, Platform } from "react-native";
+import { Alert, Modal, Platform } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ApiError } from "../src/api";
@@ -89,6 +89,11 @@ async function press(renderer: ReactTestRenderer, label: string) {
   });
 }
 
+async function pickProject(renderer: ReactTestRenderer, name: string) {
+  await press(renderer, "Project: " + (renderer.root.findAll((n) => n.props.accessibilityRole === "button" && String(n.props.accessibilityLabel).startsWith("Project: "))[0].props.accessibilityLabel as string).slice(9));
+  await press(renderer, name);
+}
+
 async function unmount(renderer: ReactTestRenderer) {
   await act(async () => { renderer.unmount(); });
 }
@@ -140,7 +145,7 @@ describe("QueueScreen", () => {
     await press(screen.renderer, "Next");
     await settle();
     expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 50 });
-    await press(screen.renderer, "Project Two");
+    await pickProject(screen.renderer, "Project Two");
     await settle();
     expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
     await press(screen.renderer, "History");
@@ -185,8 +190,8 @@ describe("QueueScreen", () => {
       }),
     });
     const screen = await render("coding", api);
-    await press(screen.renderer, "Project One");
-    await press(screen.renderer, "Project Two");
+    await pickProject(screen.renderer, "Project One");
+    await pickProject(screen.renderer, "Project Two");
     await settle();
     lateProjectPage.resolve({ forms: [{ ...coderRow, va_uniqueid_masked: "STALE-PROJECT" }], count: 1, limit: 50, offset: 0, has_more: false });
     await settle();
@@ -367,7 +372,7 @@ describe("QueueScreen", () => {
     });
     const screen = await render("reviewing", api);
     expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
-    await press(screen.renderer, "Refresh queue");
+    await press(screen.renderer, "Refresh cases");
     await settle();
     expect(api.getReviewerAvailable).toHaveBeenCalledTimes(2);
     expect(JSON.stringify(screen.renderer.toJSON())).toContain(row.va_uniqueid_masked);
@@ -484,6 +489,144 @@ describe("queue project defaults", () => {
     expect(api.getReviewerProjects).toHaveBeenCalled();
     expect(api.getReviewerStats).toHaveBeenCalledWith("P2");
     expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: "P2", limit: 50, offset: 0 });
-    expect(button(renderer.root, "Project Two")).toBeDefined();
+    expect(button(renderer.root, "Project: Project Two")).toBeDefined();
+  });
+});
+
+describe("queue layout", () => {
+  const long = "Implementation and scaling up of model physician ascertained verbal autopsy in a very long named project";
+  const options = [{ project_id: "P1", project_name: long }, { project_id: "P2", project_name: "Project Two" }];
+
+  test("project dropdown opens, lists every project, selects and closes", async () => {
+    const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: options, last_project_id: null }) });
+    const screen = await render("coding", api);
+    expect(button(screen.renderer.root, "Project: All projects")).toBeDefined();
+    expect(button(screen.renderer.root, long)).toBeUndefined();
+    await press(screen.renderer, "Project: All projects");
+    expect(button(screen.renderer.root, "All projects")?.props.accessibilityState.selected).toBe(true);
+    expect(button(screen.renderer.root, long)).toBeDefined();
+    await press(screen.renderer, long);
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", limit: 50, offset: 0 });
+    expect(button(screen.renderer.root, long)).toBeUndefined();
+    expect(button(screen.renderer.root, "Project: " + long)).toBeDefined();
+    await unmount(screen.renderer);
+  });
+
+  test("a single project is plain text, not a dropdown", async () => {
+    const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1"], project_options: [options[0]], last_project_id: null }) });
+    const screen = await render("coding", api);
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(long);
+    expect(button(screen.renderer.root, "Project: All projects")).toBeUndefined();
+    await unmount(screen.renderer);
+  });
+
+  test("resume and release share one row with their handlers", async () => {
+    const screen = await render("coding", makeApi({ getCodingAllocation: jest.fn().mockResolvedValue({ va_sid: "held-sid" }) }));
+    const resume = button(screen.renderer.root, "Resume case");
+    const release = button(screen.renderer.root, "Release case");
+    expect(resume).toBeDefined();
+    expect(release).toBeDefined();
+    const rowOf = (node: ReactTestInstance) => { let n = node.parent; while (n && n.props.style === undefined) n = n.parent; return n?.parent; };
+    expect(rowOf(resume)).toBe(rowOf(release));
+    await press(screen.renderer, "Resume case");
+    expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: "held-sid", mode: "coding" });
+    await unmount(screen.renderer);
+  });
+
+  test("the Available tab exists only in pick mode and random-only coders see their history", async () => {
+    const pick = await render("coding", makeApi());
+    expect(button(pick.renderer.root, "Available")).toBeDefined();
+    expect(JSON.stringify(pick.renderer.toJSON())).toContain("2 ready");
+    await unmount(pick.renderer);
+
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 21, has_random_mode: true, has_pick_mode: false }) });
+    const randomOnly = await render("coding", api);
+    await settle();
+    expect(button(randomOnly.renderer.root, "Start a random case")).toBeDefined();
+    expect(button(randomOnly.renderer.root, "Available")).toBeUndefined();
+    expect(button(randomOnly.renderer.root, "Pick case")).toBeUndefined();
+    expect(api.getCodingHistory).toHaveBeenCalled();
+    expect(JSON.stringify(randomOnly.renderer.toJSON())).toContain("My coded cases");
+    await unmount(randomOnly.renderer);
+  });
+
+  test("a random-only coder never fetches the available page", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: false }) });
+    const screen = await render("coding", api);
+    await settle();
+    expect(api.getCodingHistory).toHaveBeenCalled();
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain("CODER-MASKED-1");
+    expect(api.getCodingAvailable).not.toHaveBeenCalled();
+    await unmount(screen.renderer);
+  });
+
+  test("moving from a random-only project to one with pick mode leaves the history tab", async () => {
+    const getCodingStats = jest.fn(async (projectId?: string) => ({ random_ready: 2, has_random_mode: true, has_pick_mode: projectId === "P2" }));
+    const api = makeApi({ getCodingStats } as Partial<WorkspaceApi>);
+    const screen = await render("coding", api);
+    await settle();
+    expect(button(screen.renderer.root, "Available")).toBeUndefined();
+    expect(api.getCodingHistory).toHaveBeenCalled();
+    await pickProject(screen.renderer, "Project Two");
+    await settle();
+    await settle();
+    expect(button(screen.renderer.root, "Available")).toBeDefined();
+    expect(api.getCodingAvailable).toHaveBeenCalledWith(expect.objectContaining({ projectId: "P2" }));
+    expect(button(screen.renderer.root, "Available").props.kind ?? "primary").toBe("primary");
+    await unmount(screen.renderer);
+  });
+
+  test("a pick-only project is titled Pick a case, counts pick_ready and has no random button", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 0, pick_ready: 5, has_random_mode: false, has_pick_mode: true }) });
+    const screen = await render("coding", api);
+    await settle();
+    const text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("Pick a case");
+    expect(text).toContain("5 ready");
+    expect(text).not.toContain("Random allocation");
+    expect(button(screen.renderer.root, "Start a random case")).toBeUndefined();
+    expect(button(screen.renderer.root, "Available")).toBeDefined();
+    await unmount(screen.renderer);
+  });
+
+  test("a project mixing both modes shows the random button and both counts", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 3, pick_ready: 4, has_random_mode: true, has_pick_mode: true }) });
+    const screen = await render("coding", api);
+    await settle();
+    const text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("Random allocation");
+    expect(text).toContain("3 random · 4 to pick");
+    expect(button(screen.renderer.root, "Start a random case")).toBeDefined();
+    expect(button(screen.renderer.root, "Available")).toBeDefined();
+    await unmount(screen.renderer);
+  });
+
+  test("the project sheet opens on press and closes on Escape (Modal onRequestClose) and on the backdrop", async () => {
+    const screen = await render("coding");
+    const sheetVisible = () => screen.renderer.root.findByType(Modal).props.visible;
+    expect(sheetVisible()).toBe(false);
+    await press(screen.renderer, "Project: All projects");
+    expect(sheetVisible()).toBe(true);
+    await act(async () => { screen.renderer.root.findByType(Modal).props.onRequestClose(); });
+    expect(sheetVisible()).toBe(false);
+    await press(screen.renderer, "Project: All projects");
+    await press(screen.renderer, "Close project list");
+    expect(sheetVisible()).toBe(false);
+    await unmount(screen.renderer);
+  });
+
+  test("empty states read plainly", async () => {
+    const empty = { count: 0, limit: 50, offset: 0, has_more: false };
+    const history = await render("coding", makeApi({
+      getCodingStats: jest.fn().mockResolvedValue({ random_ready: 1, has_random_mode: true, has_pick_mode: false }),
+      getCodingHistory: jest.fn().mockResolvedValue({ history: [], ...empty }),
+    }));
+    await settle();
+    expect(JSON.stringify(history.renderer.toJSON())).toContain("No coded cases yet.");
+    await unmount(history.renderer);
+
+    const available = await render("coding", makeApi({ getCodingAvailable: jest.fn().mockResolvedValue({ forms: [], ...empty }) }));
+    expect(JSON.stringify(available.renderer.toJSON())).toContain("No cases to pick right now.");
+    await unmount(available.renderer);
   });
 });

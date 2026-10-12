@@ -11,6 +11,7 @@ jest.mock("../src/ui", () => {
     Row: ({ children }: { children: React.ReactNode }) => React.createElement(MockView, null, children),
     errorText: () => "Generic error",
     styles: new Proxy({}, { get: () => undefined }),
+    useUiStyles: () => new Proxy({}, { get: () => undefined }),
   };
 });
 
@@ -817,6 +818,38 @@ it("keeps the browser category and unsaved private note through a quality refres
     const currentInput = tree.root.findByType(PrivateNotePanel).findAll((node) => typeof node.props.onChangeText === "function")[0];
     expect(currentInput.props.value).toBe("unsaved draft");
     expect(api.saveNote).not.toHaveBeenCalled();
+  } finally {
+    if (tree) await act(async () => tree.unmount());
+    Object.defineProperty(Platform, "OS", { configurable: true, value: priorOS });
+  }
+});
+
+it("keeps the open section rendered while a quality save refreshes it, but shows loading on a section change", async () => {
+  const priorOS = Platform.OS;
+  Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+  const payload = workspace("coding");
+  payload.categories.push({ code: "docs", label: "Documents", nav_label: "Documents", render_mode: "attachments" });
+  payload.narrative_qa = { fields: [], max_score: 0, saved: null };
+  let release!: (value: CategoryPayload) => void;
+  const pending = new Promise<CategoryPayload>((resolve) => { release = resolve; });
+  const getCategory = jest.fn(async (_sid: string, code: string) => ({ ...category, code, render_mode: "workflow_panel" }) as CategoryPayload);
+  const api = apiFor(payload, { getCategory });
+  let tree!: ReactTestRenderer;
+  try {
+    await act(async () => { tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} />); await flush(); });
+    expect(textContent(tree.root)).toContain("Interview text");
+    getCategory.mockImplementationOnce(() => pending);
+    await act(async () => { await tree.root.findByType(QualityPanels).props.onSaveNarrative({ cannot_grade: true }); await flush(); });
+    expect(getCategory).toHaveBeenCalledTimes(2);
+    expect(textContent(tree.root)).toContain("Interview text");
+    expect(textContent(tree.root)).not.toContain("Loading category…");
+    await act(async () => { release({ ...category, subcategories: [{ ...category.subcategories[0], items: [{ label: "Narration", value: "Refreshed text", flip: false, info: false }] }] }); await flush(); });
+    expect(textContent(tree.root)).toContain("Refreshed text");
+    expect(textContent(tree.root)).not.toContain("Interview text");
+    getCategory.mockImplementationOnce(() => new Promise<CategoryPayload>(() => undefined));
+    await act(async () => { tree.root.findByProps({ selectedCode: "vacodassessment" }).props.onSelectCategory("docs"); await flush(); });
+    expect(textContent(tree.root)).toContain("Loading category…");
+    expect(textContent(tree.root)).not.toContain("Refreshed text");
   } finally {
     if (tree) await act(async () => tree.unmount());
     Object.defineProperty(Platform, "OS", { configurable: true, value: priorOS });

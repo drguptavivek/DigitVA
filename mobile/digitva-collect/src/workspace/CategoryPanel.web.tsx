@@ -1,16 +1,12 @@
+import { radius } from "../theme";
 import React, { type ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 import { AttachmentGallery } from "./media/AttachmentGallery.web";
+import { useWebStyles, type WebPalette } from "./webPalette";
 
-const BLUE = "#004687";
-const BORDER = "#e0e5ea";
-const HEADER = "#f8f9fa";
-const TEXT = "#333333";
 const ROBOTO = "Roboto, Arial, sans-serif";
-const YES = "#bc2938";
-const NO = "#3f9366";
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
 
 type CategorySubcategory = CategoryPayload["subcategories"][number] & { source_category?: string };
@@ -28,6 +24,7 @@ function primitive(value: JsonValue): string {
 }
 
 function WebValue({ value, renderMedia }: { value: JsonValue; renderMedia?: (attachmentPath: string) => ReactNode }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   if (value === null || value === "") return null;
   if (typeof value === "string") {
     if (renderMedia && ATTACHMENT_PATH.test(value)) return <>{renderMedia(value)}</>;
@@ -40,17 +37,19 @@ function WebValue({ value, renderMedia }: { value: JsonValue; renderMedia?: (att
 }
 
 function ResponseValue({ value, flip, info, renderMedia }: { value: JsonValue; flip: boolean; info: boolean; renderMedia?: (attachmentPath: string) => ReactNode }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   const text = primitive(value);
   const normalized = text.trim().toLowerCase();
   const isYes = normalized === "yes";
   const isNo = normalized === "no";
   // The legacy renderer changes the badge colour only; the answer text stays as served.
   if (info) return <Text accessibilityLabel={`Informational response: ${text}`} style={webStyles.info}>{text}</Text>;
-  if (isYes || isNo) return <Text style={[webStyles.answer, { backgroundColor: (flip ? isNo : isYes) ? YES : NO }]}>{text}</Text>;
+  if (isYes || isNo) return <Text style={[webStyles.answer, { backgroundColor: (flip ? isNo : isYes) ? w.yes : w.no }]}>{text}</Text>;
   return <WebValue value={value} renderMedia={renderMedia} />;
 }
 
 function QueryResponseTable({ items, renderMedia, queryWidth = "60%" }: { items: CategoryItem[]; renderMedia?: (attachmentPath: string) => ReactNode; queryWidth?: string }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   const responseWidth = queryWidth === "60%" ? "40%" : "80%";
   return React.createElement("div", { className: "digitva-query-response-table", role: "table", "aria-label": "Question responses", style: webStyles.table },
     React.createElement("div", { className: "digitva-query-response-header", role: "row", style: { ...webStyles.tableHeaderRow, gridTemplateColumns: `${queryWidth} ${responseWidth}` } },
@@ -67,6 +66,7 @@ function QueryResponseTable({ items, renderMedia, queryWidth = "60%" }: { items:
 }
 
 function DiseaseHistory({ items, renderMedia }: { items: CategoryItem[]; renderMedia?: (attachmentPath: string) => ReactNode }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   const positive: string[] = [];
   const negative: string[] = [];
   const remaining: CategoryItem[] = [];
@@ -79,13 +79,13 @@ function DiseaseHistory({ items, renderMedia }: { items: CategoryItem[]; renderM
   return <View style={webStyles.diseaseHistory} accessibilityLabel="Disease history summary">
     <View style={webStyles.diseaseColumns}>
       <View style={webStyles.diseaseColumn}>
-        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard-check" color={BLUE} /> Diagnosed by Health Professional</Text>
+        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard-check" color={w.blue} /> Diagnosed by Health Professional</Text>
         <View style={[webStyles.diseasePanel, webStyles.positivePanel]}>
           <Text style={webStyles.diseasePanelText}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
         </View>
       </View>
       <View style={webStyles.diseaseColumn}>
-        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard" color={BLUE} /> Absent</Text>
+        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard" color={w.blue} /> Absent</Text>
         <View style={[webStyles.diseasePanel, webStyles.negativePanel]}>
           <Text style={webStyles.diseasePanelText}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
         </View>
@@ -161,10 +161,12 @@ function CategorySection({ category, subcategory, renderMedia, workspaceIdentity
 }
 
 function SectionHeading({ icon = "fa-list", children }: { icon?: string; children: ReactNode }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   return <Text style={webStyles.sectionHeading}><FaIcon name={icon} /> {children}</Text>;
 }
 
 function SummaryBlock({ items }: { items: JsonValue[] }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   if (!items.length) return null;
   return <View style={webStyles.summaryBlock}>
     <SectionHeading icon="fa-file-alt">Symptoms on VA Interview</SectionHeading>
@@ -179,6 +181,7 @@ function CategorySections({ category, categoryNav, renderMedia, workspaceIdentit
   workspaceIdentity?: string;
   afterContent?: ReactNode;
 }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   const historyIndex = historySubcategoryIndex(category, categoryNav);
   return <>
     {category.subcategories.map((subcategory, index) => {
@@ -202,6 +205,7 @@ function WorkflowSections({ category, categoryNav, renderMedia, workspaceIdentit
   notesSummary?: ReactNode;
   afterContent?: ReactNode;
 }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   const attachmentSubs = category.subcategories.filter((subcategory) => sourceConfig(category, subcategory, categoryNav)?.render_mode === "attachments");
   const historySubs = historySubcategories(category, categoryNav);
   const otherSubs = category.subcategories.filter((subcategory) => !attachmentSubs.includes(subcategory) && !historySubs.includes(subcategory));
@@ -238,10 +242,11 @@ export function CategoryPanel({ category, iconName, renderMedia, categoryNav, wo
   notesSummary?: ReactNode;
   afterContent?: ReactNode;
 }) {
+  const [webStyles, w] = useWebStyles(makeStyles);
   const mode = category.render_mode || categoryNav?.find((item) => item.code === category.code)?.render_mode || "table_sections";
   return <View accessibilityLabel={category.label} style={webStyles.root} nativeID="digitva-category-panel">
-    {React.createElement("style", null, responsiveCategoryCss)}
-    <View style={webStyles.categoryHeading}><FaIcon name={iconName ?? categoryNav?.find((item) => item.code === category.code)?.icon_name ?? "fa-folder-open"} color="#fff" /><Text style={webStyles.categoryHeadingText}>{category.label.toUpperCase()}</Text></View>
+    {React.createElement("style", null, responsiveCategoryCss(w))}
+    <View style={webStyles.categoryHeading}><FaIcon name={iconName ?? categoryNav?.find((item) => item.code === category.code)?.icon_name ?? "fa-folder-open"} color={w.onBar} /><Text style={webStyles.categoryHeadingText}>{category.label.toUpperCase()}</Text></View>
     {mode === "workflow_panel"
       ? <WorkflowSections category={category} categoryNav={categoryNav} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} notesSummary={notesSummary} afterContent={afterContent} />
       : <>
@@ -251,54 +256,54 @@ export function CategoryPanel({ category, iconName, renderMedia, categoryNav, wo
   </View>;
 }
 
-const responsiveCategoryCss = `
+const responsiveCategoryCss = (w: WebPalette) => `
 #digitva-category-panel .digitva-query-response-table { max-width: 100%; }
 @media (max-width: 640px) {
   #digitva-category-panel .digitva-query-response-table { border: 0; display: grid; gap: 10px; }
   #digitva-category-panel .digitva-query-response-header { display: none !important; }
   #digitva-category-panel .digitva-query-response-body { display: grid; gap: 10px; }
-  #digitva-category-panel .digitva-query-response-row { display: grid !important; grid-template-columns: 1fr !important; height: auto !important; min-height: 0 !important; border: 1px solid ${BORDER}; border-radius: 4px; overflow: hidden; }
+  #digitva-category-panel .digitva-query-response-row { display: grid !important; grid-template-columns: 1fr !important; height: auto !important; min-height: 0 !important; border: 1px solid ${w.border}; border-radius: 4px; overflow: hidden; }
   #digitva-category-panel .digitva-query-response-row [role="cell"] { display: block; height: auto !important; width: auto !important; border: 0; }
-  #digitva-category-panel .digitva-query-response-row [data-query="true"] { background: ${HEADER}; font-weight: 700; }
+  #digitva-category-panel .digitva-query-response-row [data-query="true"] { background: ${w.header}; font-weight: 700; }
   #digitva-category-panel .digitva-query-response-row [data-response="true"] { padding-top: 8px; }
 }
 `;
 
-const webStyles = {
+const makeStyles = (w: WebPalette) => ({
   root: { gap: 10, minWidth: 0 } as any,
-  categoryHeading: { backgroundColor: BLUE, minHeight: 38, marginHorizontal: -14, marginTop: -14, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 9 } as any,
-  categoryHeadingText: { color: "#fff", fontFamily: ROBOTO, fontWeight: "700", fontSize: 15 } as any,
+  categoryHeading: { backgroundColor: w.bar, marginLeft: "calc(-1 * var(--digitva-card-pad, 14px))", marginRight: "calc(-1 * var(--digitva-card-pad, 14px))", marginTop: "calc(-1 * var(--digitva-card-pad, 14px))", paddingHorizontal: 14, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 9 } as any,
+  categoryHeadingText: { color: w.onBar, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14, lineHeight: 20 } as any,
   summaryBlock: { gap: 4 },
-  summary: { display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 6, padding: 10, border: `1px solid ${BORDER}`, backgroundColor: "#fff" } as any,
-  summaryBadge: { color: TEXT, backgroundColor: "#f8f9fa", border: `1px solid ${BORDER}`, borderRadius: 3, padding: "5px 9px", fontFamily: ROBOTO, fontSize: 15, lineHeight: "24px" } as any,
+  summary: { display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 6, padding: 10, border: `1px solid ${w.border}`, backgroundColor: w.card } as any,
+  summaryBadge: { color: w.text, backgroundColor: w.header, border: `1px solid ${w.border}`, borderRadius: radius.sm, padding: "5px 9px", fontFamily: ROBOTO, fontSize: 14, lineHeight: "24px" } as any,
   workflowGroup: { gap: 10, marginTop: 18 },
   section: { gap: 12, marginTop: 14 },
-  sectionHeading: { color: BLUE, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px", marginBottom: 12 } as any,
-  table: { width: "100%", border: `1px solid ${BORDER}`, fontFamily: ROBOTO } as React.CSSProperties,
+  sectionHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px", marginBottom: 12 } as any,
+  table: { width: "100%", border: `1px solid ${w.border}`, fontFamily: ROBOTO } as React.CSSProperties,
   tableHeaderRow: { display: "grid", minHeight: 44 } as React.CSSProperties,
-  queryHeader: { height: 44, padding: "8px 9px", backgroundColor: HEADER, border: `1px solid ${BORDER}`, color: TEXT, fontFamily: ROBOTO, fontWeight: "700", fontSize: 17, lineHeight: "27.2px", textAlign: "left", verticalAlign: "middle", boxSizing: "border-box" } as React.CSSProperties,
-  responseHeader: { height: 44, padding: "8px 9px", backgroundColor: HEADER, border: `1px solid ${BORDER}`, color: TEXT, fontFamily: ROBOTO, fontWeight: "700", fontSize: 17, lineHeight: "27.2px", textAlign: "left", verticalAlign: "middle", boxSizing: "border-box" } as React.CSSProperties,
+  queryHeader: { height: 44, padding: "8px 9px", backgroundColor: w.header, border: `1px solid ${w.border}`, color: w.text, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: "27.2px", textAlign: "left", verticalAlign: "middle", boxSizing: "border-box" } as React.CSSProperties,
+  responseHeader: { height: 44, padding: "8px 9px", backgroundColor: w.header, border: `1px solid ${w.border}`, color: w.text, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: "27.2px", textAlign: "left", verticalAlign: "middle", boxSizing: "border-box" } as React.CSSProperties,
   tableRow: { display: "grid", minHeight: 46 } as React.CSSProperties,
-  query: { padding: "8px 9px", border: `1px solid ${BORDER}`, color: TEXT, fontFamily: ROBOTO, fontSize: 17, lineHeight: "27.2px", verticalAlign: "middle", overflowWrap: "anywhere", boxSizing: "border-box" } as React.CSSProperties,
-  responseCell: { padding: "6px 9px", border: `1px solid ${BORDER}`, verticalAlign: "middle", overflowWrap: "anywhere", boxSizing: "border-box" } as React.CSSProperties,
-  response: { color: TEXT, fontFamily: ROBOTO, fontSize: 17, lineHeight: "27.2px", flexShrink: 1 } as any,
+  query: { padding: "8px 9px", border: `1px solid ${w.border}`, color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: "27.2px", verticalAlign: "middle", overflowWrap: "anywhere", boxSizing: "border-box" } as React.CSSProperties,
+  responseCell: { padding: "6px 9px", border: `1px solid ${w.border}`, verticalAlign: "middle", overflowWrap: "anywhere", boxSizing: "border-box" } as React.CSSProperties,
+  response: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: "27.2px", flexShrink: 1 } as any,
   // Keep the HTMX px-3/py-2 badge rhythm. Numeric padding is required here:
   // React Native Web drops CSS shorthand strings from Text styles.
-  answer: { color: "#fff", display: "inline-block", alignSelf: "flex-start", borderRadius: 4, paddingVertical: 8, paddingHorizontal: 16, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: 24 } as any,
-  info: { color: "#fff", display: "inline-block", alignSelf: "flex-start", backgroundColor: BLUE, borderRadius: 4, paddingVertical: 8, paddingHorizontal: 16, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: 24 } as any,
+  answer: { color: w.onBar, display: "inline-block", alignSelf: "flex-start", borderRadius: 4, paddingVertical: 8, paddingHorizontal: 16, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: 24 } as any,
+  info: { color: w.onBar, display: "inline-block", alignSelf: "flex-start", backgroundColor: w.bar, borderRadius: 4, paddingVertical: 8, paddingHorizontal: 16, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: 24 } as any,
   valueList: { gap: 3 },
-  valueLabel: { color: "#687482", fontFamily: ROBOTO, fontSize: 12 },
+  valueLabel: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12 },
   diseaseHistory: { gap: 18 },
   diseaseColumns: { flexDirection: "row", flexWrap: "wrap", gap: 24 },
   diseaseColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 240, gap: 8 } as any,
-  diseaseHeading: { color: BLUE, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px" } as any,
-  diseasePanel: { minHeight: 72, borderRadius: 3, padding: 16, justifyContent: "center" } as any,
-  positivePanel: { backgroundColor: "#b44b52" },
-  negativePanel: { backgroundColor: "#477b5b" },
-  diseasePanelText: { color: "#fff", fontFamily: ROBOTO, fontSize: 17, lineHeight: "27.2px" } as any,
+  diseaseHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px" } as any,
+  diseasePanel: { minHeight: 72, borderRadius: radius.lg, padding: 16, justifyContent: "center" } as any,
+  positivePanel: { backgroundColor: w.yesPanel },
+  negativePanel: { backgroundColor: w.noPanel },
+  diseasePanelText: { color: w.onBar, fontFamily: ROBOTO, fontSize: 16, lineHeight: "27.2px" } as any,
   diseaseRemaining: { gap: 8 },
-  remainingHeading: { color: BLUE, fontFamily: ROBOTO, fontWeight: "700", fontSize: 17, lineHeight: "27.2px" } as any,
-} as const;
+  remainingHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: "27.2px" } as any,
+}) as const;
 
 const valueLabels: Record<string, string> = {
   age: "Age",

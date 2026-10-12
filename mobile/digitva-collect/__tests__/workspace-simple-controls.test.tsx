@@ -8,6 +8,7 @@ jest.mock("../src/ui", () => {
     Button: ({ label, onPress, disabled, accessibilityLabel }: { label: string; onPress: () => void; disabled?: boolean; accessibilityLabel?: string }) => React.createElement(MockPressable, { accessibilityRole: "button", accessibilityLabel: accessibilityLabel ?? label, disabled, onPress }, React.createElement(MockText, null, label)),
     errorText: () => "Generic error",
     styles: new Proxy({}, { get: () => undefined }),
+    useUiStyles: () => new Proxy({}, { get: () => undefined }),
   };
 });
 

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { Platform, useColorScheme, type TextStyle } from "react-native";
 
 import {
   getUiTheme,
+  peekUiTheme,
   setUiTheme,
   subscribeUiPreferences,
   type ThemePreference
@@ -10,45 +11,125 @@ import {
 
 export type ColorMode = "light" | "dark";
 
-/** Semantic blue-accent palettes. Text and surfaces retain readable contrast in both modes. */
-export const palette = {
+/**
+ * Brand blue, the only raw hexes outside the `ui` table. `primary` fills buttons and dots, `soft` is the
+ * selected-row fill, `ring` the focus ring. Text on `soft` keeps >= 4.5:1 (ui-consistency contrast test).
+ */
+const brand = {
+  light: { primary: "#1D4ED8", pressed: "#1E40AF", soft: "#E8F0FF", on: "#FFFFFF", ring: "#2563EB" },
+  dark: { primary: "#78A9FF", pressed: "#A7C4FF", soft: "#1C3764", on: "#081429", ring: "#9CC0FF" }
+} as const;
+
+/** shadcn writes tokens as "H S% L%"; React Native needs hex, so the table below stays in shadcn's own numbers. */
+export function hsl(h: number, s: number, l: number): string {
+  const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
+  const channel = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const value = l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(value * 255).toString(16).padStart(2, "0");
+  };
+  return `#${channel(0)}${channel(8)}${channel(4)}`.toUpperCase();
+}
+
+/** One accent family of a certificate line: bar/letter, header tint, chip fill and chip text. */
+export type ChartToken = { bar: string; tint: string; soft: string; foreground: string };
+
+export type UiTokens = {
+  background: string; foreground: string;
+  card: string; cardForeground: string;
+  popover: string; popoverForeground: string;
+  primary: string; primaryForeground: string;
+  secondary: string; secondaryForeground: string;
+  muted: string; mutedForeground: string;
+  accent: string; accentForeground: string;
+  destructive: string; destructiveForeground: string;
+  /** Extension: destructive as text on `background`; shadcn's dark destructive is a fill, too dark to read as text. */
+  destructiveText: string;
+  /** Extensions: app page behind the cards, hover/pressed brand, success text, warning text, tinted danger fill, disabled glyphs. */
+  page: string; primaryPressed: string; success: string; warningText: string; destructiveSoft: string; disabled: string;
+  warning: string; warningForeground: string; warningBorder: string;
+  border: string; input: string; ring: string;
+  /** chart-1..5: Part I lines A-E; `chartPart2` is the slate Part II family. */
+  chart: readonly ChartToken[];
+  chartPart2: ChartToken;
+};
+
+const zincLight = {
+  background: hsl(0, 0, 100), foreground: hsl(240, 10, 3.9),
+  card: hsl(0, 0, 100), cardForeground: hsl(240, 10, 3.9),
+  popover: hsl(0, 0, 100), popoverForeground: hsl(240, 10, 3.9),
+  secondary: hsl(240, 4.8, 95.9), secondaryForeground: hsl(240, 5.9, 10),
+  muted: hsl(240, 4.8, 95.9), mutedForeground: hsl(240, 3.8, 46.1),
+  accent: hsl(240, 4.8, 95.9), accentForeground: hsl(240, 5.9, 10),
+  // shadcn's hsl(0 84.2% 60.2%) gives 3.8:1 with its foreground; darkened to 72.2% / 50.6% to reach 4.5:1 for button and badge text.
+  destructive: hsl(0, 72.2, 50.6), destructiveForeground: hsl(0, 0, 98),
+  border: hsl(240, 5.9, 90), input: hsl(240, 5.9, 90)
+};
+const zincDark = {
+  background: hsl(240, 10, 3.9), foreground: hsl(0, 0, 98),
+  card: hsl(240, 10, 3.9), cardForeground: hsl(0, 0, 98),
+  popover: hsl(240, 10, 3.9), popoverForeground: hsl(0, 0, 98),
+  secondary: hsl(240, 3.7, 15.9), secondaryForeground: hsl(0, 0, 98),
+  muted: hsl(240, 3.7, 15.9), mutedForeground: hsl(240, 5, 64.9),
+  accent: hsl(240, 3.7, 15.9), accentForeground: hsl(0, 0, 98),
+  destructive: hsl(0, 62.8, 30.6), destructiveForeground: hsl(0, 0, 98),
+  border: hsl(240, 3.7, 15.9), input: hsl(240, 3.7, 15.9)
+};
+
+/**
+ * shadcn/ui "zinc" semantic tokens for the DORIS editor (docs/current-state/doris-ui-tokens.md).
+ * The single token source of the app: `palette` (old screens), `webPalette` and the WHO CSS variables are derived from it.
+ * Neutrals are shadcn's; `primary` and `ring` are the DigitVA brand blue.
+ */
+export const ui: Record<ColorMode, UiTokens> = {
   light: {
-    background: "#F6F8FB",
-    surface: "#FFFFFF",
-    surfaceMuted: "#EEF3F8",
-    text: "#10233F",
-    textMuted: "#53657A",
-    border: "#D9E2EC",
-    accent: "#1D4ED8",
-    accentPressed: "#1E40AF",
-    accentSoft: "#E8F0FF",
-    onAccent: "#FFFFFF",
-    danger: "#B42318",
-    dangerSoft: "#FDECEC",
-    success: "#1F7A4D",
-    warning: "#9A6700",
-    focus: "#2563EB",
-    disabled: "#8A99AA"
+    ...zincLight,
+    // Blend with the app: tinted secondary/muted/accent and a stronger 1px border; cards stay white on the white page surface.
+    page: "#F6F8FB",
+    // `accent` is the brand-soft selected fill (choice rows, chips); text on it is `accentForeground`.
+    secondary: "#EEF3F8", muted: "#EEF3F8", accent: brand.light.soft, accentForeground: "#10233F", mutedForeground: "#53657A",
+    // `border` is the card/divider hairline; `input` the stronger (>= 3:1) edge of every control, choice row and outline button.
+    border: "#CBD5E1", input: "#6B7C93",
+    primary: brand.light.primary, primaryForeground: brand.light.on, primaryPressed: brand.light.pressed,
+    destructiveText: "#B42318", destructiveSoft: "#FDECEC", success: "#1F7A4D", warningText: "#9A6700", disabled: "#8A99AA",
+    warning: "#FEF3C7", warningForeground: "#3B2200", warningBorder: "#B45309",
+    ring: brand.light.ring,
+    chart: [
+      { bar: "#C2185B", tint: "#FCE4EC", soft: "#F8BBD0", foreground: "#4A0A24" },
+      { bar: "#B45309", tint: "#FEF3C7", soft: "#FCD34D", foreground: "#3B2200" },
+      { bar: "#0F766E", tint: "#CCFBF1", soft: "#99F6E4", foreground: "#032F2B" },
+      { bar: "#4338CA", tint: "#E0E7FF", soft: "#C7D2FE", foreground: "#1B1670" },
+      { bar: "#7E22CE", tint: "#F3E8FF", soft: "#E9D5FF", foreground: "#3B0764" }
+    ],
+    chartPart2: { bar: "#475569", tint: "#F1F5F9", soft: "#E2E8F0", foreground: "#1E293B" }
   },
   dark: {
-    background: "#0B1220",
-    surface: "#131E2E",
-    surfaceMuted: "#1B2A3D",
-    text: "#F4F7FB",
-    textMuted: "#B5C2D1",
-    border: "#314157",
-    accent: "#78A9FF",
-    accentPressed: "#A7C4FF",
-    accentSoft: "#1C3764",
-    onAccent: "#081429",
-    danger: "#FF8A80",
-    dangerSoft: "#4B2025",
-    success: "#75D5A4",
-    warning: "#F5C76B",
-    focus: "#9CC0FF",
-    disabled: "#718097"
+    ...zincDark,
+    // The page and input fill are one tone (#131E2E); cards sit one step lighter, borders lighter than both.
+    background: "#131E2E", page: "#131E2E", foreground: "#F4F7FB",
+    card: "#1B2A3D", cardForeground: "#F4F7FB",
+    popover: "#1B2A3D", popoverForeground: "#F4F7FB",
+    secondary: "#243449", secondaryForeground: "#F4F7FB",
+    muted: "#243449", mutedForeground: "#B5C2D1",
+    accent: brand.dark.soft, accentForeground: "#F4F7FB",
+    border: "#3E5068", input: "#7C90AB",
+    primary: brand.dark.primary, primaryForeground: brand.dark.on, primaryPressed: brand.dark.pressed,
+    destructiveText: "#FF8A80", destructiveSoft: "#4B2025", success: "#75D5A4", warningText: "#F5C76B", disabled: "#718097",
+    warning: "#38280B", warningForeground: "#FFF3D1", warningBorder: "#FBBF24",
+    ring: brand.dark.ring,
+    chart: [
+      { bar: "#F48FB1", tint: "#3B1A27", soft: "#6A2540", foreground: "#FFE4EE" },
+      { bar: "#FBBF24", tint: "#38280B", soft: "#6B4A0C", foreground: "#FFF3D1" },
+      { bar: "#2DD4BF", tint: "#0E3330", soft: "#145C55", foreground: "#D9FFF8" },
+      { bar: "#A5B4FC", tint: "#22264F", soft: "#3B418D", foreground: "#EEF0FF" },
+      { bar: "#D8B4FE", tint: "#2E1A47", soft: "#5B2A8C", foreground: "#F7ECFF" }
+    ],
+    chartPart2: { bar: "#94A3B8", tint: "#1E2733", soft: "#334155", foreground: "#F1F5F9" }
   }
-} as const;
+};
+
+/** shadcn --radius 0.5rem: lg = radius, md = radius - 2px, sm = radius - 4px. */
+export const uiRadius = { lg: 8, md: 6, sm: 4, full: 9999 } as const;
 
 export const spacing = {
   xxs: 4,
@@ -62,43 +143,113 @@ export const spacing = {
 
 const webFontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
+/** The one font-size scale: 12 caption, 14 body/label, 16 inputs and choice rows (no iOS zoom), 18/20/24/26 headings. */
+export const fontSize = { caption: 12, body: 14, input: 16, headline: 18, heading: 20, title: 24, display: 26 } as const;
+
 /** System fonts provide broad multi-script coverage; the web gets an explicit fallback stack. */
 export const typography = {
-  largeTitle: { fontSize: 30, lineHeight: 38, fontWeight: "700" as const },
-  title: { fontSize: 24, lineHeight: 32, fontWeight: "700" as const },
-  headline: { fontSize: 18, lineHeight: 26, fontWeight: "600" as const },
-  body: { fontSize: 17, lineHeight: 26, fontWeight: "400" as const },
-  subhead: { fontSize: 15, lineHeight: 22, fontWeight: "400" as const },
-  caption: { fontSize: 13, lineHeight: 18, fontWeight: "400" as const }
+  largeTitle: { fontSize: fontSize.display, lineHeight: 34, fontWeight: "700" as const },
+  title: { fontSize: fontSize.title, lineHeight: 32, fontWeight: "700" as const },
+  headline: { fontSize: fontSize.headline, lineHeight: 26, fontWeight: "600" as const },
+  body: { fontSize: fontSize.input, lineHeight: 24, fontWeight: "400" as const },
+  subhead: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "400" as const },
+  caption: { fontSize: fontSize.caption, lineHeight: 16, fontWeight: "400" as const }
 } as const satisfies Record<string, TextStyle>;
 
-export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  full: 9999
-} as const;
+/** One radius scale (lg cards, md controls, sm chips/badges inside controls, full pills/dots). */
+export const radius = uiRadius;
 
+/** Control height 40, 44 minimum tap target on touch/phone, 1px borders, 12px gaps, 16px card padding. */
 export const controls = {
-  minHeight: 48,
-  minTouchTarget: 48,
+  minHeight: 40,
+  minTouchTarget: 44,
+  borderWidth: 1,
+  gap: spacing.sm,
+  cardPadding: spacing.md,
   screenPadding: spacing.md,
   contentMaxWidth: 720,
   fontFamily: Platform.select({ web: webFontFamily, default: undefined })
 } as const;
 
+export type Palette = {
+  background: string; surface: string; surfaceMuted: string; text: string; textMuted: string;
+  border: string; borderStrong: string; accent: string; accentPressed: string; accentSoft: string; onAccent: string;
+  danger: string; dangerSoft: string; success: string; warning: string; focus: string; disabled: string;
+};
+
+/** Old-system names (queue, shells, native routes) read from the `ui` tokens so no screen has a value of its own. */
+const paletteOf = (t: UiTokens): Palette => ({
+  background: t.page, surface: t.card, surfaceMuted: t.muted, text: t.foreground, textMuted: t.mutedForeground,
+  border: t.border, borderStrong: t.input, accent: t.primary, accentPressed: t.primaryPressed, accentSoft: t.accent,
+  onAccent: t.primaryForeground, danger: t.destructiveText, dangerSoft: t.destructiveSoft, success: t.success,
+  warning: t.warningText, focus: t.ring, disabled: t.disabled
+});
+
+export const palette: Record<ColorMode, Palette> = { light: paletteOf(ui.light), dark: paletteOf(ui.dark) };
+
+export type ButtonVariant = "default" | "secondary" | "outline" | "ghost" | "destructive";
+export type ButtonSize = "sm" | "default" | "icon";
+
+/** Fill, border and text colour of a button variant; shared by `Button` in src/ui.tsx and the DORIS kit. */
+export const buttonTone = (t: UiTokens, variant: ButtonVariant) => ({
+  default: { bg: t.primary, border: t.primary, fg: t.primaryForeground },
+  secondary: { bg: t.secondary, border: t.secondary, fg: t.secondaryForeground },
+  outline: { bg: t.background, border: t.input, fg: t.foreground },
+  ghost: { bg: "transparent", border: "transparent", fg: t.foreground },
+  destructive: { bg: t.destructive, border: t.destructive, fg: t.destructiveForeground }
+})[variant];
+
+/** Minimum button width (also chips): short labels such as "No" or "Add" never collapse into a circle. */
+export const BUTTON_MIN_WIDTH = 72;
+
 export type Theme = {
   mode: ColorMode;
-  colors: (typeof palette)[ColorMode];
+  colors: Palette;
   spacing: typeof spacing;
   typography: typeof typography;
   radius: typeof radius;
   controls: typeof controls;
+  ui: UiTokens;
 };
 
 export function getTheme(mode: ColorMode): Theme {
-  return { mode, colors: palette[mode], spacing, typography, radius, controls };
+  return { mode, colors: palette[mode], spacing, typography, radius, controls, ui: ui[mode] };
 }
+
+/*
+ * One shared preference store. Every useTheme() instance reads the same
+ * in-memory value synchronously, so a remount never repaints with another
+ * scheme. Web primes from localStorage at module load (before first render);
+ * native renders the system scheme until its single async read lands.
+ */
+let storedPreference: ThemePreference = peekUiTheme() ?? "system";
+const storeListeners = new Set<() => void>();
+
+function applyPreference(next: ThemePreference) {
+  if (next === storedPreference) return;
+  storedPreference = next;
+  for (const listener of storeListeners) listener();
+}
+
+if (peekUiTheme() === null) {
+  void getUiTheme()
+    // getUiPreference already lets a preference set while the read was in flight win.
+    .then(applyPreference)
+    .catch(() => undefined);
+}
+subscribeUiPreferences(() => {
+  // Unknown (null) means keep the current value, e.g. a locale change before any theme read.
+  const next = peekUiTheme();
+  if (next !== null) applyPreference(next);
+});
+
+function subscribeStore(listener: () => void) {
+  storeListeners.add(listener);
+  return () => {
+    storeListeners.delete(listener);
+  };
+}
+const getStoredPreference = () => storedPreference;
 
 /**
  * Theme hook. The stored preference is UI-only and defaults to the platform
@@ -109,29 +260,17 @@ export function useTheme(): Theme & {
   setPreference: (preference: ThemePreference) => Promise<void>;
 } {
   const systemScheme = useColorScheme();
-  const [preference, setPreferenceState] = useState<ThemePreference>("system");
-
-  useEffect(() => {
-    let active = true;
-    void getUiTheme().then((stored) => {
-      if (active) setPreferenceState(stored);
-    });
-    const unsubscribe = subscribeUiPreferences(() => {
-      void getUiTheme().then((stored) => {
-        if (active) setPreferenceState(stored);
-      });
-    });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, []);
-
+  const preference = useSyncExternalStore(subscribeStore, getStoredPreference, getStoredPreference);
   const mode: ColorMode = preference === "system" ? (systemScheme === "dark" ? "dark" : "light") : preference;
   const theme = useMemo(() => getTheme(mode), [mode]);
   const updatePreference = useCallback(async (next: ThemePreference) => {
-    setPreferenceState(next);
+    applyPreference(next);
     await setUiTheme(next);
   }, []);
   return { ...theme, preference, setPreference: updatePreference };
+}
+
+/** Test seam: reset the shared store to an explicit preference. */
+export function __setThemePreferenceForTest(next: ThemePreference) {
+  applyPreference(next);
 }

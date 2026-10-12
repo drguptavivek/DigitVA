@@ -29,6 +29,7 @@ jest.mock("../src/AppState", () => ({
   useAppState: () => ({ bootstrap: mockBootstrap, ready: true, logout: jest.fn(), uiLocale: "en", chooseUiLocale: jest.fn() }),
 }));
 jest.mock("../src/theme", () => ({
+  radius: { sm: 4, md: 6, lg: 8, full: 9999 }, 
   useTheme: () => ({ colors: { surface: "#fff", border: "#ccc", text: "#000", textMuted: "#666", accent: "#00f", accentSoft: "#eef", focus: "#00f" } }),
 }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key, UI_LOCALES: [{ code: "en", label: "English" }] }));

@@ -28,6 +28,20 @@ function isPreferenceKey(value: string): value is PreferenceKey {
   return value === "ui_locale" || value === "ui_theme";
 }
 
+/** Synchronous read for first paint: in-memory value, else browser storage. Null when unknown (native before its async read). */
+export function peekUiTheme(): ThemePreference | null {
+  let value: string | null | undefined = memoryPreferences.ui_theme;
+  if (value === undefined) {
+    try {
+      value = browserStorage()?.getItem("ui_theme");
+    } catch {
+      value = undefined;
+    }
+  }
+  if (value === undefined) return null;
+  return value === "light" || value === "dark" ? value : "system";
+}
+
 export async function getUiPreference(key: PreferenceKey): Promise<string | null> {
   if (memoryPreferences[key] !== undefined) return memoryPreferences[key] ?? null;
   const storage = browserStorage();
@@ -38,7 +52,11 @@ export async function getUiPreference(key: PreferenceKey): Promise<string | null
       return null;
     }
   }
-  return SecureStore.getItemAsync(key).catch(() => null);
+  const stored = await SecureStore.getItemAsync(key).catch(() => null);
+  // A set while the read was in flight wins; otherwise cache so peekUiTheme() is known after the first read.
+  if (memoryPreferences[key] !== undefined) return memoryPreferences[key] ?? null;
+  if (stored !== null) memoryPreferences[key] = stored;
+  return stored;
 }
 
 export async function setUiPreference(key: PreferenceKey, value: string): Promise<void> {

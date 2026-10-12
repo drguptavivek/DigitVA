@@ -8,6 +8,7 @@ import sys
 
 import click
 
+from app.services.odk_case_service import backfill_odk_cases
 from app.services.web_intake_readiness_service import (
     WebIntakeReadinessError,
     assess_web_intake_readiness,
@@ -44,6 +45,19 @@ def readiness(project_id: str) -> None:
             click.echo(f"        {'':<17}Fix: {check['fix_hint']}")
     if not result["ready"]:
         sys.exit(1)
+
+
+@web_intake_group.command("backfill-odk-cases")
+@click.option("--project", "project_id", default=None, help="Only this project (default: every tree project).")
+@click.option("--dry-run", is_flag=True, help="Count what would be created; write nothing.")
+def backfill_odk_cases_command(project_id: str | None, dry_run: bool) -> None:
+    """Give ODK-only VAs in tree projects a death-register case (digitva-l8y3)."""
+    counts = backfill_odk_cases(project_id=project_id, dry_run=dry_run)
+    verb = "would create" if dry_run else "created"
+    click.echo(
+        f"{verb}: {counts['created']}  skipped (identity missing): {counts['identity_missing']}  "
+        f"skipped (already linked): {counts['linked']}  failed: {counts['failed']}"
+    )
 
 
 def init_app(app) -> None:

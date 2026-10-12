@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-08
+last_updated: 2026-10-12
 ---
 
 # ODK Sync And Attachments
@@ -198,6 +198,19 @@ Important detail:
 - the sync loop now groups forms by `(connection_id, odk_project_id)` and
   reuses one pyODK client across every form in that group for delta checks,
   OData fetches, and attachment requests
+
+## ODK-only Death Cases (digitva-l8y3)
+
+In a tree project, a new or amended ODK submission that the sync has routed and
+that has no death-register case (and no intake draft) gets an `odk`-source
+case: state `submitted`, owned by the "ODK sync" service account. Skipped when
+name, sex or date of death is missing. Policy and rules:
+[Web Intake Policy](../policy/web-intake.md#cases-for-odk-only-interviews-digitva-l8y3);
+code in `app/services/odk_case_service.py`, called from
+`_upsert_form_submissions` after routing.
+An unrouted ODK VA still gets its case, with no unit, counted in the area's
+Unrouted row. The case follows its submission's unit when a data manager pins
+it or a later sync re-routes it (`sync_case_unit`, called from routing).
 
 ## Canonical Payload Enrichment
 

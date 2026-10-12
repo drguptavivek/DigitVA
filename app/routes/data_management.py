@@ -30,6 +30,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.services.odk_case_service import ODK_SYNC_USER_ID
 from app.routes.admin import (
     _grant_org_unit_columns,
     _grant_project_id_expression,
@@ -639,6 +640,8 @@ def _search_users(stmt, query, include_inactive):
     Returns up to ``_USER_SEARCH_LIMIT + 1`` rows so the caller can flag more."""
     if not include_inactive:
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
+    # The ODK sync service account is never a grant target.
+    stmt = stmt.where(VaUsers.user_id != ODK_SYNC_USER_ID)
     if query:
         stmt = stmt.where(
             sa.or_(

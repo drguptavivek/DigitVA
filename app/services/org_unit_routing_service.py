@@ -230,7 +230,16 @@ def apply_routing(
         return False
     submission.org_unit_id = outcome.org_unit_id
     submission.org_unit_resolution = outcome.resolution
+    _sync_odk_case_unit(submission)
     return True
+
+
+def _sync_odk_case_unit(submission: VaSubmissions) -> None:
+    """Move the submission's ODK case with its unit (digitva-l8y3)."""
+    # Imported here: odk_case_service imports web_intake_service, which imports this module.
+    from app.services import odk_case_service
+
+    odk_case_service.sync_case_unit(submission)
 
 
 def route_submission(
@@ -290,6 +299,7 @@ def pin_submission_org_unit(
     submission.org_unit_resolution = RESOLUTION_MANUAL
     submission.org_unit_pinned_by = actor_user_id
     submission.org_unit_pinned_at = datetime.now(timezone.utc)
+    _sync_odk_case_unit(submission)
     return unit
 
 

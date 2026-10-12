@@ -22,6 +22,7 @@ from flask_wtf.csrf import generate_csrf
 
 from app import db, limiter
 from app.decorators import role_required
+from app.services.odk_case_service import ODK_SYNC_USER_ID
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,
     guarded_odk_call,
@@ -2205,7 +2206,8 @@ def admin_users():
     query = (request.args.get("query") or "").strip()
     master = request.args.get("master") == "1"
     
-    stmt = sa.select(VaUsers)
+    # The ODK sync service account is hidden so it cannot be reactivated by mistake.
+    stmt = sa.select(VaUsers).where(VaUsers.user_id != ODK_SYNC_USER_ID)
     
     if master:
         if not current_user.is_admin():

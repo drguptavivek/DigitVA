@@ -534,9 +534,12 @@ address).
 
 ### `va_death_register` (the case)
 
-One row per death, for both web intake routes: `source = 'register'` (the
-register form) or `'direct'` (a questionnaire started directly, which creates
-its case at once). `status` is the case state, written only by
+One row per death, for all three routes: `source = 'register'` (the
+register form), `'direct'` (a questionnaire started directly, which creates
+its case at once), or `'odk'` (an ODK-only interview, created by the sync in
+a tree project; `registered_by` is the "ODK sync" service account, which cannot
+sign in; a partial unique index `uq_va_death_register_odk_va_sid` on `va_sid`
+where `source = 'odk'` allows one per submission). `status` is the case state, written only by
 `app/services/case_transition_service.py`:
 
 `draft_identity`, `registered`, `scheduled`, `in_progress`, `paused`,

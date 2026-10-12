@@ -68,6 +68,7 @@ from flask_sqlalchemy.session import Session as FlaskSQLAlchemySession
 from itsdangerous import URLSafeTimedSerializer
 import sqlalchemy as sa
 
+from app.services.odk_case_service import ODK_SYNC_USER_ID
 from app import db
 from app.models import (
     VaAccessRoles,
@@ -271,6 +272,16 @@ class BaseTestCase(unittest.TestCase):
                 project_site_updated_at=now,
             )
             db.session.add(project_site)
+            db.session.flush()
+
+        # The ODK sync service account (digitva-l8y3). A real database gets it from
+        # migration k8p4r2w6y3f1; tests build the schema with create_all instead.
+        if db.session.get(VaUsers, ODK_SYNC_USER_ID) is None:
+            db.session.add(VaUsers(
+                user_id=ODK_SYNC_USER_ID, name="ODK sync", email="odk-sync@system.invalid",
+                password="!", vacode_language=[], permission={}, landing_page="admin",
+                pw_reset_t_and_c=False, email_verified=False, user_status=VaStatuses.deactive,
+            ))
             db.session.flush()
 
         cls.base_admin_user = cls._get_or_make_user("base.admin@test.local", "BaseAdmin123")

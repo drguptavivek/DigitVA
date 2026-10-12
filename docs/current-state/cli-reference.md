@@ -248,6 +248,19 @@ above are the manual equivalent.
 
 ---
 
+## `web-intake` — ODK-only death cases
+
+`backfill-odk-cases`
+
+Gives each ODK-only VA of a tree project (`--project` to limit it) without a
+death-register case one, as the sync does for new arrivals (policy: Web Intake,
+"Cases for ODK-only interviews"). `--dry-run` writes nothing and prints what
+would be created. A real run commits every 200 submissions and is idempotent.
+Prints `created`, `skipped (identity missing)`, `skipped (already linked)` and
+`failed` (a submission whose case could not be written; logged by va_sid, the rest still run).
+
+---
+
 ## `odk-mappings` — ODK form mapping audit
 
 An ODK form — `(ODK connection, odk_project_id, odk_form_id)` — may be mapped to at

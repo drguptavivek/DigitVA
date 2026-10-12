@@ -884,6 +884,13 @@ def _upsert_form_submissions(
                     context=routing_context,
                     payload=va_submission,
                 )
+                # An ODK-only VA gets its death-register case (digitva-l8y3).
+                # Imported here: odk_case_service imports web_intake_service, which imports this module.
+                from app.services import odk_case_service
+
+                odk_case_service.ensure_case_for_odk_submission(
+                    routed_submission, va_form, va_submission
+                )
 
     return added, updated, discarded, skipped
 

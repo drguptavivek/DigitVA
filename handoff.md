@@ -31,15 +31,18 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 ## Next, ranked
 
-1. **Role home on the Expo web app** (design `.tasks/2026-10-11-home-jump-page.md`):
-   backend `digitva-umc4` (landing to `/app/` for the six roles with a fallback when the export is missing, last project on the coding and
-   reviewing project lists, supervisor possible duplicates and visit notes, death reporters on the new-death page) and `digitva-b3pt` (area
-   deaths reported) are committed; close both once the browser check is done. Expo session: `digitva-k6i9` role home and last-visit
-   resume, `digitva-xqta` supervision screen, `digitva-1g1h` UI in pa/mr/kn/ta/ml/te/gu/or, `digitva-dt1e` UI-string overlay. Until
-   `k6i9` and `xqta` ship, a supervisor landing on `/app/` finds no supervision link. Next here: `digitva-l8y3` (a case for each ODK-only
-   VA; few expected), then `digitva-qu7x` home KPIs, `digitva-e7sz` organization page (worker roster, names visible to everyone in the
-   project), `digitva-fsjz` UI-string editor with Google Translate links (`.tasks/2026-10-12-ui-string-editor.md`; open: admin-only or a
-   translator role). DM Expo screen deferred (`digitva-qirs`).
+1. **Role home on the Expo web app** (design `.tasks/2026-10-11-home-jump-page.md`). Committed: login to `/app/` for
+   the six roles with a fallback when the export is missing (`digitva-umc4`), area deaths reported (`b3pt`), `/app/` as a
+   role router with last-visit resume and role-gated nav (`k6i9`), the supervision screen (`xqta`), and a case for each
+   ODK-only VA in tree projects that follows the VA's unit pin (`l8y3`; backfill `flask web-intake backfill-odk-cases
+   --dry-run` first). Close those beads after a dev browser check: TST001 `test.cho.sc01` -> Collection,
+   `test.mo.phc01` -> Coding with Supervision in the nav, `test.cs.dh01` -> Supervision, `test.dpm.dh01` -> `/area/`,
+   sign out and in to see last-visit resume; the area table; a death reporter's new-death page. Next: `digitva-qu7x` home
+   KPIs (deaths reported, interviews done %, coded %, both % of deaths reported), `digitva-e7sz` organization page (worker
+   roster, names visible to everyone in the project), `digitva-fsjz` UI-string editor with Google Translate links (open:
+   admin-only or a translator role), `digitva-1g1h` eight more UI languages (queue strings still hard-coded English),
+   `digitva-dt1e` overlay. DM Expo screen deferred (`digitva-qirs`). Dev serves `mobile/digitva-collect/dist`: rebuild
+   with `npx expo export --platform web` after Expo changes.
 2. **Translation drafts**: dev is at `e9h3k6p2s8v4` (429 Hindi machine drafts of guidance and constraint messages, `689bb139`; a Hindi reader
    accepts them in the translations editor). Other locales still need drafts; then `digitva-zyf` (DORIS override messages; needs a vendor regeneration by the Expo session).
 3. **Owner decisions and checks still open**:
@@ -78,7 +81,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   `d8q4e1h6n3v9` (`map_case_transitions.changes`), `e9h3k6p2s8v4` (Hindi note drafts, data only), `f2j6n9r4u1x7` (death_reporter role, grid flag,
   reporter list index), `g3k7o1s5w9a2` (grid default roles),
   `g3k7n1s5v9y2` (translation suggestions), `g4k8p2t6x1b5` (web intake attachments), `h5m2r8v4z1d9` (index for the daily upload purge). Dev is
-  at `j7n3q9w5y2e8` (allocation index for the queue's last project, after `h5m2r8v4z1d9`). Restart the Celery worker and beat so the "Web intake
+  at `k8p4r2w6y3f1` (ODK-only cases: `odk` source, unique index, ODK sync account; after `j7n3q9w5y2e8`, the allocation index for the queue's last project). Restart the Celery worker and beat so the "Web intake
   upload purge — daily" row is seeded (30-day rule, `b29d4c59`). Earlier field-collection migrations: `d5f1b8a3c6e2`,
   `e6a2c9d4f1b7` (fails loudly if a user has two open drafts on one case: check first), `f7b3d9e1a5c4`, `a8c4e2f6b9d1`, `h2n5q8t1v4w7`,
   `b4k8m2r6w9x3`.

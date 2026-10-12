@@ -27,7 +27,7 @@ CASE_STATES = (
     "not_reachable", "refused", "submitted", "duplicate", "cancelled",
 )
 DEATH_REGISTER_STATUSES = CASE_STATES
-CASE_SOURCES = ("register", "direct")
+CASE_SOURCES = ("register", "direct", "odk")
 CASE_FLAGS = ("duplicate", "cancel")
 #: Outcome of one contact attempt (``map_case_contact_attempts``); no notes.
 CONTACT_OUTCOMES = ("reached", "no_answer", "wrong_number", "moved", "refused")
@@ -71,7 +71,12 @@ class VaDeathRegister(db.Model):
         sa.CheckConstraint(
             "status IN (" + ", ".join(f"'{s}'" for s in CASE_STATES) + ")", name="status"
         ),
-        sa.CheckConstraint("source IN ('register', 'direct')", name="source"),
+        sa.CheckConstraint("source IN ('register', 'direct', 'odk')", name="source"),
+        # One case per ODK submission (digitva-l8y3); the sync's create is idempotent on it.
+        sa.Index(
+            "uq_va_death_register_odk_va_sid", "va_sid", unique=True,
+            postgresql_where=sa.text("source = 'odk'"),
+        ),
         sa.CheckConstraint(
             "status IN ('draft_identity', 'cancelled') OR "
             "(deceased_name IS NOT NULL AND date_of_death IS NOT NULL AND deceased_sex IS NOT NULL)",
@@ -143,7 +148,8 @@ class VaDeathRegister(db.Model):
     registered_by: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )
-    # register: the register form; direct: a questionnaire started directly.
+    # register: the register form; direct: a questionnaire started directly;
+    # odk: an ODK-only interview, created by the sync (app/services/odk_case_service.py).
     source: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="register", server_default="register"
     )

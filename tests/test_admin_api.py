@@ -2206,6 +2206,24 @@ class AdminApiTests(BaseTestCase):
         self.assertNotIn(f"plain{sfx}@example.com", emails(f"%{sfx}"))
         self.assertEqual(emails(f"_lain{sfx}"), set())
 
+    def test_master_list_hides_the_odk_sync_account_even_with_inactive(self):
+        """The ODK sync service account is absent from the admin list (digitva-l8y3)."""
+        from app.services.odk_case_service import ODK_SYNC_USER_ID
+
+        inactive = self._create_user(f"inactive{uuid.uuid4().hex[:8]}@example.com")
+        inactive.user_status = VaStatuses.deactive
+        db.session.commit()
+        self._login(self.admin_user_id)
+
+        resp = self.client.get(
+            "/admin/api/users", query_string={"master": "1", "include_inactive": "1"}
+        )
+
+        self.assertEqual(resp.status_code, 200)
+        ids = {u["user_id"] for u in resp.get_json()["users"]}
+        self.assertIn(str(inactive.user_id), ids)
+        self.assertNotIn(str(ODK_SYNC_USER_ID), ids)
+
 
     # -- granted by (digitva-nk1): created_by_user_id on every web grant write --
 

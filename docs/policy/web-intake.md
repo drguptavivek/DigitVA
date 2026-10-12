@@ -435,6 +435,36 @@ stay on the server draft only.
   last completed version wins `digitva-xpqm`, supervisor choice
   `digitva-bqzm`); the phone's Revise screen is `digitva-bhpl.2`.
 
+## Cases for ODK-only interviews (digitva-l8y3)
+
+Owner, 2026-10-12: "deaths reported" must count every death the system
+knows, including a VA interviewed in ODK only. Its death-register case is
+created by the ODK sync, so such a VA needs no web-intake action.
+
+- Tree (organization) projects only. A project in sites mode gets no case.
+- Only a submission of an ODK form (`form_source = 'odk'`) that the sync has
+  routed to a unit.
+- Case: `source = 'odk'`, state `submitted`, `va_sid` set, `site_id` and
+  `org_unit_id` from the submission, `registered_by` the "ODK sync" service
+  account (`va_users`, `ODK_SYNC_USER_ID`). It cannot sign in: deactivated,
+  no password, no verified email. One `created` audit row names it as actor.
+- Identity from the ODK answers: name (`Id10017` `Id10018`), sex (`Id10019`),
+  date of death (`Id10023`, else `Id10023_a`/`_b`). Without all three the case
+  is not created; the sync logs the `va_sid` (no personal data) and goes on.
+- Never for a submission that already has a case (any source) or an intake
+  draft. A unique partial index on `va_sid` where `source = 'odk'` makes the
+  create idempotent: reruns of the sync create nothing new.
+- A data manager's unit pin is respected: the unit is read after routing.
+- An unrouted ODK VA still gets its case, with no unit, counted in the area's
+  Unrouted row. The case follows an `odk` submission's unit: a pin or a later
+  sync's re-route moves it along, and an app case keeps its own unit.
+- Existing ODK submissions are covered by `flask web-intake
+  backfill-odk-cases [--project X] [--dry-run]` (`cli-reference.md`).
+- A case that fails to write never blocks the sync: only that submission's
+  savepoint rolls back, a warning is logged by va_sid, and the form still
+  commits. The ODK sync account is hidden from admin and data-manager user
+  lists.
+
 ## Ready for web capture
 
 A project can only capture a VA through the browser form when several

@@ -73,6 +73,10 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(grid[("chc", "SMO")], (False, True, True, False))
         self.assertEqual(grid[("phc", "MO")], (False, True, True, False))
         self.assertEqual(grid[("chc", "MO")], (False, True, False, False))
+        # Owner 2026-10-12: ANM and MPW may fill VAs; ASHA only reports deaths.
+        for key in (("subcentre", "ANM"), ("subcentre", "MPW")):
+            self.assertEqual(grid[key], (True, False, False, True))
+        self.assertEqual(grid[("village", "ASHA")], (False, False, False, True))
         # Owner 2026-10-06: ANM and MPW at the sub-centre and ASHA at the village report deaths.
         reporters = {key for key, flags in grid.items() if flags[3]}
         self.assertEqual(
@@ -293,7 +297,7 @@ class OrganizationServiceTests(BaseTestCase):
         # Import (CSV): the CHO gains the flag, the ANM loses it.
         edited = text.replace("subcentre,CHO,True,False,False,False", "subcentre,CHO,True,False,False,True")
         # The ANM's blank default_roles keeps the stored one, which the cleared flag then drops.
-        edited = edited.replace("subcentre,ANM,False,False,False,True,death_reporter", "subcentre,ANM,False,False,False,False,")
+        edited = edited.replace("subcentre,ANM,True,False,False,True,death_reporter", "subcentre,ANM,True,False,False,False,")
         self.assertNotEqual(edited, text)
         plan = org.import_organization(
             self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.encode()), "level_cadres"), dry_run=False)

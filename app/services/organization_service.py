@@ -129,11 +129,12 @@ DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool, bool
     ("phc", "MO"): (False, True, True, False),
     ("phc", "CHO"): (True, False, False, False),
     ("subcentre", "CHO"): (True, False, False, False),
-    # Owner 2026-10-06: ANM and MPW report deaths and must not interview, so
-    # no Fill VA (new projects only; an existing grid row is never rewritten).
-    ("subcentre", "MPW"): (False, False, False, True),
-    ("subcentre", "ANM"): (False, False, False, True),
-    ("village", "ASHA"): (True, False, False, True),
+    # Owner 2026-10-12: ANM and MPW report deaths and may fill VAs; ASHA
+    # reports deaths only. New projects only; an existing grid row is never
+    # rewritten.
+    ("subcentre", "MPW"): (True, False, False, True),
+    ("subcentre", "ANM"): (True, False, False, True),
+    ("village", "ASHA"): (False, False, False, True),
 }
 # The default roles a new project's grid starts with (digitva-vjt): the grants
 # an administrator would normally give each cadre, stored on the grid row as

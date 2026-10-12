@@ -143,7 +143,7 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         org.seed_default_organization(self.PROJECT)
         db.session.commit()
         for role, (flag, _permits) in CADRE_FLAG_BY_ROLE.items():
-            # (village, ASHA) carries only Fill VA and Report deaths.
+            # (village, ASHA) carries only Report deaths.
             flagged = flag == "can_report_deaths"
             with self.subTest(role=role.value):
                 if flagged:

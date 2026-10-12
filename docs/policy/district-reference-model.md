@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-08
+last_updated: 2026-10-12
 ---
 
 # District Reference Model
@@ -113,14 +113,17 @@ under *District reference model*.
 | `phc` | MO Medical Officer | – | ✓ | ✓ | – |
 | `phc` | CHO Community Health Officer | ✓ | – | – | – |
 | `subcentre` | CHO Community Health Officer | ✓ | – | – | – |
-| `subcentre` | MPW Multipurpose Worker | – | – | – | ✓ |
-| `subcentre` | ANM Auxiliary Nurse Midwife | – | – | – | ✓ |
-| `village` | ASHA Accredited Social Health Activist | ✓ | – | – | ✓ |
+| `subcentre` | MPW Multipurpose Worker | ✓ | – | – | ✓ |
+| `subcentre` | ANM Auxiliary Nurse Midwife | ✓ | – | – | ✓ |
+| `village` | ASHA Accredited Social Health Activist | – | – | – | ✓ |
 
-ANM and MPW have no *Fill VA* (owner, 2026-10-06: they report deaths and must
-not interview). The template applies to projects populated after that date;
-an existing project's grid rows are never rewritten, so its administrator
-clears *Fill VA* for them in the grid editor if wanted.
+ASHA has no *Fill VA*: ASHAs report deaths and do not interview. ANM and MPW
+may fill VAs (owner, 2026-10-12, reversing the 2026-10-06 rule that they must
+not interview); their default role stays `death_reporter`, and an
+`interviewer` grant is added where they interview. The template applies to
+projects populated after that date; an existing project's grid rows are never
+rewritten, so its administrator changes *Fill VA* in the grid editor if
+wanted.
 
 ## Default roles by cadre
 
@@ -172,7 +175,7 @@ The table is the seed. Access still comes only from each person's grants.
 | CHC | SN | `interviewer` | facility deaths at the CHC |
 | PHC-AAM | MO | PHC in-charge (`site_pi` at the unit, shown as In-charge), `coder` | its SC-AAMs |
 | SC-AAM | CHO | `interviewer` | own SC-AAM: register deaths and interview |
-| SC-AAM | ANM, MPW | `death_reporter` | own SC-AAM: register deaths and correct their details until an interview is completed; no interviewing |
+| SC-AAM | ANM, MPW | `death_reporter` | own SC-AAM: register deaths and correct their details until an interview is completed; interview only with an added `interviewer` grant |
 | Village | ASHA | `death_reporter` | own village: as the ANM and MPW |
 | Mentoring institute | Faculty, residents | `coder`, `reviewer`, `coding_tester`, `collaborator_pii` | only the districts the institute is attached to, through ordinary unit grants at those districts |
 

@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-12
 ---
 
 # Access Control Model
@@ -422,9 +422,11 @@ See [Web Intake Policy](web-intake.md).
 
 ### `death_reporter`
 
-Reporting role for field workers who register deaths but must not interview
-(ANM and MPW at a sub-centre, ASHA at a village; owner decisions 2026-10-01
-and 2026-10-06, `digitva-t6q`), held at `org_unit` scope only.
+Reporting role for field workers who register deaths (ANM and MPW at a
+sub-centre, ASHA at a village; owner decisions 2026-10-01 and 2026-10-06,
+`digitva-t6q`), held at `org_unit` scope only. The role itself never
+interviews. Since 2026-10-12 (owner) ANM and MPW may also hold
+`interviewer`, which their grid row now permits; ASHA may not.
 
 May:
 

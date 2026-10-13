@@ -51,16 +51,20 @@ const layout = StyleSheet.create({
   wrap: { flexShrink: 1 },
   unitName: { fontSize: 16, fontWeight: "600" },
   person: { fontSize: 14, lineHeight: 18 },
+  roles: { fontSize: 12, lineHeight: 16 },
 });
 
-/** Names only, in a smaller type than the unit name: the API never sends contact details, and cadres are not shown. */
+/** Name with the member's roles beneath, in a smaller type than the unit name: the API never sends contact details, and cadres are not shown. */
 function PeopleList({ people }: { people: OrgPerson[] }) {
   const styles = useUiStyles();
   if (!people.length) return <Text style={styles.muted}>{t("orgNoPeople")}</Text>;
   return (
     <>
       {people.map((person, index) => (
-        <Text key={`${index}-${person.name}`} style={[styles.muted, layout.person]}>{person.name}</Text>
+        <View key={`${index}-${person.name}`}>
+          <Text style={[styles.muted, layout.person]}>{person.name}</Text>
+          {person.roles?.length ? <Text style={[styles.muted, layout.roles]}>{person.roles.join(" · ")}</Text> : null}
+        </View>
       ))}
     </>
   );

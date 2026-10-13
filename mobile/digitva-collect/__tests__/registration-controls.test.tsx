@@ -3,9 +3,10 @@ import { act, create } from "react-test-renderer";
 
 jest.mock("../src/i18n", () => ({ t: (key: string) => key, uiLocale: () => "hi" }));
 jest.mock("../src/ui", () => ({ useUiStyles: () => ({ error: {}, input: {} }) }));
-jest.mock("../src/theme", () => ({
-  useTheme: () => ({ colors: { accent: "#00f", accentPressed: "#00f", accentSoft: "#00f", background: "#fff", surface: "#fff", text: "#000", textMuted: "#333", border: "#ccc", warning: "#a60", danger: "#d00", dangerSoft: "#fee" } })
-}));
+jest.mock("../src/theme", () => {
+  const actual = jest.requireActual("../src/theme");
+  return { ...actual, useTheme: () => ({ ...actual.getTheme("light"), colors: { ...actual.getTheme("light").colors } }) };
+});
 
 jest.mock(
   "@drguptavivek/who-2022-va/web",
@@ -72,52 +73,59 @@ describe("death registration field controls", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("marks deceased name and death date as required WHO questions", async () => {
-    let tree: ReturnType<typeof create>;
+  it("draws date of death with the shared DateControl, capped at today, and shows its error", async () => {
+    const onChange = jest.fn();
+    const { localToday } = require("../src/cases") as typeof import("../src/cases");
+    let tree!: ReturnType<typeof create>;
     await act(async () => {
-      tree = create(<RegistrationFieldControl field="date_of_death" label="Death date" value="" onChange={jest.fn()} />);
+      tree = create(<RegistrationFieldControl field="date_of_death" label="Death date" value="" issueMessage="errFutureDate" onChange={onChange} />);
     });
-    expect(tree!.root.findByProps({ "data-testid": "date-control" }).props.question.required).toBe(true);
-    await act(async () => tree!.unmount());
+    expect(tree.root.findAllByProps({ "data-testid": "date-control" })).toHaveLength(0);
+    const input = tree.root.findByType("input" as any);
+    expect(input.props.type).toBe("date");
+    expect(input.props.max).toBe(localToday());
+    expect(input.props["aria-invalid"]).toBe(true);
+    expect(tree.root.findByProps({ children: "errFutureDate" })).toBeDefined();
+    act(() => input.props.onChange({ target: { value: "2026-09-30" } }));
+    expect(onChange).toHaveBeenLastCalledWith("2026-09-30");
+    await act(async () => tree.unmount());
   });
 
-  it("converts WHO sentinel dates to partial registration values", async () => {
+  it("draws the browser's own control per birth precision and emits the stored format", async () => {
+    const mount = async (dateAppearance: "exact" | "month-year" | "year", onChange: jest.Mock) => {
+      let tree!: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<RegistrationFieldControl field="date_of_birth_partial" label="Birth" value="" dateAppearance={dateAppearance} onChange={onChange} />);
+      });
+      return tree;
+    };
     const onChange = jest.fn();
-    let tree: ReturnType<typeof create>;
-    await act(async () => {
-      tree = create(
-        <RegistrationFieldControl
-          field="date_of_birth_partial"
-          label="Birth date"
-          value=""
-          dateAppearance="month-year"
-          onChange={onChange}
-        />
-      );
-    });
-    const control = tree!.root.findByProps({ "data-testid": "date-control" });
-    expect(control.props.question.appearance).toBe("month-year");
-    expect(control.props.locale).toBe("hi");
-    expect(control.props.messages.dateFormatHint).toContain("दिन");
-    act(() => control.props.onAnswer("1987-04-01"));
-    expect(onChange).toHaveBeenCalledWith("1987-04");
-    await act(async () => tree!.unmount());
+    let tree = await mount("exact", onChange);
+    expect(tree.root.findAllByProps({ "data-testid": "date-control" })).toHaveLength(0);
+    expect(tree.root.findByType("input" as any).props.type).toBe("date");
+    expect(tree.root.findAllByType("button" as any)).toHaveLength(1);
+    expect(tree.root.findAllByType("svg" as any)).toHaveLength(1);
+    act(() => tree.root.findByType("input" as any).props.onChange({ target: { value: "1987-04-12" } }));
+    expect(onChange).toHaveBeenLastCalledWith("1987-04-12");
+    await act(async () => tree.unmount());
 
-    const yearChange = jest.fn();
-    await act(async () => {
-      tree = create(
-        <RegistrationFieldControl
-          field="date_of_birth_partial"
-          label="Birth year"
-          value=""
-          dateAppearance="year"
-          onChange={yearChange}
-        />
-      );
-    });
-    const yearControl = tree!.root.findByProps({ "data-testid": "date-control" });
-    act(() => yearControl.props.onAnswer("1987-01-01"));
-    expect(yearChange).toHaveBeenCalledWith("1987");
-    await act(async () => tree!.unmount());
+    tree = await mount("month-year", onChange);
+    expect(tree.root.findByType("input" as any).props.type).toBe("month");
+    expect(() => tree.root.findByType("button" as any).props.onClick()).not.toThrow();
+    act(() => tree.root.findByType("input" as any).props.onChange({ target: { value: "1987-04" } }));
+    expect(onChange).toHaveBeenLastCalledWith("1987-04");
+    await act(async () => tree.unmount());
+
+    tree = await mount("year", onChange);
+    const select = tree.root.findByType("select" as any);
+    expect(tree.root.findAllByType("input" as any)).toHaveLength(0);
+    expect(tree.root.findAllByType("button" as any)).toHaveLength(0);
+    const years = tree.root.findAllByType("option" as any).map((option) => option.props.value);
+    expect(years[0]).toBe("");
+    expect(years[1]).toBe(String(new Date().getFullYear()));
+    expect(years[years.length - 1]).toBe(String(new Date().getFullYear() - 120));
+    act(() => select.props.onChange({ target: { value: "1987" } }));
+    expect(onChange).toHaveBeenLastCalledWith("1987");
+    await act(async () => tree.unmount());
   });
 });

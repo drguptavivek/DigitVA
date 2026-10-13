@@ -19,6 +19,7 @@ import { localToday, visitAt } from "../cases";
 import { t, type StringKey } from "../i18n";
 import { stateLabel, Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
+import { MapsLink } from "./LocationCapture";
 import { RegistrationFieldControl } from "./registrationControls";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
@@ -432,8 +433,10 @@ export default function NewCaseDetailScreen() {
                   {value}
                 </Text>
               ))}
+            <MapsLink latitude={address?.latitude} longitude={address?.longitude} />
             {!informant?.name &&
             phones.length === 0 &&
+            address?.latitude == null &&
             !address?.address &&
             !address?.house_street &&
             !address?.village_ward &&

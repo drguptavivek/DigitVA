@@ -21,7 +21,7 @@ export interface RegistrationCase {
   other_complete_interview?: boolean;
   updated_at: string;
   deceased: { name?: string | null; sex?: string | null; date_of_death?: string | null; date_of_birth?: string | null; date_of_birth_partial?: string | null; age_years?: number | null; place_of_death?: string | null };
-  household_address: { address?: string | null; house_street?: string | null; village_ward?: string | null; landmark?: string | null };
+  household_address: { address?: string | null; house_street?: string | null; village_ward?: string | null; landmark?: string | null; latitude?: number | null; longitude?: number | null; accuracy_m?: number | null; captured_at?: string | null };
   informant: { name?: string | null; phone?: string | null; phone_2?: string | null };
   remarks?: string | null;
   abha_number?: string | null;

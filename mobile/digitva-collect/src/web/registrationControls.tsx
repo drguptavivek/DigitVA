@@ -10,9 +10,11 @@ import {
 import { Platform, Text, TextInput, View } from "react-native";
 
 import type { RegistrationInput } from "../client/api";
+import { localToday } from "../cases";
 import { t, uiLocale } from "../i18n";
 import { useUiStyles } from "../ui";
 import { useTheme } from "../theme";
+import { DateControl } from "../workspace/doris/DateControl.web";
 
 type RegistrationField = keyof RegistrationInput;
 export type RegistrationDateAppearance = "exact" | "month-year" | "year";
@@ -148,6 +150,24 @@ export function RegistrationFieldControl({
     "--who-2022-web-color-danger-soft": theme.colors.dangerSoft
   } as unknown as Record<string, string>) : undefined;
 
+  // Date of birth uses the browser's own controls by precision; the value formats stay YYYY-MM-DD, YYYY-MM and YYYY.
+  if (field === "date_of_birth" || field === "date_of_birth_partial") {
+    return (
+      <View>
+        <DateControl precision={dateAppearance === "year" ? "year" : dateAppearance === "month-year" ? "month" : "date"} label={label} value={value} placeholder={t("dobSelectYear")} error={Boolean(issueMessage)} onChange={(next) => { onChange(next); onIssue?.(); }} />
+        {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
+      </View>
+    );
+  }
+  // Date of death shares the birth-date control; validateRegistration still enforces required and no-future-date on submit.
+  if (field === "date_of_death") {
+    return (
+      <View>
+        <DateControl precision="date" label={label} value={value} max={localToday()} error={Boolean(issueMessage)} onChange={(next) => { onChange(next); onIssue?.(); }} />
+        {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
+      </View>
+    );
+  }
   if (kind === "date") {
     return (
       <View style={themed}>

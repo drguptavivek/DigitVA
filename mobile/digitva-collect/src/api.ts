@@ -269,6 +269,10 @@ export interface CaseRow {
   unit_name?: string | null;
   informant_phone_masked?: string | null;
   informant_phone_2_masked?: string | null;
+  /** Death-site GPS fix; only on the register list, which carries the address too. */
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_m?: number | null;
   last_contact_at?: string | null;
   next_visit_at?: string | null;
   my_draft_id?: string | null;
@@ -337,6 +341,10 @@ export interface CaseDetailAddress {
   house_street?: string | null;
   village_ward?: string | null;
   landmark?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_m?: number | null;
+  captured_at?: string | null;
 }
 
 export interface CaseDetailInformant {

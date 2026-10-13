@@ -44,6 +44,15 @@ jest.mock("../src/web/registrationControls", () => {
       React.createElement("button", { "data-field": field, "data-value": value, "data-appearance": dateAppearance, "data-issue": issueMessage, onClick: onChange as unknown as () => void, onIssue } as Record<string, unknown>)
   };
 });
+jest.mock("../src/web/LocationCapture", () => {
+  const React = require("react") as typeof import("react");
+  return {
+    LocationCapture: ({ value, onChange }: { value: unknown; onChange: (next: unknown) => void }) =>
+      React.createElement("button", { "data-location": JSON.stringify(value), onClick: onChange as unknown as () => void }),
+    MapsLink: ({ latitude, longitude }: { latitude?: number; longitude?: number }) =>
+      typeof latitude === "number" && typeof longitude === "number" ? React.createElement("a", { "data-maps": `${latitude},${longitude}` }) : null
+  };
+});
 jest.mock("../src/client/api", () => ({
   INTAKE_API: "/api/v1/intake",
   getIntakeContext: jest.fn(),
@@ -186,18 +195,27 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("clears a partial value when birth precision changes", async () => {
+  it("converts the birth value when precision changes: finer is cut, coarser is cleared", async () => {
     let tree: ReturnType<typeof create>;
     await act(async () => {
       tree = create(<DeathRegistrationScreen />);
     });
     await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "dobMonthYear" }).props.onClick());
+    const findField = (field: string) => tree!.root.findByProps({ "data-field": field });
+    const choose = (label: string) => act(async () => tree!.root.findByProps({ "data-label": label }).props.onClick());
+    await act(async () => findField("date_of_birth").props.onClick("1987-04-12"));
+    await choose("dobMonthYear");
     const partial = () => tree!.root.findByProps({ "data-field": "date_of_birth_partial" });
-    await act(async () => partial().props.onClick("1987-04"));
     expect(partial().props["data-value"]).toBe("1987-04");
-    await act(async () => tree!.root.findByProps({ "data-label": "dobYear" }).props.onClick());
+    await choose("dobYear");
+    expect(partial().props["data-value"]).toBe("1987");
+    await choose("dobMonthYear");
     expect(partial().props["data-value"]).toBe("");
+    await choose("dobExact");
+    expect(findField("date_of_birth").props["data-value"]).toBe("");
+    await choose("dobUnknown");
+    expect(tree!.root.findAllByProps({ "data-field": "date_of_birth" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-field": "date_of_birth_partial" })).toHaveLength(0);
     await act(async () => tree!.unmount());
   });
 
@@ -217,6 +235,70 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.root.findByProps({ "data-label": "dobYear" }).props.onClick());
     await act(async () => findField("date_of_birth_partial").props.onClick("2000"));
     expect(tree!.root.findByProps({ children: "ageAtDeathRange" })).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
+
+  it("replaces the age stepper with a read-only estimate once a birth date is known, at every precision", async () => {
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const fieldCount = (name: string) => tree!.root.findAllByProps({ "data-field": name }).length;
+    const findField = (name: string) => tree!.root.findByProps({ "data-field": name });
+    expect(tree!.root.findByProps({ children: "fieldEstimatedAge" })).toBeDefined();
+    expect(fieldCount("age_years")).toBe(0);
+    await act(async () => findField("date_of_birth").props.onClick("2000-01-01"));
+    expect(tree!.root.findByProps({ children: "ageNeedsDeathDate" })).toBeDefined();
+    await act(async () => findField("date_of_death").props.onClick("2026-09-30"));
+    expect(tree!.root.findAllByProps({ children: "ageNeedsDeathDate" })).toHaveLength(0);
+    expect(tree!.root.findByProps({ children: "ageAtDeathCalculated" })).toBeDefined();
+    for (const [mode, value, text] of [["dobMonthYear", "2000-01", "ageAtDeathFullRange"], ["dobYear", "2000", "ageAtDeathRange"]] as const) {
+      await act(async () => tree!.root.findByProps({ "data-label": mode }).props.onClick());
+      await act(async () => findField("date_of_birth_partial").props.onClick(value));
+      expect(tree!.root.findByProps({ children: text })).toBeDefined();
+      expect(fieldCount("age_years")).toBe(0);
+    }
+    await act(async () => tree!.root.findByProps({ "data-label": "dobUnknown" }).props.onClick());
+    expect(fieldCount("age_years")).toBe(1);
+    await act(async () => tree!.unmount());
+  });
+
+  it("does not send a manual age typed under unknown once a birth year is chosen", async () => {
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const field = (name: string) => tree!.root.findByProps({ "data-field": name });
+    await act(async () => tree!.root.findByProps({ "data-label": "dobUnknown" }).props.onClick());
+    await act(async () => field("age_years").props.onClick("39"));
+    await act(async () => tree!.root.findByProps({ "data-label": "dobYear" }).props.onClick());
+    await act(async () => {
+      field("deceased_name").props.onClick("Asha");
+      field("date_of_death").props.onClick("2026-09-30");
+      field("date_of_birth_partial").props.onClick("1987");
+      tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick();
+    });
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    const body = mockRegisterDeath.mock.calls[0][1];
+    expect(body.date_of_birth_partial).toBe("1987");
+    expect(body).not.toHaveProperty("age_years");
+    await act(async () => tree!.unmount());
+  });
+
+  it("rejects a future date of death before any API call", async () => {
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const field = (name: string) => tree!.root.findByProps({ "data-field": name });
+    await act(async () => {
+      field("deceased_name").props.onClick("Asha");
+      field("date_of_death").props.onClick("2999-01-01");
+      field("date_of_birth").props.onClick("1987-04-12");
+      tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick();
+    });
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    expect(field("date_of_death").props["data-issue"]).toBe("errFutureDate");
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
 
@@ -646,6 +728,76 @@ describe("DeathRegistrationScreen", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Fresh address");
     await act(async () => tree!.unmount());
     Object.defineProperty(global, "document", { configurable: true, value: originalDocument });
+  });
+
+  describe("death-site GPS fix", () => {
+    const FIX = { latitude: 28.613939, longitude: 77.209021, accuracy_m: 12.4 };
+    const detail = {
+      death_id: "d1", project_id: "P1", site_id: "S1", org_unit_id: null, state: "registered",
+      updated_at: "2026-10-06T12:00:00+00:00", details_pending: false, other_complete_interview: false,
+      deceased: { name: "Asha", sex: "female", date_of_death: "2026-09-30", date_of_birth: "1987-04-12", age_years: 39 },
+      household_address: { address: "Old", ...FIX }, informant: {}, remarks: null,
+      links: { self: "/case/d1", attempts: "/attempts", visit: "/visit" }
+    };
+
+    async function openEdit() {
+      mockParams = { deathId: "d1" };
+      jest.spyOn(sharedApi, "getCaseDetail").mockResolvedValue({ case: detail } as never);
+      const patch = jest.spyOn(sharedApi, "requestClientJson").mockResolvedValue({ case: { ...detail, updated_at: "2026-10-06T12:05:00+00:00" } } as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      return { tree: tree!, patch };
+    }
+
+    it("registers with the captured fix, and without one sends no location keys", async () => {
+      for (const withFix of [true, false]) {
+        mockRegisterDeath.mockClear();
+        let tree: ReturnType<typeof create>;
+        await act(async () => { tree = create(<DeathRegistrationScreen />); });
+        await settle();
+        const field = (name: string) => tree!.root.findByProps({ "data-field": name });
+        await act(async () => {
+          field("deceased_name").props.onClick("Asha");
+          field("date_of_death").props.onClick("2026-09-30");
+          field("date_of_birth").props.onClick("1987-04-12");
+        });
+        await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+        if (withFix) await act(async () => tree!.root.find((n) => "data-location" in n.props).props.onClick(FIX));
+        await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+        await settle();
+        const body = mockRegisterDeath.mock.calls[0][1];
+        if (withFix) expect(body).toMatchObject(FIX);
+        else expect(Object.keys(body).filter((key) => ["latitude", "longitude", "accuracy_m"].includes(key))).toEqual([]);
+        await act(async () => tree!.unmount());
+      }
+    });
+
+    it("shows the stored fix in the edit and omits it from a PATCH that does not touch it", async () => {
+      const { tree, patch } = await openEdit();
+      expect(JSON.parse(tree.root.find((n) => "data-location" in n.props).props["data-location"])).toEqual(FIX);
+      await act(async () => tree.root.findByProps({ "data-field": "address" }).props.onClick("New"));
+      await act(async () => tree.root.findByProps({ "data-label": "save" }).props.onClick());
+      await settle();
+      expect((patch.mock.calls[0][1] as { json: unknown }).json).toEqual({ address: "New", if_updated_at: "2026-10-06T12:00:00+00:00" });
+      await act(async () => tree.unmount());
+    });
+
+    it("PATCHes a replaced fix, and explicit nulls to clear it", async () => {
+      const replacement = { latitude: 19.076, longitude: 72.8777, accuracy_m: null };
+      for (const [next, expected] of [
+        [replacement, replacement],
+        [null, { latitude: null, longitude: null, accuracy_m: null }]
+      ] as const) {
+        const { tree, patch } = await openEdit();
+        await act(async () => tree.root.find((n) => "data-location" in n.props).props.onClick(next));
+        await act(async () => tree.root.findByProps({ "data-label": "save" }).props.onClick());
+        await settle();
+        expect((patch.mock.calls[0][1] as { json: unknown }).json).toEqual({ ...expected, if_updated_at: "2026-10-06T12:00:00+00:00" });
+        await act(async () => tree.unmount());
+        jest.restoreAllMocks();
+      }
+    });
   });
 
   it.each([

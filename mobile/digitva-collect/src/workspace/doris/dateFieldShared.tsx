@@ -129,11 +129,11 @@ export function MonthYearFallback({ label, value, onChange }: { label: string; v
 
 /**
  * Shared behaviour of the date controls. `date` and `month` draw the platform inputs for a full date and a
- * year-month; the year is a numeric field here. Without `precision` the field is a plain calendar date: a stored
+ * year-month; the year is a numeric field unless a `year` renderer (the web dropdown) is given. Without `precision` the field is a plain calendar date: a stored
  * partial value (the interview can prefill "1997-07") is shown in a text field that only accepts a full date,
  * and stays as stored until the user replaces or clears it.
  */
-export function DateFieldShell({ label, value, onChange, precision, date, month }: DateFieldProps & { date: (value: string, onChange: (value: string) => void) => ReactNode; month?: (value: string, onChange: (value: string) => void) => ReactNode }) {
+export function DateFieldShell({ label, value, onChange, precision, date, month, year }: DateFieldProps & { date: (value: string, onChange: (value: string) => void) => ReactNode; month?: (value: string, onChange: (value: string) => void) => ReactNode; year?: (value: string, onChange: (value: string) => void) => ReactNode }) {
   const layout = useLayout();
   const [mode, setMode] = useState<Precision>(precisionOf(value) ?? "date");
   const [menu, setMenu] = useState(false);
@@ -176,7 +176,7 @@ export function DateFieldShell({ label, value, onChange, precision, date, month 
   const current = PRECISIONS.find((item) => item.value === mode)!;
   const field = mode === "date" ? date(value, onChange)
     : mode === "month" ? (month ? month(value, onChange) : <MonthYearFallback label={label} value={value} onChange={onChange} />)
-      : (
+      : year ? year(value, onChange) : (
         <Input accessibilityLabel={label} placeholder="Year" keyboardType="numeric" inputMode="numeric" maxLength={4} value={text} invalid={Boolean(error)} style={{ flexGrow: 1, flexBasis: 90, minWidth: 90 }} onChangeText={(next) => {
           const digits = next.replace(/\D/g, "");
           setText(digits);

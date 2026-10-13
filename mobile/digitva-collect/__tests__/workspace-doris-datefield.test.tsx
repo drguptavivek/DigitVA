@@ -89,7 +89,7 @@ describe("DateField.web", () => {
     expect(onChange).toHaveBeenLastCalledWith("1998-03");
     choosePrecision(tree, "Date of birth", "Year");
     expect(onChange).toHaveBeenLastCalledWith("1998");
-    expect(tree.root.findByProps({ accessibilityLabel: "Date of birth", placeholder: "Year" }).props.value).toBe("1998");
+    expect(tree.root.findByType("select" as any).props.value).toBe("1998");
     choosePrecision(tree, "Date of birth", "Year-Month");
     expect(onChange).toHaveBeenLastCalledWith("");
     expect(input(tree).props.value).toBe("");
@@ -100,24 +100,22 @@ describe("DateField.web", () => {
   it("opens a stored year or month in its own precision", () => {
     const year = mount({ initial: "1997", label: "Date of birth", precision: true });
     expect(precisionButton(year.tree, "Date of birth").props.accessibilityValue).toEqual({ text: "Year" });
-    expect(year.tree.root.findByProps({ accessibilityLabel: "Date of birth", placeholder: "Year" }).props.value).toBe("1997");
+    expect(year.tree.root.findByType("select" as any).props.value).toBe("1997");
     const month = mount({ initial: "2001-04", label: "Date of injury", precision: true });
     expect(precisionButton(month.tree, "Date of injury").props.accessibilityValue).toEqual({ text: "Year-Month" });
     expect(month.tree.root.findByType("input" as any).props.value).toBe("2001-04");
   });
 
-  it("the year field emits any four-digit year, 1890 and next year included, and never errors", () => {
+  it("the year is a dropdown from the current year back 120 years, emitting a plain year or clearing", () => {
     const { tree, onChange } = mount({ label: "Surgery date", precision: true });
     choosePrecision(tree, "Surgery date", "Year");
-    const year = () => tree.root.findByProps({ accessibilityLabel: "Surgery date", placeholder: "Year" });
-    act(() => year().props.onChangeText("19ab"));
-    expect(onChange).not.toHaveBeenCalled();
-    act(() => year().props.onChangeText("1890"));
-    expect(onChange).toHaveBeenLastCalledWith("1890");
-    act(() => year().props.onChangeText("2027"));
-    expect(onChange).toHaveBeenLastCalledWith("2027");
-    expect(JSON.stringify(tree.toJSON())).not.toContain("Year must be");
-    act(() => year().props.onChangeText("202"));
+    const select = () => tree.root.findByType("select" as any);
+    const years = tree.root.findAllByType("option" as any).map((option) => option.props.value);
+    expect(years.slice(0, 2)).toEqual(["", String(NOW.getFullYear())]);
+    expect(years[years.length - 1]).toBe(String(NOW.getFullYear() - 120));
+    act(() => select().props.onChange({ target: { value: "1990" } }));
+    expect(onChange).toHaveBeenLastCalledWith("1990");
+    act(() => select().props.onChange({ target: { value: "" } }));
     expect(onChange).toHaveBeenLastCalledWith("");
   });
 });

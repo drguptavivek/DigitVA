@@ -1,4 +1,4 @@
-/** My organization calls over the browser session, through the shared JSON requester. Names and cadres only. */
+/** My organization calls over the browser session, through the shared JSON requester. Names and role labels only (cadre stays in the API, unshown). */
 import type { JsonRequester } from "../workspace/api";
 
 const ORG_API = "/api/v1/organization";
@@ -6,6 +6,7 @@ const ORG_API = "/api/v1/organization";
 export interface OrgPerson {
   name: string;
   cadre: string;
+  roles?: string[];
 }
 
 export interface MyUnit {

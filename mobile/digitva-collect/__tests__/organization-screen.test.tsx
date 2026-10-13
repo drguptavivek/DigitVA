@@ -165,7 +165,7 @@ describe("OrganizationScreen", () => {
   });
 
   it("opens one flyout of names only from the badge, and Close hides it", async () => {
-    const leaky = { name: "Dr Root", cadre: "CS", email: "root@example.com", phone: "9000000001" };
+    const leaky = { name: "Dr Root", cadre: "CS", roles: ["Coder", "Interview Supervisor"], email: "root@example.com", phone: "9000000001" };
     mockRequest.mockResolvedValue({ projects: [project({ above: [{ ...ROOT_UNIT, people: [leaky] }, MID_UNIT] })] });
     const tree = await render();
 
@@ -177,6 +177,7 @@ describe("OrganizationScreen", () => {
     const shown = textOf(dialog);
     expect(shown).toContain("District · District");
     expect(shown).toContain("Dr Root");
+    expect(shown).toContain("Coder · Interview Supervisor");
     expect(shown).not.toContain("Asha Mid");
     for (const hidden of [...CADRES, "root@example.com", "9000000001"]) expect(shown).not.toContain(hidden);
 

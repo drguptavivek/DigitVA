@@ -11,6 +11,8 @@ import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
+import { convertPrecision, type Precision } from "../workspace/doris/dateFieldShared";
+import { LocationCapture, MapsLink, type GpsFix } from "./LocationCapture";
 import { RegistrationFieldControl, type RegistrationDateAppearance } from "./registrationControls";
 
 const FIELD_DEFINITIONS: Array<{ key: keyof RegistrationInput; label: StringKey; help?: StringKey }> = [
@@ -72,7 +74,21 @@ function registrationValues(value: CaseDetail | CaseRow): Partial<RegistrationIn
   };
 }
 
+/** The stored GPS fix of a case detail or list row, or null (docs/policy/web-intake.md, "Death-site GPS location"). */
+function registrationLocation(value: unknown): GpsFix | null {
+  if (!record(value)) return null;
+  const source = record(value.household_address) ? value.household_address : value;
+  const { latitude, longitude, accuracy_m: accuracy } = source;
+  if (typeof latitude !== "number" || typeof longitude !== "number" || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { latitude, longitude, accuracy_m: typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null };
+}
+
+const sameFix = (a: GpsFix | null, b: GpsFix | null) =>
+  a === b || (!!a && !!b && a.latitude === b.latitude && a.longitude === b.longitude && a.accuracy_m === b.accuracy_m);
+
 type BirthMode = RegistrationDateAppearance | "unknown";
+
+const PRECISION_OF: Record<Exclude<BirthMode, "unknown">, Precision> = { exact: "date", "month-year": "month", year: "year" };
 
 function birthModeFor(fields: Partial<RegistrationInput>): BirthMode {
   if (fields.date_of_birth?.trim()) return "exact";
@@ -102,6 +118,8 @@ export default function DeathRegistrationScreen() {
   const [orgUnitId, setOrgUnitId] = useState("");
   const [sex, setSex] = useState("");
   const [fields, setFields] = useState<Partial<RegistrationInput>>({});
+  const [location, setLocation] = useState<GpsFix | null>(null);
+  const locationBase = useRef<GpsFix | null>(null);
   const [birthMode, setBirthMode] = useState<BirthMode>("exact");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -167,7 +185,7 @@ export default function DeathRegistrationScreen() {
       if (!activeRef.current) {
         registrationGeneration.current += 1;
         listGeneration.current += 1;
-        setFields({});
+        setFields({}); setLocation(null);
         setSex("");
         setRegisteredDeaths([]);
         setNextCursor(null);
@@ -205,7 +223,7 @@ export default function DeathRegistrationScreen() {
     setProjectId("");
     setSiteId("");
     setOrgUnitId("");
-    setFields({});
+    setFields({}); setLocation(null);
     setSex("");
     setEditingDeathId(undefined);
     setEditingReadOnly(false);
@@ -243,7 +261,7 @@ export default function DeathRegistrationScreen() {
       setProjectId("");
       setSiteId("");
       setOrgUnitId("");
-      setFields({});
+      setFields({}); setLocation(null);
       setSex("");
       setEditingDeathId(undefined);
       setEditingReadOnly(false);
@@ -271,6 +289,8 @@ export default function DeathRegistrationScreen() {
       if (!active || generation !== registrationGeneration.current || bootstrapRef.current !== bootstrap || !activeRef.current) return;
       const values = registrationValues(detail);
       registrationBase.current = values;
+      locationBase.current = registrationLocation(detail);
+      setLocation(locationBase.current);
       registrationUpdatedAt.current = detail.updated_at;
       registrationSource.current = "case";
       registrationSourceCursor.current = undefined;
@@ -337,6 +357,8 @@ export default function DeathRegistrationScreen() {
     }
     const state = typeof death.state === "string" ? death.state : typeof death.status === "string" ? death.status : "";
     registrationBase.current = values;
+    locationBase.current = registrationLocation(death);
+    setLocation(locationBase.current);
     registrationUpdatedAt.current = typeof death.updated_at === "string" ? death.updated_at : undefined;
     registrationSource.current = "mine";
     registrationSourceCursor.current = registeredDeathCursors.current.owner === bootstrap
@@ -373,6 +395,8 @@ export default function DeathRegistrationScreen() {
     if (!fresh) throw new Error("registration_unavailable");
     const values = registrationValues(fresh);
     registrationBase.current = values;
+    locationBase.current = registrationLocation(fresh);
+    setLocation(locationBase.current);
     registrationUpdatedAt.current = typeof fresh.updated_at === "string" ? fresh.updated_at : undefined;
     if (registrationSource.current === "mine" && registeredDeathCursors.current.owner === currentBootstrap) {
       registeredDeathCursors.current.byDeath[deathId] = registrationSourceCursor.current;
@@ -387,12 +411,17 @@ export default function DeathRegistrationScreen() {
   function chooseBirthMode(next: BirthMode) {
     setAgeConfirmationPending(false);
     setBirthMode(next);
-    setFields((previous) => ({
-      ...previous,
-      date_of_birth: next === "exact" && birthMode === "exact" ? previous.date_of_birth : undefined,
-      date_of_birth_partial: next === birthMode ? previous.date_of_birth_partial : undefined,
-      age_years: next === "exact" ? undefined : previous.age_years
-    }));
+    setFields((previous) => {
+      // A finer value is cut to the coarser precision (date to month to year); a coarser one is cleared.
+      const current = birthMode === "exact" ? previous.date_of_birth : previous.date_of_birth_partial;
+      const kept = next === "unknown" ? "" : convertPrecision(String(current ?? "").trim(), PRECISION_OF[next]);
+      return {
+        ...previous,
+        date_of_birth: next === "exact" ? kept || undefined : undefined,
+        date_of_birth_partial: next === "month-year" || next === "year" ? kept || undefined : undefined,
+        age_years: next === "unknown" ? previous.age_years : undefined
+      };
+    });
     setValidationIssues((previous) => ({
       ...previous,
       date_of_birth: undefined,
@@ -472,14 +501,18 @@ export default function DeathRegistrationScreen() {
             changes[field] = String(nextValue ?? "").trim();
           }
         }
-        if (!Object.keys(changes).length) {
+        // Absent keeps the stored fix, null clears it, a fix replaces it.
+        const locationChanges = sameFix(location, locationBase.current)
+          ? {}
+          : { latitude: location?.latitude ?? null, longitude: location?.longitude ?? null, accuracy_m: location?.accuracy_m ?? null };
+        if (!Object.keys(changes).length && !Object.keys(locationChanges).length) {
           if (bootstrap.capabilities.registeredDeaths) setListMode(true);
           else router.replace("/collection");
           return;
         }
         const result = await requestClientJson<unknown>(`${INTAKE_API}/deaths/${encodeURIComponent(editingDeathId)}`, {
           method: "PATCH",
-          json: { ...changes, ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
+          json: { ...changes, ...locationChanges, ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
           csrf: bootstrap.csrf
         });
         if (!current()) return;
@@ -489,7 +522,7 @@ export default function DeathRegistrationScreen() {
         registrationUpdatedAt.current = result.case.updated_at;
         if (bootstrap.capabilities.registeredDeaths) {
           setEditingDeathId(undefined);
-          setFields({});
+          setFields({}); setLocation(null);
           setSex("");
           setListMode(true);
           setRegisteredDeaths([]);
@@ -512,9 +545,10 @@ export default function DeathRegistrationScreen() {
           ...Object.fromEntries(
             Object.entries(fields).filter(
               ([key, value]) =>
-                !["deceased_name", "date_of_death"].includes(key) && typeof value === "string" && value.trim() !== ""
+                !["deceased_name", "date_of_death"].includes(key) && !(key === "age_years" && birthMode !== "unknown") && typeof value === "string" && value.trim() !== ""
             )
-          )
+          ),
+          ...(location ? { latitude: location.latitude, longitude: location.longitude, accuracy_m: location.accuracy_m } : {})
         } as RegistrationInput,
         bootstrap.csrf
       );
@@ -579,7 +613,7 @@ export default function DeathRegistrationScreen() {
               registrationUpdatedAt.current = undefined;
               registrationSource.current = undefined;
               registrationSourceCursor.current = undefined;
-              setFields({});
+              setFields({}); setLocation(null);
               setSex("");
               setListMode(true);
             } else setListMode((current) => !current);
@@ -597,6 +631,7 @@ export default function DeathRegistrationScreen() {
                 {death.unique_id}{death.date_of_death ? ` · ${death.date_of_death}` : ""}
                 {death.unit_name || death.org_unit_name ? ` · ${death.unit_name ?? death.org_unit_name}` : ""}
               </Text>
+              <MapsLink {...(registrationLocation(death) ?? {})} />
               {death.details_pending !== true && death.other_complete_interview !== true && !["draft_identity", "completed", "submitted"].includes(String(death.status ?? "")) ? (
                 <Button kind="secondary" label={t("editRegistration")} onPress={() => beginEdit(death)} />
               ) : null}
@@ -693,20 +728,23 @@ export default function DeathRegistrationScreen() {
               dateAppearance={birthMode}
             />
           ) : null}
-          {ageDisplay ? <Text style={styles.muted}>{formatRegistrationAge(ageDisplay)}</Text> : null}
-          {birthMode !== "exact" ? (
-            <View>
-              <Text style={styles.fieldLabel}>{t("fieldAge")}</Text>
+          <View>
+            <Text style={styles.fieldLabel}>{t("fieldEstimatedAge")}</Text>
+            {birthMode === "unknown" ? (
               <RegistrationFieldControl
                 field="age_years"
-                label={t("fieldAge")}
+                label={t("fieldEstimatedAge")}
                 value={String(fields.age_years ?? "")}
                 onChange={(value) => updateField("age_years", value)}
                 issueMessage={issueMessage("age_years")}
                 onIssue={(issue) => updateFieldIssue("age_years", issue)}
               />
-            </View>
-          ) : null}
+            ) : ageDisplay ? (
+              <Text style={styles.muted}>{formatRegistrationAge(ageDisplay)}</Text>
+            ) : !fields.date_of_death?.trim() ? (
+              <Text style={styles.muted}>{t("ageNeedsDeathDate")}</Text>
+            ) : null}
+          </View>
           <Text style={styles.fieldLabel}>{t("fieldSex")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
             {(["male", "female", "undetermined", "unknown"] as const).map((value) => (
@@ -725,7 +763,12 @@ export default function DeathRegistrationScreen() {
           {issueMessage("deceased_sex") ? (
             <Text style={styles.error} accessibilityRole="alert">{issueMessage("deceased_sex")}</Text>
           ) : null}
-          {FIELD_DEFINITIONS.slice(1).map(renderField)}
+          {FIELD_DEFINITIONS.slice(1).map((field) => field.key === "address" ? (
+            <View key={field.key}>
+              {renderField(field)}
+              <LocationCapture value={location} onChange={setLocation} />
+            </View>
+          ) : renderField(field))}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           {ageConfirmationPending ? (
             <View style={styles.card} accessibilityRole="alert">
@@ -740,7 +783,7 @@ export default function DeathRegistrationScreen() {
           <Button kind="secondary" label={t("cancel")} onPress={() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {
               setEditingDeathId(undefined);
-              setFields({});
+              setFields({}); setLocation(null);
               setSex("");
               setListMode(true);
             } else router.back();

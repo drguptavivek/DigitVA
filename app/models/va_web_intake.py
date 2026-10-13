@@ -92,6 +92,19 @@ class VaDeathRegister(db.Model):
             "date_of_birth IS NULL OR date_of_birth_partial IS NULL",
             name="date_of_birth_exact_or_partial",
         ),
+        # Death-site GPS fix: a full fix or none (docs/policy/web-intake.md).
+        sa.CheckConstraint(
+            "(latitude IS NULL OR latitude BETWEEN -90 AND 90) "
+            "AND (longitude IS NULL OR longitude BETWEEN -180 AND 180)",
+            name="location_range",
+        ),
+        sa.CheckConstraint(
+            "(latitude IS NULL) = (longitude IS NULL) "
+            "AND (latitude IS NULL) = (captured_at IS NULL) "
+            "AND (latitude IS NOT NULL OR accuracy_m IS NULL)",
+            name="location_all_or_none",
+        ),
+        sa.CheckConstraint("accuracy_m IS NULL OR accuracy_m >= 0", name="location_accuracy"),
         sa.Index(
             "uq_va_death_register_client_death_id",
             "client_death_id",
@@ -131,6 +144,12 @@ class VaDeathRegister(db.Model):
     address_house_street: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     address_village_ward: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     address_landmark: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    # Optional GPS fix of the house (PII, same audience as the address); never
+    # logged. captured_at is server time at save, not a client claim.
+    latitude: so.Mapped[float | None] = so.mapped_column(sa.Float, nullable=True)
+    longitude: so.Mapped[float | None] = so.mapped_column(sa.Float, nullable=True)
+    accuracy_m: so.Mapped[float | None] = so.mapped_column(sa.Float, nullable=True)
+    captured_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     informant_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     # Parents' names (PII), optional; prefill WHO Id10061 / Id10062.
     father_name: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)

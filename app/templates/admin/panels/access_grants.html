@@ -305,7 +305,7 @@
   document.getElementById('ag-filter-role').addEventListener('change', applyFilters);
   document.getElementById('ag-filter-site').addEventListener('change', applyFilters);
 
-  var ROLE_LABEL = { coder:'Coder', coding_tester:'Coding Tester', reviewer:'Reviewer', data_manager:'Data Manager', site_pi:'Site PI', collaborator:'Viewer', collaborator_pii:'Viewer (with PII)', interview_supervisor:'Interview Supervisor', death_reporter:'Death Reporter', interviewer:'Interviewer', project_pi:'Project PI', admin:'Admin' };
+  var ROLE_LABEL = {{ role_labels|tojson }};
   // site_pi held at a unit is the In-charge (access-control-model.md, "In-charge").
   function roleLabel(g) {
     if (g.role === 'site_pi' && g.scope_type === 'org_unit') return 'In-charge';

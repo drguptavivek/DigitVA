@@ -1393,6 +1393,93 @@ class IntakeApiTests(BaseTestCase):
         db.session.commit()
         self.assertIs(row()["code_now"], False)
 
+    # -- death-site GPS fix (docs/policy/web-intake.md, "Death-site GPS location") --
+
+    FIX = {"latitude": 28.613939, "longitude": 77.209021, "accuracy_m": 12.4}
+
+    def _register_with(self, **fields):
+        self._login(self.interviewer_id)
+        return self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(**fields), headers=self._csrf_headers())
+
+    def _patch_death(self, death_id, body):
+        return self.client.patch(
+            f"/api/v1/intake/deaths/{death_id}", json=body, headers=self._csrf_headers())
+
+    def test_a_death_registers_with_and_without_a_gps_fix(self):
+        before = datetime.now(UTC)
+        response = self._register_with(**self.FIX, captured_at="1999-01-01T00:00:00Z")
+        self.assertEqual(response.status_code, 201, response.get_json())
+        address = response.get_json()["case"]["household_address"]
+        self.assertEqual({k: address[k] for k in self.FIX}, self.FIX)
+        # Server time, not the client's claim.
+        stored = datetime.fromisoformat(address["captured_at"])
+        self.assertGreaterEqual(stored, before)
+        plain = self._register_with()
+        self.assertEqual(plain.status_code, 201, plain.get_json())
+        address = plain.get_json()["case"]["household_address"]
+        self.assertEqual(
+            [address[k] for k in (*self.FIX, "captured_at")], [None] * 4)
+
+    def test_a_bad_gps_fix_is_refused_with_nothing_saved(self):
+        for bad in (
+            {"latitude": 91, "longitude": 10}, {"latitude": -90.5, "longitude": 10},
+            {"latitude": 10, "longitude": 181}, {"latitude": 10},
+            {"longitude": 10}, {"latitude": 10, "longitude": 10, "accuracy_m": -1},
+            {"accuracy_m": 5}, {"latitude": "abc", "longitude": 10},
+            {"latitude": float("inf"), "longitude": 10}, {"latitude": True, "longitude": 10},
+        ):
+            response = self._register_with(**bad)
+            self.assertEqual(response.status_code, 422, (bad, response.get_json()))
+        # Edge values and a blank pair are fine.
+        self.assertEqual(self._register_with(latitude=90, longitude=-180).status_code, 201)
+        self.assertEqual(self._register_with(latitude="", longitude="").status_code, 201)
+
+    def test_a_correction_keeps_replaces_or_clears_the_gps_fix(self):
+        case = self._register_with(**self.FIX).get_json()["case"]
+        url_id = case["death_id"]
+        # Omitted: kept, with the same capture time.
+        kept = self._patch_death(url_id, {"remarks": "x"}).get_json()["case"]["household_address"]
+        self.assertEqual(kept, case["household_address"])
+        # Replaced.
+        new = {"latitude": 19.076, "longitude": 72.8777, "accuracy_m": 5}
+        replaced = self._patch_death(url_id, new).get_json()["case"]["household_address"]
+        self.assertEqual((replaced["latitude"], replaced["longitude"], replaced["accuracy_m"]), (19.076, 72.8777, 5))
+        # One half alone is refused and changes nothing.
+        self.assertEqual(self._patch_death(url_id, {"latitude": 95}).status_code, 422)
+        self.assertEqual(self._patch_death(url_id, {"longitude": None}).status_code, 422)
+        # Cleared by explicit nulls.
+        cleared = self._patch_death(
+            url_id, {"latitude": None, "longitude": None, "accuracy_m": None}).get_json()["case"]["household_address"]
+        self.assertEqual([cleared[k] for k in (*self.FIX, "captured_at")], [None] * 4)
+
+    def test_the_gps_fix_follows_the_address_audience_and_stays_out_of_lists_and_logs(self):
+        case = self._register_with(**self.FIX).get_json()["case"]
+        death_id = case["death_id"]
+        # Present: the interviewer's case detail and register list carry it.
+        detail = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
+        self.assertEqual(detail["household_address"]["latitude"], self.FIX["latitude"])
+        listed = self.client.get(
+            f"/api/v1/intake/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}").get_json()["deaths"]
+        self.assertEqual(
+            [d["latitude"] for d in listed if d["death_id"] == death_id], [self.FIX["latitude"]])
+        # Absent: the worklist rows carry no address and no coordinates.
+        rows = self.client.get(f"/api/v1/intake/cases?project_id={self.PROJECT_ID}").get_json()
+        row = next(r for r in rows["cases"] if r["death_id"] == death_id)
+        self.assertNotIn("latitude", row)
+        self.assertNotIn("longitude", row)
+        # A user without the interviewer right reads and changes nothing.
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.get(f"/api/v1/intake/cases/{death_id}").status_code, 403)
+        self.assertEqual(self._patch_death(death_id, {"latitude": 1, "longitude": 1}).status_code, 403)
+        # Never in the log of a registration or an edit.
+        self._login(self.interviewer_id)
+        with self.assertLogs(level="DEBUG") as captured:
+            self._register_with(latitude=11.111111, longitude=22.222222)
+            self._patch_death(death_id, {"latitude": 33.333333, "longitude": 44.444444})
+        text = "\n".join(captured.output)
+        for number in ("11.111111", "22.222222", "33.333333", "44.444444", "28.613939"):
+            self.assertNotIn(number, text)
 
 
 class WebOnlyProjectIntakeTests(BaseTestCase):
@@ -1566,3 +1653,4 @@ class WebOnlyProjectIntakeTests(BaseTestCase):
     def test_the_role_gate_stays_shut_without_any_interviewer_grant(self):
         self._login(self.base_coder_id)
         self.assertEqual(self.client.get("/api/v1/intake/cases").status_code, 403)
+

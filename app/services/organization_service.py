@@ -42,6 +42,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.models.va_selectives import ROLE_LABELS
 from app.services import authz
 from app.services.authz.consulted import mark_consulted
 from app.services.tabular_import_service import (
@@ -2337,20 +2338,37 @@ def _ancestor_units(project_id: str, mine: dict[str, dict]) -> list[dict]:
 
 
 def _people_by_unit(unit_ids: Iterable[str]) -> dict[str, list[dict]]:
-    """Active workers of *unit_ids*, as ``{name, cadre}``, one query.
+    """Active workers of *unit_ids*, as ``{name, cadre, roles}``, one query.
 
-    Name and cadre only: never phone, email, worker code or user id
-    (docs/policy/organization-model.md, "Who sees worker names"). Each unit
-    is capped at ``MY_ORG_PEOPLE_CAP`` by a window over the same query.
+    Name, cadre and role labels only: never phone, email, worker code or user
+    id (docs/policy/organization-model.md, "Who sees worker names"). ``roles``
+    are the labels of the linked user's active grants in the unit's own
+    project (closed projects resolve none), gathered by one correlated
+    aggregate in the same query; empty without a linked user. Each unit is
+    capped at ``MY_ORG_PEOPLE_CAP`` by a window over the same query.
     """
+    from app.services.org_grant_service import active_project_condition
+
     ids = [uuid.UUID(unit_id) for unit_id in unit_ids]
     if not ids:
         return {}
+    roles = (
+        sa.select(sa.func.array_agg(sa.distinct(sa.cast(VaUserAccessGrants.role, sa.Text))))
+        .where(
+            VaUserAccessGrants.user_id == MasOrgUnitWorker.user_id,
+            VaUserAccessGrants.project_id == MasOrgUnit.project_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            active_project_condition(VaUserAccessGrants.project_id),
+        )
+        .correlate(MasOrgUnitWorker, MasOrgUnit)
+        .scalar_subquery()
+    )
     ranked = (
         sa.select(
             MasOrgUnitWorker.org_unit_id.label("org_unit_id"),
             MasOrgUnitWorker.worker_name.label("name"),
             MasCadre.cadre_name.label("cadre"),
+            roles.label("roles"),
             sa.func.row_number()
             .over(
                 partition_by=MasOrgUnitWorker.org_unit_id,
@@ -2360,17 +2378,19 @@ def _people_by_unit(unit_ids: Iterable[str]) -> dict[str, list[dict]]:
         )
         .select_from(MasOrgUnitWorker)
         .join(MasCadre, MasCadre.cadre_id == MasOrgUnitWorker.cadre_id)
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == MasOrgUnitWorker.org_unit_id)
         .where(MasOrgUnitWorker.org_unit_id.in_(ids), MasOrgUnitWorker.is_active.is_(True))
         .subquery()
     )
     rows = db.session.execute(
-        sa.select(ranked.c.org_unit_id, ranked.c.name, ranked.c.cadre)
+        sa.select(ranked.c.org_unit_id, ranked.c.name, ranked.c.cadre, ranked.c.roles)
         .where(ranked.c.rank <= MY_ORG_PEOPLE_CAP)
         .order_by(ranked.c.rank)
     ).all()
     people: dict[str, list[dict]] = {}
-    for org_unit_id, name, cadre in rows:
-        people.setdefault(str(org_unit_id), []).append({"name": name, "cadre": cadre})
+    for org_unit_id, name, cadre, role_values in rows:
+        labels = sorted({ROLE_LABELS[r] for r in role_values or () if r in ROLE_LABELS})
+        people.setdefault(str(org_unit_id), []).append({"name": name, "cadre": cadre, "roles": labels})
     return people
 
 

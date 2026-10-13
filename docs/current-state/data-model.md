@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-13
 ---
 
 # Current Data Model
@@ -573,6 +573,13 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
   CHECK `ck_va_death_register_date_of_birth_partial_format` holds the format;
   CHECK `ck_va_death_register_date_of_birth_exact_or_partial` forbids it
   beside `date_of_birth`. Prefill mapping: docs/policy/web-intake.md.
+- `latitude`, `longitude`, `accuracy_m` (Float) and `captured_at`
+  (timestamptz, UTC), all nullable (migration `q7w2e5r8t1y4`): the optional
+  death-site GPS fix. CHECKs `ck_va_death_register_location_range`,
+  `_location_all_or_none` (a full fix, with `captured_at`, or none) and
+  `_location_accuracy` (>= 0). `captured_at` is server time at save. Personal
+  data with the address's audience; never logged. Policy: docs/policy/web-intake.md,
+  "Death-site GPS location".
 - `started_by_user_id` (FK `va_users`): who opened the first interview. The
   migration backfilled it from each case's earliest draft.
 - `pending_flag` (`duplicate` | `cancel`) and `duplicate_of_death_id` (self

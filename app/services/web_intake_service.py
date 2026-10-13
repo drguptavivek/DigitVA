@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import re
 import uuid
 from datetime import UTC, date, datetime, timedelta
@@ -673,7 +674,45 @@ REGISTER_FIELDS = (
     "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
     "address_village_ward", "address_landmark", "informant_name", "informant_phone",
     "informant_phone_2", "remarks", "father_name", "mother_name",
+    "latitude", "longitude", "accuracy_m",
 )
+#: The GPS fix's columns; ``captured_at`` follows them, set by the server.
+LOCATION_FIELDS = ("latitude", "longitude", "accuracy_m")
+
+
+def _clean_number(raw: object, *, what: str, low: float, high: float) -> float | None:
+    """A finite number within [low, high], or None if blank. Booleans and
+    non-numeric text are refused; the message never echoes the value."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if isinstance(raw, bool):
+        raise WebIntakeError(f"{what} must be a number.")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise WebIntakeError(f"{what} must be a number.") from None
+    if not math.isfinite(value) or not low <= value <= high:
+        raise WebIntakeError(f"{what} must be between {low:g} and {high:g}.")
+    return value
+
+
+def _clean_location(fields: dict) -> dict:
+    """The GPS fix: latitude and longitude together or not at all, accuracy
+    (metres) only with them. Rounded to 6 decimals (about 0.1 m)."""
+    lat = _clean_number(fields.get("latitude"), what="Latitude", low=-90, high=90)
+    lng = _clean_number(fields.get("longitude"), what="Longitude", low=-180, high=180)
+    accuracy = _clean_number(fields.get("accuracy_m"), what="Location accuracy", low=0, high=1e7)
+    if (lat is None) != (lng is None):
+        raise WebIntakeError("Latitude and longitude must be given together.")
+    if lat is None:
+        if accuracy is not None:
+            raise WebIntakeError("Location accuracy needs a latitude and longitude.")
+        return {"latitude": None, "longitude": None, "accuracy_m": None}
+    return {
+        "latitude": round(lat, 6),
+        "longitude": round(lng, 6),
+        "accuracy_m": round(accuracy, 1) if accuracy is not None else None,
+    }
 
 
 def _clean_death_fields(fields: dict) -> dict:
@@ -720,6 +759,7 @@ def _clean_death_fields(fields: dict) -> dict:
         "informant_phone": _clean_phone(fields.get("informant_phone"), what="Informant phone"),
         "informant_phone_2": _clean_phone(fields.get("informant_phone_2"), what="Second phone"),
         "remarks": _clean(fields.get("remarks"), what="Remarks"),
+        **_clean_location(fields),
     }
 
 
@@ -740,6 +780,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         death_number=number,
         unique_id=unique_id,
         **cleaned,
+        captured_at=_utcnow() if cleaned["latitude"] is not None else None,
         registered_by=user.user_id,
         source="register",
         client_death_id=client_death_id,
@@ -972,6 +1013,8 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
         return death
     for name in changed:
         setattr(death, name, cleaned[name])
+    if any(name in LOCATION_FIELDS for name in changed):
+        death.captured_at = _utcnow() if cleaned["latitude"] is not None else None
     _audit_details_change(death, user, DETAILS_EDITED,
                           {name: current[name] for name in changed}, {name: cleaned[name] for name in changed})
     db.session.flush()
@@ -3976,6 +4019,16 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
 # ---------------------------------------------------------------------------
 
 
+def _serialize_location(death: VaDeathRegister) -> dict:
+    """The GPS fix, for the serializers that already carry the address."""
+    return {
+        "latitude": death.latitude,
+        "longitude": death.longitude,
+        "accuracy_m": death.accuracy_m,
+        "captured_at": death.captured_at.isoformat() if death.captured_at else None,
+    }
+
+
 def serialize_death(death: VaDeathRegister) -> dict:
     return {
         "death_id": str(death.death_id),
@@ -3996,6 +4049,7 @@ def serialize_death(death: VaDeathRegister) -> dict:
         "address_house_street": death.address_house_street,
         "address_village_ward": death.address_village_ward,
         "address_landmark": death.address_landmark,
+        **_serialize_location(death),
         "informant_name": death.informant_name,
         "father_name": death.father_name,
         "mother_name": death.mother_name,
@@ -4101,6 +4155,7 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
             "house_street": death.address_house_street,
             "village_ward": death.address_village_ward,
             "landmark": death.address_landmark,
+            **_serialize_location(death),
         },
         "informant": {
             "name": death.informant_name,

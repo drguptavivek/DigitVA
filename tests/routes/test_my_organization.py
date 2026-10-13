@@ -143,6 +143,30 @@ class MyOrganizationTests(BaseTestCase):
         for value in ("9000000001", "WCHO01", "my.org.cho@test.local"):
             self.assertNotIn(value, text)
 
+    # -- Roles next to names ---------------------------------------------
+
+    def test_people_carry_role_labels_of_this_project_only(self):
+        project_scope = dict(scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT)
+        self._grant(self.cho_user, VaAccessRoles.coder, **project_scope)
+        self._grant(self.cho_user, VaAccessRoles.reviewer, **project_scope)
+        # Inactive in this project, and live in another: neither may show.
+        db.session.add(VaUserAccessGrants(
+            user_id=self.cho_user.user_id, role=VaAccessRoles.collaborator,
+            grant_status=VaStatuses.deactive, **project_scope))
+        db.session.commit()
+        self._grant(self.cho_user, VaAccessRoles.data_manager,
+                    scope_type=VaAccessScopeTypes.project, project_id=self.OTHER_TREE)
+        self._login(str(self.cho_user.user_id))
+
+        body = self._get(f"/units/{self.sub_a.org_unit_id}/people").get_json()
+        people = {p["name"]: p for p in body["people"]}
+        self.assertEqual(people["Meena Devi"]["roles"], ["Coder", "Reviewer"])
+        # Staff with no linked user have no roles.
+        self.assertEqual(people["Ravi Peer"]["roles"], [])
+        for person in body["people"]:
+            self.assertEqual(set(person), {"name", "cadre", "roles"})
+        self._assert_no_contact_fields(body)
+
     # -- CHO at a sub-centre ----------------------------------------------
 
     def test_sub_centre_cho_sees_own_unit_chain_above_and_peers(self):

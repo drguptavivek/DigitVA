@@ -1917,6 +1917,7 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(case["informant"], {"name": "Mohan Das", "phone": "9876543210", "phone_2": "9123456780"})
         self.assertEqual(case["household_address"], {
             "address": "Near the temple", "house_street": "House 12", "village_ward": "Ward 4", "landmark": "Water tank",
+            "latitude": None, "longitude": None, "accuracy_m": None, "captured_at": None,
         })
         self.assertEqual(case["remarks"], "Call after noon")
         self.assertEqual(case["deceased"]["name"], "Kamla Devi")

@@ -406,6 +406,11 @@ def create_app(config_class=None):
 
     app.add_template_global(district_reference_model, "district_reference_model")
 
+    # The admin Access grants panel's role labels, shared with the API.
+    from app.models.va_selectives import ROLE_LABELS
+
+    app.add_template_global(ROLE_LABELS, "role_labels")
+
     @app.context_processor
     def inject_template_globals():
         from app.services.site_maintenance_service import get_site_maintenance_banner_context

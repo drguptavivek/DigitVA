@@ -39,6 +39,24 @@ class VaAccessRoles(enum.Enum):
     death_reporter = "death_reporter"
 
 
+#: Human labels for grant roles. The single source for the admin Access grants
+#: panel (injected into the template) and the My organization people lists.
+ROLE_LABELS = {
+    "admin": "Admin",
+    "project_pi": "Project PI",
+    "site_pi": "Site PI",
+    "coder": "Coder",
+    "coding_tester": "Coding Tester",
+    "reviewer": "Reviewer",
+    "data_manager": "Data Manager",
+    "interviewer": "Interviewer",
+    "interview_supervisor": "Interview Supervisor",
+    "death_reporter": "Death Reporter",
+    "collaborator": "Viewer",
+    "collaborator_pii": "Viewer (with PII)",
+}
+
+
 class VaAccessScopeTypes(enum.Enum):
     global_scope = "global"
     project = "project"

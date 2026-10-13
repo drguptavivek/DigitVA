@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-13
 ---
 
 # Web Intake Policy
@@ -128,6 +128,35 @@ submission enters the workflow. Plan:
   (`Site`, `unique_id`, `survey_state`, `survey_district`,
   `org_<level>_code`, submitter metadata) are injected by the server at
   submission, never typed by the interviewer.
+
+## Death-site GPS location (owner, Vivek Gupta, 2026-10-13)
+
+- **Purpose**: so the CHO or a data collector can later find the house of a
+  reported death. Optional: a registration without a fix is complete and is
+  never blocked or flagged for lacking one.
+- **Who captures**: whoever registers or edits the death (interviewer or
+  death_reporter), by pressing "Capture location" on the registration form.
+  The browser's position is read once per press (high accuracy, 20 s limit,
+  no cached fix). Never on page load, never in the background, never
+  continuously; no position is read when the form is merely opened.
+- **What is stored** on `va_death_register`: `latitude`, `longitude` (degrees,
+  WGS84; -90..90 and -180..180, finite), `accuracy_m` (metres, optional, >= 0)
+  and `captured_at` (UTC, set by the server when the fix is saved, never taken
+  from the client). Latitude and longitude come together or not at all; the
+  accuracy and timestamp only exist with them.
+- **Who sees it**: exactly those who see the registration's address (the case
+  detail and the registered-deaths lists that carry the address), and nobody
+  else. It is absent from the worklist rows, supervision rows, exports,
+  analytics and every unrelated endpoint. The apps show an "Open in maps" link
+  (Google Maps search by coordinates) and the coordinates in small muted text.
+- **Editing**: a correction may keep the stored fix (omit the fields), replace
+  it (a new capture) or clear it (explicit nulls). The existing audit of a
+  details edit keeps old and new values like any other personal field.
+- **Retention**: same as the registration; no separate copy.
+- **Logging**: coordinates are personal data. They are never written to
+  application logs, audit reasons or error messages.
+- **Platforms**: web only for now; the native apps display the link but
+  capture is a later change.
 
 ## Area VA presets
 

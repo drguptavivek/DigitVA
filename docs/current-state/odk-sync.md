@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-14
 ---
 
 # ODK Sync And Attachments
@@ -372,8 +372,23 @@ Current implementation detail:
   `response.content`
 - ODK attachment requests use explicit connect/read timeouts from
   `ODK_CONNECT_TIMEOUT_SECONDS` and `ODK_READ_TIMEOUT_SECONDS`
-- the upstream `Content-Type` is validated before it is stored; an empty,
-  malformed, or literal `"null"` value is stored as `NULL`
+- the stored MIME is decided from the leading bytes when they match an accepted
+  signature (`web_intake_attachment_service.detect_type`), and otherwise from
+  Central's `Content-Type` after `safe_mime_type`: an empty, malformed, or
+  literal `"null"` label is stored as `NULL`. A label a browser could run or
+  render (HTML, SVG, XML, any script or `+xml` type) is stored as
+  `application/octet-stream`. Nothing is rejected on type: ODK sends files such
+  as `audit.csv` outside the intake allow-list
+- size caps are shared with web intake: 50 MB per file (owner decision 2026-10-14, superseding 2026-10-06), 5 MB for `.amr`
+  (`attachment_service.MAX_BYTES` and `AMR_MAX_BYTES`). A file over its cap is
+  not stored. The check runs first on `Content-Length`, then as the body streams,
+  which stops at the cap. The row keeps `exists_on_odk`, its metadata and
+  Central's ETag, and records `refused_reason = too_large` and the size seen in
+  `refused_size_bytes`. A 304 for a refused row is skipped without the
+  forced re-download, so only a changed ETag fetches it again; a 200 that fits
+  clears the refusal. Refusals are counted per submission (`refused`), per run
+  (`va_sync_runs.attachment_refused`) and on the Attachment Management panel.
+  Policy: [`docs/policy/odk-attachment-intake-limits.md`](../policy/odk-attachment-intake-limits.md)
 - `.amr` narration is converted to MP3 with SoX **inside the attachment
   service**; a failed conversion raises `AmrConversionError`, leaves no partial
   `.mp3` and no temp file, counts as an attachment error, and leaves the

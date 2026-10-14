@@ -174,6 +174,26 @@ def pytest_sessionfinish(session, exitstatus):
 
 
 @pytest.fixture(autouse=True)
+def _no_real_icd11_titles():
+    """Coding screens title their quick-use choices from the local WHO ICD-11 API.
+    No test may reach that container or the shared cache: WHO answers nothing,
+    so the page shows codes alone. Tests that assert titles patch the lookup again."""
+    from unittest import mock
+
+    class _NoCache:
+        def get(self, key):
+            return None
+
+        def set(self, key, value, timeout=None):
+            return None
+
+    with mock.patch("app.services.icd11_titles.cache", _NoCache()), mock.patch(
+        "app.services.icd11_titles.get_icd11_codeinfo", return_value=None
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _no_real_smartva_queue():
     """A completed interview queues SmartVA after commit; no test may reach
     the broker the dev worker also reads. Tests that assert the queueing

@@ -1,0 +1,23 @@
+{% extends "emails/email_base.html" %}
+
+{% block email_title %}DigitVA: system health needs attention{% endblock %}
+
+{% block email_body %}
+<p style="margin: 0 0 16px 0; color: #212529; font-size: 16px;">
+  Hello {{ name }},
+</p>
+<p style="margin: 0 0 16px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  A certificate or attachment store check for DigitVA is due, urgent, expired, failing or could not be verified:
+</p>
+<ul style="margin: 0 0 16px 0; padding-left: 20px; color: #495057; font-size: 15px; line-height: 1.6;">
+  {% for c in certificates %}
+  <li>{{ c.label }}: <strong>{{ c.status }}</strong>{% if c.expires %}, expires {{ c.expires }} ({{ c.days_left }} days left){% endif %}{% if c.detail %} &ndash; {{ c.detail }}{% endif %}</li>
+  {% endfor %}
+</ul>
+<p style="margin: 0 0 16px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  Open the <a href="{{ admin_url }}">System health panel</a> in the admin console for the full report.
+</p>
+<p style="margin: 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  Renewal procedure: docs/current-state/split-production-tls.md
+</p>
+{% endblock %}

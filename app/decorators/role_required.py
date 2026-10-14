@@ -148,6 +148,11 @@ def role_required(*roles):
                 )
                 if is_api:
                     return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
+                # An htmx panel load must not follow a redirect and swap the
+                # login page into the pane: 401 lets base.js show the
+                # Session Expired modal instead.
+                if request.headers.get("HX-Request") == "true":
+                    return "Authentication required.", 401
                 return redirect(url_for("va_auth.va_login", next=request.url))
 
             # ── Layer 2: Active-status ────────────────────────────────────────

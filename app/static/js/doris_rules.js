@@ -43,6 +43,40 @@ function section(cert, name) { return cert && cert[name] && typeof cert[name] ==
 // Age at death in days: the estimated age only (null when blank).
 export function ageInDays(cert) { return durationDays(section(cert, 'AdministrativeData').EstimatedAge); }
 
+// Days since 1970 for a real full date ("YYYY-MM-DD" that exists), else null.
+function fullDay(value) {
+  var parts = parseDate(value);
+  if (!isFull(parts)) return null;
+  var day = utcDay(parts);
+  var date = new Date(day * DAY_MS);
+  return date.getUTCFullYear() === parts[0] && date.getUTCMonth() === parts[1] - 1 && date.getUTCDate() === parts[2] ? day : null;
+}
+
+// EstimatedAge from the two dates, as the ISO duration the age field stores: whole years from 1 year, else whole
+// months from 1 month, else whole days. '' unless both are real dates and death is not before birth. A birthday
+// not yet reached does not count (12 Aug 1996 to 12 Jun 2025 is P28Y). Mirrors ageFromDates in rules.ts.
+export function ageFromDates(birth, death) {
+  var b = fullDay(birth); var d = fullDay(death);
+  if (b === null || d === null || d < b) return '';
+  var bp = parseDate(birth); var dp = parseDate(death);
+  var months = (dp[0] - bp[0]) * 12 + (dp[1] - bp[1]) - (dp[2] < bp[2] ? 1 : 0);
+  if (months >= 12) return 'P' + Math.floor(months / 12) + 'Y';
+  if (months >= 1) return 'P' + months + 'M';
+  return 'P' + (d - b) + 'D';
+}
+
+// V7: the editor derives EstimatedAge when it loads only for a fresh prefill seed (prefill provenance present).
+// A restored processing or a saved certificate (no provenance) keeps the age it was saved with.
+export function derivesAtLoad(prefillProvenance, restored) {
+  return !restored && Object.keys(prefillProvenance || {}).length > 0;
+}
+
+// V7: a date change may refill the age only when nothing is typed (not even a number without a unit) or the
+// value is still the one derived last time. `current` is the age's ISO value, `typed` whether the coder typed.
+export function mayRefillAge(current, typed, derived) {
+  return !((current !== '' || typed) && current !== derived);
+}
+
 // Text of the not-applicable note a hidden whole card shows in place of its
 // fields (docs/policy/doris-certificate-rules.md, "N/A note").
 export var NOT_APPLICABLE = {

@@ -77,3 +77,16 @@ assert.equal(msgs(baby({BirthWeight: 7001, PregnancyWeeks: 46, AgeMother: 61, De
 // no warnings for a hidden control's stale value
 assert.equal(msgs(cert('P40Y', 1, {FetalOrInfantDeath: {BirthWeight: 1}})).length, 0);
 console.log('doris_rules ok');
+// EstimatedAge from the dates (editor fills it; mirrors rules.ts ageFromDates)
+assert.equal(R.ageFromDates('1996-08-12', '2025-06-12'), 'P28Y'); assert.equal(R.ageFromDates('1996-08-12', '2025-08-12'), 'P29Y');
+assert.equal(R.ageFromDates('2025-01-10', '2025-12-09'), 'P10M'); assert.equal(R.ageFromDates('2025-01-10', '2025-12-10'), 'P11M');
+assert.equal(R.ageFromDates('2025-01-01', '2025-01-31'), 'P30D'); assert.equal(R.ageFromDates('2025-01-01', '2025-01-01'), 'P0D');
+assert.equal(R.ageFromDates('2000-01-31', '2000-02-29'), 'P29D');
+assert.equal(R.ageFromDates('1996', '2025-06-12'), ''); assert.equal(R.ageFromDates('1996-08-12', '2025-02-30'), '');
+assert.equal(R.ageFromDates('2025-05-02', '2025-05-01'), '');
+// Leap day and month end (V7): a birthday on 29 Feb is reached on 1 Mar in a non-leap year
+assert.equal(R.ageFromDates('2000-02-29', '2026-02-28'), 'P25Y'); assert.equal(R.ageFromDates('2000-02-29', '2026-03-01'), 'P26Y');
+assert.equal(R.ageFromDates('2024-02-29', '2028-02-29'), 'P4Y'); assert.equal(R.ageFromDates('2024-02-29', '2025-02-28'), 'P11M');
+assert.equal(R.ageFromDates('2025-01-31', '2025-02-28'), 'P28D'); assert.equal(R.ageFromDates('2025-01-31', '2025-03-01'), 'P1M');
+assert.equal(R.ageFromDates('2025-03-31', '2025-04-30'), 'P30D');
+console.log('doris_rules dates ok');

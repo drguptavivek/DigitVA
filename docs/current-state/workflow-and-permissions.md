@@ -1213,9 +1213,9 @@ Schema: `auth_webauthn_credentials` and inert legacy factor records,
 `va_users.auth_session_version`.
 
 WebAuthn RP ID/origin: `config.py`'s `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGIN`
-default to the host / scheme+host of `MAIL_BASE_URL` (via the same
+default to the host / scheme+host of `PUBLIC_BASE_URL` (via the same
 `_parse_public_url` helper `trusted_hosts_for` uses), overridable by
-environment variable for development; with no `MAIL_BASE_URL` at all they
+environment variable for development; with no `PUBLIC_BASE_URL` at all they
 fall back to `localhost` / `http://localhost:8051`, which WebAuthn allows
 over plain HTTP.
 

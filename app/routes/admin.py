@@ -2898,7 +2898,12 @@ def admin_toggle_access_grant(grant_id):
 @admin.get("/", strict_slashes=False)
 @role_required("admin", "project_pi")
 def admin_index():
-    return render_template("admin/admin_index.html")
+    from app.services import tls_health_service
+
+    # Admins only: the banner names certificates, and project PIs do not
+    # manage them. Reads the cache, so this page load makes no network call.
+    tls_alert = tls_health_service.banner_rows() if current_user.is_admin() else None
+    return render_template("admin/admin_index.html", tls_alert=tls_alert)
 
 
 @admin.get("/panels/access-grants")
@@ -5997,6 +6002,16 @@ def admin_cod_bucket_scheme_add_mappings(scheme_code):
 @role_required("admin")
 def admin_panel_sync():
     return render_template("admin/panels/sync_dashboard.html")
+
+
+@admin.get("/panels/system-health")
+@role_required("admin")
+def admin_panel_system_health():
+    from app.services import tls_health_service
+
+    rows = tls_health_service.certificate_report()
+    tls_health_service.store_report(rows)
+    return render_template("admin/panels/system_health.html", rows=rows)
 
 
 @admin.get("/api/site-maintenance")

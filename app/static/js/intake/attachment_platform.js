@@ -50,18 +50,18 @@ export function createAttachmentPlatform({ WhoVa, buffer, uploader, attachmentUr
     listIds: () => buffer.listIds(),
   };
   // The package shrinks an image to a JPEG of at most 2 MB; the input may be
-  // the owner's 25 MB rather than the package's 10 MB default.
+  // the owner's MAX_BYTES (50 MB) rather than the package's 10 MB default.
   const imagePolicy = { ...WhoVa.WHO_VA_ATTACHMENT_POLICY.image, maxInputBytes: MAX_BYTES };
 
   const processImage = (file) => {
-    if (file.size > MAX_BYTES) throw new Error("This file is larger than 25 MB.");
+    if (file.size > MAX_BYTES) throw new Error(`This file is larger than ${MAX_BYTES / (1024 * 1024)} MB.`);
     return WhoVa.processWebImageAttachment(file, { store, policy: imagePolicy }).then(withoutFileName);
   };
 
-  // The package keeps a PDF only up to 5 MB; the owner's limit is 25 MB, so the
+  // The package keeps a PDF only up to 5 MB; the owner's limit is MAX_BYTES, so the
   // PDF is checked and kept here (the server validates it again).
   async function keepPdf(file) {
-    if (file.size > MAX_BYTES) throw new Error("This file is larger than 25 MB.");
+    if (file.size > MAX_BYTES) throw new Error(`This file is larger than ${MAX_BYTES / (1024 * 1024)} MB.`);
     const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
     if (!isPdfHeader(head)) throw new Error("This file is not a PDF.");
     const id = WhoVa.createDraftId();

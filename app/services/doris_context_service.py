@@ -20,6 +20,8 @@ import copy
 from app import db
 from app.models import VaInitialAssessments, VaStatuses
 from app.services.cod_entry_mode import is_doris, is_masked, smartva_icd11_alternatives
+from app.services.icd11_titles import icd11_alternatives_label
+from app.services.smartva_icd11 import smartva_icd11_mapping
 from app.services.doris_prefill import doris_prefill_from_payload
 from app.services.final_cod_authority_service import get_authoritative_final_assessment
 from app.services.submission_payload_version_service import get_active_payload_version
@@ -74,13 +76,28 @@ def saved_step1_processing(step1, redact_pii: bool) -> dict | None:
     }
 
 
+def _smartva_text(value) -> str | None:
+    """A served SmartVA text value; ``NaN`` and empty are no value, as the summary table treats them."""
+    return value if value and value != "NaN" else None
+
+
 def masked_step2_context(step1, smartva, redact_pii: bool) -> dict:
     """Template data for the masked DORIS Step 2 picker host.
 
-    The picker's API URLs default in the template from ``va_sid``.
+    The picker's API URLs default in the template from ``va_sid``. The
+    SmartVA quick-use gets its ICD-11 label (with titles from the WHO API)
+    and the cause and likelihood as SmartVA gives them, looked up once here.
     """
+    cause = _smartva_text(smartva.va_smartva_cause1) if smartva else None
+    likelihood = _smartva_text(smartva.va_smartva_likelihood1) if smartva else None
     return {
         "smartva_icd11_alternatives": smartva_icd11_alternatives(smartva),
+        "smartva_icd11_label": (
+            icd11_alternatives_label(smartva_icd11_mapping(_smartva_text(smartva.va_smartva_cause1icd)))
+            if smartva
+            else None
+        ),
+        "smartva_cause_text": ", ".join(part for part in (cause, likelihood) if part) or None,
         "step1_doris_certificate": (
             _redacted(step1.doris_certificate, redact_pii) if step1 else None
         ),

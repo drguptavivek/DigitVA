@@ -3430,6 +3430,9 @@ def find_device_attempt(user: VaUsers, death_id: object, client_attempt_id: uuid
 
 WORKLIST_PAGE_DEFAULT = 50
 WORKLIST_PAGE_MAX = 200
+# ``sort``: the default next-visit order the device app and the older page use,
+# or ``reported`` (newest reported first, the page's "Recent" chip).
+WORKLIST_SORTS = ("next_visit", "reported")
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
@@ -3453,6 +3456,14 @@ def _micros(at: datetime) -> int:
 def _encode_worklist_cursor(case: VaDeathRegister) -> str:
     visit = str(_micros(case.next_visit_at)) if case.next_visit_at else "-"
     return f"{visit}_{_micros(case.updated_at)}_{case.death_id}"
+
+
+def _after_reported_cursor(raw: str):
+    """Keyset condition for rows after *raw* in the reported order: newest
+    registration first. ``_decode_cursor`` refuses a next-visit cursor (its
+    remainder is not a uuid), so a cursor cannot cross the two orders."""
+    at, death_uuid = _decode_cursor(raw)
+    return sa.tuple_(VaDeathRegister.created_at, VaDeathRegister.death_id) < (at, death_uuid)
 
 
 def _after_worklist_cursor(raw: str):
@@ -3596,7 +3607,8 @@ def _worklist_select(user: VaUsers):
 
 def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
                   cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
-                  project_id: str | None = None, context: list[dict] | None = None) -> dict:
+                  project_id: str | None = None, context: list[dict] | None = None,
+                  sort: str = "next_visit") -> dict:
     """Team cases in the interviewer's scope, soonest next visit first.
 
     Returns ``{"cases": [(case, unit_name, my_draft_id, other_draft_started_at,
@@ -3609,11 +3621,15 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     first. Keyset-paged on (next_visit_at, updated_at, death_id).
     *project_id* narrows the scope to one project, counts included (the
     device list); possible duplicates still come from the whole scope.
+    ``sort="reported"`` orders by registration instead (newest first), keyset
+    on (created_at, death_id); the cursor then comes from that order.
     ``context``: the caller's ``interviewer_context``, if already computed.
     """
     for state in states or []:
         if state not in CASE_STATES:
             raise WebIntakeError(f"Unknown state {state!r}.")
+    if sort not in WORKLIST_SORTS:
+        raise WebIntakeError("sort must be next_visit or reported.")
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
     scope = _worklist_scope(user, context)
     if scope is None:
@@ -3635,20 +3651,31 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     filters = list(base)
     if states:
         filters.append(VaDeathRegister.status.in_(states))
-    if cursor:
-        filters.append(_after_worklist_cursor(cursor))
-    rows = db.session.execute(
-        _worklist_select(user)
-        .where(*filters)
-        .order_by(
+    if sort == "reported":
+        order_by = (VaDeathRegister.created_at.desc(), VaDeathRegister.death_id.desc())
+        if cursor:
+            filters.append(_after_reported_cursor(cursor))
+    else:
+        order_by = (
             VaDeathRegister.next_visit_at.asc().nulls_last(),
             VaDeathRegister.updated_at.desc(),
             VaDeathRegister.death_id.desc(),
         )
+        if cursor:
+            filters.append(_after_worklist_cursor(cursor))
+    rows = db.session.execute(
+        _worklist_select(user)
+        .where(*filters)
+        .order_by(*order_by)
         .limit(limit + 1)
     ).all()
     page = [tuple(row) for row in rows[:limit]]
-    next_cursor = _encode_worklist_cursor(page[-1][0]) if len(rows) > limit else None
+    if len(rows) > limit:
+        last = page[-1][0]
+        next_cursor = (_encode_cursor(last.created_at, last.death_id) if sort == "reported"
+                       else _encode_worklist_cursor(last))
+    else:
+        next_cursor = None
     duplicates = _possible_duplicate_rows([row[0].death_id for row in page], scope, per_case=3)
     possible = {}
     for row in duplicates:
@@ -3668,12 +3695,16 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
 
     *args* is the request's query string: ``mine`` (true/false), ``state``
     (comma-separated case states), ``limit`` (clamped to 1..200), ``cursor``
-    (from ``next_cursor``); a malformed one is a 400 WebIntakeError.
+    (from ``next_cursor``), ``sort`` (``next_visit`` default, or ``reported``);
+    a malformed one is a 400 WebIntakeError.
     *project_id* and *context* as ``list_worklist``.
     """
     mine = (args.get("mine") or "").lower()
     if mine not in _TRUE + _FALSE:
         raise WebIntakeError("mine must be true or false.")
+    sort = args.get("sort") or "next_visit"
+    if sort not in WORKLIST_SORTS:
+        raise WebIntakeError("sort must be next_visit or reported.")
     try:
         limit = int(args.get("limit") or WORKLIST_PAGE_DEFAULT)
     except ValueError:
@@ -3686,6 +3717,7 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
         limit=limit,
         project_id=project_id,
         context=context,
+        sort=sort,
     )
     possible = result["possible_duplicates"]
     rows = []
@@ -4105,6 +4137,8 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "informant_phone_2_masked": mask_phone(death.informant_phone_2),
         "registered_by_me": death.registered_by == user.user_id,
         "started_by_me": death.started_by_user_id == user.user_id,
+        # Someone started the case (no name: who holds it is supervisor-only).
+        "started": death.started_by_user_id is not None,
         "my_draft_id": str(my_draft_id) if my_draft_id else None,
         "other_draft_active": other_draft_started_at is not None,
         "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,

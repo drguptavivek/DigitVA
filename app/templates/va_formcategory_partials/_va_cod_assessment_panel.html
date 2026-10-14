@@ -50,7 +50,7 @@
           </div>
           <div class="col-md-4">
             <div class="p-2 border rounded bg-white">
-              <small class="text-secondary d-block mb-1">Coder Step 1 Antecedent COD</small>
+              <small class="text-secondary d-block mb-1">{% if project_mode|default('masked_simple') in ('unmasked_doris', 'masked_doris') %}Step 1 underlying cause{% else %}Coder Step 1 Antecedent COD{% endif %}</small>
               <div class="fw-semibold">{{ va_initial_assess.va_antecedent_cod if va_initial_assess else "-" }}</div>
             </div>
           </div>
@@ -263,7 +263,7 @@
           </div>
           <div class="col-md-4">
             <div class="p-2 border rounded bg-white">
-              <small class="text-secondary d-block mb-1">Antecedent COD</small>
+              <small class="text-secondary d-block mb-1">{% if project_mode|default('masked_simple') in ('unmasked_doris', 'masked_doris') %}Step 1 underlying cause{% else %}Antecedent COD{% endif %}</small>
               <div class="fw-semibold">{{ va_reviewer_initial_assess.va_antecedent_cod }}</div>
             </div>
           </div>
@@ -554,7 +554,7 @@
           </thead>
           <tbody>
             {% if smartva and smartva.va_smartva_age and smartva.va_smartva_age != 'NaN' and smartva.va_smartva_age is not none %}
-              <tr><td class="align-middle">Age</td><td class="align-middle">{{ smartva.va_smartva_age }}</td></tr>
+              <tr><td class="align-middle">Age</td><td class="align-middle">{{ smartva.va_smartva_age|whole_number }}</td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_gender and smartva.va_smartva_gender != 'NaN' and smartva.va_smartva_gender is not none %}
               <tr><td class="align-middle">Gender</td><td class="align-middle">{{ smartva.va_smartva_gender }}</td></tr>
@@ -569,19 +569,19 @@
               <tr><td class="align-middle">Tertiary Key Symptom</td><td class="align-middle">{{ smartva.va_smartva_keysymptom3 }}</td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_cause1 and smartva.va_smartva_cause1 != 'NaN' and smartva.va_smartva_cause1 is not none %}
-              <tr><td class="align-middle">Primary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause1 }}</span>{% if smartva.va_smartva_cause1icd and smartva.va_smartva_cause1icd != 'NaN' and smartva.va_smartva_cause1icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD-10: {{ smartva.va_smartva_cause1icd }}</span>{% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause1icd) %}<span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>{% endif %}</div></td></tr>
+              <tr><td class="align-middle">Primary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause1 }}</span>{% if smartva.va_smartva_cause1icd and smartva.va_smartva_cause1icd != 'NaN' and smartva.va_smartva_cause1icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD-10: {{ smartva.va_smartva_cause1icd }}</span>{% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause1icd) %}<span class="badge bg-light text-dark border ms-2 px-3 py-2 text-wrap">ICD-11 mapping: {{ icd11_alternatives_label(icd11) or "unavailable" }}</span>{% endif %}</div></td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_likelihood1 and smartva.va_smartva_likelihood1 != 'NaN' and smartva.va_smartva_likelihood1 is not none %}
               <tr><td class="align-middle">Primary Likelihood</td><td class="align-middle">{{ smartva.va_smartva_likelihood1 }}</td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_cause2 and smartva.va_smartva_cause2 != 'NaN' and smartva.va_smartva_cause2 is not none %}
-              <tr><td class="align-middle">Secondary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause2 }}</span>{% if smartva.va_smartva_cause2icd and smartva.va_smartva_cause2icd != 'NaN' and smartva.va_smartva_cause2icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD-10: {{ smartva.va_smartva_cause2icd }}</span>{% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause2icd) %}<span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>{% endif %}</div></td></tr>
+              <tr><td class="align-middle">Secondary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause2 }}</span>{% if smartva.va_smartva_cause2icd and smartva.va_smartva_cause2icd != 'NaN' and smartva.va_smartva_cause2icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD-10: {{ smartva.va_smartva_cause2icd }}</span>{% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause2icd) %}<span class="badge bg-light text-dark border ms-2 px-3 py-2 text-wrap">ICD-11 mapping: {{ icd11_alternatives_label(icd11) or "unavailable" }}</span>{% endif %}</div></td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_likelihood2 and smartva.va_smartva_likelihood2 != 'NaN' and smartva.va_smartva_likelihood2 is not none %}
               <tr><td class="align-middle">Secondary Likelihood</td><td class="align-middle">{{ smartva.va_smartva_likelihood2 }}</td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_cause3 and smartva.va_smartva_cause3 != 'NaN' and smartva.va_smartva_cause3 is not none %}
-              <tr><td class="align-middle">Tertiary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause3 }}</span>{% if smartva.va_smartva_cause3icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD-10: {{ smartva.va_smartva_cause3icd }}</span>{% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause3icd) %}<span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>{% endif %}</div></td></tr>
+              <tr><td class="align-middle">Tertiary Cause of Death</td><td class="align-middle"><div class="d-flex align-items-center"><span class="badge bg-primary px-3 py-2">{{ smartva.va_smartva_cause3 }}</span>{% if smartva.va_smartva_cause3icd and smartva.va_smartva_cause3icd != 'NaN' and smartva.va_smartva_cause3icd is not none %}<span class="badge bg-secondary ms-2 px-3 py-2">ICD-10: {{ smartva.va_smartva_cause3icd }}</span>{% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause3icd) %}<span class="badge bg-light text-dark border ms-2 px-3 py-2 text-wrap">ICD-11 mapping: {{ icd11_alternatives_label(icd11) or "unavailable" }}</span>{% endif %}</div></td></tr>
             {% endif %}
             {% if smartva and smartva.va_smartva_likelihood3 and smartva.va_smartva_likelihood3 != 'NaN' and smartva.va_smartva_likelihood3 is not none %}
               <tr><td class="align-middle">Tertiary Likelihood</td><td class="align-middle">{{ smartva.va_smartva_likelihood3 }}</td></tr>

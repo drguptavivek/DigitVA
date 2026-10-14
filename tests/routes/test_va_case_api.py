@@ -601,11 +601,20 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(smartva["causes"][0]["icd10"], "I64")
         self.assertIsNone(smartva["causes"][1]["cause"])
         self.assertEqual(smartva["symptoms"], ["fever", "cough"])
+        # Key symptoms are rank-aligned (null when empty); an integral age is served whole.
+        self.assertEqual(smartva["key_symptoms"], [None, None, None])
+        self.assertEqual(smartva["age"], "60")
         # Not cached with the section: a later row shows at once.
         db.session.execute(sa.update(VaSmartvaResults).where(VaSmartvaResults.va_sid == sid).values(
             va_smartva_cause1="Pneumonia"))
         db.session.commit()
         self.assertEqual(self._workspace(sid)["smartva"]["causes"][0]["cause"], "Pneumonia")
+        db.session.execute(sa.update(VaSmartvaResults).where(VaSmartvaResults.va_sid == sid).values(
+            va_smartva_age="28.0", va_smartva_keysymptom2="Fever", va_smartva_keysymptom1="NaN"))
+        db.session.commit()
+        served = self._workspace(sid)["smartva"]
+        self.assertEqual(served["age"], "28")
+        self.assertEqual(served["key_symptoms"], [None, "Fever", None])
 
     def test_the_reviewer_workspace_shows_the_reviewer_steps(self):
         self._mode(masked=True)

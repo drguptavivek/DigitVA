@@ -45,6 +45,7 @@ from app.models import (
     VaUserAccessGrants,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
+from app.services import attachment_service as svc
 from app.services import attachment_source_central as central
 from app.services.attachment_storage_name_service import legacy_attachment_storage_name
 from tests.base import BaseTestCase
@@ -616,6 +617,85 @@ class ServeAttachmentTests(BaseTestCase):
         self.assertFalse(
             [name for name in os.listdir(self._media_dir()) if name.startswith(".tmp_")]
         )
+
+    def test_central_declared_length_over_the_cap_is_404_refused_and_not_stored(self):
+        storage_name = self._make_storage_name()
+        row = self._make_attachment_row(storage_name, local_path=None)
+        target = self._expect_no_stored_object(storage_name)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        upstream = _FakeUpstream(b"never-streamed")
+        self._patch_fetch(central.CentralFetch(
+            outcome=central.FETCH_OK,
+            response=upstream,
+            mime_type="image/jpeg",
+            content_length=svc.MAX_BYTES + 1,
+        ))
+        self._login(self.base_admin_id)
+
+        response = self.client.get(self._url(storage_name))
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(upstream.closed)
+        self.assertFalse(os.path.exists(target))
+        refreshed = self._row(row.va_sid, row.filename)
+        self.assertEqual(refreshed.refused_reason, svc.REFUSED_TOO_LARGE)
+        self.assertEqual(refreshed.refused_size_bytes, svc.MAX_BYTES + 1)
+
+    def test_a_file_already_refused_for_size_is_not_fetched_again(self):
+        storage_name = self._make_storage_name()
+        row = self._make_attachment_row(storage_name, local_path=None)
+        target = self._expect_no_stored_object(storage_name)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        fetch = self._patch_fetch(central.CentralFetch(
+            outcome=central.FETCH_OK,
+            response=_FakeUpstream(b"never-streamed"),
+            mime_type="image/jpeg",
+        ))
+        self._login(self.base_admin_id)
+        # Baseline: an unrefused miss does reach Central.
+        self.client.get(self._url(storage_name)).get_data()
+        self.assertEqual(fetch.call_count, 1)
+        flask_cache.delete(f"att:{storage_name}")
+        if os.path.exists(target):  # self-heal stored it; make it a miss again
+            os.remove(target)
+
+        refreshed = self._row(row.va_sid, row.filename)
+        refreshed.refused_reason = svc.REFUSED_TOO_LARGE
+        refreshed.refused_size_bytes = svc.MAX_BYTES + 1
+        db.session.commit()
+
+        response = self.client.get(self._url(storage_name))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(fetch.call_count, 1)
+
+    def test_a_body_streamed_past_the_cap_is_cut_off_and_not_stored(self):
+        storage_name = self._make_storage_name()
+        row = self._make_attachment_row(storage_name, local_path=None)
+        target = self._expect_no_stored_object(storage_name)
+        self.addCleanup(lambda: flask_cache.delete(f"att:{storage_name}"))
+        self._enable_central_fetch()
+        upstream = _FakeUpstream(b"x" * 130)
+        self._patch_fetch(central.CentralFetch(
+            outcome=central.FETCH_OK,
+            response=upstream,
+            mime_type="image/jpeg",
+        ))
+        self._login(self.base_admin_id)
+
+        with patch.object(svc, "MAX_BYTES", 100), \
+                patch.object(svc, "ATTACHMENT_STREAM_CHUNK_SIZE", 40):
+            with self.assertRaises(svc.AttachmentTooLarge):
+                self.client.get(self._url(storage_name)).get_data()
+
+        self.assertTrue(upstream.closed)
+        self.assertFalse(os.path.exists(target))
+        media_dir = self._media_dir()
+        self.assertFalse([name for name in os.listdir(media_dir) if name.startswith(".tmp_")])
+        refreshed = self._row(row.va_sid, row.filename)
+        self.assertEqual(refreshed.refused_reason, svc.REFUSED_TOO_LARGE)
+        self.assertEqual(refreshed.refused_size_bytes, 120)
 
     def test_a_followed_redirect_is_delivered_the_same_way(self):
         storage_name = self._make_storage_name()

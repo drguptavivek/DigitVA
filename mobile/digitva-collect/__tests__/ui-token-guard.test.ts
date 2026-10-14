@@ -31,6 +31,7 @@ const COLOUR_ALLOW: ReadonlyArray<{ file: string; text: string; why: string }> =
   { file: "src/workspace/WorkspaceLayout.web.tsx", text: "rgba(0,0,0,", why: "drawer scrim and sticky-bar shadow" },
   { file: "src/workspace/WorkspaceLayout.web.tsx", text: "logo:", why: "logo plate stays white in both modes" },
   { file: "src/workspace/doris/IcdPickerModal.tsx", text: "rgba(17,24,39,0.62)", why: "picker modal scrim" },
+  { file: "src/workspace/doris/CodeDetailsSheet.tsx", text: "rgba(17,24,39,0.62)", why: "ICD-11 details sheet scrim (the picker scrim)" },
   { file: "src/workspace/media/AttachmentGallery.web.tsx", text: "rgba(8, 13, 20, 0.94)", why: "lightbox scrim" },
   { file: "src/workspace/media/AttachmentGallery.web.tsx", text: "color: \"#fff\"", why: "lightbox controls sit on the dark scrim" },
   { file: "src/web/InterviewScreen.tsx", text: "stroke", why: "matches the literal stroke colours the WHO package paints on its SVG icons" }

@@ -1,7 +1,7 @@
 """Web intake attachments (digitva-ej1): ``PUT/GET /api/v1/intake/drafts/<id>/attachments/<id>``
 and the link into the submission at submit.
 
-Covers what the route and ``web_intake_attachment_service`` decide: the 25 MB
+Covers what the route and ``web_intake_attachment_service`` decide: the 50 MB
 cap (413, and 411 without a declared length), the type decided from the leading
 bytes (415, whatever the extension or Content-Type said), the interviewer scope
 of the draft (404 for another's), idempotency by the client's attachment id,
@@ -243,7 +243,9 @@ class IntakeAttachmentTests(BaseTestCase):
         self.assertEqual(result.storage_name, winner_storage_name)
         self.assertEqual(len(self._stored_files()), 1)
 
-    def test_the_cap_is_25_mb_and_the_length_must_be_declared(self):
+    def test_the_cap_is_max_bytes_and_the_length_must_be_declared(self):
+        # Owner decision 2026-10-14: 50 MB per file, the same cap as ODK sync.
+        self.assertEqual(svc.MAX_BYTES, 50 * 1024 * 1024)
         self._login(self.interviewer_id)
         draft = self._start_draft()
         over = svc.MAX_BYTES + 1

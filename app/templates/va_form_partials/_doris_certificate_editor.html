@@ -20,6 +20,7 @@
   <div class="card-header bg-primary-subtle">
     <h3 class="h5 mb-1">Medical Certificate of Cause of Death</h3>
     <p class="small mb-0">DORIS and CoDEdit provide guidance. You must independently confirm the final underlying cause.</p>
+    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-bs-toggle="modal" data-bs-target="#{{ _doris_id }}-va-definitions" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
   </div>
   <div class="card-body">
     <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
@@ -103,7 +104,7 @@
         <div class="list-group mt-1" data-doris-final-results></div>
         <div class="doris-code-details mt-2" data-doris-details-panel hidden></div>
         <div data-doris-guided-panel></div>
-        <p class="small mt-2 mb-0" data-doris-final-choice></p>
+        <p class="fw-bold fs-6 text-success mt-3 mb-0" data-doris-final-choice role="status" aria-live="polite"></p>
       </div>
     </div>
     </div></section>
@@ -138,5 +139,6 @@
   <input type="hidden" name="codedit_result" data-codedit-result>
   <input type="hidden" name="doris_process_token" data-doris-token>
   <input type="hidden" name="doris_result_digest" data-doris-digest>
+  {% with modal_id=_doris_id ~ '-va-definitions' %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-15"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-16"></script>

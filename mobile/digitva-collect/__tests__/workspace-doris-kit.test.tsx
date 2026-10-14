@@ -1,8 +1,9 @@
 import type React from "react";
+import { Modal, ScrollView, View } from "react-native";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 import { hsl, palette, ui, uiRadius } from "../src/theme";
-import { Alert, Badge, Button, Card, Chip, Input, RadioRow, Separator, chartFor } from "../src/workspace/doris/ui";
+import { Alert, Badge, Button, Card, Chip, Input, MenuSelect, RadioRow, Separator, chartFor, menuTop } from "../src/workspace/doris/ui";
 
 const mockTheme: { mode: "light" | "dark" } = { mode: "light" };
 jest.mock("../src/theme", () => {
@@ -184,5 +185,87 @@ describe("choice layout", () => {
 
   it("5+ short options on wide screens use 3 columns", () => {
     expect(choiceColumns(1200, [...short, "Other"])).toBe(3);
+  });
+
+  it("sizes the group by its measured width, not the window", () => {
+    const sex = ["Not stated", "Male", "Female", "Undetermined"];
+    expect(choiceColumns(1200, sex)).toBe(4); // before the first layout the window stands in
+    expect(choiceColumns(1200, sex, 240)).toBe(1); // a grid cell: "Undetermined" needs a full-width tile
+    expect(choiceColumns(1200, sex, 1100)).toBe(4);
+    expect(choiceColumns(1200, short, 1100)).toBe(4);
+  });
+});
+
+describe("MenuSelect dropdown", () => {
+  const options = [
+    { value: "Y", label: "Years", accessibilityLabel: "Unit: Years" },
+    { value: "D", label: "Days", accessibilityLabel: "Unit: Days", dimmed: true },
+  ];
+  const mountMenu = (onSelect = jest.fn()) => render(<MenuSelect triggerLabel="Unit" valueText="Units" selected="" options={options} onSelect={onSelect} />);
+  const trigger = (tree: ReactTestRenderer) => tree.root.findByProps({ accessibilityLabel: "Unit" });
+  const item = (tree: ReactTestRenderer, name: string) => tree.root.findByProps({ accessibilityLabel: name });
+
+  it("is closed until the trigger opens it, with the trigger reporting expanded", () => {
+    const tree = mountMenu();
+    expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+    expect(trigger(tree).props.accessibilityState).toEqual({ expanded: false });
+    act(() => trigger(tree).props.onPress());
+    expect(trigger(tree).props.accessibilityState).toEqual({ expanded: true });
+    expect(item(tree, "Unit: Years").props.accessibilityState).toEqual({ selected: false });
+    expect(flat(item(tree, "Unit: Days").props.style)).toMatchObject({ opacity: 0.45 });
+  });
+
+  it("selects an option, passes it on and closes", () => {
+    const onSelect = jest.fn();
+    const tree = mountMenu(onSelect);
+    act(() => trigger(tree).props.onPress());
+    act(() => item(tree, "Unit: Days").props.onPress());
+    expect(onSelect).toHaveBeenCalledWith("D");
+    expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+    expect(trigger(tree).props.accessibilityState).toEqual({ expanded: false });
+  });
+
+  it("scrolls a long list inside the window and keeps the menu on screen, opening upward near the bottom", () => {
+    const many = Array.from({ length: 40 }, (_item, index) => ({ value: `V${index}`, label: `Value ${index}`, accessibilityLabel: `Value: ${index}` }));
+    // The trigger sits near the bottom of a 1334pt window (jest's default window height): the menu cannot fit below it.
+    let tree!: ReactTestRenderer;
+    act(() => { tree = create(<MenuSelect triggerLabel="Long" valueText="Units" selected="" options={many} onSelect={jest.fn()} />); });
+    // jest's View mock has no native measure: the trigger wrapper reports a fixed window position instead.
+    const wrapper = tree.root.findByType(View).instance as { measureInWindow?: (cb: (x: number, y: number, w: number, h: number) => void) => void };
+    wrapper.measureInWindow = (cb) => cb(10, 1200, 100, 40);
+    act(() => tree.root.findByProps({ accessibilityLabel: "Long" }).props.onPress());
+    const list = tree.root.findByType(ScrollView);
+    const menu = () => tree.root.findByProps({ accessibilityRole: "menu" });
+    expect(tree.root.findByType(Modal).props.statusBarTranslucent).toBe(true);
+    expect(list.props.style.maxHeight).toBeLessThanOrEqual(1334);
+    expect(menu().props.style[0].opacity).toBe(0);
+    act(() => menu().props.onLayout({ nativeEvent: { layout: { height: 900 } } }));
+    const style = menu().props.style[0];
+    expect(style.opacity).toBe(1);
+    expect(style.top).toBe(1200 - 4 - 900);
+    expect(style.top).toBeGreaterThanOrEqual(0);
+    expect(style.top + 900).toBeLessThanOrEqual(1334);
+    expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "menuitem")).toHaveLength(40);
+  });
+
+  it("places a menu that fits neither above nor below inside the window, and hides it until measured", () => {
+    expect(menuTop({ x: 0, y: 300, width: 100, height: 40 }, 1300, 1334)).toBe(26);
+    expect(menuTop({ x: 0, y: 100, width: 100, height: 40 }, 300, 1334)).toBe(144);
+    expect(menuTop({ x: 0, y: 1200, width: 100, height: 40 }, 2000, 1334)).toBe(8);
+    const tree = render(<MenuSelect triggerLabel="Unit" valueText="Units" selected="" options={options} onSelect={jest.fn()} />);
+    act(() => tree.root.findByProps({ accessibilityLabel: "Unit" }).props.onPress());
+    expect(tree.root.findByProps({ accessibilityRole: "menu" }).props.style[0].opacity).toBe(0);
+  });
+
+  it("closes on an outside press and on Escape (the modal's request-close)", () => {
+    const onSelect = jest.fn();
+    const tree = mountMenu(onSelect);
+    act(() => trigger(tree).props.onPress());
+    act(() => item(tree, "Close menu").props.onPress());
+    expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+    act(() => trigger(tree).props.onPress());
+    act(() => tree.root.findByType(Modal).props.onRequestClose());
+    expect(tree.root.findAllByType(Modal)).toHaveLength(0);
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

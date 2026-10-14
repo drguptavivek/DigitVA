@@ -99,7 +99,7 @@
             </div>  
             <div class="col-md-4">  
               <div class="p-2 border rounded bg-white">  
-                <small class="text-secondary d-block mb-1">Antecedent COD:</small>  
+                <small class="text-secondary d-block mb-1">{% if project_mode in ('unmasked_doris', 'masked_doris') %}Step 1 underlying cause:{% else %}Antecedent COD:{% endif %}</small>  
                 <div class="fw-semibold">{{ va_antecedent_cod }}</div>  
               </div>  
             </div>  

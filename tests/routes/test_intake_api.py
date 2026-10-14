@@ -163,7 +163,7 @@ class IntakeApiTests(BaseTestCase):
         response = self.client.get("/intake/")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        for marker in ('id="intake-worklist"', 'id="intake-tabs"', 'id="intake-mine"',
+        for marker in ('id="intake-worklist"', 'id="intake-chips"', 'id="intake-mine"',
                        'id="intake-load-more"', 'js/intake/intake_worklist.js',
                        'id="intake-scope"', 'id="intake-new-death"', 'id="intake-new-direct"'):
             self.assertIn(marker, html)

@@ -4,7 +4,7 @@
 // No React here so the rules are unit-testable on their own.
 
 import type { JsonObject, JsonValue } from "../contracts";
-import { INTERVAL_UNITS, parseInterval } from "./interval";
+import { INTERVAL_UNITS, parseInterval, serializeInterval } from "./interval";
 
 /** Soft pregnancy age band, inclusive. One place. */
 export const PREGNANCY_AGE_BAND: readonly [number, number] = [10, 54];
@@ -27,6 +27,53 @@ export function isoDay(value: unknown): number | null {
   const date = new Date(Date.UTC(year, month - 1, day));
   if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
   return Math.round(date.getTime() / 86400000);
+}
+
+/**
+ * Completed age at death from two full dates, in the ISO duration EstimatedAge stores: whole years from 1 year,
+ * else whole months from 1 month, else whole days. Null unless both are real dates and death is not before birth.
+ * Calendar arithmetic: a birthday not yet reached does not count (12 Aug 1996 to 12 Jun 2025 is P28Y).
+ */
+export function ageFromDates(birth: string, death: string): string | null {
+  const birthDay = isoDay(birth);
+  const deathDay = isoDay(death);
+  if (birthDay === null || deathDay === null || deathDay < birthDay) return null;
+  const [by, bm, bd] = birth.split("-").map(Number);
+  const [dy, dm, dd] = death.split("-").map(Number);
+  const months = (dy - by) * 12 + (dm - bm) - (dd < bd ? 1 : 0);
+  if (months >= 12) return serializeInterval(String(Math.floor(months / 12)), "Y").value;
+  if (months >= 1) return serializeInterval(String(months), "M").value;
+  return serializeInterval(String(deathDay - birthDay), "D").value;
+}
+
+/**
+ * Fills EstimatedAge from the two dates (editor side of V7; the interview prefill never does this). Writes it
+ * when blank or when it is still the value derived last time (`derived`); a value the user typed is never
+ * replaced. `typed` is true while the coder has a half-typed age (a number without a unit, or a unit without a
+ * number): that counts as typed, so a date change never refills over it (web mayRefillAge).
+ * `derived` returned is the value this call left in place, or null when none is derived.
+ */
+export function deriveEstimatedAge(certificate: JsonObject, derived: string | null, typed = false): { certificate: JsonObject; derived: string | null } {
+  const admin = obj(certificate.AdministrativeData);
+  const current = typeof admin.EstimatedAge === "string" ? admin.EstimatedAge : "";
+  if ((current !== "" || typed) && current !== derived) return { certificate, derived: null };
+  const next = ageFromDates(String(admin.DateBirth ?? ""), String(admin.DateDeath ?? "")) ?? "";
+  if (next === current) return { certificate, derived: next || null };
+  const out = JSON.parse(JSON.stringify(certificate)) as JsonObject;
+  const target = obj(out.AdministrativeData);
+  if (next) target.EstimatedAge = next;
+  else delete target.EstimatedAge;
+  if (Object.keys(target).length) out.AdministrativeData = target;
+  else delete out.AdministrativeData;
+  return { certificate: out, derived: next || null };
+}
+
+/**
+ * V7: the editor derives EstimatedAge at load only for a fresh prefill seed (prefill provenance present and nothing
+ * saved). A saved certificate keeps the age it was saved with, so the screen never shows an age the save lacks.
+ */
+export function derivesAtLoad(prefillProvenance: unknown, saved: unknown): boolean {
+  return !saved && Object.keys(obj(prefillProvenance)).length > 0;
 }
 
 /** "2025", "2025-03" or "2025-03-04" as [year, month|null, day|null] (as doris_rules.js parseDate), else null. */

@@ -6,4 +6,6 @@ until flask db upgrade; do
   sleep 5
 done
 
-exec gunicorn -w 1 -b :5000 --access-logfile - --error-logfile - run:app
+# GUNICORN_WORKERS (default 1); threads, TLS and the rest come through
+# GUNICORN_CMD_ARGS, which gunicorn reads itself.
+exec gunicorn -w "${GUNICORN_WORKERS:-1}" -b :5000 --access-logfile - --error-logfile - run:app

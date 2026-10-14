@@ -41,11 +41,11 @@ from app.services.case_transition_service import WebIntakeError
 
 log = logging.getLogger(__name__)
 
-#: One file, in bytes (owner, 2026-10-06).
-MAX_BYTES = 25 * 1024 * 1024
-#: An ``.amr`` upload is converted by SoX in the request, so it is capped lower:
-#: AMR is a 12 kbps speech codec, 5 MB is hours of recording.
-AMR_MAX_BYTES = 5 * 1024 * 1024
+#: One file and one ``.amr`` file, in bytes: the caps the ODK sync shares.
+MAX_BYTES = attachment_service.MAX_BYTES
+AMR_MAX_BYTES = attachment_service.AMR_MAX_BYTES
+_TOO_LARGE_MESSAGE = f"The file is larger than {MAX_BYTES // (1024 * 1024)} MB."
+_AMR_TOO_LARGE_MESSAGE = f"An AMR recording may be at most {AMR_MAX_BYTES // (1024 * 1024)} MB."
 #: Files one draft may hold: the form has about 37 attachment slots; the cap
 #: only bounds a runaway client.
 MAX_PER_DRAFT = 60
@@ -166,13 +166,13 @@ def store_upload(
     under the same id is 409 ``attachment_id_conflict``. The body is read in
     bounded chunks from *stream* and never held whole. Raises
     ``WebIntakeError``: 400 ``checksum_mismatch`` (the body is not what the
-    client hashed), 409, 413 (over 25 MB, or an ``.amr`` over 5 MB), 415 for a
-    type outside the list, 422 ``empty_attachment`` / ``audio_conversion_failed``
+    client hashed), 409, 413 (over ``MAX_BYTES``, or an ``.amr`` over
+    ``AMR_MAX_BYTES``), 415 for a type outside the list, 422 ``empty_attachment`` / ``audio_conversion_failed``
     / ``attachment_limit``, 503 when the store fails. The caller commits.
 
     The draft row is locked only for the final count and insert, so the
     per-draft cap holds under parallel uploads without holding a lock across
-    a 25 MB body.
+    a body over ``MAX_BYTES``.
     """
     existing = get_upload(draft.draft_id, client_attachment_id)
     if existing is not None:
@@ -181,7 +181,7 @@ def store_upload(
     if content_length <= 0:
         raise WebIntakeError("The file is empty.", 422, "empty_attachment")
     if content_length > MAX_BYTES:
-        raise WebIntakeError("The file is larger than 25 MB.", 413, "payload_too_large")
+        raise WebIntakeError(_TOO_LARGE_MESSAGE, 413, "payload_too_large")
     # A fast refusal before the body is read; the authoritative count is below.
     if _held_count(draft.draft_id) >= MAX_PER_DRAFT:
         raise WebIntakeError("This interview already holds the most files it may.", 422, "attachment_limit")
@@ -195,7 +195,7 @@ def store_upload(
         )
     mime, ext = detected
     if ext == ".amr" and content_length > AMR_MAX_BYTES:
-        raise WebIntakeError("An AMR recording may be at most 5 MB.", 413, "payload_too_large")
+        raise WebIntakeError(_AMR_TOO_LARGE_MESSAGE, 413, "payload_too_large")
     filename = f"{client_attachment_id}{ext}"
 
     temp_path = attachment_service.new_ingest_temp_path(draft.form_id)
@@ -210,7 +210,7 @@ def store_upload(
                     break
                 total += len(chunk)
                 if total > MAX_BYTES:
-                    raise WebIntakeError("The file is larger than 25 MB.", 413, "payload_too_large")
+                    raise WebIntakeError(_TOO_LARGE_MESSAGE, 413, "payload_too_large")
                 digest.update(chunk)
                 handle.write(chunk)
         if total != content_length:

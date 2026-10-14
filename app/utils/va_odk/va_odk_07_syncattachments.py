@@ -35,6 +35,7 @@ from app.services.attachment_service import (
     AmrConversionError,
     DERIVATIVE_ERROR,
     DERIVATIVE_ERROR_CONVERSION_FAILED,
+    REFUSED_TOO_LARGE,
     STORE_STATE_LOCAL,
     STORE_STATE_S3,
     attachment_present,
@@ -42,15 +43,27 @@ from app.services.attachment_service import (
     discard_ingest_temp_file,
     generate_storage_name,
     ingest_download,
+    max_bytes_for,
     new_ingest_temp_path,
     mark_removed_on_odk,
     safe_mime_type,
 )
 from app.services.odk_connection_guard_service import guarded_odk_call
+from app.services.web_intake_attachment_service import detect_type
 
 log = logging.getLogger(__name__)
 _ATTACHMENT_SYNC_MAX_WORKERS = 3
 _STREAM_CHUNK_SIZE = 64 * 1024
+# Enough leading bytes for detect_type() to recognise every accepted container.
+_TYPE_SNIFF_BYTES = 64
+# Central labels a browser could run or render from our origin: stored inert.
+_ACTIVE_MIME_TYPES = frozenset({
+    "text/html",
+    "application/xhtml+xml",
+    "image/svg+xml",
+    "text/xml",
+    "application/xml",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +106,80 @@ def _invalidate_attachment_cache(
 # Dataclasses
 # ---------------------------------------------------------------------------
 
+def _declared_length(dl_resp) -> int | None:
+    """Central's Content-Length in bytes, or None when absent or unparseable."""
+    raw = dl_resp.headers.get("Content-Length")
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _write_capped_body(dl_resp, tmp_path: str, cap: int) -> tuple[int, bool]:
+    """Stream the body into tmp_path, stopping as soon as it passes ``cap``.
+
+    Returns ``(bytes read, passed the cap)``. A capped body is left partly
+    written; the caller's ``finally`` removes the temp file.
+    """
+    size = 0
+    with open(tmp_path, "wb") as f:
+        for chunk in dl_resp.iter_content(chunk_size=_STREAM_CHUNK_SIZE):
+            if not chunk:
+                continue
+            size += len(chunk)
+            if size > cap:
+                return size, True
+            f.write(chunk)
+    return size, False
+
+
+def _stored_mime_type(head: bytes, central_label: str | None) -> str | None:
+    """The MIME to store for one ODK file.
+
+    ODK sends files outside the intake allow-list (audit.csv, video, ...), so
+    nothing is rejected on type. Recognised leading bytes win. Otherwise
+    Central's label is kept, except a label a browser could run or render from
+    our origin, which is stored as application/octet-stream.
+    """
+    detected = detect_type(head)
+    if detected:
+        return detected[0]
+    label = safe_mime_type(central_label)
+    if label is None:
+        return None
+    if _is_active_mime(label):
+        return "application/octet-stream"
+    return label
+
+
+def _is_active_mime(mime_type: str) -> bool:
+    lowered = mime_type.lower()
+    return (
+        lowered in _ACTIVE_MIME_TYPES
+        or "javascript" in lowered
+        or "+xml" in lowered
+        or "script" in lowered
+    )
+
+
+def _refusal_change(va_sid: str, filename: str, etag: str | None, size_bytes: int) -> "AttachmentChange":
+    """The row change for an ODK file over its size cap: no blob, the ETag kept
+    so the same copy is not fetched again, and the size seen recorded."""
+    log.warning(
+        "Attachment not stored, over size cap [%s/%s]: %d bytes, cap %d",
+        va_sid, filename, size_bytes, max_bytes_for(filename),
+    )
+    return AttachmentChange(
+        filename=filename,
+        exists_on_odk=True,
+        etag=etag,
+        state_values={
+            "refused_reason": REFUSED_TOO_LARGE,
+            "refused_size_bytes": size_bytes,
+        },
+    )
+
+
 @dataclass(slots=True)
 class AttachmentChange:
     filename: str
@@ -123,6 +210,9 @@ class SubmissionAttachmentSyncResult:
     # Filenames whose AMR→MP3 conversion failed; the row keeps its previous
     # blob and is marked with an explicit derivative error (plan Finding 5).
     derivative_failures: list[str] = field(default_factory=list)
+    # Attachments over the size cap this run: newly refused, or still refused
+    # on an unchanged ETag (skipped, not fetched). Neither is stored.
+    refused: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -139,8 +229,14 @@ def _sync_submission_attachments_no_db(
     client,
     force_redownload: bool = False,
     existing_store_states: dict[str, str | None] | None = None,
+    existing_refused: set[str] | None = None,
 ) -> SubmissionAttachmentSyncResult:
-    """Sync one submission's attachments without touching the ORM session."""
+    """Sync one submission's attachments without touching the ORM session.
+
+    ``existing_refused`` names the filenames already refused for size. A 304
+    for one of them is skipped outright: its ETag is unchanged, so the copy
+    that was too large is still the one on Central.
+    """
     if has_app_context():
         request_timeout = (
             current_app.config.get("ODK_CONNECT_TIMEOUT_SECONDS", 10),
@@ -175,6 +271,8 @@ def _sync_submission_attachments_no_db(
     local_missing_on_etag = 0
     changes: list[AttachmentChange] = []
     derivative_failures: list[str] = []
+    refused = 0
+    refused_filenames = existing_refused or set()
 
     for attachment in attachments:
         filename: str = attachment.get("name", "")
@@ -215,6 +313,10 @@ def _sync_submission_attachments_no_db(
 
             if dl_resp.status_code == 304:
                 etag_not_modified += 1
+                if filename in refused_filenames:
+                    refused += 1
+                    skipped += 1
+                    continue
                 storage_name = existing_storage_names.get(filename)
                 # Presence is the attachment service's answer, never a stat or
                 # a store_state read here.
@@ -256,16 +358,26 @@ def _sync_submission_attachments_no_db(
             new_etag: str | None = (
                 dl_resp.headers.get("ETag") or dl_resp.headers.get("etag")
             )
-            # Upstream MIME is copied, not trusted; a literal "null" is rejected.
-            mime_type: str | None = safe_mime_type(dl_resp.headers.get("Content-Type", ""))
+            size_cap = max_bytes_for(filename)
+            declared_size = _declared_length(dl_resp)
+            if declared_size is not None and declared_size > size_cap:
+                changes.append(_refusal_change(va_sid, filename, new_etag, declared_size))
+                refused += 1
+                continue
 
             tmp_path = new_ingest_temp_path(va_form.form_id)
 
-            # Download to temp file — bounded chunks, never the whole body.
-            with open(tmp_path, "wb") as f:
-                for chunk in dl_resp.iter_content(chunk_size=_STREAM_CHUNK_SIZE):
-                    if chunk:
-                        f.write(chunk)
+            # Bounded chunks; the stream stops at the cap, never after the whole body.
+            size_bytes, over_cap = _write_capped_body(dl_resp, tmp_path, size_cap)
+            if over_cap:
+                changes.append(_refusal_change(va_sid, filename, new_etag, size_bytes))
+                refused += 1
+                continue
+
+            # The type comes from the bytes just written, not from Central's label alone.
+            with open(tmp_path, "rb") as f:
+                head = f.read(_TYPE_SNIFF_BYTES)
+            mime_type = _stored_mime_type(head, dl_resp.headers.get("Content-Type", ""))
 
             downloaded_at = datetime.now(timezone.utc)
             ingested = ingest_download(
@@ -325,6 +437,7 @@ def _sync_submission_attachments_no_db(
         local_missing_on_etag=local_missing_on_etag,
         changes=changes,
         derivative_failures=derivative_failures,
+        refused=refused,
     )
 
 
@@ -360,6 +473,9 @@ def _apply_submission_attachment_result(
                 rec.etag = change.etag
                 rec.last_downloaded_at = change.last_downloaded_at
                 rec.storage_name = change.storage_name
+                # A stored copy supersedes any earlier refusal.
+                rec.refused_reason = None
+                rec.refused_size_bytes = None
                 for attr, value in (change.state_values or {}).items():
                     setattr(rec, attr, value)
                 if old_storage_name is not None:
@@ -378,9 +494,16 @@ def _apply_submission_attachment_result(
                 ):
                     stale_objects.append((va_form_id, old_storage_name))
             else:
-                # File removed on ODK — update flag and invalidate cache
+                # Removed on ODK, or refused for size (no new blob, old blob kept):
+                # update the flag and state, and invalidate the cache.
                 old_storage_name = rec.storage_name
                 rec.exists_on_odk = change.exists_on_odk
+                if change.exists_on_odk:
+                    rec.etag = change.etag
+                else:
+                    # Gone from Central: a refusal no longer describes anything.
+                    rec.refused_reason = None
+                    rec.refused_size_bytes = None
                 for attr, value in (change.state_values or {}).items():
                     setattr(rec, attr, value)
                 _invalidate_attachment_cache(old_storage_name, result.va_sid, change.filename)
@@ -398,6 +521,8 @@ def _apply_submission_attachment_result(
                 change.last_downloaded_at if change.exists_on_odk else None
             ),
             "storage_name": change.storage_name if change.exists_on_odk else None,
+            "refused_reason": None,
+            "refused_size_bytes": None,
         }
         state_values = dict(change.state_values or {})
         values.update(state_values)
@@ -418,6 +543,8 @@ def _apply_submission_attachment_result(
                             "etag": insert_stmt.excluded.etag,
                             "last_downloaded_at": insert_stmt.excluded.last_downloaded_at,
                             "storage_name": insert_stmt.excluded.storage_name,
+                            "refused_reason": insert_stmt.excluded.refused_reason,
+                            "refused_size_bytes": insert_stmt.excluded.refused_size_bytes,
                             **{
                                 column: getattr(insert_stmt.excluded, column)
                                 for column in state_values
@@ -474,12 +601,16 @@ def _load_existing_attachment_records(va_sids):
 
 
 def _load_existing_attachment_state(va_sids):
-    """Load existing attachment state without keeping ORM rows live."""
+    """Load existing attachment state without keeping ORM rows live.
+
+    Returns per-submission maps of etags, local paths, storage names, store
+    states and the set of filenames refused for size.
+    """
     from app import db
     from app.models.va_submission_attachments import VaSubmissionAttachments
 
     if not va_sids:
-        return {}, {}, {}, {}
+        return {}, {}, {}, {}, {}
 
     rows = db.session.execute(
         sa.select(
@@ -489,6 +620,7 @@ def _load_existing_attachment_state(va_sids):
             VaSubmissionAttachments.local_path,
             VaSubmissionAttachments.storage_name,
             VaSubmissionAttachments.store_state,
+            VaSubmissionAttachments.refused_reason,
         ).where(VaSubmissionAttachments.va_sid.in_(va_sids))
     ).all()
 
@@ -496,16 +628,20 @@ def _load_existing_attachment_state(va_sids):
     per_sid_local_paths = {}
     per_sid_storage_names = {}
     per_sid_store_states = {}
-    for va_sid, filename, etag, local_path, storage_name, store_state in rows:
+    per_sid_refused = {}
+    for va_sid, filename, etag, local_path, storage_name, store_state, refused_reason in rows:
         per_sid_etags.setdefault(va_sid, {})[filename] = etag
         per_sid_local_paths.setdefault(va_sid, {})[filename] = local_path
         per_sid_storage_names.setdefault(va_sid, {})[filename] = storage_name
         per_sid_store_states.setdefault(va_sid, {})[filename] = store_state
+        if refused_reason is not None:
+            per_sid_refused.setdefault(va_sid, set()).add(filename)
     return (
         per_sid_etags,
         per_sid_local_paths,
         per_sid_storage_names,
         per_sid_store_states,
+        per_sid_refused,
     )
 
 
@@ -529,6 +665,7 @@ def va_odk_sync_form_attachments(
         per_sid_local_paths,
         per_sid_storage_names,
         per_sid_store_states,
+        per_sid_refused,
     ) = _load_existing_attachment_state(list(upserted_map.keys()))
     db.session.rollback()
     app = current_app._get_current_object() if has_app_context() else None
@@ -555,6 +692,7 @@ def va_odk_sync_form_attachments(
                     _get_client(),
                     force_redownload=force_redownload,
                     existing_store_states=per_sid_store_states.get(va_sid, {}),
+                    existing_refused=per_sid_refused.get(va_sid, set()),
                 )
         return _sync_submission_attachments_no_db(
             va_form,
@@ -566,6 +704,7 @@ def va_odk_sync_form_attachments(
             _get_client(),
             force_redownload=force_redownload,
             existing_store_states=per_sid_store_states.get(va_sid, {}),
+            existing_refused=per_sid_refused.get(va_sid, set()),
         )
 
     results = []
@@ -619,6 +758,7 @@ def va_odk_sync_form_attachments(
         "etag_not_modified": 0,
         "local_present_on_etag": 0,
         "local_missing_on_etag": 0,
+        "refused": 0,
     }
     stale_paths = []
     stale_objects = []
@@ -631,6 +771,7 @@ def va_odk_sync_form_attachments(
         totals["etag_not_modified"] += result.etag_not_modified
         totals["local_present_on_etag"] += result.local_present_on_etag
         totals["local_missing_on_etag"] += result.local_missing_on_etag
+        totals["refused"] += result.refused
         if "existing_records" not in locals():
             existing_records = _load_existing_attachment_records(list(upserted_map.keys()))
         stale_paths.extend(
@@ -663,6 +804,7 @@ def va_odk_sync_submission_attachments(
         per_sid_local_paths,
         per_sid_storage_names,
         per_sid_store_states,
+        per_sid_refused,
     ) = _load_existing_attachment_state([va_sid])
     db.session.rollback()
     result = _sync_submission_attachments_no_db(
@@ -675,6 +817,7 @@ def va_odk_sync_submission_attachments(
         client,
         force_redownload=force_redownload,
         existing_store_states=per_sid_store_states.get(va_sid, {}),
+        existing_refused=per_sid_refused.get(va_sid, set()),
     )
     existing: dict[str, VaSubmissionAttachments] = {
         r.filename: r
@@ -698,4 +841,5 @@ def va_odk_sync_submission_attachments(
         "etag_not_modified": result.etag_not_modified,
         "local_present_on_etag": result.local_present_on_etag,
         "local_missing_on_etag": result.local_missing_on_etag,
+        "refused": result.refused,
     }

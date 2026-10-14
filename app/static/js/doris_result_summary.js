@@ -5,6 +5,7 @@
 'use strict';
 
 import { codeditMessages } from './codedit_messages.js';
+import { describeWarning, warningCodes } from './doris_warnings.js?v=1';
 
 function el(tag, className, text) {
   var node = document.createElement(tag);
@@ -15,20 +16,6 @@ function el(tag, className, text) {
 
 function lines(value) {
   return typeof value === 'string' ? value.split('\n').map(function (line) { return line.trim(); }).filter(Boolean) : [];
-}
-
-// DORIS warns with a bare rule id ("M4 may have been applied.") and explains
-// the rule in its report ("M4: Adding the main injury - NC72.Z - as
-// postcoordination for the current TUC - PA60."). Join the two, spelling
-// out TUC and TSP, so a coder need not know WHO's rule numbers.
-function explained(warning, report) {
-  var rule = warning.match(/^(SP\d+|M\d+)\b(?!:)/);
-  if (!rule) return warning;
-  var detail = lines(report).find(function (line) { return line.indexOf(rule[1] + ':') === 0; });
-  if (!detail) return warning;
-  detail = detail.slice(rule[1].length + 1).trim()
-    .replace(/\bTUC\b/g, 'tentative underlying cause').replace(/\bTSP\b/g, 'tentative starting point');
-  return warning.replace(/\.$/, '') + ': ' + detail;
 }
 
 // CoDEdit's report is a sentence for front-end rules but a bare key for
@@ -63,6 +50,9 @@ function certificateTitle(certificate, codes) {
   return '';
 }
 
+// An empty CoDEdit issue list ([] or '') names nothing: it must not add a "reported:" item.
+function hasIssueIds(value) { return Array.isArray(value) ? value.length > 0 : Boolean(value); }
+
 // lookupTitle(code) -> Promise<string>; used only when the code is not on
 // the certificate (DORIS can select a code nobody typed, e.g. KD3B.1).
 export function renderSummary(container, processing, certificate, lookupTitle) {
@@ -85,17 +75,42 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
     }
   }
 
-  var checks = lines(dr.warning).map(function (warning) { return explained(warning, dr.report); });
+  // A known DORIS warning shows its meaning and what to do, with DORIS's text
+  // smaller underneath; titles arrive after the first paint (lookupTitle).
+  var warnings = lines(dr.warning);
+  var titles = {};
+  var codeditChecksList = [];
   if (codedit.status !== 'completed') {
-    checks.push('The certificate check (CoDEdit) did not run.');
-  } else if (cr.issueIds) {
-    checks = checks.concat(codeditChecks(cr));
+    codeditChecksList.push('The certificate check (CoDEdit) did not run.');
+  } else if (hasIssueIds(cr.issueIds) || lines(cr.report).length) {
+    codeditChecksList = codeditChecks(cr);
   }
-  if (checks.length) {
+  if (warnings.length || codeditChecksList.length) {
     container.appendChild(el('p', 'small fw-semibold mb-1', 'Check before you decide'));
     var list = el('ul', 'doris-summary-checks mb-0');
-    checks.forEach(function (text) { list.appendChild(el('li', '', text)); });
+    var described = warnings.map(function (warning) {
+      var item = {warning: warning, known: false, text: null};
+      var text = describeWarning(warning, dr.report, function (code) { return titles[code]; });
+      item.known = text.original !== null;
+      if (!item.known) { list.appendChild(el('li', '', text.text)); return item; }
+      var li = el('li'); item.text = el('span', '', text.text); li.appendChild(item.text);
+      li.appendChild(el('div', 'small text-muted', 'DORIS: ' + text.original));
+      list.appendChild(li);
+      return item;
+    });
+    codeditChecksList.forEach(function (text) { list.appendChild(el('li', '', text)); });
     container.appendChild(list);
+    if (lookupTitle) {
+      warningCodes(dr.warning).forEach(function (code) {
+        lookupTitle(code).then(function (title) {
+          if (!title) return;
+          titles[code] = title;
+          described.forEach(function (item) {
+            if (item.known) item.text.textContent = describeWarning(item.warning, dr.report, function (known) { return titles[known]; }).text;
+          });
+        }).catch(function () {});
+      });
+    }
   } else if (doris.status === 'completed') {
     container.appendChild(el('p', 'small text-success mb-0', 'No problems found in the certificate.'));
   }

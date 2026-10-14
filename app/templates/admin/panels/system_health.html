@@ -1,0 +1,65 @@
+{#
+  System health panel — admin-only.
+  Live expiry of the TLS certificates in split production, and the S3 attachment
+  store's access. Rows come from
+  tls_health_service.certificate_report(); the admin banner and the daily
+  check read the cached copy of the same report.
+#}
+{% set badges = {
+  "ok": "bg-success",
+  "due": "bg-warning text-dark",
+  "urgent": "bg-danger",
+  "expired": "bg-danger",
+  "error": "bg-danger",
+  "unreachable": "bg-secondary",
+  "not_configured": "bg-light text-dark border"
+} %}
+<div id="panel-system-health">
+
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">
+      <i class="fa-solid fa-certificate me-2 text-secondary"></i>System health
+    </h5>
+  </div>
+
+  <p class="small text-muted mb-3">
+    Certificates and the attachment store are checked live on each visit. Renewal procedure:
+    docs/current-state/split-production-tls.md. Not configured means this deployment does not have that certificate or store.
+  </p>
+
+  <div class="table-responsive">
+    <table class="table table-sm align-middle" id="tls-health-table">
+      <thead>
+        <tr>
+          <th scope="col">Check</th>
+          <th scope="col">Source</th>
+          <th scope="col">Subject / SANs</th>
+          <th scope="col">Expires</th>
+          <th scope="col" class="text-end">Days left</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr data-cert-key="{{ row.key }}">
+          <td>{{ row.label }}</td>
+          <td><code class="small">{{ row.source or "—" }}</code></td>
+          <td class="small">
+            {% if row.subject_cn %}{{ row.subject_cn }}{% else %}—{% endif %}
+            {% if row.sans %}<div class="text-muted">{{ row.sans | join(", ") }}</div>{% endif %}
+          </td>
+          <td>{% if row.not_after %}{{ row.not_after | user_timezone }}{% else %}—{% endif %}</td>
+          <td class="text-end">{% if row.days_left is not none %}{{ row.days_left }}{% else %}—{% endif %}</td>
+          <td>
+            <span class="badge {{ badges.get(row.status, 'bg-secondary') }}">{{ row.status | replace("_", " ") }}</span>
+            {% if row.detail %}<div class="small text-muted">{{ row.detail }}</div>{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted">Nothing is checked on this deployment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>

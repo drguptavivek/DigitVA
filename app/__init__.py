@@ -129,7 +129,7 @@ def create_app(config_class=None):
     app = Flask(__name__)
     app.config.from_object(config_class)
     if not (app.debug or app.testing):
-        app.config["TRUSTED_HOSTS"] = trusted_hosts_for(app.config["MAIL_BASE_URL"])
+        app.config["TRUSTED_HOSTS"] = trusted_hosts_for(app.config["PUBLIC_BASE_URL"])
         if not app.config.get("CAPTCHA_HMAC_KEY"):
             raise RuntimeError(
                 "CAPTCHA_HMAC_KEY must be set in production. Add it to your "
@@ -288,6 +288,10 @@ def create_app(config_class=None):
 
         if request.path.startswith(API_PATH_PREFIXES):
             return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
+        if request.headers.get("HX-Request") == "true":
+            # Same as role_required: base.js shows Session Expired, not a
+            # login page swapped into an htmx target.
+            return "Authentication required.", 401
         flash(login.login_message, login.login_message_category)
         return redirect(login_url(login.login_view, next_url=request.url))
     app.config.setdefault("WTF_CSRF_HEADERS", ["X-CSRFToken"])
@@ -395,6 +399,10 @@ def create_app(config_class=None):
     from app.services.smartva_icd11 import smartva_icd11_mapping
 
     app.add_template_global(smartva_icd11_mapping, "smartva_icd11_mapping")
+    from app.services.icd11_titles import icd11_alternatives_label, stored_cod_label
+
+    app.add_template_global(icd11_alternatives_label, "icd11_alternatives_label")
+    app.add_template_global(stored_cod_label, "stored_cod_label")
     from app.services.smartva_service import smartva_panel
 
     app.add_template_global(smartva_panel, "smartva_panel")
@@ -434,6 +442,11 @@ def create_app(config_class=None):
             "site_maintenance_watcher_enabled": is_authenticated,
             "site_maintenance_user_is_admin": is_admin,
         }
+
+    # Imported here, not at module level: app.utils pulls in ODK modules that need `db` from this package.
+    from app.utils.number_format import whole_number
+
+    app.add_template_filter(whole_number)
 
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

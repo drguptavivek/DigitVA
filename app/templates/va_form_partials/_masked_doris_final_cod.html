@@ -16,6 +16,7 @@
   <div class="card-header bg-primary-subtle">
     <h3 class="h5 mb-1">Final underlying cause of death <span class="text-danger">*</span></h3>
     <p class="small mb-0">Use your Step 1 underlying cause, the SmartVA result, or your own code.</p>
+    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-bs-toggle="modal" data-bs-target="#{{ masked_final_form_id|default('finalAssessmentForm') }}-va-definitions" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
   </div>
   <div class="card-body">
     <h4 class="h6">DORIS result from Step 1 (for information)</h4>
@@ -26,13 +27,13 @@
 
     <div class="d-flex flex-wrap gap-2 mb-3">
       {% if va_antecedent_cod %}
-      <button type="button" class="btn btn-sm btn-outline-primary" data-final-use-value="{{ va_antecedent_cod }}">Use Step 1 underlying cause: {{ va_antecedent_cod }}</button>
+      <button type="button" class="btn btn-sm btn-outline-primary text-wrap text-start" data-final-use-value="{{ va_antecedent_cod }}">Use Step 1 underlying cause: {{ stored_cod_label(va_antecedent_cod) }}</button>
       {% endif %}
       {% set smartva_alternatives = smartva_icd11_alternatives|default([]) %}
       {% if smartva_alternatives|length == 1 %}
-      <button type="button" class="btn btn-sm btn-outline-primary" data-final-use-code="{{ smartva_alternatives[0] }}">Use SmartVA result: {{ smartva_alternatives[0] }}</button>
+      <button type="button" class="btn btn-sm btn-outline-primary text-wrap text-start" data-final-use-code="{{ smartva_alternatives[0] }}">Use SmartVA result: {{ smartva_icd11_label }}{% if smartva_cause_text %} ({{ smartva_cause_text }}){% endif %}</button>
       {% elif smartva_alternatives|length > 1 %}
-      <button type="button" class="btn btn-sm btn-outline-primary" data-final-search-code="{{ smartva_alternatives[0] }}">Search SmartVA result: {{ smartva_alternatives|join(' / ') }}</button>
+      <button type="button" class="btn btn-sm btn-outline-primary text-wrap text-start" data-final-search-code="{{ smartva_alternatives[0] }}">Search SmartVA result: {{ smartva_icd11_label }}{% if smartva_cause_text %} ({{ smartva_cause_text }}){% endif %}</button>
       {% endif %}
     </div>
 
@@ -43,10 +44,11 @@
         <div class="list-group mt-1" data-doris-final-results></div>
         <div class="doris-code-details mt-2" data-doris-details-panel hidden></div>
         <div data-doris-guided-panel></div>
-        <p class="small mt-2 mb-0" data-doris-final-choice role="status" aria-live="polite"></p>
+        <p class="fw-bold fs-6 text-success mt-3 mb-0" data-doris-final-choice role="status" aria-live="polite"></p>
       </div>
     </div>
     <div class="text-danger small mt-2" role="alert" data-step-error></div>
   </div>
+  {% with modal_id=(masked_final_form_id|default('finalAssessmentForm')) ~ '-va-definitions' %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_final_cod.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-4"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_final_cod.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-8"></script>

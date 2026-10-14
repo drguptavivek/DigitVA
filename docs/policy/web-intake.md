@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-13
+last_updated: 2026-10-14
 ---
 
 # Web Intake Policy
@@ -306,7 +306,7 @@ selects files (a death certificate, discharge summary, medical records). No
 attachment is mandatory (decision W6).
 
 **What is accepted.** Audio (webm, wav, amr, mp3, m4a), images (jpeg, png) and
-PDF, at most **25 MB per file** (an AMR recording at most **5 MB**: the server converts it in the request, with a 60-second limit on each SoX call; a conversion that fails or times out is `422 audio_conversion_failed`) and at most 60 files per draft (counted under a lock on the draft, so parallel uploads cannot pass it). The server
+PDF, at most **50 MB per file** (owner decision 2026-10-14, superseding 2026-10-06; the same cap as ODK sync) (an AMR recording at most **5 MB**: the server converts it in the request, with a 60-second limit on each SoX call; a conversion that fails or times out is `422 audio_conversion_failed`) and at most 60 files per draft (counted under a lock on the draft, so parallel uploads cannot pass it). The server
 decides the type from the file's **leading bytes**, never from the extension
 or the `Content-Type` the browser sent: an unrecognised signature is refused
 `415 unsupported_media_type`, a body over the cap `413 payload_too_large`
@@ -440,7 +440,7 @@ stay on the server draft only.
   leaves the buffer; the next questionnaire page opened by a **different**
   user deletes everything that is not theirs before anything else, and the
   same user's next visit resumes the sending.
-- **Bounds.** 25 MB and the type list are checked on the device before
+- **Bounds.** 50 MB and the type list are checked on the device before
   anything is stored, so a refused file never occupies the buffer; the server
   checks again (the browser is not a security boundary).
 
@@ -1156,6 +1156,16 @@ Rules as built:
 
 - Default view: **team cases** in my scope with a **Mine** filter and a state
   filter, sorted by next visit date, then last activity.
+- **Owner, 2026-10-14 (VA Interview table, digitva-83bz):** the tabs, the Mine
+  switch and the list are one table with filter chips. Chips: **Recent**
+  (default; every state the list serves, newest reported first), **To visit**,
+  **In progress**, **Done** (single choice, each with its count) and **Mine**
+  (a toggle that combines with the status chip, remembered under `intake.mine`).
+  Columns: Reported (date, the user's timezone), Unit, Deceased (name as the list
+  always showed it, case id, sex, age, date of death), Status (badge, next visit,
+  last contact), Assigned to (**You** or **Teammate**, never a name; supervisors
+  see names on `/intake/supervision`), Action (the existing buttons). The API
+  adds `sort=reported`; the default order is unchanged.
 - Tabs: **To visit** (registered, scheduled, not reachable, paused), **In
   progress**, **Done** (submitted, refused).
 - Row: id, name (or "details pending"), sex, age, date of death, unit, state

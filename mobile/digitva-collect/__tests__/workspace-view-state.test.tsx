@@ -8,13 +8,14 @@ import { canRestoreScroll, clearScroll, parseQueueParams, readScroll, resolveSec
 
 let layoutProps: any;
 jest.mock("../src/workspace/WorkspaceLayout", () => ({
-  WorkspaceLayout: (props: any) => { layoutProps = props; return null; },
+  WorkspaceLayout: (props: any) => { layoutProps = props; return props.children ?? null; },
 }));
 jest.mock("../src/workspace/CategoryPanel", () => ({ CategoryPanel: () => null, CategoryValue: () => null }));
 jest.mock("../src/workspace/PrivateNotePanel", () => ({ PrivateNotePanel: () => null }));
 jest.mock("../src/workspace/QualityPanels", () => ({ QualityPanels: () => null }));
 jest.mock("../src/workspace/SmartvaStatusPanel", () => ({ SmartvaStatusPanel: () => null }));
-jest.mock("../src/workspace/SimpleCodPanel", () => ({ SimpleCodPanel: () => null }));
+const mockCodPanel: { props: { onSaved?: (blockedMessage?: string) => Promise<void> } | null } = { props: null };
+jest.mock("../src/workspace/SimpleCodPanel", () => ({ SimpleCodPanel: (props: any) => { mockCodPanel.props = props; return null; } }));
 jest.mock("../src/ui", () => {
   const { Text, View } = require("react-native");
   const React = require("react");
@@ -154,4 +155,13 @@ test("queue params belong to queue URLs only", () => {
   expect(hasQueueParams({ project: "SADEMO" })).toBe(true);
   expect(hasQueueParams({ offset: "50" })).toBe(true);
   expect(hasQueueParams({})).toBe(false);
+});
+
+test("saving Step 1 reloads the workspace on the COD section the coder is in, not the first section", async () => {
+  const { api } = await mount("vacodassessment");
+  expect(layoutProps.selectedCode).toBe("vacodassessment");
+  await act(async () => { await mockCodPanel.props?.onSaved?.(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+  expect(api.getWorkspace).toHaveBeenCalledTimes(2);
+  expect(layoutProps.selectedCode).toBe("vacodassessment");
+  expect((api.getCategory as jest.Mock).mock.calls.at(-1)?.[1]).toBe("vacodassessment");
 });

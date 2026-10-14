@@ -1,0 +1,93 @@
+# Split production: PostgreSQL runs on its own host, outside Docker, and the
+# ingress serves HTTPS on port 8000 to the reverse proxy, routing the public
+# DORIS demo and the clinical app (deploy/doris-public-nginx-tls.conf).
+#
+#   docker compose --env-file .env --env-file /data/digitva-db.env \
+#     -f docker-compose.yml -f docker-compose.external-db.yml up -d
+#
+# `make prod` adds this file on its own when /data/digitva-db.env exists.
+# That file supplies DATABASE_URL (verify-full against the database's CA);
+# a `$` in its password must be written `$$`. The bundled minerva_db_service
+# is parked in a profile so it never starts here.
+
+x-external-db-ca: &external-db-ca /etc/digitva-db/ca.crt:/etc/digitva-db/ca.crt:ro
+
+services:
+  minerva_app_service:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL missing, pass --env-file /data/digitva-db.env}"
+      # 2 workers x 4 threads: 8 requests in flight on 2 vCPUs, so one slow
+      # request (DORIS, a Central self-heal stream) does not stall a classroom.
+      GUNICORN_WORKERS: "2"
+      GUNICORN_CMD_ARGS: "--threads 4"
+      # Connection budget on the external database (max_connections 40):
+      # app 2 x (4 + 2) = 12, worker 3, beat 3 -> 18 (the DORIS demo has no DB).
+      DB_POOL_SIZE: "4"
+      DB_MAX_OVERFLOW: "2"
+    volumes:
+      - *external-db-ca
+      # The certificate only, for the System health panel; the key is the
+      # ingress's.
+      - /etc/digitva-app/tls/server.crt:/etc/digitva-app/tls/server.crt:ro
+    deploy:
+      resources:
+        limits:
+          memory: 1536m
+    depends_on: !override
+      - minerva_redis_service
+
+  # The public DORIS demo must be reachable (owner, 2026-10-14): the ICD-11
+  # services always start here, not only under the icd11 profile.
+  icd_api_service:
+    profiles: !reset []
+
+  doris_public_service:
+    profiles: !reset []
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL missing, pass --env-file /data/digitva-db.env}"
+      DORIS_PUBLIC_COOKIE_SECURE: "true"
+    volumes:
+      - *external-db-ca
+
+  # The reverse proxy reaches this over verified HTTPS (proxy_ssl_name
+  # <BACKEND_TLS_NAME>). The private key is mounted here only; the proxy
+  # holds the CA.
+  digitva_ingress:
+    profiles: !reset []
+    ports: !override
+      - "${APP_BIND_IP:-127.0.0.1}:8000:443"
+    volumes:
+      - ./deploy/doris-public-nginx-tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/digitva-app/tls:/etc/digitva-app/tls:ro
+
+  minerva_celery_worker:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL missing, pass --env-file /data/digitva-db.env}"
+      DB_POOL_SIZE: "1"
+      DB_MAX_OVERFLOW: "2"
+    volumes:
+      - *external-db-ca
+      # The daily TLS health check runs here and reads the app certificate's
+      # expiry. The certificate only: the key stays with the app container.
+      - /etc/digitva-app/tls/server.crt:/etc/digitva-app/tls/server.crt:ro
+    depends_on: !override
+      minerva_app_service:
+        condition: service_healthy
+      minerva_redis_service:
+        condition: service_healthy
+
+  minerva_celery_beat:
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL missing, pass --env-file /data/digitva-db.env}"
+      DB_POOL_SIZE: "1"
+      DB_MAX_OVERFLOW: "2"
+    volumes:
+      - *external-db-ca
+    depends_on: !override
+      minerva_app_service:
+        condition: service_healthy
+      minerva_redis_service:
+        condition: service_healthy
+
+  minerva_db_service:
+    profiles: [bundled-db]

@@ -121,6 +121,20 @@ class VaSubmissionAttachments(db.Model):
         server_default=sa.text("'local'"),
     )
 
+    # --- Refusal by sync (not stored) ---------------------------------------
+    # Set when ODK Central's copy was over the size cap and was not stored;
+    # NULL otherwise. ``etag`` holds Central's ETag of the refused copy, so a
+    # 304 keeps it refused and only a changed ETag retries. Vocabulary in
+    # ``app/services/attachment_service.py`` (REFUSED_TOO_LARGE).
+    refused_reason: so.Mapped[str | None] = so.mapped_column(
+        sa.String(32), nullable=True
+    )
+    # The size seen when the refusal was decided: the Content-Length, or the
+    # bytes read before the stream was stopped at the cap.
+    refused_size_bytes: so.Mapped[int | None] = so.mapped_column(
+        sa.BigInteger, nullable=True
+    )
+
     # --- Local copy under APP_DATA ----------------------------------------
     local_fallback_state: so.Mapped[str] = so.mapped_column(
         sa.String(16),

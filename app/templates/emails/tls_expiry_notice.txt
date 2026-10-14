@@ -1,0 +1,14 @@
+Hello {{ name }},
+
+A certificate or attachment store check for DigitVA is due, urgent, expired, failing or could not be verified:
+
+{% for c in certificates %}- {{ c.label }}: {{ c.status }}{% if c.expires %}, expires {{ c.expires }} ({{ c.days_left }} days left){% endif %}{% if c.detail %} - {{ c.detail }}{% endif %}
+{% endfor %}
+Open the System health panel in the admin console to see the full report:
+{{ admin_url }}
+
+Renewal procedure: docs/current-state/split-production-tls.md
+
+Thank You
+DigitVA Team
+AIIMS, New Delhi

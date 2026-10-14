@@ -154,6 +154,19 @@ class RoleHomeLandingTests(BaseTestCase):
         self._login(str(user.user_id))
         self.assertEqual(self.client.get("/intake/deaths/new").status_code, 200)
 
+    def test_a_death_reporter_has_a_report_a_death_menu_link(self):
+        # Owner, 2026-10-14: death reporters reach the web form from the top menu.
+        link = 'href="/intake/deaths/new"'
+        reporter = self._user("reporter_menu", (R.death_reporter, self.sca))
+        self._login(str(reporter.user_id))
+        page = self.client.get("/help").get_data(as_text=True)
+        self.assertIn(link, page)
+        self.assertIn("Report a death", page)
+
+        coder = self._user("coder_menu", (R.coder, self.ch1))
+        self._login(str(coder.user_id))
+        self.assertNotIn(link, self.client.get("/help").get_data(as_text=True))
+
     def test_the_new_death_page_refuses_a_user_with_neither_role(self):
         user = self._user("coder_page", (R.coder, self.ch1))
         self._login(str(user.user_id))

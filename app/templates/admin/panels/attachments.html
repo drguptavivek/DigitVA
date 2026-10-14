@@ -82,6 +82,7 @@
             Source error categories
           </h6>
           <div id="att-errors-wrap"></div>
+          <div id="att-refused-wrap" class="mt-2"></div>
         </div>
       </div>
     </div>
@@ -274,6 +275,22 @@
     }).join('');
   }
 
+  // ODK files over the size cap: counts by reason and the largest size seen.
+  // Nothing is stored for them; the row keeps its metadata and ETag.
+  function renderRefused() {
+    var wrap = document.getElementById('att-refused-wrap');
+    var refused = (_report && _report.refused_odk_files) || [];
+    if (!refused.length) {
+      wrap.innerHTML = '<p class="text-muted small mb-0">No ODK files refused for size.</p>';
+      return;
+    }
+    wrap.innerHTML = refused.map(function (entry) {
+      return '<span class="badge text-bg-danger me-1 mb-1">'
+        + esc(entry.reason) + ' <span class="fw-semibold">' + esc(entry.rows) + '</span>'
+        + ' &middot; largest ' + esc((entry.largest_size_bytes / 1048576).toFixed(1)) + ' MB</span>';
+    }).join('');
+  }
+
   function renderForms() {
     var wrap = document.getElementById('att-forms-wrap');
     var forms = (_report && _report.forms) || [];
@@ -436,6 +453,7 @@
       renderProjects();
       renderCounters();
       renderErrors();
+      renderRefused();
       renderS3Upload();
       renderForms();
     }).catch(function () {

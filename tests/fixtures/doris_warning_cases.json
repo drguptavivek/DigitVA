@@ -1,0 +1,109 @@
+{
+  "cases": [
+    {
+      "name": "injury external cause with its ICD-11 title",
+      "warning": "No injury found to postcoordinate with the TUC - PA78&XE9H6.",
+      "report": "",
+      "titles": {
+        "PA78&XE9H6": "Fall on same level"
+      },
+      "expect": {
+        "text": "The certificate names how the injury happened, but not the injury itself. DORIS picked PA78&XE9H6 (Fall on same level), an external cause. ICD-11 also needs the injury it caused (chapter 22, Injury, poisoning…). Add that injury on a line above the external cause, or confirm none was recorded.",
+        "original": "No injury found to postcoordinate with the TUC - PA78&XE9H6.",
+        "code": "PA78&XE9H6"
+      }
+    },
+    {
+      "name": "injury external cause without a title shows the code alone",
+      "warning": "No injury found to postcoordinate with the TUC - PA78&XE9H6.",
+      "report": "",
+      "titles": {},
+      "expect": {
+        "text": "The certificate names how the injury happened, but not the injury itself. DORIS picked PA78&XE9H6, an external cause. ICD-11 also needs the injury it caused (chapter 22, Injury, poisoning…). Add that injury on a line above the external cause, or confirm none was recorded.",
+        "original": "No injury found to postcoordinate with the TUC - PA78&XE9H6.",
+        "code": "PA78&XE9H6"
+      }
+    },
+    {
+      "name": "underlying cause inconsistent with the manner of death",
+      "warning": "The selected underlying cause of death - PA60 - is inconsistent with the reported manner of death - Accident.",
+      "report": "",
+      "titles": {
+        "PA60": "Injury due to fall"
+      },
+      "expect": {
+        "text": "The underlying cause PA60 (Injury due to fall) does not fit the manner of death on the certificate, Accident. Check the manner of death and the underlying cause. Change the one that is wrong, or confirm both are right.",
+        "original": "The selected underlying cause of death - PA60 - is inconsistent with the reported manner of death - Accident.",
+        "code": "PA60"
+      }
+    },
+    {
+      "name": "M1 KD3B.1 rule names its code and title",
+      "warning": "M1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.",
+      "report": "",
+      "titles": {
+        "KD3B.1": "Stillbirth, cause unknown"
+      },
+      "expect": {
+        "text": "KD3B.1 (Stillbirth, cause unknown) is only for a stillbirth with no known underlying cause, and other specific conditions apply. Use a more specific underlying cause if one is known, or confirm that none is.",
+        "original": "M1: KD3B.1 is not to be used if the underlying cause is known or other specific conditions apply.",
+        "code": "KD3B.1"
+      }
+    },
+    {
+      "name": "fetal death manual check",
+      "warning": "M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).",
+      "report": "",
+      "titles": {},
+      "expect": {
+        "text": "This is a fetal death, which has its own rules. Read the special instructions for fetal death in the reference guide (2.21.8.4) before you decide.",
+        "original": "M1: Manual check is needed see Special instructions on fetal death in the reference guide (2.21.8.4).",
+        "code": null
+      }
+    },
+    {
+      "name": "neonatal first week",
+      "warning": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.",
+      "report": "",
+      "titles": {},
+      "expect": {
+        "text": "The death is in the first six days after birth, so a perinatal condition needs a manual check. Check the age at death and the cause against the perinatal rules before you decide.",
+        "original": "The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions.",
+        "code": null
+      }
+    },
+    {
+      "name": "maternal rules mentioned",
+      "warning": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.",
+      "report": "",
+      "titles": {},
+      "expect": {
+        "text": "The certificate mentions pregnancy, childbirth or the puerperium, so the maternal rules may apply. Check the maternal section and the timing of the death against the cause you choose.",
+        "original": "Pregnancy, childbirth, or puerperium is mentioned on the certificate.",
+        "code": null
+      }
+    },
+    {
+      "name": "a bare rule id is explained from its report with TUC spelled out",
+      "warning": "M4 may have been applied.",
+      "report": "M4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.",
+      "titles": {},
+      "expect": {
+        "text": "M4 may have been applied: Adding the main injury - NC72.Z - as postcoordination for the current tentative underlying cause - PA60.",
+        "original": null,
+        "code": null
+      }
+    },
+    {
+      "name": "an unmatched warning shows as DORIS wrote it, with TSP and UCOD spelled out",
+      "warning": "UCOD may need the TSP checked.",
+      "report": "",
+      "titles": {},
+      "expect": {
+        "text": "underlying cause of death may need the tentative starting point checked.",
+        "original": null,
+        "code": null
+      }
+    }
+  ]
+}

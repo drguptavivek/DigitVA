@@ -11,7 +11,8 @@
 // injected, so the node tests in tooling/who-va-2022/tests exercise the real
 // code (WebCrypto is built into node).
 
-export const MAX_BYTES = 25 * 1024 * 1024;
+// Owner decision 2026-10-14 (superseded 2026-10-06): 50 MB, the same cap as ODK sync.
+export const MAX_BYTES = 50 * 1024 * 1024;
 // The server converts an AMR recording in the request, so it caps it lower.
 export const AMR_MAX_BYTES = 5 * 1024 * 1024;
 export const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -104,9 +105,9 @@ export function createBuffer({ userId, draftId, backing, crypto = globalThis.cry
     })());
 
   return {
-    /** Refuses a file over 25 MB or outside the type list before anything is stored. */
+    /** Refuses a file over MAX_BYTES or outside the type list before anything is stored. */
     async validate(blob) {
-      if (blob.size > MAX_BYTES) throw new BufferError("too_large", "This file is larger than 25 MB.");
+      if (blob.size > MAX_BYTES) throw new BufferError("too_large", `This file is larger than ${MAX_BYTES / (1024 * 1024)} MB.`);
       if (blob.size === 0) throw new BufferError("empty", "This file is empty.");
       const head = new Uint8Array(await blob.slice(0, 64).arrayBuffer());
       const type = detectType(head);

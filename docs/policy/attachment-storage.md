@@ -3,7 +3,7 @@ title: Attachment Storage and Delivery Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-14
 ---
 
 # Attachment Storage and Delivery Policy
@@ -158,6 +158,28 @@ Every uploaded object carries:
   aside is the step before a human deletes it, so it stays a deliberate press
   or a deliberate command — `run_attachment_local_quarantine` has a panel
   button and no beat entry.
+
+### Bucket configuration (owner, 2026-10-14)
+
+The bucket the app writes to is configured outside the app, and the app
+relies on it:
+
+- **Block Public Access on**, all four settings. Objects are reachable only
+  through presigned links; the System health panel proves this on every visit
+  (`docs/policy/tls-certificate-monitoring.md`).
+- **HTTPS only** (a bucket policy denying `aws:SecureTransport = false`).
+- **Default encryption SSE-S3** (AES-256), matching the per-object header.
+- **Object ACLs disabled** (`BucketOwnerEnforced`). The app sends no ACL.
+- **One IAM user per environment**, limited to that environment's
+  `S3_PREFIX`: `s3:PutObject`, `s3:GetObject`, `s3:DeleteObject` on
+  `<bucket>/<prefix>*`, and `s3:ListBucket` on the bucket with an
+  `s3:prefix` condition. `S3_PREFIX` must equal the policy's prefix.
+- **Versioning on, with a lifecycle rule** on the prefix that expires
+  noncurrent versions after **30 days** and removes expired delete markers.
+  A delete by the app (superseded attachment, purged draft upload, pruned
+  backup, expired export, health probe) is therefore recoverable for 30 days
+  and gone after that; without the rule, deleted personal data would stay in
+  the bucket indefinitely as hidden versions.
 
 ## Authorization matrix
 

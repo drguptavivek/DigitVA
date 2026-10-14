@@ -4,7 +4,8 @@ import { AppState as NativeAppState, Platform, Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
-import { CategoryPanel, CategoryValue } from "./CategoryPanel";
+import { CategoryPanel } from "./CategoryPanel";
+import { SmartVaReference } from "./SmartVaReference";
 import { PrivateNotePanel } from "./PrivateNotePanel";
 import { QualityPanels } from "./QualityPanels";
 import { SimpleCodPanel } from "./SimpleCodPanel";
@@ -204,8 +205,9 @@ export function CaseWorkspaceScreen({
     }
   }, [api, canReadPrivateData, identity.mode, identity.vaSid, loadCategory, loadEvents, loseAllocation]);
 
+  // Keeps the section the coder is in (VA COD Assessment after Save Step 1), not the first section.
   const reloadAfterCodSave = useCallback(async (blockedMessage?: string) => {
-    await loadWorkspace();
+    await loadWorkspace(selectedCategory.current || undefined);
     if (blockedMessage && !suspended.current) setQualityError(blockedMessage);
   }, [loadWorkspace]);
 
@@ -411,10 +413,7 @@ function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
           </View>
         ) : null)}
       </View> : null}
-      {workspace.smartva !== null ? <View style={styles.card}>
-        <Text accessibilityRole="header" style={styles.headline}>SmartVA reference</Text>
-        <CategoryValue value={workspace.smartva} />
-      </View> : null}
+      {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
     </View>
   );
 }

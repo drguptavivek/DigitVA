@@ -3,7 +3,7 @@ title: Backup And Restore
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-17
+last_updated: 2026-10-14
 ---
 
 # Backup And Restore
@@ -208,8 +208,10 @@ transport.
   refused before any upload rather than exceeding that call's limit.
 - Any failure after the upload deletes the object, so the bucket never holds an
   unverified dump pretending to be a backup.
-- `pg_dump`, `pg_restore` and `psql` (PostgreSQL 17 client) are present in the
-  application container; `DATABASE_URL` reaches `minerva_db_service` from there.
+- `pg_dump`, `pg_restore` and `psql` (PostgreSQL 18 client, from PGDG) are
+  present in the application container; `DATABASE_URL` reaches the database
+  from there. `sslmode` and `sslrootcert` in its query reach `pg_dump` as
+  `PGSSLMODE`/`PGSSLROOTCERT`, so a verify-full URL stays verified.
 
 ## Related operational notes
 

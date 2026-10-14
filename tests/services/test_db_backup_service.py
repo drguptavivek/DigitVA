@@ -135,6 +135,16 @@ class PgDumpCommandTests(DbBackupBase):
             _argv, env = svc._pg_dump_command()
         self.assertNotIn("PGPASSWORD", env)
 
+    def test_tls_settings_in_the_url_reach_pg_dump(self):
+        self._override(
+            "SQLALCHEMY_DATABASE_URI",
+            "postgresql://dumpuser:pw@10.0.0.5:5432/minerva_test_a"
+            "?sslmode=verify-full&sslrootcert=/etc/digitva-db/ca.crt",
+        )
+        _argv, env = svc._pg_dump_command()
+        self.assertEqual(env["PGSSLMODE"], "verify-full")
+        self.assertEqual(env["PGSSLROOTCERT"], "/etc/digitva-db/ca.crt")
+
 
 class LocalStoreBackupTests(DbBackupBase):
     """With ATTACHMENT_STORE=local the dump lands in DB_BACKUP_LOCAL_DIR."""
@@ -311,6 +321,14 @@ class S3BackupBase(DbBackupBase):
 
 class S3BackupTests(S3BackupBase):
     """The real contract: dump, upload, verify, and leave nothing on the VM."""
+
+    def test_overview_shows_the_full_bucket_prefix(self):
+        self.assertEqual(svc.db_backup_overview()["key_prefix"], svc.dump_key_prefix())
+        self.store.key_prefix = "digitvav3/"
+
+        report = svc.db_backup_overview()
+
+        self.assertEqual(report["key_prefix"], f"digitvav3/{svc.dump_key_prefix()}")
 
     def test_a_real_dump_reaches_the_bucket_verified_and_leaves_no_temp_file(self):
         outcome = svc.create_db_backup(triggered_by=VaDbBackup.TRIGGER_SCHEDULED)

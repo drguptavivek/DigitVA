@@ -5,7 +5,7 @@ import Svg, { Circle, Line } from "react-native-svg";
 import { ui as uiTokens, type ColorMode } from "../../theme";
 import { INTERVAL_UNITS, UNKNOWN_UNIT, parseInterval, serializeInterval } from "./interval";
 import { unitTooLarge, type Age } from "./rules";
-import { Chip, ControlText, FieldError, FieldHint, FieldWarning, FieldButton, HIT_SLOP, Input, Label, Badge, RING_ROOM, RadioGroup, RadioRow, chartFor, font, gap, uiRadius, useLayout, useUi } from "./ui";
+import { FieldError, FieldHint, FieldWarning, HIT_SLOP, Input, Label, Badge, MenuSelect, RING_ROOM, RadioGroup, RadioRow, chartFor, font, gap, uiRadius, useLayout, useUi } from "./ui";
 
 export interface LineShade {
   /** Card left bar and the colour handed to the picker header. */
@@ -49,7 +49,7 @@ export function SearchBox({ label, iconLabel, onOpen, suspended = false }: { lab
     return () => clearTimeout(timer);
   }, [text, suspended]);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", flexGrow: 1, flexBasis: 200, minWidth: 0, minHeight: controlHeight, borderWidth: 1, borderColor: focused ? t.ring : t.input, borderRadius: uiRadius.md, backgroundColor: t.background }}>
+    <View style={{ flexDirection: "row", alignItems: "center", flexGrow: 1, flexShrink: 1, minWidth: 200, height: controlHeight, borderWidth: 1, borderColor: focused ? t.ring : t.input, borderRadius: uiRadius.md, backgroundColor: t.background }}>
       <TextInput accessibilityLabel={label} placeholder="Search a condition or ICD-11 code" placeholderTextColor={t.mutedForeground} value={text} maxLength={80} onChangeText={setText} onSubmitEditing={open} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} returnKeyType="search" style={{ flex: 1, minWidth: 0, minHeight: controlHeight - 2, paddingHorizontal: gap.md, paddingVertical: gap.xs, fontSize: font.body, color: t.foreground, ...(Platform.OS === "web" ? { outlineStyle: "none" } : {}) } as TextStyle} />
       <Pressable accessibilityRole="button" accessibilityLabel={iconLabel} hitSlop={HIT_SLOP} onPress={open} style={{ width: 40, height: controlHeight - 2, alignItems: "center", justifyContent: "center" }}>
         <Svg width={16} height={16} viewBox="0 0 18 18">
@@ -78,7 +78,8 @@ export function ClearButton({ label, onPress, size = 44, style }: { label: strin
 export function FieldLabel({ text, badge, onClear }: { text: string; badge?: string; onClear?: () => void }) {
   const layout = useLayout();
   return (
-    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: gap.sm }}>
+    // flexGrow: in a stretched grid cell the label block takes the spare height, so the control under it lines up across the row.
+    <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: gap.sm, flexGrow: 1 }}>
       <View style={[layout.row, { flex: 1, minWidth: 0 }]}>
         <Label>{text}</Label>
         {badge ? <Badge variant="secondary">{badge}</Badge> : null}
@@ -101,19 +102,21 @@ const CHAR_PX = 8.5;
 const ROW_CHROME_PX = 62;
 
 /**
- * Columns of a choice group: phones 2, or 1 when any label is long or (once the group is measured) a single word
- * would not fit a two-column cell; wide screens one per option for up to four short options, else 3 columns for
- * short labels and 2 for long ones.
+ * Columns of a choice group. Before the group is measured (`inner` 0) the window stands in: phones 2, or 1 when any
+ * label is long; wide screens one per option for up to four short options, else 3 columns for short labels and 2
+ * for long ones. Once measured, the group's own width decides: the most columns (within that cap) in which every
+ * label's longest word still fits its cell, else 1. A squeezed group in a narrow grid cell therefore drops to 1 column.
  */
 export function choiceColumns(width: number, labels: ReadonlyArray<string>, inner = 0): number {
   const long = labels.some((label) => [...label].length > LONG_LABEL);
-  if (width < 768) {
-    const longestWord = Math.max(0, ...labels.flatMap((label) => label.split(/\s+/).map((word) => [...word].length)));
-    const wordFits = inner <= 0 || longestWord * CHAR_PX <= (inner - gap.md) / 2 - ROW_CHROME_PX;
-    return long || !wordFits ? 1 : 2;
+  const cap = width < 768 ? (long ? 1 : 2) : labels.length <= 4 && !long ? Math.max(labels.length, 1) : long ? 2 : 3;
+  if (inner <= 0) return cap;
+  const longestWord = Math.max(0, ...labels.flatMap((label) => label.split(/\s+/).map((word) => [...word].length)));
+  for (let columns = cap; columns > 1; columns -= 1) {
+    const cell = (inner - gap.md * (columns - 1)) / columns;
+    if (longestWord * CHAR_PX <= cell - ROW_CHROME_PX) return columns;
   }
-  if (labels.length <= 4 && !long) return Math.max(labels.length, 1);
-  return long ? 2 : 3;
+  return 1;
 }
 
 /**
@@ -144,14 +147,18 @@ export function ChipChoice({ name, label, value, options, onChange, badge, disab
  * only a valid pair is written back, and a stored value the pickers cannot
  * represent is shown read-only until the user edits.
  */
-export function IntervalField({ raw, onChange, inputLabel, unitLabel, placeholder = "Number", unitPlaceholder = "Time unit", label, age }: { raw: string; onChange: (value: string) => void; inputLabel: string; unitLabel: string; placeholder?: string; unitPlaceholder?: string; label?: string; age?: Age | null }) {
+/**
+ * `onTyped` reports whether the coder has typed a number or picked a unit, even an incomplete pair that emits
+ * nothing useful (a number without a unit). The panel holds that flag so a date change never refills over it
+ * (the web's mayRefillAge rule). It reads false again when the value is replaced from outside.
+ */
+export function IntervalField({ raw, onChange, onTyped, inputLabel, unitLabel, placeholder = "Number", unitPlaceholder = "Time unit", label, age }: { raw: string; onChange: (value: string) => void; onTyped?: (typed: boolean) => void; inputLabel: string; unitLabel: string; placeholder?: string; unitPlaceholder?: string; label?: string; age?: Age | null }) {
   const layout = useLayout();
   const parsed = parseInterval(raw);
   const [number, setNumber] = useState(parsed.representable ? parsed.value : "");
   const [unit, setUnit] = useState(parsed.representable ? parsed.unit : "");
   const [error, setError] = useState("");
   const [edited, setEdited] = useState(false);
-  const [open, setOpen] = useState(false);
   const emitted = useRef(raw);
 
   useEffect(() => {
@@ -162,12 +169,14 @@ export function IntervalField({ raw, onChange, inputLabel, unitLabel, placeholde
     setUnit(next.representable ? next.unit : "");
     setEdited(false);
     setError("");
+    onTyped?.(false);
   }, [raw]);
 
   const commit = (nextNumber: string, nextUnit: string) => {
     setNumber(nextNumber);
     setUnit(nextUnit);
     setEdited(true);
+    onTyped?.(nextNumber.trim() !== "" || nextUnit !== "");
     // A unit without a number yet is a pending edit, not an error; it clears the stored value.
     const result = nextNumber.trim() === "" ? { value: "", error: "" } : serializeInterval(nextNumber, nextUnit);
     setError(result.error);
@@ -177,22 +186,17 @@ export function IntervalField({ raw, onChange, inputLabel, unitLabel, placeholde
   };
 
   const unitName = unit === UNKNOWN_UNIT ? "Unknown" : INTERVAL_UNITS.find((item) => item.value === unit)?.label ?? unitPlaceholder;
+  const unitOptions = [
+    ...INTERVAL_UNITS.map((item) => ({ value: item.value as string, label: item.label as string, accessibilityLabel: `${unitLabel}: ${item.label}`, dimmed: unitTooLarge(item.value, age ?? null) })),
+    { value: UNKNOWN_UNIT, label: "Unknown", accessibilityLabel: `${unitLabel}: Unknown`, dimmed: false },
+  ];
   return (
     <View style={{ gap: gap.xs, flexShrink: 1, maxWidth: "100%" }}>
       <View style={layout.row}>
         {label ? <Label>{label}</Label> : null}
         <Input accessibilityLabel={inputLabel} placeholder={placeholder} keyboardType="decimal-pad" maxLength={24} value={number} onChangeText={(next) => commit(next, unit)} style={{ width: 104 }} />
-        <FieldButton accessibilityLabel={unitLabel} accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)}>
-          <ControlText>{unitName} ▾</ControlText>
-        </FieldButton>
+        <MenuSelect triggerLabel={unitLabel} valueText={unitName} options={unitOptions} selected={unit} onSelect={(next) => commit(next === UNKNOWN_UNIT ? "" : number, next)} />
       </View>
-      {open ? (
-        <View style={layout.row}>
-          {[...INTERVAL_UNITS.map((item) => ({ value: item.value as string, label: item.label as string })), { value: UNKNOWN_UNIT, label: "Unknown" }].map((item) => (
-            <Chip key={item.value} accessibilityRole="radio" accessibilityLabel={`${unitLabel}: ${item.label}`} accessibilityState={{ selected: unit === item.value }} selected={unit === item.value} onPress={() => { setOpen(false); commit(item.value === UNKNOWN_UNIT ? "" : number, item.value); }} style={unitTooLarge(item.value, age ?? null) ? layout.dim : undefined}>{item.label}</Chip>
-          ))}
-        </View>
-      ) : null}
       {!parsed.representable && raw && !edited ? <FieldHint>{`Existing value: ${raw}`}</FieldHint> : null}
       {error ? <FieldError>{error}</FieldError> : null}
     </View>

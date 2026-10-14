@@ -413,6 +413,8 @@ def _run_canonical_repair_batches(
         run.attachment_skipped = 0
     if run.attachment_errors is None:
         run.attachment_errors = 0
+    if run.attachment_refused is None:
+        run.attachment_refused = 0
     if run.smartva_records_generated is None:
         run.smartva_records_generated = 0
     db.session.commit()
@@ -452,6 +454,7 @@ def _run_canonical_repair_batches(
         batch_smartva_generated = 0
         batch_errors = 0
         batch_skipped = 0
+        batch_refused = 0
         batch_held = 0
         error_messages: list[str] = []
         smartva_sids_by_form: dict[str, set[str]] = {}
@@ -473,6 +476,7 @@ def _run_canonical_repair_batches(
             initial_summary = result.get("initial_summary") or {}
             attachments_missing = int(initial_summary.get("attachments_missing", 0) or 0)
             downloaded = int(result.get("attachments_downloaded", 0) or 0)
+            batch_refused += int(result.get("attachments_refused", 0) or 0)
             non_audit_downloaded = int(result.get("non_audit_downloaded", 0) or 0)
             audit_downloaded = int(result.get("audit_downloaded", 0) or 0)
             smartva_generated = int(result.get("smartva_generated", 0) or 0)
@@ -553,6 +557,7 @@ def _run_canonical_repair_batches(
         run.attachment_downloaded = (run.attachment_downloaded or 0) + batch_downloaded
         run.attachment_skipped = (run.attachment_skipped or 0) + batch_skipped
         run.attachment_errors = (run.attachment_errors or 0) + batch_errors
+        run.attachment_refused = (run.attachment_refused or 0) + batch_refused
         run.smartva_records_generated = (
             run.smartva_records_generated or 0
         ) + batch_smartva_generated
@@ -635,6 +640,8 @@ def _prepare_run_for_canonical_repair(run_id, *, candidate_sids: list[str]) -> i
         run.attachment_skipped = 0
     if run.attachment_errors is None:
         run.attachment_errors = 0
+    if run.attachment_refused is None:
+        run.attachment_refused = 0
     if run.smartva_records_generated is None:
         run.smartva_records_generated = 0
     db.session.commit()
@@ -927,8 +934,10 @@ def _build_repair_map_for_form(
         if attachment_state is not None and attachment_state.retired:
             attachments_complete = True
         else:
+            # A file refused for size is accounted for, not missing.
             ready_attachment_count = (
-                attachment_state.ready_count if attachment_state else 0
+                attachment_state.ready_count + attachment_state.refused_count
+                if attachment_state else 0
             )
             unready_attachments = (
                 attachment_state.unready if attachment_state else ()

@@ -3,7 +3,7 @@ title: DORIS Editor UI Tokens
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-14
 ---
 
 # DORIS Editor UI Tokens
@@ -230,3 +230,18 @@ the text scrolling and each button at least 48px tall. The guided-build card
 result rows stay `muted` / `card`. On phones, opening Build, Details or a
 related term scrolls the card to the top of the results pane, focuses its
 heading and offers "Back to results".
+
+## Final cause picker (Expo)
+
+Each picker card (Step 1 "Confirm Step 1 underlying cause", Step 2 "Choose and
+confirm the final underlying cause") shows, top to bottom: the chosen cause with
+an ⓘ details button and a ✕ clear control; quick-add buttons (Step 1: "Use DORIS
+result: <code>"; Step 2: "Use Step 1 underlying cause: <code>" and "Use SmartVA
+result: <ICD-11>", or "Search SmartVA result" when SmartVA maps to several codes);
+then "Or search ICD-11 for your own code" and the search box, one control high.
+A quick-add is confirmed through WHO like a searched code (codeinfo, then the
+selection check) before it is chosen. Clearing the cross only empties the local
+choice; a saved final cause on the server is unchanged until the next save.
+ⓘ opens the ICD-11 details (title, code, WHO URI, release) from the codeinfo
+endpoint in a sheet.
+

@@ -101,41 +101,55 @@ def _prune_exports() -> int:
         return 0
 
 
-def parse_daily_time(value: str | None) -> tuple[int, int]:
-    """``"HH:MM"`` as ``(hour, minute)``, falling back to the default.
+def parse_daily_time(
+    value: str | None,
+    default: str = DEFAULT_DAILY_TIME,
+    setting: str = "DB_BACKUP_DAILY_TIME",
+) -> tuple[int, int]:
+    """``"HH:MM"`` as ``(hour, minute)``, falling back to ``default``.
 
     An unparseable or out-of-range value is a misconfiguration, not a reason to
-    stop backing the database up, so it is logged and the default is used.
+    stop the scheduled work, so it is logged and the default is used. Shared
+    with ``tls_health_tasks``, which passes its own default and setting name.
     """
-    raw = (value or "").strip() or DEFAULT_DAILY_TIME
+    raw = (value or "").strip() or default
     try:
         hour_text, minute_text = raw.split(":", 1)
         hour, minute = int(hour_text), int(minute_text)
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
             raise ValueError(raw)
     except ValueError:
-        log.warning(
-            "DB_BACKUP_DAILY_TIME is not a valid HH:MM time; using %s",
-            DEFAULT_DAILY_TIME,
-        )
-        hour, minute = (int(part) for part in DEFAULT_DAILY_TIME.split(":"))
+        log.warning("%s is not a valid HH:MM time; using %s", setting, default)
+        hour, minute = (int(part) for part in default.split(":"))
     return hour, minute
 
 
 def ensure_db_backup_scheduled():
-    """Seed the daily database backup beat entry. Idempotent.
+    """Seed the daily database backup beat entry. Idempotent."""
+    from flask import current_app
+
+    hour, minute = parse_daily_time(current_app.config.get("DB_BACKUP_DAILY_TIME"))
+    seed_daily_crontab_task(
+        DB_BACKUP_SCHEDULE_NAME,
+        "app.tasks.backup_tasks.run_db_backup",
+        hour,
+        minute,
+        label="Database backup",
+    )
+
+
+def seed_daily_crontab_task(schedule_name, task_name, hour, minute, label):
+    """Seed one daily crontab beat row (UTC). Idempotent; never raises.
 
     Follows the interval-schedule seeders in ``app/tasks/sync_tasks.py``, with a
     crontab row instead of an interval because the time of day matters: a dump
     belongs in the quiet hour, not "every 24 hours from whenever beat restarted".
-    Timezone is UTC, the same one the Celery config runs in.
+    Timezone is UTC, the same one the Celery config runs in. ``schedule_name``
+    is the row's identity: renaming it creates a second schedule rather than
+    moving this one. A changed time repoints the existing row.
     """
     try:
-        from flask import current_app
-
         from app import db
-
-        hour, minute = parse_daily_time(current_app.config.get("DB_BACKUP_DAILY_TIME"))
 
         with db.engine.begin() as conn:
             schedule_id = conn.execute(
@@ -162,7 +176,7 @@ def ensure_db_backup_scheduled():
                     "SELECT schedule_id FROM public.celery_periodictask "
                     "WHERE name = :name LIMIT 1"
                 ),
-                {"name": DB_BACKUP_SCHEDULE_NAME},
+                {"name": schedule_name},
             ).scalar()
 
             if existing_schedule_id is None:
@@ -180,20 +194,20 @@ def ensure_db_backup_scheduled():
                         """
                     ),
                     {
-                        "name": DB_BACKUP_SCHEDULE_NAME,
-                        "task": "app.tasks.backup_tasks.run_db_backup",
+                        "name": schedule_name,
+                        "task": task_name,
                         "schedule_id": schedule_id,
                     },
                 )
             elif existing_schedule_id != schedule_id:
-                # DB_BACKUP_DAILY_TIME changed; point the existing row at the
+                # The configured time changed; point the existing row at the
                 # new crontab rather than leaving the old hour in place.
                 conn.execute(
                     sa.text(
                         "UPDATE public.celery_periodictask SET schedule_id = :schedule_id, "
                         "discriminator = 'crontabschedule' WHERE name = :name"
                     ),
-                    {"schedule_id": schedule_id, "name": DB_BACKUP_SCHEDULE_NAME},
+                    {"schedule_id": schedule_id, "name": schedule_name},
                 )
             else:
                 return
@@ -205,8 +219,6 @@ def ensure_db_backup_scheduled():
                 )
             )
 
-        log.info(
-            "Database backup beat schedule seeded: daily at %02d:%02d UTC.", hour, minute
-        )
+        log.info("%s beat schedule seeded: daily at %02d:%02d UTC.", label, hour, minute)
     except Exception as e:
-        log.warning("Could not seed database backup schedule: %s", e)
+        log.warning("Could not seed %s schedule: %s", label, e)

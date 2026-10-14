@@ -239,7 +239,9 @@
     <div id="app-toast-container"
          class="position-fixed bottom-0 end-0 p-3"
          style="z-index: 1090; pointer-events: none;"></div>
-    {% with toast_messages = get_flashed_messages(with_categories=true) %}
+    {# A page that shows its flash messages inline sets flashes_inline, so each
+       message appears once, not as a banner and a toast. #}
+    {% with toast_messages = [] if flashes_inline else get_flashed_messages(with_categories=true) %}
       {% if toast_messages %}
         <script>
           document.addEventListener("DOMContentLoaded", function () {

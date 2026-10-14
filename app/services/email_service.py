@@ -14,6 +14,8 @@ from datetime import UTC, datetime
 from flask import current_app, render_template
 from flask_mail import Mail, Message
 
+from app.services.tls_health_service import ATTENTION_STATUSES as TLS_ATTENTION_STATUSES
+
 log = logging.getLogger(__name__)
 
 mail = Mail()
@@ -102,7 +104,7 @@ def _email_link_base_url() -> str:
     are read with `or` rather than a `.get()` default because Flask always defines
     SERVER_NAME (value None when unset), which would otherwise shadow the default.
     """
-    base_url = current_app.config.get("MAIL_BASE_URL") or ""
+    base_url = current_app.config.get("PUBLIC_BASE_URL") or ""
     if not base_url:
         base_url = current_app.config.get("SERVER_NAME") or "localhost:5000"
     if not base_url.startswith("http"):
@@ -169,6 +171,40 @@ def send_code_redeemed_notice(user) -> bool:
         subject="Your DigitVA password was changed",
         template_name="emails/code_redeemed",
         context={"name": user.name},
+    )
+    return True
+
+
+def send_tls_expiry_notice(user, rows: list[dict]) -> bool:
+    """Tell an admin that a health check is due, urgent, expired or failing.
+
+    Carries only the report's label, expiry date, days left, status and fixed
+    detail, plus a link to the admin console. Rows with no expiry (the S3 store
+    checks) carry no date. No hostname with credentials, no exception text.
+    """
+    if not _should_attempt_email_delivery(user.email):
+        return False
+
+    certificates = [
+        {
+            "label": row["label"],
+            "expires": row["not_after"].strftime("%d %b %Y") if row["not_after"] else "",
+            "days_left": row["days_left"] if row["days_left"] is not None else "",
+            "status": row["status"].replace("_", " "),
+            "detail": row["detail"],
+        }
+        for row in rows
+        if row["status"] in TLS_ATTENTION_STATUSES
+    ]
+    _dispatch_email.delay(
+        to=user.email,
+        subject="DigitVA: system health needs attention",
+        template_name="emails/tls_expiry_notice",
+        context={
+            "name": user.name,
+            "certificates": certificates,
+            "admin_url": f"{_email_link_base_url()}/admin/",
+        },
     )
     return True
 

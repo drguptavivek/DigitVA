@@ -3,7 +3,7 @@ title: VA Cause Definitions
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-21
+last_updated: 2026-10-14
 ---
 
 # VA Cause Definitions
@@ -51,6 +51,18 @@ coders and reviewers consult while assigning causes of death.
   VA cause it maps to in a floating panel at the bottom right
   (`app/static/js/va_definition_panel.js`). It has no backdrop and takes no
   focus; closing it hides it until the next selection; no match shows nothing.
+- The ICD-11 DORIS screens (digitva-wy34) do the same: the DORIS editor
+  (`_doris_certificate_editor.html`: certificate lines and the Step 2 final
+  cause) and the masked Step 2 picker (`_masked_doris_final_cod.html`) each
+  have a "VA Definitions" button that opens the modal, and the picked or
+  confirmed ICD-11 code opens the floating panel with
+  `classification=icd11`. Each include gets its own modal id (derived from the
+  editor or form id) so two modals can share one page.
+- Expo: the cause details (i) sheet shows the VA cause code, title and
+  definition for the code through the app's API client
+  (`getVaDefinitionForIcd`, `classification=icd11`). A 404 shows no VA cause; a
+  failed lookup is silent. The definition is shown as plain text: tags are
+  dropped and the common entities decoded, never injected as HTML.
 - `GET /api/v1/va-definitions/for-icd?code=&classification=` (same roles as
   above; classification is inferred from the code shape when omitted) returns
   `{icd_code, classification, va_code, title, definition_html}` or 404.

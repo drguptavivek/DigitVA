@@ -10,6 +10,7 @@ import {
   parseCoderQueue,
   parseDorisCodeInfo,
   parseDorisProcess,
+  parseVaDefinition,
   parseDorisTerms,
   parseCodingWrite,
   parseIcdSearch,
@@ -45,6 +46,7 @@ import {
   type SmartvaRunReply,
   type WorkspaceMode,
   type WorkspacePayload,
+  type VaDefinition,
   type WorkflowEvents,
 } from "./contracts";
 
@@ -85,6 +87,8 @@ export interface WorkspaceApi {
   saveNote(vaSid: string, mode: "coding" | "reviewing", content: string): Promise<NotePayload>;
   searchDorisTerms(vaSid: string, query: string, options?: { limit?: number; subtreeUris?: string[] }): Promise<DorisTermsReply>;
   getDorisCodeInfo(vaSid: string, code: string): Promise<DorisCodeInfoReply>;
+  /** The VA cause of an ICD-11 code, or null when no VA cause maps to it (the server answers 404). */
+  getVaDefinitionForIcd(code: string): Promise<VaDefinition | null>;
   checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
   processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
   getWorkflowEvents(vaSid: string, options?: { limit?: number; cursor?: string }): Promise<WorkflowEvents>;
@@ -225,6 +229,10 @@ export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
     async getDorisCodeInfo(vaSid, code) {
       try { return parsed(await post(`/doris-clinical/codeinfo/${id(vaSid)}`, { schema_version: 1, code }), parseDorisCodeInfo); }
       catch (error) { return normalizeDorisError(error); }
+    },
+    async getVaDefinitionForIcd(code) {
+      try { return parsed(await get(`/va-definitions/for-icd?classification=icd11&code=${encodeURIComponent(code)}`), parseVaDefinition); }
+      catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
     },
     async checkDorisSelection(vaSid, code, uri) {
       try { return parsed(await post(`/doris-clinical/selection-check/${id(vaSid)}`, { schema_version: 1, code, uri }), parseDorisCodeInfo); }

@@ -22,7 +22,14 @@
 
 {% if u.is_authenticated and u.is_interviewer() %}
   <li class="nav-item">
-    <a class="nav-link" href="{{ url_for('intake.dashboard') }}"><i class="fa-solid fa-clipboard-list me-1"></i>VA Intake</a>
+    <a class="nav-link" href="{{ url_for('intake.dashboard') }}"><i class="fa-solid fa-clipboard-list me-1"></i>VA Interview</a>
+  </li>
+{% endif %}
+{# Death reporters' one web page (owner, 2026-10-14); interviewers register
+   from VA Interview in register-first projects. #}
+{% if u.is_authenticated and u.is_death_reporter() %}
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('intake.new_death_page') }}"><i class="fa-solid fa-file-circle-plus me-1"></i>Report a death</a>
   </li>
 {% endif %}
 {% if u.is_authenticated and u.can_access_coding_dashboard() %}

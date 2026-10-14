@@ -3,7 +3,7 @@ title: DORIS Certificate Field Rules
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-14
 ---
 
 # DORIS Certificate Field Rules
@@ -36,7 +36,7 @@ this file wins.
 
 | Input | Source | Notes |
 | --- | --- | --- |
-| reported age | `AdministrativeData.EstimatedAge`, prefilled from the interview via `age_field()` (rule V7) and editable | ISO duration. In days: Y 365.25, M 30.4375, W 7, D 1, H 1/24. If blank the age is unknown (no fallback to the dates). |
+| reported age | `AdministrativeData.EstimatedAge`, prefilled from the interview via `age_field()` and filled from the two dates by the editor when blank (rule V7), and editable | ISO duration. In days: Y 365.25, M 30.4375, W 7, D 1, H 1/24. The rules read only this value: if blank the age is unknown and the dates are never a fallback for the rules. |
 | sex | `AdministrativeData.Sex`: 1 Male, 2 Female, 9 Undetermined, blank not stated | |
 | certificate answers | the other certificate fields | |
 
@@ -63,7 +63,7 @@ are the stored ones. "External-cause details shown" means Manner is 1 to 7.
 | V4 | `Surgery.WasPerformed` | "Date of surgery" and "reason for surgery" shown only when "Was surgery performed within the last 4 weeks?" is Yes (1). Otherwise hidden and `Surgery.Date`, `Surgery.Reason` removed. | hide |
 | V5 | `Autopsy.WasRequested` | "If yes were the findings used in the certification?" shown only when "Was an autopsy requested?" is Yes (1). Otherwise hidden and `Autopsy.Findings` removed. | hide |
 | V6 | `MannerOfDeath.MannerOfDeath` | "Date of injury", "Please describe how external cause occurred" and "Place of occurrence of the external cause" shown only when Manner is 1 to 7 (Accident, Intentional self-harm, Assault, Legal intervention, War, Could not be determined, Pending investigation). Hidden for 0 Disease, 9 Unknown and not stated; `DateOfExternalCauseOrPoisoning`, `DescriptionExternalCause`, `PlaceOfOccuranceExternalCause` removed. | hide |
-| V7 | interview | Always prefill `AdministrativeData.EstimatedAge` from the reported age, even when both dates are known, with provenance. ISO duration in the reported unit: `PT{n}H` for neonates under a day, `P{n}D` for other neonates, else `P{n}Y`, `P{n}M` or `P{n}D`. | prefill |
+| V7 | interview, dates | Prefill `AdministrativeData.EstimatedAge` from the interview's age answers (`age_field()`), with provenance, in the reported unit: `PT{n}H` for neonates under a day, `P{n}D` for other neonates, else `P{n}Y`, `P{n}M` or `P{n}D`. The age questions are hidden when the date of birth is known exactly (`Id10020` yes) and the date of death is known (`Id10022` yes), so such an interview has no age answer and the server prefill is empty. The editor therefore derives the age when it is blank and both dates are complete, real dates: whole years from 1 year, else whole months from 1 month, else whole days (calendar arithmetic, so a birthday not yet reached does not count; 12 Aug 1996 to 12 Jun 2025 is `P28Y`), in the same ISO form. It derives on load only for a fresh prefill seed (the interview prefill writes provenance; a restored processing or a saved certificate, which has none, keeps the age it was saved with), and whenever either date changes. A value the coder typed is never overwritten, and neither is a half-typed value: a number typed without a unit counts as typed input. A value the coder cleared stays empty until a date changes. Partial dates derive nothing, and a derived value that a date change makes stale is removed. Derived values carry no "from interview" badge. | prefill / derive |
 | V8 | interview | Prefill `FetalOrInfantDeath.BirthWeight` (grams) from `Id10366` and `PregnancyWeeks` (completed weeks) from `doris_pregnancy_weeks`, else `Id10367` months converted to weeks, each with "from interview" provenance and bounds checking. Both already existed; see the prefill table in `doris-cod-workflow.md`. | prefill |
 | V9 | interval, reported age, line order | A Part I or Part II interval longer than the age at death warns "Interval is longer than the age at death". Interval unit options longer than the age at death (for example Years for an age under 1 year) are greyed, except the unit already selected. A Part I line below the first whose interval is shorter than the nearest line above that has one warns "Usually longer than the line above". | warn / disable |
 | V10 | dates | Warn when: `DateBirth` is after `DateDeath` ("Date of birth is after the date of death"); `DateDeath` is after today in the user's timezone ("Date of death is in the future"); date of injury is before birth or after death ("Date of injury is outside birth to death"); date of surgery is outside the 4 weeks before death ("Outside the 4 weeks before death"); `EstimatedAge` differs from the age computed from the two dates by more than 1 year ("Estimated age differs from the dates by more than a year"). Dates are compared at the coarser precision of the two, and a rule that needs a full date stays silent without one. `DateDeath` is a full date (a plain calendar input). The 4-week surgery check needs a full surgery date and a full death date: a year or year-month surgery date does not trigger it. | warn |
@@ -86,6 +86,7 @@ a hidden control. The guard uses only the certificate's own `Sex`,
   Surgery is Yes, autopsy findings before Autopsy is Yes, the external-cause
   fields before a non-natural manner, hours survived) stays hidden with no
   note.
+- **Dropdowns.** The Expo age unit, the date precision menu (Date, Year-Month, Year) and the month choice open a vertical list laid over the content. They never push or spill into neighbouring cells, and close on a choice, an outside press or Escape. A long list scrolls inside the window; the menu opens upward when there is no room below and never leaves the screen, and it stays hidden until its position is measured.
 - **Onset to death.** Each Part I line and Part II shows one label "Onset to
   death" followed by a number box (placeholder "Interval") and a unit select
   whose blank option reads "Units", wrapping on a phone. The Estimated age
@@ -99,6 +100,32 @@ a hidden control. The guard uses only the certificate's own `Sex`,
   disabled at the cap, as is the header "Add line", which still appends at
   the end). Letters A to E renumber. An empty line between filled ones is
   still rejected at Process; trailing empty lines are ignored.
+
+## Warning catalogue
+
+Known DORIS warnings are shown as a plain meaning and what to do, with the
+code and its ICD-11 title filled in (digitva-ra3y). The table is
+`scripts/generate_doris_messages.py` (`PATTERNS`), which writes
+`app/static/js/doris_messages.js` and
+`mobile/digitva-collect/src/workspace/doris/dorisMessages.ts`. Do not edit those
+two files by hand. A warning that matches no pattern is shown as DORIS wrote
+it, with TUC, TSP and UCOD spelled out, and no DORIS text underneath.
+
+| Pattern id | DORIS text (matched) | What the coder sees (meaning, then what to do) |
+| --- | --- | --- |
+| `injury_for_external_cause` | No injury found to postcoordinate with the TUC - *code*. | The certificate names how the injury happened, but not the injury itself. DORIS picked *code (title)*, an external cause. ICD-11 also needs the injury it caused (chapter 22, Injury, poisoning…). Add that injury on a line above the external cause, or confirm none was recorded. |
+| `underlying_cause_inconsistent_with_manner` | The selected underlying cause of death - *code* - is inconsistent with the reported manner of death - *manner*. | The underlying cause *code (title)* does not fit the manner of death on the certificate, *manner*. Check the manner of death and the underlying cause. Change the one that is wrong, or confirm both are right. |
+| `rule_m1_not_to_be_used` | M1: KD3B.1 is not to be used if the underlying cause is known… | KD3B.1 (title) is only for a stillbirth with no known underlying cause… Use a more specific underlying cause if one is known, or confirm that none is. |
+| `fetal_death_manual_check` | M1: Manual check is needed see Special instructions on fetal death… | This is a fetal death, which has its own rules. Read the special instructions for fetal death in the reference guide (2.21.8.4) before you decide. |
+| `neonatal_first_week` | The age is between day 0 and day 6 after birth. Manual check is recommended for perinatal conditions. | The death is in the first six days after birth, so a perinatal condition needs a manual check. Check the age at death and the cause against the perinatal rules before you decide. |
+| `maternal_mentioned` | Pregnancy, childbirth, or puerperium is mentioned on the certificate. | The certificate mentions pregnancy, childbirth or the puerperium, so the maternal rules may apply. Check the maternal section and the timing of the death against the cause you choose. |
+
+Bare rule ids (`M4 may have been applied.`, `SP…`) without a pattern are still
+explained from DORIS's report, as before. Adding a pattern: edit `PATTERNS`,
+run the generator, add a case to `tests/fixtures/doris_warning_cases.json`, and
+run `tests/js/doris_warnings_check.mjs` and the Expo parity test. The Python
+test `tests/services/test_doris_messages_generated.py` fails when a generated
+file is stale.
 
 ## Date precision
 

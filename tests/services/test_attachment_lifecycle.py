@@ -478,6 +478,131 @@ class RepairAttachmentTests(AttachmentLifecycleBase):
         fetch.assert_not_called()
 
 
+    def _fetch_result(self, response, *, content_length=None, mime_type="image/jpeg"):
+        from app.services import attachment_source_central as central
+
+        result = central.CentralFetch(
+            outcome=central.FETCH_OK, response=response,
+            mime_type=mime_type, content_length=content_length,
+        )
+        return patch.object(central, "fetch", return_value=result)
+
+    def _refusal_of(self, va_sid, filename):
+        row = db.session.get(VaSubmissionAttachments, (va_sid, filename))
+        return row.refused_reason, row.refused_size_bytes
+
+    def test_a_declared_length_over_the_cap_is_refused_and_not_stored(self):
+        from app.services import attachment_source_central as central
+
+        self._set_central_fetch(True)
+        sub = self._submission()
+        row = self._row(sub.va_sid, "photo.jpg", uuid.uuid4().hex + ".jpg")
+        response = _FakeResponse(b"never-streamed")
+
+        with self._fetch_result(response, content_length=svc.MAX_BYTES + 1), \
+                patch.object(central, "record_fetch_state"):
+            outcome = svc.repair_attachment(self._record(row))
+
+        self.assertEqual(outcome.outcome, svc.REPAIR_REFUSED)
+        self.assertEqual(outcome.error_code, svc.REFUSED_TOO_LARGE)
+        self.assertTrue(response.closed)
+        self.assertEqual(self._media_files(), [])
+        self.assertEqual(self._refusal_of(sub.va_sid, "photo.jpg"),
+                         (svc.REFUSED_TOO_LARGE, svc.MAX_BYTES + 1))
+
+    def test_a_body_streamed_past_the_cap_is_refused_and_not_stored(self):
+        from app.services import attachment_source_central as central
+
+        self._set_central_fetch(True)
+        sub = self._submission()
+        row = self._row(sub.va_sid, "photo.jpg", uuid.uuid4().hex + ".jpg")
+        response = _FakeResponse(b"x" * 100)
+
+        with self._fetch_result(response), \
+                patch.object(central, "record_fetch_state"), \
+                patch.object(svc, "MAX_BYTES", 60), \
+                patch.object(svc, "ATTACHMENT_STREAM_CHUNK_SIZE", 40):
+            outcome = svc.repair_attachment(self._record(row))
+
+        self.assertEqual(outcome.outcome, svc.REPAIR_REFUSED)
+        self.assertTrue(response.closed)
+        self.assertEqual(self._media_files(), [])
+        self.assertEqual(self._refusal_of(sub.va_sid, "photo.jpg"),
+                         (svc.REFUSED_TOO_LARGE, 80))
+
+    def test_a_body_exactly_at_the_cap_is_stored(self):
+        from app.services import attachment_source_central as central
+
+        self._set_central_fetch(True)
+        sub = self._submission()
+        storage_name = uuid.uuid4().hex + ".jpg"
+        row = self._row(sub.va_sid, "photo.jpg", storage_name)
+
+        with self._fetch_result(_FakeResponse(b"y" * 60), content_length=60), \
+                patch.object(central, "record_fetch_state"), \
+                patch.object(svc, "MAX_BYTES", 60):
+            outcome = svc.repair_attachment(self._record(row))
+
+        self.assertEqual(outcome.outcome, svc.REPAIR_REPAIRED)
+        self.assertEqual(self._media_files(), [storage_name])
+        self.assertEqual(self._refusal_of(sub.va_sid, "photo.jpg"), (None, None))
+
+    def test_a_declared_length_of_25_to_50_mb_is_stored(self):
+        from app.services import attachment_source_central as central
+
+        self._set_central_fetch(True)
+        sub = self._submission()
+        storage_name = uuid.uuid4().hex + ".jpg"
+        row = self._row(sub.va_sid, "photo.jpg", storage_name)
+
+        with self._fetch_result(_FakeResponse(b"small"), content_length=30 * 1024 * 1024), \
+                patch.object(central, "record_fetch_state"):
+            outcome = svc.repair_attachment(self._record(row))
+
+        self.assertEqual(outcome.outcome, svc.REPAIR_REPAIRED)
+        self.assertEqual(self._media_files(), [storage_name])
+
+    def test_an_amr_over_the_amr_cap_is_refused_and_never_converted(self):
+        from app.services import attachment_source_central as central
+
+        self._set_central_fetch(True)
+        sub = self._submission()
+        row = self._row(
+            sub.va_sid, "narration.amr", uuid.uuid4().hex + ".mp3",
+            mime_type="audio/mpeg", derivative_state=svc.DERIVATIVE_STALE,
+        )
+
+        with self._fetch_result(_FakeResponse(b"a" * 20), mime_type="audio/amr"), \
+                patch.object(central, "record_fetch_state"), \
+                patch.object(svc, "AMR_MAX_BYTES", 10), \
+                patch.object(svc, "_convert_amr_to_mp3") as convert:
+            outcome = svc.repair_attachment(self._record(row))
+
+        self.assertEqual(outcome.outcome, svc.REPAIR_REFUSED)
+        convert.assert_not_called()
+        self.assertEqual(self._media_files(), [])
+        self.assertEqual(self._refusal_of(sub.va_sid, "narration.amr"),
+                         (svc.REFUSED_TOO_LARGE, 20))
+
+    def test_a_refused_file_is_not_queued_for_repair_again(self):
+        from app.services import attachment_source_central as central
+
+        self._set_central_fetch(True)
+        sub = self._submission()
+        row = self._row(sub.va_sid, "photo.jpg", uuid.uuid4().hex + ".jpg")
+
+        def queued():
+            return [c.va_sid for c in svc.repair_candidates(self.FORM_ID)]
+
+        self.assertIn(sub.va_sid, queued())
+
+        with self._fetch_result(_FakeResponse(b"never"), content_length=svc.MAX_BYTES + 1), \
+                patch.object(central, "record_fetch_state"):
+            svc.repair_attachment(self._record(row))
+
+        self.assertNotIn(sub.va_sid, queued())
+
+
 class AttachmentStateTests(AttachmentLifecycleBase):
     def test_retired_submissions_are_flagged_and_audit_is_excluded(self):
         retired = self._submission(sync_issue_code=MISSING_IN_ODK)

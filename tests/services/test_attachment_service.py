@@ -153,6 +153,17 @@ class MimeTests(TestCase):
         self.assertIsNone(svc.safe_mime_type("garbage"))
 
 
+class SizeCapTests(TestCase):
+    def test_the_file_cap_is_50_mb_and_amr_stays_5_mb(self):
+        self.assertEqual(svc.MAX_BYTES, 50 * 1024 * 1024)
+        self.assertEqual(svc.AMR_MAX_BYTES, 5 * 1024 * 1024)
+
+    def test_max_bytes_for_picks_the_amr_cap_only_for_amr(self):
+        self.assertEqual(svc.max_bytes_for("narration.amr"), svc.AMR_MAX_BYTES)
+        self.assertEqual(svc.max_bytes_for("NARRATION.AMR"), svc.AMR_MAX_BYTES)
+        self.assertEqual(svc.max_bytes_for("photo.jpg"), svc.MAX_BYTES)
+
+
 class AttachmentServiceDbTests(BaseTestCase):
     FORM_ID = "ATTSVC_FORM"
 

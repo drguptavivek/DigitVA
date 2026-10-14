@@ -25,6 +25,7 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
+from app.utils.number_format import whole_number
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
@@ -45,6 +46,7 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
     get_latest_active_reviewer_initial_assessment,
 )
+from app.services.icd11_titles import icd11_alternatives_label
 from app.services.smartva_icd11 import smartva_icd11_mapping
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.submission_summary_service import build_submission_summary
@@ -582,7 +584,8 @@ def smartva_summary(smartva) -> dict | None:
     """The SmartVA result as the summary table shows it, or None.
 
     ``NaN`` and empty values are null, as the table skips them; each cause
-    carries the ICD-11 mapping of its ICD-10 code (None when unmapped).
+    carries the ICD-11 mapping of its ICD-10 code (None when unmapped) and,
+    as ``icd11_label``, that mapping with the WHO title of each target.
     """
     if smartva is None:
         return None
@@ -590,20 +593,21 @@ def smartva_summary(smartva) -> dict | None:
     for rank in (1, 2, 3):
         cause = _clean(getattr(smartva, f"va_smartva_cause{rank}"))
         icd10 = _clean(getattr(smartva, f"va_smartva_cause{rank}icd"))
+        icd11 = smartva_icd11_mapping(icd10) if icd10 else None
         causes.append({
             "rank": rank,
             "cause": cause,
             "icd10": icd10,
-            "icd11": smartva_icd11_mapping(icd10) if icd10 else None,
+            "icd11": icd11,
+            "icd11_label": icd11_alternatives_label(icd11),
             "likelihood": _clean(getattr(smartva, f"va_smartva_likelihood{rank}")),
         })
     symptoms = _clean(smartva.va_smartva_allsymptoms)
     return {
-        "age": _clean(smartva.va_smartva_age),
+        "age": whole_number(_clean(smartva.va_smartva_age)),
         "gender": _clean(smartva.va_smartva_gender),
-        "key_symptoms": [
-            s for s in (_clean(getattr(smartva, f"va_smartva_keysymptom{i}")) for i in (1, 2, 3)) if s
-        ],
+        # Rank-aligned like the causes: index 0 is the primary key symptom, null when empty.
+        "key_symptoms": [_clean(getattr(smartva, f"va_smartva_keysymptom{i}")) for i in (1, 2, 3)],
         "causes": causes,
         "symptoms": [s.strip() for s in symptoms.split(";") if s.strip()] if symptoms else [],
     }

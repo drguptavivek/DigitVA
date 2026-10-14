@@ -7,7 +7,8 @@
  * ICD-11 from the code) and shows that cause's definition in a small panel
  * fixed at the bottom right. The panel has no backdrop and takes no focus, so
  * the page stays usable; closing it hides it until the next selection. No
- * match (404) shows nothing.
+ * match (404) shows nothing. The DORIS pickers call lookup() directly when a
+ * cause is picked or confirmed, with classification 'icd11'.
  *
  * Included once per page by app/templates/va_form_partials/_va_definitions_modal.html.
  * Code and title are set as text; definition_html is sanitized server-side
@@ -80,10 +81,11 @@
     p.classList.remove('d-none');
   }
 
-  function lookup(value, fieldLabel) {
+  function lookup(value, fieldLabel, classification) {
     var seq = ++requestSeq;
     if (!value) { hide(); return; }
-    fetch(API_URL + '?code=' + encodeURIComponent(value), {
+    var query = '?code=' + encodeURIComponent(value) + (classification ? '&classification=' + encodeURIComponent(classification) : '');
+    fetch(API_URL + query, {
       headers: { Accept: 'application/json' },
       credentials: 'same-origin'
     }).then(function (r) {
@@ -108,5 +110,5 @@
 
   hook();
   if (!hook.done) document.addEventListener('DOMContentLoaded', hook);
-  window.DigitVADefinitionPanel = { hide: hide };
+  window.DigitVADefinitionPanel = { hide: hide, lookup: lookup };
 })();

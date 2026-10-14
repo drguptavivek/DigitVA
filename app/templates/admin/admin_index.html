@@ -253,12 +253,34 @@
           <span class="admin-nav-label">Activity</span>
         </a>
 
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#"
+           title="System health"
+           data-panel="/admin/panels/system-health"
+           hx-get="/admin/panels/system-health"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-certificate admin-nav-icon"></i>
+          <span class="admin-nav-label">System health</span>
+        </a>
+
       </nav>
     </div>
   </div>
 
   {# Panel content area #}
   <div class="col" id="admin-main-column">
+    {% if tls_alert %}
+    <div class="alert alert-warning m-4 mb-0 py-2 small" role="alert" id="tls-expiry-banner">
+      <i class="fa-solid fa-triangle-exclamation me-1"></i>
+      System health attention needed:
+      {% for c in tls_alert %}
+        {{ c.label }} ({{ c.status | replace("_", " ") }}{% if c.days_left is not none %}, {{ c.days_left }} days left{% endif %}){% if not loop.last %};{% endif %}
+      {% endfor %}.
+      <a href="#" class="alert-link" data-panel="/admin/panels/system-health"
+         hx-get="/admin/panels/system-health" hx-target="#admin-panel" hx-swap="innerHTML">Open System health</a>
+    </div>
+    {% endif %}
     <div id="admin-panel" class="p-4">
       <div class="text-center text-muted py-5">
         <i class="fa-solid fa-arrow-left fa-2x mb-3 d-block"></i>

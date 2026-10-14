@@ -100,6 +100,17 @@ export function mount(container, rawValue) {
     validate: function () { return this.read(); },
     // The current ISO value without showing an error (for live rule checks).
     peek: function () { return state.dirty ? serialize(valueInput.value, unitSelect.value).value : state.raw; },
+    // True when the coder has typed a number or picked a unit, even an incomplete pair that peek() reads as ''.
+    typed: function () { return trim(valueInput.value) !== '' || unitSelect.value !== ''; },
+    // Shows a value as if it were stored (a derived age): not an edit, so the stored-value rules apply again.
+    set: function (next) {
+      var parsed = parse(next);
+      state.raw = typeof next === 'string' ? next : ''; state.dirty = false;
+      valueInput.value = parsed.representable ? parsed.value : '';
+      unitSelect.value = parsed.representable ? parsed.unit : '';
+      if (rawDisplay) { rawDisplay.textContent = ''; rawDisplay.hidden = true; }
+      if (errorDisplay) errorDisplay.textContent = '';
+    },
     state: state,
     value: valueInput,
     unit: unitSelect

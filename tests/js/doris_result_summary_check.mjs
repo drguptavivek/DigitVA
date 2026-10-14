@@ -14,3 +14,9 @@ const box2 = { children: [], replaceChildren(){ this.children = []; }, appendChi
 renderSummary(box2, {doris: {status: 'completed', result: {code: '5A11/GB61.Z', stemCode: '5A11', report: '', warning: ''}}, codedit: {status: 'completed', result: {issueIds: 'BER-CE-9', report: 'RE_W_IV_CodeURIMismatch', tabularReport: '0,RE_W_IV_CodeURIMismatch,BER-CE-9;5A11/GB61.Z;;;'}}}, {}, null);
 const coded = box2.children.find(c => c.tag === 'ul').children.map(li => li.textContent);
 if (coded[0] !== 'The selected code - 5A11/GB61.Z - and URI correspond to different ICD entities for the same condition. Please verify that the code and the associated URI refer to the same ICD category.') throw new Error('BER-CE-9 not translated: ' + coded[0]);
+
+// An empty CoDEdit issue list is no issue: no "reported:" item, and a clean run says so.
+const box3 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
+renderSummary(box3, {doris: {status: 'completed', result: {code: 'PA60', stemCode: 'PA60', report: '', warning: ''}}, codedit: {status: 'completed', result: {issueIds: [], report: '', tabularReport: ''}}}, {}, null);
+if (box3.children.some(c => c.tag === 'ul')) throw new Error('an empty issue list added checks');
+if (!box3.children.some(c => c.textContent === 'No problems found in the certificate.')) throw new Error('clean run not reported');

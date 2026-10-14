@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
 
-import { Chip, ControlText, FieldButton, FieldError, FieldHint, Input, useLayout } from "./ui";
+import { FieldError, FieldHint, Input, MenuSelect, useLayout } from "./ui";
 
 export interface DateFieldProps {
   /** Accessible name; the visible label is drawn by the caller. */
@@ -91,7 +91,6 @@ export function MonthYearFallback({ label, value, onChange }: { label: string; v
   const layout = useLayout();
   const [month, setMonth] = useState(MONTH.test(value) ? value.slice(5) : "");
   const [year, setYear] = useState(MONTH.test(value) ? value.slice(0, 4) : "");
-  const [open, setOpen] = useState(false);
   const emitted = useRef(value);
   useEffect(() => {
     if (value === emitted.current) return;
@@ -110,19 +109,9 @@ export function MonthYearFallback({ label, value, onChange }: { label: string; v
   return (
     <View style={{ gap: 4, flexGrow: 1 }}>
       <View style={layout.row}>
-        <FieldButton accessibilityLabel={`${label} month`} accessibilityState={{ expanded: open }} onPress={() => setOpen(!open)}>
-          <ControlText>{month ? MONTH_NAMES[Number(month) - 1] : "Month"} ▾</ControlText>
-        </FieldButton>
+        <MenuSelect triggerLabel={`${label} month`} valueText={month ? MONTH_NAMES[Number(month) - 1] : "Month"} selected={month} options={MONTH_NAMES.map((name, index) => ({ value: String(index + 1).padStart(2, "0"), label: name, accessibilityLabel: `${label} month: ${name}` }))} onSelect={(code) => commit(code, year)} />
         <Input accessibilityLabel={`${label} year`} placeholder="Year" keyboardType="numeric" inputMode="numeric" maxLength={4} value={year} onChangeText={(next) => commit(month, next.replace(/\D/g, ""))} style={{ width: 90 }} />
       </View>
-      {open ? (
-        <View style={layout.row}>
-          {MONTH_NAMES.map((name, index) => {
-            const code = String(index + 1).padStart(2, "0");
-            return <Chip key={code} accessibilityRole="radio" accessibilityLabel={`${label} month: ${name}`} accessibilityState={{ selected: month === code }} selected={month === code} onPress={() => { setOpen(false); commit(code, year); }}>{name}</Chip>;
-          })}
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -136,7 +125,6 @@ export function MonthYearFallback({ label, value, onChange }: { label: string; v
 export function DateFieldShell({ label, value, onChange, precision, date, month, year }: DateFieldProps & { date: (value: string, onChange: (value: string) => void) => ReactNode; month?: (value: string, onChange: (value: string) => void) => ReactNode; year?: (value: string, onChange: (value: string) => void) => ReactNode }) {
   const layout = useLayout();
   const [mode, setMode] = useState<Precision>(precisionOf(value) ?? "date");
-  const [menu, setMenu] = useState(false);
   const [error, setError] = useState("");
   const { text, setText, emitted } = useEmitText(value);
   const emit = (next: string) => { emitted.current = next; onChange(next); };
@@ -165,7 +153,6 @@ export function DateFieldShell({ label, value, onChange, precision, date, month,
   }
 
   const choose = (next: Precision) => {
-    setMenu(false);
     setError("");
     if (next === mode) return;
     const converted = convertPrecision(value, next);
@@ -188,16 +175,10 @@ export function DateFieldShell({ label, value, onChange, precision, date, month,
   return (
     <View style={{ gap: 4 }}>
       <View style={layout.row}>
-        <FieldButton accessibilityLabel={`${label} precision`} accessibilityValue={{ text: current.label }} accessibilityState={{ expanded: menu }} onPress={() => setMenu(!menu)} style={{ minWidth: 130 }}>
-          <ControlText>{current.label} ▾</ControlText>
-        </FieldButton>
+        <MenuSelect triggerLabel={`${label} precision`} valueText={current.label} accessibilityValue={{ text: current.label }} selected={mode} style={{ minWidth: 130 }} onSelect={choose}
+          options={PRECISIONS.map((item) => ({ value: item.value, label: item.label, accessibilityLabel: `${label} precision: ${item.label}` }))} />
         {field}
       </View>
-      {menu ? (
-        <View style={layout.row}>
-          {PRECISIONS.map((item) => <Chip key={item.value} accessibilityRole="radio" accessibilityLabel={`${label} precision: ${item.label}`} accessibilityState={{ selected: mode === item.value }} selected={mode === item.value} onPress={() => choose(item.value)}>{item.label}</Chip>)}
-        </View>
-      ) : null}
       {error ? <FieldError>{error}</FieldError> : null}
     </View>
   );

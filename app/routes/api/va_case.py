@@ -26,6 +26,7 @@ from app.decorators import role_required
 from app.models import VaFinalAssessments, VaForms, VaProjectMaster, VaStatuses, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
 from app.services import smartva_service
+from app.services.icd11_titles import stored_cod_label
 from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
     category_block_code,
@@ -273,6 +274,8 @@ def _initial_json(row) -> dict | None:
         "id": str(row.va_iniassess_id),
         "immediate_cod": row.va_immediate_cod,
         "antecedent_cod": row.va_antecedent_cod,
+        # The Step 1 cause with its WHO title, for the Step 2 quick-use label.
+        "antecedent_cod_label": stored_cod_label(row.va_antecedent_cod),
         "other_conditions": _conditions(row.va_other_conditions),
         "created_at": _iso(row.va_iniassess_createdat),
     }
@@ -298,6 +301,7 @@ def _reviewer_initial_json(row) -> dict | None:
         "id": str(row.va_riniassess_id),
         "immediate_cod": row.va_immediate_cod,
         "antecedent_cod": row.va_antecedent_cod,
+        "antecedent_cod_label": stored_cod_label(row.va_antecedent_cod),
         "other_conditions": _conditions(row.va_other_conditions),
         "created_at": _iso(row.va_riniassess_createdat),
     }

@@ -135,3 +135,46 @@ class IntakeWorklistApiTests(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         self.assertEqual(response.get_json()["case"]["pending_flag"], "duplicate")
         self.assertEqual(response.get_json()["case"]["state"], "registered")
+
+    def test_reported_sort_is_newest_registration_first_and_pages_without_repeats(self):
+        self._login(self.interviewer_id)
+        ids = [self._register(f"Reported Order {n}")["death_id"] for n in range(3)]
+
+        seen, cursor = [], None
+        for _ in range(10):
+            url = "/api/v1/intake/cases?state=registered&sort=reported&limit=1"
+            if cursor:
+                url += f"&cursor={cursor}"
+            body = self.client.get(url).get_json()
+            seen += [row["death_id"] for row in body["cases"]]
+            cursor = body["next_cursor"]
+            if not cursor:
+                break
+        ours = [death_id for death_id in seen if death_id in ids]
+        self.assertEqual(ours, list(reversed(ids)), "newest reported first")
+        self.assertEqual(len(seen), len(set(seen)), "keyset paging never repeats a row")
+
+    def test_sort_parameter_is_checked_and_cursors_do_not_cross_orders(self):
+        self._login(self.interviewer_id)
+        # Two cases, so a one-row page has a cursor to hand over.
+        self._register("Sort Check")
+        self._register("Sort Check Two")
+        response = self.client.get("/api/v1/intake/cases?sort=soonest")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("error", response.get_json())
+
+        next_visit_page = self.client.get("/api/v1/intake/cases?limit=1").get_json()
+        self.assertIsNotNone(next_visit_page["next_cursor"], "need a second page to take a cursor from")
+        response = self.client.get(
+            f"/api/v1/intake/cases?sort=reported&limit=1&cursor={next_visit_page['next_cursor']}"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_worklist_row_says_who_started_the_case_without_a_name(self):
+        self._login(self.interviewer_id)
+        death = self._register("Started Flag")
+        row = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases?mine=true").get_json()["cases"]}[death["death_id"]]
+        self.assertIn("started", row)
+        self.assertFalse(row["started"], "a registered, unstarted case has no starter")
+        self.assertNotIn("started_by_name", row)
+        self.assertIn("deceased_name", row, "the interviewer scope still sees the name, as before")

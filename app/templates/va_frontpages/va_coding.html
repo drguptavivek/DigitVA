@@ -783,6 +783,27 @@ document.addEventListener("DOMContentLoaded", function () {
 #}
 
 <script>
+/* A section that fails to load says so instead of leaving "Loading..." on
+   screen (digitva-bf80). */
+document.body.addEventListener('htmx:responseError', function (event) {
+  var target = event.detail && event.detail.target;
+  if (!target || target.id !== 'form-content') return;
+  var status = event.detail.xhr ? event.detail.xhr.status : 0;
+  var message = status === 403
+    ? 'You do not have access to this section of the VA form.'
+    : status === 404
+      ? 'This section was not found.'
+      : 'This section could not be loaded. Please try again.';
+  target.innerHTML = '';
+  var alert = document.createElement('div');
+  alert.className = 'alert alert-warning m-3';
+  alert.setAttribute('role', 'alert');
+  alert.textContent = message + (status ? ' (HTTP ' + status + ')' : '');
+  target.appendChild(alert);
+});
+</script>
+
+<script>
 /* ── Section URL sync ───────────────────────────────────────────────────
    On page load: if ?section=<code> is in the URL, swap the initial HTMX
    load to that section and highlight its nav button.

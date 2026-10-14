@@ -73,6 +73,26 @@ export interface DorisCodeInfoReply {
   item: DorisCodeInfoItem;
 }
 
+/** The VA cause an ICD-11 code maps to: its code, title and sanitized definition HTML (shown as plain text). */
+export interface VaDefinition {
+  icd_code: string;
+  classification: string;
+  va_code: string;
+  title: string;
+  definition_html: string;
+}
+
+export function parseVaDefinition(value: unknown): VaDefinition {
+  const source = record(value, "va_definition");
+  return {
+    icd_code: string(source.icd_code, "va_definition.icd_code"),
+    classification: string(source.classification, "va_definition.classification"),
+    va_code: string(source.va_code, "va_definition.va_code"),
+    title: string(source.title, "va_definition.title"),
+    definition_html: nullableString(source.definition_html, "va_definition.definition_html") ?? "",
+  };
+}
+
 export interface DorisProcessEngine {
   status: "completed" | "rejected" | "timeout" | "malformed_response" | "unavailable";
   result: JsonObject | null;
@@ -109,6 +129,8 @@ export interface WorkspaceAssessment {
   id?: string;
   immediate_cod?: string | null;
   antecedent_cod?: string | null;
+  /** The Step 1 underlying cause with its WHO ICD-11 title, served with the workspace; null when no code. */
+  antecedent_cod_label?: string | null;
   conclusive_cod?: string | null;
   other_conditions?: string | string[] | null;
   remark?: string | null;
@@ -442,7 +464,7 @@ function assessment(value: unknown, field: string): WorkspaceAssessment | null {
   for (const key of ["id", "created_at"] as const) {
     if (source[key] !== undefined) parsed[key] = string(source[key], `${field}.${key}`);
   }
-  for (const key of ["immediate_cod", "antecedent_cod", "conclusive_cod", "remark", "reason", "other"] as const) {
+  for (const key of ["immediate_cod", "antecedent_cod", "antecedent_cod_label", "conclusive_cod", "remark", "reason", "other"] as const) {
     if (source[key] !== undefined) parsed[key] = nullableString(source[key], `${field}.${key}`);
   }
   if (source.other_conditions !== undefined) {

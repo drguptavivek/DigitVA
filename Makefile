@@ -1,5 +1,12 @@
 COMPOSE      = docker compose
+# Split production (database on its own host): the credentials file exists only
+# there, so its presence selects the external-database overlay.
+PROD_DB_ENV ?= /data/digitva-db.env
+ifneq ($(wildcard $(PROD_DB_ENV)),)
+COMPOSE_PROD = docker compose --env-file .env --env-file $(PROD_DB_ENV) -f docker-compose.yml -f docker-compose.external-db.yml
+else
 COMPOSE_PROD = docker compose -f docker-compose.yml
+endif
 APP_SERVICE  = minerva_app_service
 
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
@@ -84,7 +91,7 @@ dev-restart:
 	$(COMPOSE) restart $(APP_SERVICE)
 
 # ---------------------------------------------------------------------------
-# Prod (uses docker-compose.yml only, no override)
+# Prod (docker-compose.yml, no dev override; + external-db overlay on split hosts)
 # ---------------------------------------------------------------------------
 
 prod: ensure-secrets

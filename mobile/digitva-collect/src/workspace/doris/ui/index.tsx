@@ -3,8 +3,8 @@
  * components. No UI library; variants are small style maps (the cva idea).
  * Token table and rules: docs/current-state/doris-ui-tokens.md.
  */
-import { useMemo, useState, type ComponentProps, type ReactNode } from "react";
-import { ActivityIndicator, Platform, Pressable, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import { BUTTON_MIN_WIDTH, buttonTone, fontSize, uiRadius, useTheme, type ButtonSize, type ButtonVariant, type ChartToken, type UiTokens } from "../../../theme";
 
@@ -318,6 +318,104 @@ export function RadioRow({ label, selected, onPress, accessibilityLabel, accessi
 const ROW_MIN_HEIGHT = 48;
 const RADIO_SIZE = 22;
 const RADIO_DOT = 10;
+
+export interface MenuOption<T extends string> {
+  value: T;
+  label: string;
+  /** Screen-reader name, for example "Estimated age unit: Years". */
+  accessibilityLabel: string;
+  /** Greyed but still selectable (units longer than the age). */
+  dimmed?: boolean;
+}
+
+type Anchor = { x: number; y: number; width: number; height: number };
+
+/**
+ * Dropdown: a field-style trigger (button with expanded state) that opens a vertical list of options (radio with
+ * selected state) laid over the content, so it never pushes or spills into sibling controls. The list closes on a
+ * choice, on an outside press and on Escape (Modal's onRequestClose on web and native). It sits under the trigger
+ * once the trigger is measured, else at a fixed offset. `triggerLabel` is the trigger's accessible name.
+ */
+/** Gap between a menu and the window edges. */
+const MENU_EDGE = gap.sm;
+
+/**
+ * Top of a menu of `menuHeight` beside its trigger: below the trigger when it fits the window, else above it, else
+ * pinned inside the window. Pure so the placement is testable without a device.
+ */
+export function menuTop(anchor: Anchor, menuHeight: number, windowHeight: number): number {
+  const below = anchor.y + anchor.height + gap.xs;
+  if (below + menuHeight <= windowHeight - MENU_EDGE) return below;
+  const above = anchor.y - gap.xs - menuHeight;
+  if (above >= MENU_EDGE) return above;
+  return Math.max(MENU_EDGE, windowHeight - MENU_EDGE - menuHeight);
+}
+
+/**
+ * Vertical choice menu over the content: a Modal with its options in a ScrollView capped to the window, placed
+ * by menuTop, hidden until measured so it never paints at a guessed position. Closes on a choice, an outside
+ * press or back; on web the trigger regains focus.
+ */
+export function MenuSelect<T extends string>({ triggerLabel, valueText, accessibilityValue, options, selected, onSelect, style }: { triggerLabel: string; valueText: string; accessibilityValue?: { text: string }; options: ReadonlyArray<MenuOption<T>>; selected: string; onSelect: (value: T) => void; style?: StyleProp<ViewStyle> }) {
+  const { t, controlHeight } = useUi();
+  const layout = useLayout();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const trigger = useRef<View>(null);
+  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [menuHeight, setMenuHeight] = useState(0);
+  const focusTrigger = () => {
+    if (Platform.OS !== "web") return;
+    // The trigger is the wrapper's only button; web focus needs the DOM node.
+    const node = trigger.current as unknown as { querySelector?: (selector: string) => { focus?: () => void } | null } | null;
+    node?.querySelector?.('[role="button"]')?.focus?.();
+  };
+  const close = () => {
+    setOpen(false);
+    setAnchor(null);
+    setMenuHeight(0);
+    focusTrigger();
+  };
+  const openMenu = () => {
+    // measureInWindow is absent in unit tests: the menu then stays hidden, which is the point of measuring first.
+    trigger.current?.measureInWindow?.((x, y, width, height) => setAnchor({ x, y, width, height }));
+    setOpen(true);
+  };
+  const ready = anchor !== null && menuHeight > 0;
+  const width = Math.max(anchor?.width ?? 0, CHIP_MIN_WIDTH);
+  const left = anchor ? Math.min(Math.max(MENU_EDGE, anchor.x), windowWidth - MENU_EDGE - width) : MENU_EDGE;
+  const top = anchor && ready ? menuTop(anchor, menuHeight, windowHeight) : 0;
+  // The option list scrolls inside the window; the menu's own padding is the gap to the window edge.
+  const listMaxHeight = Math.max(controlHeight, windowHeight - 2 * (MENU_EDGE + gap.xs));
+  return (
+    <View ref={trigger} collapsable={false}>
+      <FieldButton accessibilityLabel={triggerLabel} accessibilityValue={accessibilityValue} accessibilityState={{ expanded: open }} onPress={() => (open ? close() : openMenu())} style={style}>
+        <ControlText>{`${valueText} ▾`}</ControlText>
+      </FieldButton>
+      {open ? (
+        <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={close}>
+          <View style={{ flex: 1 }}>
+            <Pressable accessibilityLabel="Close menu" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }} />
+            <View accessibilityRole="menu" onLayout={(event) => setMenuHeight(event.nativeEvent.layout.height)}
+              style={[{ position: "absolute", top, left, minWidth: width, opacity: ready ? 1 : 0, backgroundColor: t.popover, borderWidth: 1, borderColor: t.border, borderRadius: uiRadius.md, padding: gap.xs, elevation: 4 }]}>
+              <ScrollView style={{ maxHeight: listMaxHeight }} keyboardShouldPersistTaps="handled">
+                {options.map((option) => {
+                  const on = option.value === selected;
+                  return (
+                    <Pressable key={option.value} accessibilityRole="menuitem" accessibilityLabel={option.accessibilityLabel} accessibilityState={{ selected: on }} hitSlop={HIT_SLOP} onPress={() => { close(); onSelect(option.value); }}
+                      style={[{ minHeight: controlHeight, justifyContent: "center", paddingHorizontal: gap.md, marginBottom: gap.xs, borderRadius: uiRadius.sm, backgroundColor: on ? t.accent : "transparent" }, option.dimmed ? layout.dim : null]}>
+                      <ControlText>{option.label}</ControlText>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </View>
+  );
+}
 
 /** Wrapping group of choices with 12px gaps; padded so the focus ring of the first and last item is never clipped. */
 export function RadioGroup({ children, style, onLayout }: { children: ReactNode; style?: StyleProp<ViewStyle>; onLayout?: ComponentProps<typeof View>["onLayout"] }) {

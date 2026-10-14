@@ -91,7 +91,7 @@ def _require_env(key: str) -> str:
 
 
 def _parse_public_url(base_url: str):
-    """Parse ``MAIL_BASE_URL`` (or any bare-host/full-URL string) once.
+    """Parse ``PUBLIC_BASE_URL`` (or any bare-host/full-URL string) once.
 
     ``email_service`` and ``trusted_hosts_for`` accept a bare host too, so a
     scheme is added before parsing when one is missing. Shared by
@@ -109,19 +109,19 @@ def trusted_hosts_for(base_url: str) -> list[str]:
     host = _parse_public_url(base_url).hostname
     if not host:
         raise RuntimeError(
-            "MAIL_BASE_URL must be set to the public URL "
-            "(e.g. https://digitva.causeofdeathindia.com) in production."
+            "PUBLIC_BASE_URL must be set to the public URL "
+            "(e.g. https://digitva.example.org) in production."
         )
     return [host, "localhost", "127.0.0.1"]
 
 
 def _webauthn_rp_id_default(base_url: str) -> str:
-    """RP ID default: the host of MAIL_BASE_URL, else localhost for dev."""
+    """RP ID default: the host of PUBLIC_BASE_URL, else localhost for dev."""
     return _parse_public_url(base_url).hostname or "localhost"
 
 
 def _webauthn_origin_default(base_url: str) -> str:
-    """Origin default: scheme + host[:port] of MAIL_BASE_URL, else the local
+    """Origin default: scheme + host[:port] of PUBLIC_BASE_URL, else the local
     dev server. WebAuthn allows an http origin only for localhost."""
     parsed = _parse_public_url(base_url)
     if not parsed.hostname:
@@ -163,12 +163,16 @@ class Config:
     SESSION_SQLALCHEMY_TABLE = "va_sessions"
     
     SQLALCHEMY_DATABASE_URI = _require_env("DATABASE_URL")
-    # Database connection pool settings - prevents connection leaks and pool exhaustion
-    # 3 services × (pool_size=3 + max_overflow=5) = 24 max connections → fits within max_connections=40
+    # Database connection pool, per process. Defaults: 3 services x (3 + 5) = 24
+    # connections, within the bundled database's max_connections=40. A process
+    # needs at least as many as it runs request threads, so a multi-threaded
+    # gunicorn sizes it up and Celery (one task at a time) sizes it down per
+    # container with DB_POOL_SIZE / DB_MAX_OVERFLOW
+    # (docs/current-state/runtime-and-operations.md, connection budget).
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,      # Detect stale connections before use
-        "pool_size": 3,             # Reduced from 5 — sufficient for low-concurrency Flask/Celery
-        "max_overflow": 5,          # Burst up to 8 total per process when needed
+        "pool_size": int(os.environ.get("DB_POOL_SIZE", "3")),
+        "max_overflow": int(os.environ.get("DB_MAX_OVERFLOW", "5")),
         "pool_recycle": 300,        # Recycle connections after 5 minutes
         "pool_use_lifo": True,      # Reuse most-recently-used connections; lets cold ones expire naturally
         "pool_timeout": 20,         # Fail fast if pool exhausted (default is 30s)
@@ -240,7 +244,9 @@ class Config:
     # Secrets: read from the environment, never logged and never sent to a client.
     S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
     S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
-    # Optional key prefix inside the bucket, e.g. "digitva/" (empty by default).
+    # Optional key prefix inside the bucket, e.g. "staging/" (empty by default).
+    # A missing trailing slash is added and a leading one dropped
+    # (attachment_store.normalize_key_prefix).
     S3_PREFIX = os.environ.get("S3_PREFIX", "")
     # Lifetime of a delivery presigned URL. Short by design: the URL is a
     # bearer capability for PHI bytes and is never stored, cached or logged.
@@ -298,6 +304,17 @@ class Config:
         os.environ.get("DB_BACKUP_TIMEOUT_SECONDS", "1800")
     )
 
+    # --- TLS certificate expiry monitoring ------------------------------
+    # Only split production has these certificates; every check reports
+    # "not_configured" where its file or URL is absent. Baseline:
+    # docs/policy/tls-certificate-monitoring.md.
+    APP_TLS_CERT_FILE = os.environ.get(
+        "APP_TLS_CERT_FILE", "/etc/digitva-app/tls/server.crt"
+    )
+    TLS_EXPIRY_WARN_DAYS = int(os.environ.get("TLS_EXPIRY_WARN_DAYS", "30"))
+    TLS_EXPIRY_URGENT_DAYS = int(os.environ.get("TLS_EXPIRY_URGENT_DAYS", "7"))
+    TLS_HEALTH_DAILY_TIME = os.environ.get("TLS_HEALTH_DAILY_TIME", "06:30").strip()
+
     # --- Data-manager CSV exports --------------------------------------
     # An export is derived data: a data manager can always ask for it again.
     # With ATTACHMENT_STORE=s3 it is written to the exports/ prefix of the same
@@ -320,7 +337,7 @@ class Config:
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@digitva.org")
     # Public base URL: email links, and in production the only trusted host
     # (see trusted_hosts_for). Development and tests accept any host.
-    MAIL_BASE_URL = os.environ.get("MAIL_BASE_URL", "")
+    PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "")
     MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() in (
         "true",
         "1",
@@ -387,26 +404,26 @@ class Config:
 
     # --- Passkeys (WebAuthn) --------------------------------------------
     # docs/policy/authentication-factors.md section 2. RP ID/origin default
-    # to the host/scheme+host of MAIL_BASE_URL; env overrides are for
+    # to the host/scheme+host of PUBLIC_BASE_URL; env overrides are for
     # development only -- production must not change the RP ID once a
     # passkey has been registered against it.
     WEBAUTHN_RP_ID = os.environ.get("WEBAUTHN_RP_ID", "").strip() or _webauthn_rp_id_default(
-        os.environ.get("MAIL_BASE_URL", "")
+        os.environ.get("PUBLIC_BASE_URL", "")
     )
     WEBAUTHN_ORIGIN = os.environ.get("WEBAUTHN_ORIGIN", "").strip() or _webauthn_origin_default(
-        os.environ.get("MAIL_BASE_URL", "")
+        os.environ.get("PUBLIC_BASE_URL", "")
     )
     WEBAUTHN_RP_NAME = "DigitVA"
     # --- Collection devices (Path B) --------------------------------------
     # docs/policy/field-data-collection.md. The server URL an enrolment QR
-    # carries: the public scheme+host of MAIL_BASE_URL unless overridden (an
+    # carries: the public scheme+host of PUBLIC_BASE_URL unless overridden (an
     # Android emulator reaches the dev host as http://10.0.2.2:8051). Outside
     # debug/testing it must be https (or http to localhost/10.0.2.2), or
     # issuing an enrolment code is refused. Refresh lifetime in days, sliding:
     # proposed decision C1; capped at DEVICE_SESSION_MAX_DAYS from sign-in
     # (proposed C1 addition).
     DEVICE_PUBLIC_URL = os.environ.get("DEVICE_PUBLIC_URL", "").strip() or _webauthn_origin_default(
-        os.environ.get("MAIL_BASE_URL", "")
+        os.environ.get("PUBLIC_BASE_URL", "")
     )
     DEVICE_REFRESH_TTL_DAYS = int(os.environ.get("DEVICE_REFRESH_TTL_DAYS", "30"))
     DEVICE_SESSION_MAX_DAYS = int(os.environ.get("DEVICE_SESSION_MAX_DAYS", "90"))

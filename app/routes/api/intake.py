@@ -50,7 +50,7 @@ bp = Blueprint("intake_api", __name__)
 SUBMISSION_MAX_BYTES = 2 * 1024 * 1024
 REPORT_MAX_BYTES = 256 * 1024
 BODY_MAX_BYTES = 16 * 1024
-#: One attachment's raw body (``put_attachment``): the owner's 25 MB per file.
+#: One attachment's raw body (``put_attachment``): ``MAX_BYTES``, 50 MB per file.
 ATTACHMENT_MAX_BYTES = attachments_svc.MAX_BYTES
 _UNCAPPED = frozenset({"save_draft", "submit_draft"})
 
@@ -531,7 +531,7 @@ def _attachment_body(row, created):
 @limiter.limit("120 per minute")
 def put_attachment(draft_id, client_attachment_id):
     """Store one file for the caller's open draft: the raw body (send
-    ``Content-Type: application/octet-stream``), at most 25 MB (an AMR 5 MB),
+    ``Content-Type: application/octet-stream``), at most ``MAX_BYTES`` (an AMR ``AMR_MAX_BYTES``),
     ``Content-Length`` required; optional ``X-Content-SHA256`` (hex) is checked
     against the body and, on a retried id, against the stored file. ``client_attachment_id`` is the UUID the page made for the file,
     the idempotency key: 201 ``{attachment, created: true}`` when stored, 200

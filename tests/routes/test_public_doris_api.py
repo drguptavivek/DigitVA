@@ -213,7 +213,10 @@ class TestPublicDorisApi:
 
     def test_runtime_split_and_access_log_exclude_query_strings(self):
         root = Path(__file__).resolve().parents[2]
-        nginx = (root / "deploy/doris-public-nginx.conf").read_text()
+        nginx = "".join(
+            (root / "deploy" / name).read_text()
+            for name in ("doris-public-nginx.conf", "doris-public-nginx-tls.conf", "ingress-common.conf", "ingress-routes.conf")
+        )
         boot = (root / "boot-public-doris.sh").read_text()
         assert "location = /help/doris-demo" in nginx
         assert "location ^~ /api/v1/doris-demo/" in nginx

@@ -1,4 +1,4 @@
-// VA Intake dashboard (/intake/): project/site and unit pickers for new
+// VA Interview dashboard (/intake/): project/site and unit pickers for new
 // entries, and the interviewer worklist over GET /api/v1/intake/cases
 // (digitva-vzk.6, policy docs/policy/web-intake.md, "The list").
 //
@@ -370,17 +370,30 @@
     openDraft({ project_id: c.project_id, site_id: c.site_id, org_unit_id: unitId() }, this);
   });
 
-  // ---- Worklist ----
-  //
-  // One list over GET /api/v1/intake/cases (team cases in scope across every
-  // project-site of the caller's interviewer grants, newest activity first,
-  // keyset-paged). Tabs group case states; counts come from the API's
-  // per-state counts, which ignore the state filter but honour "Mine".
-  var TABS = {
+  // ---- Chips: filter chip -> API query (pure: no DOM) ----
+  // Each status chip is one group of case states; "Recent" is every state
+  // the worklist serves, newest reported first. The status chips keep the
+  // next-visit order. Checked by tests/js/intake_worklist_chips_check.mjs,
+  // which reads this block, so keep the markers.
+  var CHIP_STATES = {
     visit: ['registered', 'scheduled', 'not_reachable', 'paused'],
     progress: ['in_progress', 'draft_identity'],
     done: ['submitted', 'refused', 'duplicate', 'cancelled']
   };
+  CHIP_STATES.recent = CHIP_STATES.visit.concat(CHIP_STATES.progress, CHIP_STATES.done);
+  function hasOwn(obj, key) { return Object.prototype.hasOwnProperty.call(obj, key); }
+  function chipQuery(chip, mine) {
+    var key = hasOwn(CHIP_STATES, chip) ? chip : 'recent';
+    return { states: CHIP_STATES[key], sort: key === 'recent' ? 'reported' : 'next_visit', mine: mine === true };
+  }
+  // ---- end chips ----
+
+  // ---- Worklist ----
+  //
+  // One list over GET /api/v1/intake/cases (team cases in scope across every
+  // project-site of the caller's interviewer grants, keyset-paged). The chip
+  // picks the states and the order; counts come from the API's per-state
+  // counts, which ignore the state filter but honour "Mine".
   var STATE_BADGE = {
     draft_identity: ['Details pending', 'text-bg-light border'],
     registered: ['Registered', 'text-bg-primary'],
@@ -413,7 +426,7 @@
   ];
   var REASON_MAX = 200;
   var REASON_WARNING = 'No names, phone numbers or addresses in the reason.';
-  var TAB = 'visit', MINE = false, NEXT_CURSOR = null, LIST_TOKEN = 0;
+  var CHIP = 'recent', MINE = false, NEXT_CURSOR = null, LIST_TOKEN = 0;
   var TZ = $('intake-worklist').dataset.userTz || 'Asia/Kolkata';
   var dateTimeFormat;
   try {
@@ -426,20 +439,32 @@
     return parsed && !isNaN(parsed) ? dateTimeFormat.format(parsed) : '—';
   }
 
+  function dateOnlyFormat() {
+    try {
+      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: TZ });
+    } catch (e) {
+      return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Asia/Kolkata' });
+    }
+  }
+  var dateFormat = dateOnlyFormat();
+  function formatDate(iso) {
+    var parsed = iso ? new Date(iso) : null;
+    return parsed && !isNaN(parsed) ? dateFormat.format(parsed) : '—';
+  }
+
   function initWorklist() {
-    var savedTab = stored('intake.tab');
-    if (TABS[savedTab]) TAB = savedTab;
+    var savedChip = stored('intake.tab');
+    if (savedChip && hasOwn(CHIP_STATES, savedChip)) CHIP = savedChip;
     MINE = stored('intake.mine') === '1';
-    $('intake-mine').checked = MINE;
-    $('intake-mine').addEventListener('change', function () {
-      MINE = this.checked;
+    $('intake-mine').addEventListener('click', function () {
+      MINE = !MINE;
       stored('intake.mine', MINE ? '1' : '0');
       loadWorklist(true);
     });
-    Array.prototype.forEach.call(document.querySelectorAll('#intake-tabs [data-tab]'), function (btn) {
+    Array.prototype.forEach.call(document.querySelectorAll('#intake-chips [data-chip]'), function (btn) {
       btn.addEventListener('click', function () {
-        TAB = btn.dataset.tab;
-        stored('intake.tab', TAB);
+        CHIP = btn.dataset.chip;
+        stored('intake.tab', CHIP);
         loadWorklist(true);
       });
     });
@@ -450,21 +475,27 @@
   function loadWorklist(reset) {
     var token = ++LIST_TOKEN;
     var rows = $('intake-worklist-rows'), more = $('intake-load-more');
-    Array.prototype.forEach.call(document.querySelectorAll('#intake-tabs [data-tab]'), function (btn) {
-      var active = btn.dataset.tab === TAB;
-      btn.classList.toggle('active', active);
-      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    var query = chipQuery(CHIP, MINE);
+    Array.prototype.forEach.call(document.querySelectorAll('#intake-chips [data-chip]'), function (btn) {
+      var active = btn.dataset.chip === CHIP;
+      btn.classList.toggle('btn-primary', active);
+      btn.classList.toggle('btn-outline-primary', !active);
+      btn.setAttribute('aria-pressed', active ? 'true' : 'false');
     });
+    $('intake-mine').classList.toggle('btn-secondary', MINE);
+    $('intake-mine').classList.toggle('btn-outline-secondary', !MINE);
+    $('intake-mine').setAttribute('aria-pressed', MINE ? 'true' : 'false');
     $('intake-worklist-scope').textContent = MINE
       ? 'Cases you registered, started or worked on.'
       : 'Team cases in your scope.';
     if (reset) { NEXT_CURSOR = null; rows.replaceChildren(); }
     more.disabled = true;
-    var url = '/api/v1/intake/cases?state=' + encodeURIComponent(TABS[TAB].join(','))
-      + '&mine=' + (MINE ? 'true' : 'false')
+    var url = '/api/v1/intake/cases?state=' + encodeURIComponent(query.states.join(','))
+      + '&mine=' + (query.mine ? 'true' : 'false')
+      + '&sort=' + query.sort
       + (NEXT_CURSOR ? '&cursor=' + encodeURIComponent(NEXT_CURSOR) : '');
     api(url).then(function (res) {
-      if (token !== LIST_TOKEN) return; // a newer tab/filter change is in flight
+      if (token !== LIST_TOKEN) return; // a newer chip/filter change is in flight
       more.disabled = false;
       var empty = $('intake-worklist-empty');
       if (!res.ok) {
@@ -475,9 +506,9 @@
       }
       empty.textContent = 'No cases here.';
       var counts = res.data.counts || {};
-      Object.keys(TABS).forEach(function (tab) {
-        var total = TABS[tab].reduce(function (sum, state) { return sum + (counts[state] || 0); }, 0);
-        document.querySelector('#intake-tabs [data-count="' + tab + '"]').textContent = String(total);
+      Object.keys(CHIP_STATES).forEach(function (chip) {
+        var total = CHIP_STATES[chip].reduce(function (sum, state) { return sum + (counts[state] || 0); }, 0);
+        document.querySelector('#intake-chips [data-count="' + chip + '"]').textContent = String(total);
       });
       (res.data.cases || []).forEach(function (row) { rows.appendChild(renderRow(row)); });
       NEXT_CURSOR = res.data.next_cursor || null;
@@ -486,44 +517,59 @@
     });
   }
 
-  function renderRow(row) {
-    var item = el('li', 'list-group-item px-2 py-2');
-    var head = el('div', 'd-flex justify-content-between align-items-start gap-2');
-    head.appendChild(el('strong', 'text-break', row.details_pending ? 'New interview' : (row.deceased_name || '—')));
-    var badge = STATE_BADGE[row.state] || [row.state, 'text-bg-secondary'];
-    head.appendChild(el('span', 'badge ' + badge[1] + ' flex-shrink-0', badge[0]));
-    item.appendChild(head);
+  function cell(text, className) {
+    var td = el('td', 'align-top' + (className ? ' ' + className : ''));
+    if (text != null) td.textContent = text;
+    return td;
+  }
 
-    item.appendChild(el('div', 'small text-break', [
-      row.unique_id,
+  // One case = two table rows: the case row, then a hidden full-width cell
+  // that holds the inline form (`panel`) when an action opens one.
+  function renderRow(row) {
+    var frag = document.createDocumentFragment();
+    var tr = el('tr');
+    tr.appendChild(cell(formatDate(row.created_at), 'text-nowrap'));
+    tr.appendChild(cell(row.unit_name || 'no unit'));
+
+    var deceased = cell();
+    deceased.appendChild(el('strong', 'd-block text-break', row.details_pending ? 'New interview' : (row.deceased_name || '—')));
+    deceased.appendChild(el('div', 'text-muted text-break', row.unique_id));
+    deceased.appendChild(el('div', 'text-break', [
       row.deceased_sex || '—',
       row.age_years != null ? row.age_years + ' y' : 'age —',
-      'died ' + (row.date_of_death || '—'),
-      row.unit_name || 'no unit'
+      'died ' + (row.date_of_death || '—')
     ].join(' · ')));
-    if (row.next_visit_at) item.appendChild(el('div', 'small fw-semibold', 'Next visit ' + formatWhen(row.next_visit_at)));
-    var meta = el('div', 'small text-muted', 'Updated ' + formatWhen(row.updated_at)
-      + (row.last_contact_at ? ' · last contact ' + formatWhen(row.last_contact_at) : '')
-      + (row.informant_phone_masked ? ' · phone ' + row.informant_phone_masked : ''));
+    if (row.informant_phone_masked) deceased.appendChild(el('div', 'text-muted', 'phone ' + row.informant_phone_masked));
+    tr.appendChild(deceased);
+
+    var status = cell();
+    var badge = STATE_BADGE[row.state] || [row.state, 'text-bg-secondary'];
+    status.appendChild(el('span', 'badge me-1 mb-1 ' + badge[1], badge[0]));
     if (row.pending_flag) {
-      meta.appendChild(document.createTextNode(' '));
-      meta.appendChild(el('span', 'badge text-bg-warning', row.pending_flag === 'duplicate' ? 'Duplicate flag pending' : 'Cancel flag pending'));
+      status.appendChild(el('span', 'badge me-1 mb-1 text-bg-warning', row.pending_flag === 'duplicate' ? 'Duplicate flag pending' : 'Cancel flag pending'));
     } else if ((row.possible_duplicates || []).length) {
       // Phase 6 (digitva-vzk.11): a hint from the page's one batched check;
       // "Flag duplicate" offers these cases first. Never merges anything.
-      meta.appendChild(document.createTextNode(' '));
-      meta.appendChild(el('span', 'badge text-bg-warning', 'Possible duplicate of '
+      status.appendChild(el('span', 'badge me-1 mb-1 text-bg-warning', 'Possible duplicate of '
         + row.possible_duplicates.map(function (d) { return d.unique_id; }).join(', ')));
     }
     if (row.other_draft_active) {
       // Only that a teammate has a draft and when it started, never who.
-      meta.appendChild(document.createTextNode(' '));
-      meta.appendChild(el('span', 'badge text-bg-warning', 'Another interviewer started this on ' + formatWhen(row.other_draft_started_at)));
+      status.appendChild(el('span', 'badge me-1 mb-1 text-bg-warning', 'Another interviewer started this on ' + formatWhen(row.other_draft_started_at)));
     }
-    item.appendChild(meta);
+    if (row.next_visit_at) status.appendChild(el('div', 'fw-semibold', 'Next visit ' + formatWhen(row.next_visit_at)));
+    status.appendChild(el('div', 'text-muted', 'Updated ' + formatWhen(row.updated_at)
+      + (row.last_contact_at ? ' · last contact ' + formatWhen(row.last_contact_at) : '')));
+    tr.appendChild(status);
 
-    var actions = el('div', 'd-flex flex-wrap gap-2 mt-2');
-    var panel = el('div', 'mt-2 d-none');
+    // Who holds the case: "You" or "Teammate" only, never a name (supervisors
+    // see names on /intake/supervision).
+    tr.appendChild(cell(row.started_by_me || row.my_draft_id ? 'You' : (row.started ? 'Teammate' : '—')));
+
+    var action = cell();
+    var actions = el('div', 'd-flex flex-wrap gap-2');
+    var panel = el('td', 'p-0 border-0 d-none');
+    panel.colSpan = 6;
     var waiting = VISIT_STATES.indexOf(row.state) !== -1;
     // A case that could not be reached is chased by phone first (the plan's
     // "Log attempt" primary action); starting it stays one tap away.
@@ -569,9 +615,14 @@
         actions.appendChild(actionButton('Flag for cancel', 'btn-outline-secondary', function () { showFlagForm(panel, row, 'cancel'); }));
       }
     }
-    if (actions.children.length) item.appendChild(actions);
-    item.appendChild(panel);
-    return item;
+    if (actions.children.length) action.appendChild(actions);
+    tr.appendChild(action);
+    frag.appendChild(tr);
+
+    var panelRow = el('tr');
+    panelRow.appendChild(panel);
+    frag.appendChild(panelRow);
+    return frag;
   }
 
   function actionButton(text, style, onClick) {

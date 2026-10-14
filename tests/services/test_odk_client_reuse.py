@@ -363,7 +363,7 @@ class TestOdkClientReuse(TestCase):
             mock_db.session.execute.return_value.all.return_value = [
                 (
                     "uuid:abc-form01", "note.txt", '"etag-old"', local_path,
-                    "note-token.txt", "local",
+                    "note-token.txt", "local", None,
                 )
             ]
             mock_db.session.scalars.return_value.all.return_value = [existing]

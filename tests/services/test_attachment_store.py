@@ -103,6 +103,22 @@ def store_mod_required_keys():
     return REQUIRED_S3_CONFIG_KEYS
 
 
+class KeyPrefixTests(TestCase):
+    def test_prefix_is_normalised_to_one_trailing_slash(self):
+        for raw, expected in [
+            ("staging/", "staging/"),
+            ("staging", "staging/"),
+            ("/staging/", "staging/"),
+            ("  staging  ", "staging/"),
+            ("env/staging", "env/staging/"),
+            ("", ""),
+            (None, ""),
+            ("/", ""),
+        ]:
+            with self.subTest(raw=raw):
+                self.assertEqual(store_mod.normalize_key_prefix(raw), expected)
+
+
 class LocalStoreInterfaceTests(TestCase):
     FORM_ID = "STOREFORM"
 
@@ -186,6 +202,13 @@ class S3StoreInterfaceTests(TestCase):
         self.assertEqual(
             self.store.key_for(self._target()), f"digitva/{self.FORM_ID}/media/abc.jpg"
         )
+
+    def test_a_prefix_without_a_slash_still_makes_a_folder(self):
+        config = dict(self.app.config, S3_PREFIX="staging")
+        store = store_mod.build_attachment_store(config)
+        self.assertEqual(store.key_prefix, "staging/")
+        self.assertEqual(store.key_for(self._target()), f"staging/{self.FORM_ID}/media/abc.jpg")
+        self.assertEqual(store.absolute_key("db-backups/x.dump"), "staging/db-backups/x.dump")
 
     def test_legacy_row_without_a_storage_name_has_no_key_and_no_presign(self):
         legacy = self._target(storage_name=None)

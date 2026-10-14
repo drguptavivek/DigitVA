@@ -3,7 +3,7 @@ title: Installation
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-04-04
+last_updated: 2026-10-14
 ---
 
 # Installation
@@ -164,16 +164,47 @@ The app also runs automatic backups via the backup service (keeps last 10).
 
 ## Production Notes
 
-For production deployment:
+Three setups share `docker-compose.yml`:
 
-1. Replace the Flask dev server override with Gunicorn:
-   ```yaml
-   # docker-compose.prod.yml
-   services:
-     minerva_app_service:
-       command: ./boot.sh
-   ```
-2. Set `FLASK_DEBUG=0` and `FLASK_ENV=production`
-3. Set a strong `SECRET_KEY`
-4. Configure reverse proxy (nginx) to forward to port 8051
-5. Consider increasing `docker-compose.yml` resource limits for larger datasets
+| Setup | Files | Command |
+| --- | --- | --- |
+| Dev | `docker-compose.yml` + `docker-compose.override.yml` (auto-loaded) | `make dev` |
+| Single-host prod (bundled PostgreSQL 17 container) | `docker-compose.yml` only | `make prod` |
+| Split prod (PostgreSQL on its own host) | `docker-compose.yml` + `docker-compose.external-db.yml` | `make prod` |
+
+`make prod` selects the split overlay by itself when `/data/digitva-db.env`
+exists (override the path with `PROD_DB_ENV=`). Prod hosts must never run a
+bare `docker compose up`: that auto-loads the dev override.
+
+Split prod expects on the app host:
+
+- `/data/digitva-db.env` (mode 0600): `DATABASE_URL=postgresql://<user>:<password>@<db-ip>:5432/<db>?sslmode=verify-full&sslrootcert=/etc/digitva-db/ca.crt`.
+  Compose interpolates it, so a `$` in the password must be written `$$`.
+- `/etc/digitva-db/ca.crt`: the database server's public certificate, mounted
+  read-only at the same path into app, worker, beat and DORIS.
+- `/etc/digitva-app/tls/server.crt` and `server.key`: the `digitva_ingress`
+  nginx serves HTTPS with them on port 8000 for the reverse proxy and routes
+  the public DORIS demo and the clinical app (Split Production TLS).
+- `APP_BIND_IP` in `.env`: the private address the app publishes port 8000 on
+  (defaults to `127.0.0.1`). Never `0.0.0.0`: Docker publishes ports around the
+  host firewall, so only the cloud security group (port 8000 from the reverse
+  proxy alone) and this binding keep the app private.
+- No `COMPOSE_PROFILES` needed: the split overlay always starts the local WHO
+  ICD-11 API, the public DORIS demo and its ingress (on a single host they
+  still need `COMPOSE_PROFILES=icd11`).
+- `ATTACHMENT_STORE=s3` and the `S3_*` keys in `.env` when attachments live in
+  a bucket (template in `.env.example`). Production then refuses to start if
+  one is missing, rather than writing attachments to the app host's disk.
+- `PUBLIC_BASE_URL=https://<public hostname>` in `.env`. Production refuses to
+  start without it. From it the app derives `TRUSTED_HOSTS` (the public host
+  plus `localhost` for the healthcheck; any other `Host` header gets a 400),
+  the WebAuthn RP ID and origin, the device-enrolment URL and email links. The
+  reverse proxy must pass `Host $host`. Passkeys are bound to the RP ID, so
+  ones registered under a different hostname stop working.
+
+The bundled `minerva_db_service` is parked in a profile there and never starts;
+`DATABASE_URL` missing is a hard error, never a silent fallback to it.
+Certificate paths, issuing (`scripts/make-tls-cert.sh`) and copying the
+public certificates between hosts: [Split Production TLS](split-production-tls.md).
+`scripts/manual-db-dump.sh` and `manual-db-restore.sh` exec into
+`minerva_db_service` and do not apply to split prod.

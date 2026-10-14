@@ -61,6 +61,8 @@ class VaDeathRegister(db.Model):
         sa.Index("ix_va_death_register_registered_by", "registered_by", "updated_at", "death_id"),
         # The worklist sorts by next visit, then last activity.
         sa.Index("ix_va_death_register_next_visit", "next_visit_at", "updated_at", "death_id"),
+        # The worklist's "Recent" chip: newest registration first.
+        sa.Index("ix_va_death_register_created", "created_at", "death_id"),
         # Every coding reader asks "is this va_sid a confirmed duplicate?"
         # (app/services/duplicate_exclusion.py); only duplicate rows matter.
         sa.Index(

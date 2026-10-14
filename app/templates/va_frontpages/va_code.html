@@ -1,4 +1,6 @@
 {% extends 'va_frontpages/va_base.html' %}
+{# Flash messages render inline on this page; va_base skips its toasts. #}
+{% set flashes_inline = true %}
 
 {% block title %}DigitVA | VA Code{% endblock %}
 

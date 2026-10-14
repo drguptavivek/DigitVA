@@ -938,7 +938,7 @@
                           <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                             {{ smartva.va_smartva_cause1icd }}</span>
                           {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause1icd) %}
-                          <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
+                          <span class="badge bg-light text-dark border ms-2 px-3 py-2 text-wrap">ICD-11 mapping: {{ icd11_alternatives_label(icd11) or "unavailable" }}</span>
                         {% endif %}
                       </div>
                     </td>
@@ -962,7 +962,7 @@
                           <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                             {{ smartva.va_smartva_cause2icd }}</span>
                           {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause2icd) %}
-                          <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
+                          <span class="badge bg-light text-dark border ms-2 px-3 py-2 text-wrap">ICD-11 mapping: {{ icd11_alternatives_label(icd11) or "unavailable" }}</span>
                         {% endif %}
                       </div>
                     </td>
@@ -986,7 +986,7 @@
                           <span class="badge bg-secondary ms-2 px-3 py-2">ICD-10:
                             {{ smartva.va_smartva_cause3icd }}</span>
                           {% set icd11 = smartva_icd11_mapping(smartva.va_smartva_cause3icd) %}
-                          <span class="badge bg-light text-dark border ms-2 px-3 py-2">ICD-11 mapping: {{ icd11 if icd11 else "unavailable" }}</span>
+                          <span class="badge bg-light text-dark border ms-2 px-3 py-2 text-wrap">ICD-11 mapping: {{ icd11_alternatives_label(icd11) or "unavailable" }}</span>
                         {% endif %}
                       </div>
                     </td>

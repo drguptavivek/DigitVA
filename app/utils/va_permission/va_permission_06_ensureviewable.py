@@ -30,5 +30,5 @@ def va_permission_ensureviewable(sid):
     ).all()
     if sid not in final_ids + review_ids:
         va_permission_abortwithflash(
-            "You no longer have access to view this VA form.", 403
+            "You can view only the VA forms you have coded or reviewed.", 403
         )

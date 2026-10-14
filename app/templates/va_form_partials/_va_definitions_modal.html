@@ -21,7 +21,7 @@
 <script src="{{ url_for('static', filename='js/va_definitions.js') }}?v={{ config.STATIC_ASSET_VERSION }}"></script>
 {# Floating definition for the selected ICD code (one per page; the script
    guards against a second include). #}
-<script src="{{ url_for('static', filename='js/va_definition_panel.js') }}?v={{ config.STATIC_ASSET_VERSION }}"></script>
+<script src="{{ url_for('static', filename='js/va_definition_panel.js') }}?v={{ config.STATIC_ASSET_VERSION }}-2"></script>
 <script>
 (function () {
   var modal = document.getElementById({{ modal_id | tojson }});

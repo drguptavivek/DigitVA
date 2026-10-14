@@ -124,6 +124,7 @@ def repair_submission_current_payload(
         "attempted": True,
         "metadata_enriched": 0,
         "attachments_downloaded": 0,
+        "attachments_refused": 0,
         "non_audit_downloaded": 0,
         "audit_downloaded": 0,
         "smartva_generated": 0,
@@ -197,6 +198,7 @@ def repair_submission_current_payload(
             )
             db.session.commit()
             result["attachments_downloaded"] = int(totals.get("downloaded", 0) or 0)
+            result["attachments_refused"] = int(totals.get("refused", 0) or 0)
             result["non_audit_downloaded"] = int(totals.get("non_audit_downloaded", 0) or 0)
             result["audit_downloaded"] = int(totals.get("audit_downloaded", 0) or 0)
 

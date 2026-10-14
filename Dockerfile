@@ -16,8 +16,12 @@ FROM python:3.13-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
+# PostgreSQL 18 client from PGDG: pg_dump refuses a server newer than itself,
+# and the split production database runs 18 (it still dumps the bundled 17).
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends postgresql-client sox libsox-fmt-all && \
+    apt-get install -y --no-install-recommends postgresql-common sox libsox-fmt-all && \
+    /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && \
+    apt-get install -y --no-install-recommends postgresql-client-18 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

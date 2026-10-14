@@ -57,6 +57,16 @@ ATTACHMENT_PRESENT_MARKER = "__attachment_present__"
 AUDIT_FILENAME = "audit.csv"
 ORPHAN_DIRNAME = ".orphaned"
 
+# Size caps shared by the web-intake upload, the ODK sync download, Central
+# self-heal and background repair, so one policy governs all of them. Owner
+# decision, 2026-10-06 (25 MB), superseded 2026-10-14: 50 MB everywhere, the
+# Expo app included. Everything must read this constant, never a literal.
+#: One file, in bytes.
+MAX_BYTES = 50 * 1024 * 1024
+#: An ``.amr`` file is converted by SoX, so it is capped lower: AMR is a 12 kbps
+#: speech codec, 5 MB is hours of recording.
+AMR_MAX_BYTES = 5 * 1024 * 1024
+
 
 # ---------------------------------------------------------------------------
 # Readiness vocabularies (Phase 2 columns on va_submission_attachments)
@@ -630,6 +640,15 @@ def mark_audio_derivative_stale(va_sid: str, filename: str) -> None:
 # Delivery
 # ---------------------------------------------------------------------------
 
+#: Why sync stored no copy of an ODK file. Only "too_large" exists today.
+REFUSED_TOO_LARGE = "too_large"
+
+
+def max_bytes_for(filename: str) -> int:
+    """The size cap for one attachment: the lower AMR cap for ``.amr`` files."""
+    return AMR_MAX_BYTES if is_audio_attachment(filename) else MAX_BYTES
+
+
 def safe_mime_type(mime_type: str | None) -> str | None:
     """Return a usable MIME value or None so the sender guesses from the name.
 
@@ -946,6 +965,9 @@ class _DeliveryContext:
 
     central_fetch_enabled: bool
     retired: bool
+    # Refused for size (sync, repair or an earlier self-heal): fetching it
+    # again would stream up to the cap only to be cut off.
+    refused: bool = False
 
 
 def _delivery_context(record: AttachmentRecord) -> _DeliveryContext:
@@ -955,6 +977,7 @@ def _delivery_context(record: AttachmentRecord) -> _DeliveryContext:
             VaProjectMaster.attachment_central_fetch_enabled,
             VaSubmissions.va_sync_issue_code,
             VaSubmissionAttachments.local_fallback_state,
+            VaSubmissionAttachments.refused_reason,
         )
         .select_from(VaSubmissionAttachments)
         .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
@@ -980,6 +1003,7 @@ def _delivery_context(record: AttachmentRecord) -> _DeliveryContext:
             row.va_sync_issue_code == MISSING_IN_ODK
             or row.local_fallback_state == LOCAL_RETAINED
         ),
+        refused=bool(row.refused_reason),
     )
 
 
@@ -999,19 +1023,67 @@ def _content_disposition_filename(storage_name: str) -> str:
     return "attachment"
 
 
-def _iter_central_body(result):
+class AttachmentTooLarge(Exception):
+    """A Central body passed its size cap while streaming.
+
+    Raised before the chunk that crosses the cap is yielded, so nothing past
+    the cap reaches the store. ``size_seen`` is the byte count read so far.
+    """
+
+    def __init__(self, size_seen: int):
+        super().__init__("attachment body over size cap")
+        self.size_seen = size_seen
+
+
+def _iter_central_body(result, limit: int):
     """Bounded chunks of a Central fetch body, closing the response at the end.
 
     The one reader of a Central response, shared by request-path delivery and
     by background repair, so neither buffers a body whole or leaks a socket.
+    Raises ``AttachmentTooLarge`` once the running total passes ``limit``; the
+    finally still closes the upstream, so an over-cap body is not drained.
     """
     upstream = result.response
+    seen = 0
     try:
         for chunk in upstream.iter_content(chunk_size=ATTACHMENT_STREAM_CHUNK_SIZE):
             if chunk:
+                seen += len(chunk)
+                if seen > limit:
+                    raise AttachmentTooLarge(seen)
                 yield chunk
     finally:
         upstream.close()
+
+
+def _record_refusal(record: AttachmentRecord, size_bytes: int) -> None:
+    """Record a size refusal on the row, the way sync does: no blob, size kept.
+
+    One UPDATE in its own short transaction. The source state is left as the
+    fetch set it, so the refusal alone says why there is no stored copy.
+    """
+    log.warning(
+        "Attachment not stored, over size cap [%s/%s]: %d bytes, cap %d",
+        record.va_sid, record.filename, size_bytes, max_bytes_for(record.filename),
+    )
+    db.session.execute(
+        sa.update(VaSubmissionAttachments)
+        .where(
+            VaSubmissionAttachments.va_sid == record.va_sid,
+            VaSubmissionAttachments.filename == record.filename,
+        )
+        .values(refused_reason=REFUSED_TOO_LARGE, refused_size_bytes=size_bytes)
+    )
+    db.session.commit()
+
+
+def _refuse_on_overflow(record: AttachmentRecord, chunks):
+    """Pass ``chunks`` through; record the refusal if the body passes its cap."""
+    try:
+        yield from chunks
+    except AttachmentTooLarge as exc:
+        _record_refusal(record, exc.size_seen)
+        raise
 
 
 def _stream_central_response(record: AttachmentRecord, result):
@@ -1019,12 +1091,16 @@ def _stream_central_response(record: AttachmentRecord, result):
 
     The body is read in bounded chunks and never buffered whole, and the
     upstream response is closed both when the generator finishes and when the
-    client disconnects.
+    client disconnects. A body that passes the cap mid-stream is cut off and
+    recorded as refused; nothing past the cap is stored.
     """
     upstream = result.response
+    chunks = _store_write(
+        record, _iter_central_body(result, max_bytes_for(record.filename))
+    )
 
     response = current_app.response_class(
-        stream_with_context(_store_write(record, _iter_central_body(result))),
+        stream_with_context(_refuse_on_overflow(record, chunks)),
         mimetype=result.mime_type or "application/octet-stream",
     )
     response.headers["Content-Disposition"] = (
@@ -1083,7 +1159,12 @@ def deliver(record: AttachmentRecord):
             return response
 
     context = _delivery_context(record)
-    if context.retired or not context.central_fetch_enabled or _is_audio_derivative(record):
+    if (
+        context.retired
+        or context.refused
+        or not context.central_fetch_enabled
+        or _is_audio_derivative(record)
+    ):
         invalidate_attachment_record(record.storage_name)
         _record_delivery(record, OUTCOME_UNAVAILABLE, started_at)
         abort(404)
@@ -1094,6 +1175,13 @@ def deliver(record: AttachmentRecord):
     central.record_fetch_state(record, result)
 
     if result.ok:
+        if result.content_length is not None and result.content_length > max_bytes_for(record.filename):
+            result.response.close()
+            _record_refusal(record, result.content_length)
+            invalidate_attachment_record(record.storage_name)
+            _record_delivery(record, OUTCOME_UNAVAILABLE, started_at,
+                             error_code=REFUSED_TOO_LARGE)
+            abort(404)
         cache_attachment_record(record)
         response = _stream_central_response(record, result)
         _record_delivery(
@@ -1530,11 +1618,14 @@ REPAIR_UNKNOWN_ROW = "unknown_row"
 REPAIR_MISSING = "missing"
 REPAIR_TRANSIENT = "transient"
 REPAIR_ERROR = "error"
+#: Over the size cap, recorded as refused (the row's ``refused_reason``). Not an
+#: error: a refused row is accounted for, so repair does not re-queue it.
+REPAIR_REFUSED = "refused"
 
 REPAIR_OUTCOMES = (
     REPAIR_NOT_NEEDED, REPAIR_REPAIRED, REPAIR_DERIVATIVE_REBUILT,
     REPAIR_RETIRED, REPAIR_CENTRAL_DISABLED, REPAIR_UNKNOWN_ROW,
-    REPAIR_MISSING, REPAIR_TRANSIENT, REPAIR_ERROR,
+    REPAIR_MISSING, REPAIR_TRANSIENT, REPAIR_ERROR, REPAIR_REFUSED,
 )
 
 
@@ -1616,7 +1707,7 @@ def _rebuild_audio_derivative(record: AttachmentRecord, result) -> RepairOutcome
     temp_path = new_ingest_temp_path(record.va_form_id)
     try:
         with open(temp_path, "wb") as handle:
-            for chunk in _iter_central_body(result):
+            for chunk in _iter_central_body(result, max_bytes_for(record.filename)):
                 handle.write(chunk)
         etag = (result.response.headers.get("ETag")
                 or result.response.headers.get("etag"))
@@ -1630,6 +1721,10 @@ def _rebuild_audio_derivative(record: AttachmentRecord, result) -> RepairOutcome
             downloaded_at=datetime.now(timezone.utc),
             storage_name=record.storage_name,
         )
+    except AttachmentTooLarge as exc:
+        remove_local_file_if_present(temp_path)
+        _record_refusal(record, exc.size_seen)
+        return RepairOutcome(REPAIR_REFUSED, error_code=REFUSED_TOO_LARGE)
     except AmrConversionError:
         remove_local_file_if_present(temp_path)
         db.session.execute(
@@ -1676,6 +1771,9 @@ def repair_attachment(record: AttachmentRecord) -> RepairOutcome:
       same ``_store_write`` tee delivery uses — ``repaired``;
     * a ``pending``/``stale``/``error`` MP3 is rebuilt from the AMR original —
       ``derivative_rebuilt``;
+    * a file over ``max_bytes_for`` (declared by Central, or streamed past the
+      cap) is never stored; the refusal is recorded on the row — ``refused``,
+      which is not an error and is not re-queued;
     * a failed fetch keeps the fetch's own category: ``missing`` (Central says
       not-found), ``transient`` (retry later), ``error`` (auth, configuration,
       or an invalid redirect — never silently treated as missing).
@@ -1709,12 +1807,20 @@ def repair_attachment(record: AttachmentRecord) -> RepairOutcome:
             _repair_outcome_for_fetch(result.outcome), error_code=result.error_code
         )
 
+    if result.content_length is not None and result.content_length > max_bytes_for(record.filename):
+        result.response.close()
+        _record_refusal(record, result.content_length)
+        return RepairOutcome(REPAIR_REFUSED, error_code=REFUSED_TOO_LARGE)
+
     if is_audio:
         return _rebuild_audio_derivative(record, result)
 
     try:
-        for _ in _store_write(record, _iter_central_body(result)):
+        for _ in _store_write(record, _iter_central_body(result, max_bytes_for(record.filename))):
             pass
+    except AttachmentTooLarge as exc:
+        _record_refusal(record, exc.size_seen)
+        return RepairOutcome(REPAIR_REFUSED, error_code=REFUSED_TOO_LARGE)
     except AttachmentStoreError:
         return RepairOutcome(REPAIR_ERROR)
     if not get_attachment_store().exists(record):
@@ -1745,6 +1851,9 @@ class SubmissionAttachmentState:
     retired: bool
     ready_count: int
     unready: tuple[str, ...]
+    # Files refused for size and recorded: accounted for, neither ready nor
+    # missing (docs/policy/odk-attachment-intake-limits.md).
+    refused_count: int = 0
 
 
 def attachment_state_by_submission(
@@ -1773,6 +1882,7 @@ def attachment_state_by_submission(
             VaSubmissionAttachments.store_state,
             VaSubmissionAttachments.source_state,
             VaSubmissionAttachments.derivative_state,
+            VaSubmissionAttachments.refused_reason,
             VaSubmissions.va_sync_issue_code,
         )
         .select_from(VaSubmissionAttachments)
@@ -1787,6 +1897,7 @@ def attachment_state_by_submission(
 
     ready: dict[str, set[str]] = {}
     unready: dict[str, list[str]] = {}
+    refused: dict[str, int] = {}
     retired: dict[str, bool] = {}
     for row in db.session.execute(stmt).mappings().all():
         va_sid = row["va_sid"]
@@ -1804,6 +1915,11 @@ def attachment_state_by_submission(
             storage_name=row["storage_name"],
             store_state=row["store_state"],
         )
+        if row["refused_reason"] and not identity:
+            # Refused for size and recorded (docs/policy/odk-attachment-intake-limits.md):
+            # accounted for, not missing, so repair does not re-queue it each pass.
+            refused[va_sid] = refused.get(va_sid, 0) + 1
+            continue
         derivative_ok = row["derivative_state"] in (None, DERIVATIVE_READY)
         if identity and derivative_ok:
             ready.setdefault(va_sid, set()).add(identity)
@@ -1816,6 +1932,7 @@ def attachment_state_by_submission(
             retired=is_retired,
             ready_count=len(ready.get(va_sid, ())),
             unready=tuple(sorted(unready.get(va_sid, ()))),
+            refused_count=refused.get(va_sid, 0),
         )
         for va_sid, is_retired in retired.items()
     }
@@ -1998,6 +2115,36 @@ def _overview_error_categories(project_ids) -> list[dict]:
     ]
 
 
+def _overview_refused(project_ids) -> list[dict]:
+    """ODK files Central holds that were refused for size, by reason. Counts only:
+    no filename, no submission id."""
+    stmt = (
+        sa.select(
+            VaSubmissionAttachments.refused_reason.label("reason"),
+            sa.func.count().label("rows"),
+            sa.func.max(VaSubmissionAttachments.refused_size_bytes).label("largest_size_bytes"),
+        )
+        .select_from(VaSubmissionAttachments)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionAttachments.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaSubmissionAttachments.refused_reason.is_not(None),
+            VaSubmissionAttachments.exists_on_odk.is_(True),
+        )
+        .group_by(VaSubmissionAttachments.refused_reason)
+        .order_by(sa.func.count().desc())
+        .limit(OVERVIEW_ERROR_CATEGORY_LIMIT)
+    )
+    return [
+        {
+            "reason": row.reason,
+            "rows": int(row.rows or 0),
+            "largest_size_bytes": int(row.largest_size_bytes or 0),
+        }
+        for row in db.session.execute(_overview_scope(stmt, project_ids)).all()
+    ]
+
+
 def _overview_projects(project_ids) -> list[dict]:
     """Projects in scope and their Central self-heal switch."""
     stmt = sa.select(
@@ -2077,6 +2224,7 @@ def attachment_management_overview(project_ids: list[str] | None = None) -> dict
         "forms": [forms[form_id] for form_id in sorted(forms)],
         "delivery_counters": delivery_counters(),
         "source_error_categories": _overview_error_categories(scope),
+        "refused_odk_files": _overview_refused(scope),
         "s3_upload": {
             "awaiting": sum(
                 int(form.get("awaiting_s3") or 0) for form in forms.values()

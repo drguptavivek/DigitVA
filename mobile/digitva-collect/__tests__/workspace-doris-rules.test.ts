@@ -1,5 +1,5 @@
 import type { JsonObject } from "../src/workspace/contracts";
-import { MSG, PREGNANCY_AGE_BAND, applyVisibility, reportedAge, unitTooLarge, visibility, warnings } from "../src/workspace/doris/rules";
+import { MSG, PREGNANCY_AGE_BAND, ageFromDates, applyVisibility, deriveEstimatedAge, derivesAtLoad, reportedAge, unitTooLarge, visibility, warnings } from "../src/workspace/doris/rules";
 
 const cert = (age: string | undefined, rest: JsonObject = {}, sex?: number): JsonObject => ({
   AdministrativeData: { ...(age ? { EstimatedAge: age } : {}), ...(sex ? { Sex: sex } : {}) },
@@ -270,5 +270,66 @@ describe("dates outside 1900..today are warned, not blocked", () => {
   });
   it("a death date after today warns", () => {
     expect(warnings(dates({ DateDeath: "2027-01-01" }), TODAY)["AdministrativeData.DateDeath"]).toBe(MSG.deathFuture);
+  });
+});
+
+describe("EstimatedAge derived from the dates (V7 editor side)", () => {
+  it("completed years, months or days, calendar-exact at the boundaries", () => {
+    expect(ageFromDates("1996-08-12", "2025-06-12")).toBe("P28Y");
+    expect(ageFromDates("1996-08-12", "2025-08-12")).toBe("P29Y");
+    expect(ageFromDates("1996-08-12", "2025-08-11")).toBe("P28Y");
+    expect(ageFromDates("2025-01-10", "2025-12-09")).toBe("P10M");
+    expect(ageFromDates("2025-01-10", "2025-12-10")).toBe("P11M");
+    expect(ageFromDates("2025-01-01", "2025-01-01")).toBe("P0D");
+    expect(ageFromDates("2025-01-01", "2025-01-31")).toBe("P30D");
+    expect(ageFromDates("2000-01-31", "2000-02-29")).toBe("P29D");
+  });
+  it("is null for partial dates, impossible dates and a death before birth", () => {
+    expect(ageFromDates("1996", "2025-06-12")).toBeNull();
+    expect(ageFromDates("1996-08", "2025-06-12")).toBeNull();
+    expect(ageFromDates("1996-08-12", "2025-02-30")).toBeNull();
+    expect(ageFromDates("2025-05-02", "2025-05-01")).toBeNull();
+  });
+  it("fills a blank age and refreshes only the value it derived itself", () => {
+    const dated = { AdministrativeData: { DateBirth: "1996-08-12", DateDeath: "2025-06-12" } } as JsonObject;
+    const first = deriveEstimatedAge(dated, null);
+    expect(first.derived).toBe("P28Y");
+    expect((first.certificate.AdministrativeData as JsonObject).EstimatedAge).toBe("P28Y");
+    expect(dated.AdministrativeData).not.toHaveProperty("EstimatedAge");
+    const moved = deriveEstimatedAge({ AdministrativeData: { ...(first.certificate.AdministrativeData as JsonObject), DateDeath: "2025-08-12" } }, first.derived);
+    expect((moved.certificate.AdministrativeData as JsonObject).EstimatedAge).toBe("P29Y");
+  });
+  it("never overwrites a typed value, and a cleared value stays empty until a date changes", () => {
+    const typed = { AdministrativeData: { DateBirth: "1996-08-12", DateDeath: "2025-06-12", EstimatedAge: "P40Y" } } as JsonObject;
+    const kept = deriveEstimatedAge(typed, null);
+    expect(kept.certificate).toBe(typed);
+    expect(kept.derived).toBeNull();
+  });
+  it("removes its own derived value when a date becomes partial, and does nothing for partial dates", () => {
+    const stale = { AdministrativeData: { DateBirth: "1996-08-12", DateDeath: "2025", EstimatedAge: "P28Y" } } as JsonObject;
+    const result = deriveEstimatedAge(stale, "P28Y");
+    expect(result.derived).toBeNull();
+    expect(result.certificate.AdministrativeData).toEqual({ DateBirth: "1996-08-12", DateDeath: "2025" });
+    const partial = { AdministrativeData: { DateBirth: "1996", DateDeath: "2025-06-12" } } as JsonObject;
+    expect(deriveEstimatedAge(partial, null).certificate).toBe(partial);
+  });
+  it("a cleared age is refilled by the next date change (the panel calls the derive only on date edits)", () => {
+    // After the coder clears EstimatedAge the panel passes derived=null; the next DateDeath edit refills it.
+    const refilled = deriveEstimatedAge({ AdministrativeData: { DateBirth: "1996-08-12", DateDeath: "2025-08-12" } }, null);
+    expect(refilled.derived).toBe("P29Y");
+    expect((refilled.certificate.AdministrativeData as JsonObject).EstimatedAge).toBe("P29Y");
+  });
+  it("a 29 February birthday is reached on 1 March in a non-leap year, and month ends use the calendar", () => {
+    expect(ageFromDates("2000-02-29", "2026-02-28")).toBe("P25Y");
+    expect(ageFromDates("2000-02-29", "2026-03-01")).toBe("P26Y");
+    expect(ageFromDates("2024-02-29", "2028-02-29")).toBe("P4Y");
+    expect(ageFromDates("2025-01-31", "2025-02-28")).toBe("P28D");
+    expect(ageFromDates("2025-01-31", "2025-03-01")).toBe("P1M");
+    expect(ageFromDates("2025-03-31", "2025-04-30")).toBe("P30D");
+  });
+  it("derives at load only for a prefill seed, never for a saved certificate", () => {
+    expect(derivesAtLoad({ "AdministrativeData.DateBirth": { sources: ["Id10020"] } }, null)).toBe(true);
+    expect(derivesAtLoad({}, null)).toBe(false);
+    expect(derivesAtLoad({ "AdministrativeData.DateBirth": { sources: ["Id10020"] } }, { doris: {} })).toBe(false);
   });
 });

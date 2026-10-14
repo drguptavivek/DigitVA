@@ -4,7 +4,7 @@
 // parameters, so the real code runs here with node's WebCrypto and an in-memory
 // backing: no DOM, no IndexedDB. What these hold in place is the policy in
 // docs/policy/web-intake.md "Attachments": nothing stored in the clear, a
-// non-extractable key, 25 MB and the type list checked before storing, the
+// non-extractable key, 50 MB and the type list checked before storing, the
 // seven-day sweep, delete-on-confirm and wipe-on-sign-out.
 //
 // Run: npm run test:web (from tooling/who-va-2022).
@@ -108,7 +108,7 @@ test("an AMR recording over 5 MB is refused on the device, other audio is not", 
   assert.equal((await buffer.load("ok")).type, "audio/amr");
 });
 
-test("25 MB, empty files and types outside the list are refused before anything is stored", async () => {
+test("50 MB, empty files and types outside the list are refused before anything is stored", async () => {
   const { buffer, backing } = makeBuffer();
   const refuse = async (blob, code) => {
     await assert.rejects(buffer.save("x", blob), (e) => e instanceof BufferError && e.code === code);

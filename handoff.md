@@ -36,7 +36,7 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
 
 - **Rules** in `docs/policy/doris-certificate-rules.md` (V1-V12): fetal card under 1 year,
   hours survived under 7 days, pregnancy card for Female, surgery/autopsy/injury follow-ups by answer, interval and date
-  warnings (never block). Server `drop_inapplicable_sections` and Expo `rules.ts` and Flask `doris_rules.js` agree; EstimatedAge is always prefilled.
+  warnings (never block). Server `drop_inapplicable_sections` and Expo `rules.ts` and Flask `doris_rules.js` agree; EstimatedAge is prefilled from the interview age questions, which the form hides when DOB and DOD are both known; then both editors derive it from the dates (`digitva-w9e8`, owner 2026-10-14).
 - **Both editors** use the WHO wording and A-E lines, calendar dates (DOB, injury, surgery have a Date/Year-Month/Year dropdown; death is plain), a clear X per
   question, 3-character auto-search, shadcn-zinc tokens (`docs/current-state/doris-ui-tokens.md`), NQA-style choice rows. Shared picker page
   `app/static/doris_picker_host.html` (iframe on web, WebView on native, theme and query by message).
@@ -44,6 +44,21 @@ about 150 lines. History lives in git log and closed beads (`AGENTS.md`,
   nav tabs, a phone bottom tab bar, the account menu, a sticky sections bar (`48 y · Female · Raisen, Madhya Pradesh` from `case.survey_district/_state`),
   queue redesign, section and scroll kept on reload, saves keep the open section. `migrations/env.py` no longer mutes loggers (13 old log-test failures).
 - **Decided**: no Astryx or UI library (native components, shadcn tokens); district and state are not PII (read through the same visibility as the tables).
+
+## Split production and the 2026-10-14 batch: deploy notes
+
+- Split production (app VM + PostgreSQL VM + reverse proxy): `docker-compose.external-db.yml`, picked by `make prod` when
+  `/data/digitva-db.env` exists; the ingress ends backend TLS on :8000 and routes the public DORIS demo; gunicorn 2 workers
+  x 4 threads, DB pool budget 18 of 40. Paths, setup, renewal: `docs/current-state/split-production-tls.md` (placeholders
+  only). Renew private certificates before they lapse (`digitva-sdxp`).
+- Every host's `.env`: `MAIL_BASE_URL` is now `PUBLIC_BASE_URL` (no fallback); `STATIC_ASSET_VERSION=20261014.1`;
+  app VM also `APP_BIND_IP=<private IP>`, `S3_BUCKET`, `S3_PREFIX` equal to the IAM prefix; no `FLASK_ENV=development`.
+- Reverse proxy: `client_max_body_size 55m` (50 MB attachment cap). Rebuild images (PostgreSQL 18 client).
+- New migrations: `t3k8n1d6f2a9` (attachment refusal), `a4c9e1f2b7d3` (worklist index). After deploy check Admin -> System
+  health (certificates, S3 access, presigned-only) and `/help/doris-demo` logged out.
+- Bucket configuration and the 30-day noncurrent-version rule: `docs/policy/attachment-storage.md`.
+- Open: `digitva-tn9r` worklist owner decisions; S3 follow-ups `r10b`, `33in`, `3ka2`, `8rhk`. Test runs go through one
+  runner agent; writers do not run tests.
 
 ## Next, ranked
 

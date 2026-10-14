@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-14
 ---
 
 # Runtime And Operations
@@ -266,7 +266,7 @@ server. There is no global or default connection.
 | `S3_REGION` | derived | Derived from the endpoint host when it matches `s3.<region>.amazonaws.com`; otherwise required. |
 | `S3_ACCESS_KEY_ID` | _(unset)_ | Secret. Environment only; never logged. |
 | `S3_SECRET_ACCESS_KEY` | _(unset)_ | Secret. Environment only; never logged. |
-| `S3_PREFIX` | `` | Optional key prefix inside the bucket, e.g. `digitva/`. |
+| `S3_PREFIX` | `` | Optional key prefix inside the bucket, one per environment sharing it, e.g. `staging/`. Normalized to one trailing slash (`staging` and `/staging/` both become `staging/`). Applies to attachments, backups, SmartVA archives and exports. Fix it before the first upload: objects are not moved when it changes. |
 | `ATTACHMENT_PRESIGN_EXPIRY_SECONDS` | `300` | Lifetime of a delivery presigned URL. |
 | `ATTACHMENT_S3_UPLOAD_SWEEP_MINUTES` | `10` | Interval of the `run_attachment_s3_upload` beat sweep. Seeds a `celery_intervalschedule` row; a value outside 1–1440 logs a warning and falls back to the default, and a changed value repoints the existing beat row rather than adding a second one. |
 | `SMARTVA_RUNS_KEEP_LOCAL_DAYS` | `0` | Days a *verified* SmartVA run directory stays on the VM after the run completed. `0` removes it as soon as the archive is verified. Ignored on the local store. |
@@ -750,13 +750,13 @@ What exists today:
   (configured via `EMAIL_SUPPRESSION_*`)
 - explicit delivery kill switch via `EMAIL_DELIVERY_ENABLED`
 - test config enforces `MAIL_SUPPRESS_SEND=True` so tests do not send real SMTP
-- email link base URL resolves `MAIL_BASE_URL`, then `SERVER_NAME`, then
+- email link base URL resolves `PUBLIC_BASE_URL`, then `SERVER_NAME`, then
   `localhost:5000`, and is always given an `https://` scheme if it lacks one
 - in production (`Config`, i.e. neither `DEBUG` nor `TESTING`) `create_app`
-  sets Flask's `TRUSTED_HOSTS` to the `MAIL_BASE_URL` host plus `localhost` and
+  sets Flask's `TRUSTED_HOSTS` to the `PUBLIC_BASE_URL` host plus `localhost` and
   `127.0.0.1` (container healthcheck), via `trusted_hosts_for` in
   [`config.py`](../../config.py); any other `Host`/`X-Forwarded-Host` gets a 400,
-  and a missing `MAIL_BASE_URL` stops the app at startup. Development
+  and a missing `PUBLIC_BASE_URL` stops the app at startup. Development
   (`FLASK_ENV=development`) and tests accept any host
 - similarly, production requires `CAPTCHA_HMAC_KEY` (signs the login page's
   proof-of-work challenge, see docs/current-state/workflow-and-permissions.md

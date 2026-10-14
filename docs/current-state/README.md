@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-14
 ---
 
 # Current State Index
@@ -31,6 +31,7 @@ Read these documents in this order:
 8. [Access Control Route Inventory](access-control-route-inventory.md)
 9. [Admin And Setup Model](admin-and-setup.md)
 10. [Runtime And Operations](runtime-and-operations.md)
+    - [Split Production TLS](split-production-tls.md): certificate paths, issuing and copying for the three-host deployment
 11. [Data Manager Dashboard](data-manager-dashboard.md)
 12. [Submission Analytics Materialized View](submission-analytics.md)
 13. [COD Bucket Reporting](cod-bucket-reporting.md)

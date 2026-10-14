@@ -72,7 +72,7 @@ const processReply: DorisProcessReply = {
   process_token: "opaque-process-token",
 };
 
-function makeWorkspace(options: { step?: "initial" | "final"; masked?: boolean; seed?: JsonObject; processing?: JsonObject } = {}): WorkspacePayload {
+function makeWorkspace(options: { step?: "initial" | "final"; masked?: boolean; seed?: JsonObject; processing?: JsonObject; prefill?: JsonObject } = {}): WorkspacePayload {
   return {
     case: { va_sid: "sid-1", instance_name: "Case 1", form_type_code: "VA", project_mode: options.masked ? "masked_doris" : "unmasked_doris", icd_classification: "icd11", workflow_state: options.step === "final" ? "initial_coded" : "coding_in_progress", narrative_qa_enabled: false, social_autopsy_enabled: false },
     categories: [], default_category: "vacodassessment", step: options.step ?? "initial", blocked_by: [],
@@ -80,7 +80,7 @@ function makeWorkspace(options: { step?: "initial" | "final"; masked?: boolean; 
     smartva: null, other_conditions_options: null,
     doris: {
       initial_certificate: options.seed ?? certificate,
-      prefill_provenance: {},
+      prefill_provenance: options.prefill ?? {},
       saved_processing: options.processing ?? null,
       step1_certificate: options.masked ? certificate : null,
       step1_processing: options.masked ? { doris: { status: processReply.doris.status, result: processReply.doris.result }, codedit: { status: processReply.codedit.status, result: processReply.codedit.result }, process_token: "private-step1-token" } : null,
@@ -100,6 +100,7 @@ function apiFor(overrides: Partial<WorkspaceApi> = {}): WorkspaceApi {
     })),
     getDorisCodeInfo: jest.fn(async (_sid: string, code: string) => ({ schema_version: 1 as const, item: { code, title: "Selected cause", uri: "https://who.int/Y55", release: "2025-01", postcoordination: false } })),
     checkDorisSelection: jest.fn(async (_sid: string, code: string, uri: string) => ({ schema_version: 1 as const, item: { code, title: "Selected cause", uri, release: "2025-01", postcoordination: false } })),
+    getVaDefinitionForIcd: jest.fn(async () => null),
     saveInitial: jest.fn(async () => ({ va_sid: "sid-1", initial_assessment_id: "initial-1" })),
     saveFinal: jest.fn(async () => ({ va_sid: "sid-1", final_assessment_id: "final-1" })),
     saveNotCodeable: jest.fn(async () => ({ va_sid: "sid-1", workflow_state: "not_codeable" })),
@@ -708,5 +709,174 @@ describe("search box auto-open", () => {
     await act(async () => tree.unmount());
     await wait(2000);
     expect(mockFrame.props).toBeNull();
+  });
+});
+
+describe("EstimatedAge from the dates", () => {
+  const dated: JsonObject = { ...certificate, AdministrativeData: { Sex: 1, DateBirth: "1996-08-12", DateDeath: "2025-06-12" } };
+
+  it("fills a blank age from both dates on load for a prefill seed, and sends it", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: dated, prefill: { "AdministrativeData.DateBirth": { sources: ["Id10020"] } } }), api);
+    expect((await sentCertificate(tree, api)).AdministrativeData).toEqual({ Sex: 1, DateBirth: "1996-08-12", DateDeath: "2025-06-12", EstimatedAge: "P28Y" });
+  });
+
+  it("does not derive on load for a saved certificate, so the save never shows an age it lacks", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
+    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+  });
+
+  it("does not derive from partial dates", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, AdministrativeData: { Sex: 1, DateBirth: "1996", DateDeath: "2025-06-12" } } }), api);
+    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+  });
+
+  it("never overwrites a stored age, and a cleared age stays empty until a date changes", async () => {
+    const typed = apiFor();
+    const kept = renderPanel(makeWorkspace({ seed: { ...dated, AdministrativeData: { ...dated.AdministrativeData as JsonObject, EstimatedAge: "P40Y" } } }), typed);
+    expect((await sentCertificate(kept.tree, typed)).AdministrativeData).toMatchObject({ EstimatedAge: "P40Y" });
+    await act(async () => kept.tree.unmount());
+
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...dated, AdministrativeData: { ...dated.AdministrativeData as JsonObject, EstimatedAge: "P28Y" } } }), api);
+    await act(async () => byLabel(tree, "Clear Estimated age").props.onPress());
+    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+    // A later date change refills the cleared age.
+    await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
+    expect((await sentCertificate(tree, api)).AdministrativeData).toMatchObject({ DateDeath: "2025-08-12", EstimatedAge: "P29Y" });
+  });
+
+  it("does not refill over a number typed without a unit when a date changes", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
+    await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
+    await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
+    expect(byLabel(tree, "Estimated age").props.value).toBe("76");
+    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+  });
+
+  it("does not refill over a unit picked without a number when a date changes", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
+    await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+    await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
+    await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
+    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+  });
+});
+
+describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
+  const quickButton = (tree: ReactTestRenderer, prefix: string) => tree.root.findAll((n) => typeof n.props.label === "string" && n.props.label.startsWith(prefix) && typeof n.props.onPress === "function")[0];
+
+  it("shows one 'No problems found' for an empty CoDEdit run and collapses blank-line runs in the DORIS report", async () => {
+    const api = apiFor({ processDoris: jest.fn(async (): Promise<DorisProcessReply> => ({ ...processReply, doris: { status: "completed" as const, result: { ...processReply.doris.result, report: "Line one\n\n\n\nLine two" } }, codedit: { status: "completed" as const, result: { report: "", tabularReport: "" } } })) });
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    const text = allText(tree);
+    expect(text).toContain("Line one\n\nLine two");
+    expect(text).not.toContain("\n\n\n");
+    expect(text.split("No problems found in the certificate.").length - 1).toBe(1);
+    expect(text).not.toContain("No issues found");
+    await act(async () => tree.unmount());
+  });
+
+  it("does not show 'No problems found' when CoDEdit reported something", async () => {
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), apiFor());
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).not.toContain("No problems found in the certificate.");
+    await act(async () => tree.unmount());
+  });
+
+  it("quick-adds the DORIS result through WHO, clears it with the cross, and opens its ICD-11 details", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+    await act(async () => flush());
+    expect(api.getDorisCodeInfo).toHaveBeenCalledWith("sid-1", "CA40");
+    expect(api.checkDorisSelection).toHaveBeenCalledWith("sid-1", "CA40", "https://who.int/Y55");
+    expect(allText(tree)).toContain("Selected cause");
+    expect(byLabel(tree, "Save Step 1").props.disabled).toBe(false);
+    await act(async () => byLabel(tree, "Clear chosen cause CA40").props.onPress());
+    expect(allText(tree)).not.toContain("Selected cause");
+    expect(byLabel(tree, "Save Step 1").props.disabled).toBe(true);
+    await act(async () => tree.root.findAllByProps({ accessibilityLabel: "Details for CA40" })[0].props.onPress());
+    expect(allText(tree)).toContain("WHO URI: |https://who.int/Y55");
+    await act(async () => tree.unmount());
+  });
+
+  it("refuses a quick-add the WHO codeinfo does not confirm, without choosing it", async () => {
+    const api = apiFor({ getDorisCodeInfo: jest.fn(async () => { throw new Error("not found"); }) });
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+    await act(async () => flush());
+    expect(allText(tree)).toContain("WHO ICD-11 did not confirm that code");
+    expect(byLabel(tree, "Save Step 1").props.disabled).toBe(true);
+    await act(async () => tree.unmount());
+  });
+
+  it("step 2 shows the Step 1 assigned causes and quick-adds Step 1 and SmartVA codes; a multi-code SmartVA opens search", async () => {
+    const base = makeWorkspace({ step: "final", masked: true });
+    const workspace = {
+      ...base,
+      assessments: { ...base.assessments, initial: { immediate_cod: "Pneumonia", antecedent_cod: "CA40", other_conditions: ["Asthma"] } },
+      smartva: { age: "28.0", gender: "Female", key_symptoms: ["Fever", null, null], causes: [{ rank: 1, cause: "Pneumonia", icd10: "J18", icd11: "CA40/CA41", likelihood: "0.8" }, { rank: 2, cause: "", icd10: null, icd11: null, likelihood: null }, { rank: 3, cause: null, icd10: null, icd11: null, likelihood: null }], symptoms: ["fever", "cough"] },
+    } as unknown as WorkspacePayload;
+    const api = apiFor();
+    const { tree } = renderPanel(workspace, api);
+    const text = allText(tree);
+    expect(text).toContain("Your Step 1 assigned causes");
+    expect(text).toContain("Step 1 underlying cause: CA40");
+    expect(text).toContain("Age: |28|");
+    expect(text).not.toContain("28.0");
+    expect(text).toContain("Cause of Death: |Pneumonia");
+    expect(text).toContain("ICD-11 mapping: CA40/CA41");
+    expect(text).not.toContain("Secondary");
+    expect(text).toContain("Fever");
+    expect(text).toContain("Use Step 1 underlying cause: CA40");
+    expect(text).toContain("Search SmartVA result: CA40 / CA41");
+    expect(text).toContain("Or search ICD-11 for your own code");
+    await act(async () => quickButton(tree, "Use Step 1 underlying cause").props.onPress());
+    await act(async () => flush());
+    expect(api.checkDorisSelection).toHaveBeenCalledWith("sid-1", "CA40", "https://who.int/Y55");
+    expect(byLabel(tree, "Save final cause").props.disabled).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  it("a single SmartVA ICD-11 target is a one-tap quick-add", async () => {
+    const base = makeWorkspace({ step: "final", masked: true });
+    const workspace = { ...base, smartva: { age: "40", gender: "Male", key_symptoms: [null, null, null], causes: [{ rank: 1, cause: "Stroke", icd10: "I64", icd11: "8B20", likelihood: null }], symptoms: [] } } as unknown as WorkspacePayload;
+    const { tree } = renderPanel(workspace, apiFor());
+    expect(allText(tree)).toContain("Use SmartVA result: 8B20");
+    await act(async () => tree.unmount());
+  });
+
+  it("unmasked Step 2 has no Step 1 card and quick-adds the DORIS result", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ step: "final" }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).not.toContain("Your Step 1 assigned causes");
+    expect(quickButton(tree, "Use DORIS result")).toBeDefined();
+    await act(async () => tree.unmount());
+  });
+
+  it("a reviewer's masked Step 2 reads the reviewer's own Step 1, not the coder's row", async () => {
+    const base = makeWorkspace({ step: "final", masked: true });
+    const workspace = {
+      ...base,
+      assessments: { ...base.assessments, initial: { immediate_cod: "CODER-IMM", antecedent_cod: "CODER-ANT" }, reviewer_initial: { immediate_cod: "REVIEWER-IMM", antecedent_cod: "REVIEWER-ANT" } },
+      smartva: null,
+    } as unknown as WorkspacePayload;
+    const reviewer = { vaSid: "sid-1", mode: "reviewing" } as WorkspaceIdentity;
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<DorisPanel workspace={workspace} identity={reviewer} api={apiFor()} request={jest.fn(async () => ({}))} onSaved={async () => undefined} onDone={jest.fn()} />); });
+    const text = allText(tree);
+    expect(text).toContain("REVIEWER-ANT");
+    expect(text).not.toContain("CODER-ANT");
+    expect(quickButton(tree, "Use Step 1 underlying cause: REVIEWER-ANT")).toBeDefined();
+    await act(async () => tree.unmount());
   });
 });

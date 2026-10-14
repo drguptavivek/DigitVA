@@ -211,6 +211,11 @@ def _s3_client(endpoint_url: str, region: str, access_key: str, secret_key: str)
                 config=BotoConfig(
                     signature_version="s3v4",
                     retries={"max_attempts": 3, "mode": "standard"},
+                    # A regional S3 endpoint that cannot be reached in 5 s is
+                    # down; failing fast keeps a request (and the System health
+                    # panel) from hanging for minutes. Reads keep the default
+                    # 60 s, which large uploads need.
+                    connect_timeout=5,
                 ),
             )
             _s3_clients[cache_key] = client
@@ -464,6 +469,13 @@ class S3AttachmentStore:
 # Selection
 # ---------------------------------------------------------------------------
 
+def normalize_key_prefix(value: str | None) -> str:
+    """``S3_PREFIX`` as a folder-style key prefix: ``staging`` and ``/staging/``
+    both become ``staging/``; empty stays empty (the bucket root)."""
+    value = (value or "").strip().strip("/")
+    return f"{value}/" if value else ""
+
+
 def build_attachment_store(config):
     """Build the store the given config selects. Validated at app startup."""
     store_name = (config.get("ATTACHMENT_STORE") or ATTACHMENT_STORE_LOCAL).strip().lower()
@@ -471,7 +483,7 @@ def build_attachment_store(config):
         return LocalAttachmentStore()
     return S3AttachmentStore(
         bucket=config["S3_BUCKET"],
-        prefix=config.get("S3_PREFIX") or "",
+        prefix=normalize_key_prefix(config.get("S3_PREFIX")),
         expiry_seconds=int(config["ATTACHMENT_PRESIGN_EXPIRY_SECONDS"]),
         client=_s3_client(
             config["S3_SERVER"],

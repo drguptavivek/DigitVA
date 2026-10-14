@@ -4,7 +4,7 @@ import { AppState as NativeAppState, Text, View } from "react-native";
 import { ApiError } from "../../api";
 import { errorText } from "../../ui";
 import type { JsonRequester, WorkspaceApi } from "../api";
-import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceIdentity, WorkspacePayload } from "../contracts";
+import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
 import { parseDorisProcess } from "../contracts";
 import { radius, ui, useTheme } from "../../theme";
 import { Cell, ChipChoice, FieldLabel, IntervalField, SearchBox, Warn, lineShade } from "./compact";
@@ -13,7 +13,11 @@ import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
 import { Alert, Body, Button, ButtonGlyph, Card, CardTitle, Chip, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
-import { applyVisibility, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
+import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
+import { CodeDetailsSheet } from "./CodeDetailsSheet";
+import { SmartVaReference } from "../SmartVaReference";
+import { certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks } from "./resultSummary";
+import { dorisWarningCodes } from "./dorisWarnings";
 
 type CertificateState = {
   owner: { api: WorkspaceApi; request: JsonRequester; vaSid: string; mode: WorkspaceIdentity["mode"]; step: WorkspacePayload["step"]; projectMode: WorkspacePayload["case"]["project_mode"] };
@@ -28,6 +32,8 @@ type CertificateState = {
   cleared: boolean;
   /** Administrative data was supplied or entered; its card then stays even after every field is cleared. */
   adminSeen: boolean;
+  /** EstimatedAge value this editor derived from the two dates last (rules.ts deriveEstimatedAge); null when none. */
+  derivedAge: string | null;
 };
 
 type CertificateLine = JsonObject & { Conditions: JsonObject[] };
@@ -91,16 +97,19 @@ function lineConditions(value: JsonValue | undefined): JsonObject[] {
   return array(object(value).Conditions).filter(isRecord) as JsonObject[];
 }
 
-function initialCertificate(workspace: WorkspacePayload): JsonObject {
+function initialCertificate(workspace: WorkspacePayload): { certificate: JsonObject; derivedAge: string | null } {
   const seed = workspace.doris?.initial_certificate;
+  // Age first: a derived age can hide or show sections, so visibility is applied to the dated seed.
+  // Only a fresh prefill seed derives here (V7); a saved certificate keeps the EstimatedAge it was saved with.
+  const dated = seed && derivesAtLoad(workspace.doris?.prefill_provenance, workspace.doris?.saved_processing) ? deriveEstimatedAge(seed, null) : { certificate: seed ?? {}, derived: null };
   // Hidden sections never enter the editor, so they cannot resurface later if the age or sex is edited.
-  const certificate = seed ? applyVisibility(seed) : { ICDVersion: "ICD11", Part1: [] };
+  const certificate = seed ? applyVisibility(dated.certificate) : { ICDVersion: "ICD11", Part1: [] };
   // The served seed holds only prefilled answers; DORIS rejects a certificate without its version.
   certificate.ICDVersion = "ICD11";
   if (!Array.isArray(certificate.Part1)) certificate.Part1 = [];
   // Immediate cause plus two "Due to" lines; trailing empty lines are dropped by processCertificate.
   while (certificate.Part1.length < DEFAULT_PART1_LINES) certificate.Part1.push({ Conditions: [] });
-  return certificate;
+  return { certificate, derivedAge: dated.derived };
 }
 
 function hasAdministrativeData(certificate: JsonObject): boolean {
@@ -109,11 +118,13 @@ function hasAdministrativeData(certificate: JsonObject): boolean {
 
 function initialState(owner: CertificateState["owner"], workspace: WorkspacePayload): CertificateState {
   const maskedStepTwo = workspace.case.project_mode === "masked_doris" && workspace.step === "final";
-  const certificate = maskedStepTwo ? {} : initialCertificate(workspace);
+  const seeded = maskedStepTwo ? { certificate: {}, derivedAge: null } : initialCertificate(workspace);
+  const certificate = seeded.certificate;
   return {
     owner,
     certificate,
     adminSeen: hasAdministrativeData(certificate),
+    derivedAge: seeded.derivedAge,
     revision: 0,
     processing: null,
     selectedCause: null,
@@ -189,6 +200,13 @@ export function DorisPanel({
   const canEdit = identity.mode !== "view" && (workspace.step === "initial" || (workspace.step === "final" && !masked));
   const certificate = state.certificate;
   const revision = state.revision;
+  const [detailCode, setDetailCode] = useState<string | null>(null);
+  // The Estimated age has a half-typed value (number without unit or unit without number): no date refill (rules.ts).
+  const [ageTyped, setAgeTyped] = useState(false);
+  const detailSheet = detailCode ? <CodeDetailsSheet api={api} identity={identity} code={detailCode} onClose={() => setDetailCode(null)} /> : null;
+  // The DORIS suggestion's title for the Step 1 quick-add (its certificate line, else WHO's codeinfo title).
+  const dorisCodes = suggestedDorisCodes(state.processing);
+  const dorisTitle = useCodeTitle(api, identity.vaSid, dorisCodes[0] ?? "", certificateTitle(state.processing?.certificate ?? {}, dorisCodes));
 
   const layout = useLayout();
   // The outer card blends with the case workspace card (app palette); inner primitives keep the zinc tokens.
@@ -201,8 +219,9 @@ export function DorisPanel({
     });
   }, [api, identity.mode, identity.vaSid, request, workspace]);
 
-  const invalidate = useCallback((nextCertificate: JsonObject, message = "Certificate changed. Process it again before saving.") => {
-    update((current) => ({ ...current, certificate: applyVisibility(nextCertificate), adminSeen: current.adminSeen || hasAdministrativeData(nextCertificate), revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, notice: message, error: "" }));
+  // derivedAge is only passed by the callers that change EstimatedAge or the dates; undefined leaves it as it is.
+  const invalidate = useCallback((nextCertificate: JsonObject, message = "Certificate changed. Process it again before saving.", derivedAge?: string | null) => {
+    update((current) => ({ ...current, certificate: applyVisibility(nextCertificate), adminSeen: current.adminSeen || hasAdministrativeData(nextCertificate), ...(derivedAge === undefined ? {} : { derivedAge }), revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, notice: message, error: "" }));
   }, [update, workspace.case.age]);
 
   const setField = (section: string, key: string, value: JsonValue | undefined) => {
@@ -212,7 +231,14 @@ export function DorisPanel({
     if (value === undefined || value === "") delete target[key];
     else target[key] = value;
     if (!Object.keys(target).length) delete next[section];
-    invalidate(next);
+    if (section === "AdministrativeData" && (key === "DateBirth" || key === "DateDeath")) {
+      // A date change refills an empty or derived age; the value a user typed or cleared is left alone.
+      const dated = deriveEstimatedAge(next, state.derivedAge, ageTyped);
+      invalidate(dated.certificate, undefined, dated.derived);
+      return;
+    }
+    // Typing or clearing EstimatedAge makes it the user's value: no refill until a date changes.
+    invalidate(next, undefined, section === "AdministrativeData" && key === "EstimatedAge" ? null : undefined);
   };
 
   const updatePart1 = (nextLines: JsonObject[]) => {
@@ -385,6 +411,35 @@ export function DorisPanel({
     update((current) => ({ ...current, selectedCause: choice, error: "", notice: choice ? "Final underlying cause selected independently from the DORIS result." : "" }));
   };
 
+  // Clearing also outdates a quick-add still waiting on WHO, so it cannot re-select what was just cleared.
+  const clearFinalCause = () => {
+    generation.current += 1;
+    chooseFinalCause(null);
+  };
+
+  // Quick-add: the first code WHO resolves is confirmed like a searched one (codeinfo, then the selection check).
+  const chooseCode = async (codes: string[]) => {
+    const requestId = ++generation.current;
+    const sentRevision = revision;
+    update((current) => ({ ...current, error: "" }));
+    for (const code of codes) {
+      try {
+        const info = await api.getDorisCodeInfo(identity.vaSid, code);
+        const check = await api.checkDorisSelection(identity.vaSid, info.item.code, info.item.uri);
+        if (!currentRequest(requestId, sentRevision)) return;
+        chooseFinalCause({ code: check.item.code, title: check.item.title, uri: check.item.uri });
+        return;
+      } catch (codeError) {
+        if (codeError instanceof ApiError && codeError.status === 403) {
+          clearAllocation();
+          return;
+        }
+        // Not resolvable: try the next code.
+      }
+    }
+    if (currentRequest(requestId, sentRevision)) update((current) => ({ ...current, error: "WHO ICD-11 did not confirm that code. Search for the cause instead." }));
+  };
+
   const loseAllocation = () => { setPickerTarget(null); clearAllocation(); };
 
   const pickerInit = (target: PickerTarget, finalQuery: string): PickerInit => {
@@ -422,20 +477,24 @@ export function DorisPanel({
   if (masked && workspace.step === "final") {
     const step1 = workspace.doris.step1_processing;
     const ownFinal = identity.mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final;
+    const ownInitial = (identity.mode === "reviewing" ? workspace.assessments.reviewer_initial : workspace.assessments.initial) ?? null;
     const selected = state.selectedCause;
     return (
       <Card style={[layout.panel, pageCard]}>
         <EditorHeading title="Final underlying cause" />
-        {step1 ? <ProcessingSummary processing={null} saved={step1} /> : <Muted>No Step 1 DORIS result was saved.</Muted>}
+        <Step1AssignedCard initial={ownInitial} />
+        <Step1DorisCard saved={step1 ?? null} certificate={workspace.doris.step1_certificate ?? null} api={api} vaSid={identity.vaSid} onDetails={setDetailCode} />
         <CertificateReference certificate={workspace.doris.step1_certificate ?? null} />
         {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
         {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
-        <FinalCausePicker label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })} />
+        <FinalCausePicker label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
+          quick={step2QuickChoices(ownInitial, workspace.smartva)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
         {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
         <Button label="Save final cause" disabled={!selected || state.busy} loading={state.busy} onPress={() => void saveMaskedFinal()} />
         <Separator testID="doris-actions-separator" />
         {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
         {picker(ownFinal?.conclusive_cod ?? "")}
+        {detailSheet}
       </Card>
     );
   }
@@ -475,8 +534,8 @@ export function DorisPanel({
     <Card style={[layout.panel, pageCard]}>
       <EditorHeading title="DORIS certificate" subtitle={isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
-      {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} /> : null}
-      {state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
+      {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} api={api} vaSid={identity.vaSid} /> : null}
+      {state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} onAgeTyped={setAgeTyped} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
       <SectionTitle style={{ marginTop: gap.xl }}>Frame A: Medical data</SectionTitle>
       <View style={[layout.nowrap, { marginTop: gap.md, paddingRight: gap.xs }]}>
         <SectionTitle numberOfLines={1} style={{ flex: 1, minWidth: 0 }}>Part 1: Cause of death</SectionTitle>
@@ -493,9 +552,10 @@ export function DorisPanel({
       <SectionTitle style={{ marginTop: gap.xl }}>Part 2: Other significant conditions contributing to death</SectionTitle>
       <CertificateLine key={`${identityKey}:part2`} searching={pickerTarget !== null} index={0} line={object(certificate.Part2) as CertificateLine} part2 age={age} warning={warns.Part2} onSearch={(query) => setPickerTarget({ kind: "part2", query })} onChange={(next) => { const copyCert = copy(certificate); copyCert.Part2 = next; invalidate(copyCert); }} onRemove={() => { const next = copy(certificate); delete next.Part2; invalidate(next); }} />
       <CertificateDetails certificate={certificate} provenance={provenance} shown={shown} warns={warns} onChange={setField} />
-      {processing ? <ProcessingSummary processing={processing} /> : null}
+      {processing ? <ProcessingSummary processing={processing} api={api} vaSid={identity.vaSid} /> : null}
       {processing ? (
-        <FinalCausePicker label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })} />
+        <FinalCausePicker label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
+          quick={dorisQuickChoices(processing, dorisTitle)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
       ) : null}
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
@@ -504,6 +564,7 @@ export function DorisPanel({
       <Separator testID="doris-actions-separator" />
       {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
       {picker(isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? "")}
+      {detailSheet}
     </Card>
   );
 }
@@ -547,15 +608,179 @@ function NotCodeableAction({ reason, other, busy, onReason, onOther, onSubmit }:
   );
 }
 
-/** Selected final cause with a button that opens the shared ICD-11 picker. */
-function FinalCausePicker({ label, value, onOpen, searching }: { label: string; value: PickerChoice | null; onOpen: (query: string) => void; searching: boolean }) {
+/** A quick-add choice above the search. `codes` are tried in order; `search` opens the picker with that query. */
+type QuickChoice = { key: string; label: string; codes: string[]; title?: boolean } | { key: string; label: string; search: string };
+
+/** The Step 1 DORIS suggestion's codes in the order a quick-add tries them: the full code, then its stem. */
+function suggestedDorisCodes(run: unknown): string[] {
+  const doris = object(object(run).doris);
+  const dr = object(doris.result);
+  if (doris.status !== "completed" || dr.reject === true) return [];
+  return [...new Set([dr.code, dr.stemCode].filter((code): code is string => typeof code === "string" && code !== ""))];
+}
+
+/** Step 1 quick-add: DORIS's processed UCOD (code and title), as the web offers it above the search. */
+function dorisQuickChoices(processing: DorisProcessReply | null, title: string): QuickChoice[] {
+  const codes = suggestedDorisCodes(processing);
+  return codes.length ? [{ key: "doris", label: `Use DORIS result: ${codes[0]}${title ? ` — ${title}` : ""}`, codes, title: true }] : [];
+}
+
+/**
+ * Step 2 quick-adds: the Step 1 underlying cause, then SmartVA's primary ICD-11 target (one click, or a search for
+ * several). Labels carry the WHO titles the server served with the workspace (antecedent_cod_label, cause icd11_label).
+ */
+function step2QuickChoices(initial: WorkspaceAssessment | null, smartva: JsonValue | null): QuickChoice[] {
+  const choices: QuickChoice[] = [];
+  const step1 = initial?.antecedent_cod;
+  // The web stores Step 1 as "CODE title"; WHO is asked about the code alone.
+  const step1Code = step1 ? step1.trim().split(/\s+/)[0] : "";
+  if (step1Code) choices.push({ key: "step1", label: `Use Step 1 underlying cause: ${initial?.antecedent_cod_label || step1}`, codes: [step1Code] });
+  const causes = Array.isArray(object(smartva).causes) ? (object(smartva).causes as JsonValue[]) : [];
+  const primary = object(causes[0]);
+  const alternatives = icd11Alternatives(primary.icd11);
+  const label = typeof primary.icd11_label === "string" && primary.icd11_label ? primary.icd11_label : alternatives.join(" / ");
+  const cause = [primary.cause, primary.likelihood].filter((part): part is string => typeof part === "string" && part !== "" && part !== "NaN");
+  const suffix = cause.length ? ` (${cause.join(", ")})` : "";
+  if (alternatives.length === 1) choices.push({ key: "smartva", label: `Use SmartVA result: ${label}${suffix}`, codes: alternatives });
+  if (alternatives.length > 1) choices.push({ key: "smartva", label: `Search SmartVA result: ${label}${suffix}`, search: alternatives[0] });
+  return choices;
+}
+
+/** The ICD-11 title of a code: the one already known, else WHO's codeinfo title ("" while it loads or on failure). */
+function useCodeTitle(api: WorkspaceApi, vaSid: string, code: string, known: string): string {
+  const [fetched, setFetched] = useState("");
+  useEffect(() => {
+    setFetched("");
+    if (!code || known) return undefined;
+    let live = true;
+    api.getDorisCodeInfo(vaSid, code).then((reply) => { if (live) setFetched(reply.item.title); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [api, code, known, vaSid]);
+  return known || fetched;
+}
+
+/** A small ⓘ button that opens the ICD-11 details of a code. */
+function InfoButton({ code, onPress }: { code: string; onPress: (code: string) => void }) {
+  return <Button size="icon" variant="outline" accessibilityLabel={`Details for ${code}`} onPress={() => onPress(code)}><ButtonGlyph>ⓘ</ButtonGlyph></Button>;
+}
+
+/** Step 1 assigned causes as the web Step 2 shows them (immediate, Step 1 underlying, other conditions). */
+function Step1AssignedCard({ initial }: { initial: WorkspaceAssessment | null }) {
+  const other = Array.isArray(initial?.other_conditions) ? initial.other_conditions.join(", ") : initial?.other_conditions ?? "";
+  return (
+    <Card>
+      <CardTitle>Your Step 1 assigned causes</CardTitle>
+      <Body>Immediate cause: {initial?.immediate_cod || "-"}</Body>
+      <Body>Step 1 underlying cause: {initial?.antecedent_cod || "-"}</Body>
+      <Body>Other conditions: {other || "-"}</Body>
+    </Card>
+  );
+}
+
+/** The saved Step 1 DORIS suggestion for information on masked Step 2, with its "Check before you decide" items. */
+function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: JsonObject | null; certificate: JsonObject | null; api: WorkspaceApi; vaSid: string; onDetails: (code: string) => void }) {
+  const codes = suggestedDorisCodes(saved);
+  const title = useCodeTitle(api, vaSid, codes[0] ?? "", certificateTitle(certificate ?? {}, codes));
+  return (
+    <Card>
+      <CardTitle>DORIS result from Step 1 (for information)</CardTitle>
+      {!saved ? <Muted>No DORIS result was saved with Step 1.</Muted> : (
+        <>
+          {codes.length ? (
+            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: gap.sm }}>
+              <Body style={{ flexShrink: 1 }}>DORIS suggests: {codes[0]}{title ? ` — ${title}` : ""}</Body>
+              <InfoButton code={codes[0]} onPress={onDetails} />
+            </View>
+          ) : <Alert variant="destructive">DORIS could not select an underlying cause from this certificate.</Alert>}
+          <DorisChecks doris={object(saved.doris)} codedit={object(saved.codedit)} api={api} vaSid={vaSid} />
+        </>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * ICD-11 titles for the codes the known DORIS warnings name, looked up once per code through codeinfo (the local WHO
+ * API). A code whose lookup fails keeps no title and the warning shows the code alone.
+ */
+function useWarningTitles(api: WorkspaceApi, vaSid: string, warning: string): Record<string, string> {
+  const codes = dorisWarningCodes(warning).slice(0, 5);
+  const key = codes.join(" ");
+  const [titles, setTitles] = useState<Record<string, string>>({});
+  useEffect(() => {
+    let live = true;
+    setTitles({});
+    key.split(" ").filter(Boolean).forEach((code) => {
+      api.getDorisCodeInfo(vaSid, code)
+        .then((reply) => { if (live && reply.item.title) setTitles((current) => ({ ...current, [code]: reply.item.title })); })
+        .catch(() => undefined);
+    });
+    return () => { live = false; };
+  }, [api, key, vaSid]);
+  return titles;
+}
+
+/** "Check before you decide" items, or "No problems found" when DORIS ran and nothing was flagged. */
+function DorisChecks({ doris, codedit, api, vaSid }: { doris: unknown; codedit: unknown; api: WorkspaceApi; vaSid: string }) {
+  const warning = object(object(doris).result).warning;
+  const titles = useWarningTitles(api, vaSid, typeof warning === "string" ? warning : "");
+  const checks = summaryChecks(object(doris), object(codedit), (code) => titles[code]);
+  if (checks.length) {
+    return (
+      <View style={{ gap: gap.xs }}>
+        <Body style={{ fontWeight: "600" }}>Check before you decide</Body>
+        {checks.map((check, index) => (
+          <View key={`check-${index}`} style={{ gap: 2 }}>
+            <Muted>• {check.text}</Muted>
+            {check.original ? <Muted style={{ fontSize: 12 }}>DORIS: {check.original}</Muted> : null}
+          </View>
+        ))}
+      </View>
+    );
+  }
+  return object(doris).status === "completed" ? <Muted>No problems found in the certificate.</Muted> : null;
+}
+
+/** Selected final cause with its ⓘ and ✕, the quick-add choices, then the search that opens the shared ICD-11 picker. */
+function FinalCausePicker({ label, value, onOpen, searching, quick, onQuick, onDetails, onClear }: {
+  label: string;
+  value: PickerChoice | null;
+  onOpen: (query: string) => void;
+  searching: boolean;
+  quick: QuickChoice[];
+  onQuick: (codes: string[]) => void;
+  onDetails: (code: string) => void;
+  onClear: () => void;
+}) {
+  const layout = useLayout();
   return (
     <Card>
       <CardTitle>{label}</CardTitle>
-      {value ? <Body>{value.code} — {value.title}</Body> : null}
+      {value ? (
+        <View style={[layout.row, { flexWrap: "nowrap" }]}>
+          <Body style={{ flexShrink: 1 }}>{value.code} — {value.title}</Body>
+          <InfoButton code={value.code} onPress={onDetails} />
+          <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
+        </View>
+      ) : null}
+      {quick.map((choice) => (
+        <View key={choice.key} style={layout.row}>
+          {"search" in choice ? (
+            <Button variant="outline" size="sm" label={choice.label} onPress={() => onOpen(choice.search)} style={{ flexShrink: 1 }} />
+          ) : (
+            <QuickChoiceButton choice={choice} onQuick={onQuick} />
+          )}
+          {"codes" in choice ? <InfoButton code={choice.codes[0]} onPress={onDetails} /> : null}
+        </View>
+      ))}
+      <Muted>Or search ICD-11 for your own code</Muted>
       <SearchBox label={`${label} search`} iconLabel={`${label} open search`} onOpen={onOpen} suspended={searching} />
     </Card>
   );
+}
+
+function QuickChoiceButton({ choice, onQuick }: { choice: Extract<QuickChoice, { codes: string[] }>; onQuick: (codes: string[]) => void }) {
+  return <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flexShrink: 1 }} />;
 }
 
 function CertificateLine({ index, line, part2 = false, age, warning, searching, onSearch, isLast, onAddBelow, onChange, onRemove, onMove }: {
@@ -652,7 +877,7 @@ function NotApplicable({ text }: { text: string }) {
   return <Alert variant="warning" testID="not-applicable">{text}</Alert>;
 }
 
-function AdministrativeFields({ certificate, provenance, warns, onChange }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange }) {
+function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeTyped }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange; onAgeTyped: (typed: boolean) => void }) {
   const layout = useLayout();
   const data = object(certificate.AdministrativeData);
   // A cleared field loses its "from interview" badge until it is answered again.
@@ -660,11 +885,12 @@ function AdministrativeFields({ certificate, provenance, warns, onChange }: { ce
   const clear = (key: string) => hasValue(data[key]) ? () => onChange("AdministrativeData", key, undefined) : undefined;
   return (
     <Tile title="Administrative Data">
-      <View style={layout.grid}>
+      {/* Top-aligned: the Sex tiles are tall and would otherwise push the other inputs down the row. */}
+      <View style={[layout.grid, { alignItems: "flex-start" }]}>
         <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Undetermined"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
         <Cell>
           <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
-          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
+          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} onTyped={onAgeTyped} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
           <Warn id="AdministrativeData.EstimatedAge" text={warns["AdministrativeData.EstimatedAge"]} />
         </Cell>
         <Cell>
@@ -803,24 +1029,28 @@ function ChoiceField({ label, name, value, options, onChange, badge, disabled }:
   );
 }
 
-function ProcessingSummary({ processing, saved }: { processing: DorisProcessReply | null; saved?: JsonObject }) {
+function ProcessingSummary({ processing, saved, api, vaSid }: { processing: DorisProcessReply | null; saved?: JsonObject; api: WorkspaceApi; vaSid: string }) {
   const savedDoris = object(saved?.doris);
   const savedCodedit = object(saved?.codedit);
   const dorisStatus = processing?.doris.status ?? (typeof savedDoris.status === "string" ? savedDoris.status : undefined);
   const codeditStatus = processing?.codedit.status ?? (typeof savedCodedit.status === "string" ? savedCodedit.status : undefined);
   const dr = object(processing?.doris.result ?? savedDoris.result);
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
-  const report = (value: unknown) => typeof value === "string" ? <ReportBox>{value}</ReportBox> : null;
+  // An empty report is no box at all; a run of blank lines reads as one blank line.
+  const report = (value: unknown) => {
+    const body = collapseBlankLines(value);
+    return body ? <ReportBox>{body}</ReportBox> : null;
+  };
   return (
     <Card>
       <CardTitle>DORIS and CoDEdit</CardTitle>
       <Body>DORIS: {dorisStatus ?? "not processed"}</Body>
-      {typeof dr.warning === "string" ? <Muted>Warning: {dr.warning}</Muted> : null}
       {typeof dr.error === "string" ? <Alert variant="destructive">{dr.error}</Alert> : null}
       {dr.reject === true ? <Alert variant="destructive">DORIS rejected the certificate result.</Alert> : null}
       {typeof dr.code === "string" ? <Body>Computed UCOD: {dr.code}</Body> : null}
       {typeof dr.stemCode === "string" ? <Body>Computed stem: {dr.stemCode}</Body> : null}
       {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
+      <DorisChecks doris={processing?.doris ?? savedDoris} codedit={processing?.codedit ?? savedCodedit} api={api} vaSid={vaSid} />
       {report(dr.report)}
       <Separator />
       <Body>CoDEdit: {codeditStatus ?? "not processed"}</Body>
@@ -853,19 +1083,6 @@ function CertificateReference({ certificate }: { certificate: JsonObject | null 
           {part2.map((condition, index) => <Muted key={index}>{text(condition.Text)}{text(condition.Code) ? ` — ${text(condition.Code)}` : ""}</Muted>)}
         </View>
       ) : null}
-    </Card>
-  );
-}
-
-function SmartVaReference({ value }: { value: JsonValue }) {
-  const data = object(value);
-  const causes = array(data.causes).filter((item): item is JsonObject => isRecord(item));
-  return (
-    <Card>
-      <CardTitle>SmartVA reference</CardTitle>
-      {text(data.age) ? <Body>Age: {text(data.age)}</Body> : null}
-      {text(data.gender) ? <Body>Gender: {text(data.gender)}</Body> : null}
-      {causes.map((cause, index) => <Muted key={index}>{text(cause.cause as JsonValue)} — ICD-11 {text(cause.icd11 as JsonValue)}</Muted>)}
     </Card>
   );
 }

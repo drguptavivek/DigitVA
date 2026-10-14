@@ -279,7 +279,13 @@ def db_backup_overview() -> dict:
 
     return {
         "store": backup_store_name(),
-        "key_prefix": dump_key_prefix(),
+        # The full bucket path an operator sees in the S3 console, S3_PREFIX
+        # included; object keys below stay store-relative for db-download.
+        "key_prefix": (
+            get_attachment_store().absolute_key(dump_key_prefix())
+            if backup_store_name() == ATTACHMENT_STORE_S3
+            else dump_key_prefix()
+        ),
         "local_dir": (
             current_app.config["DB_BACKUP_LOCAL_DIR"]
             if backup_store_name() == ATTACHMENT_STORE_LOCAL
@@ -453,6 +459,13 @@ def _pg_dump_command() -> tuple[list[str], dict]:
         env["PGPASSWORD"] = password
     else:
         env.pop("PGPASSWORD", None)
+    # TLS settings ride in the URL query (sslmode=verify-full against an
+    # external database); dropping them would downgrade pg_dump to an
+    # unverified connection.
+    for key in ("sslmode", "sslrootcert"):
+        value = url.query.get(key)
+        if value:
+            env["PG" + key.upper()] = value
     return argv, env
 
 

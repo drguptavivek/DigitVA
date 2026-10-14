@@ -8,6 +8,7 @@ docs/policy/access-control-model.md, "Role To Scope Rules".
 """
 from datetime import UTC, datetime
 
+from unittest.mock import patch
 import sqlalchemy as sa
 
 from app import db
@@ -402,8 +403,24 @@ class CrossUnitSubmissionScopeTests(UnitScopeFixture, BaseTestCase):
         phc_a, _ = self._seed()
         coder = self._user_with("x.coder.view@test.local", VaAccessRoles.coder, phc_a)
         self._login(str(coder.user_id))
-        self.assertNotEqual(self.client.get("/coding/view/csc-x-mine").status_code, 403)
-        self.assertEqual(self.client.get("/coding/view/csc-x-theirs").status_code, 403)
+        # Unit scope only: the own-outcome rule is covered by the test below.
+        with patch("app.routes.coding.va_permission_ensureviewable"):
+            self.assertNotEqual(self.client.get("/coding/view/csc-x-mine").status_code, 403)
+            self.assertEqual(self.client.get("/coding/view/csc-x-theirs").status_code, 403)
+
+    def test_view_shell_refuses_a_form_the_viewer_has_not_coded(self):
+        # digitva-bf80 (owner, 2026-10-14): VIEW alone does not open the
+        # read-only page; the viewer must have coded or reviewed the form, as
+        # its sections require, so the page never spins on 403s.
+        phc_a, _ = self._seed()
+        coder = self._user_with("x.coder.notmine@test.local", VaAccessRoles.coder, phc_a)
+        self._login(str(coder.user_id))
+        with patch("app.routes.coding.va_permission_ensureviewable"):
+            self.assertNotEqual(self.client.get("/coding/view/csc-x-mine").status_code, 403)
+
+        response = self.client.get("/coding/view/csc-x-mine")
+
+        self.assertEqual(response.status_code, 403)
 
     def test_reviewer_view_shell_refuses_another_units_submission(self):
         phc_a, _ = self._seed()

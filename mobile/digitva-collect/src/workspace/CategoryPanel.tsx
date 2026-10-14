@@ -2,9 +2,24 @@ import type { ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import { useUiStyles } from "../ui";
+import { Badge } from "./doris/ui";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
+
+/** "Symptoms on VA Interview" as chips, the same summary the web shows (CategoryPanel.web.tsx SummaryBlock). */
+function SymptomSummary({ items }: { items: JsonValue[] }) {
+  const styles = useUiStyles();
+  if (!items.length) return null;
+  return (
+    <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.headline}>Symptoms on VA Interview</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        {items.map((item, index) => <Badge key={`summary-${index}`} variant="outline">{typeof item === "string" ? item : String(item)}</Badge>)}
+      </View>
+    </View>
+  );
+}
 
 /** Render ordered server category data as escaped native text and optional media slots. */
 export function CategoryPanel({
@@ -23,9 +38,7 @@ export function CategoryPanel({
   return (
     <View accessibilityLabel={category.label}>
       <Text style={styles.headline}>{category.label}</Text>
-      {category.summary_items.map((value, index) => (
-        <CategoryValue key={`summary-${index}`} value={value} renderMedia={renderMedia} />
-      ))}
+      <SymptomSummary items={category.summary_items} />
       {category.subcategories.map((subcategory) => (
         <View key={subcategory.code} style={styles.card}>
           <Text style={styles.headline}>{subcategory.label}</Text>

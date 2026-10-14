@@ -9,6 +9,8 @@ import uuid
 from datetime import datetime, timezone
 from unittest.mock import patch
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import (
     VaForms,
@@ -129,6 +131,25 @@ class AdminAttachmentsPanelTests(BaseTestCase):
         self.assertTrue(
             all(f["project_id"] == self.PROJECT_ID for f in payload["forms"])
         )
+
+    def test_overview_lists_refused_odk_files_by_reason_with_size(self):
+        row = db.session.scalar(
+            sa.select(VaSubmissionAttachments).where(
+                VaSubmissionAttachments.filename == "photo.jpg"
+            )
+        )
+        row.refused_reason = "too_large"
+        row.refused_size_bytes = 30 * 1024 * 1024
+        db.session.commit()
+        self._login(str(self.base_admin_id))
+
+        payload = self.client.get("/admin/api/attachments/overview").get_json()
+
+        self.assertIn(
+            {"reason": "too_large", "rows": 1, "largest_size_bytes": 30 * 1024 * 1024},
+            payload["refused_odk_files"],
+        )
+        self.assertNotIn("photo.jpg", str(payload["refused_odk_files"]))
 
     def test_overview_is_admin_only(self):
         self._login(str(self.base_coder_id))

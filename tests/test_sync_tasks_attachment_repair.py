@@ -264,6 +264,29 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         self.assertEqual(summary["attachments_missing"], 1)
         self.assertTrue(repair_map[va_sid]["needs_attachments"])
 
+    def test_a_file_refused_for_size_is_not_counted_missing(self):
+        # Baseline: the same row without a refusal is missing.
+        va_sid = self._create_submission_with_attachment(
+            filename="photo.jpg",
+            storage_name="photo-storage.jpg",
+            local_path=os.path.join(self._tmp_dir.name, self.form_id, "media", "photo.jpg"),
+        )
+        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        self.assertEqual(summary["attachments_missing"], 1)
+        self.assertIn(va_sid, repair_map)
+
+        row = db.session.scalars(
+            sa.select(VaSubmissionAttachments).where(VaSubmissionAttachments.va_sid == va_sid)
+        ).one()
+        row.refused_reason = "too_large"
+        row.refused_size_bytes = 30_000_000
+        db.session.commit()
+
+        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+
+        self.assertEqual(summary["attachments_missing"], 0)
+        self.assertNotIn(va_sid, repair_map)
+
     def test_s3_stored_rows_are_complete_without_a_local_file(self):
         va_sid = self._create_submission_with_attachment(
             filename="photo.jpg",

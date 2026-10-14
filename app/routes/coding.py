@@ -6,7 +6,11 @@ from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAll
 from flask_login import current_user
 from flask import Blueprint, render_template, url_for, redirect, request
 from app.decorators import role_required
-from app.utils import va_permission_abortwithflash, va_render_serialisedates
+from app.utils import (
+    va_permission_abortwithflash,
+    va_permission_ensureviewable,
+    va_render_serialisedates,
+)
 from app.services.coder_dashboard_service import (
     get_coder_completed_count,
     get_coder_completed_history,
@@ -301,6 +305,10 @@ def view_submission(va_sid):
     # The same VIEW the ``vaview`` partial validator requires (F4); the
     # partials add the coder's own-outcome check (design 2.4).
     _require_or_abort(Action.VIEW, va_sid)
+    # The page applies the partials' own-outcome rule too, so a viewer who has
+    # not coded or reviewed this form gets a clear refusal here instead of a
+    # page whose every section 403s (owner, 2026-10-14; digitva-bf80).
+    va_permission_ensureviewable(va_sid)
     form = db.session.get(VaSubmissions, va_sid)
     return render_va_coding_page(form, "vacode", "vaview", "coder")
 

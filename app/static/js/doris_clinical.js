@@ -1,8 +1,8 @@
 import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=4';
-import { mount as mountInterval } from './doris_interval.js?v=2';
-import * as Rules from './doris_rules.js?v=2';
+import { mount as mountInterval } from './doris_interval.js?v=4';
+import * as Rules from './doris_rules.js?v=4';
 import * as Fields from './doris_fields.js?v=2';
-import { renderSummary, usableDorisCode } from './doris_result_summary.js';
+import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
 
 (function () {
   'use strict';
@@ -113,7 +113,13 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     function status(message) { query(editor, '[data-doris-status]').textContent = message || ''; }
     // "Continue to Step 2" is offered only while a saved Step 1 is shown unchanged.
     function hideContinue() { var form = document.getElementById(editor.dataset.formId); var button = form && form.querySelector('[data-doris-continue]'); if (button) button.hidden = true; }
+    // The floating VA definition for a picked ICD-11 cause (va_definition_panel.js; absent on pages without it).
+    function showDefinition(code, fieldLabel) {
+      var stem = String(code || '').split(/[&/]/)[0];
+      if (window.DigitVADefinitionPanel && stem) window.DigitVADefinitionPanel.lookup(stem, fieldLabel, 'icd11');
+    }
     function selectFinal(choice) {
+      showDefinition(choice.code, 'Final underlying cause');
       var target = finalInput(editor); if (target) target.value = choice.code + ' ' + (choice.title || '');
       query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + choice.code + ' — ' + (choice.title || '');
       query(editor, '[data-doris-final-results]').replaceChildren();
@@ -124,6 +130,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
       if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
     }
     function selectForLine(line, choice) {
+      showDefinition(choice.code, 'Certificate line');
       var condition = {Text: choice.selected_text || choice.matching_text || choice.title, Code: choice.code, LinearizationURI: choice.uri};
       line.conditions.push(condition); chip(line, condition);
       var input = line.element.querySelector('[data-doris-search]');
@@ -329,6 +336,25 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     var fetal=initial.FetalOrInfantDeath||{};[['[data-doris-stillborn]',fetal.Stillborn],['[data-doris-multiple]',fetal.MultiplePregnancy],['[data-doris-within24]',fetal.DeathWithin24h],['[data-doris-birth-weight]',fetal.BirthWeight],['[data-doris-pregnancy-weeks]',fetal.PregnancyWeeks],['[data-doris-mother-age]',fetal.AgeMother],['[data-doris-perinatal]',fetal.PerinatalDescription]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
     Fields.mountDates(editor);
     Fields.setDate(query(editor, '[data-doris-date-birth]'), admin.DateBirth || ''); Fields.setPlainDate(query(editor, '[data-doris-date-death]'), admin.DateDeath || '');
+    // EstimatedAge is derived from the two dates when blank or still the value derived last time (Rules.ageFromDates);
+    // a value the coder typed or cleared is left alone until a date changes.
+    var derivedAge = null;
+    function syncDerivedAge() {
+      var current = ageControl.peek();
+      // A half-typed age (a number without a unit reads as '') is user input too: a date change never replaces it.
+      if (!Rules.mayRefillAge(current, ageControl.typed(), derivedAge)) { derivedAge = null; return; }
+      var dates = rawCertificate().AdministrativeData || {};
+      var next = Rules.ageFromDates(dates.DateBirth || '', dates.DateDeath || '');
+      if (next !== current) ageControl.set(next);
+      derivedAge = next || null;
+    }
+    // Load-time derive only for a fresh prefill seed. A restored processing (data-doris-initial-processing) or a
+    // saved certificate (no prefill provenance) keeps the EstimatedAge it was saved with.
+    var prefillProvenance = {};
+    try { prefillProvenance = JSON.parse((query(editor, '[data-doris-prefill]') || {}).textContent || '{}') || {}; } catch (_error) { prefillProvenance = {}; }
+    var restored = null;
+    try { restored = JSON.parse((query(editor, '[data-doris-initial-processing]') || {}).textContent || 'null'); } catch (_error) { restored = null; }
+    if (Rules.derivesAtLoad(prefillProvenance, restored)) syncDerivedAge();
     EXTRA_SECTIONS.forEach(function (section) { var saved = initial[section.name] || {}; section.fields.forEach(function (field) { var control = query(editor, field[1]); var value = saved[field[0]] == null ? '' : String(saved[field[0]]); if (control.hasAttribute('data-doris-date')) Fields.setDate(control, value); else control.value = value; }); });
     var maternal=initial.MaternalDeath||{};[['[data-doris-pregnant]',maternal.WasPregnant],['[data-doris-pregnancy-time]',maternal.TimeFromPregnancy],['[data-doris-pregnancy-contribute]',maternal.PregnancyContribute]].forEach(function(entry){query(editor,entry[0]).value=entry[1]==null?'':String(entry[1]);});
     var rulesReady = false;
@@ -372,8 +398,10 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     var clearButtons = Fields.mountClear(editor);
     rulesReady = true; applyRules();
     showPrefillMarkers(editor);
+    // A date change refills the derived age before the editor invalidates (the date inputs are also data-doris-extra).
+    [query(editor, '[data-doris-date-birth]'), query(editor, '[data-doris-date-death]')].forEach(function (input) { input.addEventListener('input', syncDerivedAge); });
     editor.querySelectorAll('[data-doris-fetal] input,[data-doris-fetal] select,[data-doris-fetal] textarea,[data-doris-maternal] select,[data-doris-extra]').forEach(function(field){field.addEventListener('input',function(){invalidate();});});
-    query(editor, '[data-doris-sex]').addEventListener('change', function () { invalidate(); }); ageControl.value.addEventListener('input', function () { invalidate(); }); ageControl.unit.addEventListener('change', function () { invalidate(); });
+    query(editor, '[data-doris-sex]').addEventListener('change', function () { invalidate(); }); ageControl.value.addEventListener('input', function () { derivedAge = null; invalidate(); }); ageControl.unit.addEventListener('change', function () { derivedAge = null; invalidate(); });
     query(editor, '[data-doris-add-line]').addEventListener('click', function () { if (state.lines.length < MAX_LINES) { state.lines.push(makeLine({Conditions: []}, false)); renderOrder(); invalidate('Line added. Process again.'); } });
     query(editor, '[data-doris-process]').addEventListener('click', process);
     var finalBox = query(editor, '[data-doris-final-search]');
@@ -388,8 +416,6 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js';
     editor._installFreshDorisResults = function (processing) { renderProcessing(processing, true); };
     // After a save refused for another reason, the server sends back the
     // processed result and final choice; its token is re-checked at save.
-    var restored = null;
-    try { restored = JSON.parse((query(editor, '[data-doris-initial-processing]') || {}).textContent || 'null'); } catch (_error) { restored = null; }
     if (restored && restored.certificate && restored.doris && restored.codedit && restored.process_token && restored.result_digest) {
       renderProcessing(restored, false);
       var restoredFinal = text(restored.final_choice);

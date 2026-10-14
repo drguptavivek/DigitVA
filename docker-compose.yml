@@ -46,7 +46,9 @@ services:
         limits:
           memory: 1g
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      # X-Forwarded-Proto: Talisman would otherwise redirect this plain-HTTP
+      # probe to HTTPS in production and the check would never pass.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:5000/health', headers={'X-Forwarded-Proto': 'https'}), timeout=5)"]
       interval: 2m
       timeout: 10s
       retries: 3
@@ -76,7 +78,9 @@ services:
         limits:
           memory: 192m
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
+      # X-Forwarded-Proto: Talisman would otherwise redirect this plain-HTTP
+      # probe to HTTPS in production and the check would never pass.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:5001/health', headers={'X-Forwarded-Proto': 'https'}), timeout=5)"]
       interval: 2m
       timeout: 10s
       retries: 3

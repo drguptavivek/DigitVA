@@ -78,7 +78,10 @@ const fresh = requests.shift();
 const question = (name, order) => ({ name, order, english_label: name, translated_label: '', source: null,
   missing_counts: { labels: 0, options: 1, notes: 0 },
   choices: [{ value: 'yes', english: 'Yes', translated: '', source: null, extensions: ['narration_language'] }], extensions: [] });
-answer(fresh, { total: 2, items: [question('first', 1), question('second', 2)], available_extensions: ['doris_support_whova_2022', 'narration_language'] });
+const abhaAddress = { ...question('abha_address', 1), english_label: 'ABHA address',
+  missing_counts: { labels: 1, options: 0, notes: 1 },
+  hint: { english: 'name@abdm', translated: 'नाम@abdm', source: 'machine' } };
+answer(fresh, { total: 2, items: [abhaAddress, question('second', 2)], available_extensions: ['doris_support_whova_2022', 'narration_language'] });
 answer(stale, { total: 1, items: [question('stale-row', 1)], available_extensions: [] });
 await tick();
 assert.doesNotMatch(w.document.getElementById('ite-table-wrap').textContent, /stale-row/);
@@ -89,8 +92,45 @@ assert.match(w.document.getElementById('ite-table-wrap').textContent, /1 option\
 assert.match(w.location.search, /missing=missing_notes/);
 assert.match(w.location.search, /extension=doris_support_whova_2022/);
 w.document.querySelector('#ite-table-wrap tbody tr').click();
+assert.match(w.document.getElementById('ite-modal-body').textContent, /Needs review: Label — Blank; Hint \/ note — Machine draft awaiting acceptance/,
+  'modal summary names the blank label and populated machine-draft note');
+assert.match(w.document.getElementById('ite-modal-body').textContent, /Hint \/ note/,
+  'the hint is identified as a note in the modal');
+const acceptHint = Array.from(w.document.querySelectorAll('#ite-modal-body button')).find(button => button.textContent === 'Accept draft');
+assert.ok(acceptHint, 'machine-populated note has an explicit acceptance action');
+assert.equal(acceptHint.disabled, false, 'an untouched machine draft can be accepted immediately');
+const hintTextarea = w.document.querySelectorAll('#ite-modal-body textarea')[1];
+hintTextarea.value = 'edited machine translation';
+hintTextarea.dispatchEvent(new w.Event('input'));
+acceptHint.click();
+assert.equal(requests.length, 0, 'a dirty machine draft cannot be accepted');
+assert.equal(acceptHint.disabled, true, 'accept stays disabled while the machine draft is edited');
+assert.equal(hintTextarea.value, 'edited machine translation', 'rejecting accept preserves the unsaved edit');
+acceptHint.disabled = false;
+acceptHint.click();
+assert.equal(requests.length, 0, 'the accept handler also rejects a dirty machine draft');
+assert.match(w.document.getElementById('ite-alert').textContent, /Save the edited translation/);
+w.document.getElementById('ite-undo-btn').click();
+assert.equal(hintTextarea.value, 'नाम@abdm', 'Undo restores the machine draft opened in the modal');
+assert.equal(acceptHint.disabled, false, 'Undo restores the accept action');
+acceptHint.click();
+await tick();
+assert.equal(requests[0].options.method, 'POST');
+assert.equal(JSON.parse(requests[0].options.body).field, 'hint');
+assert.equal(hintTextarea.disabled, true, 'accept locks the field while its request is pending');
+assert.equal(hintTextarea.value, 'नाम@abdm', 'pending accept keeps the submitted draft visible');
+answer(requests.shift(), { source: 'edited', version: 33 });
+await tick();
+assert.match(w.document.getElementById('ite-modal-body').textContent, /Needs review: Label — Blank/,
+  'accepting a machine note removes only that note from outstanding status');
+assert.doesNotMatch(w.document.getElementById('ite-modal-body').textContent, /Hint \/ note — Machine draft/);
+assert.doesNotMatch(w.document.getElementById('ite-table-wrap').textContent, /1 note\(s\)/,
+  'accept updates the cached missing-note badge');
 const textarea = w.document.querySelector('#ite-modal-body textarea');
 textarea.value = 'first translated';
+textarea.dispatchEvent(new w.Event('input'));
+assert.match(w.document.getElementById('ite-modal-body').textContent, /Label — Unsaved changes/,
+  'typing a translation does not imply it has already been saved or accepted');
 w.document.getElementById('ite-savenext-btn').click();
 await tick();
 assert.equal(requests.length, 1, 'Save and next writes only the edited field');
@@ -140,7 +180,8 @@ assert.equal(requests.length, 0, 'a second save-next cannot operate on the empti
 w.document.getElementById('ite-missing').value = 'all';
 w.document.getElementById('ite-missing').dispatchEvent(new w.Event('change'));
 await tick();
-answer(requests.shift(), { total: 1, items: [question('reopened', 4)], available_extensions: ['doris_support_whova_2022', 'narration_language'] });
+answer(requests.shift(), { total: 1, items: [{ ...question('reopened', 4), translated_label: 'machine label', source: 'machine',
+  missing_counts: { labels: 1, options: 1, notes: 0 } }], available_extensions: ['doris_support_whova_2022', 'narration_language'] });
 await tick();
 w.document.querySelector('#ite-table-wrap tbody tr').click();
 assert.equal(w.document.getElementById('ite-save-btn').disabled, false,
@@ -149,6 +190,21 @@ assert.equal(w.document.getElementById('ite-undo-btn').disabled, false,
   'opening another question resets Undo');
 assert.equal(w.document.querySelector('#ite-modal .modal-footer [data-bs-dismiss="modal"]').disabled, false,
   'opening another question resets the footer Close control');
+const reopenedTextarea = w.document.querySelector('#ite-modal-body textarea');
+reopenedTextarea.value = 'reviewed label';
+reopenedTextarea.dispatchEvent(new w.Event('input'));
+const reopenedAccept = Array.from(w.document.querySelectorAll('#ite-modal-body button')).find(button => button.textContent === 'Accept draft');
+assert.ok(reopenedAccept && reopenedAccept.disabled, 'editing a machine label disables its accept action');
+w.document.getElementById('ite-save-btn').click();
+await tick();
+assert.equal(requests.length, 1, 'saving the edited machine label makes one write');
+assert.equal(requests[0].options.method, 'PUT');
+answer(requests.shift(), { source: 'edited' });
+await tick();
+assert.equal(Array.from(w.document.querySelectorAll('#ite-modal-body button')).some(button => button.textContent === 'Accept draft'), false,
+  'saving an edited machine field removes its stale accept action');
+assert.doesNotMatch(w.document.getElementById('ite-table-wrap').textContent, /Missing: 1 label\(s\)/,
+  'saving updates the cached missing-label badge');
 
 const extBadgeBlock = panel.slice(panel.indexOf('var extBadges'), panel.indexOf('}).join', panel.indexOf('var extBadges')));
 assert.match(extBadgeBlock, /\?extension=/, 'coverage badges link to the selected extension');

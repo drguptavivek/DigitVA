@@ -627,12 +627,74 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         item = rows[0]
         self.assertEqual(item["name"], "language")
         values = {choice["value"] for choice in item["choices"]}
-        self.assertIn("en", values)
+        self.assertIn("1", values)
         self.assertIn("bangla", values)
         added = next(c for c in item["choices"] if c["value"] == "bangla")
         self.assertEqual(added["extensions"], ["narration_language"])
-        base_choice = next(c for c in item["choices"] if c["value"] == "en")
+        base_choice = next(c for c in item["choices"] if c["value"] == "1")
         self.assertNotIn("extensions", base_choice)
+        self.assertNotIn("en", values)
+
+    def test_choice_options_come_from_the_reference_and_can_be_edited(self):
+        self._login(self.base_admin_id)
+        first_page = self.client.get(
+            self._api("/questions?page_size=200&page=1")
+        )
+        self.assertEqual(first_page.status_code, 200)
+        first_payload = first_page.get_json()
+        all_items = list(first_payload["items"])
+        page_count = (first_payload["total"] + first_payload["page_size"] - 1) // first_payload["page_size"]
+        for page in range(2, page_count + 1):
+            response = self.client.get(
+                self._api(f"/questions?page_size=200&page={page}")
+            )
+            self.assertEqual(response.status_code, 200)
+            payload = response.get_json()
+            all_items.extend(payload["items"])
+        self.assertEqual(len(all_items), first_payload["total"])
+
+        language = next(
+            item for item in all_items if item.get("list_name") == "language"
+        )
+        values = {choice["value"] for choice in language["choices"]}
+        self.assertTrue({"1", "2", "3", "english"}.issubset(values))
+        self.assertNotIn("en", values)
+        english = next(c for c in language["choices"] if c["value"] == "english")
+        self.assertEqual(english["extensions"], ["narration_language"])
+        for choice in language["choices"]:
+            if choice["value"] in {"1", "2", "3"}:
+                self.assertNotIn("extensions", choice)
+
+        reference = svc.reference_items(INSTRUMENT)
+        for item in all_items:
+            for choice in item.get("choices", []):
+                key = ("choice", f"{item['list_name']}/{choice['value']}", "label")
+                self.assertIn(key, reference, key)
+
+        for value, text in (("1", "भाषा एक"), ("english", "अंग्रेज़ी")):
+            saved = self.client.put(
+                self._api("/strings"),
+                json={
+                    "item_kind": "choice", "item_key": f"language/{value}",
+                    "field": "label", "text": text,
+                },
+                headers=self._csrf_headers(),
+            )
+            self.assertEqual(saved.status_code, 200, saved.get_json())
+
+        exported = self.client.get(self._api("/export")).get_json()
+        self.assertEqual(exported["choices"]["language/1"]["label"], "भाषा एक")
+        self.assertEqual(exported["choices"]["language/english"]["label"], "अंग्रेज़ी")
+
+        rejected = self.client.put(
+            self._api("/strings"),
+            json={
+                "item_kind": "choice", "item_key": "language/en",
+                "field": "label", "text": "अंग्रेज़ी",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(rejected.status_code, 400)
 
     def test_a_shared_choice_list_reports_how_many_questions_use_it(self):
         self._login(self.base_admin_id)

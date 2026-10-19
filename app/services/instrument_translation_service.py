@@ -1357,7 +1357,6 @@ def _choice_option_payload(
     reference: dict[tuple[str, str, str], str],
     translations: dict[tuple[str, str, str], MapInstrumentTranslations],
     *,
-    fallback_english: str = "",
     extensions: frozenset[str] | None = None,
 ) -> dict:
     """One choice option: value, English, translation and its source.
@@ -1372,8 +1371,7 @@ def _choice_option_payload(
     row = translations.get((ITEM_KIND_CHOICE, choice_key, FIELD_LABEL))
     option = {
         "value": value,
-        "english": reference.get((ITEM_KIND_CHOICE, choice_key, FIELD_LABEL))
-        or fallback_english,
+        "english": reference[(ITEM_KIND_CHOICE, choice_key, FIELD_LABEL)],
         "translated": row.text if row else None,
         "source": row.source if row else None,
     }
@@ -1387,8 +1385,9 @@ def _question_payload(
     reference: dict[tuple[str, str, str], str],
     translations: dict[tuple[str, str, str], MapInstrumentTranslations],
     list_counts: dict[str, int],
+    reference_choice_values: dict[str, set[str]],
     layer_list_values: dict[str, frozenset[str]],
-    layer_list_extensions: dict[str, frozenset[str]],
+    layer_choice_extensions: dict[tuple[str, str, str], frozenset[str]],
 ) -> dict:
     """One row of :func:`list_questions` for a base WHO question."""
     name = question["name"]
@@ -1436,23 +1435,26 @@ def _question_payload(
         seen_values: set[str] = set()
         for choice in question.get("choices") or []:
             value = choice.get("value")
+            if value not in reference_choice_values.get(list_name, set()):
+                continue
             seen_values.add(value)
             choices.append(
                 _choice_option_payload(
                     list_name, value, reference, translations,
-                    fallback_english=(choice.get("label") or {}).get(BASE_LOCALE) or "",
+                    extensions=layer_choice_extensions.get(
+                        (ITEM_KIND_CHOICE, f"{list_name}/{value}", FIELD_LABEL)
+                    ) if value in layer_list_values.get(list_name, frozenset()) else None,
                 )
             )
-        # A layer extension can add options to a list the base form already
-        # uses instead of defining its own (e.g. "language" gains more
-        # languages from narration_language) -- digitva-8go. Those values are
-        # already merged into `reference` by _reference_items_cached; they
-        # belong on this same row, not a second one for the same list.
-        for value in sorted(layer_list_values.get(list_name, frozenset()) - seen_values):
+        # Keep options present in the translation reference even when the
+        # runtime instrument omits them; layer additions stay on this row.
+        for value in sorted(reference_choice_values.get(list_name, set()) - seen_values):
             choices.append(
                 _choice_option_payload(
                     list_name, value, reference, translations,
-                    extensions=layer_list_extensions.get(list_name),
+                    extensions=layer_choice_extensions.get(
+                        (ITEM_KIND_CHOICE, f"{list_name}/{value}", FIELD_LABEL)
+                    ) if value in layer_list_values.get(list_name, frozenset()) else None,
                 )
             )
         payload["list_name"] = list_name
@@ -1630,6 +1632,11 @@ def list_questions(
         raise InstrumentTranslationError("Invalid missing filter.")
 
     reference = reference_items(instrument_code)
+    reference_choice_values: dict[str, set[str]] = {}
+    for kind, item_key, field in reference:
+        if kind == ITEM_KIND_CHOICE and field == FIELD_LABEL:
+            list_name, _separator, value = item_key.partition("/")
+            reference_choice_values.setdefault(list_name, set()).add(value)
     list_counts = _choice_list_counts(instrument_code)
     generated = sorted(
         _generated_questions(instrument_code), key=lambda q: q.get("order", 0)
@@ -1644,6 +1651,7 @@ def list_questions(
         )
     }
     question_extensions, list_extensions, list_values = _layer_group_data()
+    layer_choice_extensions = _reference_extensions_cached(str(LAYER_REFERENCE_PATH))
     available_extensions = sorted(
         {ext for exts in question_extensions.values() for ext in exts}
         | {ext for exts in list_extensions.values() for ext in exts}
@@ -1661,7 +1669,8 @@ def list_questions(
     # (e.g. the audit trail) that carry no display text at all.
     rows = [
         _question_payload(
-            q, reference, translations, list_counts, list_values, list_extensions
+            q, reference, translations, list_counts, reference_choice_values,
+            list_values, layer_choice_extensions,
         )
         for q in generated
         if reference.get((ITEM_KIND_QUESTION, q["name"], FIELD_LABEL))

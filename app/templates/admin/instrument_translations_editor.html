@@ -49,7 +49,7 @@
         <option value="all">All extensions</option>
         <option value="base">WHO base</option>
       </select>
-      <div class="form-text small w-100">Blank strings and machine drafts awaiting acceptance count as missing.</div>
+      <div class="form-text small w-100">Blank strings and machine drafts awaiting acceptance need review.</div>
     </div>
   </div>
 
@@ -303,6 +303,34 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     return '<span class="badge text-bg-' + (SOURCE_BADGE[source] || 'light') + ' border">' + esc(source) + '</span>';
   }
 
+  function reviewState(text, source) {
+    if (source === 'machine') return 'Machine draft awaiting acceptance';
+    if (!String(text || '').trim()) return 'Blank';
+    return '';
+  }
+
+  function updateReviewStatus(field) {
+    var status = field.textarea.value !== field.originalText
+      ? 'Unsaved changes' : reviewState(field.textarea.value, field.source);
+    field.statusEl.textContent = status;
+    field.statusEl.className = status ? 'badge text-bg-warning border ite-review-status' : 'badge text-bg-success border ite-review-status';
+    if (!status) field.statusEl.textContent = 'Accepted';
+  }
+
+  function updateReviewSummary() {
+    var summary = document.getElementById('ite-review-summary');
+    var outstanding = fieldRefs.filter(function (field) {
+      return field.editable && (field.textarea.value !== field.originalText || reviewState(field.textarea.value, field.source));
+    }).map(function (field) {
+      return field.label + ' — ' + (field.textarea.value !== field.originalText
+        ? 'Unsaved changes' : reviewState(field.textarea.value, field.source));
+    });
+    summary.className = outstanding.length ? 'alert alert-warning small py-2' : 'alert alert-success small py-2';
+    summary.textContent = outstanding.length
+      ? 'Needs review: ' + outstanding.join('; ')
+      : 'No outstanding translations in this question.';
+  }
+
   function extensionsHtml(row) {
     var extensions = (row.extensions || []).slice();
     (row.choices || []).forEach(function (choice) {
@@ -401,12 +429,14 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
   var openIndex = null;
   var fieldRefs = []; // editable fields open in the modal right now
   var suppressDirtyConfirm = false;
+  var acceptingDraft = false;
 
   function isDirty() {
     return fieldRefs.some(function (f) { return f.editable && f.textarea.value !== f.originalText; });
   }
 
   modalEl.addEventListener('hide.bs.modal', function (evt) {
+    if (acceptingDraft) { evt.preventDefault(); return; }
     if (suppressDirtyConfirm) return;
     if (!isDirty()) return;
     evt.preventDefault();
@@ -490,6 +520,9 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
       sb.textContent = descriptor.source;
       badges.appendChild(sb);
     }
+    var statusEl = document.createElement('span');
+    statusEl.className = 'badge border ite-review-status';
+    badges.appendChild(statusEl);
     if (descriptor.note) {
       var nb = document.createElement('span');
       nb.className = 'badge text-bg-secondary ite-readonly-badge';
@@ -552,11 +585,13 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
 
     var footer = document.createElement('div');
     footer.className = 'd-flex justify-content-end mt-1';
+    var acceptBtn = null;
     if (descriptor.source === 'machine') {
-      var acceptBtn = document.createElement('button');
+      acceptBtn = document.createElement('button');
       acceptBtn.type = 'button';
       acceptBtn.className = 'btn btn-sm btn-outline-warning';
       acceptBtn.textContent = 'Accept draft';
+      acceptBtn.disabled = false;
       acceptBtn.addEventListener('click', function () { acceptField(idx, acceptBtn, sb); });
       footer.appendChild(acceptBtn);
     }
@@ -564,13 +599,21 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
 
     fieldRefs.push({
       kind: descriptor.kind, key: descriptor.key, field: descriptor.field,
-      textarea: textarea,
+      label: descriptor.label, textarea: textarea, statusEl: statusEl,
       // `originalText` is the last-saved baseline (what a diff and the dirty
       // check compare against); `openedText` never changes after the modal
       // opens -- Undo restores that one, not the last save, per digitva-8go
       // ("revert ... to the values the modal opened with").
       originalText: textarea.value, openedText: textarea.value, editable: true,
-      source: descriptor.source, badgeEl: sb || null,
+      source: descriptor.source, badgeEl: sb || null, acceptBtn: acceptBtn,
+    });
+    updateReviewStatus(fieldRefs[fieldRefs.length - 1]);
+    textarea.addEventListener('input', function () {
+      if (fieldRefs[idx].acceptBtn) {
+        fieldRefs[idx].acceptBtn.disabled = textarea.value !== fieldRefs[idx].originalText;
+      }
+      updateReviewStatus(fieldRefs[idx]);
+      updateReviewSummary();
     });
 
     return wrap;
@@ -589,24 +632,36 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
 
   function acceptField(fieldIdx, btnEl, badgeEl) {
     var f = fieldRefs[fieldIdx];
-    btnEl.disabled = true;
+    if (f.textarea.value !== f.originalText) {
+      alertBox('warning', 'Save the edited translation before accepting its machine draft.');
+      return;
+    }
+    acceptingDraft = true;
+    setModalBusy(true);
     apiJson(
       API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(LOCALE) + '/strings/accept',
       'POST', { item_kind: f.kind, item_key: f.key, field: f.field }
     ).then(function (res) {
-      btnEl.disabled = false;
       if (!res.ok) { alertBox('danger', res.data.error || 'Accept failed.'); return; }
       f.source = res.data.source;
       f.originalText = f.textarea.value; // accept never changes text, only source
       if (badgeEl) badgeEl.className = 'badge text-bg-' + (SOURCE_BADGE[f.source] || 'light') + ' border';
       if (badgeEl) badgeEl.textContent = f.source;
       btnEl.remove();
+      f.acceptBtn = null;
       applyFieldToItemCache(f);
+      updateReviewStatus(f);
+      updateReviewSummary();
       renderTable(state.items);
       alertBox('success', 'Accepted. ' + LOCALE + ' is now version ' + res.data.version + '.');
     }).catch(function () {
-      btnEl.disabled = false;
       alertBox('danger', 'Network error.');
+    }).finally(function () {
+      acceptingDraft = false;
+      setModalBusy(false);
+      fieldRefs.forEach(function (field) {
+        if (field.acceptBtn) field.acceptBtn.disabled = field.textarea.value !== field.originalText;
+      });
     });
   }
 
@@ -627,6 +682,19 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
         if (c.value === value) { c.translated = f.textarea.value; c.source = f.source; }
       });
     }
+    function isMissing(english, translated, source) {
+      return Boolean(english) && (!translated || !translated.trim() || source === 'machine');
+    }
+    row.missing_counts = {
+      labels: Number(!row.is_choice_list && isMissing(row.english_label, row.translated_label, row.source)),
+      options: (row.choices || []).filter(function (choice) {
+        return isMissing(choice.english, choice.translated, choice.source);
+      }).length,
+      notes: ['hint', 'guidance', 'constraint_message'].filter(function (key) {
+        var note = row[key];
+        return note && isMissing(note.english, note.translated, note.source);
+      }).length,
+    };
   }
 
   function renderModal(idx) {
@@ -641,6 +709,9 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
 
     var body = document.getElementById('ite-modal-body');
     body.innerHTML = '';
+    var summary = document.createElement('div');
+    summary.id = 'ite-review-summary';
+    body.appendChild(summary);
 
     if (!row.is_choice_list) {
       body.appendChild(buildFieldRow({
@@ -650,21 +721,21 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
       }));
       if (row.hint) {
         body.appendChild(buildFieldRow({
-          kind: 'question', key: row.name, field: 'hint', label: 'Hint',
+          kind: 'question', key: row.name, field: 'hint', label: 'Hint / note',
           english: row.hint.english, translated: row.hint.translated,
           source: row.hint.source, editable: true,
         }));
       }
       if (row.constraint_message) {
         body.appendChild(buildFieldRow({
-          kind: 'question', key: row.name, field: 'constraint_message', label: 'Constraint message',
+          kind: 'question', key: row.name, field: 'constraint_message', label: 'Constraint message / note',
           english: row.constraint_message.english, translated: row.constraint_message.translated,
           source: row.constraint_message.source, editable: true,
         }));
       }
       if (row.guidance) {
         body.appendChild(buildFieldRow({
-          kind: 'question', key: row.name, field: 'guidance_hint', label: 'Guidance',
+          kind: 'question', key: row.name, field: 'guidance_hint', label: 'Guidance note',
           english: row.guidance.english, translated: row.guidance.translated,
           source: row.guidance.source, editable: true,
         }));
@@ -687,6 +758,8 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
         }));
       });
     }
+
+    updateReviewSummary();
 
     if (!bsModal) bsModal = new bootstrap.Modal(modalEl);
     if (!modalEl.classList.contains('show')) bsModal.show();
@@ -715,7 +788,10 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
         f.originalText = f.textarea.value;
         f.source = res.data.source;
         if (f.badgeEl) { f.badgeEl.className = 'badge text-bg-' + (SOURCE_BADGE[f.source] || 'light') + ' border'; f.badgeEl.textContent = f.source; }
+        if (f.acceptBtn) { f.acceptBtn.remove(); f.acceptBtn = null; }
         applyFieldToItemCache(f);
+        updateReviewStatus(f);
+        updateReviewSummary();
         changed += 1;
         return next(i + 1);
       }).catch(function () {

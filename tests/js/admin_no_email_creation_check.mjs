@@ -8,6 +8,9 @@ const template = readFileSync(new URL('../../app/templates/admin/panels/users.ht
 const source = readFileSync(new URL('../../app/static/js/admin/users_panel.js', import.meta.url), 'utf8');
 const dom = new JSDOM(template.replace(/data-languages="[^"]*"/, 'data-languages="[]"'), {runScripts: 'outside-only', url: 'http://localhost'});
 const w = dom.window, requests = [];
+const panelScript = w.document.querySelector('script[src*="users_panel.js"]');
+assert.ok(panelScript, 'Users panel must include its executable script element');
+assert.ok(panelScript.getAttribute('src').endsWith('-20261019'), 'script URL must end before the closing tag');
 const el = id => w.document.getElementById('user-' + id);
 const tick = () => new Promise(resolve => setImmediate(resolve));
 w.$ = () => ({val(value) { if (value === undefined) return ['english']; return this; }, trigger() {return this;}, append() {}, select2() {}});

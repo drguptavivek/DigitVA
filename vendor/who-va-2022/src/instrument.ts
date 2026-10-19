@@ -104,7 +104,11 @@ export function createWhoVa2022Instrument(
   // DigitVA collects both the optional audio and the required multiline
   // narrative: the text must remain visible even when audio was saved.
   const withDigitvaCore: InstrumentQuestion[] = withConsentMode.map((question) => {
-    if (question.name === "Id10476") return { ...question, relevant: undefined };
+    if (question.name === "Id10476") {
+      const alwaysVisibleQuestion = { ...question };
+      delete alwaysVisibleQuestion.relevant;
+      return alwaysVisibleQuestion;
+    }
     if (question.name === "Id10476_audio") return { ...question, hint: {} };
     return question;
   });

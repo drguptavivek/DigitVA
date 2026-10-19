@@ -716,7 +716,7 @@ export function createVisitNote(order: number): { section: InstrumentSection; qu
   );
   const path = [DIGITVA_VISIT_NOTE_SECTION];
   const dateConstraint = ". <= today()";
-  const required = (dataType: string, extra: Partial<InstrumentQuestion["validation"]> = {}) => ({
+  const required = (dataType: InstrumentQuestion["dataType"], extra: Partial<InstrumentQuestion["validation"]> = {}) => ({
     required: true,
     dataType,
     constraintMessage: {},

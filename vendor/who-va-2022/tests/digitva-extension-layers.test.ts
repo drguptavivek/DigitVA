@@ -291,10 +291,12 @@ describe("DigitVA narrative override", () => {
     )!;
 
     expect(narrative.relevant).toBeUndefined();
+    expect(Object.hasOwn(narrative, "relevant")).toBe(false);
     expect(narrative.required).toBe(true);
     expect(narrative.validation?.required).toBe(true);
     expect(narrative.appearance).toBe("multiline");
     expect(question(serverInstrument, "Id10476")!.relevant).toBeUndefined();
+    expect(Object.hasOwn(question(serverInstrument, "Id10476")!, "relevant")).toBe(false);
     expect(
       isQuestionRelevant(instrument, narrative, {
         Id10013: "yes",

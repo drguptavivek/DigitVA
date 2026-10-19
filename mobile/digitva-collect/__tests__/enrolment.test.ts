@@ -1,4 +1,8 @@
-import { normalizeHttpsOrigin, parseEnrolmentQr } from "../src/enrolment";
+import { DEFAULT_RELEASE_SERVER, normalizeHttpsOrigin, parseEnrolmentQr } from "../src/enrolment";
+
+const releaseOrigin = new URL(
+  process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_RELEASE_SERVER
+).origin.toLowerCase();
 
 const qr = (server: string, extra: Record<string, unknown> = {}) =>
   JSON.stringify({ v: 1, server, enroll: "AbCdEf123456_-x", project: "UNSW01", ...extra });
@@ -19,10 +23,10 @@ describe("parseEnrolmentQr", () => {
     }
   });
 
-  it("accepts the production host in release and debug builds", () => {
+  it("accepts the configured production host in release and debug builds", () => {
     for (const isDev of [false, true]) {
-      expect(parseEnrolmentQr(qr("https://digitva.causeofdeathindia.com/"), isDev)).toEqual({
-        server: "https://digitva.causeofdeathindia.com",
+      expect(parseEnrolmentQr(qr(`${releaseOrigin}/`), isDev)).toEqual({
+        server: releaseOrigin,
         code: "AbCdEf123456_-x",
         project: "UNSW01"
       });

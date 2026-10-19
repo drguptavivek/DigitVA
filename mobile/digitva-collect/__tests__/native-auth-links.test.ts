@@ -4,6 +4,11 @@ import {
   NATIVE_AUTH_PATHS,
   normalizeMobileIdentifier
 } from "../src/nativeAuthLinks";
+import { DEFAULT_RELEASE_SERVER } from "../src/enrolment";
+
+const releaseOrigin = new URL(
+  process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_RELEASE_SERVER
+).origin.toLowerCase();
 
 describe("native sign-in identifier and server links", () => {
   it("normalizes India mobile pastes to the API identifier", () => {
@@ -16,8 +21,8 @@ describe("native sign-in identifier and server links", () => {
   });
 
   it("only builds handoff links for the enrolled server allowlist", () => {
-    expect(nativeAuthUrl("https://digitva.causeofdeathindia.com/", NATIVE_AUTH_PATHS.redeemCode, false)).toBe(
-      "https://digitva.causeofdeathindia.com/vaauth/valogin/code"
+    expect(nativeAuthUrl(`${releaseOrigin}/`, NATIVE_AUTH_PATHS.redeemCode, false)).toBe(
+      `${releaseOrigin}/vaauth/valogin/code`
     );
     expect(nativeAuthUrl("http://localhost:8051", NATIVE_AUTH_PATHS.forgotPassword, true)).toBe(
       "http://localhost:8051/vaauth/forgot-password"

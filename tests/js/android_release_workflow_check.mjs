@@ -53,12 +53,15 @@ assert.match(workflow, /DIGITVA_ANDROID_VERSION_CODE: \$\{\{ github\.run_number 
 assert.match(workflow, /verify-android-release\.sh .*\$DIGITVA_ANDROID_VERSION_CODE/);
 assert.match(workflow, /needs\.build\.result == 'success' && github\.ref == 'refs\/heads\/main' && inputs\.publish == true/);
 assert.match(workflow, /expected_tag="android-v\$\{APP_VERSION\}"/);
+assert.match(workflow, /--title "DigitVA \$\{APP_VERSION\}"/);
 
 for (const check of [
   "apksigner",
   "Android Debug",
   "certificate SHA-256 digest",
   "org.digitva.collect",
+  "application-label:'\\([^']*\\)'",
+  "DigitVA",
   "index\\.android\\.bundle",
   "EXPECTED_VERSION_CODE",
   "https://",

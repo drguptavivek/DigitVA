@@ -9,8 +9,11 @@
 """
 from datetime import UTC, date, datetime, timedelta
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import (
+    MasLanguages,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
@@ -29,6 +32,10 @@ class InterviewerProfileRouteTests(BaseTestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        if db.session.get(MasLanguages, "english") is None:
+            db.session.add(
+                MasLanguages(language_code="english", language_name="English", is_active=True)
+            )
         cls.user = cls._get_or_make_user("profile.yob@test.local", "ProfileYob123")
         cls.user_id = str(cls.user.user_id)
         db.session.commit()
@@ -89,6 +96,63 @@ class InterviewerProfileRouteTests(BaseTestCase):
         self.assertEqual(len(search), 1)
         self.assertNotIn("year_of_birth", search[0])
         self.assertNotIn("sex", search[0])
+
+    def test_admin_create_user_persists_and_validates_demographics(self):
+        self._login(str(self.base_admin_id))
+        bad_year = self.client.post(
+            "/admin/api/users",
+            json={
+                "email": "created.bad.yob@test.local",
+                "email_confirm": "created.bad.yob@test.local",
+                "name": "Bad Year User",
+                "languages": ["english"],
+                "year_of_birth": 1800,
+                "sex": "female",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(bad_year.status_code, 400, bad_year.get_json())
+        self.assertIsNone(
+            db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "created.bad.yob@test.local"))
+        )
+
+        bad_sex = self.client.post(
+            "/admin/api/users",
+            json={
+                "email": "created.bad.sex@test.local",
+                "email_confirm": "created.bad.sex@test.local",
+                "name": "Bad Sex User",
+                "languages": ["english"],
+                "year_of_birth": 1988,
+                "sex": "invalid",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(bad_sex.status_code, 400, bad_sex.get_json())
+
+        created = self.client.post(
+            "/admin/api/users",
+            json={
+                "email": "created.yob.sex@test.local",
+                "email_confirm": "created.yob.sex@test.local",
+                "name": "Created With Demographics",
+                "languages": ["english"],
+                "year_of_birth": "1988",
+                "sex": "female",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(created.status_code, 201, created.get_json())
+        user_json = created.get_json()["user"]
+        self.assertEqual((user_json["year_of_birth"], user_json["sex"]), (1988, "female"))
+        persisted = db.session.scalar(
+            sa.select(VaUsers).where(VaUsers.email == "created.yob.sex@test.local")
+        )
+        self.assertIsNotNone(persisted)
+        self.assertEqual((persisted.year_of_birth, persisted.sex), (1988, "female"))
+        # Existing user profile created without demographics remains untouched (no backfill).
+        existing = db.session.get(VaUsers, self.base_admin_id)
+        self.assertEqual((existing.year_of_birth, existing.sex), (None, None))
 
 
 class IntakePrefillRouteTests(BaseTestCase):

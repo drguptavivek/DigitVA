@@ -363,10 +363,6 @@
   noEmailInput.addEventListener('change', updateNoEmailFields);
   var yobInput = document.getElementById('user-yob-input');
   var sexInput = document.getElementById('user-sex-input');
-  var editOnlyCols = document.querySelectorAll('.user-edit-only');
-  function showEditOnly(on) {
-    for (var i = 0; i < editOnlyCols.length; i++) editOnlyCols[i].classList.toggle('d-none', !on);
-  }
   var statusInput = document.getElementById('user-status-input');
   var languagesInput = $('#user-languages-input');
   var adminRow = document.getElementById('admin-toggle-row');
@@ -388,7 +384,6 @@
     phoneInput.value = '';
     yobInput.value = '';
     sexInput.value = '';
-    showEditOnly(false);
     statusInput.value = 'active';
     statusInput.disabled = true; // New users are always active
     languagesInput.val([]).trigger('change');
@@ -415,7 +410,6 @@
     phoneInput.value = user.phone || '';
     yobInput.value = user.year_of_birth == null ? '' : String(user.year_of_birth);
     sexInput.value = user.sex || '';
-    showEditOnly(true);
     statusInput.value = user.status;
     statusInput.disabled = (userId === CURRENT_USER_ID); // Cannot change own status
     languagesInput.val(user.languages || []).trigger('change');
@@ -477,6 +471,8 @@
       name: nameInput.value.trim(),
       job_title: jobTitleInput.value.trim() || null,
       phone: phoneInput.value.trim(),
+      year_of_birth: yobInput.value.trim() || null,
+      sex: sexInput.value || null,
       languages: languagesInput.val()
     };
 
@@ -486,8 +482,6 @@
       url = '/admin/api/users/' + encodeURIComponent(_editingId);
       method = 'PUT';
       data.status = statusInput.value;
-      data.year_of_birth = yobInput.value.trim() || null;
-      data.sex = sexInput.value || null;
       data.email = emailInput.value.trim().toLowerCase();
       data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
       var editing = _users.find(function (u) { return u.user_id === _editingId; }) || {};

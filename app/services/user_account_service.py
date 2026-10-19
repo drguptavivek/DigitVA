@@ -162,6 +162,11 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
     languages = payload.get("languages")
     mobile = canonical_mobile(phone)
     job_title = clean_job_title(payload.get("job_title"))
+    profile = VaUsers()
+    try:
+        profile.set_interviewer_profile(payload.get("year_of_birth"), payload.get("sex"))
+    except ValueError as exc:
+        raise UserAccountError(str(exc)) from exc
 
     if allow_mobile_only and not email and not email_confirm:
         if not name:
@@ -198,6 +203,8 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
         "mobile": mobile,
         "languages": languages,
         "job_title": job_title,
+        "year_of_birth": profile.year_of_birth,
+        "sex": profile.sex,
     }
 
 
@@ -220,6 +227,8 @@ def create_invited_user(
         email=fields["email"],
         name=fields["name"],
         job_title=fields.get("job_title"),
+        year_of_birth=fields.get("year_of_birth"),
+        sex=fields.get("sex"),
         phone=fields["phone"] or None,
         mobile_login=fields.get("mobile"),
         user_status=VaStatuses.active,

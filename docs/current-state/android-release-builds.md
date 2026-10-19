@@ -83,7 +83,7 @@ Publishing is explicit. A manual run may set `publish: true` and provide a
 tag such as `android-v0.1.0`; the tag must exactly match the Expo app version
 in that commit. Only the publish job has `contents: write` permission after
 the signed build succeeds. It creates a
-GitHub release containing both stable asset names:
+GitHub release titled `DigitVA <version>` containing both stable asset names:
 
 ```text
 https://github.com/drguptavivek/DigitVA/releases/latest/download/digitva-collect.apk
@@ -99,10 +99,31 @@ release APK.
 
 The workflow's verifier uses Android's signing tools to reject debug signing,
 compare the APK certificate to `ANDROID_RELEASE_CERT_SHA256`, require package
-`org.digitva.collect` and the run's expected positive version code, and inspect the embedded
-`index.android.bundle`. The bundle must contain the configured HTTPS API
-origin and must not contain the development origins
-`http://localhost:8051` or `http://10.0.2.2:8051` in the release allowlist
-context. This confirms build-time configuration; it does not replace physical
-Android installation, login,
-offline, PIN, biometric or background-lock acceptance.
+`org.digitva.collect`, application label `DigitVA`, and the run's expected
+positive version code, and inspect the embedded `index.android.bundle`. The
+bundle must contain the configured HTTPS API origin and must not contain the
+development origins `http://localhost:8051` or `http://10.0.2.2:8051` in the
+release allowlist context. This confirms build-time configuration; it does not
+replace physical Android installation, login, offline, PIN, biometric or
+background-lock acceptance.
+
+## Dependency alignment and advisory posture
+
+`mobile/digitva-collect/package.json` explicitly pins `react-native-reanimated`
+(`4.5.1`) and `react-native-worklets` (`0.10.1`) to the versions bundled by
+Expo SDK 57 (`expo/bundledNativeModules.json`), keeping `expo-modules-core`'s
+peer constraint (`^0.7.4 || ^0.8.0 || ^0.9.0 || ^0.10.0`) satisfied.
+
+On a clean lockfile (`digitva-dd67`), `source-map-js` is updated to `>=1.2.2`
+(`GHSA-68fv-2mgg-jv7q`). The remaining `npm audit` findings are inherited from
+Expo SDK 57:
+
+- Build/test/CLI-only dependencies not bundled into the app runtime: `braces`
+  (`<=3.0.3` via `micromatch` in Metro/Jest), `node-forge` (`<=1.4.0` via
+  `@expo/cli` code-signing helpers), `sprintf-js` (`<=1.1.3` via `argparse` /
+  `js-yaml` in CLI/lint tooling), and `uuid` (`<11.1.1` via `xcode` in
+  `@expo/config-plugins`; runtime UUID generation uses `expo-crypto`).
+- Runtime transitive dependency: `decode-uri-component` (`<=0.4.2` via
+  `expo-router@57.0.24 -> query-string@7.1.3`), where `npm audit`'s automated
+  fix requires a breaking major upgrade to `expo-router@58.x` (deferred until a
+  scheduled Expo SDK upgrade).

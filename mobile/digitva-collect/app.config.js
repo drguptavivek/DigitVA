@@ -61,6 +61,7 @@ function resolveAndroidVersionCode(env = process.env) {
 
 module.exports = ({ config = appJson.expo } = {}) => ({
   ...config,
+  name: "DigitVA",
   android: {
     ...config.android,
     versionCode: resolveAndroidVersionCode(),

@@ -198,13 +198,21 @@ class VaUsers(UserMixin, db.Model):
         """
         if year_of_birth in (None, ""):
             year = None
+        elif isinstance(year_of_birth, bool) or not isinstance(year_of_birth, (int, str)):
+            raise ValueError("Year of birth must be a whole number.")
         else:
-            try:
-                year = int(year_of_birth)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("Year of birth must be a whole number.") from exc
-            if not 1900 <= year <= datetime.now(UTC).year:
-                raise ValueError("Year of birth must be between 1900 and this year.")
+            raw_year = year_of_birth.strip() if isinstance(year_of_birth, str) else year_of_birth
+            if raw_year == "":
+                year = None
+            else:
+                try:
+                    year = int(raw_year)
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Year of birth must be a whole number.") from exc
+                if not 1900 <= year <= datetime.now(UTC).year:
+                    raise ValueError("Year of birth must be between 1900 and this year.")
+        if sex is not None and not isinstance(sex, str):
+            raise ValueError("Sex must be one of " + ", ".join(USER_SEX_VALUES) + ".")
         sex = (sex or "").strip().lower() or None
         if sex is not None and sex not in USER_SEX_VALUES:
             raise ValueError("Sex must be one of " + ", ".join(USER_SEX_VALUES) + ".")

@@ -18,10 +18,12 @@ describe("Expo release configuration", () => {
     process.env.DIGITVA_ANDROID_RELEASE_BUILD = "1";
     process.env.EXPO_PUBLIC_API_BASE_URL = "https://digitvav3.causeofdeathindia.com/";
     process.env.DIGITVA_ANDROID_VERSION_CODE = "42";
-    expect(appConfig({ config: require("../app.json").expo }).extra.digitvaReleaseServer).toBe(
+    const resolved = appConfig({ config: require("../app.json").expo });
+    expect(resolved.name).toBe("DigitVA");
+    expect(resolved.extra.digitvaReleaseServer).toBe(
       "https://digitvav3.causeofdeathindia.com"
     );
-    expect(appConfig({ config: require("../app.json").expo }).android.versionCode).toBe(42);
+    expect(resolved.android.versionCode).toBe(42);
   });
 
   it("fails a release build when the origin is missing or unsafe", () => {

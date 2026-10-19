@@ -3,7 +3,7 @@ title: Installation
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-19
 ---
 
 # Installation
@@ -206,5 +206,6 @@ The bundled `minerva_db_service` is parked in a profile there and never starts;
 `DATABASE_URL` missing is a hard error, never a silent fallback to it.
 Certificate paths, issuing (`scripts/make-tls-cert.sh`) and copying the
 public certificates between hosts: [Split Production TLS](split-production-tls.md).
+Deploying a release there: [Split Production Deploy Runbook](split-production-deploy.md).
 `scripts/manual-db-dump.sh` and `manual-db-restore.sh` exec into
 `minerva_db_service` and do not apply to split prod.

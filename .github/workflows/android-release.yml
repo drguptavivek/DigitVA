@@ -181,5 +181,5 @@ jobs:
             release-assets/digitva-collect.apk.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "$release_tag" \
-            --notes "Signed DigitVA Collect Android APK for $release_tag."
+            --title "DigitVA ${APP_VERSION}" \
+            --notes "Signed DigitVA Android APK for $release_tag."

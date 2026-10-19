@@ -69,8 +69,13 @@ fi
 badging=$("$aapt" dump badging "$apk")
 package_name=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
 version_code=$(sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
+app_label=$(sed -n "s/^application-label:'\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
 [[ "$package_name" == org.digitva.collect ]] || {
   echo "unexpected Android package: ${package_name:-missing}" >&2
+  exit 1
+}
+[[ "$app_label" == "DigitVA" ]] || {
+  echo "unexpected Android application label: ${app_label:-missing}" >&2
   exit 1
 }
 [[ "$version_code" =~ ^[1-9][0-9]*$ ]] || {

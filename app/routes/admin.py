@@ -2281,7 +2281,7 @@ def admin_create_user():
     db.session.commit()
     accounts.send_invitation(new_user, actor_user_id=current_user.user_id)
 
-    body = {"user": _serialize_user(new_user)}
+    body = {"user": _serialize_user(new_user, include_profile=True)}
     if code:
         body["sign_in_code"] = code
     response = jsonify(body)

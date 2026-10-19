@@ -165,6 +165,27 @@ class EmailVerificationTests(OnboardingTestBase):
         self.assertFalse(user.email_verified)
         self.assertTrue(user.check_password(PASSWORD))
 
+    def test_completion_without_verification_returns_to_sign_in(self):
+        response = self.client.get("/vaauth/email-verified")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], LOGIN_PATH)
+
+    def test_verification_requires_csrf_and_completion_refresh_sends_nothing(self):
+        user = self._email_user(verified=False, onboarded=False)
+        url = self._url(user)
+        with _mailbox() as send:
+            refused = self.client.post(url)
+            self.assertEqual(refused.status_code, 400)
+            db.session.refresh(user)
+            self.assertFalse(user.email_verified)
+            send.assert_not_called()
+            confirmed = self._confirm(url)
+            first = self.client.get(confirmed.headers["Location"])
+            refreshed = self.client.get(confirmed.headers["Location"])
+        self.assertIn(b"Please check your email for your password.", first.data)
+        self.assertIn(b"Please check your email for your password.", refreshed.data)
+        self.assertEqual(len(_password_mails(send)), 1)
+
     def test_new_account_gets_its_password_by_email_once(self):
         user = self._email_user(verified=False, onboarded=False)
         version = user.auth_session_version or 0
@@ -172,14 +193,23 @@ class EmailVerificationTests(OnboardingTestBase):
         with _captured_logs() as logs, _mailbox() as send:
             response = self._confirm(url)
             self.assertEqual(response.status_code, 302)
-            self.assertEqual(response.headers["Location"].split("?")[0], LOGIN_PATH)
+            self.assertEqual(response.headers["Location"], "/vaauth/email-verified")
             page = self.client.get(response.headers["Location"])
             again = self._confirm(url)
         self.assertIn(EMAILED, page.data)
+        self.assertIn(b"Your email is verified.", page.data)
+        self.assertIn(b"Please check your email for your password.", page.data)
+        self.assertIn(b'href="/vaauth/valogin"', page.data)
+        self.assertNotIn(b'type="password"', page.data)
+        self.assertEqual(page.headers["Cache-Control"], "no-store")
         password = _emailed_password(self, send, user.email)
         self.assertRegex(password, PASSWORD_RE)
         self.assertNotIn(password.encode(), page.data)
         self.assertEqual(again.status_code, 302)
+        self.assertEqual(again.headers["Location"], "/vaauth/email-verified")
+        reused = self.client.get(again.headers["Location"])
+        self.assertIn(b"existing password", reused.data)
+        self.assertNotIn(b"Please check your email for your password.", reused.data)
         db.session.refresh(user)
         self.assertTrue(user.email_verified)
         self.assertTrue(user.check_password(password))
@@ -208,7 +238,10 @@ class EmailVerificationTests(OnboardingTestBase):
                 db.session.refresh(user)
                 self.assertTrue(user.email_verified)
                 self.assertTrue(user.check_password(PASSWORD))
-                self.assertNotIn(EMAILED, self.client.get(response.headers["Location"]).data)
+                page = self.client.get(response.headers["Location"])
+                self.assertIn(b"Your email is verified.", page.data)
+                self.assertIn(b"existing password", page.data)
+                self.assertNotIn(EMAILED, page.data)
 
     def test_breach_outage_and_mail_failure_change_nothing(self):
         user = self._email_user(verified=False, onboarded=False)

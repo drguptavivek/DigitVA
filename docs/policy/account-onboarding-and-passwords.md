@@ -3,7 +3,7 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-19
 ---
 
 # Account Onboarding and Password Policy
@@ -69,8 +69,9 @@ mobile, cadre and unit where the grant needs them.
 2. The person opens the link and presses "Verify my email" (opening the
    link alone changes nothing, so a mail scanner that prefetches it cannot).
    The server marks the email verified, generates the password and **sends
-   it in a second email** to that verified address, then shows "Your
-   password has been emailed to you." The page shows no password. The
+   it in a second email** to that verified address, then shows a dedicated confirmation page: "Your email is verified.
+   Please check your email for your password." It does not open the password
+   entry screen automatically. The page shows no password. The
    password email is sent at once, never queued, and carries only the
    password and the login page address; if it cannot be sent nothing
    changes and the person tries again.
@@ -85,6 +86,11 @@ a password once its holder has signed in and accepted the terms, or has
 redeemed a sign-in code; its password is never replaced by verifying.
 
 ### 5.2 Account with a mobile number only
+
+The admin creation screen offers **No email address**. Selecting it disables
+email entry and requires the creator to enter and confirm the same mobile
+number using exactly ten digits. The server also checks the confirmation
+before creating the account; no placeholder email is required or generated.
 
 1. The creator saves the account. The page shows a **6-digit one-time
    code** once; the creator gives it to the person in person or by phone.
@@ -118,6 +124,16 @@ When an email is added to an existing account, the server sends a
 verification email. Until it is verified the account signs in as before
 (mobile). Verifying it does not change the password; the person can then
 use "Forgot password" by email (section 6).
+
+### Optional profile reminder
+
+After each successful web password or passkey login, users missing a job
+title, year of birth or sex receive a nonblocking reminder linking to My
+Profile. Dismissing it lasts for that login session; it may appear again on
+the next login until the fields are filled. No value is invented, and leaving
+these optional fields blank does not prevent work. The reminder is shown in
+both the server-rendered pages and the browser app. It does not change native
+device credentials, local unlock or permissions.
 
 ## 6. Forgot password and new password
 

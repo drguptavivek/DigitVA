@@ -65,6 +65,41 @@
         }, { once: true });
       </script>
     {% endif %}
+    {% if current_user.is_authenticated and session.get('profile_nudge') %}
+      {% set missing_profile_fields = [] %}
+      {% if not (current_user.job_title|default('', true)|trim) %}
+        {% set _ = missing_profile_fields.append('job title') %}
+      {% endif %}
+      {% if current_user.year_of_birth is none %}
+        {% set _ = missing_profile_fields.append('year of birth') %}
+      {% endif %}
+      {% if not (current_user.sex|default('', true)|trim) %}
+        {% set _ = missing_profile_fields.append('sex') %}
+      {% endif %}
+      {% if missing_profile_fields %}
+        <div id="profile-nudge-banner" class="alert alert-info alert-dismissible fade show mb-0 text-center" role="alert">
+          Please complete your profile: {{ missing_profile_fields|join(', ') }}.
+          <a href="{{ url_for('profile.view') }}" class="alert-link">Complete your profile</a>.
+          <button type="button" class="btn-close" aria-label="Dismiss" id="profile-nudge-dismiss"></button>
+        </div>
+        <script>
+          document.getElementById("profile-nudge-dismiss").addEventListener("click", function () {
+            var banner = document.getElementById("profile-nudge-banner");
+            fetch("{{ url_for('api_v1.profile_api.dismiss_profile_nudge') }}", {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "X-CSRFToken": "{{ csrf_token() }}" },
+            }).then(function (response) {
+              if (response.ok && banner) {
+                banner.remove();
+              }
+            }).catch(function () {
+              // Keep the reminder and allow another dismissal attempt.
+            });
+          });
+        </script>
+      {% endif %}
+    {% endif %}
     <main id="main-content" class="container py-4">
       {% block content %}{% endblock %}
     </main>

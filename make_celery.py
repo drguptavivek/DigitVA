@@ -68,6 +68,7 @@ celery_app = flask_app.extensions["celery"]
 import app.tasks.backup_tasks  # noqa: F401, E402
 import app.tasks.coding_search_telemetry_tasks  # noqa: F401, E402
 import app.tasks.notification_tasks  # noqa: F401, E402
+import app.tasks.organization_demo_tasks  # noqa: F401, E402
 import app.tasks.security_event_tasks  # noqa: F401, E402
 import app.tasks.sync_tasks  # noqa: F401, E402
 import app.tasks.tls_health_tasks  # noqa: F401, E402
@@ -76,7 +77,7 @@ import app.tasks.web_intake_upload_tasks  # noqa: F401, E402
 # Seed beat schedule and clean up orphaned run rows on startup
 with flask_app.app_context():
     from app.tasks.backup_tasks import ensure_db_backup_scheduled
-    from app.tasks.tls_health_tasks import ensure_tls_health_scheduled
+    from app.tasks.organization_demo_tasks import ensure_weekly_demo_reset_scheduled
     from app.tasks.sync_tasks import (
         cleanup_stale_runs,
         ensure_attachment_s3_upload_scheduled,
@@ -86,6 +87,7 @@ with flask_app.app_context():
         ensure_submission_analytics_mv_refresh_scheduled,
         ensure_sync_scheduled,
     )
+    from app.tasks.tls_health_tasks import ensure_tls_health_scheduled
 
     cleanup_stale_runs()
     ensure_sync_scheduled()
@@ -94,6 +96,7 @@ with flask_app.app_context():
     ensure_demo_cleanup_scheduled()
     ensure_submission_analytics_mv_refresh_scheduled()
     ensure_db_backup_scheduled()
+    ensure_weekly_demo_reset_scheduled()
     ensure_tls_health_scheduled()
     ensure_attachment_s3_upload_scheduled()
 

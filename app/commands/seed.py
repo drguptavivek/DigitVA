@@ -27,6 +27,7 @@ def seed_run(test):
     _seed_admin()
     _seed_form_types()
     _seed_who_2022_va_fields()
+    _seed_missing_translation_sources()
     _seed_pii_flags()
     _seed_va_cause_definitions()
     if test:
@@ -167,6 +168,34 @@ def _seed_who_2022_va_fields():
         click.echo("  [ok]   WHO_2022_VA field mapping populated")
     else:
         click.echo("  [warn] WHO_2022_VA field migration reported errors — check logs")
+
+
+def _seed_missing_translation_sources():
+    """Import documented questionnaire sources that have not been installed.
+
+    The importer owns no transaction boundary: a source error rolls back the
+    batch here and aborts seed, so a restart cannot leave half a source set.
+    """
+    from app.services.instrument_translation_source_catalog import (
+        bootstrap_missing_sources,
+    )
+
+    try:
+        report = bootstrap_missing_sources()
+    except Exception:
+        db.session.rollback()
+        raise
+    if report.imported:
+        db.session.commit()
+        click.echo(
+            f"  [ok]   translation sources imported ({len(report.imported)} locales, "
+            f"{report.written} strings)"
+        )
+    else:
+        click.echo(
+            f"  [skip] translation sources already established "
+            f"({len(report.skipped)} locales)"
+        )
 
 
 def _seed_pii_flags():

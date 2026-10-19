@@ -74,7 +74,7 @@ __all__ = [
     "list_cadres", "create_cadre", "update_cadre",
     "list_level_cadres", "upsert_level_cadre", "get_level_cadre_permission",
     # workers
-    "list_workers", "create_worker", "update_worker",
+    "list_workers", "create_worker", "update_worker", "resolve_user",
     # template, export, import
     "seed_default_organization", "district_reference_model",
     "export_organization_rows", "export_organization_xlsx", "export_organization_csv",
@@ -1452,18 +1452,34 @@ def _require_cadre_at_unit_level(unit: MasOrgUnit, cadre: MasCadre) -> None:
         )
 
 
-def _resolve_user(raw: object) -> VaUsers | None:
-    value = str(raw or "").strip()
-    if not value:
-        return None
-    user = None
-    try:
-        user = db.session.get(VaUsers, uuid.UUID(value))
-    except ValueError:
-        user = db.session.scalar(sa.select(VaUsers).where(sa.func.lower(VaUsers.email) == value.lower()))
-    if user is None:
-        raise OrganizationError(f"DigitVA user not found: {value}")
+def resolve_user(raw: object, *, require_active: bool = True) -> VaUsers | None:
+    """Resolve a worker account, refusing inactive accounts by default.
+
+    Existing worker links may point to an account that was deactivated later;
+    callers updating that worker can pass ``require_active=False`` and decide
+    whether the link is unchanged. New links must use the default guard.
+    """
+    if isinstance(raw, VaUsers):
+        user = raw
+    else:
+        value = str(raw or "").strip()
+        if not value:
+            return None
+        user = None
+        try:
+            user = db.session.get(VaUsers, uuid.UUID(value))
+        except ValueError:
+            user = db.session.scalar(sa.select(VaUsers).where(sa.func.lower(VaUsers.email) == value.lower()))
+        if user is None:
+            raise OrganizationError(f"DigitVA user not found: {value}")
+    if require_active and user.user_status != VaStatuses.active:
+        raise OrganizationError("DigitVA user is inactive.")
     return user
+
+
+def _resolve_user(raw: object) -> VaUsers | None:
+    """Backward-compatible private alias for existing import callers."""
+    return resolve_user(raw)
 
 
 def _next_worker_code(project_id: str) -> str:
@@ -1504,7 +1520,7 @@ def create_worker(
     )
     if dup is not None:
         raise OrganizationError(f"Worker code {code!r} already exists in this project.")
-    resolved_user = _resolve_user(user)
+    resolved_user = resolve_user(user)
     worker = MasOrgUnitWorker(
         project_id=project_id,
         org_unit_id=unit.org_unit_id,
@@ -1522,6 +1538,17 @@ def create_worker(
 
 def update_worker(project_id: str, worker_id: object, **fields) -> MasOrgUnitWorker:
     worker = _get_worker(project_id, worker_id)
+    resolved_user = None
+    if "user" in fields:
+        # Resolve before mutating any other worker field so a refused relink
+        # leaves the in-memory object unchanged for direct service callers.
+        resolved_user = resolve_user(fields["user"], require_active=False)
+        if (
+            resolved_user is not None
+            and resolved_user.user_status != VaStatuses.active
+            and resolved_user.user_id != worker.user_id
+        ):
+            raise OrganizationError("DigitVA user is inactive.")
     unit = worker.unit
     cadre = worker.cadre
     if "org_unit_id" in fields and fields["org_unit_id"]:
@@ -1548,8 +1575,9 @@ def update_worker(project_id: str, worker_id: object, **fields) -> MasOrgUnitWor
     if "phone" in fields:
         worker.phone = _clean_text(fields["phone"], max_len=32, what="Phone")
     if "user" in fields:
-        resolved = _resolve_user(fields["user"])
-        worker.user_id = resolved.user_id if resolved else None
+        # Editing an existing worker must not unexpectedly unlink it just
+        # because the linked account was deactivated after the original link.
+        worker.user_id = resolved_user.user_id if resolved_user else None
     if "remarks" in fields:
         worker.remarks = _clean_text(fields["remarks"], what="Remarks")
     if "is_active" in fields:

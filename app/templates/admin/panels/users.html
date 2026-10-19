@@ -29,13 +29,17 @@
     <div class="card-body">
       <form id="user-form" autocomplete="off">
       <h6 class="card-title mb-3" id="user-form-title">Create User</h6>
+      <div class="form-check mb-2" id="user-no-email-row">
+        <input class="form-check-input" type="checkbox" id="user-no-email-input">
+        <label class="form-check-label small" for="user-no-email-input">No email address</label>
+      </div>
       <div class="row g-2 align-items-start">
-        <div class="col-sm-3">
-          <label class="form-label small mb-1" title="Leave blank for an account that signs in by mobile number">Email</label>
+        <div class="col-sm-3 user-email-col">
+          <label class="form-label small mb-1" for="user-email-input">Email</label>
           <input type="email" class="form-control form-control-sm" id="user-email-input" placeholder="user@example.com" autocomplete="email">
         </div>
-        <div class="col-sm-3">
-          <label class="form-label small mb-1">Confirm Email <span class="text-danger" id="user-email-confirm-asterisk">*</span></label>
+        <div class="col-sm-3 user-email-col">
+          <label class="form-label small mb-1" for="user-email-confirm-input">Confirm Email <span class="text-danger" id="user-email-confirm-asterisk">*</span></label>
           <input type="email" class="form-control form-control-sm" id="user-email-confirm-input" placeholder="user@example.com" autocomplete="email">
         </div>
         <div class="col-sm-2">
@@ -47,8 +51,12 @@
           <input type="text" class="form-control form-control-sm" id="user-job-title-input" maxlength="120" placeholder="Optional">
         </div>
         <div class="col-sm-2">
-          <label class="form-label small mb-1">Mobile number</label>
-          <input type="tel" class="form-control form-control-sm" id="user-phone-input" placeholder="10-digit mobile" autocomplete="tel">
+          <label class="form-label small mb-1" for="user-phone-input">Mobile number</label>
+          <input type="tel" class="form-control form-control-sm" id="user-phone-input" placeholder="10-digit mobile" autocomplete="tel" inputmode="numeric">
+        </div>
+        <div class="col-sm-2 d-none" id="user-phone-confirm-col">
+          <label class="form-label small mb-1" for="user-phone-confirm-input">Confirm mobile number <span class="text-danger">*</span></label>
+          <input type="tel" class="form-control form-control-sm" id="user-phone-confirm-input" placeholder="Repeat 10-digit mobile" inputmode="numeric" maxlength="10" autocomplete="off" disabled>
         </div>
         <div class="col-sm-2">
           <label class="form-label small mb-1">Status</label>
@@ -148,4 +156,4 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/admin/users_panel.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+<script src="{{ url_for('static', filename='js/admin/users_panel.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-20261019</script>

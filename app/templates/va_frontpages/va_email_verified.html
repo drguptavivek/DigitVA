@@ -1,0 +1,24 @@
+{% extends "va_frontpages/va_base.html" %}
+{% block title %}DigitVA | Email verified{% endblock %}
+{% block content %}
+  <div class="container mt-5 pt-5">
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card shadow">
+          <div class="card-header bg-primary text-white text-center">
+            <h3>Your email is verified.</h3>
+          </div>
+          <div class="card-body">
+            {% if password_sent %}
+              <p>Please check your email for your password.</p>
+              <p class="text-muted">Your password has been emailed to you. It may take a few minutes to arrive. Please also check your spam folder.</p>
+            {% else %}
+              <p>You can sign in with your existing password.</p>
+            {% endif %}
+            <a class="btn btn-primary" href="{{ url_for('va_auth.va_login') }}">Sign in</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

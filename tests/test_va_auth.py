@@ -43,7 +43,7 @@ class VaAuthVerificationTests(BaseTestCase):
         self.assertFalse(refreshed.email_verified)
         self.assertFalse(refreshed.pw_reset_t_and_c)
 
-    def test_verify_email_redirects_onboarded_users_to_login(self):
+    def test_verify_email_redirects_onboarded_users_to_completion(self):
         email = f"test.verified.{uuid.uuid4().hex[:8]}@example.com"
         user = VaUsers(
             user_id=uuid.uuid4(),
@@ -69,4 +69,6 @@ class VaAuthVerificationTests(BaseTestCase):
 
         self.assertEqual(resp.status_code, 302)
         location_path = urlparse(resp.location).path
-        self.assertEqual(location_path, "/vaauth/valogin")
+        self.assertEqual(location_path, "/vaauth/email-verified")
+        completion = self.client.get(resp.location)
+        self.assertIn(b"existing password", completion.data)

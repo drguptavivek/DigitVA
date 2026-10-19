@@ -16,6 +16,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.mas_languages import MasLanguages
+from app.models.mas_organization import MasOrgLevel, MasOrgUnitWorker
 from app.services import organization_service as org
 from tests.base import BaseTestCase
 
@@ -85,6 +86,101 @@ class AdminOrganizationApiTests(BaseTestCase):
             workbook = load_workbook(io.BytesIO(response.data), read_only=True)
             self.assertEqual(workbook.active.cell(1, 1).value, first)
             workbook.close()
+
+    def test_project_users_xlsx_has_project_aware_dependent_lists(self):
+        self._login(str(self.base_admin_id))
+        org.seed_default_organization(self.PROJECT)
+        levels = {level.level_code: level for level in org.list_levels(self.PROJECT)}
+        district = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="9DIST",
+            unit_name="District 9",
+        )
+        org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["chc"].org_level_id,
+            parent_org_unit_id=district.org_unit_id,
+            unit_code="_CHC9",
+            unit_name="CHC 9",
+        )
+        inactive = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="INACTIVE",
+            unit_name="Inactive District",
+        )
+        org.set_unit_active(self.PROJECT, inactive.org_unit_id, False)
+        response = self.client.get(self._url("/templates/project-users.xlsx"))
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(io.BytesIO(response.data))
+        self.assertEqual(workbook.sheetnames, ["project_users", "Instructions", "Reference"])
+        self.assertEqual(tuple(workbook["project_users"].iter_rows(min_row=1, max_row=1, values_only=True))[0],
+                         ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone"))
+        self.assertTrue(all(value is None for row in workbook["project_users"].iter_rows(min_row=2, values_only=True)
+                            for value in row))
+        self.assertEqual(workbook["project_users"].freeze_panes, "A2")
+        self.assertEqual(workbook["Reference"].sheet_state, "hidden")
+        self.assertEqual(workbook.defined_names["UnitCodes"].attr_text, "'Reference'!$B$2:$B$3")
+        self.assertEqual(workbook.defined_names["UnitLevelKeys"].attr_text, "'Reference'!$C$2:$C$3")
+        level_key_by_id = {
+            level.org_level_id: f"L{index}"
+            for index, level in enumerate(sorted(levels.values(), key=lambda level: level.depth), 1)
+        }
+        reference = workbook["Reference"]
+        reference_units = {
+            reference.cell(row, 2).value: reference.cell(row, 3).value
+            for row in range(2, 4)
+        }
+        self.assertEqual(reference_units, {
+            "9DIST": level_key_by_id[district.org_level_id],
+            "_CHC9": level_key_by_id[levels["chc"].org_level_id],
+        })
+        for unit_code, expected_cadre in (("9DIST", "MO"), ("_CHC9", "SMO")):
+            level_key = reference_units[unit_code]
+            cadre_column = next(cell.column for cell in reference[1] if cell.value == level_key)
+            cadres_at_level = {
+                reference.cell(row, cadre_column).value
+                for row in range(2, reference.max_row + 1)
+                if reference.cell(row, cadre_column).value
+            }
+            self.assertIn(expected_cadre, cadres_at_level)
+            self.assertIn(f"Cadres_{level_key}", workbook.defined_names)
+        validations = {str(validation.sqref): validation for validation in workbook["project_users"].data_validations.dataValidation}
+        self.assertIn("C2:C1001", validations)
+        self.assertIn("D2:D1001", validations)
+        self.assertIn("E2:E1001", validations)
+        self.assertNotIn("Reference!", validations["E2:E1001"].formula1)
+        self.assertIn("UnitLevelKeys", validations["E2:E1001"].formula1)
+        self.assertIn("UnitCodes", validations["E2:E1001"].formula1)
+        self.assertIn("MATCH($D2", validations["E2:E1001"].formula1)
+        self.assertTrue(all(validation.showErrorMessage for validation in validations.values()))
+        self.assertTrue(all(cell.font.name == "Arial" for row in workbook["project_users"].iter_rows(min_row=1, max_row=1) for cell in row))
+        self.assertIn("en;hi", workbook["Instructions"]["B6"].value)
+        reference_codes = [workbook["Reference"].cell(row, 2).value for row in range(2, 4)]
+        self.assertEqual(reference_codes, ["9DIST", "_CHC9"])
+        for column, value in enumerate(
+            ["template-user@example.org", "Template User", "reviewer", "9DIST", "MO", "en", ""],
+            1,
+        ):
+            workbook["project_users"].cell(2, column, value)
+        content = io.BytesIO()
+        workbook.save(content)
+        preview = self.client.post(
+            self._url("/project-users/import"),
+            data={"file": (io.BytesIO(content.getvalue()), "users.xlsx")},
+            content_type="multipart/form-data", headers=self._csrf_headers(),
+        )
+        self.assertEqual(preview.status_code, 200, preview.get_json())
+        with patch("app.services.email_service.is_mail_configured", return_value=False):
+            applied = self.client.post(
+                self._url("/project-users/import"),
+                data={"file": (io.BytesIO(content.getvalue()), "users.xlsx"), "dry_run": "0"},
+                content_type="multipart/form-data", headers=self._csrf_headers(),
+            )
+        self.assertEqual(applied.status_code, 200, applied.get_json())
+        self.assertEqual(applied.get_json()["created_users"], 1)
+        workbook.close()
 
     def test_excel_csv_and_xlsx_user_import_preview(self):
         self._login(str(self.base_admin_id))
@@ -423,10 +519,15 @@ class AdminOrganizationApiTests(BaseTestCase):
 
         reactivated = self.client.post(self._url(f"/units/{district['org_unit_id']}/toggle"), json={"is_active": True}, headers=headers)
         self.assertEqual(reactivated.status_code, 200)
+        self.assertEqual(
+            self.client.post(self._url(f"/units/{chc['org_unit_id']}/toggle"), json={"is_active": True}, headers=headers).status_code,
+            200,
+        )
         smo_cadre_id = next(c["cadre_id"] for c in summary["cadres"] if c["cadre_code"] == "SMO")
         worker = self.client.post(
             self._url("/workers"),
-            json={"org_unit_id": chc["org_unit_id"], "cadre_id": smo_cadre_id, "worker_name": "Dr Test"},
+            json={"org_unit_id": chc["org_unit_id"], "cadre_id": smo_cadre_id,
+                  "worker_name": "Dr Test", "email": "dr.test@example.org", "email_confirm": "dr.test@example.org", "language_codes": "en"},
             headers=headers,
         )
         self.assertEqual(worker.status_code, 201, worker.get_json())
@@ -803,7 +904,8 @@ class AdminOrganizationApiTests(BaseTestCase):
 
         created = self.client.post(
             self._url("/workers"),
-            json={"org_unit_id": str(chc.org_unit_id), "cadre_id": str(mo.cadre_id), "worker_name": "Dr Kaur"},
+            json={"org_unit_id": str(chc.org_unit_id), "cadre_id": str(mo.cadre_id),
+                  "worker_name": "Dr Kaur", "email": "dr.kaur@example.org", "email_confirm": "dr.kaur@example.org", "language_codes": "en"},
             headers=headers,
         )
         self.assertEqual(created.status_code, 201, created.get_json())
@@ -818,6 +920,274 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(set(workers), {"W00001", "W00002"})
         self.assertEqual(workers["W00001"]["phone"], "111")
         self.assertEqual(workers["W00002"]["worker_name"], "Dr Rao")
+
+    def _default_worker_fixture(self, *, code="D45"):
+        org.seed_default_organization(self.PROJECT)
+        levels = {level.level_code: level for level in org.list_levels(self.PROJECT)}
+        district = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code=code,
+            unit_name="Default District",
+        )
+        cadre = {item.cadre_code: item for item in org.list_cadres(self.PROJECT)}["CS"]
+        db.session.commit()
+        return district, cadre
+
+    def test_worker_defaults_create_email_account_and_invitation(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        district, cadre = self._default_worker_fixture()
+        with patch("app.services.email_service.is_mail_configured", return_value=True), patch(
+            "app.services.email_service.send_verification_email", return_value=True
+        ) as verification:
+            response = self.client.post(
+                self._url("/workers"),
+                json={
+                    "org_unit_id": str(district.org_unit_id),
+                    "cadre_id": str(cadre.cadre_id),
+                    "worker_name": "Dr Defaults",
+                    "email": "defaults@example.org", "email_confirm": "defaults@example.org",
+                    "language_codes": "en",
+                },
+                headers=headers,
+            )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        onboarding = response.get_json()["onboarding"]
+        self.assertEqual(onboarding["created_users"], 1)
+        self.assertEqual(onboarding["changed_grants"], 1)
+        self.assertEqual(onboarding["invitations_queued"], 1)
+        verification.assert_called_once()
+        user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "defaults@example.org"))
+        self.assertIsNotNone(user)
+        self.assertEqual(response.get_json()["worker"]["user_id"], str(user.user_id))
+        grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == user.user_id,
+            VaUserAccessGrants.org_unit_id == district.org_unit_id,
+        ))
+        self.assertEqual(grant.role, VaAccessRoles.site_pi)
+
+    def test_worker_defaults_issue_mobile_code_and_no_store(self):
+        self._login(str(self.base_admin_id))
+        district, cadre = self._default_worker_fixture(code="D46")
+        response = self.client.post(
+            self._url("/workers"),
+            json={
+                "org_unit_id": str(district.org_unit_id),
+                "cadre_id": str(cadre.cadre_id),
+                "worker_name": "Mobile Defaults",
+                "phone": "9876543210",
+                "no_email": True,
+                "phone_confirm": "9876543210",
+                "year_of_birth": "1990",
+                "sex": "female",
+                "language_codes": "en",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        code = response.get_json()["onboarding"]["sign_in_codes"]
+        self.assertEqual(len(code), 1)
+        self.assertEqual(code[0]["mobile"], "******3210")
+        user = db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == "9876543210"))
+        self.assertIsNotNone(user)
+        self.assertEqual((user.year_of_birth, user.sex), (1990, "female"))
+        self.assertEqual(response.get_json()["worker"]["user_id"], str(user.user_id))
+
+    def _assert_invalid_worker_account(self, **fields):
+        self._login(str(self.base_admin_id))
+        district, cadre = self._default_worker_fixture(code="DVALID")
+        unit_id = district.org_unit_id
+        before_users = db.session.scalar(sa.select(sa.func.count()).select_from(VaUsers))
+        before_grants = db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants))
+        response = self.client.post(
+            self._url("/workers"),
+            json={"org_unit_id": str(unit_id), "cadre_id": str(cadre.cadre_id),
+                  "worker_name": "Rejected account", "email": "confirm@example.org",
+                  "email_confirm": "confirm@example.org", "language_codes": "en", **fields},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaUsers)), before_users)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants)), before_grants)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(MasOrgUnitWorker).where(
+            MasOrgUnitWorker.org_unit_id == unit_id)), 0)
+
+    def test_worker_email_confirmation_required(self):
+        self._assert_invalid_worker_account(email_confirm="")
+
+    def test_worker_email_confirmation_mismatch(self):
+        self._assert_invalid_worker_account(email_confirm="different@example.org")
+
+    def test_worker_mobile_requires_explicit_no_email(self):
+        self._assert_invalid_worker_account(email="", email_confirm="", phone="9876543210")
+
+    def test_worker_mobile_confirmation_mismatch(self):
+        self._assert_invalid_worker_account(email="", email_confirm="", no_email=True, phone="9876543210", phone_confirm="9876543211")
+
+    def test_worker_mobile_rejects_nine_digits(self):
+        self._assert_invalid_worker_account(phone="987654321")
+
+    def test_worker_mobile_rejects_eleven_digits(self):
+        self._assert_invalid_worker_account(phone="98765432101")
+
+    def test_worker_mobile_rejects_non_ascii_digits(self):
+        self._assert_invalid_worker_account(phone="९८७६५४३२१०")
+
+    def test_worker_mobile_rejects_spaces(self):
+        self._assert_invalid_worker_account(phone=" 9876543210")
+
+    def test_worker_no_email_requires_mobile(self):
+        self._assert_invalid_worker_account(email="", email_confirm="", no_email=True)
+
+    def test_worker_no_email_rejects_email(self):
+        self._assert_invalid_worker_account(no_email=True, phone="9876543210", phone_confirm="9876543210")
+
+    def test_worker_no_email_rejects_stale_email_confirmation(self):
+        self._assert_invalid_worker_account(
+            email="", no_email=True, phone="9876543210", phone_confirm="9876543210"
+        )
+
+    def test_worker_invalid_profile_rolls_back_account_grant_and_worker(self):
+        self._assert_invalid_worker_account(year_of_birth="1899")
+
+    def test_worker_invalid_sex_rolls_back_account_grant_and_worker(self):
+        self._assert_invalid_worker_account(sex="invalid")
+
+    def test_worker_existing_account_preserves_password_and_grant_is_idempotent(self):
+        self._login(str(self.base_admin_id))
+        district, cadre = self._default_worker_fixture(code="D47")
+        existing = db.session.get(VaUsers, self.base_coder_id)
+        password = existing.password
+        body = {
+            "org_unit_id": str(district.org_unit_id),
+            "cadre_id": str(cadre.cadre_id),
+            "worker_name": "Existing Account",
+            "user": str(existing.user_id),
+            "year_of_birth": "1899",
+            "sex": "invalid",
+        }
+        first = self.client.post(self._url("/workers"), json=body, headers=self._csrf_headers())
+        self.assertEqual(first.status_code, 201, first.get_json())
+        second = self.client.post(
+            self._url("/workers"), json={**body, "worker_code": "W0047"}, headers=self._csrf_headers()
+        )
+        self.assertEqual(second.status_code, 201, second.get_json())
+        self.assertEqual(second.get_json()["onboarding"]["created_users"], 0)
+        self.assertEqual(second.get_json()["onboarding"]["changed_grants"], 0)
+        db.session.refresh(existing)
+        self.assertEqual(existing.password, password)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == existing.user_id,
+            VaUserAccessGrants.org_unit_id == district.org_unit_id,
+            VaUserAccessGrants.role == VaAccessRoles.site_pi,
+        )), 1)
+
+    def test_project_pi_cannot_create_worker_account_from_defaults(self):
+        district, cadre = self._default_worker_fixture(code="D48")
+        db.session.add(VaUserAccessGrants(
+            user_id=self.base_project_pi_user.user_id,
+            role=VaAccessRoles.project_pi,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._login(str(self.base_project_pi_id))
+        response = self.client.post(
+            self._url("/workers"),
+            json={
+                "org_unit_id": str(district.org_unit_id),
+                "cadre_id": str(cadre.cadre_id),
+                "worker_name": "PI Cannot Create",
+                "email": "pi-new@example.org", "email_confirm": "pi-new@example.org",
+                "language_codes": "en",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "pi-new@example.org")))
+        self.assertFalse(db.session.scalar(sa.select(sa.exists().where(
+            sa.and_(MasOrgUnitWorker.project_id == self.PROJECT,
+                    MasOrgUnitWorker.worker_name == "PI Cannot Create")
+        ))))
+
+    def test_worker_defaults_reject_email_and_mobile_for_different_accounts(self):
+        self._login(str(self.base_admin_id))
+        district, cadre = self._default_worker_fixture(code="D50")
+        existing = db.session.get(VaUsers, self.base_coder_id)
+        existing.phone = "9876543210"
+        existing.mobile_login = "9876543210"
+        db.session.flush()
+        response = self.client.post(
+            self._url("/workers"),
+            json={
+                "org_unit_id": str(district.org_unit_id),
+                "cadre_id": str(cadre.cadre_id),
+                "worker_name": "Conflicting Identity",
+                "email": "different@example.org",
+                "phone": "9876543210",
+                "language_codes": "en",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "different@example.org")))
+        self.assertFalse(db.session.scalar(sa.select(sa.exists().where(
+            sa.and_(MasOrgUnitWorker.project_id == self.PROJECT,
+                    MasOrgUnitWorker.worker_name == "Conflicting Identity")
+        ))))
+
+    def test_roster_only_worker_rejects_invalid_phone_on_submission(self):
+        self._login(str(self.base_admin_id))
+        district, cadre = self._default_worker_fixture(code="DNOEMAIL")
+        unit_id = district.org_unit_id
+        cadre_id = cadre.cadre_id
+        org.upsert_level_cadre(
+            self.PROJECT, org_level_id=district.org_level_id, cadre_id=cadre_id,
+            can_fill_va_form=False, can_code_va_form=False, default_roles=[],
+        )
+        db.session.commit()
+        response = self.client.post(
+            self._url("/workers"),
+            json={"org_unit_id": str(unit_id), "cadre_id": str(cadre_id),
+                  "worker_name": "Invalid roster phone", "phone": "12345"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertIn("exactly 10 digits", response.get_json()["error"])
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(MasOrgUnitWorker).where(
+            MasOrgUnitWorker.org_unit_id == unit_id)), 0)
+
+    def test_worker_without_defaults_remains_roster_only(self):
+        self._login(str(self.base_admin_id))
+        district, cadre = self._default_worker_fixture(code="D49")
+        level = db.session.get(MasOrgLevel, district.level.org_level_id)
+        org.upsert_level_cadre(
+            self.PROJECT,
+            org_level_id=level.org_level_id,
+            cadre_id=cadre.cadre_id,
+            can_fill_va_form=False,
+            can_code_va_form=False,
+            default_roles=[],
+        )
+        db.session.commit()
+        response = self.client.post(
+            self._url("/workers"),
+            json={
+                "org_unit_id": str(district.org_unit_id),
+                "cadre_id": str(cadre.cadre_id),
+                "worker_name": "Roster Only",
+                "email": "ignored@example.org",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["onboarding"]["created_users"], 0)
+        self.assertIsNone(db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "ignored@example.org")))
+        self.assertIsNone(response.get_json()["worker"]["user_id"])
 
     # -- project structure mode (docs/policy/organization-model.md) ----------
 

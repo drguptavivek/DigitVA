@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-19
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -28,7 +28,7 @@ Code:
 | --- | --- |
 | Web login, code redemption, emailed links | `app/routes/va_auth.py` (blueprint `va_auth`, prefix `/vaauth`) |
 | Terms page | `app/routes/profile.py` (`/profile/force-password-change`) |
-| Profile JSON (password, reauth and passkeys) | `app/routes/api/profile.py` (`/api/v1/profile`) |
+| Profile JSON (password, reauth, passkeys and optional profile reminder) | `app/routes/api/profile.py` (`/api/v1/profile`) |
 | Sign-in API (device) | `app/routes/api/auth.py` (`/api/v1/auth`), `app/services/device_auth_service.py`; route reference: [API v1](api-v1.md) |
 | Device enrolment codes (admin) | `app/routes/admin_devices.py` |
 | Account creation, phone rules | `app/services/user_account_service.py` |
@@ -776,7 +776,7 @@ signed-in user id.
 
 | Method, path | Request | Response | Limits | Audit |
 | --- | --- | --- | --- | --- |
-| GET `/` | none | `{user_id, name, email (may be null), mobile_only, languages, timezone, year_of_birth, sex}` | default | none |
+| GET `/` | none | `{user_id, name, email (may be null), mobile_only, languages, timezone, year_of_birth, sex, profile_nudge, missing_profile_fields}` | default | none |
 | POST `/password/generate` | none; reauth | 200 `{message}` (verified email) or `{password, message}` (mobile-only) (`no-store`); 409 `{error, code: "email_unverified"}`; 503 `{error}` | 5/hour per user | `password_generated` (`profile`) |
 | POST `/reauth` | `{"password"}` | 200 `{message}`; 403 `{"error": "Incorrect password."}` | 5/min per user | none |
 | POST `/reauth/passkey/options` | none | WebAuthn request options | 5/min per user | none |
@@ -788,6 +788,7 @@ signed-in user id.
 | PATCH `/passkeys/<id>` | `{"name"}`; reauth | `{message, passkey}`; 404 | 10/min, 20/hour per user | `passkey_renamed` |
 | DELETE `/passkeys/<id>` | reauth | `{message}`; 404; 409 last factor | 10/min, 20/hour per user | `passkey_revoked` |
 | POST `/dismiss-passkey-nudge` | none | `{message}` | default | none |
+| POST `/nudge/dismiss` | none | `{profile_nudge: false}`; cookie session and CSRF required | default | none |
 
 ### 8.4 Sign-in API (`/api/v1/auth`, CSRF-exempt)
 
@@ -914,3 +915,16 @@ The current implementation follows this page and the linked policies. Web
 password and passkey sign-in are alternatives for every role. There is no
 mandatory factor setup or TOTP/recovery-code step. Native passkey sign-in is
 deferred; the native app uses password sign-in and local PIN/biometric unlock.
+
+### Account-entry confirmation screens
+
+Admin Users and organization Add worker expose an explicit No email address
+choice. New mobile-only accounts require matching ten-digit mobile entries;
+any supplied mobile is checked in the browser and on submission. Optional
+birth year and sex on Add worker apply only when creating an account. Existing
+linked accounts keep their credentials and profile. Email verification keeps
+GET confirmation and CSRF-protected POST, then redirects to the no-store
+`/vaauth/email-verified` completion screen. It directs the holder to check
+email for their generated password; the password email includes sign-in link.
+Refreshing completion or reopening a used verification link never sends
+another password.

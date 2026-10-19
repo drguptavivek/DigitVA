@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-19
 ---
 
 # VA Form Project Configuration Policy
@@ -199,6 +199,15 @@ codes and its active rules.
   NULL by design.
 
 ## Translation sources
+
+Owner update 2026-10-19: bootstrap and application startup automatically import
+the documented sources below only for locales that have no imported source,
+no edited strings and no approval or activation. A versioned code catalog
+mirrors this provenance table; runtime code does not parse this document.
+This initializes missing draft translations, never re-imports an established
+locale, and never substitutes for human approval or activation. Repeated runs
+leave protected locales and their versions unchanged; missing/corrupt sources
+fail visibly. Imports are serialized across startup processes.
 
 **Decided 2026-09-20: this table records provenance for a human reader; no
 code reads it.** Earlier, `app/services/instrument_translation_service.py`

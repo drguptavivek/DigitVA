@@ -75,6 +75,10 @@ _RESOLVER = (
 )
 
 EXEMPT = {
+    "services/synthetic_demo_service.py::_seed_cases": (
+        "writes fresh synthetic workflow rows for the opted-in demo baseline; "
+        "does not list or count existing coding work"
+    ),
     "routes/api/va_case.py::_may_see_cod_reference": (
         "single-submission gate on an already-authorized case view (one case's own state), "
         "not a list or count of coding work"

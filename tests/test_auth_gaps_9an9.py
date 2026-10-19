@@ -320,7 +320,8 @@ class AuditEventTests(AuthzFixtureMixin, OnboardingTestBase):
         number = _number()
         self._login(str(self.users["admin"].user_id))
         made = self.client.post("/admin/api/users", json={
-            "name": "Audit Mobile", "phone": number, "languages": ["english"],
+            "name": "Audit Mobile", "phone": number, "phone_confirm": number,
+            "languages": ["english"],
         }, headers=self._csrf_headers())
         self.assertEqual(made.status_code, 201, made.get_json())
         [created] = _events(uuid.UUID(made.get_json()["user"]["user_id"]), "account_created")

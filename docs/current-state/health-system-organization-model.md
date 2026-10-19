@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-19
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -111,14 +111,29 @@ carry and how the cadre is validated; [Scope Model](../policy/access-control-mod
 beside the other scopes; [Grant Storage Baseline](../policy/access-control-model.md#grant-storage-baseline)
 for the stored shape.
 
-Two distinct populations, deliberately not conflated:
+Two distinct records:
 
-- **Workers** (`mas_org_unit_worker`) are the people who fill forms — CHO, ASHA,
-  ANM. Most never log in. They exist for the master data and for future
-  submitter-based routing.
+- **Workers** (`mas_org_unit_worker`) record people attached to a unit and
+  cadre, including those who never log in.
 - **Grants** (`va_user_access_grants`) are the people who use DigitVA. A grant
   is user × role × scope, and the scope may now be `org_unit`: one node, whose
   subtree the grant covers.
+
+Adding a worker in the Organization panel now uses the selected level × cadre's
+configured `default_roles` to provision ordinary unit-scoped grants and link
+the account in the same transaction. It reuses the project-user import
+validation and onboarding services. Permission flags alone do not create a
+role; empty defaults keep a roster-only worker. Administrators may create a
+new account using an email or valid mobile number and active languages;
+project PIs may link existing active accounts only. Existing profiles and
+passwords are preserved. Editing a worker does not automatically change grants.
+
+New email accounts get a verification invitation queued after commit, with
+delivery configuration and queue failures reported to the operator. The holder
+receives a generated password after verifying. For a new mobile-only account,
+the form shows a one-time sign-in code to hand over, and the holder obtains
+their password by redeeming it. Responses containing onboarding results use
+`Cache-Control: no-store`; no password is shown to the creator.
 
 A grant may carry a `cadre_id`. It is **descriptive** — nothing at runtime
 reads it — but it is validated on write against the level × cadre grid: the

@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-19
 ---
 
 # Sign-in by Mobile Number
@@ -25,6 +25,10 @@ everything not said here.
   digits only and drop a leading `0` (11 digits) or `91` (12 digits); what is
   left must be exactly 10 digits. The stored and compared value is that
   canonical number (the rule the DM lookup already uses, digitva-i0zb).
+- **Creation forms.** Admin Users and Add worker accept exactly ten digits
+  for a supplied mobile, checked in the browser and again on submission. A
+  new account without email requires the same number entered twice. The
+  sign-in and import canonicalization rules above remain available.
 - **Unique.** No two accounts may hold the same canonical number. Creating
   an account, importing users or editing a phone number refuses a number
   another account holds, with a plain message.
@@ -119,5 +123,13 @@ account that holds an interviewer, coder, coding_tester or reviewer grant that
 opens its gate in at least one project, not only interviewers (owner,
 2026-10-05; [Field Data Collection](field-data-collection.md), "Who may sign
 in on a device").
+
+## 5. App distribution
+
+The signed-in Help page's **Get the Mobile App** guide links to the approved
+Android APK only when the deployment supplies a credential-free HTTPS release
+URL. Until a release is published, it directs users to the browser application
+and tells them to obtain the approved link from an administrator. DigitVA does
+not guess a GitHub release URL or publish an APK from the application server.
 
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

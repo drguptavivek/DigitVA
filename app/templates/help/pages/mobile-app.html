@@ -1,0 +1,21 @@
+<p class="lead">Install DigitVA Collect on an Android device when an APK has been published for this environment.</p>
+
+{% if mobile_app_url %}
+  <div class="alert alert-success" role="status">
+    <strong>Android app available.</strong> Download the current APK from the
+    published release location.
+  </div>
+  <p><a class="btn btn-primary" href="{{ mobile_app_url }}" rel="noopener">Download the DigitVA Android app</a></p>
+{% else %}
+  <div class="alert alert-info" role="status">
+    The Android APK has not been published for this environment yet. Ask your
+    administrator for the approved release link; do not install an APK from an
+    unverified source.
+  </div>
+{% endif %}
+
+<p>You can use the browser application while the mobile release is unavailable:
+  <a href="{{ url_for('expo_client.expo_index') }}">Open DigitVA in your browser</a>.
+</p>
+<p class="small text-muted mb-0">Mobile sign-in uses your normal account. Device
+  PIN or optional biometrics unlock encrypted local data after sign-in.</p>

@@ -2,8 +2,10 @@
 
 import csv
 import io
+import logging
 import os
 import re
+from urllib.parse import urlparse
 
 import markdown2
 from flask import (
@@ -16,9 +18,10 @@ from flask import (
     request,
     send_file,
 )
-from flask_login import current_user
+from flask_login import current_user, login_required
 
 from app import limiter, talisman
+from app.services.authz import effective_roles
 from app.services.cod_bucket_mapping_service import (
     default_reporting_scheme_code,
     export_public_cod_bucket_scheme,
@@ -68,6 +71,7 @@ from app.services.va_code_mapping_public_service import (
 )
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
+log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Project root – used to resolve docs/ paths
@@ -83,6 +87,8 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 HELP_PAGES = [
     # ── Getting Started ──────────────────────────────────────────────
     ("getting-started",       "Getting Started",              "fa-rocket",               "Getting Started",  None),
+    ("organization-demo",     "Synthetic Organization Demo",  "fa-building-circle-check", "Getting Started", ["authenticated"]),
+    ("mobile-app",            "Get the Mobile App",           "fa-mobile-screen-button", "Getting Started", None),
     # ── User Onboarding ──────────────────────────────────────────────
     ("authentication",        "Logging In & Authentication",  "fa-right-to-bracket",     "User Onboarding",  None),
     ("password-reset",        "Password Reset",               "fa-key",                  "User Onboarding",  None),
@@ -256,6 +262,8 @@ def _user_has_role(user, roles):
         return True
     if not user.is_authenticated:
         return False
+    if "authenticated" in roles:
+        return True
     if user.is_admin():
         return True
     for role in roles:
@@ -327,6 +335,17 @@ def _base_ctx():
     )
 
 
+def _valid_android_apk_url():
+    """Return the configured APK URL only when it is a credential-free HTTPS URL."""
+    value = (current_app.config.get("DIGITVA_ANDROID_APK_URL") or "").strip()
+    parsed = urlparse(value)
+    if parsed.scheme.lower() != "https" or not parsed.hostname:
+        return None
+    if parsed.username or parsed.password:
+        return None
+    return value
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -335,6 +354,35 @@ def _base_ctx():
 def index():
     """Help index with search."""
     return render_template("help/help_base.html", **_base_ctx())
+
+
+@help_bp.route("/help/organization-demo")
+@login_required
+def organization_demo():
+    """Show synthetic demo role links after normal account authentication."""
+    # This page contains no case data, but call the shared authz resolver so
+    # production's consulted-request guard records the authenticated decision.
+    effective_roles(current_user)
+    try:
+        from app.services.synthetic_demo_service import get_demo_metadata
+
+        metadata = get_demo_metadata()
+    except Exception:  # noqa: BLE001 - a help page must fail closed
+        log.warning("Could not load synthetic organization demo metadata", exc_info=True)
+        metadata = {"configured": False, "enabled": False, "project_id": "", "accounts": []}
+
+    page_info = _PAGES_BY_SLUG["organization-demo"]
+    return render_template(
+        "help/help_base.html",
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/organization-demo.html",
+        demo_metadata=metadata if metadata.get("enabled") else None,
+        demo_configured=bool(metadata.get("configured")),
+        **_base_ctx(),
+    )
 
 
 @help_bp.route("/help/<slug>")
@@ -349,6 +397,9 @@ def page(slug):
         abort(403)
 
     template_name = f"help/pages/{slug}.html"
+    page_context = {}
+    if slug == "mobile-app":
+        page_context["mobile_app_url"] = _valid_android_apk_url()
     return render_template(
         "help/help_base.html",
         page_slug=slug,
@@ -356,6 +407,7 @@ def page(slug):
         page_icon=page_info[2],
         page_category=page_info[3],
         page_template=template_name,
+        **page_context,
         **_base_ctx(),
     )
 

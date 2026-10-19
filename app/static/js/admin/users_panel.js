@@ -336,6 +336,31 @@
   var nameInput = document.getElementById('user-name-input');
   var jobTitleInput = document.getElementById('user-job-title-input');
   var phoneInput = document.getElementById('user-phone-input');
+  var phoneConfirmInput = document.getElementById('user-phone-confirm-input');
+  var noEmailInput = document.getElementById('user-no-email-input');
+  function updateNoEmailFields() {
+    var noEmail = !_editingId && noEmailInput.checked;
+    document.getElementById('user-no-email-row').classList.toggle('d-none', !!_editingId);
+    document.querySelectorAll('.user-email-col').forEach(function (col) {
+      col.classList.toggle('d-none', noEmail);
+    });
+    emailInput.disabled = noEmail;
+    emailConfirmInput.disabled = noEmail;
+    emailInput.required = !noEmail && !_editingId;
+    emailConfirmInput.required = !noEmail && !_editingId;
+    phoneInput.required = noEmail;
+    if (noEmail) phoneInput.maxLength = 10;
+    else phoneInput.removeAttribute('maxlength');
+    phoneConfirmInput.disabled = !noEmail;
+    phoneConfirmInput.required = noEmail;
+    document.getElementById('user-phone-confirm-col').classList.toggle('d-none', !noEmail);
+    phoneConfirmInput.value = '';
+    if (noEmail) {
+      emailInput.value = '';
+      emailConfirmInput.value = '';
+    }
+  }
+  noEmailInput.addEventListener('change', updateNoEmailFields);
   var yobInput = document.getElementById('user-yob-input');
   var sexInput = document.getElementById('user-sex-input');
   var editOnlyCols = document.querySelectorAll('.user-edit-only');
@@ -351,6 +376,8 @@
   function resetForm() {
     _editingId = null;
     formTitle.textContent = 'Create User';
+    noEmailInput.checked = false;
+    updateNoEmailFields();
     emailInput.value = '';
     emailInput.disabled = false;
     emailConfirmInput.value = '';
@@ -376,6 +403,8 @@
 
     _editingId = userId;
     formTitle.textContent = 'Edit User';
+    noEmailInput.checked = false;
+    updateNoEmailFields();
     emailInput.value = user.email || '';
     emailInput.disabled = false;
     emailConfirmInput.value = user.email || '';
@@ -474,14 +503,22 @@
     } else {
       url = '/admin/api/users';
       method = 'POST';
+      data.phone = phoneInput.value;
+      if (data.phone && !/^[0-9]{10}$/.test(data.phone)) { errEl.textContent = 'Enter a 10-digit mobile number.'; return; }
       data.email = emailInput.value.trim().toLowerCase();
       data.email_confirm = emailConfirmInput.value.trim().toLowerCase();
-      if (data.email || data.email_confirm) {
+      data.no_email = noEmailInput.checked;
+      if (noEmailInput.checked) {
+        data.email = '';
+        data.email_confirm = '';
+        data.phone_confirm = phoneConfirmInput.value;
+        if (!/^[0-9]{10}$/.test(data.phone)) { errEl.textContent = 'Enter a 10-digit mobile number.'; return; }
+        if (!/^[0-9]{10}$/.test(data.phone_confirm)) { errEl.textContent = 'Confirm the 10-digit mobile number.'; return; }
+        if (data.phone !== data.phone_confirm) { errEl.textContent = 'Mobile number confirmation does not match.'; return; }
+      } else {
         if (!data.email) { errEl.textContent = 'Email is required.'; return; }
         if (!data.email_confirm) { errEl.textContent = 'Confirm email is required.'; return; }
         if (data.email !== data.email_confirm) { errEl.textContent = 'Email confirmation does not match.'; return; }
-      } else if (!data.phone) {
-        errEl.textContent = 'Enter an email or a 10-digit mobile number.'; return;
       }
     }
 

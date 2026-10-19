@@ -79,6 +79,18 @@ def _require_reauth():
     return None
 
 
+def _missing_profile_fields(user) -> list[str]:
+    """Return optional profile fields still blank for the signed-in user."""
+    missing = []
+    if not (user.job_title or "").strip():
+        missing.append("job_title")
+    if user.year_of_birth is None:
+        missing.append("year_of_birth")
+    if not (user.sex or "").strip():
+        missing.append("sex")
+    return missing
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/profile/  — current user profile
 # ---------------------------------------------------------------------------
@@ -87,6 +99,7 @@ def _require_reauth():
 @login_required
 def get_profile():
     """Return the current user's profile data."""
+    missing_profile_fields = _missing_profile_fields(current_user)
     return jsonify({
         "user_id": current_user.user_id,
         "name": current_user.name,
@@ -97,6 +110,8 @@ def get_profile():
         "timezone": current_user.timezone,
         "year_of_birth": current_user.year_of_birth,
         "sex": current_user.sex,
+        "profile_nudge": bool(session.get("profile_nudge") and missing_profile_fields),
+        "missing_profile_fields": missing_profile_fields,
     })
 
 
@@ -506,3 +521,15 @@ def dismiss_passkey_nudge():
     """Dismiss the "sign on faster" banner for the rest of this session."""
     session.pop("passkey_nudge", None)
     return jsonify({"message": "Dismissed."})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/profile/nudge/dismiss  — dismiss the optional profile reminder
+# ---------------------------------------------------------------------------
+
+@bp.post("/nudge/dismiss")
+@login_required
+def dismiss_profile_nudge():
+    """Dismiss the optional profile reminder for the rest of this session."""
+    session.pop("profile_nudge", None)
+    return jsonify({"profile_nudge": False})

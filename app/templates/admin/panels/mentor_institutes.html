@@ -1,0 +1,128 @@
+<div id="mentor-panel">
+  <h2 class="h4">Mentoring institutes</h2>
+  <p class="text-muted">Institutes support districts across organization projects. Staff membership gives no project access: assign ordinary unit grants separately in Access Grants. Detaching districts or changing institute status preserves existing grants.</p>
+  <div id="mentor-message" role="status" class="alert d-none"></div>
+  <form id="mentor-create" class="row g-2 mb-4">
+    <div class="col-md-3"><label class="form-label" for="mentor-code">Institute code</label><input id="mentor-code" name="code" class="form-control" maxlength="32" required></div>
+    <div class="col-md-6"><label class="form-label" for="mentor-name">Institute name</label><input id="mentor-name" name="name" class="form-control" maxlength="200" required></div>
+    <div class="col-md-3 align-self-end"><button class="btn btn-primary">Create institute</button></div>
+  </form>
+  <label for="mentor-select" class="form-label">Select institute</label>
+  <select id="mentor-select" class="form-select mb-2"><option value="">Select an institute</option></select>
+  <button id="mentor-more" class="btn btn-sm btn-outline-secondary mb-3" hidden>More institutes</button>
+  <section id="mentor-detail" hidden>
+    <h3 id="mentor-heading" class="h5"></h3>
+    <button id="mentor-status" class="btn btn-outline-secondary mb-3"></button>
+    <h4 class="h6">Attached districts</h4><ul id="mentor-districts"></ul>
+    <button id="mentor-districts-more" class="btn btn-sm btn-outline-secondary mb-2" hidden>More attached districts</button>
+    <form id="mentor-attach" class="row g-2 mb-4">
+      <div class="col-md-3"><label for="mentor-project" class="form-label">Project ID</label><input id="mentor-project" name="project_id" maxlength="6" class="form-control" required></div>
+      <div class="col-md-3 align-self-end"><button id="mentor-find" type="button" class="btn btn-outline-secondary">Find districts</button></div>
+      <div class="col-md-3"><label for="mentor-unit" class="form-label">District unit code</label><input id="mentor-unit" name="unit_code" list="mentor-unit-options" maxlength="64" class="form-control" required><datalist id="mentor-unit-options"></datalist></div>
+      <div class="col-md-3 align-self-end"><button class="btn btn-primary">Attach district</button><button type="button" id="mentor-detach" class="btn btn-outline-secondary">Detach</button></div>
+    </form>
+    <p id="mentor-units-message" role="status"></p><button id="mentor-units-more" class="btn btn-sm btn-outline-secondary" hidden>More districts</button>
+    <h4 class="h6">Staff</h4>
+    <p>Removing staff deactivates their mentor grants within these districts unless another institute still covers them. An account created by this institute may also be deactivated. No records are deleted.</p>
+    <ul id="mentor-staff"></ul><button id="mentor-staff-more" class="btn btn-sm btn-outline-secondary" hidden>More staff</button>
+    <form id="mentor-link" class="row g-2 my-3"><div class="col-md-6"><label for="mentor-email" class="form-label">Existing staff email or account ID</label><input id="mentor-email" name="identifier" class="form-control" required></div><div class="col-md-3 align-self-end"><button class="btn btn-outline-primary">Link existing account</button></div></form>
+    <details><summary>Create a new staff account</summary>
+      <form id="mentor-new-staff" class="row g-2 mt-2">
+        <div class="col-md-6"><label for="mentor-staff-name" class="form-label">Name</label><input id="mentor-staff-name" name="name" class="form-control" required></div>
+        <div class="col-md-6"><label for="mentor-staff-email" class="form-label">Email (or leave blank for mobile sign-in)</label><input id="mentor-staff-email" name="email" type="email" class="form-control"></div>
+        <div class="col-md-6"><label for="mentor-staff-confirm" class="form-label">Confirm email</label><input id="mentor-staff-confirm" name="email_confirm" type="email" class="form-control"></div>
+        <div class="col-md-6"><label for="mentor-staff-phone" class="form-label">Mobile</label><input id="mentor-staff-phone" name="phone" maxlength="15" class="form-control"></div>
+        <div class="col-md-6"><label for="mentor-staff-title" class="form-label">Job title</label><input id="mentor-staff-title" name="job_title" maxlength="120" class="form-control"></div>
+        <div class="col-md-6"><label for="mentor-languages" class="form-label">Languages (select one or more)</label><select id="mentor-languages" multiple required class="form-select"></select></div>
+        <div><button class="btn btn-primary">Create staff account</button></div>
+      </form>
+    </details>
+  </section>
+  <dialog id="mentor-code-dialog"><h3 class="h5">One-time mobile sign-in code</h3><p>Give this code privately to the account holder. It will disappear when this dialog closes.</p><p id="mentor-once-code" class="font-monospace"></p><form method="dialog"><button class="btn btn-primary">Close</button></form></dialog>
+</div>
+<script>
+(function () {
+  'use strict';
+  const root = document.getElementById('mentor-panel');
+  const el = id => root.querySelector('#mentor-' + id);
+  const api = '/admin/api/mentor-institutes';
+  let selected = '', next = null, staffNext = null, districtNext = null, unitNext = null, institute = null;
+  let generation = 0, ready = false, pending = 0;
+  function controls() { el('detail').querySelectorAll('button, input, select').forEach(control => { control.disabled = !ready || pending > 0; }); }
+  function requireReady(code) { if (!ready || pending || selected !== code || institute.institute_code !== code) throw new Error('Wait for the selected institute to finish loading.'); }
+  function message(text, failed = false) { el('message').textContent = text; el('message').className = 'alert ' + (failed ? 'alert-danger' : 'alert-info'); }
+  async function request(path, body) {
+    if (body) { pending++; controls(); }
+    try {
+      const response = await fetch(api + path, body ? {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf}, body: JSON.stringify(body)} : {});
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Request failed. Refresh and retry.');
+      return data;
+    } finally { if (body) { pending--; controls(); } }
+  }
+  function button(text, action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-sm btn-outline-secondary ms-2'; b.textContent = text; b.onclick = () => action().catch(e => message(e.message, true)); return b; }
+  async function write(body, code = institute && institute.institute_code) {
+    requireReady(code);
+    const started = generation;
+    await request('/platform', {code, ...body});
+    if (selected !== code || generation !== started) return;
+    await details();
+    if (selected === code) message('Configuration saved. Project access grants are assigned separately.');
+  }
+  async function list(more = false) {
+    const data = await request('/platform?' + new URLSearchParams(more ? {after: next} : {}));
+    if (!more) { el('select').replaceChildren(new Option('Select an institute', '')); }
+    data.institutes.forEach(i => el('select').add(new Option(i.institute_code + ' — ' + i.institute_name + (i.is_active ? '' : ' (inactive)'), i.institute_code)));
+    next = data.next; el('more').hidden = !next; el('select').value = selected;
+    if (!el('languages').options.length) data.languages.forEach(l => el('languages').add(new Option(l.language_name, l.language_code)));
+  }
+  async function details(more = false, moreDistricts = false) {
+    const code = selected, started = ++generation;
+    ready = false; controls();
+    el('detail').hidden = !code; if (!code) return;
+    const data = await request('/platform?' + new URLSearchParams({code, ...(more ? {staff_after: staffNext} : {}), ...(moreDistricts ? {district_after: districtNext} : {})}));
+    if (selected !== code || generation !== started || !root.isConnected) return;
+    institute = data.institute; el('heading').textContent = institute.institute_name;
+    el('status').textContent = institute.is_active ? 'Deactivate institute' : 'Reactivate institute';
+    if (!moreDistricts) el('districts').replaceChildren();
+    data.districts.forEach(d => { const li = document.createElement('li'); li.textContent = d.project_id + ' / ' + d.unit_code + ' — ' + d.unit_name; li.append(button('Detach', () => write({action: 'detach', project_id: d.project_id, unit_code: d.unit_code}, code))); el('districts').append(li); });
+    districtNext = data.districts_next; el('districts-more').hidden = !districtNext;
+    if (!more) el('staff').replaceChildren();
+    data.staff.forEach(s => {
+      const li = document.createElement('li'); li.textContent = s.name + ' — ' + (s.email || 'Mobile account') + (s.is_admin ? ' (institute admin)' : '') + ' — ' + s.account_status;
+      li.append(button(s.is_admin ? 'Clear institute admin' : 'Make institute admin', () => write({action: 'set-admin', user_id: s.user_id, is_admin: !s.is_admin}, code)));
+      li.append(button('Remove', async () => { requireReady(code); const actionGeneration = generation; if (!confirm('Remove this staff membership and deactivate its covered mentor grants? An institute-created account may also be deactivated.')) return; await request('/' + encodeURIComponent(code) + '/staff/' + encodeURIComponent(s.user_id) + '/remove', {}); if (selected !== code || generation !== actionGeneration) return; await details(); message('Staff removed. Covered mentor grants were deactivated under the institute staff policy.'); }));
+      el('staff').append(li);
+    });
+    staffNext = data.staff_next; el('staff-more').hidden = !staffNext;
+    ready = true; controls();
+  }
+  function bind(form, handler) { el(form).onsubmit = async e => { e.preventDefault(); const submit = e.target.querySelector('button'); submit.disabled = true; try { await handler(Object.fromEntries(new FormData(e.target))); } catch (error) { message(error.message, true); } finally { if (form === 'create') submit.disabled = false; controls(); } }; }
+  bind('create', async data => { const started = generation; await request('/platform', {action: 'create', ...data}); if (generation !== started) return; selected = data.code.trim().toUpperCase().replace(/[- ]/g, '_'); await list(); if (!Array.from(el('select').options).some(o => o.value === selected)) el('select').add(new Option(data.name, selected)); el('select').value = selected; await details(); message('Institute created.'); });
+  bind('attach', data => write({action: 'attach', ...data}));
+  bind('link', data => write({action: 'link', [data.identifier.includes('@') ? 'email' : 'user_id']: data.identifier}));
+  bind('new-staff', async data => {
+    const code = institute && institute.institute_code, started = generation;
+    requireReady(code);
+    data.languages = Array.from(el('languages').selectedOptions, o => o.value);
+    const result = await request('/' + encodeURIComponent(code) + '/staff', data);
+    // The one-time code must survive a failed refresh or a changed selection.
+    if (result.sign_in_code) { el('once-code').textContent = code + ': ' + result.sign_in_code; el('code-dialog').showModal(); }
+    if (selected !== code || generation !== started) return;
+    el('new-staff').reset();
+    message(result.sign_in_code ? 'Account created. Share its one-time code privately.' : 'Account created. Verification email requested; delivery is not confirmed. The holder must verify their email before receiving a password.');
+    await details();
+  });
+  el('code-dialog').addEventListener('close', () => { el('once-code').textContent = ''; });
+  el('select').onchange = () => { selected = el('select').value; details().catch(e => message(e.message, true)); };
+  el('more').onclick = () => list(true).catch(e => message(e.message, true));
+  el('districts-more').onclick = () => details(false, true).catch(e => message(e.message, true));
+  el('staff-more').onclick = () => details(true).catch(e => message(e.message, true));
+  el('status').onclick = () => write({action: 'status', active: !institute.is_active}).catch(e => message(e.message, true));
+  el('detach').onclick = () => write({action: 'detach', project_id: el('project').value, unit_code: el('unit').value}).catch(e => message(e.message, true));
+  async function units(more = false) { const data = await request('/platform?' + new URLSearchParams({project_id: el('project').value, ...(more ? {unit_after: unitNext} : {})})); if (!more) el('unit-options').replaceChildren(); data.available_districts.forEach(d => el('unit-options').append(new Option(d.unit_name, d.unit_code))); unitNext = data.units_next; el('units-more').hidden = !unitNext; el('units-message').textContent = data.available_districts.length ? 'Choose a district code from the suggestions.' : 'No active districts found in that organization project.'; }
+  el('find').onclick = () => units().catch(e => message(e.message, true));
+  el('units-more').onclick = () => units(true).catch(e => message(e.message, true));
+  list().catch(e => message(e.message, true));
+}());
+</script>

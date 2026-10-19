@@ -2,17 +2,24 @@
 
 import csv
 import io
+import logging
 import re
 import secrets
 from types import SimpleNamespace
 
 import sqlalchemy as sa
 from openpyxl import Workbook
+from openpyxl.comments import Comment
+from openpyxl.styles import Font, PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.workbook.defined_name import DefinedName
+from openpyxl.worksheet.datavalidation import DataValidation
 
 from app import db
 from app.models import (
     MapOrgLevelCadre,
     MasCadre,
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -22,9 +29,11 @@ from app.models import (
     VaUsers,
 )
 from app.models.mas_languages import MasLanguages
+from app.models.va_selectives import ROLE_LABELS
 from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
+from app.services.organization_service import _spreadsheet_safe
 from app.services.tabular_import_service import TabularImportError, parse_table
 from app.services.user_account_service import (
     PHONE_CANONICAL,
@@ -38,6 +47,7 @@ MAX_BYTES = 1024 * 1024
 MAX_ROWS = 1000
 EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
 NOT_PERMITTED = "you are not permitted to grant this role here"
+log = logging.getLogger(__name__)
 
 
 class ProjectUserImportError(ValueError):
@@ -51,11 +61,220 @@ def template_csv():
     return output.getvalue()
 
 
-def template_xlsx():
-    """Return the blank first-sheet workbook accepted by this importer."""
+def _defined_name(workbook, name, sheet, start_row, end_row, column):
+    """Add a workbook name for a reference column, including empty lists."""
+    workbook.defined_names.add(DefinedName(
+        name=name,
+        attr_text=f"'{sheet.title}'!${get_column_letter(column)}${start_row}:"
+                  f"${get_column_letter(column)}${max(start_row, end_row)}",
+    ))
+
+
+def _grantable_role_values(actor):
+    """Return the role values accepted by the importer for this route actor."""
+    is_admin = bool(actor is not None and actor.is_admin())
+    return [
+        role.value for role in VaAccessRoles
+        if role != VaAccessRoles.admin and (is_admin or role != VaAccessRoles.project_pi)
+    ]
+
+
+def template_xlsx(project_id, actor=None):
+    """Return a project-aware, blank XLSX template with safe dependent lists.
+
+    The first sheet remains a header-only import surface. Reference data is
+    read in bounded batch queries and is hidden from ordinary users; the
+    server importer remains authoritative when a workbook is uploaded.
+    """
+    levels = list(db.session.scalars(sa.select(MasOrgLevel).where(
+        MasOrgLevel.project_id == project_id,
+        MasOrgLevel.is_active.is_(True),
+    ).order_by(MasOrgLevel.depth)).all())
+    level_keys = {level.org_level_id: f"L{index}" for index, level in enumerate(levels, 1)}
+    units = list(db.session.scalars(sa.select(MasOrgUnit).where(
+        MasOrgUnit.project_id == project_id,
+        MasOrgUnit.is_active.is_(True),
+        MasOrgUnit.org_level_id.in_(list(level_keys)),
+    ).order_by(MasOrgUnit.unit_code)).all()) if level_keys else []
+    cadres = list(db.session.scalars(sa.select(MasCadre).where(
+        MasCadre.project_id == project_id,
+        MasCadre.is_active.is_(True),
+    ).order_by(MasCadre.cadre_code)).all())
+    permitted = list(db.session.execute(sa.select(
+        MapOrgLevelCadre.org_level_id,
+        MapOrgLevelCadre.cadre_id,
+    ).join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
+      .join(MasCadre, MasCadre.cadre_id == MapOrgLevelCadre.cadre_id)
+      .where(
+          MasOrgLevel.project_id == project_id,
+          MasOrgLevel.is_active.is_(True),
+          MasCadre.project_id == project_id,
+          MasCadre.is_active.is_(True),
+          MapOrgLevelCadre.is_active.is_(True),
+      )).all())
+    cadre_ids_by_level = {}
+    for level_id, cadre_id in permitted:
+        cadre_ids_by_level.setdefault(level_id, set()).add(cadre_id)
+    cadres_by_id = {cadre.cadre_id: cadre for cadre in cadres}
+    cadres_by_level = {
+        level_key: sorted(
+            (cadres_by_id[cadre_id] for cadre_id in cadre_ids_by_level.get(level_id, set())),
+            key=lambda cadre: cadre.cadre_code,
+        )
+        for level_id, level_key in level_keys.items()
+    }
+    active_languages = list(db.session.execute(sa.select(
+        MasLanguages.language_code, MasLanguages.language_name,
+    ).where(MasLanguages.is_active.is_(True)).order_by(MasLanguages.language_code)).all())
+
     workbook = Workbook()
-    workbook.active.title = "project_users"
-    workbook.active.append(HEADERS)
+    sheet = workbook.active
+    sheet.title = "project_users"
+    instructions = workbook.create_sheet("Instructions")
+    reference = workbook.create_sheet("Reference")
+    reference.sheet_state = "hidden"
+
+    header_font = Font(name="Arial", bold=True, color="FFFFFF")
+    body_font = Font(name="Arial")
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    for column, header in enumerate(HEADERS, 1):
+        cell = sheet.cell(1, column, header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.comment = Comment({
+            "email": "Required for an existing or new account.",
+            "name": "Required only when creating a new account.",
+            "role": "Leave blank to use cadre defaults when unit and cadre are supplied.",
+            "org_unit_code": "Leave blank for a whole-project grant.",
+            "cadre_code": "Choose a cadre available at the selected unit level.",
+            "language_codes": "Use active language codes separated by semicolons, for example en;hi.",
+            "phone": "Optional mobile number; required when email is blank.",
+        }[header], "DigitVA")
+        sheet.column_dimensions[get_column_letter(column)].width = {
+            "email": 32, "name": 24, "role": 24, "org_unit_code": 20,
+            "cadre_code": 18, "language_codes": 24, "phone": 18,
+        }[header]
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = "A1:G1001"
+    for row in sheet.iter_rows(min_row=1, max_row=1001, min_col=1, max_col=len(HEADERS)):
+        for cell in row:
+            cell.font = header_font if cell.row == 1 else body_font
+    for row in range(2, 1002):
+        sheet.cell(row, 4).number_format = "@"
+        sheet.cell(row, 5).number_format = "@"
+
+    # Reference layout: unit lookup (A:D), all cadres (F:G), roles (I),
+    # languages (K:L), and one safe-name cadre list per active level (N+).
+    reference.append(["unit_key", "org_unit_code", "level_key", "unit_name", "", "cadre_code", "cadre_name", "", "role", "", "language_code", "language_name"])
+    for index, unit in enumerate(units, 1):
+        reference.cell(index + 1, 1, f"U{index}")
+        reference.cell(index + 1, 2, str(unit.unit_code))
+        reference.cell(index + 1, 3, level_keys[unit.org_level_id])
+        reference.cell(index + 1, 4, _spreadsheet_safe(unit.unit_name))
+    for index, cadre in enumerate(cadres, 1):
+        reference.cell(index + 1, 6, str(cadre.cadre_code))
+        reference.cell(index + 1, 7, _spreadsheet_safe(cadre.cadre_name))
+    for index, role in enumerate(_grantable_role_values(actor), 1):
+        reference.cell(index + 1, 9, _spreadsheet_safe(role))
+    for index, (code, name) in enumerate(active_languages, 1):
+        reference.cell(index + 1, 11, _spreadsheet_safe(code))
+        reference.cell(index + 1, 12, _spreadsheet_safe(name))
+
+    reference.cell(1, 14, "empty")
+    for column_offset, (level_key, level_cadres) in enumerate(cadres_by_level.items(), 15):
+        reference.cell(1, column_offset, level_key)
+        for row, cadre in enumerate(level_cadres, 2):
+            reference.cell(row, column_offset, str(cadre.cadre_code))
+    reference_rows = max(
+        2,
+        len(units) + 1,
+        len(cadres) + 1,
+        len(_grantable_role_values(actor)) + 1,
+        len(active_languages) + 1,
+        *(len(level_cadres) + 1 for level_cadres in cadres_by_level.values()),
+    )
+    reference_columns = max(12, 14 + len(cadres_by_level))
+    for row in reference.iter_rows(min_row=1, max_row=reference_rows, min_col=1, max_col=reference_columns):
+        for cell in row:
+            cell.font = body_font
+    reference.sheet_state = "hidden"
+
+    # Every list has a valid range even when the project has no active rows.
+    reference.cell(2, 2).value = reference.cell(2, 2).value or None
+    reference.cell(2, 3).value = reference.cell(2, 3).value or None
+    reference.cell(2, 9).value = reference.cell(2, 9).value or None
+    reference.cell(2, 11).value = reference.cell(2, 11).value or None
+    _defined_name(workbook, "UnitCodes", reference, 2, max(2, len(units) + 1), 2)
+    _defined_name(workbook, "UnitLevelKeys", reference, 2, max(2, len(units) + 1), 3)
+    _defined_name(workbook, "GrantableRoles", reference, 2, max(2, len(_grantable_role_values(actor)) + 1), 9)
+    _defined_name(workbook, "Languages", reference, 2, max(2, len(active_languages) + 1), 11)
+    _defined_name(workbook, "Cadres_empty", reference, 2, 2, 14)
+    for column_offset, level_key in enumerate(cadres_by_level, 15):
+        _defined_name(workbook, f"Cadres_{level_key}", reference, 2, len(cadres_by_level[level_key]) + 1, column_offset)
+
+    role_validation = DataValidation(type="list", formula1="=GrantableRoles", allow_blank=True)
+    role_validation.errorStyle = "stop"
+    role_validation.errorTitle = "Choose a listed role"
+    role_validation.error = "Select a role from the list, or leave it blank for cadre defaults."
+    role_validation.promptTitle = "Role"
+    role_validation.prompt = "Choose a permitted role or leave blank for cadre defaults."
+    role_validation.showErrorMessage = True
+    role_validation.showInputMessage = True
+    unit_validation = DataValidation(type="list", formula1="=UnitCodes", allow_blank=True)
+    unit_validation.errorStyle = "stop"
+    unit_validation.errorTitle = "Choose an active unit"
+    unit_validation.error = "Select an active project unit or leave blank for a whole-project grant."
+    unit_validation.promptTitle = "Organization unit"
+    unit_validation.prompt = "Leave blank for a whole-project grant."
+    unit_validation.showErrorMessage = True
+    unit_validation.showInputMessage = True
+    cadre_validation = DataValidation(
+        type="list",
+        formula1=(
+            '=INDIRECT(IFERROR("Cadres_"&INDEX(UnitLevelKeys,'
+            'MATCH($D2,UnitCodes,0)),"Cadres_empty"))'
+        ),
+        allow_blank=True,
+    )
+    cadre_validation.errorStyle = "stop"
+    cadre_validation.errorTitle = "Choose a cadre for this unit"
+    cadre_validation.error = "Select a cadre available at the selected unit level."
+    cadre_validation.promptTitle = "Cadre"
+    cadre_validation.prompt = "Choose a cadre after selecting an organization unit."
+    cadre_validation.showErrorMessage = True
+    cadre_validation.showInputMessage = True
+    for validation, column in ((role_validation, "C"), (unit_validation, "D"), (cadre_validation, "E")):
+        sheet.add_data_validation(validation)
+        validation.add(f"{column}2:{column}1001")
+
+    instructions.sheet_view.showGridLines = False
+    instruction_rows = [
+        ("DigitVA project users import", "Fill only the project_users sheet, then upload the saved workbook."),
+        ("Required columns", "Provide an email or valid mobile phone. New accounts also need name and one active language code."),
+        ("Whole-project grants", "Leave org_unit_code and cadre_code blank. A role is required for a whole-project grant."),
+        ("Unit grants", "Select an active unit first; the cadre list then shows cadres configured at that unit level."),
+        ("Default roles", "Leave role blank only when both unit and cadre are supplied; the server expands stored cadre defaults."),
+        ("Languages", "Enter one or more active codes separated by semicolons, for example en;hi. Excel cannot safely multi-select here."),
+        ("Validation", "Dropdowns are convenience checks. The server rechecks actor permissions, active units/cadres and all values on upload."),
+        ("Example", "new@example.org | Asha Worker | interviewer | D01 | ANM | en;hi | 9876543210"),
+    ]
+    for row, (label, text) in enumerate(instruction_rows, 1):
+        instructions.cell(row, 1, label)
+        instructions.cell(row, 2, _spreadsheet_safe(text))
+        instructions.cell(row, 1).font = Font(name="Arial", bold=True)
+        instructions.cell(row, 2).font = body_font
+    role_row = len(instruction_rows) + 1
+    instructions.cell(role_row, 1, "Role legend")
+    instructions.cell(role_row, 2, _spreadsheet_safe("; ".join(
+        f"{role} ({ROLE_LABELS.get(role, role)})" for role in _grantable_role_values(actor)
+    )))
+    instructions.cell(role_row, 1).font = Font(name="Arial", bold=True)
+    instructions.cell(role_row, 2).font = body_font
+    instructions.column_dimensions["A"].width = 24
+    instructions.column_dimensions["B"].width = 110
+    instructions.freeze_panes = "A2"
+    instructions.sheet_view.showGridLines = False
+
     output = io.BytesIO()
     workbook.save(output)
     return output.getvalue()
@@ -339,6 +558,9 @@ def apply(project_id, plan, *, actor_user_id):
                     "sign_in_code": mobile_sign_in_service.issue_code(
                         user, actor_user_id=actor_user_id),
                 })
+        # Organization worker creation uses the same transaction and needs
+        # the account created for an expanded default-role row.
+        item["user"] = user
         grant = item["grant"]
         if grant is None:
             unit = item["unit"]
@@ -366,3 +588,69 @@ def apply(project_id, plan, *, actor_user_id):
                    scope_type=grant.scope_type.value, org_unit_id=grant.org_unit_id,
                    cadre_id=grant.cadre_id), action) for grant, action in changed_grants]
     return invitations, audit, sign_in_codes
+
+
+def finalize_apply(
+    project_id,
+    *,
+    actor_user_id,
+    actor_role,
+    changed_grants,
+    invitations,
+    request_ip=None,
+):
+    """Run shared post-commit grant audit, cache invalidation and invites."""
+    from app.logging.va_logger import log_grant_action
+
+    for grant, action in changed_grants:
+        authz.invalidate(grant["user_id"])
+        log_grant_action(
+            action=action,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+            target_user_id=grant["user_id"],
+            grant_id=grant["grant_id"],
+            role=grant["role"],
+            scope_type=grant["scope_type"],
+            project_id=project_id,
+            org_unit_id=grant["org_unit_id"],
+            cadre_id=grant["cadre_id"],
+            request_ip=request_ip,
+        )
+
+    invite_warnings = []
+    invitations_queued = 0
+    if invitations:
+        from app.services.email_service import is_mail_configured, send_verification_email
+        from app.services.token_service import generate_token
+
+        if not is_mail_configured():
+            invite_warnings.append(
+                "Email delivery is not configured; invitations were not queued. "
+                "Resend from Users after configuring email."
+            )
+        else:
+            for user in invitations:
+                try:
+                    if send_verification_email(
+                        user,
+                        generate_token(user.user_id, "email_verify"),
+                        actor_user_id=actor_user_id,
+                        commit=False,
+                    ):
+                        invitations_queued += 1
+                    else:
+                        invite_warnings.append(
+                            f"Invitation for {user.email} was skipped; resend from Users."
+                        )
+                except Exception:
+                    log.exception(
+                        "project users invitation failed | project=%s user_id=%s",
+                        project_id,
+                        user.user_id,
+                    )
+                    invite_warnings.append(
+                        f"Invitation for {user.email} could not be queued; resend from Users."
+                    )
+            db.session.commit()
+    return invitations_queued, invite_warnings

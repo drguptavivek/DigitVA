@@ -6,6 +6,7 @@ Plan: docs/planning/health-system-organization-model-plan.md
 """
 import io
 import logging
+import re
 import uuid
 
 import sqlalchemy as sa
@@ -16,10 +17,12 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db
 from app.decorators import role_required
+from app.models import MapOrgLevelCadre, MasCadre, MasOrgUnit, VaUsers
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
-from app.services import authz, org_grant_service
+from app.services import org_grant_service
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
+from app.services.user_account_service import canonical_mobile
 
 log = logging.getLogger(__name__)
 
@@ -468,6 +471,82 @@ def admin_org_upsert_level_cadre(project_id):
 _WORKER_FIELDS = ("org_unit_id", "cadre_id", "worker_code", "worker_name", "phone", "user", "remarks")
 
 
+def _worker_identity(payload):
+    """Resolve identity fields without ever changing an existing profile."""
+    raw_user = str(payload.get("user") or "").strip()
+    linked = org.resolve_user(raw_user) if raw_user else None
+    email = str(payload.get("email") or "").strip().lower()
+    if email and (len(email) > 128 or not user_import.EMAIL_RE.fullmatch(email)):
+        raise org.OrganizationError("invalid email")
+    phone = str(payload.get("phone") or "").strip()
+    mobile = canonical_mobile(phone)
+    email_user = db.session.scalar(
+        sa.select(VaUsers).where(sa.func.lower(VaUsers.email) == email)
+    ) if email else None
+    mobile_user = db.session.scalar(
+        sa.select(VaUsers).where(VaUsers.mobile_login == mobile)
+    ) if mobile else None
+    # Email/mobile lookups include inactive rows so an existing account cannot
+    # be silently treated as an unlinked roster-only worker.
+    if email_user:
+        org.resolve_user(email_user)
+    if mobile_user:
+        org.resolve_user(mobile_user)
+    candidates = [user for user in (linked, email_user, mobile_user) if user is not None]
+    if candidates and any(user.user_id != candidates[0].user_id for user in candidates[1:]):
+        raise org.OrganizationError("Email, mobile and linked user identify different accounts.")
+    if linked and email and (not linked.email or linked.email.lower() != email):
+        raise org.OrganizationError("Email does not match the linked user.")
+    if linked and mobile and linked.mobile_login and linked.mobile_login != mobile:
+        raise org.OrganizationError("Mobile number does not match the linked user.")
+    return linked or email_user or mobile_user, email, phone, mobile
+
+
+def _validate_worker_account(payload, email):
+    """Validate confirmed contact fields before creating a new account.
+
+    Existing account links bypass this form-only confirmation contract.
+    Raises OrganizationError without writing account, grant or worker rows.
+    """
+    no_email = payload.get("no_email", False)
+    if not isinstance(no_email, bool):
+        raise org.OrganizationError("No email must be true or false.")
+    phone = payload.get("phone") or ""
+    if no_email:
+        if email or str(payload.get("email_confirm") or "").strip():
+            raise org.OrganizationError("Remove the email and confirmation when choosing No email.")
+        if not phone:
+            raise org.OrganizationError("A 10-digit mobile number is required without email.")
+        if payload.get("phone_confirm") != phone:
+            raise org.OrganizationError("Mobile numbers must match.")
+    elif not email or str(payload.get("email_confirm") or "").strip().lower() != email:
+        raise org.OrganizationError("Enter and confirm the same email address, or choose No email.")
+    year = payload.get("year_of_birth")
+    if year not in (None, "") and not re.fullmatch(r"[0-9]{4}", str(year)):
+        raise org.OrganizationError("Year of birth must be a whole number.")
+    sex = payload.get("sex")
+    if sex is not None and not isinstance(sex, str):
+        raise org.OrganizationError("Sex must be a valid choice.")
+
+
+def _worker_default_roles(project_id, payload):
+    """Return configured defaults for a valid unit/cadre pair, if any."""
+    try:
+        unit_id = uuid.UUID(str(payload.get("org_unit_id")))
+        cadre_id = uuid.UUID(str(payload.get("cadre_id")))
+    except (TypeError, ValueError, AttributeError):
+        return []
+    unit = db.session.get(MasOrgUnit, unit_id)
+    cadre = db.session.get(MasCadre, cadre_id)
+    if unit is None or cadre is None or unit.project_id != project_id or cadre.project_id != project_id:
+        return []
+    permission = db.session.scalar(sa.select(MapOrgLevelCadre).where(
+        MapOrgLevelCadre.org_level_id == unit.org_level_id,
+        MapOrgLevelCadre.cadre_id == cadre.cadre_id,
+    ))
+    return list(permission.default_roles or []) if permission and permission.is_active else []
+
+
 @admin.get(f"{_API}/workers")
 @role_required("admin", "project_pi")
 def admin_org_workers(project_id):
@@ -488,15 +567,88 @@ def admin_org_create_worker(project_id):
     if err := _guard(project_id):
         return err
     p = _payload()
+    invitations = []
+    changed_grants = []
+    sign_in_codes = []
+    onboarding = {
+        "created_users": 0,
+        "changed_grants": 0,
+        "invitations_queued": 0,
+        "invite_warnings": [],
+        "sign_in_codes": [],
+    }
     try:
-        worker = org.create_worker(project_id, **{k: p.get(k) for k in _WORKER_FIELDS})
+        raw_phone = p.get("phone")
+        if raw_phone not in (None, "") and (
+            not isinstance(raw_phone, str) or not re.fullmatch(r"[0-9]{10}", raw_phone)
+        ):
+            raise org.OrganizationError("Phone must contain exactly 10 digits.")
+        linked, email, phone, _mobile = _worker_identity(p)
+        defaults = _worker_default_roles(project_id, p)
+        # An existing email/mobile resolves to the account even when the
+        # roster payload does not carry the internal user UUID.
+        worker_user = str(linked.user_id) if linked else p.get("user")
+        if defaults:
+            if not linked:
+                _validate_worker_account(p, email)
+            if linked:
+                email = email or (linked.email or "")
+                phone = phone or (linked.mobile_login or "")
+            row = {
+                "_line_number": 1,
+                "email": email,
+                "name": str(p.get("worker_name") or ""),
+                "role": "",
+                "org_unit_code": "",
+                "cadre_code": "",
+                "language_codes": str(p.get("language_codes") or ""),
+                "phone": phone,
+            }
+            # The importer validates the unit/cadre and expands the stored
+            # defaults; codes are filled only after those records are found.
+            unit = db.session.get(MasOrgUnit, uuid.UUID(str(p.get("org_unit_id"))))
+            cadre = db.session.get(MasCadre, uuid.UUID(str(p.get("cadre_id"))))
+            row["org_unit_code"] = unit.unit_code if unit else ""
+            row["cadre_code"] = cadre.cadre_code if cadre else ""
+            plan = user_import.prepare(project_id, [row], actor=current_user)
+            invitations, changed_grants, sign_in_codes = user_import.apply(
+                project_id, plan, actor_user_id=current_user.user_id
+            )
+            account = plan[0]["user"]
+            if not linked:
+                account.set_interviewer_profile(p.get("year_of_birth"), p.get("sex"))
+            worker_user = str(account.user_id)
+        worker = org.create_worker(
+            project_id,
+            **{k: p.get(k) for k in _WORKER_FIELDS if k != "user"},
+            user=worker_user,
+        )
         serialized = org.list_workers(project_id, include_inactive=True, org_unit_id=worker.org_unit_id)
         serialized = next(w for w in serialized if w["worker_id"] == str(worker.worker_id))
-    except org.OrganizationError as exc:
+        db.session.commit()
+    except (org.OrganizationError, user_import.ProjectUserImportError, ValueError) as exc:
         db.session.rollback()
         return _json_error(str(exc), 400)
-    _commit_and_log("worker-create", project_id, worker.worker_code)
-    return jsonify({"worker": serialized}), 201
+    if changed_grants or invitations:
+        queued, warnings = user_import.finalize_apply(
+            project_id,
+            actor_user_id=current_user.user_id,
+            actor_role="admin" if current_user.is_admin() else "project_pi",
+            changed_grants=changed_grants,
+            invitations=invitations,
+            request_ip=request.remote_addr,
+        )
+        onboarding.update(
+            created_users=len(invitations) + len(sign_in_codes),
+            changed_grants=len(changed_grants),
+            invitations_queued=queued,
+            invite_warnings=warnings,
+            sign_in_codes=sign_in_codes,
+        )
+    response = jsonify({"worker": serialized, "onboarding": onboarding})
+    response.headers["Cache-Control"] = "no-store"
+    log.info("organization worker-create | project=%s | by=%s | worker=%s", project_id, current_user.user_id, worker.worker_code)
+    return response, 201
 
 
 @admin.patch(f"{_API}/workers/<worker_id>")
@@ -603,7 +755,7 @@ def admin_org_users_template_xlsx(project_id):
     if err := _guard(project_id):
         return err
     return current_app.response_class(
-        user_import.template_xlsx(),
+        user_import.template_xlsx(project_id, actor=current_user),
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": 'attachment; filename="project_users_template.xlsx"'},
     )
@@ -645,43 +797,14 @@ def admin_org_import_users(project_id):
         log.exception("project users import failed | project=%s", project_id)
         return _json_error("The project users import failed.", 500)
 
-    from app.logging.va_logger import log_grant_action
-    for grant, action in changed_grants:
-        authz.invalidate(grant["user_id"])
-        log_grant_action(
-            action=action, actor_user_id=actor_user_id, actor_role=actor_role,
-            target_user_id=grant["user_id"], grant_id=grant["grant_id"], role=grant["role"],
-            scope_type=grant["scope_type"], project_id=project_id,
-            org_unit_id=grant["org_unit_id"], cadre_id=grant["cadre_id"],
-            request_ip=request.remote_addr,
-        )
-    invite_warnings = []
-    invitations_queued = 0
-    if new_users:
-        from app.services.email_service import is_mail_configured, send_verification_email
-        from app.services.token_service import generate_token
-        if not is_mail_configured():
-            invite_warnings.append(
-                "Email delivery is not configured; invitations were not queued. "
-                "Resend from Users after configuring email."
-            )
-        else:
-            for user in new_users:
-                try:
-                    # Opening the verification link emails the password
-                    # (account-onboarding-and-passwords.md section 5.1).
-                    if send_verification_email(
-                        user, generate_token(user.user_id, "email_verify"),
-                        actor_user_id=actor_user_id, commit=False,
-                    ):
-                        invitations_queued += 1
-                    else:
-                        invite_warnings.append(f"Invitation for {user.email} was skipped; resend from Users.")
-                except Exception:
-                    log.exception("project users invitation failed | project=%s user_id=%s", project_id, user.user_id)
-                    invite_warnings.append(f"Invitation for {user.email} could not be queued; resend from Users.")
-            # One commit for the loop's verification_email_sent events.
-            db.session.commit()
+    invitations_queued, invite_warnings = user_import.finalize_apply(
+        project_id,
+        actor_user_id=actor_user_id,
+        actor_role=actor_role,
+        changed_grants=changed_grants,
+        invitations=new_users,
+        request_ip=request.remote_addr,
+    )
     log.info("project users import | project=%s by=%s rows=%s new_users=%s",
              project_id, actor_user_id, len(plan), len(new_users) + len(sign_in_codes))
     # New mobile-only accounts' first sign-in codes, shown once (section

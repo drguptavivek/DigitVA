@@ -27,6 +27,7 @@ from app.services.instrument_translation_service import (
     set_locale_active,
     set_locale_lifecycle_state,
 )
+from app.services.instrument_translation_source_catalog import bootstrap_missing_sources
 
 
 @click.group("instrument-translations")
@@ -156,6 +157,49 @@ def import_workbook(
             f"'instrument-translations activate {instrument_code} {locale}' "
             "when ready to serve it."
         )
+
+
+@instrument_translations_group.command("import-missing-sources")
+@click.argument("instrument_code", required=False, default=BASE_INSTRUMENT_CODE)
+@click.option(
+    "--cross-check",
+    is_flag=True,
+    default=False,
+    help="Read and report eligible sources without writing translations.",
+)
+def import_missing_sources(instrument_code, cross_check):
+    """Import documented sources missing from INSTRUMENT_CODE.
+
+    Existing source-installed, edited, approved or active locales are skipped.
+    The complete batch is committed only after every source succeeds; a source
+    error rolls back the caller's transaction and exits nonzero.
+    """
+    try:
+        report = bootstrap_missing_sources(instrument_code, cross_check=cross_check)
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        _fail(exc)
+    except Exception:
+        db.session.rollback()
+        raise
+    if cross_check:
+        db.session.rollback()
+    else:
+        db.session.commit()
+    click.echo(
+        f"{report.instrument_code}: imported={len(report.imported)} "
+        f"skipped={len(report.skipped)} written={report.written}"
+        + (" (cross-check only)" if cross_check else "")
+    )
+    for row in report.locales:
+        if row.status == "skipped":
+            click.echo(f"  {row.locale_code}: skipped ({row.reason})")
+        else:
+            suffix = "" if cross_check else f" version={row.version}"
+            click.echo(
+                f"  {row.locale_code}: imported {row.workbook} "
+                f"written={row.written}{suffix}"
+            )
 
 
 @instrument_translations_group.command("export")

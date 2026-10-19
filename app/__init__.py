@@ -326,6 +326,9 @@ def create_app(config_class=None):
     from app.commands.seed import init_app as init_seed_commands
     init_seed_commands(app)
 
+    from app.commands.organization_demo import init_app as init_organization_demo_commands
+    init_organization_demo_commands(app)
+
     from app.commands.analytics import init_app as init_analytics_commands
     init_analytics_commands(app)
 

@@ -37,6 +37,9 @@
   </div>
 
   <div id="org-alert" class="alert d-none small py-2"></div>
+  {% if current_user.is_admin() %}
+    <p class="small"><a href="/admin/?panel=%2Fadmin%2Fpanels%2Fmentor-institutes">Configure mentoring institutes and staff</a> — attach an institute to the districts it supports.</p>
+  {% endif %}
 
   <div class="border rounded p-2 mb-3 small">
     <div class="fw-semibold mb-1">How to set up an organization</div>
@@ -45,9 +48,9 @@
       <li><strong>Levels</strong>: define the tiers, top first (e.g. District &gt; CHC &gt; PHC &gt; Village). <em>Populate district defaults</em> adds the district reference model below.</li>
       <li><strong>Units</strong>: add places at each level, or use <em>Upload units CSV</em> in Export / Import. Import top-level units before children; a blank parent code leaves a unit to place with <em>Map parents</em>.</li>
       <li><strong>Cadres &amp; permissions</strong>: the worker types, and at which level each may fill or code VA forms.</li>
-      <li><strong>Workers</strong>: attach health workers to units.</li>
+      <li><strong>Workers</strong>: add health workers to units. Configured cadre roles create their account and access together; cadres without default roles remain roster-only.</li>
     </ol>
-    <div>Then use <strong>Export / Import</strong> to upload project users and roles. <strong>ODK form fields</strong> is optional for projects collecting through ODK.</div>
+    <div>Use <strong>Export / Import</strong> for bulk upload of project users and roles. <strong>ODK form fields</strong> is optional for projects collecting through ODK.</div>
   </div>
 
   {% set ref_model = district_reference_model() %}
@@ -311,6 +314,7 @@
 
   {# ---- Cadres & permissions ---- #}
   <div class="org-tab d-none" data-org-pane="cadres">
+    <p class="small"><a href="/help/user-roles" target="_blank" rel="noopener">What each role can do</a> — compare interviewer, interview supervisor, coder, reviewer, data manager and In-charge responsibilities before assigning default roles.</p>
     {# Sub-tabs: define cadres first, then place them at levels. #}
     <ul class="nav nav-pills nav-sm mb-3 small" role="tablist">
       <li class="nav-item"><button class="nav-link py-1 active" data-bs-toggle="tab" data-bs-target="#org-sub-cadres" type="button" role="tab">a. Cadres</button></li>
@@ -376,13 +380,41 @@
         <div class="col-12"><label class="form-label small mb-1" for="ow-cadre">Cadre <span class="text-danger">*</span></label><select id="ow-cadre" class="form-select form-select-sm"></select>
           <div class="form-text" id="ow-cadre-hint"></div></div>
         <div class="col-12"><label class="form-label small mb-1" for="ow-name">Name <span class="text-danger">*</span></label><input id="ow-name" class="form-control form-control-sm"></div>
-        <div class="col-6"><label class="form-label small mb-1" for="ow-phone">Phone</label><input id="ow-phone" class="form-control form-control-sm" maxlength="32"></div>
-        <div class="col-6"><label class="form-label small mb-1" for="ow-user">DigitVA user (email)</label><input id="ow-user" class="form-control form-control-sm" placeholder="optional"></div>
+        <div class="col-12" id="ow-no-email-wrap"><div class="form-check"><input id="ow-no-email" type="checkbox" class="form-check-input"><label for="ow-no-email" class="form-check-label small">I have no email ID</label></div></div>
+        <div class="col-12" id="ow-email-wrap"><label class="form-label small mb-1" for="ow-email">Email</label><input id="ow-email" type="email" class="form-control form-control-sm" autocomplete="email">
+          <div class="form-text" id="ow-email-hint">Existing account or a new account for this worker.</div></div>
+        <div class="col-12" id="ow-email-confirm-wrap"><label class="form-label small mb-1" for="ow-email-confirm">Confirm email</label><input id="ow-email-confirm" type="email" class="form-control form-control-sm" autocomplete="off"></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ow-phone">Mobile number</label><input id="ow-phone" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm"><div class="form-text">Exactly 10 digits; required without email.</div></div>
+        <div class="col-12 d-none" id="ow-phone-confirm-wrap"><label class="form-label small mb-1" for="ow-phone-confirm">Confirm mobile number</label><input id="ow-phone-confirm" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm" autocomplete="off"></div>
+        <div class="col-6" id="ow-year-wrap"><label class="form-label small mb-1" for="ow-year">Year of birth (optional)</label><input id="ow-year" type="number" min="1900" step="1" class="form-control form-control-sm"></div>
+        <div class="col-6" id="ow-sex-wrap"><label class="form-label small mb-1" for="ow-sex">Sex (optional)</label><select id="ow-sex" class="form-select form-select-sm"><option value="">Not provided</option><option value="male">Male</option><option value="female">Female</option><option value="undetermined">Undetermined</option></select></div>
+        <div class="col-12"><label class="form-label small mb-1" for="ow-language-codes">VA languages <span class="text-muted">(new accounts)</span></label><select id="ow-language-codes" class="form-select form-select-sm" multiple></select>
+          <div class="form-text" id="ow-language-hint">Required only when an administrator creates a new account.</div></div>
+        <input type="hidden" id="ow-user">
         <div class="col-12"><label class="form-label small mb-1" for="ow-remarks">Remarks</label><input id="ow-remarks" class="form-control form-control-sm"></div>
       </div>
+      <div id="ow-onboarding-note" class="alert alert-info small py-2 mt-3 mb-0 d-none" role="status"></div>
       <div class="mt-3 d-flex gap-2">
         <button class="btn btn-sm btn-success" id="ow-save-btn"><i class="fa-solid fa-check me-1"></i>Save</button>
         <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  {# The response may contain a one-time mobile sign-in code. Keep it in this
+     modal only; never put it in the page result, local storage or a log. #}
+  <div class="modal fade" id="org-worker-onboarding-modal" tabindex="-1" aria-labelledby="org-worker-onboarding-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header py-2">
+          <h6 class="modal-title" id="org-worker-onboarding-title">Worker added</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body small" id="org-worker-onboarding-body"></div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-primary d-none" id="org-worker-onboarding-copy">Copy code</button>
+          <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Done</button>
+        </div>
       </div>
     </div>
   </div>
@@ -555,7 +587,7 @@
 <script>
 (function () {
   var PROJECT_ID = {{ (locked_project_id or project_id|default(none)) | tojson }};
-  var STATE = { levels: [], units: [], tree: [], cadres: [], level_cadres: [], workers: [] };
+  var STATE = { levels: [], units: [], tree: [], cadres: [], level_cadres: [], workers: [], languages: [] };
   var _lastDryRunOk = false;
   var ASSETS = {
     wbCss: {{ (url_for('static', filename='vendor/wunderbaum/wunderbaum.css') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }},
@@ -646,6 +678,7 @@
     sel.addEventListener('change', function () { PROJECT_ID = this.value; invalidateUnitsPreview(); invalidateUsersPreview(); loadAll(); });
     loadAll();
   });
+  loadWorkerLanguages();
   $('org-show-inactive').addEventListener('change', loadAll);
 
   // ── tabs ──────────────────────────────────────────────────────────────────
@@ -671,6 +704,30 @@
       STATE.units = []; (function flat(nodes) { nodes.forEach(function (n) { STATE.units.push(n); flat(n.children || []); }); })(STATE.tree);
       renderAll();
     });
+  }
+  function loadWorkerLanguages() {
+    return api('/admin/api/languages').then(function (res) {
+      if (!res.ok || !res.data || !Array.isArray(res.data.languages)) return;
+      STATE.languages = res.data.languages.filter(function (lang) { return lang.is_active !== false; });
+      renderWorkerLanguages();
+    }).catch(function () { /* The backend still validates language codes. */ });
+  }
+  function renderWorkerLanguages(selected) {
+    var sel = $('ow-language-codes');
+    if (!sel) return;
+    var keep = selected || Array.prototype.map.call(sel.selectedOptions || [], function (opt) { return opt.value; });
+    if (_workerLanguagePicker) { _workerLanguagePicker.destroy(); _workerLanguagePicker = null; }
+    sel.innerHTML = STATE.languages.map(function (lang) {
+      var code = lang.language_code || lang.code, name = lang.language_name || lang.name || code;
+      return '<option value="' + esc(code) + '">' + esc(name) + ' (' + esc(code) + ')</option>';
+    }).join('');
+    keep.forEach(function (code) {
+      var option = sel.querySelector('option[value="' + CSS.escape(code) + '"]');
+      if (option) option.selected = true;
+    });
+    if (window.TomSelect) {
+      _workerLanguagePicker = new TomSelect(sel, { plugins: ['remove_button'], maxOptions: null, placeholder: 'Select languages…' });
+    }
   }
   function renderAll() { renderLevels(); renderScope(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); renderOdkForm(); }
 
@@ -1269,7 +1326,14 @@
   // ponytail: the API returns every worker of the project; past a few
   // thousand, page it server-side instead of capping the rendered rows.
   var WORKER_ROW_LIMIT = 500;
-  var _workerUnitPicker = null, _workerFormUnitPicker = null, _editingWorker = null;
+  var _workerUnitPicker = null, _workerFormUnitPicker = null, _workerLanguagePicker = null, _editingWorker = null;
+  var WORKER_ROLE_LABELS = {
+    collaborator: 'Viewer', collaborator_pii: 'Viewer (with PII)', coder: 'Coder',
+    coding_tester: 'Coding Tester', reviewer: 'Reviewer', data_manager: 'Data Manager',
+    interviewer: 'Interviewer', interview_supervisor: 'Interview Supervisor',
+    site_pi: 'In-charge', death_reporter: 'Death Reporter'
+  };
+  var CURRENT_USER_IS_ADMIN = !!(window._adminState && window._adminState.user && window._adminState.user.is_admin);
 
   function workerUnitLabel(u) { return u.level_name + ' · ' + u.unit_name + ' (' + u.unit_code + ')'; }
   function fillWorkerUnitSelect(sel, units, first) {
@@ -1406,10 +1470,46 @@
       return;
     }
     var lc = u ? STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0] : null;
-    hint.textContent = lc
-      ? 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + (lc.can_supervise_interviews ? ' · can supervise interviews' : '') + (lc.can_report_deaths ? ' · can report deaths' : '') + '.'
-      : 'This cadre is not placed at this unit\'s level; saving may be refused.';
+    if (!lc) {
+      hint.textContent = 'This cadre is not placed at this unit\'s level; saving may be refused.';
+      updateWorkerOnboardingNote();
+      return;
+    }
+    var roles = (lc.default_roles || []).map(function (role) { return WORKER_ROLE_LABELS[role] || role; });
+    hint.textContent = 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + (lc.can_supervise_interviews ? ' · can supervise interviews' : '') + (lc.can_report_deaths ? ' · can report deaths' : '') + '.';
+    if (roles.length) hint.textContent += ' Default access: ' + roles.join(', ') + '.';
+    else hint.textContent += ' No default roles: this will remain a roster-only worker unless an existing account is linked.';
+    updateWorkerOnboardingNote();
   }
+
+  function updateWorkerOnboardingNote() {
+    var note = $('ow-onboarding-note');
+    if (!note) return;
+    var u = unitById(val('ow-unit')), cid = $('ow-cadre').value;
+    var lc = u && STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0];
+    if (_editingWorker) {
+      note.className = 'alert alert-secondary small py-2 mt-3 mb-0';
+      note.textContent = 'Editing the roster entry does not change this person\'s grants or password.';
+    } else if (lc && (lc.default_roles || []).length) {
+      var roles = lc.default_roles.map(function (role) { return WORKER_ROLE_LABELS[role] || role; }).join(', ');
+      note.className = 'alert alert-info small py-2 mt-3 mb-0';
+      note.textContent = (CURRENT_USER_IS_ADMIN ? 'An account can be created or an existing account linked. ' : 'A project PI can link an existing active account; an administrator must create a new account. ') + 'This worker will receive the configured access: ' + roles + '. No role checkboxes are needed.';
+    } else {
+      note.className = 'alert alert-secondary small py-2 mt-3 mb-0';
+      note.textContent = 'No default roles are configured for this level and cadre. The worker will be added to the roster; no account or grant is required.';
+    }
+  }
+
+  function updateWorkerContactMode() {
+    var editing = !!_editingWorker, noEmail = !editing && $('ow-no-email').checked;
+    show('ow-no-email-wrap', !editing);
+    show('ow-email-wrap', !noEmail);
+    show('ow-email-confirm-wrap', !editing && !noEmail);
+    show('ow-phone-confirm-wrap', noEmail);
+    show('ow-year-wrap', !editing); show('ow-sex-wrap', !editing);
+    $('ow-email').disabled = noEmail;
+  }
+  $('ow-no-email').addEventListener('change', updateWorkerContactMode);
 
   function openWorkerForm(w, unit) {
     _editingWorker = w;
@@ -1425,20 +1525,124 @@
     sel.value = unitId;
     $('ow-id').value = w ? w.worker_id : '';
     $('ow-name').value = w ? w.worker_name : ''; $('ow-phone').value = w ? (w.phone || '') : '';
-    $('ow-user').value = w ? (w.user_email || '') : ''; $('ow-remarks').value = w ? (w.remarks || '') : '';
+    $('ow-email').value = w ? (w.user_email || '') : '';
+    $('ow-no-email').checked = false;
+    ['ow-email-confirm', 'ow-phone-confirm', 'ow-year', 'ow-sex'].forEach(function (id) { $(id).value = ''; });
+    $('ow-year').max = String(new Date().getFullYear());
+    updateWorkerContactMode();
+    $('ow-user').value = w ? (w.user_id || w.user_email || '') : '';
+    $('ow-remarks').value = w ? (w.remarks || '') : '';
+    renderWorkerLanguages([]);
     fillWorkerCadreSelect(w ? w.cadre_id : null);
     if (window.TomSelect) _workerFormUnitPicker = new TomSelect(sel, { maxOptions: null });
+    $('ow-language-codes').disabled = !!w;
+    if (_workerLanguagePicker) {
+      if (w) _workerLanguagePicker.disable(); else _workerLanguagePicker.enable();
+    }
+    $('ow-email-hint').textContent = w
+      ? 'Existing account link; editing does not reset its password or grants.'
+      : (CURRENT_USER_IS_ADMIN ? 'Use an existing account email or select No email for a mobile-only account.' : 'Project PIs may link existing active accounts; administrators create new accounts.');
+    updateWorkerOnboardingNote();
     show('ow-alert', false);
     unitCanvas('org-worker-canvas').show();
   }
   $('org-worker-canvas').addEventListener('shown.bs.offcanvas', function () { if (val('ow-unit')) $('ow-name').focus(); });
   $('ow-unit').addEventListener('change', function () { fillWorkerCadreSelect($('ow-cadre').value); });
   $('ow-cadre').addEventListener('change', updateWorkerCadreHint);
+  $('ow-email').addEventListener('input', function () {
+    if (!_editingWorker) return;
+    var email = this.value.trim();
+    // Keep the legacy user reference in sync when an editor relinks a worker.
+    // A mobile-only account with no email keeps its UUID until a replacement is entered.
+    $('ow-user').value = email || (_editingWorker.user_email ? '' : (_editingWorker.user_id || ''));
+  });
   $('org-worker-add-btn').addEventListener('click', function () { openWorkerForm(null, null); });
+  function selectedWorkerLanguages() {
+    return Array.prototype.map.call($('ow-language-codes').selectedOptions || [], function (option) { return option.value; });
+  }
+  function showWorkerOnboarding(onboarding) {
+    var modalEl = $('org-worker-onboarding-modal'), body = $('org-worker-onboarding-body'), copy = $('org-worker-onboarding-copy');
+    body.textContent = '';
+    copy.classList.add('d-none');
+    delete modalEl.dataset.code;
+    onboarding = onboarding || {};
+    var summary = document.createElement('p');
+    summary.className = 'mb-2';
+    summary.textContent = 'Worker saved. ' + (onboarding.created_users || 0) + ' account(s) created; ' + (onboarding.changed_grants || 0) + ' grant(s) added or reactivated.';
+    body.appendChild(summary);
+    if (onboarding.invitations_queued) {
+      var queued = document.createElement('p');
+      queued.className = 'mb-2 text-success';
+      queued.textContent = onboarding.invitations_queued + ' invitation(s) queued. Delivery is not confirmed.';
+      body.appendChild(queued);
+    }
+    (onboarding.invite_warnings || []).forEach(function (warning) {
+      var warningEl = document.createElement('p');
+      warningEl.className = 'mb-2 text-danger';
+      warningEl.textContent = 'Warning: ' + warning;
+      body.appendChild(warningEl);
+    });
+    var codes = onboarding.sign_in_codes || [];
+    if (typeof codes === 'string') codes = [{ sign_in_code: codes }];
+    if (!Array.isArray(codes)) codes = [codes];
+    if (codes.length && codes[0].sign_in_code) {
+      var code = String(codes[0].sign_in_code);
+      modalEl.dataset.code = code;
+      var codeLabel = document.createElement('p');
+      codeLabel.className = 'mb-1';
+      codeLabel.textContent = 'One-time mobile sign-in code:';
+      var codeEl = document.createElement('code');
+      codeEl.className = 'fs-5 d-block mb-2';
+      codeEl.textContent = code;
+      body.appendChild(codeLabel);
+      body.appendChild(codeEl);
+      var warning = document.createElement('p');
+      warning.className = 'text-danger mb-0';
+      warning.textContent = 'Copy this code before closing. It will be shown only once and expires in 72 hours.';
+      body.appendChild(warning);
+      copy.classList.remove('d-none');
+    }
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+  $('org-worker-onboarding-copy').addEventListener('click', function () {
+    var code = $('org-worker-onboarding-modal').dataset.code;
+    if (!code) return;
+    var btn = this;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(function () { btn.textContent = 'Copied'; }).catch(function () { btn.textContent = 'Copy failed — select the code'; });
+    } else btn.textContent = 'Copy unavailable — select the code';
+  });
+  $('org-worker-onboarding-modal').addEventListener('hidden.bs.modal', function () {
+    $('org-worker-onboarding-body').textContent = '';
+    delete $('org-worker-onboarding-modal').dataset.code;
+    $('org-worker-onboarding-copy').classList.add('d-none');
+    $('org-worker-onboarding-copy').textContent = 'Copy code';
+  });
   $('ow-save-btn').addEventListener('click', function () {
     var id = val('ow-id');
-    var body = { org_unit_id: val('ow-unit'), cadre_id: val('ow-cadre'), worker_name: val('ow-name'), phone: val('ow-phone'), user: val('ow-user'), remarks: val('ow-remarks') };
-    api(base() + '/workers' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) { if (!res.ok) { canvasFail('ow-alert', res); return; } unitCanvas('org-worker-canvas').hide(); loadAll(); });
+    var noEmail = !id && $('ow-no-email').checked;
+    var email = noEmail ? '' : val('ow-email');
+    var phone = $('ow-phone').value;
+    if (!id) {
+      var u = unitById(val('ow-unit'));
+      var lc = u && STATE.level_cadres.find(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === val('ow-cadre'); });
+      var needsAccount = lc && (lc.default_roles || []).length;
+      var error = '';
+      if (phone && !/^[0-9]{10}$/.test(phone)) error = 'Mobile number must contain exactly 10 digits.';
+      else if (needsAccount && noEmail && (!phone || phone !== $('ow-phone-confirm').value)) error = 'Enter and confirm the same 10-digit mobile number.';
+      else if (needsAccount && !noEmail && (!email || !$('ow-email').checkValidity() || email.toLowerCase() !== val('ow-email-confirm').toLowerCase())) error = 'Enter and confirm the same email address, or select No email.';
+      else if (!$('ow-year').checkValidity()) error = 'Year of birth must be between 1900 and this year.';
+      if (error) { canvasFail('ow-alert', { data: { error: error } }); return; }
+    }
+    var body = { org_unit_id: val('ow-unit'), cadre_id: val('ow-cadre'), worker_name: val('ow-name'), phone: phone, user: val('ow-user'), email: email, no_email: noEmail, email_confirm: noEmail ? '' : val('ow-email-confirm'), phone_confirm: $('ow-phone-confirm').value, year_of_birth: val('ow-year'), sex: val('ow-sex'), language_codes: selectedWorkerLanguages().join(';'), remarks: val('ow-remarks') };
+    var save = $('ow-save-btn');
+    save.disabled = true;
+    api(base() + '/workers' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) {
+      if (!res.ok) { save.disabled = false; canvasFail('ow-alert', res); return; }
+      unitCanvas('org-worker-canvas').hide();
+      showWorkerOnboarding(res.data && res.data.onboarding);
+      loadAll().catch(function () { alertBox('warning', 'Worker saved; refresh the page to update the roster.'); });
+    }).catch(function () { save.disabled = false; canvasFail('ow-alert', { data: { error: 'Network error.' } }); });
   });
 
   // ── export / import ───────────────────────────────────────────────────────

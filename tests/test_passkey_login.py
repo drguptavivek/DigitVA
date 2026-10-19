@@ -571,12 +571,28 @@ class PasskeyNudgeTests(PasskeyTestBase):
         with self.client.session_transaction() as sess:
             self.assertTrue(sess.get("passkey_nudge"))
 
+    def test_profile_nudge_after_password_login_when_profile_is_incomplete(self):
+        resp = self._login_via_form(self.user.email, PASSWORD)
+        self.assertEqual(resp.status_code, 302)
+        with self.client.session_transaction() as sess:
+            self.assertTrue(sess.get("profile_nudge"))
+
     def test_no_nudge_after_password_login_with_passkey(self):
         self._add_credential(self.user)
         resp = self._login_via_form(self.user.email, PASSWORD)
         self.assertEqual(resp.status_code, 302)
         with self.client.session_transaction() as sess:
             self.assertNotIn("passkey_nudge", sess)
+
+    def test_no_profile_nudge_after_password_login_when_profile_is_complete(self):
+        self.user.job_title = "Interviewer"
+        self.user.year_of_birth = 1985
+        self.user.sex = "undetermined"
+        db.session.flush()
+        resp = self._login_via_form(self.user.email, PASSWORD)
+        self.assertEqual(resp.status_code, 302)
+        with self.client.session_transaction() as sess:
+            self.assertNotIn("profile_nudge", sess)
 
     def test_no_nudge_after_passkey_login(self):
         cred, priv = self._add_credential(self.user)
@@ -586,3 +602,12 @@ class PasskeyNudgeTests(PasskeyTestBase):
         self.assertEqual(resp.status_code, 200, resp.data)
         with self.client.session_transaction() as sess:
             self.assertNotIn("passkey_nudge", sess)
+
+    def test_profile_nudge_after_passkey_login_when_profile_is_incomplete(self):
+        cred, priv = self._add_credential(self.user)
+        resp = self._sign_in_with_credential(
+            self.user.email, cred.credential_id, priv, sign_count=1
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        with self.client.session_transaction() as sess:
+            self.assertTrue(sess.get("profile_nudge"))

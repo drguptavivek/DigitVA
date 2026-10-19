@@ -1,9 +1,24 @@
-import { parseEnrolmentQr } from "../src/enrolment";
+import { normalizeHttpsOrigin, parseEnrolmentQr } from "../src/enrolment";
 
 const qr = (server: string, extra: Record<string, unknown> = {}) =>
   JSON.stringify({ v: 1, server, enroll: "AbCdEf123456_-x", project: "UNSW01", ...extra });
 
 describe("parseEnrolmentQr", () => {
+  it("normalizes only exact HTTPS origins", () => {
+    expect(normalizeHttpsOrigin("HTTPS://DigitVAv3.CauseOfDeathIndia.com/")).toBe(
+      "https://digitvav3.causeofdeathindia.com"
+    );
+    for (const value of [
+      "http://digitvav3.causeofdeathindia.com",
+      "https://digitvav3.causeofdeathindia.com/api",
+      "https://user:pass@digitvav3.causeofdeathindia.com",
+      "https://digitvav3.causeofdeathindia.com?x=1",
+      "https://digitvav3.causeofdeathindia.com#fragment",
+    ]) {
+      expect(normalizeHttpsOrigin(value)).toBeNull();
+    }
+  });
+
   it("accepts the production host in release and debug builds", () => {
     for (const isDev of [false, true]) {
       expect(parseEnrolmentQr(qr("https://digitva.causeofdeathindia.com/"), isDev)).toEqual({

@@ -2239,10 +2239,34 @@ def admin_create_user():
 
     from app.services import mobile_sign_in_service
 
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return _json_error("User details must be an object.", 400)
+    if "no_email" in payload and not isinstance(payload["no_email"], bool):
+        return _json_error("No email address must be true or false.", 400)
+    email = payload.get("email") or ""
+    email_confirm = payload.get("email_confirm") or ""
+    if not isinstance(email, str) or not isinstance(email_confirm, str):
+        return _json_error("Email fields must be text.", 400)
+    has_email = bool(email.strip() or email_confirm.strip())
+    if payload.get("no_email") and has_email:
+        return _json_error("Clear the email fields when selecting no email address.", 400)
+    phone = payload.get("phone")
+    if phone not in (None, "") and (
+        not isinstance(phone, str) or re.fullmatch(r"[0-9]{10}", phone) is None
+    ):
+        return _json_error("Enter a 10-digit mobile number.", 400)
+    if not has_email:
+        confirmation = payload.get("phone_confirm")
+        if not isinstance(phone, str) or re.fullmatch(r"[0-9]{10}", phone) is None:
+            return _json_error("Enter a 10-digit mobile number.", 400)
+        if not isinstance(confirmation, str) or re.fullmatch(r"[0-9]{10}", confirmation) is None:
+            return _json_error("Confirm the 10-digit mobile number.", 400)
+        if phone != confirmation:
+            return _json_error("Mobile number confirmation does not match.", 400)
+
     try:
-        fields = accounts.validate_new_user_payload(
-            request.get_json(silent=True) or {}, allow_mobile_only=True
-        )
+        fields = accounts.validate_new_user_payload(payload, allow_mobile_only=True)
         new_user = accounts.create_invited_user(
             fields, via="admin", actor_user_id=current_user.user_id
         )

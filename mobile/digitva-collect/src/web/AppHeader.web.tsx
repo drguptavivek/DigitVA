@@ -9,6 +9,7 @@ import { AccountMenu } from "../workspace/AccountMenu.web";
 import { ensureVendorCss } from "../workspace/vendorCss.web";
 import { browserSessionStore, clearAllScroll } from "../workspace/viewState";
 import { activeTab, HEADERLESS_ROUTES, MORE_WIDTH, showBottomTabs, tabsThatFit, type NavParams } from "./navTabs";
+import ProfileNudge from "./ProfileNudge.web";
 import { roleScreens, serverScreens } from "./roleHome";
 
 const ROBOTO = "Roboto, Arial, sans-serif";
@@ -254,10 +255,13 @@ export default function AppHeader() {
   const { tokens } = useThemeTokens();
   useEffect(() => { if (nav.bootstrap) ensureVendorCss(); }, [nav.bootstrap]);
   if (nav.hidden) return null;
-  return h("header", {
-    id: "digitva-app-header",
-    style: { position: "sticky", top: 0, zIndex: 40, flexShrink: 0, width: "100%", boxSizing: "border-box", background: BAR, color: ON_BAR, fontFamily: ROBOTO },
-  }, h("style", null, css(tokens)), width < PHONE_BREAKPOINT ? h(PhoneHeader, { nav }) : h(DesktopHeader, { nav, width }));
+  return h(React.Fragment, null,
+    h("header", {
+      id: "digitva-app-header",
+      style: { position: "sticky", top: 0, zIndex: 40, flexShrink: 0, width: "100%", boxSizing: "border-box", background: BAR, color: ON_BAR, fontFamily: ROBOTO },
+    }, h("style", null, css(tokens)), width < PHONE_BREAKPOINT ? h(PhoneHeader, { nav }) : h(DesktopHeader, { nav, width })),
+    h(ProfileNudge),
+  );
 }
 
 /** True while the on-screen keyboard is up: the visual viewport is much shorter than the tallest height seen. */

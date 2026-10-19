@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-19
 ---
 
 # Workflow And Permissions
@@ -1089,7 +1089,12 @@ identifier step followed by the password/passkey page:
    dismissible banner on the next page linking to the Profile passkey
    section. Dismissing it (`POST /api/v1/profile/dismiss-passkey-nudge`)
    clears the session flag, so it does not reappear for the rest of the
-   session. A passkey sign-in never sets the flag.
+   session. A successful password or passkey sign-in also sets
+   `session["profile_nudge"]` when the optional job title, year of birth or
+   sex is missing. The profile banner names the missing fields and links to
+   `/profile/`; dismissing it (`POST /api/v1/profile/nudge/dismiss`) clears
+   the flag for the session. A completed profile suppresses the banner, and
+   no profile field is required for access.
 7. **No second-factor step.** A correct password or verified passkey completes
    web sign-in for every role. Passkeys remain optional; there is no TOTP,
    recovery-code prompt, or mandatory factor-setup redirect.

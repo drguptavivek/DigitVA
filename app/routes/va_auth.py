@@ -196,6 +196,12 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: 
     session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
     if nudge_if_no_passkey and not has_passkey:
         session["passkey_nudge"] = True
+    if (
+        not (user.job_title or "").strip()
+        or user.year_of_birth is None
+        or not (user.sex or "").strip()
+    ):
+        session["profile_nudge"] = True
     current_app.session_interface.regenerate(session)
     user.mark_signed_in()
     # The client address after ProxyFix(x_for=1), kept in the event for
@@ -699,7 +705,8 @@ def verify_email(token):
     marks the email verified and, for an account that has no usable password
     yet, generates one and emails it to that address. An account that
     already has one keeps it (account-onboarding-and-passwords.md 5.1, 5.3).
-    The page never shows a password. Reopening a used link does nothing.
+    The page never shows a password. Success redirects to a completion page;
+    reopening a used link never generates another password.
     """
     user = _link_user(token, "email_verify")
     if user is None or not user.is_active:
@@ -710,8 +717,8 @@ def verify_email(token):
         )
         return redirect(url_for("va_auth.va_login"))
     if user.email_verified:
-        flash("Your email is already verified. You can sign in.", "success")
-        return redirect(url_for("va_auth.va_login"))
+        session["email_verification_password_sent"] = False
+        return redirect(url_for("va_auth.email_verified"))
     if request.method == "GET" or not ConfirmLinkForm().validate_on_submit():
         return render_template("va_frontpages/va_verify_email.html", form=ConfirmLinkForm(), token=token)
 
@@ -725,11 +732,25 @@ def verify_email(token):
                 accounts.PasswordEmailFailed) as exc:
             return _password_delivery_failed(exc, url_for("va_auth.verify_email", token=token))
     db.session.commit()
-    if needs_password:
-        flash(f"Your email is verified. {PASSWORD_EMAILED_MESSAGE}", "success")
-    else:
-        flash("Your email is verified. You can sign in with your password.", "success")
-    return redirect(url_for("va_auth.va_login"))
+    session["email_verification_password_sent"] = needs_password
+    return redirect(url_for("va_auth.email_verified"))
+
+
+@va_auth.route("/email-verified", methods=["GET"])
+def email_verified():
+    """Show verification completion without credentials or a password form.
+
+    Only the delivery outcome is retained in the browser session, so refresh
+    cannot repeat verification or send another password email.
+    """
+    if "email_verification_password_sent" not in session:
+        return redirect(url_for("va_auth.va_login"))
+    response = make_response(render_template(
+        "va_frontpages/va_email_verified.html",
+        password_sent=session["email_verification_password_sent"],
+    ))
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @va_auth.route("/resend-verification", methods=["GET", "POST"])

@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-13
+last_updated: 2026-10-19
 ---
 
 # Organization Model Policy
@@ -104,6 +104,20 @@ and keep working exactly as they did.
 - **Workers** (`mas_org_unit_worker`) are people attached to a unit with a
   cadre; they may or may not have a DigitVA login. A worker's cadre must be
   defined at the unit's level.
+- Creating a worker in the Organization panel also provisions the selected
+  level × cadre's configured default roles at that worker's unit. When defaults
+  exist, an email or valid sign-in mobile number is required. The worker,
+  linked account and authorized grants are saved together; no separate grant
+  creation is needed. Empty defaults keep a roster-only worker. Permission
+  flags alone do not invent roles.
+- Existing accounts keep their profile and password. Administrators may create
+  a new account through this flow; project PIs may link existing active
+  accounts only, as in the project-users import. New email accounts receive
+  the verification invitation; new mobile-only accounts receive a one-time
+  sign-in code shown to the creator. The account holder obtains the generated
+  password through the existing onboarding flow, never through the creator.
+  Missing email delivery is reported explicitly. Editing an existing roster
+  entry does not silently change its grants or reset its password.
 - A cadre cannot be removed from a level (its grid row deactivated) while
   active workers of that cadre sit at units of that level; deactivate or move
   them first. The import applies grid deactivations after workers, so one
@@ -114,6 +128,14 @@ and keep working exactly as they did.
 ## Project structure mode
 
 ### Spreadsheet setup
+
+- The project-users XLSX template contains a blank, import-compatible first
+  worksheet and dropdowns sourced from the project's active units and cadres.
+  Cadre choices match the selected unit's level. Roles remain explicit or may
+  be left blank to use the configured defaults; language codes support the
+  existing semicolon-separated format. Instructions and an example live on a
+  separate sheet so they cannot become accidental user rows. Dropdowns help
+  entry; the server still validates all uploaded rows and authorization.
 
 - An organization-mode project offers blank CSV and XLSX units templates with
   the existing unit import columns. Administrators and that project's PI may
@@ -445,8 +467,10 @@ The rule and the shared predicate that implements it live in
   with a blank `role` (and a unit and cadre) into one grant per default role.
   The operator may untick any in the forms, and a row that names a role in
   the import gets that role only. They are saved as ordinary grants: nothing
-  grants a default automatically, and editing a default later leaves existing
-  grants unchanged. A default may only name a role the row allows, by the
+  changes access merely because a default is configured. Interactive worker
+  creation explicitly writes all configured defaults in the same transaction
+  as the worker and account, as described in Baseline. Editing a default later
+  leaves existing grants unchanged. A default may only name a role the row allows, by the
   rule above (`CADRE_FLAG_BY_ROLE`, applied when the grid row is saved); see
   [District Reference Model](district-reference-model.md), "Default roles by
   cadre". The `level_cadres` sheet carries them as `default_roles`, role
@@ -493,6 +517,11 @@ tree. It is **not an org unit**; it belongs to no project's tree.
 
 - `mas_mentor_institute`: a standalone, cross-project master (code, name,
   `is_active`). Created, renamed and deactivated by a platform admin only.
+- Platform administrators configure institutes, their district attachments
+  and their staff from a Mentoring institutes panel in the Admin console,
+  linked from organization setup. This screen reuses the existing institute
+  and membership rules; it does not expand who may enter the Admin console
+  or give institute staff automatic project access.
 - `map_mentor_institute_org_unit`: institute to **district-level unit**
   (depth-1 level), many to many: one institute may support districts in
   several projects, one district may have several institutes. Attached and
@@ -791,3 +820,16 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
 - unit dimensions in dashboards and analytics (the submission CSV export's
   unit columns are implemented — see
   [Implementation Report](../current-state/health-system-organization-model.md#open-questions))
+
+## Worker account entry
+
+For a new worker whose level and cadre have default roles, Add worker uses
+email and confirm email, or an explicit No email address choice requiring
+the same ten-digit mobile number twice. Browser and server validate the
+number and confirmation before creating any account, grant or worker. An
+optional mobile supplied with email must also contain exactly ten digits.
+Year of birth and sex are optional and apply only to a newly created account;
+linking an existing account preserves its profile and password. Email accounts
+receive verification mail; mobile-only accounts return a one-time sign-in
+code shown before the roster refresh. An empty default-role mapping still
+creates only a roster worker.

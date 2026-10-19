@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-19
 ---
 
 # CLI Reference
@@ -22,6 +22,23 @@ docker compose exec minerva_app_service uv run flask <group> <command> [options]
 |---------|-------------|
 | `seed run` | Seed languages, admin user, form types, field mappings. Safe to re-run. |
 | `seed run --test` | Also create 5 test coder users (see [CLAUDE.md](../../CLAUDE.md) for credentials). |
+
+---
+
+## `organization-demo` — Synthetic demonstration project
+
+`organization-demo seed` creates the separate DEMO01 organization, ordinary
+signed-in role accounts and synthetic starting cases. It requires
+`DIGITVA_WEEKLY_DEMO_PROJECT_ID=DEMO01`, an explicitly supplied strong
+`DIGITVA_DEMO_PASSWORD`, and development/testing mode or the staging-only
+`DIGITVA_ALLOW_TEST_SEED=1` override. It refuses collisions with ordinary
+projects/accounts and does not replace existing passwords.
+
+`organization-demo reset --dry-run` validates the exact opted-in target and
+reports counts. `organization-demo reset` first obtains a verified database
+backup, then resets only synthetic operational data once per scheduled week.
+The registered schedule is Sunday 23:00 Asia/Kolkata. Empty configuration
+keeps the schedule disabled. See [organization-demo.md](../policy/organization-demo.md).
 
 ---
 
@@ -95,9 +112,19 @@ output").
 
 ## `instrument-translations` — Instrument display languages
 
+Startup and `seed run` import the thirteen documented bundled source locales
+when canonical instrument fields exist. The import is atomic and serialized;
+locales with an existing source, edits, approval or activation are preserved.
+This creates drafts and never approves or activates a language. An operator
+can also run `import-missing-sources` explicitly. If a project offers only
+English, inspect `status` and complete administrator review and activation.
+Narration-language choices are separate. Incomplete translations fall back to
+English per string; machine guidance remains excluded pending human acceptance.
+
 ```bash
+docker compose exec minerva_app_service uv run flask instrument-translations import-missing-sources [WHO_2022_VA] [--cross-check]
 docker compose exec minerva_app_service uv run flask instrument-translations status [--instrument-code WHO_2022_VA] [--extensions]
-docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi docs/kb/WHO_VA_2022_Docs/RJ01_ICMRVA_WHOVA2022.xlsx
+docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi docs/kb/WHO_VA_2022_Docs/ND01_ICMRVA_WHOVA2022.xlsx
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --cross-check
 docker compose exec minerva_app_service uv run flask instrument-translations import WHO_2022_VA hi <other.xlsx> --acknowledge-demotion
 docker compose exec minerva_app_service uv run flask instrument-translations lifecycle WHO_2022_VA hi in_review

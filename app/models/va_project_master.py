@@ -12,6 +12,10 @@ from app.models.va_selectives import VaStatuses
 class VaProjectMaster(db.Model):
     __tablename__ = "va_project_master"
     __table_args__ = (
+        sa.CheckConstraint(
+            "NOT (synthetic_demo_reset_enabled AND demo_training_enabled)",
+            name="demo_modes_exclusive",
+        ),
         # The naming convention (app/__init__.py) already prefixes these with
         # "ck_%(table_name)s_"; pass only the discriminator (digitva-liu).
         sa.CheckConstraint(
@@ -122,6 +126,9 @@ class VaProjectMaster(db.Model):
     )
     cod_entry_mode: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="simple", server_default="simple"
+    )
+    synthetic_demo_reset_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
     )
     demo_training_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"

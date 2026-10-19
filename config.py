@@ -338,6 +338,17 @@ class Config:
     # Public base URL: email links, and in production the only trusted host
     # (see trusted_hosts_for). Development and tests accept any host.
     PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "")
+
+    # Signed-in synthetic organization demo. An empty project id keeps the
+    # destructive weekly reset schedule disabled; the database opt-in is the
+    # second activation gate (docs/policy/organization-demo.md).
+    DIGITVA_WEEKLY_DEMO_PROJECT_ID = os.environ.get(
+        "DIGITVA_WEEKLY_DEMO_PROJECT_ID", ""
+    ).strip()
+    DIGITVA_DEMO_PASSWORD = os.environ.get("DIGITVA_DEMO_PASSWORD", "")
+    DIGITVA_ALLOW_TEST_SEED = os.environ.get("DIGITVA_ALLOW_TEST_SEED", "") == "1"
+    # Credential-free HTTPS URL for the published Android APK, when one exists.
+    DIGITVA_ANDROID_APK_URL = os.environ.get("DIGITVA_ANDROID_APK_URL", "").strip()
     MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() in (
         "true",
         "1",

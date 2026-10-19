@@ -8,10 +8,40 @@
  * interviewer's password.
  */
 
-/** Release builds talk to production only, over https. */
-const RELEASE_SERVERS = ["https://digitva.causeofdeathindia.com"];
+/** Safe development fallback until a release build supplies its API origin. */
+export const DEFAULT_RELEASE_SERVER = "https://digitva.causeofdeathindia.com";
 /** Debug builds may also reach a dev server from the emulator or over adb reverse. */
 const DEBUG_SERVERS = ["http://10.0.2.2:8051", "http://localhost:8051"];
+
+/**
+ * Return an exact HTTPS origin. API paths, credentials and query fragments are
+ * not valid server identities for enrolment and are rejected.
+ */
+export function normalizeHttpsOrigin(raw: string): string | null {
+  try {
+    const url = new URL(raw.trim());
+    if (
+      url.protocol !== "https:" ||
+      !url.hostname ||
+      url.username ||
+      url.password ||
+      (url.pathname !== "" && url.pathname !== "/") ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+    return url.origin.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** Release builds use the origin compiled into EXPO_PUBLIC_API_BASE_URL. */
+const compiledReleaseServer = normalizeHttpsOrigin(
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? ""
+);
+const RELEASE_SERVERS = [compiledReleaseServer ?? DEFAULT_RELEASE_SERVER];
 
 export function allowedServers(isDev: boolean): string[] {
   return isDev ? [...RELEASE_SERVERS, ...DEBUG_SERVERS] : RELEASE_SERVERS;

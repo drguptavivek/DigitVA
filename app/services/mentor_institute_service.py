@@ -98,6 +98,23 @@ def _user_by_email(email: str) -> VaUsers:
     return user
 
 
+def _staff_user(email, user_id):
+    """Resolve a staff account by email or UUID; UUIDs include mobile-only users.
+
+    Raises OrganizationError for a missing account or an invalid identifier.
+    """
+    if user_id is None:
+        return _user_by_email(email or "")
+    try:
+        parsed_id = uuid.UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise OrganizationError("Invalid staff user ID.") from exc
+    user = db.session.get(VaUsers, parsed_id)
+    if user is None:
+        raise OrganizationError("Staff account not found.")
+    return user
+
+
 def create_institute(code: object, name: str, *, actor_user_id=None) -> MasMentorInstitute:
     name = (name or "").strip()
     if not name:
@@ -180,14 +197,14 @@ def _forget_grants(user_id) -> None:
     invalidate(user_id)
 
 
-def add_member(institute_code, email: str, *, actor_user_id=None) -> int:
-    """Make the user institute staff. Returns how many of their active grants
+def add_member(institute_code, email: str | None = None, *, user_id=None, actor_user_id=None) -> int:
+    """Make the user (email or user_id) institute staff. Returns how many active grants
     the guard would now refuse (not unit scope, not a mentor role, or a unit
     outside every district their institutes are attached to); those stay in
     place until an admin revokes them.
     """
     institute = _institute(institute_code)
-    user = _user_by_email(email)
+    user = _staff_user(email, user_id)
     link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id))
     if link is None:
         db.session.add(
@@ -240,10 +257,10 @@ def remove_member(institute_code, email: str, *, actor_user_id=None) -> None:
     )
 
 
-def set_member_admin(institute_code, email: str, is_admin: bool, *, actor_user_id=None) -> None:
-    """Set or clear the institute-admin flag on an active member (platform admin only)."""
+def set_member_admin(institute_code, email: str | None, is_admin: bool, *, user_id=None, actor_user_id=None) -> None:
+    """Set/clear an active member's admin flag by email or user_id (platform admin only)."""
     institute = _institute(institute_code)
-    user = _user_by_email(email)
+    user = _staff_user(email, user_id)
     link = db.session.get(MapMentorInstituteUser, (institute.institute_id, user.user_id))
     if link is None or not link.is_active:
         raise OrganizationError("That user is not active staff of that institute; add them first.")

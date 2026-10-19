@@ -1,0 +1,42 @@
+<p class="lead">A guided, signed-in tour of DigitVA using a separate synthetic organization project.</p>
+
+<div class="alert alert-warning" role="note">
+  <strong>Synthetic training data only.</strong> This project is isolated from
+  real work. Its demonstration cases are reset every Sunday at 11:00 p.m.
+  India time. Project settings, organization units, cadres, workers, accounts,
+  credentials, device enrolments and grants are preserved.
+</div>
+
+{% if demo_metadata %}
+  <p>Use the dedicated demo account for each role and sign in through the normal
+  DigitVA login. An administrator supplies the account passwords separately;
+  this page never displays or links to credentials.</p>
+
+  <div class="row g-3" aria-label="Demo accounts">
+    {% for account in demo_metadata.accounts %}
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-body">
+            <h2 class="h5">{{ account.role|replace('_', ' ')|title }}</h2>
+            <p class="mb-2"><code>{{ account.email }}</code></p>
+            <a class="btn btn-sm btn-outline-primary" href="{{ account.landing_path }}">
+              Open {{ account.role|replace('_', ' ')|title }} workspace
+            </a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% elif demo_configured and current_user.is_admin() %}
+  <div class="alert alert-info" role="status">
+    The demo project is configured but not enabled. An administrator must opt
+    the synthetic project in before its accounts and role links appear.
+  </div>
+{% else %}
+  <p class="text-muted">The signed-in synthetic demo is not enabled in this environment.</p>
+{% endif %}
+
+<p class="small text-muted mt-3 mb-0">
+  Do not enter real participant information in this project. Resetting demo
+  cases does not log users out or sign them in automatically.
+</p>

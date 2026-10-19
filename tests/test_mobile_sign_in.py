@@ -614,6 +614,7 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
         number = _number()
         self._as("admin")
         made = self._post("/admin/api/users", {"name": "Admin Made", "phone": number,
+                                               "phone_confirm": number,
                                                "languages": ["english"]})
         self.assertEqual(made.status_code, 201, made.get_json())
         self.assertRegex(made.get_json()["sign_in_code"], r"^\d{6}$")

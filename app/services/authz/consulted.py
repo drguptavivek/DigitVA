@@ -81,6 +81,7 @@ PUBLIC_ENDPOINTS = {
     "va_auth.forgot_password": "Password reset request; runs with no session.",
     "va_auth.reset_password": "Password reset link; reachable only with a signed token.",
     "va_auth.resend_verification": "Verification email resend; runs with no session.",
+    "va_auth.email_verified": "Generic email verification completion page; exposes no account data.",
     "va_auth.verify_email": "Verification link; reachable only with a signed token.",
     "va_auth.factor_reset": "Break-glass account recovery link; single-use one-hour "
                             "token after an administrator reset.",
@@ -141,6 +142,7 @@ SELF_SERVICE_ENDPOINTS = {
                                    "the query); kinds and case/draft ids only, no "
                                    "names, phones or answers.",
     "api_v1.profile_api.dismiss_passkey_nudge": "Own UI preference.",
+    "api_v1.profile_api.dismiss_profile_nudge": "Own UI preference.",
     "api_v1.profile_api.generate_password": "Own password.",
     "api_v1.profile_api.list_passkeys": "Own passkeys.",
     "api_v1.profile_api.passkey_registration_options": "Own passkeys.",

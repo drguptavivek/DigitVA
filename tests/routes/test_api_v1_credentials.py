@@ -21,6 +21,7 @@ _FreshGClient = device_tests._FreshGClient
 _DEV = device_tests.DeviceApiTests.__dict__
 PROFILE = "/api/v1/profile/"
 TIMEZONE = "/api/v1/profile/timezone"
+PROFILE_NUDGE_DISMISS = "/api/v1/profile/nudge/dismiss"
 
 
 class ApiV1CredentialTests(BaseTestCase):
@@ -110,6 +111,28 @@ class ApiV1CredentialTests(BaseTestCase):
             TIMEZONE, json={"timezone": "Asia/Kolkata"}, headers=self._bearer(tokens))
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()["timezone"], "Asia/Kolkata")
+
+    def test_profile_nudge_dismissal_requires_cookie_and_csrf(self):
+        tokens = self._tokens()
+        self._login(str(self.interviewer.user_id))
+        with self.client.session_transaction() as sess:
+            sess["profile_nudge"] = True
+
+        refused = self.client.post(PROFILE_NUDGE_DISMISS)
+        self.assertEqual(refused.status_code, 400)
+        self.assertEqual(refused.get_json()["code"], "csrf_failed")
+
+        bearer = self._bearer_only_client().post(
+            PROFILE_NUDGE_DISMISS, headers=self._bearer(tokens)
+        )
+        self.assertEqual(bearer.status_code, 403)
+        self.assertEqual(bearer.get_json()["code"], "cookie_session_required")
+
+        accepted = self.client.post(
+            PROFILE_NUDGE_DISMISS, headers=self._csrf_headers()
+        )
+        self.assertEqual(accepted.status_code, 200)
+        self.assertEqual(accepted.get_json(), {"profile_nudge": False})
 
     def test_bearer_and_cookie_together_skip_csrf_only_for_the_bearer_user(self):
         tokens = self._tokens()

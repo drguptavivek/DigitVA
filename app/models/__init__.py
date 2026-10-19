@@ -57,6 +57,7 @@ from app.models.va_coding_episodes import VaCodingEpisode
 from app.models.va_daily_kpi_aggregates import VaDailyKpiAggregates
 from app.models.va_data_manager_review import VaDataManagerReview
 from app.models.va_db_backups import VaDbBackup
+from app.models.va_demo_reset_runs import VaDemoResetRun
 from app.models.va_field_mapping import (
     MasCategoryDisplayConfig,
     MasCategoryOrder,
@@ -166,6 +167,7 @@ __all__ = [
     "VaSocialAutopsyAnalysisOption",
     "VaSyncRun",
     "VaDbBackup",
+    "VaDemoResetRun",
     "VaDailyKpiAggregates",
     "VaSubmissionAttachments",
     "VaSubmissionsAuditlog",

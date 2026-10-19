@@ -51,7 +51,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Decode signing keystore
         id: signing

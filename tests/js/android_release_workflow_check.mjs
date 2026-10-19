@@ -10,6 +10,8 @@ assert.doesNotMatch(workflow.split("    steps:")[0], /\$\{\{\s*runner\./,
   "job configuration cannot use the step-only runner context");
 assert.match(workflow, /export ANDROID_RELEASE_STORE_FILE="\$RUNNER_TEMP\//);
 assert.match(workflow, /ANDROID_RELEASE_STORE_FILE=%s\\n.*\$GITHUB_ENV/);
+assert.doesNotMatch(workflow, /cache: gradle/,
+  "Gradle files do not exist until Expo prebuild, after JDK setup");
 
 for (const action of [
   "actions/checkout",

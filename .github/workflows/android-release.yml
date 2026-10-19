@@ -31,7 +31,6 @@ jobs:
     outputs:
       app_version: ${{ steps.app_version.outputs.version }}
     env:
-      ANDROID_RELEASE_STORE_FILE: ${{ runner.temp }}/digitva-release.keystore
       ANDROID_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEYSTORE_PASSWORD }}
       ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
       ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
@@ -61,6 +60,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export ANDROID_RELEASE_STORE_FILE="$RUNNER_TEMP/digitva-release.keystore"
+          printf 'ANDROID_RELEASE_STORE_FILE=%s\n' "$ANDROID_RELEASE_STORE_FILE" >> "$GITHUB_ENV"
           : "${KEYSTORE_BASE64:?ANDROID_RELEASE_KEYSTORE_BASE64 is not configured}"
           : "${ANDROID_RELEASE_KEYSTORE_PASSWORD:?ANDROID_RELEASE_KEYSTORE_PASSWORD is not configured}"
           : "${ANDROID_RELEASE_KEY_ALIAS:?ANDROID_RELEASE_KEY_ALIAS is not configured}"

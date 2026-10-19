@@ -6,6 +6,11 @@ const root = resolve(import.meta.dirname, "../..");
 const workflow = readFileSync(resolve(root, ".github/workflows/android-release.yml"), "utf8");
 const verifier = readFileSync(resolve(root, "scripts/verify-android-release.sh"), "utf8");
 
+assert.doesNotMatch(workflow.split("    steps:")[0], /\$\{\{\s*runner\./,
+  "job configuration cannot use the step-only runner context");
+assert.match(workflow, /export ANDROID_RELEASE_STORE_FILE="\$RUNNER_TEMP\//);
+assert.match(workflow, /ANDROID_RELEASE_STORE_FILE=%s\\n.*\$GITHUB_ENV/);
+
 for (const action of [
   "actions/checkout",
   "actions/setup-node",

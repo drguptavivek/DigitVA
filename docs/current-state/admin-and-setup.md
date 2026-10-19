@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-08
+last_updated: 2026-10-19
 ---
 
 # Admin And Setup Model
@@ -387,6 +387,13 @@ These runs use their own `triggered_by` values (`att-repair`, `att-integrity`,
 dashboard's history.
 
 ## Instrument Translations Panel
+
+The editor combines search with missing-label, missing-option, missing-note
+and extension filters before pagination. Any-missing includes all three string
+categories; blank and unaccepted machine drafts are missing. Extension filters
+include options contributed to a shared WHO choice list. Coverage badges open
+the matching extension view, with filters preserved in the editor URL. These
+read-only controls leave saved translations, version and lifecycle unchanged.
 
 Admin-only. Lists each instrument locale from `mas_instrument_locales`:
 language, locale code, headline coverage (all translatable reference items —

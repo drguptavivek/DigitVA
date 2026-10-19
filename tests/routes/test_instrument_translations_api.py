@@ -671,6 +671,129 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(payload["page_size"], svc.MAX_STRING_PAGE_SIZE)
         self.assertLessEqual(len(payload["items"]), svc.MAX_STRING_PAGE_SIZE)
 
+    def test_question_filters_count_missing_strings_before_pagination(self):
+        self._login(self.base_admin_id)
+        label_key = "Id10010"
+        note_key = next(
+            key[1] for key in svc.reference_items(INSTRUMENT)
+            if key[0] == "question" and key[2] == "hint"
+        )
+        _string("hi", label_key, "   ", source="edited")
+        _string("hi", "HIGH_LOW_VERY/high", "ऊँचा", kind="choice", source="machine")
+        _string("hi", note_key, "नोट", field="hint", source="machine")
+        _string("hi", "consent_mode", "मशीन मसौदा", source="machine")
+        db.session.commit()
+
+        response = self.client.get(
+            self._api("/questions?q=Name+of+VA+interviewer&page_size=1")
+        )
+        payload = response.get_json()
+        item = payload["items"][0]
+        self.assertEqual(item["name"], label_key)
+        self.assertEqual(item["missing_counts"]["labels"], 1)
+        self.assertEqual(payload["total"], 1)
+
+        combined = self.client.get(
+            self._api(
+                "/questions?q=Name+of+VA+interviewer&missing=missing_labels&extension=base"
+            )
+        ).get_json()
+        self.assertEqual(combined["total"], 1)
+
+        machine_label = self.client.get(
+            self._api("/questions?q=consent_mode&missing=missing_labels")
+        ).get_json()
+        self.assertEqual(machine_label["total"], 1)
+        self.assertEqual(machine_label["items"][0]["missing_counts"]["labels"], 1)
+
+        note_payload = self.client.get(
+            self._api(f"/questions?q={note_key}&missing=missing_notes")
+        ).get_json()
+        self.assertTrue(note_payload["items"])
+        self.assertTrue(all(item["missing_counts"]["notes"] for item in note_payload["items"]))
+
+        option_rows = self.client.get(
+            self._api("/questions?missing=missing_options")
+        ).get_json()
+        self.assertTrue(option_rows["items"])
+        self.assertTrue(all(item["missing_counts"]["options"] for item in option_rows["items"]))
+
+        all_missing = self.client.get(
+            self._api("/questions?missing=any_missing&page_size=1")
+        ).get_json()
+        self.assertGreater(all_missing["total"], 1)
+        self.assertEqual(len(all_missing["items"]), 1)
+        self.assertGreater(sum(all_missing["items"][0]["missing_counts"].values()), 0)
+
+    def test_missing_option_and_note_filters_and_orphan_choices(self):
+        self._login(self.base_admin_id)
+        choice_key = "HIGH_LOW_VERY/high"
+        _string("hi", choice_key, "मशीन मसौदा", kind="choice", source="machine")
+        db.session.commit()
+
+        options = self.client.get(
+            self._api("/questions?missing=missing_options&q=Id10002")
+        ).get_json()
+        choice_row = next(
+            item for item in options["items"] if item.get("list_name") == "HIGH_LOW_VERY"
+        )
+        self.assertGreater(choice_row["missing_counts"]["options"], 0)
+
+        notes = self.client.get(self._api("/questions?missing=missing_notes")).get_json()
+        self.assertTrue(notes["items"])
+        self.assertTrue(all(item["missing_counts"]["notes"] for item in notes["items"]))
+
+        all_orphans = self.client.get(self._api("/questions?q=CONSENT_MODE")).get_json()
+        orphan = next(item for item in all_orphans["items"] if item.get("is_choice_list"))
+        self.assertEqual(orphan["missing_counts"]["labels"], 0)
+        orphans = self.client.get(
+            self._api("/questions?q=CONSENT_MODE&missing=missing_labels")
+        ).get_json()
+        self.assertFalse(any(item.get("is_choice_list") for item in orphans["items"]))
+
+    def test_extension_filters_include_nested_base_options_and_return_all_extensions(self):
+        self._login(self.base_admin_id)
+        url = self._api("/questions?q=Interview+language&extension=narration_language")
+        payload = self.client.get(url).get_json()
+        language = next(item for item in payload["items"] if item.get("list_name") == "language")
+        self.assertEqual(payload["total"], 1)
+        self.assertIn("narration_language", payload["available_extensions"])
+        self.assertEqual(language["name"], "language")
+
+        base = self.client.get(
+            self._api("/questions?q=Interview+language&extension=base")
+        ).get_json()
+        self.assertEqual(base["total"], 1)
+        self.assertEqual(base["items"][0]["name"], "language")
+
+        layered = self.client.get(
+            self._api("/questions?extension=doris_support_whova_2022&page_size=1")
+        ).get_json()
+        self.assertGreater(layered["total"], 1)
+        self.assertEqual(len(layered["items"]), 1)
+        self.assertEqual(
+            len(layered["available_extensions"]),
+            len(set(layered["available_extensions"])),
+        )
+        later_page = self.client.get(
+            self._api(
+                "/questions?extension=doris_support_whova_2022&page_size=1&page=2"
+            )
+        ).get_json()
+        self.assertEqual(
+            later_page["available_extensions"], layered["available_extensions"]
+        )
+
+    def test_invalid_question_filters_are_rejected_without_locale_changes(self):
+        self._login(self.base_admin_id)
+        before = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        version, lifecycle_state = before.version, before.lifecycle_state
+        for query in ("missing=bad", "extension=unknown"):
+            response = self.client.get(self._api(f"/questions?{query}"))
+            self.assertEqual(response.status_code, 400)
+        after = db.session.get(MasInstrumentLocales, (INSTRUMENT, "hi"))
+        self.assertEqual((after.version, after.lifecycle_state), (version, lifecycle_state))
+
     def test_questions_route_requires_admin(self):
         self.assertIn(
             self.client.get(self._api("/questions")).status_code, (302, 401)

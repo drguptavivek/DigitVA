@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "../..");
 const workflow = readFileSync(resolve(root, ".github/workflows/android-release.yml"), "utf8");
@@ -66,5 +67,11 @@ for (const check of [
 ]) {
   assert.ok(verifier.includes(check), `${check} is verified before publication`);
 }
+
+const listingSelector = verifier.match(/bundle_member=\$\(unzip -Z1 "\$apk" \| (awk .*)\)/);
+assert.ok(listingSelector, "archive bundle selection must be testable");
+const listing = spawnSync("bash", ["-c", `set -o pipefail\n{ printf 'assets/index.android.bundle\\n'; seq 1 100000; printf 'other/index.android.bundle\\n'; } | ${listingSelector[1]}`], { encoding: "utf8" });
+assert.equal(listing.status, 0, "large archive listings must not terminate the producer with SIGPIPE");
+assert.equal(listing.stdout.trim(), "assets/index.android.bundle", "select only the first bundle member");
 
 console.log("android release workflow and verifier checks passed");

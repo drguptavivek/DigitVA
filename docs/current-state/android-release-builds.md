@@ -9,7 +9,7 @@ last_updated: 2026-10-19
 # Android release builds
 
 DigitVA Collect is built by [`.github/workflows/android-release.yml`](../../.github/workflows/android-release.yml).
-The workflow builds a signed APK for the production server
+The workflow builds a signed APK for the configured server
 `https://digitvav3.causeofdeathindia.com`, verifies its certificate, package,
 embedded JavaScript bundle and checksum, and uploads the APK as a short-lived
 workflow artifact. A missing signing key, password, alias or certificate
@@ -18,6 +18,24 @@ published. Signing runs only from a manually dispatched workflow on `main` and
 requires approval of the protected `android-release` environment. Each run
 uses its monotonically increasing GitHub Actions run number as Android's
 `versionCode`, so future updates can be installed over earlier releases.
+
+## Published testing release
+
+The [Android 0.1.0 testing release](https://github.com/drguptavivek/DigitVA/releases/tag/android-v0.1.0)
+was built by Actions run `39234202987` from `93a446160300f6db39fc5846db232f4df3b9700d`.
+It is a prerelease targeting the staging server above, not a production rollout.
+The APK is 161,817,954 bytes, package `org.digitva.collect`, version code `6`,
+minimum SDK `24`, target SDK `36`, and includes ARM64, ARMv7, x86 and x86_64.
+Independent macOS checks verified the signature, non-debuggable setting,
+embedded server address and checksum; GitHub's uploaded asset digest matches.
+
+- APK SHA-256: `35d555ecb58736f64a4143712e4669f4d84abb31c1950a17805f24b373639db1`
+- Certificate SHA-256: `1E60B3C0E8D9EF6287F6EAD3F26AB86FC669E2EE5101949DC18FD2C14C049B4B`
+
+For this prerelease, configure `DIGITVA_ANDROID_APK_URL` with the versioned
+[APK download](https://github.com/drguptavivek/DigitVA/releases/download/android-v0.1.0/digitva-collect.apk).
+GitHub's `latest/download` alias excludes prereleases. Physical Android/iOS
+PIN and biometric acceptance remains pending under `digitva-p6fs.5`.
 
 ## Signing material
 

@@ -462,6 +462,15 @@ A layer item is translated, exported to XLIFF and edited exactly like a
 workbook item, and round-trips through the same resource-id scheme
 (`resource_id`/`parse_resource_id`).
 
+The translation editor filters missing question labels, missing choice options,
+missing notes (hints, guidance and constraint messages), or any missing string.
+Absent, blank and unaccepted machine-draft text counts as missing. Search,
+missing-string and extension filters combine before pagination. Extension
+matching includes nested choice provenance: narration-language options remain
+reachable on their base WHO language question. Coverage badges link directly
+to that extension's editor view. Filtering is read-only and never imports,
+approves, activates or changes a locale's version or saved text.
+
 Headline coverage (shown everywhere) is translated / all translatable
 reference items — question labels, hints, guidance hints and choice labels
 together, WHO base and DigitVA layers alike, computed live from the reference

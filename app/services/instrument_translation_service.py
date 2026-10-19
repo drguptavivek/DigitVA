@@ -137,6 +137,10 @@ LIFECYCLE_STATES = (LIFECYCLE_DRAFT, LIFECYCLE_IN_REVIEW, LIFECYCLE_APPROVED)
 
 #: Cap on one page of the admin string list, applied server-side.
 MAX_STRING_PAGE_SIZE = 200
+# Query values accepted by the translation question list.
+_MISSING_FILTERS = frozenset(
+    {"all", "missing_labels", "missing_options", "missing_notes", "any_missing"}
+)
 # The longest reference string is a ~6,400-character guidance note and
 # Devanagari runs longer than English, so this bounds an edit without
 # constraining any real note (digitva-8go.1 raised it from 4000).
@@ -1537,11 +1541,51 @@ def _question_row_matches(row: dict, needle: str) -> bool:
     )
 
 
+def _translation_is_missing(english: str | None, translated: str | None, source: str | None) -> bool:
+    """Whether an English-backed string needs review for translation coverage."""
+    return bool(english) and (not translated or not translated.strip() or source == SOURCE_MACHINE)
+
+
+def _question_missing_counts(row: dict) -> dict[str, int]:
+    """Count missing question labels, choices and notes in an editor row."""
+    labels = int(
+        not row.get("is_choice_list")
+        and _translation_is_missing(
+            row.get("english_label"), row.get("translated_label"), row.get("source")
+        )
+    )
+    options = sum(
+        _translation_is_missing(
+            choice.get("english"), choice.get("translated"), choice.get("source")
+        )
+        for choice in row.get("choices", [])
+    )
+    notes = sum(
+        _translation_is_missing(
+            note.get("english"), note.get("translated"), note.get("source")
+        )
+        for key in ("hint", "guidance", "constraint_message")
+        if (note := row.get(key))
+    )
+    return {"labels": labels, "options": options, "notes": notes}
+
+
+def _question_row_has_extension(row: dict, extension: str) -> bool:
+    """Match an extension using row or nested-option provenance."""
+    if extension == "base":
+        return not row.get("extensions")
+    return extension in row.get("extensions", []) or any(
+        extension in choice.get("extensions", []) for choice in row.get("choices", [])
+    )
+
+
 def list_questions(
     instrument_code: str,
     locale_code: str,
     *,
     search: str | None = None,
+    missing: str = "all",
+    extension: str = "all",
     page: int = 1,
     page_size: int = 50,
 ) -> dict:
@@ -1572,11 +1616,18 @@ def list_questions(
     The English and translated text throughout still come from
     :func:`reference_items` and the stored rows, the same source every other
     function in this module reads.
+
+    Optional ``missing`` and ``extension`` filters combine with ``search``
+    before counting and pagination; ``available_extensions`` always describes
+    the full instrument reference.
     """
     instrument_code = (instrument_code or "").strip().upper()
     locale_code = (locale_code or "").strip()
     page = max(1, int(page or 1))
     page_size = max(1, min(int(page_size or 50), MAX_STRING_PAGE_SIZE))
+
+    if missing not in _MISSING_FILTERS:
+        raise InstrumentTranslationError("Invalid missing filter.")
 
     reference = reference_items(instrument_code)
     list_counts = _choice_list_counts(instrument_code)
@@ -1593,6 +1644,16 @@ def list_questions(
         )
     }
     question_extensions, list_extensions, list_values = _layer_group_data()
+    available_extensions = sorted(
+        {ext for exts in question_extensions.values() for ext in exts}
+        | {ext for exts in list_extensions.values() for ext in exts}
+    )
+    if (
+        extension != "all"
+        and extension != "base"
+        and extension not in available_extensions
+    ):
+        raise InstrumentTranslationError("Invalid extension filter.")
 
     # -- base WHO questions, in form order -------------------------------
     # Only a question the reference actually has a label for is a
@@ -1634,6 +1695,25 @@ def list_questions(
     if needle:
         rows = [row for row in rows if _question_row_matches(row, needle)]
 
+    for row in rows:
+        row["missing_counts"] = _question_missing_counts(row)
+    if missing != "all":
+        category = {
+            "missing_labels": "labels",
+            "missing_options": "options",
+            "missing_notes": "notes",
+        }.get(missing)
+        rows = [
+            row for row in rows
+            if (
+                sum(row["missing_counts"].values()) > 0
+                if missing == "any_missing"
+                else row["missing_counts"][category] > 0
+            )
+        ]
+    if extension != "all":
+        rows = [row for row in rows if _question_row_has_extension(row, extension)]
+
     total = len(rows)
     start = (page - 1) * page_size
 
@@ -1643,6 +1723,7 @@ def list_questions(
         "page": page,
         "page_size": page_size,
         "total": total,
+        "available_extensions": available_extensions,
         "items": rows[start : start + page_size],
     }
 

@@ -246,12 +246,14 @@
       }
       var extBadges = Object.keys(l.extension_coverage || {}).map(function (name) {
         var c = l.extension_coverage[name];
-        return '<span class="badge text-bg-' + coverageBadge(c.coverage) + ' border me-1" '
+        return '<a class="text-decoration-none" href="/admin/instrument-translations/'
+          + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(l.locale_code)
+          + '?extension=' + encodeURIComponent(name) + '"><span class="badge text-bg-' + coverageBadge(c.coverage) + ' border me-1" '
           + 'title="' + esc(c.translated) + '/' + esc(c.total) + ' strings'
           + (c.label_total === undefined ? '' :
              ', ' + esc(c.label_translated) + '/' + esc(c.label_total) + ' labels')
           + '">'
-          + esc(name) + ' ' + pct(c.coverage) + '</span>';
+          + esc(name) + ' ' + pct(c.coverage) + '</span></a>';
       }).join('');
       var lifecycleCell = l.is_base
         ? '<span class="text-muted small">—</span>'

@@ -32,10 +32,24 @@
         <span class="text-muted">/ {{ locale }}</span>
       </h5>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
       <input type="search" class="form-control form-control-sm" id="ite-search"
-             placeholder="Search question code or English text" style="width:20rem;">
+             placeholder="Search question code or English text" aria-label="Search translations" style="width:20rem;">
       <button class="btn btn-sm btn-outline-secondary" id="ite-search-btn">Search</button>
+      <label class="visually-hidden" for="ite-missing">Missing translation filter</label>
+      <select class="form-select form-select-sm" id="ite-missing" aria-label="Missing translation filter" style="width:auto;">
+        <option value="all">All fields</option>
+        <option value="missing_labels">Missing labels</option>
+        <option value="missing_options">Missing options</option>
+        <option value="missing_notes">Missing notes</option>
+        <option value="any_missing">Any missing translation</option>
+      </select>
+      <label class="visually-hidden" for="ite-extension">Extension filter</label>
+      <select class="form-select form-select-sm" id="ite-extension" aria-label="Extension filter" style="width:auto;">
+        <option value="all">All extensions</option>
+        <option value="base">WHO base</option>
+      </select>
+      <div class="form-text small w-100">Blank strings and machine drafts awaiting acceptance count as missing.</div>
     </div>
   </div>
 
@@ -196,18 +210,27 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
   // being a page rather than a panel section. Reload, bookmark and browser
   // back/forward all restore the same page and search. ────────────────────
 
-  var state = { page: 1, q: '', total: 0, items: [] };
+  var state = { page: 1, q: '', missing: 'all', extension: 'all', total: 0, items: [] };
+  var loadGeneration = 0;
+
+  function extensionLabel(id) {
+    var labels = { base: 'WHO base', doris_support_whova_2022: 'DORIS support', narration_language: 'Narration language' };
+    return labels[id] || id.replace(/[_-]+/g, ' ');
+  }
 
   function readUrlState() {
     var p = new URLSearchParams(window.location.search);
     var page = parseInt(p.get('page') || '1', 10);
-    return { page: page > 0 ? page : 1, q: p.get('q') || '' };
+    var missing = ['all', 'missing_labels', 'missing_options', 'missing_notes', 'any_missing'].indexOf(p.get('missing')) >= 0 ? p.get('missing') : 'all';
+    return { page: page > 0 ? page : 1, q: p.get('q') || '', missing: missing, extension: p.get('extension') || 'all' };
   }
 
   function pushUrlState() {
     var p = new URLSearchParams();
     if (state.page > 1) p.set('page', String(state.page));
     if (state.q) p.set('q', state.q);
+    if (state.missing !== 'all') p.set('missing', state.missing);
+    if (state.extension !== 'all') p.set('extension', state.extension);
     var qs = p.toString();
     history.pushState(null, '', window.location.pathname + (qs ? '?' + qs : ''));
   }
@@ -216,28 +239,53 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     var s = readUrlState();
     state.page = s.page;
     state.q = s.q;
+    state.missing = s.missing;
+    state.extension = s.extension;
     document.getElementById('ite-search').value = state.q;
+    document.getElementById('ite-missing').value = state.missing;
     closeModalDiscarding(); // the browser already navigated; nothing to warn about
     loadQuestions();
   });
 
   function loadQuestions(afterLoad) {
+    var generation = ++loadGeneration;
     var wrap = document.getElementById('ite-table-wrap');
     wrap.innerHTML = '<div class="text-center text-muted py-5 small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Loading…</div>';
     var url = API + '/' + encodeURIComponent(INSTRUMENT) + '/' + encodeURIComponent(LOCALE)
-      + '/questions?page=' + state.page + '&page_size=' + PAGE_SIZE + '&q=' + encodeURIComponent(state.q);
-    apiJson(url).then(function (res) {
+      + '/questions?page=' + state.page + '&page_size=' + PAGE_SIZE + '&q=' + encodeURIComponent(state.q)
+      + '&missing=' + encodeURIComponent(state.missing) + '&extension=' + encodeURIComponent(state.extension);
+    return apiJson(url).then(function (res) {
+      if (generation !== loadGeneration) return false;
       if (!res.ok) {
         wrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc(res.data.error || 'Failed to load.') + '</div>';
-        return;
+        return false;
+      }
+      var extensionSelect = document.getElementById('ite-extension');
+      var extensions = res.data.available_extensions || [];
+      if (state.extension !== 'all' && state.extension !== 'base' && extensions.indexOf(state.extension) < 0) state.extension = 'all';
+      extensionSelect.innerHTML = '<option value="all">All extensions</option><option value="base">WHO base</option>' + extensions.map(function (id) {
+        return '<option value="' + esc(id) + '">' + esc(extensionLabel(id)) + '</option>';
+      }).join('');
+      extensionSelect.value = state.extension;
+      var lastPage = Math.max(1, Math.ceil(res.data.total / PAGE_SIZE));
+      if (state.page > lastPage) {
+        state.page = lastPage;
+        pushUrlState();
+        return loadQuestions(afterLoad);
       }
       state.total = res.data.total;
       state.items = res.data.items || [];
       renderTable(state.items);
       renderPager();
-      if (afterLoad) afterLoad();
+      if (afterLoad) {
+        var result = afterLoad();
+        if (result !== undefined) return result;
+      }
+      return true;
     }).catch(function () {
+      if (generation !== loadGeneration) return false;
       wrap.innerHTML = '<div class="alert alert-danger small py-2">Network error.</div>';
+      return false;
     });
   }
 
@@ -256,10 +304,25 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
   }
 
   function extensionsHtml(row) {
-    if (!row.extensions || !row.extensions.length) return '';
-    return row.extensions.map(function (e) {
+    var extensions = (row.extensions || []).slice();
+    (row.choices || []).forEach(function (choice) {
+      (choice.extensions || []).forEach(function (extension) {
+        if (extensions.indexOf(extension) < 0) extensions.push(extension);
+      });
+    });
+    if (!extensions.length) return '';
+    return extensions.map(function (e) {
       return '<span class="badge text-bg-light border me-1">' + esc(e) + '</span>';
     }).join('');
+  }
+
+  function missingCountsHtml(row) {
+    var counts = row.missing_counts || {};
+    var labels = Number(counts.labels || 0), options = Number(counts.options || 0), notes = Number(counts.notes || 0);
+    if (!labels && !options && !notes) return '';
+    return '<div class="text-warning small" aria-label="Missing translations">Missing: '
+      + (labels ? labels + ' label(s) ' : '') + (options ? options + ' option(s) ' : '')
+      + (notes ? notes + ' note(s)' : '') + '</div>';
   }
 
   function renderTable(items) {
@@ -303,8 +366,10 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
       locTd.className = 'small';
       if (row.is_choice_list) {
         locTd.innerHTML = '<span class="text-muted">—</span>';
+        locTd.insertAdjacentHTML('beforeend', missingCountsHtml(row));
       } else {
         renderRichInto(locTd, row.translated_label || '');
+        locTd.insertAdjacentHTML('beforeend', missingCountsHtml(row));
       }
       tr.appendChild(locTd);
 
@@ -354,6 +419,7 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     openIndex = null;
     fieldRefs = [];
     settleDiscard(false);
+    if (!suppressDirtyConfirm) loadQuestions();
   });
 
   // The unsaved-changes question is asked inside the editor dialog, not in a
@@ -564,6 +630,7 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
   }
 
   function renderModal(idx) {
+    setModalBusy(false);
     var row = state.items[idx];
     openIndex = idx;
     fieldRefs = [];
@@ -685,33 +752,51 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
   });
 
   document.getElementById('ite-savenext-btn').addEventListener('click', function () {
-    var btn = this;
-    btn.disabled = true;
+    setModalBusy(true);
     doSave().then(function (result) {
-      btn.disabled = false;
       if (!result.ok) {
         document.getElementById('ite-modal-status').innerHTML =
           '<span class="text-danger">' + esc(result.errors.join('; ')) + '</span>';
+        setModalBusy(false);
         return; // never advance past a failed write
       }
       renderTable(state.items);
-      advanceToNext();
+      return advanceToNext();
+    }).finally(function () {
+      if (modalEl.classList.contains('show')) setModalBusy(false);
     });
   });
 
   function advanceToNext() {
+    if (openIndex === null || !state.items[openIndex]) return;
     if (openIndex + 1 < state.items.length) {
       renderModal(openIndex + 1);
       return;
     }
-    var nextPageStart = state.page * PAGE_SIZE;
-    if (nextPageStart >= state.total) {
-      document.getElementById('ite-modal-status').textContent = 'Saved — that was the last question.';
-      return;
-    }
-    state.page += 1;
-    pushUrlState();
-    loadQuestions(function () { renderModal(0); });
+    return loadNextAfter(state.items[openIndex].order);
+  }
+
+  function setModalBusy(busy) {
+    modalEl.querySelectorAll('button, input, textarea').forEach(function (control) {
+      control.disabled = busy;
+    });
+  }
+
+  function loadNextAfter(order) {
+    return loadQuestions(function () {
+      var nextIndex = state.items.findIndex(function (item) { return Number(item.order) > Number(order); });
+      if (nextIndex >= 0) {
+        renderModal(nextIndex);
+        return;
+      }
+      if (state.page * PAGE_SIZE < state.total) {
+        state.page += 1;
+        pushUrlState();
+        return loadNextAfter(order);
+      }
+      closeModalDiscarding();
+      alertBox('info', 'Saved. No remaining questions match these filters.');
+    });
   }
 
   // ── pagination and search ────────────────────────────────────────────
@@ -724,6 +809,8 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     confirmLeaveModal().then(function (ok) {
       if (!ok) return;
       state.q = document.getElementById('ite-search').value.trim();
+      state.missing = document.getElementById('ite-missing').value;
+      state.extension = document.getElementById('ite-extension').value;
       state.page = 1;
       pushUrlState();
       loadQuestions();
@@ -749,12 +836,27 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
     });
   });
 
+  ['ite-missing', 'ite-extension'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function () {
+      confirmLeaveModal().then(function (ok) {
+        if (!ok) { this.value = id === 'ite-missing' ? state.missing : state.extension; return; }
+        state[id === 'ite-missing' ? 'missing' : 'extension'] = this.value;
+        state.page = 1;
+        pushUrlState();
+        loadQuestions();
+      }.bind(this));
+    });
+  });
+
   // ── init ──────────────────────────────────────────────────────────────
 
   var initial = readUrlState();
   state.page = initial.page;
   state.q = initial.q;
+  state.missing = initial.missing;
+  state.extension = initial.extension;
   document.getElementById('ite-search').value = state.q;
+  document.getElementById('ite-missing').value = state.missing;
   loadQuestions();
 
 }());

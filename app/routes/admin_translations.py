@@ -273,6 +273,8 @@ def admin_instrument_translation_questions(instrument_code, locale):
                 instrument_code,
                 locale,
                 search=request.args.get("q"),
+                missing=request.args.get("missing", "all"),
+                extension=request.args.get("extension", "all"),
                 page=page,
                 # Clamped again in the service; the ceiling is never the
                 # caller's to choose.

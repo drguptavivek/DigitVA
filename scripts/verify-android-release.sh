@@ -82,7 +82,7 @@ if [[ "$version_code" != "$expected_version_code" ]]; then
   exit 1
 fi
 
-bundle_member=$(unzip -Z1 "$apk" | awk '$0 ~ /(^|\/)index\.android\.bundle$/ { print; exit }')
+bundle_member=$(unzip -Z1 "$apk" | awk '$0 ~ /(^|\/)index\.android\.bundle$/ && !found { print; found = 1 }')
 [[ -n "$bundle_member" ]] || { echo "APK does not contain an embedded Android JavaScript bundle" >&2; exit 1; }
 bundle_file=$(mktemp)
 trap 'rm -f -- "$bundle_file"' EXIT

@@ -15,7 +15,7 @@ This document captures the current Python runtime, container setup, migrations, 
 ## Staging deployment baseline
 
 Checked 2026-10-19: `digitvav3.causeofdeathindia.com` runs application source
-`579b66b2a`, database head `b8d2f4a6c901`, and the Expo web export built from
+`119384c72`, database head `b8d2f4a6c901`, and the Expo web export built from
 `4527580c2`. The app, Celery worker and beat were rebuilt using the external
 database and runtime-health overlays; the database, ingress and adjacent
 services were retained. Static asset version is `20261019.filters1`.
@@ -24,9 +24,15 @@ The owner approved code only: no `DEMO01` project, synthetic reset flags or
 weekly reset runs exist, and the weekly demo target is unset. Existing
 `SADEMO` training configuration is separate and was preserved. Startup imported
 zero translation sources and skipped thirteen previously installed sources.
-After the owner's Hindi edits, the translation content digest and all locale
-metadata matched the pre-deployment snapshot exactly: Hindi remains version
-32, inactive and `in_review`. Browser checks verified
+Owner edits continued during validation: Hindi advanced from version34 to40,
+inactive and `in_review`. Pre/post snapshots therefore differ; no older snapshot
+was restored. Startup imported0/skipped13/written0, and browser checks made no
+translation writes. The editor now excludes non-reference runtime choice keys
+such as `language/en`, retaining canonical workbook/layer choices. The popup
+names outstanding notes and distinguishes blank text, unaccepted machine drafts
+and unsaved edits. Accept cannot discard a dirty draft; save/accept refreshes
+current-row counts. Shared-list sibling cache refresh remains `digitva-xzdm`.
+Browser checks verified
 Interviewer selection, no-email user creation fields and ten-digit validation,
 Add worker confirmation fields, and the mentoring-institute panel. No account
 or grant was created by these checks. The missing-option filter exposes the
@@ -36,11 +42,11 @@ with editable options. The footer link opens the Expo coding interface.
 release; the Help page renders that exact asset link. Physical native acceptance
 remains pending.
 
-Fresh pre-update backup: `digitvav3/db-backups/minerva/pg_dump_minerva_20261019T103528Z.dump`,
-34,660,824 bytes, SHA-256
-`e997ed5c6699f2323e066917993ca8490a658fffd2f7ad879ea7097e5835eeec`.
+Fresh pre-update backup: `digitvav3/db-backups/minerva/pg_dump_minerva_20261019T112139Z.dump`,
+34,663,268 bytes, SHA-256
+`e6142142f196b67bfdc59b7c54c7f51ed4310b45a2a9eeed2e4c085d124f1353`.
 Remote object size was checked. Prior app/worker/beat images retain the
-`rollback-pre-filters-20261019` tag; no database downgrade was needed.
+`rollback-pre-choicekeys-20261019` tag; no database downgrade was needed.
 
 ## Python Runtime
 

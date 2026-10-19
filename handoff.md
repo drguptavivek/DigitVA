@@ -26,11 +26,14 @@ behalf. Owners may independently edit accounts: reread live state first.
 3. Dependency advisories `digitva-dd67`: reproduce inherited Expo/RN npm audit
    findings from a clean lock, assess runtime applicability and compatible
    upstream fixes; also check worklets alignment. No forced broad upgrades.
-4. Translation review remains an owner decision. Hindi on staging is version32,
-   inactive and in_review after the owner's edits. Editor missing-label,
-   option, note and extension filters are available, including nested narration
-   choices and orphan DORIS lists. Never overwrite those edits or automatically
-   approve/activate a language. Startup imports missing sources only.
+4. Translation review remains an owner decision. Last staging snapshot: Hindi40,
+   inactive/in_review; owner continues editing, so reread live state. Never
+   overwrite edits or automatically approve/activate a language. Editor uses
+   authoritative reference choice keys, not runtime language/en. Missing includes
+   blank and unaccepted machine text; popup names Hint / note and outstanding
+   fields. Dirty drafts must be saved, never silently accepted. Follow-up
+   `digitva-xzdm`: shared-list sibling rows may show stale counts until modal
+   closes/reloads; backend values are correct. Startup imports missing sources only.
 5. Staging demo activation is deliberately excluded. Local DEMO01 has four
    signed-in synthetic accounts; Sunday23:00 Asia/Kolkata reset requires both
    configured target and DB flag, verified backup, scoped reseed/audit/locks.
@@ -51,20 +54,21 @@ behalf. Owners may independently edit accounts: reread live state first.
 ## Current runtime baseline
 
 SSM ap-south-1 i-0b2caee6465bfcac1, ubuntu `/data/DigitVA`.
-https://digitvav3.causeofdeathindia.com runs application579b66b2a, database
+https://digitvav3.causeofdeathindia.com runs application119384c72, database
 single head b8d2f4a6c901, and Expo web export from4527580c2. App healthy,
 worker/beat running; ingress/Redis/ICD/DORIS retained. External-DB and runtime
 health overlays must be preserved; never start the bundled DB there.
 Static asset version:20261019.filters1. Rollback app/worker/beat images retain
-rollback-pre-filters-20261019 tags. Protected env/runtime backups and translation
+rollback-pre-choicekeys-20261019 tags. Protected env/runtime backups and translation
 snapshots are in ubuntu's dailybackups/digitva-code-only-20261019 directory.
-Fresh S3 backup: digitvav3/db-backups/minerva/pg_dump_minerva_20261019T103528Z.dump,
-34,660,824bytes; SHA256 e997ed5c6699f2323e066917993ca8490a658fffd2f7ad879ea7097e5835eeec.
+Fresh S3 backup: digitvav3/db-backups/minerva/pg_dump_minerva_20261019T112139Z.dump,
+34,663,268bytes; SHA256 e6142142f196b67bfdc59b7c54c7f51ed4310b45a2a9eeed2e4c085d124f1353.
 Remote object size verified; no database downgrade or destructive clinical work.
 
-All translation content and locale metadata matched the pre-update snapshot
-exactly. Startup imported0/skipped13/written0; Hindi32/in_review/inactive is
-preserved. No account/grant/password changes were made by acceptance checks.
+Owner edits continued during validation: Hindi advanced34->40, so pre/post
+translation snapshots differ; do not restore an older snapshot. Startup
+imported0/skipped13/written0; no deployment translation writes or activation.
+No account/grant/password changes were made by acceptance checks.
 Weekly demo target is empty, synthetic reset flags0; no DEMO01 was seeded.
 Existing SADEMO training configuration is separate and preserved.
 
@@ -74,7 +78,14 @@ actual HP0001 XLSX download with hidden references and dependent cadre validatio
 translation narration missing-options row, five DORIS option lists and editable
 orphan-list modal; footer opens Expo coding interface. No translation save was
 performed on staging. Native Excel dropdown interaction remains unverified.
-Screenshot: /private/tmp/digitva-staging-translation-filters-20261019.png.
+Latest browser check: ABHA Hint / note and accepted-state summary visible;
+language options1/2/3 and canonical layer choices editable, synthetic en absent.
+No save/accept was performed on staging by acceptance checks. API save/export
+verified in isolated tests. Screenshot:
+/private/tmp/digitva-staging-note-review-20261019.png.
+Earlier unsaved modal fields were copied locally to ignored/private
+private/translation-drafts/hindi-editor-20261019.json (0600); this is a historical
+snapshot, not necessarily the owner's latest draft. Never overwrite newer text.
 Actual macOS26.6.2(25G83), Codex26.1013.40934 recorded; browser engine version
 not independently established. Mail delivery and physical devices remain separate.
 
@@ -102,11 +113,13 @@ Native password enrolls a device; PIN/optional biometrics unlock encrypted local
 data. Native tokens cannot carry admin/DM/PI/supervisory powers, even for mixed
 roles; collection/coding eligibility remains required.
 
-Final backend:4543 tests+2406 subtests passed,3 skipped (migrations excluded),
-exit0; focused translation72 tests+8 subtests and JS harness passed. Earlier
+Final backend:4544 tests+2406 subtests passed,3 skipped (migrations excluded),
+exit0 in443.57s; final focused translation142 tests+39 subtests and JS harness
+passed. Ruff/diff check passed; quality gate cleared with xzdm residual above. Earlier
 migration/schema/no-app-import checks26 tests+3 subtests passed. Mobile96 suites/
 1303 tests, typecheck, web/native exports and release build passed. Independent
-quality gates cleared. Dedicated test databases were dropped. A local full run
+quality gates cleared. Dedicated test databases were dropped, including
+minerva_test_choicekeys_20261019. A local full run
 exceeded the app's1GiB cap; the captured run passed at2GiB, then original1GiB/
 2GiB-swap limits were restored. Do not claim full vendor/device acceptance.
 

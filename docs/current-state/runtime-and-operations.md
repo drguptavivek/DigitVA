@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-19
 ---
 
 # Runtime And Operations
@@ -11,6 +11,36 @@ last_updated: 2026-10-14
 ## Summary
 
 This document captures the current Python runtime, container setup, migrations, tests, logging, and adjacent operational features.
+
+## Staging deployment baseline
+
+Checked 2026-10-19: `digitvav3.causeofdeathindia.com` runs application source
+`579b66b2a`, database head `b8d2f4a6c901`, and the Expo web export built from
+`4527580c2`. The app, Celery worker and beat were rebuilt using the external
+database and runtime-health overlays; the database, ingress and adjacent
+services were retained. Static asset version is `20261019.filters1`.
+
+The owner approved code only: no `DEMO01` project, synthetic reset flags or
+weekly reset runs exist, and the weekly demo target is unset. Existing
+`SADEMO` training configuration is separate and was preserved. Startup imported
+zero translation sources and skipped thirteen previously installed sources.
+After the owner's Hindi edits, the translation content digest and all locale
+metadata matched the pre-deployment snapshot exactly: Hindi remains version
+32, inactive and `in_review`. Browser checks verified
+Interviewer selection, no-email user creation fields and ten-digit validation,
+Add worker confirmation fields, and the mentoring-institute panel. No account
+or grant was created by these checks. The missing-option filter exposes the
+narration-language row and five DORIS choice-list rows; an orphan list opens
+with editable options. The footer link opens the Expo coding interface.
+`DIGITVA_ANDROID_APK_URL` points to the verified `android-v0.1.0` testing
+release; the Help page renders that exact asset link. Physical native acceptance
+remains pending.
+
+Fresh pre-update backup: `digitvav3/db-backups/minerva/pg_dump_minerva_20261019T103528Z.dump`,
+34,660,824 bytes, SHA-256
+`e997ed5c6699f2323e066917993ca8490a658fffd2f7ad879ea7097e5835eeec`.
+Remote object size was checked. Prior app/worker/beat images retain the
+`rollback-pre-filters-20261019` tag; no database downgrade was needed.
 
 ## Python Runtime
 

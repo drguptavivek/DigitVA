@@ -1119,7 +1119,7 @@ export async function removeMentorInstituteStaff(
 export interface HomeBlocks {
   death_reporter?: { registered: number; awaiting_interview: number };
   interviewer?: { drafts_in_progress: number; needing_visit: number };
-  interview_supervisor?: { flagged: number; open: number; submitted: number };
+  interview_supervisor?: { flagged: number; needs_decision: number; open: number; submitted: number };
   /** `practice`: a coding tester without a coder grant; `completed` and `recodeable` are then absent. */
   coder?: { ready: number; practice: boolean; completed?: number; recodeable?: number };
   reviewer?: { available: number; completed: number };

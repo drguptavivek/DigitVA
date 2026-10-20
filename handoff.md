@@ -22,11 +22,10 @@ The owner owns `vendor/who-va-2022`; edit it freely, it ships in this repo.
    (36 units; locale lifecycle unchanged; an approved locale needs
    `--acknowledge-demotion`). Staging Hindi 40 in_review is the owner's live
    state: never overwrite.
-2. Supervision lives in the Deaths tab only (`digitva-a5jf`): preset of the
-   shared list, tiles Needs my decision / Overdue revisits / Stuck (30 days) /
-   total, no Awaiting QA, `/supervision` redirects, drop the DM Supervision tab
-   (`digitva-yeg3.25` superseded). Supervisor = health supervisor at a PHC who
-   supervises ANM/MPW. Policy: `docs/policy/case-list-views.md`.
+2. Supervision in the Deaths tab is done (`digitva-a5jf`, closed): tiles, filters
+   `needs_decision`/`overdue`/`stuck`, `sort=oldest`, `/supervision` redirects, More
+   entry gone, Home CTA "Needs my decision". Native tokens never get the
+   supervisor view (`supervised_case_condition` is empty under bearer).
 3. Death registration identifiers (`digitva-kzyp`, policy
    `docs/policy/death-registration-identifiers.md`, proposed, all owner questions
    answered except google-re2 as second regex guard). Per-project types with
@@ -35,9 +34,14 @@ The owner owns `vendor/who-va-2022`; edit it freely, it ships in this repo.
    index). Needs `cryptography>=48` (installed 46.0.5 has no ML-KEM; 48.0.0 added
    it; latest 50.0.2): review 46->50 breaking changes, rebuild three images. Needs
    a migration: chain on committed revisions only.
-4. Shared case list service (`digitva-pt0s`): list_cases per policy; first step
-   is live (Deaths list and /collection?tab=deaths share DeathsList over
-   GET /intake/cases; reporters admitted for own deaths, reverses t6q).
+4. Shared case list (`digitva-pt0s`): backend built (`GET /api/v1/cases`,
+   `/cases/filter-options`, `app/services/case_list_service.py`; defaults in
+   `docs/policy/case-list-views.md` "Backend implemented"). Names for DM/PI/
+   supervisor/admin only with PII access (per caller); no admin scope or PII
+   bypass. Left: Expo `CaseListScreen` on it, CSV export, registration-number
+   column (after kzyp), has_identifier filter. Counts scan the table (~290 ms at
+   200k rows): check on staging; composite `(project_id, created_at, death_id)`
+   index needs an owner go (migration). Person filters deferred.
 5. Offline attachments for the native app (`digitva-jkvl`): audio+images+
    documents, block submit until uploaded, resumable upload, server re-encode and
    deflate-bomb checks, encrypted chunked file store. Native sync-status chip

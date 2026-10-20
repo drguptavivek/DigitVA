@@ -903,7 +903,9 @@ def supervised_cases():
     """All cases in the caller's supervisor scope, with who registered and
     started each. Query: ``state``, ``flagged``, ``candidates`` (only cases
     with a second complete interview to choose), ``visit_note`` (only cases
-    with a visit note), ``limit``, ``cursor``."""
+    with a visit note), ``needs_decision`` / ``overdue`` / ``stuck`` (the
+    attention tiles), ``sort`` (``newest`` default, or ``oldest``), ``limit``,
+    ``cursor``. The reply's ``tiles`` count the whole scope, filters ignored."""
     flagged_raw = (request.args.get("flagged") or "").lower()
     if flagged_raw not in _TRUE + _FALSE:
         return error("flagged must be true or false.", "invalid_request", 400)
@@ -913,6 +915,15 @@ def supervised_cases():
     visit_note_raw = (request.args.get("visit_note") or "").lower()
     if visit_note_raw not in _TRUE + _FALSE:
         return error("visit_note must be true or false.", "invalid_request", 400)
+    attention = {}
+    for name in ("needs_decision", "overdue", "stuck"):
+        raw = (request.args.get(name) or "").lower()
+        if raw not in _TRUE + _FALSE:
+            return error(f"{name} must be true or false.", "invalid_request", 400)
+        attention[name] = raw in _TRUE
+    sort = request.args.get("sort") or "newest"
+    if sort not in intake_svc.SUPERVISION_SORTS:
+        return error("sort must be newest or oldest.", "invalid_request", 400)
     states = [s for s in (request.args.get("state") or "").split(",") if s]
     try:
         limit = int(request.args.get("limit") or intake_svc.WORKLIST_PAGE_DEFAULT)
@@ -924,6 +935,8 @@ def supervised_cases():
         flagged=flagged_raw in _TRUE,
         candidates=candidates_raw in _TRUE,
         visit_note=visit_note_raw in _TRUE,
+        **attention,
+        sort=sort,
         cursor=request.args.get("cursor") or None,
         limit=limit,
     )
@@ -931,6 +944,7 @@ def supervised_cases():
         {
             "cases": [intake_svc.serialize_supervised_row(current_user, *row) for row in result["cases"]],
             "counts": result["counts"],
+            "tiles": result["tiles"],
             "next_cursor": result["next_cursor"],
         }
     )

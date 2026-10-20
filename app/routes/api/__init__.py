@@ -9,6 +9,7 @@ from app.routes.api import (  # noqa: E402, F401
     area,
     attachments,
     auth,
+    cases,
     cod_buckets,
     coding,
     coding_search_demo,
@@ -50,6 +51,7 @@ api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
 api_v1.register_blueprint(area.bp, url_prefix="/area")
 api_v1.register_blueprint(attachments.bp, url_prefix="/attachments")
 api_v1.register_blueprint(auth.bp, url_prefix="/auth")
+api_v1.register_blueprint(cases.bp, url_prefix="/cases")
 api_v1.register_blueprint(cod_buckets.bp, url_prefix="/cod-buckets")
 api_v1.register_blueprint(coding.bp, url_prefix="/coding")
 api_v1.register_blueprint(coding_search_demo.bp, url_prefix="/coding-search-demo")

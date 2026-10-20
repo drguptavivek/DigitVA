@@ -4085,8 +4085,46 @@ def supervised_case_row(death: VaDeathRegister) -> tuple:
     )
 
 
+_SUPERVISION_OPEN_STATES = ("registered", "scheduled", "in_progress", "paused", "not_reachable")
+SUPERVISION_STUCK_DAYS = 30
+SUPERVISION_SORTS = ("newest", "oldest")
+
+
+def supervision_attention_conditions() -> dict:
+    """The supervisor's three attention predicates, shared by the list filters
+    and the tiles/Home counts so they never disagree: ``needs_decision`` (a
+    flag waits, or a second complete interview is there to choose), ``overdue``
+    (open and the revisit date has passed) and ``stuck`` (open, untouched for
+    ``SUPERVISION_STUCK_DAYS``)."""
+    now = datetime.now(UTC)
+    open_case = VaDeathRegister.status.in_(_SUPERVISION_OPEN_STATES)
+    return {
+        "needs_decision": sa.or_(VaDeathRegister.pending_flag.is_not(None), _has_candidate()),
+        "overdue": sa.and_(open_case, VaDeathRegister.next_visit_at < now),
+        "stuck": sa.and_(open_case, VaDeathRegister.updated_at < now - timedelta(days=SUPERVISION_STUCK_DAYS)),
+    }
+
+
+def supervision_tiles(scope) -> dict:
+    """``{needs_decision, overdue, stuck, total}`` over the cases *scope*
+    (a ``VaDeathRegister`` condition) selects: one aggregate query, shared by
+    the supervision list and the case list's tiles."""
+    attention = supervision_attention_conditions()
+    row = db.session.execute(
+        sa.select(
+            sa.func.count().filter(attention["needs_decision"]),
+            sa.func.count().filter(attention["overdue"]),
+            sa.func.count().filter(attention["stuck"]),
+            sa.func.count(),
+        ).where(scope)
+    ).one()
+    return dict(zip(("needs_decision", "overdue", "stuck", "total"), row))
+
+
 def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, flagged: bool = False,
                           candidates: bool = False, visit_note: bool = False,
+                          needs_decision: bool = False, overdue: bool = False, stuck: bool = False,
+                          sort: str = "newest",
                           cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
     """Every case in the supervisor's scope, "details pending" included.
 
@@ -4095,12 +4133,17 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
     "next_cursor": ...}``; *flagged* keeps cases with a flag waiting for a
     supervisor, *candidates* those with a second complete interview to choose
     (``_has_candidate``), *visit_note* those whose submission holds a visit
-    note (one EXISTS, no extra query). ``counts`` ignore *states*, *flagged*,
-    *candidates* and *visit_note*. Keyset-paged like ``list_worklist``.
+    note (one EXISTS, no extra query); *needs_decision*, *overdue* and *stuck*
+    are ``supervision_attention_conditions``. ``counts`` and ``tiles``
+    (``{needs_decision, overdue, stuck, total}``, one aggregate query) ignore
+    every filter. *sort*: ``newest`` (updated_at desc, default) or ``oldest``.
+    Keyset-paged like ``list_worklist``.
     """
     for state in states or []:
         if state not in CASE_STATES:
             raise WebIntakeError(f"Unknown state {state!r}.")
+    if sort not in SUPERVISION_SORTS:
+        raise WebIntakeError(f"Unknown sort {sort!r}.")
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
     scope = cases.supervised_case_condition(user)
     counts = dict(
@@ -4108,7 +4151,12 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
             sa.select(VaDeathRegister.status, sa.func.count()).where(scope).group_by(VaDeathRegister.status)
         ).all()
     )
+    attention = supervision_attention_conditions()
+    tiles = supervision_tiles(scope)
     filters = [scope]
+    for name, wanted in (("needs_decision", needs_decision), ("overdue", overdue), ("stuck", stuck)):
+        if wanted:
+            filters.append(attention[name])
     if states:
         filters.append(VaDeathRegister.status.in_(states))
     if flagged:
@@ -4122,9 +4170,15 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
         )))
     if cursor:
         at, death_id = _decode_cursor(cursor)
-        filters.append(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
+        keyset = sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id)
+        filters.append(keyset > (at, death_id) if sort == "oldest" else keyset < (at, death_id))
     registrant = aliased(VaUsers)
     starter = aliased(VaUsers)
+    ordering = (
+        (VaDeathRegister.updated_at.asc(), VaDeathRegister.death_id.asc())
+        if sort == "oldest"
+        else (VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc())
+    )
     rows = db.session.execute(
         sa.select(VaDeathRegister, MasOrgUnit.unit_name, registrant.name, starter.name,
                   _has_candidate().label("other_complete_interview"))
@@ -4132,7 +4186,7 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
         .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
         .outerjoin(starter, starter.user_id == VaDeathRegister.started_by_user_id)
         .where(*filters)
-        .order_by(VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc())
+        .order_by(*ordering)
         .limit(limit + 1)
     ).all()
     page = [tuple(row) for row in rows[:limit]]
@@ -4140,7 +4194,7 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
     if len(rows) > limit:
         last = page[-1][0]
         next_cursor = _encode_cursor(last.updated_at, last.death_id)
-    return {"cases": page, "counts": counts, "next_cursor": next_cursor}
+    return {"cases": page, "counts": counts, "tiles": tiles, "next_cursor": next_cursor}
 
 
 # ---------------------------------------------------------------------------

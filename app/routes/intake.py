@@ -6,7 +6,7 @@ JSON API at ``/api/v1/intake`` (app/routes/api/intake.py), sending
 ``X-CSRFToken`` from the page's ``csrf_token()``.
 Policy: docs/policy/web-intake.md
 """
-from flask import Blueprint, current_app, render_template
+from flask import Blueprint, current_app, redirect, render_template
 from flask_login import current_user
 
 from app import _content_security_policy, talisman
@@ -48,7 +48,14 @@ def new_death_page():
 @intake.get("/supervision")
 @role_required("interview_supervisor", "data_manager")
 def supervision_page():
-    """The supervisor list over ``/api/v1/intake/supervision/cases`` (digitva-vzk.8)."""
+    """The supervisor list over ``/api/v1/intake/supervision/cases``
+    (digitva-vzk.8). With the Expo export deployed, supervisors work in its
+    Deaths tab (digitva-a5jf): this link goes there; the page below is the
+    fallback for a server-only deployment."""
+    from app.routes.expo_client import export_ready
+
+    if export_ready():
+        return redirect("/app/death-registration?view=mine&preset=supervision")
     return render_template("va_frontpages/va_intake_supervision.html")
 
 

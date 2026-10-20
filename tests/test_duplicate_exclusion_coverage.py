@@ -84,6 +84,15 @@ EXEMPT = {
         "not a list or count of coding work"
     ),
     "models/va_submission_workflow.py::VaSubmissionWorkflow.__repr__": "debug repr",
+    "services/case_list_service.py::combined_status_case": (
+        "case list is a register view (death registrations, not coding pools): a confirmed duplicate is shown by its register status, only in the supervision preset or when filtered for, and the combined status reads register status first so its workflow state never surfaces; it is excluded from every coding pool"
+    ),
+    "services/case_list_service.py::_page_statement": (
+        "case list is a register view (death registrations, not coding pools): a confirmed duplicate is shown by its register status, only in the supervision preset or when filtered for, and the combined status reads register status first so its workflow state never surfaces; it is excluded from every coding pool"
+    ),
+    "services/case_list_service.py::_counts_statement": (
+        "case list is a register view (death registrations, not coding pools): a confirmed duplicate is shown by its register status, only in the supervision preset or when filtered for, and the combined status reads register status first so its workflow state never surfaces; it is excluded from every coding pool"
+    ),
     "routes/admin.py::_project_has_in_progress_coding": (
         "safety guard on COD-mode changes: a duplicate's coding resumes on reopen, so it must "
         "still block"

@@ -47,7 +47,7 @@ Home / Dashboard (`digitva-dsj2`):
   2. Role-appropriate quick action buttons for every capability the user holds
      (Fill VA `/collection`, Report a death `/death-registration`, Reported
      deaths `/death-registration?view=mine`, Code VA `/coding`, Review VA
-     `/reviewing`, Supervision `/supervision`, Organization `/organization`,
+     `/reviewing`, Organization `/organization`,
      People and roles `/people-roles`, Area `/area/`, Data management
      `/data-management/`, VA Dashboard `/sitepi/`, Admin `/admin/`).
   3. One card per project in `access.projects` listing the user's roles and
@@ -57,13 +57,22 @@ Home / Dashboard (`digitva-dsj2`):
   Coding and reviewing queues open on `last_project_id` from `/coding/projects`
   and `/reviewing/projects` unless a `?project=` query is passed.
 
-Interview supervisors (and data managers) have `/supervision`
-(`src/web/SupervisionScreen.tsx`): flags and all-cases lists, state and
-visit-note filters, confirm or reject a flag, mark duplicate, cancel, reopen,
-and a case detail with the visit note (redacted per viewer), possible
-duplicates, Choose interview and Reopen for revision (not for ODK cases).
-Server refusals are shown by error code through `t()`. Browser session
-only: device tokens carry no supervisory powers.
+Interview supervisors (and data managers) work in the Deaths tab
+(`/death-registration`, digitva-a5jf): with supervision scope
+(`SUPERVISION_ROLES`) the screen shows `SupervisionPanel`
+(`src/web/SupervisionPanel.tsx`) under `?view=mine&preset=supervision`, and a
+"Needs my attention / All deaths" switch when they also have deaths of their
+own (plain Deaths keeps its default; a supervisor with none gets the panel and
+no switch). The panel has four tiles that are also filters (Needs my decision,
+the default, Overdue revisits, Stuck (30 days), Total in scope; attention
+tiles page oldest first), the state and visit-note chips, confirm or reject a
+flag, mark duplicate, cancel, reopen, and a case detail with the visit note
+(redacted per viewer), possible duplicates, Choose interview and Reopen for
+revision (not for ODK cases). `/supervision` (`app/supervision.tsx`) only
+redirects to that preset, and there is no Supervision menu entry; Home's
+supervisor block opens it ("Needs my decision"). Server refusals are shown by
+error code through `t()`. Browser session only: device tokens carry no
+supervisory powers.
 
 The VA interview screen `/collection` (`src/web/CollectionScreen.tsx`) has
 two actions and an icon-only Refresh: Record death (`/death-registration`,

@@ -25,8 +25,8 @@ const BEFORE: Array<[string, Fixture, string[]]> = [
   ["interviewer", { roles: ["interviewer"], caps: { intake: true } }, ["/collection"]],
   ["death reporter (register only)", { roles: ["death_reporter"], caps: { registerDeath: true } }, ["/death-registration"]],
   ["death reporter (my list only)", { roles: ["death_reporter"], caps: { registeredDeaths: true } }, ["/death-registration"]],
-  ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/supervision"]],
-  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/supervision", "/area/", "/data-management/"]],
+  ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/death-registration"]],
+  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/area/", "/data-management/"]],
   ["mentor member", { mentor: { member: true } }, ["/mentoring"]],
   ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring"]],
   ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring"]],
@@ -53,7 +53,7 @@ test("order: the owner's primary items, then More in the owner's order", () => {
   });
   const { primary, more } = navEntries(all);
   expect(primary.map((entry) => entry.labelKey)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics"]);
-  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navSettings", "navWebsite", "supervisionTitle", "navDataManagement", "navMentoring", "homeAdminConsole"]);
+  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navSettings", "navWebsite", "navDataManagement", "navMentoring", "homeAdminConsole"]);
 });
 
 test("Deaths opens the deaths list for a user who interviews or reports deaths", () => {
@@ -63,4 +63,10 @@ test("Deaths opens the deaths list for a user who interviews or reports deaths",
   expect(deaths({ registerDeath: true, intake: true })?.params).toEqual({ view: "mine" });
   expect(deaths({ registerDeath: true })?.params).toBeUndefined();
   expect(deaths({})).toBeUndefined();
+  // Supervision lives in the Deaths tab: no More entry, and a supervisor with no deaths of their own opens the preset.
+  const supervisor = (caps: Record<string, boolean>) => navEntries(boot({ roles: ["interview_supervisor"], caps: { supervision: true, ...caps } })).primary.find((entry) => entry.key === "/death-registration");
+  expect(supervisor({})?.params).toEqual({ view: "mine", preset: "supervision" });
+  expect(supervisor({ intake: true })?.params).toEqual({ view: "mine" });
+  const { more } = navEntries(boot({ roles: ["interview_supervisor"], caps: { supervision: true } }));
+  expect(more.map((entry) => entry.route)).not.toContain("/supervision");
 });

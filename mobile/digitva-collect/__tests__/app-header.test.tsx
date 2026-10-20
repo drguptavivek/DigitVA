@@ -167,7 +167,7 @@ test("active item: Home on /, Deaths for both death-registration views, /workspa
   expect(activeTab("/worklist")).toBe("/collection");
   expect(activeTab("/interview", { deathId: "d1" } as never)).toBe("/collection");
   expect(activeTab("/case")).toBe("/collection");
-  expect(activeTab("/supervision/case")).toBe("/supervision");
+  expect(activeTab("/supervision/case")).toBeUndefined();
   mockBootstrap = everything();
   mockWidth = 375;
   for (const params of [{}, { view: "mine" }] as Record<string, string>[]) {
@@ -192,7 +192,7 @@ test("bottom bar: the owner's labels and order, icons hidden from assistive tech
   expect(bar()!.querySelector("a[href='/area/']")!.textContent).toBe("Statistics");
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Organization", "Settings", "Website", "Supervision", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
+  expect(labels).toEqual(["Organization", "Settings", "Website", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
   const website = host.querySelector<HTMLAnchorElement>("[role='menuitem'][href='/vaindex']")!;
   expect([website.target, website.rel]).toEqual(["_blank", "noopener"]);
   expect(host.querySelector("[role='menuitem'][href='/app/organization']")).not.toBeNull();
@@ -309,9 +309,9 @@ test("phone: in-app click on a bottom tab navigates without leaving, and the Mor
   expect(mockRouter.push).toHaveBeenLastCalledWith("/reviewing");
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Organization", "Settings", "Website", "Supervision", "Sign out"]);
-  expect(click(host.querySelector("[role='menuitem'][href='/app/supervision']")!).defaultPrevented).toBe(true);
-  expect(mockRouter.push).toHaveBeenLastCalledWith("/supervision");
+  expect(labels).toEqual(["Organization", "Settings", "Website", "Sign out"]);
+  expect(click(host.querySelector("[role='menuitem'][href='/app/settings']")!).defaultPrevented).toBe(true);
+  expect(mockRouter.push).toHaveBeenLastCalledWith("/settings");
   expect(host.querySelector("[role='menu']")).toBeNull();
   act(() => moreButton().click());
   act(() => { document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })); });

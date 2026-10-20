@@ -128,7 +128,7 @@ function ActionForm({
     setBusy(true);
     void Promise.all([
       getPossibleDuplicates(request, row.death_id),
-      listCases(request, { flagsOnly: false, state: "", visitNotesOnly: false, limit: 200 }),
+      listCases(request, { state: "", visitNotesOnly: false, limit: 200 }),
     ])
       .then(([possible, page]) => {
         if (!active) return;

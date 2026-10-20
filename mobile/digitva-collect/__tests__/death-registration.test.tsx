@@ -40,6 +40,7 @@ jest.mock("../src/ui", () => ({
   useUiStyles: () => ({ error: {}, muted: {}, input: {}, card: {}, text: {}, row: {} })
 }));
 jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: ReactNode }) => <>{children}</>, browserErrorText: () => "error" }));
+jest.mock("../src/web/SupervisionPanel", () => ({ SupervisionPanel: () => <div data-supervision-panel="true" /> }));
 jest.mock("../src/web/registrationControls", () => {
   const React = require("react") as typeof import("react");
   return {
@@ -426,6 +427,56 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => starts[0].props.onClick());
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/interview", params: { deathId: "d1" } });
     await act(async () => tree!.unmount());
+  });
+
+  describe("supervision preset", () => {
+    const labels = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => n.type === "button").map((n) => n.props["data-label"]);
+    const panels = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => n.props["data-supervision-panel"] === "true");
+
+    async function mount(roles: string[], params: Record<string, string>, caps: Record<string, boolean>) {
+      mockParams = params;
+      mockBootstrap.access = { ...access("death_register"), roles };
+      mockBootstrap.capabilities = { ...mockBootstrap.capabilities, ...caps };
+      let tree!: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      return tree;
+    }
+
+    it("offers a supervisor the switch and shows the panel under preset=supervision", async () => {
+      const tree = await mount(["interviewer", "interview_supervisor"], { view: "mine", preset: "supervision" }, { intake: true, registeredDeaths: true });
+      expect(labels(tree)).toContain("supervisionViewAttention");
+      expect(labels(tree)).toContain("supervisionViewAll");
+      expect(panels(tree)).toHaveLength(1);
+      await act(async () => tree.root.findByProps({ "data-label": "supervisionViewAll" }).props.onClick());
+      expect(mockSetParams).toHaveBeenCalledWith({ preset: undefined });
+      await act(async () => tree.unmount());
+    });
+
+    it("keeps the plain Deaths list as the default and switches to the panel on demand", async () => {
+      const tree = await mount(["interviewer", "interview_supervisor"], { view: "mine" }, { intake: true, registeredDeaths: true });
+      expect(panels(tree)).toHaveLength(0);
+      expect(labels(tree)).toContain("supervisionViewAttention");
+      await act(async () => tree.root.findByProps({ "data-label": "supervisionViewAttention" }).props.onClick());
+      expect(mockSetParams).toHaveBeenCalledWith({ preset: "supervision" });
+      await act(async () => tree.unmount());
+    });
+
+    it("gives a supervisor with no deaths of their own the panel and no switch", async () => {
+      const tree = await mount(["interview_supervisor"], {}, { intake: false, registerDeath: false, registeredDeaths: false });
+      expect(panels(tree)).toHaveLength(1);
+      expect(labels(tree)).not.toContain("supervisionViewAll");
+      await act(async () => tree.unmount());
+    });
+
+    it("shows a non-supervisor no switch and no panel, whatever the URL says", async () => {
+      const tree = await mount(["interviewer"], { view: "mine", preset: "supervision" }, { intake: true, registeredDeaths: true });
+      expect(labels(tree)).toContain("registerDeath");
+      expect(labels(tree)).not.toContain("supervisionViewAttention");
+      expect(labels(tree)).not.toContain("supervisionViewAll");
+      expect(panels(tree)).toHaveLength(0);
+      await act(async () => tree.unmount());
+    });
   });
 
   it("shows a reporter its own deaths from the case list without interview actions", async () => {

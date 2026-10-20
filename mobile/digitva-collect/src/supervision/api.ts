@@ -29,9 +29,18 @@ export interface SupervisedCase {
   other_complete_interview: boolean;
 }
 
+/** The attention tiles: whole-scope counts, filters ignored (same predicates as the `needs_decision` / `overdue` / `stuck` filters). */
+export interface SupervisionTiles {
+  needs_decision: number;
+  overdue: number;
+  stuck: number;
+  total: number;
+}
+
 export interface SupervisedCasePage {
   cases: SupervisedCase[];
   counts: Record<string, number>;
+  tiles: SupervisionTiles;
   next_cursor: string | null;
 }
 
@@ -64,10 +73,14 @@ export interface PossibleDuplicate {
 }
 
 export interface ListQuery {
-  /** Flags tab: only cases with a pending flag. Otherwise the All cases tab, filtered by `state`. */
-  flagsOnly: boolean;
   state: string;
   visitNotesOnly: boolean;
+  /** Attention filters (a tile): a flag waits or a second interview is to be chosen; open and past its revisit date; open and untouched 30 days. */
+  needsDecision?: boolean;
+  overdue?: boolean;
+  stuck?: boolean;
+  /** `oldest` pages updated_at ascending; the server default is newest first. */
+  sort?: "newest" | "oldest";
   cursor?: string | null;
   limit?: number;
 }
@@ -84,9 +97,12 @@ export const REVISION_REASONS = ["cod_review_requested", "new_information", "dat
 
 export function listCasesPath(query: ListQuery): string {
   const params = new URLSearchParams();
-  if (query.flagsOnly) params.set("flagged", "true");
-  else if (query.state) params.set("state", query.state);
+  if (query.needsDecision) params.set("needs_decision", "true");
+  if (query.overdue) params.set("overdue", "true");
+  if (query.stuck) params.set("stuck", "true");
+  if (query.state) params.set("state", query.state);
   if (query.visitNotesOnly) params.set("visit_note", "1");
+  if (query.sort === "oldest") params.set("sort", "oldest");
   if (query.limit) params.set("limit", String(query.limit));
   if (query.cursor) params.set("cursor", query.cursor);
   return `${SUPERVISION_API}/cases?${params.toString()}`;

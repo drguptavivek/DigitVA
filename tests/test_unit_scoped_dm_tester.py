@@ -235,9 +235,12 @@ class UnitDataManagerRouteTests(UnitScopeFixture, BaseTestCase):
         _, district, _, _, _ = self._tree()
         dm = self._user_with("unit.dm.pages@test.local", VaAccessRoles.data_manager, district)
         self._login(str(dm.user_id))
-        for url in ("/data-management/", "/intake/supervision", "/data-management/users"):
-            with self.subTest(url=url):
-                self.assertEqual(self.client.get(url).status_code, 200)
+        from unittest import mock
+
+        with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+            for url in ("/data-management/", "/intake/supervision", "/data-management/users"):
+                with self.subTest(url=url):
+                    self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_unrouted_queue_lists_unrouted_and_fallbacks_inside_the_subtree_only(self):
         """Owner 2026-10-02 (digitva-0wc stage 3): every data manager of a

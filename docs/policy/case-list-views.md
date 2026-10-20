@@ -119,8 +119,9 @@ on its own screen.
   - **Stuck**: an open case with no update for 30 days (`updated_at`).
   - **Total in scope**.
   - There is **no "Awaiting QA" tile**.
-- **Segments:** Needs my decision / Overdue revisits / Not reachable or
-  refused / By interviewer.
+- **Segments:** the tiles above are the segments; the state chips (Not
+  reachable, Refused, ...) and the visit-note chip are extra filters. A
+  By-interviewer cut is not built.
 - **Row:** id, age/sex, date of death, unit, state, reason badge,
   interviewer name, waiting time, registration numbers
   (`death-registration-identifiers.md`; values for roles allowed to see
@@ -159,7 +160,7 @@ Supervision (as in `area-dashboard.md`).
 | ID | `unique_id` |
 | age / sex | `age_years` (or derived age), `deceased_sex` |
 | date of death | `date_of_death` |
-| date reported | `created_at`; the report time only for `source = 'register'`. For `direct` and `odk` cases it is when the interview or the sync created the case, so the UI labels it "Started" or "Received" there |
+| date reported | `created_at` is when the case row was created, and the report time only for `source = 'register'`. For `direct` and `odk` cases it is when the interview started or the sync created the case. Every row carries `source`; the row field `reported_at` is `created_at` and is present only when `source = 'register'`, so the UI shows "Reported" from `reported_at` and labels `created_at` "Started" (`direct`) or "Received" (`odk`). Sorting and the `reported_*` filters stay on `created_at` |
 | unit | org unit name (`MasOrgUnit.unit_name`); site name for site-mode projects; omitted on coder-only rows until open question 2 is answered |
 | status | one combined code, below |
 | registration numbers | per `death-registration-identifiers.md`: `[{code, label, value}]` for roles with PII access in the case's project and `collaborator_pii`; `[{code, label, present}]` (has number / missing badge, no value) for everyone else, including coders, reviewers and coding testers. Values are stored encrypted and decrypted only for the rows on the page and only for viewers allowed to see them |
@@ -193,7 +194,7 @@ or one type).
   index (`death-registration-identifiers.md`, "Blind index"), and only for
   users allowed to see values.
 
-- Every option list (projects, sites, units, people) is limited to the user's
+- Every option list (projects, sites, units) is limited to the user's
   granted scope, resolved server-side. An id outside scope narrows the list
   to no rows; it is never echoed.
 - Dates are ISO dates, validated at the boundary; range end is inclusive.
@@ -295,12 +296,11 @@ Proposed; names follow `api-v1.md` conventions.
 - `GET /api/v1/cases` with query: `preset`
   (`deaths|interview|coding|supervision`), `project_id`, `site_id`,
   `org_unit_id`, `status` (repeatable), `dod_from`, `dod_to`,
-  `reported_from`, `reported_to`, `reporter_id`, `interviewer_id`,
-  `coder_id`, `has_identifier`, `cursor`, `limit`. Returns
+  `reported_from`, `reported_to`, `has_identifier`, `cursor`, `limit`. Returns
   `{cases, counts, next_cursor}` with `counts` per combined status (and the
   Supervision tiles) ignoring the status filter, as `list_supervised_cases`
   does, computed with the same `CASE` in one aggregate query.
-- `GET /api/v1/cases/filter-options`: scoped projects, sites, units, people.
+- `GET /api/v1/cases/filter-options`: scoped projects, sites, units.
 - `GET /api/v1/cases/export.csv`: same query, same scope; data managers
   only (`data_manager`, `admin`). Registration number columns and their
   audit as under "Scope and field visibility".
@@ -342,8 +342,63 @@ Proposed; names follow `api-v1.md` conventions.
    screen?
 5. Free-text search (name, ID) and its index cost, if wanted.
 6. Is the reporter / interviewer / coder filter shown to roles that may not
-   see staff identity?
+   see staff identity? Deferred: the person filters (`reporter_id`,
+   `interviewer_id`, `coder_id`) are not built.
 7. How are sites-mode projects (no org tree) labelled in the unit column?
+   The people options of `filter-options` are deferred with Q6.
+
+## Backend implemented (digitva-pt0s, 2026-10-20)
+
+Status stays `proposed` until the owner answers the open questions. The shared
+service (`app/services/case_list_service.py`) and `GET /api/v1/cases` and
+`/cases/filter-options` exist (`docs/current-state/api-v1.md`, "Case list").
+Not built: the Expo `CaseListScreen`, the CSV export, `has_identifier` and the
+registration-number fields (digitva-kzyp). Defaults applied, **owner-pending unless marked decided**:
+
+1. Names (**decided, owner, 2026-10-20**): the deceased name and the
+   reporter, interviewer and coder names are shown to admin, anyone supervising
+   the case (interview_supervisor, data_manager, In-charge, project_pi through
+   `supervised_case_condition`) and a data manager's submissions reach **only
+   when the caller has PII access** (`should_redact_pii` false, decided once
+   per caller as `gps_projects` does). Admin has no PII bypass and no scope
+   bypass. Without PII access those fields are omitted (not blanked); the rows
+   the scope allows are still listed. The interviewer and death_reporter on
+   their reach and `collaborator_pii` keep names as before (a field role gets
+   only its own staff part). Omitted for project_pi, site_pi, plain
+   collaborator, coder and reviewer when the row is reached only through the
+   submissions scope. An `interview_supervisor` alone is redacted by
+   definition, so it sees no names unless it also holds a PII role.
+2. Coders and reviewers see `unique_id`, age/sex, dates and status; no name,
+   no `org_unit_id`/`unit_name`. Collaborators, PIs and data managers see the unit.
+3. `scheduled`, `not_reachable` and `paused` all map to `interview_pending`;
+   the register state stays in `register_state` and the `state` filter.
+4. No separate VA Review preset; presets are `deaths`, `interview`, `coding`,
+   `supervision`.
+5. No free-text search (no `q` parameter).
+6. Person filters (and the `people` part of `filter-options`) are deferred and
+   not built (Q6, Q7). Reporter, interviewer and coder names in rows follow
+   staff-identity visibility.
+7. A sites-mode project's unit column carries the site name (`unit_name`).
+8. Also decided here: `draft_identity` counts as `interview_in_progress`; a
+   `submitted` case with no workflow row is `submitted_awaiting_coding`;
+   `consent_refused` is `refused`; `reviewer_coding_in_progress` is
+   `in_coding`; `counts` include duplicate and cancelled in every preset;
+   date filters are UTC days (the client's "last 30 days" is a local date);
+   admin reaches only cases with a submission (no admin bypass in the interviewer
+   and supervision rules).
+9. `created_at` is the report time only for `source = 'register'`; rows carry
+   `source` and `reported_at` (register cases only). See "Row contract".
+10. `counts` and `tiles` are computed on the first page only (no `cursor`);
+   a reply to a request with a `cursor` omits both keys, because they are
+   sequential scans (`docs/kb/case-list-query-plans.md`).
+11. Two different metrics: Home "Deaths I registered" counts
+   `registered_by = me` and `source = 'register'`; this list's Deaths preset
+   counts the caller's whole scope across every source. Home's query is
+   untouched; the two numbers are not expected to match.
+12. Native-token caveat: `supervised_case_condition` returns nothing under
+   bearer (device) credentials, so the supervision preset and the tiles are
+   web-session only. A client must not show the supervisor view from browser
+   roles when the token is native.
 
 ## Rollout
 

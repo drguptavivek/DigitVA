@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 import sqlalchemy as sa
 
 from app import db, limiter
-from app.models import VaDeathRegister, VaProjectMaster
+from app.models import VaDeathRegister, VaProjectMaster, VaSubmissions, VaWebIntakeDraft
 from app.services.authz import invalidate
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -112,7 +112,25 @@ class MeHomeTests(AuthzFixtureMixin, BaseTestCase):
 
         block = self._home(self.users["supervisor_c1"])["blocks"]["interview_supervisor"]
 
-        self.assertEqual(block, {"flagged": 1, "open": 2, "submitted": 1})
+        self.assertEqual(block, {"flagged": 1, "needs_decision": 1, "open": 2, "submitted": 1})
+
+    def test_a_second_complete_interview_without_a_flag_counts_as_needs_decision_only(self):
+        reporter = self.users["interviewer_p1"]
+        self._death(991011, "submitted", "P1", reporter)
+        db.session.flush()
+        case = db.session.scalar(sa.select(VaDeathRegister).where(VaDeathRegister.death_number == 991011))
+        sid = db.session.scalar(sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == "AZTA01AZS101"))
+        case.va_sid = sid
+        db.session.add(VaWebIntakeDraft(
+            project_id=TA, site_id="AZS1", death_id=case.death_id, form_id="AZTA01AZS101",
+            user_id=reporter.user_id, unique_id=case.unique_id, status="superseded",
+            meta={"interviewOutcome": "completed"},
+        ))
+        db.session.commit()
+
+        block = self._home(self.users["supervisor_c1"])["blocks"]["interview_supervisor"]
+
+        self.assertEqual(block, {"flagged": 0, "needs_decision": 1, "open": 0, "submitted": 1})
 
     def test_death_reporter_counts_own_registrations_and_those_awaiting_interview(self):
         user = self.users["nobody"]

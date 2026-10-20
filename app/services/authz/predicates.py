@@ -17,7 +17,7 @@ tests/authz/test_single_source.py runs the predicate both ways.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import sqlalchemy as sa
 
@@ -428,6 +428,21 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
     if g.is_admin and action in ADMIN_BYPASS:
         return sa.true()
     clauses = [c for lens in RULES[action] for c in _lens_predicate(g, lens)]
+    return sa.or_(*clauses) if clauses else sa.false()
+
+
+def lens_filter(user, lens: Lens, *, roles=None, _grants: ResolvedGrants | None = None):
+    """SQL predicate on ``VaSubmissions``: the submissions *user* reaches
+    through one lens, ``sa.false()`` when it reaches none. With *roles* only
+    grants of those roles count (the case list asks which of the viewer
+    lens's roles opens a row). A lens is one part of what ``scope_filter``
+    ORs, so a row labelled by it is never wider than the action's scope."""
+    mark_consulted()
+    g = _grants if _grants is not None else resolve_grants(user)
+    if roles is not None:
+        roles = frozenset(roles)
+        g = replace(g, grants=tuple(x for x in g.grants if x.role in roles))
+    clauses = _lens_predicate(g, lens)
     return sa.or_(*clauses) if clauses else sa.false()
 
 

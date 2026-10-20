@@ -25,9 +25,13 @@ describe("supervision API client", () => {
   });
 
   it("builds the list query with only the filters it sets", () => {
-    expect(listCasesPath({ flagsOnly: true, state: "", visitNotesOnly: false })).toBe("/api/v1/intake/supervision/cases?flagged=true");
-    expect(listCasesPath({ flagsOnly: false, state: "submitted", visitNotesOnly: true, cursor: "a=b", limit: 200 }))
+    expect(listCasesPath({ state: "", visitNotesOnly: false })).toBe("/api/v1/intake/supervision/cases?");
+    expect(listCasesPath({ state: "submitted", visitNotesOnly: true, cursor: "a=b", limit: 200 }))
       .toBe("/api/v1/intake/supervision/cases?state=submitted&visit_note=1&limit=200&cursor=a%3Db");
+    expect(listCasesPath({ state: "", visitNotesOnly: false, needsDecision: true, sort: "oldest" }))
+      .toBe("/api/v1/intake/supervision/cases?needs_decision=true&sort=oldest");
+    expect(listCasesPath({ state: "", visitNotesOnly: false, overdue: true, stuck: true, sort: "newest" }))
+      .toBe("/api/v1/intake/supervision/cases?overdue=true&stuck=true");
   });
 
   it("posts a supervisor action with the CSRF header the transport sends", async () => {

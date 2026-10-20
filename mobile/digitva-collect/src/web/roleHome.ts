@@ -7,7 +7,7 @@ import type { AccessProject, ClientBootstrap } from "../client/api";
 import type { StringKey } from "../i18n";
 
 /** Expo screens a user can open; the browser remembers these as last visits. */
-export const ROLE_SCREENS = ["/coding", "/reviewing", "/collection", "/death-registration", "/supervision", "/mentoring"];
+export const ROLE_SCREENS = ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring"];
 /** Server-rendered pages a data manager can open; also remembered as last visits. */
 export const SERVER_SCREENS = ["/area/", "/data-management/"];
 
@@ -193,7 +193,7 @@ export function projectActionItems(project: AccessProject, effectiveRoles: strin
     hasSupervisoryGrant &&
     (effectiveRoles.includes("interview_supervisor") || effectiveRoles.includes("data_manager"))
   ) {
-    items.push({ key: "supervision", labelKey: "supervisionTitle", pathname: "/supervision" });
+    items.push({ key: "supervision", labelKey: "homeCtaNeedsDecision", pathname: "/death-registration", params: { view: "mine", preset: "supervision" } });
   }
   if (project.has_tree) {
     items.push({ key: "organization", labelKey: "navOrganization", pathname: "/organization" });
@@ -202,8 +202,8 @@ export function projectActionItems(project: AccessProject, effectiveRoles: strin
 }
 
 /**
- * Role screens the user may open, in landing order. Supervision opens for
- * interview_supervisor and data_manager (SUPERVISION_ROLES in ../api).
+ * Role screens the user may open, in landing order. Supervisors work in the
+ * Deaths tab (interview_supervisor and data_manager, SUPERVISION_ROLES in ../api).
  */
 export function roleScreens(bootstrap: RoleBootstrap): string[] {
   const roles = bootstrap.access?.roles ?? [];
@@ -211,8 +211,8 @@ export function roleScreens(bootstrap: RoleBootstrap): string[] {
   if (roles.some((role) => role === "coder" || role === "coding_tester")) screens.push("/coding");
   if (roles.includes("reviewer")) screens.push("/reviewing");
   if (bootstrap.capabilities?.intake) screens.push("/collection");
-  if (bootstrap.capabilities?.registerDeath || bootstrap.capabilities?.registeredDeaths) screens.push("/death-registration");
-  if (roles.some((role) => role === "interview_supervisor" || role === "data_manager")) screens.push("/supervision");
+  const supervises = roles.some((role) => role === "interview_supervisor" || role === "data_manager");
+  if (bootstrap.capabilities?.registerDeath || bootstrap.capabilities?.registeredDeaths || supervises) screens.push("/death-registration");
   if (
     bootstrap.capabilities?.mentoring ||
     bootstrap.access?.account?.mentor?.member ||

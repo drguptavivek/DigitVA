@@ -72,12 +72,13 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
     key: "interview_supervisor",
     title: t("homeBlockSupervisor"),
     metrics: [
+      { label: t("homeMetricNeedsDecision"), value: supervisor.needs_decision },
       { label: t("homeMetricFlagged"), value: supervisor.flagged },
       { label: t("homeMetricOpenCases"), value: supervisor.open },
       { label: t("homeMetricSubmitted"), value: supervisor.submitted },
     ],
-    backlog: supervisor.flagged,
-    cta: t("homeCtaOpenSupervision"),
+    backlog: supervisor.needs_decision,
+    cta: t("homeCtaNeedsDecision"),
     onPress: () => go("interview_supervisor"),
   });
   if (coder) list.push(coder.practice ? {
@@ -309,7 +310,7 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
     if (key === "data_manager") openServerPage(activeBootstrap.user.user_id, "/data-management/");
     else if (key === "progress") openServerPage(activeBootstrap.user.user_id, "/area/");
     else if (key === "interviewer") router.push("/collection");
-    else if (key === "interview_supervisor") router.push("/supervision");
+    else if (key === "interview_supervisor") router.push({ pathname: "/death-registration", params: { view: "mine", preset: "supervision" } });
     else if (key === "coder") router.push("/coding");
     else if (key === "reviewer") router.push("/reviewing");
     else router.push("/death-registration");

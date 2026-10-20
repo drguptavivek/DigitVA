@@ -45,7 +45,6 @@ const ICONS: Record<string, string[]> = {
   reviewing: ["M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0", "M6 21v-2a4 4 0 0 1 4 -4h4", "M15 19l2 2l4 -4"],
   collection: ["M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2", "M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z", "M9 12l.01 0", "M13 12l2 0", "M9 16l.01 0", "M13 16l2 0"],
   register: ["M12 5l0 14", "M5 12l14 0"],
-  supervision: ["M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06", "M15 19l2 2l4 -4"],
   mentoring: ["M22 9l-10 -4l-10 4l10 4l10 -4v6", "M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"],
   area: ["M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13", "M9 4v13", "M15 7v13"],
   data: ["M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "M4 6v6a8 3 0 0 0 16 0v-6", "M4 12v6a8 3 0 0 0 16 0v-6"],
@@ -65,7 +64,7 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
 /** Bottom-bar and sheet icon per navEntries key. */
 const ENTRY_ICONS: Record<string, string> = {
   "/": "home", "/death-registration": "register", "/collection": "collection", "/coding": "coding", "/reviewing": "reviewing", "/area/": "area",
-  "/organization": "organization", "/settings": "settings", website: "website", "/supervision": "supervision", "/data-management/": "data", "/mentoring": "mentoring", "/admin/": "admin",
+  "/organization": "organization", "/settings": "settings", website: "website", "/data-management/": "data", "/mentoring": "mentoring", "/admin/": "admin",
 };
 
 /**

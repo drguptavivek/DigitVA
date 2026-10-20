@@ -10,5 +10,4 @@ export const DeathRegistrationScreen = NativeWebRoute;
 export const InterviewScreen = NativeWebRoute;
 export const SettingsScreen = NativeWebRoute;
 export const OrganizationScreen = NativeWebRoute;
-export const SupervisionScreen = NativeWebRoute;
 export { WorkspaceScreen } from "./nativeRoutes/workspaceScreens";

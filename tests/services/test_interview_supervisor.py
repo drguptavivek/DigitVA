@@ -34,6 +34,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionWorkflow,
     VaUserAccessGrants,
+    VaWebIntakeDraft,
 )
 from app.services import case_transition_service as cases
 from app.services import org_grant_service as og
@@ -624,15 +625,31 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual((row.authorizing_grant_id, row.authorizing_cadre_id), (unit_dm, None))
 
     def test_the_supervision_page_opens_for_supervisors_and_data_managers_only(self):
-        for user in (self.sam, self.dana):
-            self._login(str(user.user_id))
-            response = self.client.get("/intake/supervision")
-            self.assertEqual(response.status_code, 200)
-            self.assertIn(b"intake_supervision.js", response.data)
-            self.assertIn(b'href="/intake/supervision"', response.data)
-        self._login(str(self.ian.user_id))
-        self.assertEqual(self.client.get("/intake/supervision").status_code, 403)
+        from unittest import mock
+
+        # The legacy page is the server-only fallback; with the Expo export it redirects.
+        with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+            for user in (self.sam, self.dana):
+                self._login(str(user.user_id))
+                response = self.client.get("/intake/supervision")
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(b"intake_supervision.js", response.data)
+                self.assertIn(b'href="/intake/supervision"', response.data)
+            self._login(str(self.ian.user_id))
+            self.assertEqual(self.client.get("/intake/supervision").status_code, 403)
         self.assertNotIn(b'href="/intake/supervision"', self.client.get("/intake/").data)
+
+    def test_the_supervision_page_sends_supervisors_to_the_expo_deaths_tab_when_it_is_deployed(self):
+        from unittest import mock
+
+        self._login(str(self.sam.user_id))
+        with mock.patch("app.routes.expo_client.export_ready", return_value=True):
+            response = self.client.get("/intake/supervision")
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/app/death-registration?view=mine&preset=supervision")
+        self._login(str(self.ian.user_id))
+        with mock.patch("app.routes.expo_client.export_ready", return_value=True):
+            self.assertEqual(self.client.get("/intake/supervision").status_code, 403)
 
     def test_a_data_manager_with_nothing_to_supervise_gets_an_empty_list(self):
         self._register()
@@ -642,7 +659,10 @@ class InterviewSupervisorTests(BaseTestCase):
         self._login(str(self.olga.user_id))
         response = self.client.get("/api/v1/intake/supervision/cases")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json(), {"cases": [], "counts": {}, "next_cursor": None})
+        self.assertEqual(response.get_json(), {
+            "cases": [], "counts": {}, "next_cursor": None,
+            "tiles": {"needs_decision": 0, "overdue": 0, "stuck": 0, "total": 0},
+        })
 
     def test_supervised_rows_carry_no_informant_phone(self):
         self._register(informant_phone="9876543210")
@@ -745,6 +765,107 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual(len(filtered), len(plain_list))
         self.assertEqual(sum("va_submission_payload_versions" in s for s in filtered), 1)
 
+    def _touch(self, case, **values):
+        db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == case.death_id).values(**values))
+
+    def test_attention_tiles_and_filters_share_one_predicate_and_stay_in_scope(self):
+        now = datetime.now(UTC)
+        flagged = self._register()
+        self._touch(flagged, pending_flag="duplicate")
+        overdue = self._register()
+        self._touch(overdue, next_visit_at=now - timedelta(days=1))
+        stuck = self._register()
+        self._touch(stuck, updated_at=now - timedelta(days=31))
+        future = self._register()
+        self._touch(future, next_visit_at=now + timedelta(days=2))
+        done = self._submitted_with_workflow("ready_for_coding")
+        self._touch(done, next_visit_at=now - timedelta(days=5), updated_at=now - timedelta(days=60))
+        outside = self._register(unit=self.c2)
+        self._touch(outside, pending_flag="cancel", next_visit_at=now - timedelta(days=1))
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        base = "/api/v1/intake/supervision/cases"
+
+        body = self.client.get(base).get_json()
+        tiles = body["tiles"]
+        self.assertEqual(set(tiles), {"needs_decision", "overdue", "stuck", "total"})
+        self.assertGreaterEqual(tiles["needs_decision"], 1)
+        self.assertGreaterEqual(tiles["overdue"], 1)
+        self.assertGreaterEqual(tiles["stuck"], 1)
+        self.assertEqual(tiles["total"], sum(body["counts"].values()))
+
+        def ids(query):
+            reply = self.client.get(f"{base}?{query}")
+            self.assertEqual(reply.status_code, 200, reply.get_json())
+            return {row["death_id"] for row in reply.get_json()["cases"]}
+
+        decision, late, old = ids("needs_decision=true"), ids("overdue=true"), ids("stuck=true")
+        self.assertIn(str(flagged.death_id), decision)
+        self.assertNotIn(str(overdue.death_id), decision)
+        self.assertIn(str(overdue.death_id), late)
+        self.assertNotIn(str(future.death_id), late)
+        self.assertNotIn(str(done.death_id), late)  # submitted is not open
+        self.assertIn(str(stuck.death_id), old)
+        self.assertNotIn(str(done.death_id), old)
+        self.assertNotIn(str(flagged.death_id), old)
+        # The tile counts are the filters' sizes, filters on the request ignored.
+        filtered = self.client.get(f"{base}?overdue=true&limit=1").get_json()
+        self.assertEqual(filtered["tiles"], tiles)
+        self.assertEqual(len(late), tiles["overdue"])
+        self.assertEqual(len(decision), tiles["needs_decision"])
+        self.assertEqual(len(old), tiles["stuck"])
+        # Out of scope: present in the database, never counted or listed.
+        self.assertNotIn(str(outside.death_id), decision | late | ids(""))
+        for name in ("needs_decision", "overdue", "stuck"):
+            self.assertEqual(self.client.get(f"{base}?{name}=maybe").status_code, 400)
+        self.assertEqual(self.client.get(f"{base}?sort=sideways").status_code, 400)
+
+    def test_a_second_complete_interview_without_a_flag_needs_a_decision(self):
+        case = self._submitted_with_workflow("ready_for_coding")
+        self.assertIsNone(case.pending_flag)
+        db.session.add(VaWebIntakeDraft(
+            project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=case.death_id,
+            form_id=f"{self.PROJECT_ID}{self.SITE_ID}01", user_id=self.ian.user_id,
+            unique_id=case.unique_id, status="superseded", meta={"interviewOutcome": "completed"},
+        ))
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        base = "/api/v1/intake/supervision/cases"
+
+        listed = self.client.get(f"{base}?needs_decision=true").get_json()
+        decision = {row["death_id"] for row in listed["cases"]}
+        self.assertIn(str(case.death_id), decision)
+        self.assertGreaterEqual(listed["tiles"]["needs_decision"], 1)
+        self.assertEqual(len(decision), listed["tiles"]["needs_decision"])
+        # No flag waits, so the flag-only filter does not list it.
+        flagged = {row["death_id"] for row in self.client.get(f"{base}?flagged=true").get_json()["cases"]}
+        self.assertNotIn(str(case.death_id), flagged)
+
+    def test_oldest_first_pages_by_keyset_both_ways(self):
+        made = [self._register() for _ in range(3)]
+        base_time = datetime.now(UTC) - timedelta(days=3)
+        for i, case in enumerate(made):
+            self._touch(case, updated_at=base_time + timedelta(hours=i))
+        db.session.commit()
+        self._login(str(self.sam.user_id))
+        url = "/api/v1/intake/supervision/cases"
+
+        def walk(sort):
+            seen, cursor = [], None
+            while True:
+                query = f"{url}?sort={sort}&limit=2" + (f"&cursor={cursor}" if cursor else "")
+                page = self.client.get(query).get_json()
+                seen += [row["death_id"] for row in page["cases"]]
+                cursor = page["next_cursor"]
+                if not cursor:
+                    return seen
+
+        oldest, newest = walk("oldest"), walk("newest")
+        self.assertEqual(len(oldest), len(set(oldest)))
+        self.assertEqual(oldest, newest[::-1])
+        wanted = [str(c.death_id) for c in made]
+        self.assertEqual([i for i in oldest if i in wanted], wanted)
+
     def test_a_supervisor_marks_a_duplicate_directly(self):
         kept, duplicate = self._register(), self._register()
         sibling = self._register(unit=self.c2)
@@ -841,7 +962,10 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertNotIn(sibling.death_id, listed)
 
         self._login(str(incharge.user_id))
-        self.assertEqual(self.client.get("/intake/supervision").status_code, 200)
+        from unittest import mock
+
+        with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+            self.assertEqual(self.client.get("/intake/supervision").status_code, 200)
 
     def test_an_in_charge_ranks_with_a_supervisor_at_equal_depth(self):
         # Two grants on P1: an In-charge and a unit data manager. The In-charge

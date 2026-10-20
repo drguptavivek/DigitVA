@@ -34,7 +34,9 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   const primary: NavEntry[] = [{ key: "/", labelKey: "home", route: "/" }];
   if (screens.includes("/death-registration")) {
     // The deaths list for anyone who interviews or reports deaths (docs/policy/case-list-views.md); otherwise the form.
-    primary.push({ key: "/death-registration", labelKey: "navDeaths", route: "/death-registration", ...(caps?.registeredDeaths || caps?.intake ? { params: { view: "mine" } } : {}) });
+    // A supervisor with no deaths of their own lands on the supervision preset.
+    const params: Record<string, string> | undefined = caps?.registeredDeaths || caps?.intake ? { view: "mine" } : caps?.supervision ? { view: "mine", preset: "supervision" } : undefined;
+    primary.push({ key: "/death-registration", labelKey: "navDeaths", route: "/death-registration", ...(params ? { params } : {}) });
   }
   if (screens.includes("/collection")) primary.push({ key: "/collection", labelKey: "navVaInterview", route: "/collection" });
   if (screens.includes("/coding")) primary.push({ key: "/coding", labelKey: "navVaCode", route: "/coding" });
@@ -46,7 +48,6 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
     { key: "/settings", labelKey: "navSettings", route: "/settings" },
     { key: "website", labelKey: "navWebsite", href: WEBSITE_HREF },
   ];
-  if (screens.includes("/supervision")) more.push({ key: "/supervision", labelKey: "supervisionTitle", route: "/supervision" });
   if (server.includes("/data-management/")) more.push({ key: "/data-management/", labelKey: "navDataManagement", serverPath: "/data-management/" });
   if (screens.includes("/mentoring")) more.push({ key: "/mentoring", labelKey: "navMentoring", route: "/mentoring" });
   if (bootstrap.access?.is_admin || roles.includes("admin")) more.push({ key: "/admin/", labelKey: "homeAdminConsole", serverPath: "/admin/" });
@@ -64,7 +65,7 @@ export function activeTab(pathname: string, params: NavParams = {}): string | un
   }
   // The interview form and a case's details are reached from VA Interview.
   if (["/worklist", "/interview", "/case", "/form"].includes(pathname)) return "/collection";
-  return ["/coding", "/reviewing", "/collection", "/death-registration", "/supervision", "/mentoring", "/organization", "/settings"]
+  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/organization", "/settings"]
     .find((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 

@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
-import { ApiError, getCaseDetail, getRegisteredDeaths, hasInterviewRegistrationAccess, intakeContextFromAccess, requestClientJson, type CaseDetail, type CaseRow, type IntakeBootstrap, type RegistrationInput } from "../api";
+import { ApiError, SUPERVISION_ROLES, getCaseDetail, getRegisteredDeaths, hasInterviewRegistrationAccess, intakeContextFromAccess, requestClientJson, type CaseDetail, type CaseRow, type IntakeBootstrap, type RegistrationInput } from "../api";
 import { INTAKE_API, registerDeath, startDraft } from "../client/api";
 import { useAppState } from "../AppState";
 import { localToday, registrationAgeInfoIssue, registrationNeedsAgeConfirmation, validateRegistration, type RegistrationFields } from "../cases";
@@ -13,6 +13,7 @@ import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel } from "./DeathsList";
+import { SupervisionPanel } from "./SupervisionPanel";
 import { convertPrecision, type Precision } from "../workspace/doris/dateFieldShared";
 import { LocationCapture, type GpsFix } from "./LocationCapture";
 import { RegistrationFieldControl, type RegistrationDateAppearance } from "./registrationControls";
@@ -133,7 +134,7 @@ function draftIssueFor(key: keyof RegistrationInput, message: string): DraftIssu
 
 export default function DeathRegistrationScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ view?: string | string[]; deathId?: string | string[]; registered?: string | string[] }>();
+  const params = useLocalSearchParams<{ view?: string | string[]; preset?: string | string[]; deathId?: string | string[]; registered?: string | string[] }>();
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
   const [intake, setIntake] = useState<IntakeBootstrap>();
@@ -167,7 +168,13 @@ export default function DeathRegistrationScreen() {
   const [listMode, setListMode] = useState(viewParam === "mine");
   const [notice, setNotice] = useState("");
   // The shared deaths list (docs/policy/case-list-views.md) for anyone who interviews or reports deaths.
-  const canList = Boolean(bootstrap?.capabilities.intake || bootstrap?.capabilities.registeredDeaths);
+  const hasOwnDeaths = Boolean(bootstrap?.capabilities.intake || bootstrap?.capabilities.registeredDeaths);
+  // Supervisors (SUPERVISION_ROLES) get the "Needs my attention" panel here (docs/policy/case-list-views.md, "Supervision preset").
+  const canSupervise = bootstrap?.access.roles.some((role) => SUPERVISION_ROLES.includes(role)) === true;
+  const canList = hasOwnDeaths || canSupervise;
+  const presetParam = Array.isArray(params.preset) ? params.preset[0] : params.preset;
+  // A supervisor with no deaths of their own has nothing else to show, so the panel is their default.
+  const supervisionView = canSupervise && (presetParam === "supervision" || !hasOwnDeaths);
   const registeredDeathCursors = useRef<{
     owner: typeof bootstrap;
     byDeath: Record<string, string | undefined>;
@@ -346,7 +353,7 @@ export default function DeathRegistrationScreen() {
     () => intake?.context.find((entry) => entry.project_id === projectId && entry.site_id === siteId),
     [intake, projectId, siteId]
   );
-  const showRegisteredDeaths = listMode && canList;
+  const showRegisteredDeaths = (listMode || (canSupervise && !hasOwnDeaths)) && canList;
   const privateUiReady = Boolean(bootstrap && privateBootstrap === bootstrap && isVisible && activeRef.current);
 
   const ageDisplay = calculateRegistrationAge({
@@ -657,7 +664,7 @@ export default function DeathRegistrationScreen() {
   return (
     <WebShell title={showRegisteredDeaths ? t("reportedDeaths") : editingDeathId ? t("editRegistration") : t("registrationTitle")}>
       {privateUiReady ? <>
-      <ContextualHelpBanner screen={showRegisteredDeaths ? "myRegisteredDeaths" : "deathRegistration"} />
+      <ContextualHelpBanner screen={showRegisteredDeaths ? (supervisionView ? "supervision" : "myRegisteredDeaths") : "deathRegistration"} />
       {canList && !showRegisteredDeaths ? (
         <Button
           size="sm"
@@ -685,11 +692,31 @@ export default function DeathRegistrationScreen() {
       {showRegisteredDeaths ? (
         <>
           {message ? <Text style={styles.error}>{message}</Text> : null}
-          <DeathsListPanel
-            headerAction={intake?.context.length ? (
-              <Button label={t("registerDeath")} onPress={() => { setMessage(""); setNotice(""); showList(false); }} />
-            ) : null}
-          />
+          {canSupervise && hasOwnDeaths ? (
+            <View style={styles.row}>
+              <Button
+                size="sm"
+                kind={supervisionView ? "primary" : "secondary"}
+                label={t("supervisionViewAttention")}
+                onPress={() => router.setParams({ preset: "supervision" })}
+              />
+              <Button
+                size="sm"
+                kind={supervisionView ? "secondary" : "primary"}
+                label={t("supervisionViewAll")}
+                onPress={() => router.setParams({ preset: undefined })}
+              />
+            </View>
+          ) : null}
+          {supervisionView ? (
+            <SupervisionPanel />
+          ) : (
+            <DeathsListPanel
+              headerAction={intake?.context.length ? (
+                <Button label={t("registerDeath")} onPress={() => { setMessage(""); setNotice(""); showList(false); }} />
+              ) : null}
+            />
+          )}
         </>
       ) : editingReadOnly ? (
         <>

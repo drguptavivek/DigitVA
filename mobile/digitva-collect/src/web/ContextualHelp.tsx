@@ -441,10 +441,10 @@ export const SCREEN_HELP_CONFIG: Record<ContextualHelpScreen, ScreenHelpInfo> = 
     ],
     sections: [
       {
-        heading: "Flags to Resolve vs All Cases",
+        heading: "Attention Tiles and the Deaths Tab",
         items: [
-          "Start on the 'Flags to resolve' tab to see cases where an interviewer logged a refusal, wrong address, or possible duplicate.",
-          "Switch to 'All cases' to monitor every registered death and ongoing interview across your facility's catchment area.",
+          "Four tiles count your cases: 'Needs my decision' (a flag waits or a second complete interview is to be chosen), 'Overdue revisits', 'Stuck (30 days)' and 'Total in scope'. Tap a tile to filter the list.",
+          "In the Deaths tab, 'Needs my attention' lists those cases; switch to 'All deaths' to monitor every registered death across your facility's catchment area.",
         ],
       },
       {
@@ -646,10 +646,6 @@ export interface ContextualHelpBannerProps {
   screen: ContextualHelpScreen;
   testID?: string;
   style?: StyleProp<ViewStyle>;
-}
-
-export function SupervisionHelpBanner({ style }: { style?: StyleProp<ViewStyle> }) {
-  return <ContextualHelpBanner screen="supervision" style={style} />;
 }
 
 export function ContextualHelpBanner({ screen, testID, style }: ContextualHelpBannerProps) {

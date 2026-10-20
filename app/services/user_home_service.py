@@ -258,20 +258,24 @@ def _supervisor_block(user) -> dict:
     """Cases in the supervisor's scope: flagged ones awaiting a decision, open
     ones and submitted ones, in one grouped query."""
     from app.services.authz.supervision import supervised_case_condition
+    from app.services.web_intake_service import supervision_attention_conditions
 
+    needs_decision = supervision_attention_conditions()["needs_decision"]
     rows = db.session.execute(
         sa.select(
             VaDeathRegister.status,
             sa.func.count(),
             sa.func.count().filter(VaDeathRegister.pending_flag.is_not(None)),
+            sa.func.count().filter(needs_decision),
         )
         .where(supervised_case_condition(user))
         .group_by(VaDeathRegister.status)
     ).all()
     return {
-        "flagged": sum(flagged for _, _, flagged in rows),
-        "open": sum(count for status, count, _ in rows if status in OPEN_CASE_STATES),
-        "submitted": sum(count for status, count, _ in rows if status == "submitted"),
+        "flagged": sum(flagged for _, _, flagged, _ in rows),
+        "needs_decision": sum(decision for _, _, _, decision in rows),
+        "open": sum(count for status, count, _, _ in rows if status in OPEN_CASE_STATES),
+        "submitted": sum(count for status, count, _, _ in rows if status == "submitted"),
     }
 
 

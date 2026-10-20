@@ -49,6 +49,7 @@ jest.mock("../src/ui", () => ({
   useUiStyles: () => ({ error: {}, muted: {}, card: {}, text: {}, row: {}, fieldLabel: {} }),
 }));
 jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: ReactNode }) => <>{children}</>, browserErrorText: () => "error" }));
+jest.mock("../src/web/SupervisionPanel", () => ({ SupervisionPanel: () => <div data-supervision-panel="true" /> }));
 jest.mock("../src/web/ContextualHelp", () => ({ ContextualHelpBanner: () => null }));
 jest.mock("../src/web/registrationControls", () => ({ RegistrationFieldControl: () => null }));
 jest.mock("../src/PhoneInput", () => ({ PhoneNumbers: () => null }));

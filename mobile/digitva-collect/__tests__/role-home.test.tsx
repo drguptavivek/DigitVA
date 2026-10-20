@@ -90,7 +90,7 @@ jest.mock("../src/workspace/CaseWorkspaceScreen", () => ({ CaseWorkspaceScreen: 
 jest.mock("../src/workspace/doris/DorisPanel", () => ({ DorisPanel: () => null }));
 jest.mock("../src/workspace/media/AttachmentMedia.web", () => ({ AttachmentMedia: () => null }));
 
-import WorkspaceScreen, { CodingScreen, MANY_PROJECTS, projectSubline } from "../src/web/WorkspaceScreen";
+import WorkspaceScreen, { CodingScreen, MANY_PROJECTS, projectSubline, roleBlocks } from "../src/web/WorkspaceScreen";
 import {
   claimFirstHomeLoad,
   describeProjectGrant,
@@ -322,14 +322,25 @@ describe("role home dashboard", () => {
     });
   });
 
+  test("the supervisor block counts and leads with what needs the supervisor's decision", () => {
+    const go = jest.fn();
+    const [block] = roleBlocks({ interview_supervisor: { flagged: 1, needs_decision: 5, open: 7, submitted: 2 } } as never, go);
+    expect(block.cta).toBe("homeCtaNeedsDecision");
+    expect(block.backlog).toBe(5);
+    expect(block.metrics).toContainEqual({ label: "homeMetricNeedsDecision", value: 5 });
+    block.onPress();
+    expect(go).toHaveBeenCalledWith("interview_supervisor");
+  });
+
   test("roleHome helpers resolve primary landing, lastVisit, Within Area / All grant labels, and Death Reporter actions", () => {
     expect(homeLanding(bootstrap(["coder", "reviewer"], { reviewing: true }), undefined)).toBe("/coding");
     expect(homeLanding(bootstrap(["coder", "reviewer"], { reviewing: true }), "/reviewing")).toBe("/reviewing");
-    // A data manager supervises too, so Supervision is their first role screen.
-    expect(homeLanding(bootstrap(["data_manager"], { supervision: true }), undefined)).toBe("/supervision");
-    expect(roleScreens(bootstrap(["data_manager"], { supervision: true }))).toEqual(["/supervision"]);
-    expect(roleScreens(bootstrap(["interview_supervisor"], { supervision: true }))).toEqual(["/supervision"]);
-    expect(roleScreens(bootstrap(["coder"]))).not.toContain("/supervision");
+    // A data manager supervises too, and supervisors work in the Deaths tab: it is their first role screen.
+    expect(homeLanding(bootstrap(["data_manager"], { supervision: true }), undefined)).toBe("/death-registration");
+    expect(roleScreens(bootstrap(["data_manager"], { supervision: true }))).toEqual(["/death-registration"]);
+    expect(roleScreens(bootstrap(["interview_supervisor"], { supervision: true }))).toEqual(["/death-registration"]);
+    expect(roleScreens(bootstrap(["coder"]))).not.toContain("/death-registration");
+    expect(roleScreens(bootstrap(["data_manager"], { supervision: true }))).not.toContain("/supervision");
 
     rememberVisit("u1", "/supervision");
     expect(readLastVisit("u1")).toBe("/supervision");

@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-20
 ---
 
 # Runtime And Operations
@@ -223,7 +223,10 @@ Key test files:
 
 Current implication:
 - Test coverage is being actively built for critical areas like authentication, authorization, and session management.
-- Tests run inside the application container using `uv run python -m pytest tests/`.
+- Tests run inside the application container using `uv run python -m pytest tests/`;
+  the full suite runs in parallel with `-n 4` (pytest-xdist, one database per
+  worker, see `docs/policy/test-harness.md`). The dev override raises the app
+  container's memory limit to 3g for this; the production limit stays 1g.
 - `TestConfig` now uses filesystem-backed Flask sessions so the test harness
   does not fight schema lifecycle around `va_sessions`.
 - `TestConfig` disables external password breach lookups so test runs stay deterministic; the breach check itself is covered by focused unit tests with mocked HTTP responses.

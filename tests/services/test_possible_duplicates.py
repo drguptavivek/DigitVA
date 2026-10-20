@@ -119,7 +119,7 @@ class PossibleDuplicateTests(BaseTestCase):
         return intake_svc.register_death(
             user or self.alice, project_id=project_id, site_id=site_id,
             org_unit_id=str(self.unit[unit].org_unit_id) if unit else None,
-            deceased_name=name, deceased_sex=sex, date_of_death=dod.isoformat(),
+            deceased_name=name, deceased_sex=sex, date_of_death=dod.isoformat(), age_years=62,
         )
 
     def _matches(self, case, user=None):

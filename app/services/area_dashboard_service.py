@@ -49,6 +49,7 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.services import authz, org_grant_service
+from app.services.authz.consulted import mark_consulted
 from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
@@ -195,7 +196,13 @@ def _sites_mode_site_ids(user, project_id: str) -> frozenset | None:
     return frozenset(row.site_id for row in rows)
 
 
-def resolve_area_scope(user, project_id: str, project_name: str | None = None) -> AreaScope | None:
+def resolve_area_scope(
+    user,
+    project_id: str,
+    project_name: str | None = None,
+    *,
+    tree_projects: set[str] | None = None,
+) -> AreaScope | None:
     """The user's area in *project_id*, or None when they have none there.
 
     A project is a tree project when it has an active organization level
@@ -217,7 +224,12 @@ def resolve_area_scope(user, project_id: str, project_name: str | None = None) -
         if project_name is None:
             return None
 
-    if project_id in org_grant_service.projects_with_org_tree({project_id}):
+    has_tree = (
+        project_id in tree_projects
+        if tree_projects is not None
+        else project_id in org_grant_service.projects_with_org_tree({project_id})
+    )
+    if has_tree:
         reachable = authz.reachable_unit_ids(
             user, project_id, org_grant_service.ROLES_ALLOWING_ORG_UNIT
         )
@@ -937,9 +949,19 @@ HOME_KPI_CACHE_PREFIX = "home_kpis:"
 HOME_KPI_CACHE_TTL = 60
 
 
+#: Smallest denominator a percentage is shown for; below it a share misleads.
+PERCENT_MIN_WHOLE = 20
+
+
 def _percent(part: int, whole: int) -> int | None:
-    """*part* as a whole percentage of *whole*, half up; None when *whole* is 0."""
-    if not whole:
+    """*part* as a whole percentage of *whole*, half up, never above 100.
+
+    None when *whole* is below ``PERCENT_MIN_WHOLE`` or *part* exceeds it:
+    *whole* then does not cover *part* (ODK interviews with no death register
+    rows), so a share is false. Clients print the value as sent; this is the
+    one percentage rule.
+    """
+    if whole < PERCENT_MIN_WHOLE or part > whole:
         return None
     return (200 * part + whole) // (2 * whole)
 
@@ -962,6 +984,37 @@ def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
     the number of units or sites.
     """
     project_id = scope.project_id
+    if scope.has_tree and scope.project_wide:
+        deaths = (
+            db.session.scalar(
+                sa.select(sa.func.count(VaDeathRegister.death_id)).where(
+                    VaDeathRegister.project_id == project_id,
+                    VaDeathRegister.status.notin_(("duplicate", "cancelled")),
+                )
+            )
+            or 0
+        )
+        core = sa.table(
+            "va_submission_analytics_core_mv", sa.column("project_id"), sa.column("va_sid")
+        )
+        submissions = (
+            db.session.scalar(
+                sa.select(sa.func.count())
+                .select_from(core)
+                .where(
+                    core.c.project_id == project_id,
+                    not_confirmed_duplicate_condition(core.c.va_sid),
+                )
+            )
+            or 0
+        )
+        auth = _authoritative_submissions(project_id)
+        final_cod = (
+            db.session.scalar(sa.select(sa.func.count(auth.c.va_sid)))
+            or 0
+        )
+        return deaths, submissions, final_cod
+
     if scope.has_tree:
         unit_ids = [row.org_unit_id for row in grant_root_units(scope)]
         submissions = 0
@@ -988,10 +1041,26 @@ def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
     stats = get_area_site_stats_from_mv(
         project_ids=[], project_site_pairs=[(project_id, s) for s in site_ids]
     )
+    deaths = (
+        db.session.scalar(
+            sa.select(sa.func.count(VaDeathRegister.death_id)).where(
+                _reported_deaths(project_id),
+                VaDeathRegister.site_id.in_(site_ids),
+            )
+        )
+        or 0
+    )
+    auth = _authoritative_submissions(project_id)
+    final_cod = (
+        db.session.scalar(
+            sa.select(sa.func.count(auth.c.va_sid)).where(auth.c.site_id.in_(site_ids))
+        )
+        or 0
+    )
     return (
-        sum(_deaths_reported_by_site(project_id, site_ids).values()),
+        deaths,
         sum(row["total_submissions"] for row in stats),
-        sum(_final_cod_by_site(project_id, site_ids).values()),
+        final_cod,
     )
 
 
@@ -999,9 +1068,10 @@ def home_kpis(user) -> list[dict]:
     """One KPI row per project in the user's area, cached per user for a minute.
 
     ``interviews_pct`` and ``coded_pct`` are percentages of ``deaths_reported``,
-    None when that is 0. Names only; no per-unit rows. Policy: "Home KPIs" in
+    None when that is under 20 or smaller than the count (``_percent``). Names only; no per-unit rows. Policy: "Home KPIs" in
     docs/policy/area-dashboard.md.
     """
+    mark_consulted()
     cache_key = f"{HOME_KPI_CACHE_PREFIX}{user.user_id}"
     try:
         cached = cache.get(cache_key)
@@ -1012,22 +1082,27 @@ def home_kpis(user) -> list[dict]:
 
     projects = []
     if authz.effective_roles(user):
-        for project_id, project_name in candidate_projects(user):
-            scope = resolve_area_scope(user, project_id, project_name)
-            if scope is None:
-                continue
-            deaths, interviews, coded = _scope_totals(scope)
-            projects.append(
-                {
-                    "project_id": project_id,
-                    "project_name": project_name,
-                    "deaths_reported": deaths,
-                    "interviews_done": interviews,
-                    "coded": coded,
-                    "interviews_pct": _percent(interviews, deaths),
-                    "coded_pct": _percent(coded, deaths),
-                }
-            )
+        candidates = candidate_projects(user)
+        if candidates:
+            tree_project_ids = org_grant_service.projects_with_org_tree({p for p, _ in candidates})
+            for project_id, project_name in candidates:
+                scope = resolve_area_scope(
+                    user, project_id, project_name, tree_projects=tree_project_ids
+                )
+                if scope is None:
+                    continue
+                deaths, interviews, coded = _scope_totals(scope)
+                projects.append(
+                    {
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "deaths_reported": deaths,
+                        "interviews_done": interviews,
+                        "coded": coded,
+                        "interviews_pct": _percent(interviews, deaths),
+                        "coded_pct": _percent(coded, deaths),
+                    }
+                )
     try:
         cache.set(cache_key, projects, timeout=HOME_KPI_CACHE_TTL)
     except Exception:

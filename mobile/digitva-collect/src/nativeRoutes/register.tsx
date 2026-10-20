@@ -5,7 +5,7 @@
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text, TextInput, View } from "react-native";
+import { AppState, Text, View } from "react-native";
 import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
 import {
   resolveUiMessages,
@@ -32,6 +32,7 @@ import {
   getRegistration,
   localToday,
   MAX_REGISTRATION_AGE,
+  registrationAgeInfoIssue,
   registrationNeedsAgeConfirmation,
   saveRegistration,
   SEX_VALUES,
@@ -53,6 +54,9 @@ import {
   type Target,
 } from "../sync";
 import { Button, Row, Screen, useUiStyles } from "../ui";
+import { MultilineInput } from "../MultilineInput";
+import { PhoneNumbers } from "../PhoneInput";
+import { ContextualHelpBanner } from "../web/ContextualHelp";
 
 type Field = keyof RegistrationFields;
 type BirthMode = "exact" | "month-year" | "year" | "unknown";
@@ -106,23 +110,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Text fields in the web form's order, with their label and keyboard. */
+/** Text fields in the web form's order, with their label. */
 const TEXT_FIELDS: Array<{
   name: Field;
   label: StringKey;
-  keyboard?: "numeric" | "phone-pad";
   help?: StringKey;
 }> = [
   { name: "deceased_name", label: "fieldDeceasedName" },
   { name: "date_of_death", label: "fieldDateOfDeath" },
   { name: "address", label: "fieldAddress" },
   { name: "informant_name", label: "fieldInformantName" },
-  {
-    name: "informant_phone",
-    label: "fieldInformantPhone",
-    keyboard: "phone-pad",
-    help: "phoneHelp",
-  },
+  // Rendered with informant_phone_2 by PhoneNumbers.
+  { name: "informant_phone", label: "fieldPhoneNumber" },
   { name: "abha_number", label: "fieldAbhaNumber" },
   { name: "abha_address", label: "fieldAbhaAddress" },
   { name: "place_of_death", label: "fieldPlaceOfDeath" },
@@ -131,11 +130,6 @@ const TEXT_FIELDS: Array<{
   { name: "address_landmark", label: "fieldLandmark" },
   { name: "father_name", label: "fieldFatherName" },
   { name: "mother_name", label: "fieldMotherName" },
-  {
-    name: "informant_phone_2",
-    label: "fieldInformantPhone2",
-    keyboard: "phone-pad",
-  },
   { name: "remarks", label: "fieldRemarks", help: "remarksHelp" },
 ];
 
@@ -273,6 +267,9 @@ export function NativeRegistrationFieldControl({
   }
   if (question.control === "integer")
     return <WhoVaQuestionControls.Integer {...controlProps} />;
+  if (appearance === "multiline") {
+    return <MultilineInput label={label} value={value} disabled={disabled} onChange={(next) => { onChange(next); onIssue?.(); }} />;
+  }
   return <WhoVaQuestionControls.Text {...controlProps} />;
 }
 
@@ -545,40 +542,41 @@ export default function Register() {
     }));
   };
 
-  const renderTextField = (field: (typeof TEXT_FIELDS)[number]) => (
+  const phoneUnchanged = (name: "informant_phone" | "informant_phone_2") =>
+    Boolean(serverDeathId) && (fields[name] ?? "") === (serverBase.current?.[name] ?? "");
+
+  const renderTextField = (field: (typeof TEXT_FIELDS)[number]) => field.name === "informant_phone" ? (
+    <PhoneNumbers
+      key={field.name}
+      values={{ informant_phone: fields.informant_phone ?? "", informant_phone_2: fields.informant_phone_2 ?? "" }}
+      errors={{
+        informant_phone: errors.informant_phone ? t(errors.informant_phone) : undefined,
+        informant_phone_2: errors.informant_phone_2 ? t(errors.informant_phone_2) : undefined,
+      }}
+      disabled={serverReadOnly}
+      onChange={(name, digits) => {
+        set(name)(digits);
+        setFieldIssue(name);
+      }}
+      onValidity={(name, valid) => setFieldIssue(name, valid || phoneUnchanged(name) ? undefined : "errPhone")}
+    />
+  ) : (
     <View key={field.name} style={{ gap: 4 }}>
       <Text style={styles.muted}>{t(field.label)}</Text>
-      {field.name === "informant_phone" ||
-      field.name === "informant_phone_2" ? (
-        <TextInput
-          accessibilityLabel={t(field.label)}
-          autoCorrect={false}
-          inputMode="tel"
-          keyboardType="phone-pad"
-          style={styles.input}
-          editable={!serverReadOnly}
-          value={fields[field.name] ?? ""}
-          onChangeText={(value) => {
-            set(field.name)(value);
-            setFieldIssue(field.name);
-          }}
-        />
-      ) : (
-        <NativeRegistrationFieldControl
-          field={field.name}
-          label={t(field.label)}
-          value={fields[field.name] ?? ""}
-          disabled={serverReadOnly}
-          onChange={set(field.name)}
-          issue={errors[field.name]}
-          onIssue={(issue) => setFieldIssue(field.name, issue)}
-          appearance={
-            field.name === "remarks" || field.name === "address"
-              ? "multiline"
-              : "exact"
-          }
-        />
-      )}
+      <NativeRegistrationFieldControl
+        field={field.name}
+        label={t(field.label)}
+        value={fields[field.name] ?? ""}
+        disabled={serverReadOnly}
+        onChange={set(field.name)}
+        issue={errors[field.name]}
+        onIssue={(issue) => setFieldIssue(field.name, issue)}
+        appearance={
+          field.name === "remarks" || field.name === "address"
+            ? "multiline"
+            : "exact"
+        }
+      />
       {field.help ? <Text style={styles.muted}>{t(field.help)}</Text> : null}
       {errorFor(field.name)}
     </View>
@@ -621,10 +619,12 @@ export default function Register() {
     if (!db || !account || !target || !projectId) return;
     setMessage("");
     const found = validateRegistration(fields, localToday());
-    const selectedBirthField = requiredBirthField(birthMode, fields);
+    for (const key of ["informant_phone", "informant_phone_2"] as const) if (phoneUnchanged(key)) delete found[key];
     const nextErrors = { ...found };
-    if (selectedBirthField) nextErrors[selectedBirthField] = "errRequired";
-    if (birthMode === "unknown" && !fields.age_years?.trim()) nextErrors.age_years = "errRequired";
+    if (registrationAgeInfoIssue(fields, serverDeathId ? serverBase.current : undefined)) {
+      if (birthMode === "unknown") nextErrors.age_years = "errRequired";
+      else nextErrors[birthMode === "exact" ? "date_of_birth" : "date_of_birth_partial"] = "errBirthOrAge";
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       setAgeConfirmationPending(false);
@@ -738,6 +738,7 @@ export default function Register() {
 
   return (
     <Screen title={t("registerDeath")}>
+      <ContextualHelpBanner screen="deathRegistration" />
       {!serverDeathId && registerProjects.length > 1 ? (
         <View style={{ gap: 8 }}>
           <Text style={styles.text}>{t("chooseProject")}</Text>
@@ -770,6 +771,7 @@ export default function Register() {
         )}
       </View>
       {renderTextField(TEXT_FIELDS[0])}
+      {renderTextField(TEXT_FIELDS[1])}
       <Text style={styles.muted}>{t("fieldDateOfBirth")}</Text>
       <Text style={styles.muted}>{t("dobPrecision")}</Text>
       <Row>
@@ -828,10 +830,10 @@ export default function Register() {
       })()}
       {birthMode !== "exact" ? (
         <View style={{ gap: 4 }}>
-          <Text style={styles.muted}>{t("fieldAge")}</Text>
+          <Text style={styles.muted}>{t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldAge")}</Text>
           <NativeRegistrationFieldControl
             field="age_years"
-            label={t("fieldAge")}
+            label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldAge")}
             value={fields.age_years ?? ""}
             disabled={serverReadOnly}
             onChange={set("age_years")}
@@ -854,7 +856,6 @@ export default function Register() {
         ))}
       </Row>
       {errorFor("deceased_sex")}
-      {renderTextField(TEXT_FIELDS[1])}
       {TEXT_FIELDS.slice(2).map(renderTextField)}
       {message ? (
         <Text style={styles.error} accessibilityRole="alert">

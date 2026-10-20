@@ -9,6 +9,12 @@ services:
       - WEBAUTHN_ORIGIN=http://localhost:8051
     ports:
       - "8051:5000"
+    # Dev only: the parallel test suite (pytest -n 4) runs in this container,
+    # and four workers do not fit in the 1g production limit.
+    deploy:
+      resources:
+        limits:
+          memory: 3g
     entrypoint: []
     command: >
       bash -c "

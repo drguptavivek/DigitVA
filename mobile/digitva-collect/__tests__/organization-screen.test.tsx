@@ -1,5 +1,6 @@
 import React, { type ReactNode } from "react";
 import { Text } from "react-native";
+import Svg from "react-native-svg";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ClientApiError } from "../src/client/api";
@@ -137,6 +138,19 @@ describe("OrganizationScreen", () => {
     expect(text(tree)).toContain("Village X");
   });
 
+  it("gives every fold control a labelled, 44px chevron button instead of a text glyph", async () => {
+    mockRequest.mockResolvedValue({ projects: [project()] });
+    const tree = await render();
+    expect(text(tree)).not.toMatch(/[▸▾⌃⌄]/);
+    // Each unit's chevron is its own button with the same name and state as the header toggle.
+    const village = tree.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Open Village X");
+    expect(village.length).toBeGreaterThanOrEqual(2);
+    const chevron = village.find((n) => n.props.style?.some?.((st: unknown) => st && (st as { width?: number }).width === 44));
+    expect(chevron?.props.accessibilityState.expanded).toBe(false);
+    // Branch fold and project fold carry an svg chevron too.
+    expect(tree.root.findAllByType(Svg).length).toBeGreaterThanOrEqual(3);
+  });
+
   it("renders one tree: ancestors nested root-first, then my level, then the units below", async () => {
     mockRequest.mockResolvedValue({ projects: [project()] });
     const tree = await render();
@@ -149,7 +163,8 @@ describe("OrganizationScreen", () => {
     // People appear only in the flyout opened from a badge.
     for (const name of ["Dr Root", "Asha Mid", "Meena"]) expect(shown).not.toContain(name);
     expect(shown).not.toContain('"1 people"');
-    expect(shown).not.toContain("Project One");
+    // The card header always names the project and its code.
+    expect(shown).toContain("Project One · P1");
     expect(findButton(tree, "District · District")).toBeUndefined();
 
     const items = (node: { findAll: (p: (n: any) => boolean) => any[] }) => node.findAll((n) => host(n) && n.props.role === "treeitem");
@@ -428,7 +443,7 @@ describe("OrganizationScreen", () => {
     expect(tree.root.findAll((n) => host(n) && n.props["aria-selected"] === true)).toHaveLength(0);
   });
 
-  it("shows the project name only when there are two projects", async () => {
+  it("names every project in its card header", async () => {
     mockRequest.mockResolvedValue({ projects: [project(), project({ project_id: "P2", project_name: "Project Two" })] });
     const tree = await render();
 
@@ -441,8 +456,71 @@ describe("OrganizationScreen", () => {
     const tree = await render();
 
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/organization/me");
-    expect(text(tree)).toContain(en.orgNotInTree);
+    expect(text(tree)).toContain(en.orgNoProjects);
     expect(text(tree)).not.toContain("Sub-centre B");
+  });
+
+  it("shows own unit roles with cadre, and roles inherited below it via that unit", async () => {
+    mockRequest.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/organization/me") {
+        return { projects: [project({
+          has_tree: true,
+          my_positions: { project_roles: [], sites: [] },
+          my_units: [{ org_unit_id: "U2", unit_name: "Sub-centre B", level_name: "Sub-centre", cadres: ["ANM"],
+            roles: [{ role: "coder", cadre: "Medical Officer" }, { role: "reviewer", cadre: null }] }],
+        })] };
+      }
+      if (path === "/api/v1/organization/units/U3/people") return VILLAGE_PEOPLE;
+      throw new Error(`unexpected ${path}`);
+    });
+    const tree = await render();
+
+    const [own] = tree.root.findAll((n) => host(n) && n.props["aria-selected"] === true);
+    expect(textOf(own)).toContain("You: Coder (Medical Officer), Reviewer");
+    const item = (name: string) => tree.root.findAll((n) => host(n) && n.props.role === "treeitem" && textOf(n).startsWith(name))[0];
+    expect(textOf(item("Village X"))).toContain("Coder, Reviewer · via Sub-centre B");
+    // Ancestors hold no role: no via line on them.
+    expect(textOf(item("District")).split("Sub-centre B")[0]).not.toContain("via");
+    // A lazily opened child inherits too.
+    await press(tree, "Open Village X");
+    expect(textOf(item("Hamlet Y"))).toContain("Coder, Reviewer · via Sub-centre B");
+    // The summary line names the unit role.
+    expect(text(tree)).toContain("Coder, Reviewer at Sub-centre B");
+  });
+
+  it("folds a project with only project-level roles, showing its header and summary", async () => {
+    mockRequest.mockResolvedValue({ projects: [{
+      project_id: "ICMR01", project_name: "ICMR", has_tree: false,
+      my_positions: { project_roles: ["coder", "data_manager"], sites: [] },
+      my_units: [], above: [], my_level: [], below: [],
+    }] });
+    const tree = await render();
+
+    expect(text(tree)).toContain("ICMR · ICMR01");
+    expect(text(tree)).toContain("Coder, Data manager · whole project");
+    expect(expandedOf(tree, "Show ICMR · ICMR01")).toBe(false);
+    expect(tree.root.findAll((n) => host(n) && n.props.role === "tree")).toHaveLength(0);
+    await press(tree, "Show ICMR · ICMR01");
+    expect(expandedOf(tree, "Hide ICMR · ICMR01")).toBe(true);
+    // Sites-mode: no tree even when unfolded.
+    expect(tree.root.findAll((n) => host(n) && n.props.role === "tree")).toHaveLength(0);
+  });
+
+  it("lists site grants open, and project roles reach tree roots via project", async () => {
+    mockRequest.mockResolvedValue({ projects: [project({
+      has_tree: true,
+      my_positions: { project_roles: ["data_manager"], sites: [{ site_id: "S1", site_name: "Site One", roles: ["coder"] }] },
+      my_units: [], my_level: [], above: [],
+      below: [{ org_unit_id: "U0", unit_name: "District", level_name: "District", parent_org_unit_id: null, people_count: 1, has_children: true }],
+    })] });
+    const tree = await render();
+
+    expect(expandedOf(tree, "Hide Project One · P1")).toBe(true);
+    expect(text(tree)).toContain(en.orgSitesHeading);
+    expect(text(tree)).toContain("Site One · You: Coder");
+    expect(text(tree)).toContain("Data manager · whole project; Coder at Site One");
+    expect(text(tree)).toContain("Data manager · via project");
+    expect(text(tree)).not.toContain(en.orgNoPlacement);
   });
 
   it("shows the error and no sections when the list call fails", async () => {
@@ -460,6 +538,8 @@ describe("My organization strings", () => {
     "navOrganization", "organizationTitle", "orgNotInTree", "orgWhereIAm", "orgNoPlacement", "orgUnitLine",
     "orgCadres", "orgAbove", "orgMyLevel", "orgBelow", "orgNone", "orgNoPeople", "orgPersonLine",
     "orgPeopleCount", "orgShowMembers", "orgOpen", "orgClose", "orgOpenUnit", "orgCloseUnit", "orgUnitNotAllowed", "kpiLine",
+    "orgNoProjects", "orgProjectHeader", "orgShowProject", "orgHideProject", "orgRoleCadre", "orgYouRoles", "orgViaUnit",
+    "orgViaProject", "orgWholeProject", "orgRolesAt", "orgSitesHeading",
   ] as const;
 
   it("has the tree strings in English (other locales fall back to it)", () => {

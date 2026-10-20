@@ -1,3 +1,88 @@
+<div class="card border-primary mb-4">
+  <div class="card-header bg-primary text-white">
+    <h5 class="mb-0"><i class="fa-solid fa-users me-2"></i>Plain-Language Quick Guide (By Health System Designation)</h5>
+  </div>
+  <div class="card-body">
+    <p>
+      In DigitVA, access is organized around your real-world public health responsibilities.
+      The table below maps common health system titles to their DigitVA roles, landing screens, and daily actions:
+    </p>
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Health System Designation</th>
+            <th>DigitVA Role Name</th>
+            <th>Primary Screen</th>
+            <th>Key Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>ANM / ASHA / MPW</strong></td>
+            <td><a href="#role-death_reporter"><code>death_reporter</code></a></td>
+            <td>Report a Death / My Registered Deaths</td>
+            <td>Register newly reported deaths in your village or sub-centre; view and update registered details before the family interview.</td>
+          </tr>
+          <tr>
+            <td><strong>CHO / Staff Nurse</strong></td>
+            <td><a href="#role-interviewer"><code>interviewer</code></a></td>
+            <td>Collection (<code>/collection</code>)</td>
+            <td>Conduct the WHO Verbal Autopsy family interview on web or mobile app; save drafts and submit completed interviews.</td>
+          </tr>
+          <tr>
+            <td><strong>PHC Medical Officer</strong></td>
+            <td><a href="#role-coder"><code>coder</code></a></td>
+            <td>Coding Queue (<code>/coding</code>)</td>
+            <td>Review family narratives and symptom responses; assign WHO ICD causes of death; recode within 24 hours. (If self-coding is enabled, can also interview and code immediately).</td>
+          </tr>
+          <tr>
+            <td><strong>Block SMO / CHC In-charge</strong></td>
+            <td><a href="#role-site_pi"><code>site_pi</code> (In-charge)</a> / <a href="#role-interview_supervisor"><code>interview_supervisor</code></a></td>
+            <td>Intake Supervision (<code>/supervision</code>), Facility Dashboard (<code>/sitepi</code>)</td>
+            <td>Oversee CHC and block field staff; supervise interviews; resolve flags, cancellations, and duplicate reports; optionally hold <a href="#role-reviewer"><code>reviewer</code></a> role.</td>
+          </tr>
+          <tr>
+            <td><strong>District CMO / Civil Surgeon</strong></td>
+            <td><a href="#role-site_pi"><code>site_pi</code> (In-charge at District level)</a></td>
+            <td>Facility &amp; Area Dashboard (<code>/sitepi</code>, <code>/area</code>)</td>
+            <td>High-level district health oversight; track mortality counts, cause-of-death breakdowns, and review operational progress across all blocks.</td>
+          </tr>
+          <tr>
+            <td><strong>District / Block Programme Manager (DPM / BPM)</strong></td>
+            <td><a href="#role-data_manager"><code>data_manager</code></a></td>
+            <td>Data Manager Dashboard (<code>/data-management</code>)</td>
+            <td>Manage health worker accounts and role grants; triage incoming cases; review data quality and sync status; export reports and spreadsheets.</td>
+          </tr>
+          <tr>
+            <td><strong>Medical College Faculty / Resident</strong></td>
+            <td>Mentoring Mentor (<a href="#role-coder"><code>coder</code></a>, <a href="#role-reviewer"><code>reviewer</code></a>)</td>
+            <td>Mentoring Portal (<code>/app/mentoring</code>), Coding / Review Queues</td>
+            <td>Provide academic mentoring to partner districts; code complex cases and perform independent quality reviews. Listed separately from district headcount.</td>
+          </tr>
+          <tr>
+            <td><strong>Medical College Nodal Admin</strong></td>
+            <td>College / Institute Admin</td>
+            <td>Mentoring Portal (<code>/app/mentoring</code>)</td>
+            <td>Add and remove medical college faculty and resident accounts; view supported partner districts.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h6 class="mt-3 mb-1 fw-bold">"Within Area" vs. "All" Scope Explained:</h6>
+    <ul class="mb-2">
+      <li><strong>Within Area (e.g., <code>Within Area: Ballabgarh CHC</code> or <code>Within Area: PHC01, PHC02</code>):</strong> Your access is confined to that specific health facility/area and all sub-centres and villages under it (or the specific cross-area facilities assigned to you). You only see deaths and take actions within your assigned health area.</li>
+      <li><strong>All:</strong> Your access spans the entire project across all districts and facilities. This scope is reserved for State Nodal Officers, Project Principal Investigators, and Central System Administrators.</li>
+    </ul>
+
+    <div class="d-flex gap-2 flex-wrap mt-2">
+      <a href="/help/mentoring-institutes" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-building-columns me-1"></i>Medical College Mentoring Guide</a>
+      <a href="/help/docs/roles-explained" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-file-contract me-1"></i>Who Can Do What (Plain Policy Guide)</a>
+    </div>
+  </div>
+</div>
+
 <h2>How access works</h2>
 
 <p>A person can do something in DigitVA only through a <strong>grant</strong>: one <strong>role</strong> at one <strong>scope</strong>.</p>
@@ -186,13 +271,46 @@
   </ul>
 </section>
 
+<h2>Within-Tree vs. Cross-Tree Coding &amp; Supervision</h2>
+
+<p>In organization-mode projects (for example <code>District &gt; CHC &gt; PHC-AAM &gt; SC-AAM &gt; Village</code>), DigitVA supports both <strong>within-tree</strong> and <strong>cross-tree</strong> assignment of Medical Officers (Coders) and Interview Supervisors:</p>
+
+<ul>
+  <li><strong>Own unit (Within-tree):</strong> By default, a worker assigned to a unit (e.g. <code>PHC01</code>) codes or supervises VA forms from <code>PHC01</code> and every sub-centre/village beneath <code>PHC01</code>.</li>
+  <li><strong>Other units at this level (Cross-tree):</strong> In <em>Organization &rarr; 4. Workers &amp; Scope</em>, you can configure a PHC Medical Officer or Supervisor to code/supervise <em>other</em> PHCs outside their own unit subtree so they do not code deaths from their own facility.</li>
+  <li><strong>All units at this level:</strong> Grants the worker coding or supervision access across every active unit at their level (e.g. all PHCs in the district).</li>
+  <li><strong>Custom selected units:</strong> You can tick any specific combination of units per worker &mdash; for example, assigning 2 PHCs to one Medical Officer and 10 PHCs to another Medical Officer.</li>
+  <li><strong>Project-wide Coding Scope boundary:</strong> Under <em>Project Setup &rarr; Coding</em> (or <em>Organization &rarr; 1. Levels &rarr; Coding scope</em>), you can also set a project-wide <em>Coding confined within</em> level (for example, Block/CHC or District) and specify whether people granted above that level have <code>view_only</code> or <code>code_any</code> access.</li>
+</ul>
+
+<h2>Question-Driven Cadre Setup ("Who can do what?")</h2>
+
+<p>In <em>Organization &rarr; 3. Cadres &amp; permissions &rarr; b. Who can do what?</em>, you can configure cadre capabilities either via the full-width Level &times; Cadre matrix or by clicking <code>Level &middot; Cadre</code> pills under each plain-language question:</p>
+<ul>
+  <li><strong>Who can report deaths?</strong> Enables <code>can_report_deaths</code> and pre-selects the <code>death_reporter</code> role.</li>
+  <li><strong>Who can conduct VA interviews?</strong> Enables <code>can_fill_va_form</code> and pre-selects the <code>interviewer</code> role.</li>
+  <li><strong>Who can supervise interviews?</strong> Enables <code>can_supervise_interviews</code> and pre-selects the <code>interview_supervisor</code> role.</li>
+  <li><strong>Who can code VA forms?</strong> Enables <code>can_code_va_form</code> and pre-selects the <code>coder</code> role.</li>
+  <li><strong>Who can review coded VAs (QA)?</strong> Pre-selects the <code>reviewer</code> role.</li>
+  <li><strong>Who is Unit / Facility In-charge?</strong> Pre-selects the <code>site_pi</code> (In-charge) role.</li>
+  <li><strong>Who is a Coding Tester?</strong> Pre-selects the <code>coding_tester</code> role.</li>
+</ul>
+
 <h2>Examples</h2>
 
 <ul>
   <li>A coder with a grant on <strong>site NC01 of project UNSW01</strong> codes NC01's cases only, not TR01's in the same project.</li>
   <li>A coder with a grant on <strong>project UNSW01</strong> codes cases from every site of that project.</li>
   <li>A coder with a grant on a <strong>district unit</strong> codes cases from that district and every CHC, PHC and subcentre below it.</li>
+  <li>A PHC Medical Officer at <strong>PHC01</strong> configured with <strong>Custom coding units: PHC02, PHC03</strong> codes deaths from PHC02 and PHC03 (cross-tree) while holding their home roster position at PHC01.</li>
   <li>A Senior Medical Officer granted <code>interview_supervisor</code> and <code>reviewer</code> on a CHC supervises interviews in the CHC's area and reviews its cases; neither grant lets them interview.</li>
+</ul>
+
+<h2>Existing Users &amp; One-Scan Expo Mobile App Onboarding</h2>
+
+<ul>
+  <li><strong>Existing DigitVA users across projects:</strong> When adding a worker in <em>Organization &rarr; 4. Workers &amp; Scope</em>, typing an email address or 10-digit mobile number automatically checks whether that person already has a DigitVA account (for example from another project). If found, DigitVA links their existing account and adds the new project's grants without resetting their password.</li>
+  <li><strong>Expo mobile app QR onboarding:</strong> Click the <strong>QR</strong> icon on any worker row (or <strong>Project App QR</strong> in the Workers toolbar) to display a one-scan QR code for the DigitVA mobile app.</li>
 </ul>
 
 <h2>Coding language</h2>
@@ -203,7 +321,7 @@
 
 <ul>
   <li><strong>Admin</strong> &mdash; every grant, everywhere, and all user accounts.</li>
-  <li><strong>Project PI</strong> &mdash; every role except admin and project_pi, inside their own projects, from the Admin panel's access grants or the Organization page's user import. Unit grants are given here.</li>
+  <li><strong>Project PI</strong> &mdash; every role except admin and project_pi, inside their own projects, from the Admin panel's access grants, the Organization page's Workers &amp; Scope drawer, Mentoring &amp; Scientists tab, or user import.</li>
   <li><strong>Data manager and In-charge</strong> &mdash; new users and grants inside their own area: in a site project, <code>coder</code>, <code>coding_tester</code> and <code>data_manager</code> at project or site scope; in an organization project, <code>interviewer</code>, <code>coder</code>, <code>reviewer</code>, <code>coding_tester</code>, <code>collaborator</code> and <code>collaborator_pii</code> at any level of their area, and <code>data_manager</code> below their own level (an In-charge also at its own level).</li>
 </ul>
 

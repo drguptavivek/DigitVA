@@ -214,3 +214,93 @@ it("uses an unpinned legacy bundle only for its saved version and saved extensio
   });
   expect(input.request).not.toHaveBeenCalled();
 });
+
+it("resumes a pinless draft on the bundled fallback when its saved instrumentVersion matches", async () => {
+  const input = {
+    accountId,
+    projectId,
+    envelope: { instrumentId: "WHO_2022_VA", instrumentVersion: baseInstrument.version, data: { answer: "kept" } },
+    request: jest.fn(),
+    cache: cache(),
+    narrationLanguageCodes: ["hindi"],
+    bundledLegacyDefinitions: [],
+    bundledOriginal: { instrument: baseInstrument, instrumentVersion: baseInstrument.version, extensions: [] },
+  };
+  const result = await resolveSavedEnvelopeDefinition(input);
+  expect(result).toMatchObject({ provenance: "bundled-original", pin: null });
+  expect(result.instrument.version).toBe(baseInstrument.version);
+  expect(input.request).not.toHaveBeenCalled();
+  expect(input.cache.get).not.toHaveBeenCalled();
+});
+
+it("still rejects a pinless draft whose saved instrumentVersion is not the bundled one", async () => {
+  const input = {
+    accountId,
+    projectId,
+    envelope: { instrumentId: "WHO_2022_VA", instrumentVersion: "unknown-old", data: { answer: "kept" } },
+    request: jest.fn(),
+    cache: cache(),
+    narrationLanguageCodes: ["hindi"],
+    bundledLegacyDefinitions: [],
+    bundledOriginal: { instrument: baseInstrument, instrumentVersion: baseInstrument.version, extensions: [] },
+  };
+  expect(baseInstrument.version).not.toBe("unknown-old");
+  await expect(resolveSavedEnvelopeDefinition(input)).rejects.toMatchObject({ code: "unknown_saved_definition" });
+  await expect(resolveSavedEnvelopeDefinition({ ...input, bundledOriginal: undefined, envelope: { ...input.envelope, instrumentVersion: baseInstrument.version } })).rejects.toMatchObject({
+    code: "unknown_saved_definition",
+  });
+  // A pinless draft records no extensions, so an extension-bearing bundle would relabel it.
+  await expect(resolveSavedEnvelopeDefinition({
+    ...input,
+    envelope: { ...input.envelope, instrumentVersion: baseInstrument.version },
+    bundledOriginal: { ...input.bundledOriginal, extensions: ["geography"] },
+  })).rejects.toMatchObject({ code: "unknown_saved_definition" });
+  expect(input.request).not.toHaveBeenCalled();
+});
+
+it("accepts va_who_2022 instrumentId and matches tag-filtered extensions from form-options", async () => {
+  const value = await verified(["abha", "death_summary", "medical_records", "social_autopsy"]);
+  const input = {
+    ...newInput(value, async () => response(value)),
+    options: {
+      instrumentVersion: version,
+      definitionSha256: value.identity.sha256,
+      extensions: [
+        "digitva_core",
+        "doris_support_whova_2022",
+        "intake_screen",
+        "geography",
+        "abha",
+        "death_summary",
+        "medical_records",
+        "social_autopsy",
+      ],
+    },
+  };
+  const resolvedNew = await resolveNewInterviewDefinition(input);
+  expect(resolvedNew).toMatchObject({
+    provenance: "served",
+    pin: {
+      instrumentVersion: version,
+      definitionSha256: value.identity.sha256,
+      definitionExtensions: ["abha", "death_summary", "medical_records", "social_autopsy"],
+    },
+  });
+
+  const saved = await resolveSavedEnvelopeDefinition({
+    accountId,
+    projectId,
+    envelope: {
+      instrumentId: "va_who_2022",
+      instrumentVersion: version,
+      definitionSha256: value.identity.sha256,
+      definitionExtensions: ["abha", "death_summary", "medical_records", "social_autopsy"],
+      data: {},
+    },
+    request: jest.fn(async () => response(value)),
+    cache: cache(),
+    narrationLanguageCodes: ["hindi"],
+    bundledLegacyDefinitions: [],
+  });
+  expect(saved).toMatchObject({ provenance: "served" });
+});

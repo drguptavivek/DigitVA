@@ -56,6 +56,7 @@ import { ApiError } from "../src/api";
 import { CategoryPanel } from "../src/workspace/CategoryPanel";
 import { PrivateNotePanel } from "../src/workspace/PrivateNotePanel";
 import { QualityPanels } from "../src/workspace/QualityPanels";
+import { SimpleCodPanel } from "../src/workspace/SimpleCodPanel";
 import { CaseWorkspaceScreen } from "../src/workspace/CaseWorkspaceScreen";
 import type { WorkspaceApi } from "../src/workspace/api";
 import type { CategoryPayload, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
@@ -854,4 +855,61 @@ it("keeps the open section rendered while a quality save refreshes it, but shows
     if (tree) await act(async () => tree.unmount());
     Object.defineProperty(Platform, "OS", { configurable: true, value: priorOS });
   }
+});
+
+it("shows a reviewer the coder's COD read-only outside the COD section (digitva-yeg3.19)", async () => {
+  const narration: CategoryPayload = { ...category, code: "narration_section", label: "Narration", render_mode: "default" };
+  const build = (mode: WorkspaceIdentity["mode"]) => {
+    const payload = workspace(mode, "final");
+    payload.categories = [{ code: "narration_section", label: "Narration", nav_label: "Narration", render_mode: "default" }, ...payload.categories];
+    payload.default_category = "narration_section";
+    payload.assessments.final = { conclusive_cod: "C10 coder final", doris_status: "completed", doris_code: "C10" };
+    payload.assessments.coder_initial = { immediate_cod: "A10 coder immediate", antecedent_cod: "B10 coder antecedent" };
+    return apiFor(payload, { getCategory: jest.fn(async () => narration) });
+  };
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "reviewing" }} api={build("reviewing")} onExit={jest.fn()} />);
+    await flush();
+  });
+  // Collapsed: one line naming the coder's final cause.
+  const collapsed = JSON.stringify(tree.toJSON());
+  expect(collapsed).toContain("Interview text");
+  expect(collapsed).toContain("Coder's cause of death: ");
+  expect(collapsed).toContain("C10 coder final");
+  expect(collapsed).not.toContain("A10 coder immediate");
+  const toggle = tree.root.findAll((node) => node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Coder's cause of death: C10 coder final")[0];
+  expect(toggle).toBeDefined();
+  expect(toggle.props.accessibilityState).toEqual({ expanded: false });
+  await act(async () => { toggle.props.onPress(); });
+  const reviewer = JSON.stringify(tree.toJSON());
+  expect(reviewer).toContain("A10 coder immediate");
+  expect(reviewer).toContain("DORIS computed code: ");
+  expect(reviewer).toContain(" (completed)");
+  expect(reviewer).not.toContain("Save final COD");
+  await act(async () => tree.unmount());
+
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={build("coding")} onExit={jest.fn()} />);
+    await flush();
+  });
+  const coder = JSON.stringify(tree.toJSON());
+  expect(coder).toContain("Interview text");
+  expect(coder).not.toContain("Coder's cause of death");
+  await act(async () => tree.unmount());
+});
+
+it("puts a reviewer's COD form above the COD section's reference content, and a coder's below it", async () => {
+  const order = async (mode: "coding" | "reviewing") => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode }} api={apiFor(workspace(mode))} onExit={jest.fn()} />);
+      await flush();
+    });
+    const panels = tree.root.findAll((node) => node.type === SimpleCodPanel || node.type === CategoryPanel, { deep: false }).map((node) => node.type);
+    await act(async () => tree.unmount());
+    return panels;
+  };
+  expect(await order("reviewing")).toEqual([SimpleCodPanel, CategoryPanel]);
+  expect(await order("coding")).toEqual([CategoryPanel, SimpleCodPanel]);
 });

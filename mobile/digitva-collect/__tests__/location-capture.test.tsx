@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform } from "react-native";
+import { Linking, Platform } from "react-native";
 import { act, create } from "react-test-renderer";
 
 jest.mock("../src/i18n", () => ({ t: (key: string, vars?: Record<string, unknown>) => (vars ? `${key}:${JSON.stringify(vars)}` : key) }));
@@ -9,7 +9,7 @@ jest.mock("../src/ui", () => ({
   useUiStyles: () => ({ text: {}, muted: {}, error: {}, row: {} })
 }));
 
-import { LocationCapture, MapsLink, mapsUrl, type GpsFix } from "../src/web/LocationCapture";
+import { directionsUrl, LocationCapture, MapsLink, MapsPinButton, mapsUrl, type GpsFix } from "../src/web/LocationCapture";
 
 type Success = (position: { coords: { latitude: number; longitude: number; accuracy: number } }) => void;
 type Failure = (error: { code: number }) => void;
@@ -105,5 +105,46 @@ describe("MapsLink", () => {
       await act(async () => { tree = create(<MapsLink {...props} />); });
       expect(tree.toJSON()).toBeNull();
     }
+  });
+});
+
+describe("MapsPinButton", () => {
+  afterEach(() => { jest.restoreAllMocks(); });
+
+  it("builds directions per platform from the numbers alone", () => {
+    expect(directionsUrl(12.97, -77.5, "web")).toBe("https://www.google.com/maps/dir/?api=1&destination=12.97,-77.5");
+    expect(directionsUrl(12.97, -77.5, "ios")).toBe("maps://?daddr=12.97,-77.5");
+    expect(directionsUrl(12.97, -77.5, "android")).toBe("geo:12.97,-77.5?q=12.97,-77.5");
+  });
+
+  it("is a named 44px link to Google Maps directions in a new tab on the web, only with a fix", async () => {
+    jest.replaceProperty(Platform, "OS", "web");
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<MapsPinButton latitude={12.97} longitude={77.59} />); });
+    const link = tree.root.findAll((n) => typeof n.type === "string" && n.props.testID === "case-maps-link")[0];
+    expect(link.props).toMatchObject({
+      accessibilityRole: "link",
+      accessibilityLabel: "openInMaps",
+      href: "https://www.google.com/maps/dir/?api=1&destination=12.97,77.59",
+      hrefAttrs: { target: "_blank", rel: "noopener noreferrer" },
+    });
+    const style = Object.assign({}, ...[link.props.style].flat(3).filter(Boolean));
+    expect([style.minWidth, style.minHeight]).toEqual([44, 44]);
+    for (const props of [{}, { latitude: null, longitude: null }, { latitude: 1 }, { latitude: Number.NaN, longitude: 2 }]) {
+      await act(async () => { tree = create(<MapsPinButton {...props} />); });
+      expect(tree.toJSON()).toBeNull();
+    }
+  });
+
+  it("hands the platform maps URL to Linking on a phone", async () => {
+    jest.replaceProperty(Platform, "OS", "android");
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<MapsPinButton latitude={12.97} longitude={77.59} />); });
+    const link = tree.root.findAll((n) => typeof n.type === "string" && n.props.testID === "case-maps-link")[0];
+    expect(link.props.href).toBeUndefined();
+    const pressable = tree.root.findAll((n) => n.props.testID === "case-maps-link" && typeof n.props.onPress === "function")[0];
+    await act(async () => pressable.props.onPress());
+    expect(open).toHaveBeenCalledWith("geo:12.97,77.59?q=12.97,77.59");
   });
 });

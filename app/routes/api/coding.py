@@ -12,23 +12,40 @@ from app.models import (
     VaForms,
     VaProjectSites,
     VaStatuses,
-    VaSubmissionWorkflow,
     VaSubmissions,
+    VaSubmissionWorkflow,
+)
+from app.routes.api.request_helpers import (
+    BadQuery,
+    intake_error,
+    optional_page_args,
+    parse_body,
+    project_filter_arg,
+)
+from app.routes.api.request_helpers import (
+    error as api_error,
+)
+from app.services import smartva_service
+from app.services.authz import Action, Reason, can
+from app.services.case_transition_service import WebIntakeError
+from app.services.coder_cod_service import (
+    CoderCodingError,
+    submit_coder_final_cod,
+    submit_coder_initial_cod,
+    submit_coder_not_codeable,
 )
 from app.services.coder_dashboard_service import (
-    get_coder_completed_count,
     get_coder_completed_history,
     get_coder_demo_history,
     get_coder_history_page,
     get_coder_output_summary,
     get_coder_project_options,
-    get_coder_project_ids,
     get_coder_recodeable_sids,
     last_allocated_project_id,
 )
-
 from app.services.coder_workflow_service import (
     AllocationError,
+    _narration_language_filter,
     admin_override_to_recode,
     allocate_own_case,
     allocate_pick_form,
@@ -37,35 +54,17 @@ from app.services.coder_workflow_service import (
     get_pick_available_forms,
     get_pick_available_page,
     is_upstream_recode,
-    require_active_coding_allocation,
     mark_reviewer_eligible_after_recode_window_submissions,
     release_own_coding_allocation,
-    _narration_language_filter,
+    require_active_coding_allocation,
     start_demo_allocation,
     start_recode_allocation,
 )
-from app.routes.api.request_helpers import (
-    BadQuery,
-    error as api_error,
-    intake_error,
-    optional_page_args,
-    parse_body,
-    project_filter_arg,
-)
-from app.services import smartva_service
-from app.services.authz import Action, Reason, can
-from app.services.coder_cod_service import (
-    CoderCodingError,
-    submit_coder_final_cod,
-    submit_coder_initial_cod,
-    submit_coder_not_codeable,
-)
-from app.services.case_transition_service import WebIntakeError
+from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.interview_send_back_service import send_back_for_revision
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import CODER_READY_POOL_STATES
-from app.services.demo_project_service import should_use_demo_actiontype_for_submission
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import admin_actor
@@ -102,18 +101,18 @@ def get_allocation():
         va_sid = None
     if not va_sid:
         return jsonify({"allocation": None})
-    form = db.session.get(VaSubmissions, va_sid)
-    form_meta = None
-    if form:
-        form_meta = db.session.execute(
-            sa.select(VaForms.project_id, VaForms.site_id).where(
-                VaForms.form_id == form.va_form_id
-            )
-        ).first()
+    form_row = db.session.execute(
+        sa.select(VaSubmissions, VaForms.project_id, VaForms.site_id)
+        .outerjoin(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(VaSubmissions.va_sid == va_sid)
+    ).first()
+    form = form_row[0] if form_row else None
+    project_id = form_row.project_id if form_row else None
+    site_id = form_row.site_id if form_row else None
     row = {
         "va_sid": va_sid,
-        "project_id": form_meta.project_id if form_meta else None,
-        "site_id": form_meta.site_id if form_meta else None,
+        "project_id": project_id,
+        "site_id": site_id,
         "va_uniqueid_masked": form.va_uniqueid_masked if form else None,
         "va_age": form.va_deceased_age if form else None,
         "va_gender": form.va_deceased_gender if form else None,
@@ -676,13 +675,13 @@ def projects():
     null when it is not among ``project_options``.
     """
     va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
-    project_ids = get_coder_project_ids(va_form_access)
     project_options = get_coder_project_options(va_form_access)
+    project_ids = [option["project_id"] for option in project_options]
     last_project_id = last_allocated_project_id(
-        current_user.user_id, VaAllocation.coding, {option["project_id"] for option in project_options}
+        current_user.user_id, VaAllocation.coding, set(project_ids)
     )
     return jsonify({
-        "projects": list(project_ids),
+        "projects": project_ids,
         "project_options": project_options,
         "last_project_id": last_project_id,
     })

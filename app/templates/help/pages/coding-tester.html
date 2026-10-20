@@ -35,16 +35,27 @@
     </tr>
     <tr>
       <td>Scope</td>
-      <td>Project or project_site</td>
-      <td>Project or project_site</td>
+      <td>Project, project_site, or org_unit</td>
+      <td>Project, project_site, or org_unit</td>
     </tr>
     <tr>
       <td>Workflow state machine</td>
       <td>Standard coder track</td>
-      <td>Standard coder track</td>
+      <td>Standard coder track (bypasses site/unit date &amp; daily limit gates)</td>
     </tr>
   </tbody>
 </table>
+
+<h2>What Happens to a Coding Tester's Codes?</h2>
+
+<p>
+  When a user with the <code>coding_tester</code> role codes a form:
+</p>
+<ul>
+  <li><strong>Gate bypass for pre-launch or off-window verification:</strong> A <code>coding_tester</code> can open and code forms even when a site or unit has <code>coding_enabled = false</code>, outside <code>coding_start_date</code> / <code>coding_end_date</code>, or when the <code>daily_coder_limit</code> has been reached.</li>
+  <li><strong>In Demo / Training projects:</strong> Coding artifacts are temporary and automatically cleaned up after the project's retention window (<code>demo_retention_minutes</code>), returning the submission to its pre-demo state so multiple trainees or testers can practice on the same forms.</li>
+  <li><strong>In Production projects:</strong> A <code>coding_tester</code> uses the standard coding state machine to verify end-to-end form rendering, ICD-10/ICD-11 lookup, NQA, and Social Autopsy before opening the gates to regular coders.</li>
+</ul>
 
 <h2>Coding Gate Bypass</h2>
 
@@ -85,9 +96,12 @@
 
 <ul>
   <li><strong>Project scope</strong> &mdash; can test coding across all sites
-      within the assigned project.</li>
+      or units within the assigned project.</li>
   <li><strong>Project-site scope</strong> &mdash; can test coding only at a
-      specific site within the assigned project.</li>
+      specific site within a site-mode project.</li>
+  <li><strong>Organization unit scope</strong> (<code>org_unit</code>) &mdash;
+      can test coding within the assigned unit and its descendant subtree in an
+      organization-mode project.</li>
 </ul>
 
 <p>
@@ -96,23 +110,24 @@
   tester&rsquo;s assigned scope.
 </p>
 
-<h2>Workflow State Machine</h2>
+<h2>Workflow &amp; Submission Behavior</h2>
 
 <p>
-  Once a <code>coding_tester</code> enters the coding workflow, the submission
-  follows the same state transitions as a regular coder:
+  When a <code>coding_tester</code> submits a coded VA form:
 </p>
 
 <ol>
-  <li><code>ready_for_coding</code> &rarr; <code>coding_in_progress</code></li>
-  <li><code>coding_in_progress</code> &rarr; <code>coder_step1_saved</code></li>
-  <li><code>coder_step1_saved</code> &rarr; <code>coder_finalized</code></li>
+  <li>The tester&rsquo;s submission is saved and flagged as tester output
+      (<code>is_tester = True</code>).</li>
+  <li>It <strong>never</strong> becomes the case&rsquo;s production result
+      (it does not transition the case to <code>coder_finalized</code>).</li>
+  <li>The VA form returns immediately to <code>ready_for_coding</code> so a
+      production <code>coder</code> can be allocated the case.</li>
 </ol>
 
 <p>
-  The same 1-hour allocation timeout and 24-hour recode window apply to
-  coding_tester sessions. Test coding produces the same artifacts (Step 1 COD,
-  final COD, NQA, Social Autopsy) as regular coding.
+  Tester submissions do not open a 24-hour recode window and are excluded from
+  coder, Data Manager, and burndown metrics.
 </p>
 
 <h2>Important Notes</h2>

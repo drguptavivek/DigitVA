@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState as NativeAppState, Platform, Text, View } from "react-native";
+import { AppState as NativeAppState, Platform, Pressable, Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
@@ -12,9 +12,17 @@ import { SimpleCodPanel } from "./SimpleCodPanel";
 import { SmartvaStatusPanel } from "./SmartvaStatusPanel";
 import { WorkflowHistory } from "./WorkflowHistory";
 import type { WorkspaceApi } from "./api";
-import type { CategoryPayload, NotePayload, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
+import type { CategoryPayload, NotePayload, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
 import { browserSessionStore, clearScroll, resolveSection } from "./viewState";
 import { WorkspaceLayout } from "./WorkspaceLayout";
+import { ContextualHelpBanner } from "../web/ContextualHelp";
+
+const VIEW_FINAL_CATEGORIES: WorkspacePayload["categories"] = [
+  { code: "smartva_section", label: "SmartVA Analysis", nav_label: "SmartVA", render_mode: "table_sections", icon_name: "fa-chart-pie" },
+  { code: "allocated_cod_section", label: "Allocated Causes of Death", nav_label: "Allocated Causes of Death", render_mode: "table_sections", icon_name: "fa-stethoscope" },
+  { code: "audit_log_section", label: "Audit Log", nav_label: "Audit Log", render_mode: "table_sections", icon_name: "fa-history" },
+];
+const VIEW_FINAL_CODES = new Set(VIEW_FINAL_CATEGORIES.map((c) => c.code));
 
 /** Own the secured, allocation-scoped workspace lifecycle and render its ordered categories. */
 export function CaseWorkspaceScreen({
@@ -188,12 +196,21 @@ export function CaseWorkspaceScreen({
       if (!current()) return;
       setLoadedWorkspace({ vaSid: identity.vaSid, mode: identity.mode, api, payload: result });
       setLoading(false);
-      const wanted = preserveCategory === undefined ? resolveSection(result.categories, pendingSection.current) : undefined;
+      const isWebViewMode = Platform.OS === "web" && identity.mode === "view";
+      const allCategories = isWebViewMode ? [...result.categories, ...VIEW_FINAL_CATEGORIES] : result.categories;
+      const wanted = preserveCategory === undefined ? resolveSection(allCategories, pendingSection.current) : undefined;
       pendingSection.current = undefined;
       const preferred = preserveCategory === undefined ? wanted ?? result.default_category : selectedCategory.current || preserveCategory;
-      const defaultCategory = result.categories.find((item) => item.code === preferred)
-        ?? result.categories.find((item) => item.code === result.default_category) ?? result.categories[0];
-      if (defaultCategory) void loadCategory(defaultCategory.code, request, preserveCategory !== undefined);
+      if (isWebViewMode && preferred && VIEW_FINAL_CODES.has(preferred)) {
+        setSelectedCode(preferred);
+        selectedCategory.current = preferred;
+        setLoadedCategory(null);
+        setCategoryLoading(false);
+      } else {
+        const defaultCategory = result.categories.find((item) => item.code === preferred)
+          ?? result.categories.find((item) => item.code === result.default_category) ?? result.categories[0];
+        if (defaultCategory) void loadCategory(defaultCategory.code, request, preserveCategory !== undefined);
+      }
       if (identity.mode === "view") {
         void loadEvents(undefined, request);
       }
@@ -310,6 +327,9 @@ export function CaseWorkspaceScreen({
     <PrivateNotePanel key={identityKey} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} onNoteChanged={noteChanged} />
   ) : null;
   const browser = Platform.OS === "web";
+  const effectiveCategories = browser && identity.mode === "view"
+    ? [...workspace.categories, ...VIEW_FINAL_CATEGORIES]
+    : workspace.categories;
   const selectedMode = workspace.categories.find((item) => item.code === selectedCode)?.render_mode;
   const qualityPanels = identity.mode !== "view" ? <>
     <QualityPanels
@@ -324,6 +344,17 @@ export function CaseWorkspaceScreen({
   const noteSummary = identity.mode !== "view" ? <View style={styles.card}>
     <Text style={styles.text}>{!currentNote ? "Open Notes to view your saved note." : currentNote.content ? noteText(currentNote.content) : "No note saved for this submission yet."}</Text>
   </View> : undefined;
+  const reviewing = identity.mode === "reviewing";
+  // Reviewers get the COD entry form right under the coder's COD, above the long reference content.
+  const codEditor = selectedCode === "vacodassessment" && identity.mode !== "view" ? (
+    <View key={identityKey}>
+      {workspace.case.project_mode.endsWith("_doris") ? (
+        renderDoris ? renderDoris(workspace, loadWorkspace, finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
+      ) : (
+        <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={api} onSaved={reloadAfterCodSave} onAllocationLost={loseAllocation} onDone={finish} />
+      )}
+    </View>
+  ) : null;
   const nextBlockedReason = identity.mode !== "view" && category?.blocked_by?.length
     ? category.blocked_by.map((code) => code === "narrative_qa" ? "Complete the Narrative Quality Assessment before proceeding." : code === "social_autopsy" ? "Save the Social Autopsy Analysis before proceeding to the next category." : `Complete the required assessment (${code}) before proceeding.`).join(" ")
     : undefined;
@@ -332,31 +363,48 @@ export function CaseWorkspaceScreen({
     <WorkspaceLayout
       identity={identity}
       workspace={workspace}
-      categories={workspace.categories}
+      categories={effectiveCategories}
       selectedCode={selectedCode}
       categoryLoading={categoryLoading}
-      onSelectCategory={(code) => { void loadCategory(code, generation.current); callbacks.current.onSectionChange?.(code); }}
+      onSelectCategory={(code) => {
+        if (browser && identity.mode === "view" && VIEW_FINAL_CODES.has(code)) {
+          setSelectedCode(code);
+          selectedCategory.current = code;
+          setCategoryLoading(false);
+          callbacks.current.onSectionChange?.(code);
+          return;
+        }
+        void loadCategory(code, generation.current);
+        callbacks.current.onSectionChange?.(code);
+      }}
       onExit={() => { leave(); onExit(); }}
       notes={Platform.OS === "web" ? privateNotes : undefined}
       nextBlockedReason={nextBlockedReason}
-      smartvaPanel={browser ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} onChanged={() => loadWorkspace(selectedCategory.current)} /> : undefined}
+      smartvaPanel={browser && identity.mode !== "view" ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} onChanged={() => loadWorkspace(selectedCategory.current)} /> : undefined}
     >
+      <ContextualHelpBanner
+        screen={
+          identity.mode === "coding"
+            ? "caseCoding"
+            : identity.mode === "reviewing"
+              ? "caseReviewing"
+              : "caseView"
+        }
+      />
       {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-      {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} categoryNav={workspace.categories} workspaceIdentity={`${identityKey}:${selectedCode}`} notesSummary={noteSummary} afterContent={browser ? qualityPanels : undefined} /> : null}
-      {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
-        <View key={identityKey}>
-          {workspace.case.project_mode.endsWith("_doris") ? (
-            renderDoris ? renderDoris(workspace, loadWorkspace, finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
+      {browser && identity.mode === "view" ? (
+        selectedCode === "smartva_section" ? (
+          workspace.smartva !== null ? (
+            <SmartVaReference value={workspace.smartva} />
           ) : (
-            <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={api} onSaved={reloadAfterCodSave} onAllocationLost={loseAllocation} onDone={finish} />
-          )}
-          {browser ? null : qualityPanels}
-          {Platform.OS === "web" ? null : privateNotes}
-        </View>
-      ) : null}
-      {identity.mode === "view" ? (
-        <>
-          <CaseReference workspace={workspace} />
+            <View style={styles.card}>
+              <Text accessibilityRole="header" style={styles.headline}>SmartVA Analysis</Text>
+              <Text style={styles.muted}>No SmartVA results are available for this submission.</Text>
+            </View>
+          )
+        ) : selectedCode === "allocated_cod_section" ? (
+          <AllocatedCodReference workspace={workspace} />
+        ) : selectedCode === "audit_log_section" ? (
           <WorkflowHistory
             events={events}
             cursor={currentEvents?.cursor ?? null}
@@ -368,8 +416,53 @@ export function CaseWorkspaceScreen({
             onLatest={() => void loadEvents(undefined, generation.current)}
             onRetry={() => void loadEvents(historyRetryCursor ?? undefined, generation.current)}
           />
+        ) : category ? (
+          <CategoryPanel
+            category={category}
+            iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name}
+            renderMedia={renderMedia}
+            categoryNav={workspace.categories}
+            workspaceIdentity={`${identityKey}:${selectedCode}`}
+            notesSummary={noteSummary}
+            afterContent={qualityPanels}
+          />
+        ) : null
+      ) : (
+        <>
+          {reviewing ? (
+            // The web section heading pulls itself up by the card padding to sit flush with the card top;
+            // the bottom padding here absorbs that so the heading never covers the coder's COD or the form.
+            <View style={[{ gap: 12 }, browser ? ({ paddingBottom: "calc(var(--digitva-card-pad, 14px) + 12px)" } as object) : null]}>
+              <CoderCodReference workspace={workspace} />
+              {codEditor}
+            </View>
+          ) : null}
+          {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} categoryNav={workspace.categories} workspaceIdentity={`${identityKey}:${selectedCode}`} notesSummary={noteSummary} afterContent={browser ? qualityPanels : undefined} /> : null}
+          {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
+            <View key={identityKey}>
+              {reviewing ? null : codEditor}
+              {browser ? null : qualityPanels}
+              {Platform.OS === "web" ? null : privateNotes}
+            </View>
+          ) : null}
+          {identity.mode === "view" ? (
+            <>
+              <CaseReference workspace={workspace} />
+              <WorkflowHistory
+                events={events}
+                cursor={currentEvents?.cursor ?? null}
+                loading={historyLoading}
+                error={historyError}
+                onOlder={() => {
+                  if (events?.next_cursor) void loadEvents(events.next_cursor, generation.current);
+                }}
+                onLatest={() => void loadEvents(undefined, generation.current)}
+                onRetry={() => void loadEvents(historyRetryCursor ?? undefined, generation.current)}
+              />
+            </>
+          ) : null}
         </>
-      ) : null}
+      )}
     </WorkspaceLayout>
   );
 }
@@ -387,33 +480,91 @@ function noteText(content: string): string {
   return content;
 }
 
-/** Show only assessment and SmartVA reference fields actually served by the API. */
-function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
+type Artifact = readonly [label: string, assessment: WorkspaceAssessment | null | undefined];
+
+/** COD assessments as served, one block per non-null artifact; `empty` shows when none is present. */
+function CodArtifacts({ title, artifacts, empty }: { title: string; artifacts: readonly Artifact[]; empty?: string }) {
   const styles = useUiStyles();
-  const artifacts = [
+  if (!artifacts.some(([, value]) => value) && !empty) return null;
+  return (
+    <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.headline}>{title}</Text>
+      <ArtifactList artifacts={artifacts} empty={empty} />
+    </View>
+  );
+}
+
+function ArtifactList({ artifacts, empty }: { artifacts: readonly Artifact[]; empty?: string }) {
+  const styles = useUiStyles();
+  const present = artifacts.filter(([, value]) => value);
+  return (
+    <>
+      {present.length ? present.map(([label, assessment]) => assessment ? (
+        <View key={label}>
+          <Text style={styles.muted}>{label}</Text>
+          {assessment.conclusive_cod ? <Text style={styles.text}>Conclusive cause: {assessment.conclusive_cod}</Text> : null}
+          {assessment.immediate_cod ? <Text style={styles.text}>Immediate cause: {assessment.immediate_cod}</Text> : null}
+          {assessment.antecedent_cod ? <Text style={styles.text}>Antecedent cause: {assessment.antecedent_cod}</Text> : null}
+          {assessment.doris_code || assessment.doris_status ? <Text style={styles.text}>DORIS computed code: {assessment.doris_code || "-"}{assessment.doris_status ? ` (${assessment.doris_status})` : ""}</Text> : null}
+          {assessment.reason ? <Text style={styles.text}>Reason: {assessment.reason}</Text> : null}
+          {assessment.other ? <Text style={styles.text}>Other: {assessment.other}</Text> : null}
+          {assessment.remark ? <Text style={styles.text}>Remark: {assessment.remark}</Text> : null}
+        </View>
+      ) : null) : empty ? <Text style={styles.muted}>{empty}</Text> : null}
+    </>
+  );
+}
+
+function referenceArtifacts(workspace: WorkspacePayload): Artifact[] {
+  return [
     ["Final COD", workspace.assessments.final],
     ["Reviewer final", workspace.assessments.reviewer_final],
     ["Coder initial", workspace.assessments.coder_initial],
     ["Not codeable", workspace.assessments.not_codeable],
-  ] as const;
-  const hasArtifacts = artifacts.some(([, value]) => value !== null);
+  ];
+}
+
+/** Show only assessment and SmartVA reference fields actually served by the API. */
+function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
   return (
     <View>
-      {hasArtifacts ? <View style={styles.card}>
-        <Text accessibilityRole="header" style={styles.headline}>COD reference</Text>
-        {artifacts.map(([label, assessment]) => assessment ? (
-          <View key={label}>
-            <Text style={styles.muted}>{label}</Text>
-            {assessment.conclusive_cod ? <Text style={styles.text}>Conclusive cause: {assessment.conclusive_cod}</Text> : null}
-            {assessment.immediate_cod ? <Text style={styles.text}>Immediate cause: {assessment.immediate_cod}</Text> : null}
-            {assessment.antecedent_cod ? <Text style={styles.text}>Antecedent cause: {assessment.antecedent_cod}</Text> : null}
-            {assessment.reason ? <Text style={styles.text}>Reason: {assessment.reason}</Text> : null}
-            {assessment.other ? <Text style={styles.text}>Other: {assessment.other}</Text> : null}
-            {assessment.remark ? <Text style={styles.text}>Remark: {assessment.remark}</Text> : null}
-          </View>
-        ) : null)}
-      </View> : null}
+      <CodArtifacts title="COD reference" artifacts={referenceArtifacts(workspace)} />
       {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
+    </View>
+  );
+}
+
+function AllocatedCodReference({ workspace }: { workspace: WorkspacePayload }) {
+  return <CodArtifacts title="Allocated Causes of Death" artifacts={referenceArtifacts(workspace)} empty="No cause-of-death assessments have been recorded for this submission yet." />;
+}
+
+/**
+ * The coder's saved COD, read-only, shown to a reviewer in every section. Collapsed by default to one
+ * line naming the coder's final cause; expanding shows every served artifact.
+ */
+function CoderCodReference({ workspace }: { workspace: WorkspacePayload }) {
+  const styles = useUiStyles();
+  const [open, setOpen] = useState(false);
+  const { final, coder_initial: initial, not_codeable: notCodeable } = workspace.assessments;
+  const summary = final?.conclusive_cod || final?.immediate_cod || (notCodeable ? "Not codeable" : "") || "Not recorded";
+  return (
+    <View style={styles.card}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Coder's cause of death: ${summary}`}
+        accessibilityHint={open ? "Hides the coder's assessments" : "Shows the coder's assessments"}
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((value) => !value)}
+        style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 44 }}
+      >
+        <Text style={[styles.headline, { flex: 1, minWidth: 0 }]} numberOfLines={open ? undefined : 2}>Coder's cause of death: {summary}</Text>
+        <Text style={styles.muted}>{open ? "Hide ▲" : "Details ▼"}</Text>
+      </Pressable>
+      {open ? <ArtifactList artifacts={[
+        ["Coder final", final],
+        ["Coder initial", initial],
+        ["Not codeable", notCodeable],
+      ]} empty="The coder has not saved an assessment." /> : null}
     </View>
   );
 }

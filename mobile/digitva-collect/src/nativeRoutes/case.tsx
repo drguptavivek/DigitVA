@@ -41,6 +41,7 @@ import {
 import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
+import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
 import { createNativeWorkspaceTransport } from "../workspace/transport.native";
@@ -442,6 +443,7 @@ export default function Case() {
 
   return (
     <Screen title={t("deathDetails")}>
+      <ContextualHelpBanner screen="caseDetail" />
       {name ? <Text style={styles.headline}>{name}</Text> : null}
       {found ? (
         <View style={{ gap: 4 }}>

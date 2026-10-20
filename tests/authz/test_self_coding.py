@@ -182,9 +182,10 @@ class InterviewerContextTests(AuthzFixtureMixin, BaseTestCase):
         with count_queries() as statements:
             intake_svc.interviewer_context(user)
         # Two grant queries (nothing is cached outside a request), then the
-        # units, sites, projects, site names and active pairs.
+        # units, the unit sites, and one join for active pairs with their
+        # project and site names.
         selects = [s for s in statements if s.startswith("SELECT") and "FROM va_users" not in s]
-        self.assertEqual(len(selects), 7, selects)
+        self.assertEqual(len(selects), 5, selects)
 
 
 class ImpliedInterviewerCacheTests(AuthzFixtureMixin, BaseTestCase):

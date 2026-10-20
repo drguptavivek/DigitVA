@@ -10,6 +10,8 @@ export type AccountMenuProps = {
   name: string;
   /** Ends the session (POST logout with CSRF, in the app state). A rejection keeps the menu open with an error. */
   onSignOut: () => Promise<void>;
+  /** Plain-click handler of the Profile link (a full Flask page); true when it held the navigation (the menu closes). */
+  onProfileClick?: (event: React.MouseEvent) => boolean;
 };
 
 // Below this the display name is hidden and only the initials circle stays.
@@ -28,7 +30,7 @@ export function initialsOf(name: string): string {
 }
 
 /** Right-aligned account control of the workspace header: Profile, Open web version, Theme, Help, Sign out. */
-export function AccountMenu({ name, onSignOut }: AccountMenuProps) {
+export function AccountMenu({ name, onSignOut, onProfileClick }: AccountMenuProps) {
   const theme = useTheme();
   const w = useWebPalette();
   const { width } = useWindowDimensions();
@@ -125,7 +127,7 @@ export function AccountMenu({ name, onSignOut }: AccountMenuProps) {
   h("div", { style: { padding: "8px 12px", fontFamily: ROBOTO, fontSize: 14, fontWeight: 700, overflowWrap: "anywhere" } }, name),
   h("div", { style: rule }),
   h("div", { id: menuId, role: "menu", "aria-label": "Account" },
-    h("a", { role: "menuitem", href: "/profile/", style: itemStyle }, "Profile"),
+    h("a", { role: "menuitem", href: "/profile/", onClick: (event: React.MouseEvent) => { if (onProfileClick?.(event)) close(false); }, style: itemStyle }, "Profile"),
     h("a", { role: "menuitem", href: "/vaindex", target: "_blank", rel: "noopener", "aria-label": "Open web version (opens in a new tab)", style: itemStyle },
       "Open web version",
       h("svg", { "aria-hidden": true, width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", style: { marginLeft: "auto" } },

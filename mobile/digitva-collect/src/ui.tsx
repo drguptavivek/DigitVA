@@ -18,7 +18,8 @@ export function Screen({
   scroll = true,
   sidebar,
   headerAction,
-  footer
+  footer,
+  lead
 }: {
   title: string;
   children: ReactNode;
@@ -26,12 +27,16 @@ export function Screen({
   sidebar?: ReactNode;
   headerAction?: ReactNode;
   footer?: ReactNode;
+  /** With a sidebar and scroll: rendered full width at the top of the scroller, and the title row moves into the
+   * scroller under it, so both scroll away with the page (the browser interview's header bar). */
+  lead?: ReactNode;
 }) {
   const theme = useTheme();
+  const screenStyles = useUiStyles();
   const titleNode = (
-    <View style={styles.titleWrap}>
-      <View style={styles.titleBar}>
-        <Text style={[styles.title, { color: theme.colors.text }]} accessibilityRole="header">
+    <View style={screenStyles.titleWrap}>
+      <View style={screenStyles.titleBar}>
+        <Text style={[screenStyles.title, { color: theme.colors.text }]} accessibilityRole="header">
           {title}
         </Text>
         {headerAction}
@@ -39,33 +44,43 @@ export function Screen({
     </View>
   );
   const body = sidebar ? (
-    <View style={[styles.frame, { backgroundColor: theme.colors.background }]}>
+    <View style={[screenStyles.frame, { backgroundColor: theme.colors.background }]}>
       {sidebar}
-      <View style={styles.mainColumn}>
-        {titleNode}
-        {scroll ? (
-          <ScrollView style={styles.mainScroll} contentContainerStyle={[styles.body, { backgroundColor: theme.colors.background }]}>
-            {children}
+      <View style={screenStyles.mainColumn}>
+        {lead && scroll ? (
+          <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll}>
+            {lead}
+            {titleNode}
+            <View style={[screenStyles.body, { backgroundColor: theme.colors.background }]}>{children}</View>
           </ScrollView>
         ) : (
-          <View style={[styles.body, styles.mainScroll, { backgroundColor: theme.colors.background }]}>
-            {children}
-          </View>
+          <>
+            {titleNode}
+            {scroll ? (
+              <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll} contentContainerStyle={[screenStyles.body, { backgroundColor: theme.colors.background }]}>
+                {children}
+              </ScrollView>
+            ) : (
+              <View style={[screenStyles.body, screenStyles.mainScroll, { backgroundColor: theme.colors.background }]}>
+                {children}
+              </View>
+            )}
+          </>
         )}
       </View>
     </View>
   ) : scroll ? (
-    <ScrollView contentContainerStyle={[styles.body, { backgroundColor: theme.colors.background }]}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[screenStyles.body, { backgroundColor: theme.colors.background }]}>
       {children}
     </ScrollView>
   ) : (
-    <View style={[styles.body, styles.fill, { backgroundColor: theme.colors.background }]}>{children}</View>
+    <View style={[screenStyles.body, screenStyles.fill, { backgroundColor: theme.colors.background }]}>{children}</View>
   );
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
       {__DEV__ ? (
         <Text
-          style={[styles.debug, { backgroundColor: theme.colors.warning, color: theme.colors.onAccent }]}
+          style={[screenStyles.debug, { backgroundColor: theme.colors.warning, color: theme.colors.onAccent }]}
           accessibilityRole="alert"
         >
           {t("debugWarning")}
@@ -73,7 +88,7 @@ export function Screen({
       ) : null}
       {!sidebar ? titleNode : null}
       {body}
-      {footer ? <View style={[styles.footer, { borderColor: theme.colors.border }]}>{footer}</View> : null}
+      {footer ? <View style={[screenStyles.footer, { borderColor: theme.colors.border }]}>{footer}</View> : null}
     </SafeAreaView>
   );
 }
@@ -148,19 +163,19 @@ export function Row({ children }: { children: ReactNode }) {
   return <View style={styles.row}>{children}</View>;
 }
 
-/** Every value is a `ui` token or a theme scale step (src/theme.ts): 40px (44 phone) controls, 6px control radius, 8px card radius, 16px card padding, 12px gaps. */
-function createStyles(t: UiTokens, controlHeight: number = controls.minHeight) {
+/** Every value is a `ui` token or a theme scale step (src/theme.ts): 40px (44 phone) controls, 6px control radius, 8px card radius, compact 12px/8px mobile padding/gaps. */
+function createStyles(t: UiTokens, controlHeight: number = controls.minHeight, compact: boolean = false) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: t.page },
     body: {
-      padding: controls.screenPadding,
-      gap: spacing.sm,
+      padding: compact ? spacing.sm : controls.screenPadding,
+      gap: compact ? spacing.xs : spacing.sm,
       width: "100%",
       maxWidth: controls.contentMaxWidth,
       alignSelf: "center"
     },
     fill: { flex: 1 },
-    footer: { paddingHorizontal: controls.screenPadding, paddingVertical: spacing.xs, borderTopWidth: controls.borderWidth },
+    footer: { paddingHorizontal: compact ? spacing.sm : controls.screenPadding, paddingVertical: spacing.xs, borderTopWidth: controls.borderWidth },
     frame: { flex: 1, flexDirection: "row", width: "100%", minWidth: 0, position: "relative" },
     mainColumn: { flex: 1, minWidth: 0 },
     mainScroll: { flex: 1, minWidth: 0 },
@@ -182,12 +197,12 @@ function createStyles(t: UiTokens, controlHeight: number = controls.minHeight) {
       width: "100%",
       maxWidth: controls.contentMaxWidth,
       alignSelf: "center",
-      paddingHorizontal: controls.screenPadding,
+      paddingHorizontal: compact ? spacing.sm : controls.screenPadding,
       position: "relative",
       zIndex: 30,
       overflow: "visible"
     },
-    titleBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, paddingTop: spacing.sm },
+    titleBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm, paddingTop: compact ? spacing.xs : spacing.sm },
     text: { ...typography.body, color: t.foreground, fontFamily: controls.fontFamily },
     headline: { ...typography.headline, color: t.foreground, fontFamily: controls.fontFamily },
     /** A form question's label: larger and bolder than helper text so the questions lead. */
@@ -230,10 +245,10 @@ function createStyles(t: UiTokens, controlHeight: number = controls.minHeight) {
     card: {
       backgroundColor: t.card,
       borderRadius: radius.lg,
-      padding: controls.cardPadding,
+      padding: compact ? spacing.sm : controls.cardPadding,
       borderWidth: 1,
       borderColor: t.border,
-      gap: controls.gap
+      gap: compact ? spacing.xs : controls.gap
     }
   });
 }
@@ -244,8 +259,10 @@ export const styles = createStyles(ui.light);
 /** Use this hook when a screen needs styles that follow the selected UI theme. */
 export function useUiStyles() {
   const theme = useTheme();
-  const height = useControlHeight();
-  return useMemo(() => createStyles(theme.ui, height), [theme.mode, height]);
+  const { width } = useWindowDimensions();
+  const compact = width < PHONE_BREAKPOINT;
+  const height = compact ? controls.minTouchTarget : controls.minHeight;
+  return useMemo(() => createStyles(theme.ui, height, compact), [theme.mode, height, compact]);
 }
 
 /** The UI string for an error from the device API; never shows server text or answers. */

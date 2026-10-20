@@ -52,23 +52,26 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import case_transition_service as cases
-from app.services import notification_service, org_grant_service, served_form_service
-from app.services import web_intake_attachment_service as attachments
+from app.services import (
+    notification_service,
+    org_grant_service,
+    served_form_service,
+    smartva_service,
+)
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
-from app.services.visit_note import has_visit_note_condition
+from app.services import web_intake_attachment_service as attachments
 from app.services.authz import resolve_grants, subtree_select, supervision
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
-from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
 from app.services.coding_release_service import (
     SOURCE_INTERVIEWER_REVISION,
     SOURCE_SUPERVISOR_CHOICE,
     release_coding_for_changed_payload,
     reopen_coding_after_revision,
 )
-from app.services import smartva_service
+from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
     canonical_payload_fingerprint,
@@ -83,6 +86,8 @@ from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     consent_is_valid,
     normalize_consent,
 )
+from app.services.viewer_pii_service import should_redact_pii
+from app.services.visit_note import has_visit_note_condition
 from app.services.web_form_instruments import DEFAULT_LOCALE
 from app.services.web_form_relevance_service import (
     derive_validation_errors,
@@ -93,9 +98,9 @@ from app.services.who_va_answers import age_field, birth_answer
 from app.services.who_va_answers import choice as choice_answer
 from app.services.who_va_answers import whole as whole_answer
 from app.services.workflow.definition import (
-    WORKFLOW_READY_FOR_CODING,
     PROTECTED_WORKFLOW_STATES,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+    WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
 )
 from app.services.workflow.state_store import get_submission_workflow_state
@@ -149,6 +154,8 @@ __all__ = [
     "submit_draft",
     "build_web_payload",
     "serialize_death",
+    "gps_projects",
+    "shows_gps",
     "serialize_draft",
     "serialize_worklist_row",
     "serialize_case_detail",
@@ -169,9 +176,9 @@ _PARTIAL_DATE_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2]))?$", re.ASCII)
 PARTIAL_BIRTH_MIN_YEAR = 1900
 _ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
 _ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
-# Indian mobile: 10 digits starting 6-9, optionally after +91 or 0.
-_PHONE_RE = re.compile(r"^(?:\+91|0)?([6-9]\d{9})$")
-_PHONE_SEPARATORS_RE = re.compile(r"[\s-]")
+# Phone: exactly 10 digits, optionally after +91, 91 or 0.
+_PHONE_RE = re.compile(r"^(?:\+91|91|0)?(\d{10})$")
+_PHONE_SEPARATORS_RE = re.compile(r"[\s()-]")
 _SECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 #: An instrument locale code as the XLSForm writes it ("hi", "kha", "pt-BR").
 _LOCALE_CODE_RE = re.compile(r"^[A-Za-z0-9-]{2,16}$")
@@ -372,44 +379,40 @@ def interviewer_context(
     if not pairs:
         return []
     project_ids = {p for p, _ in pairs}
-    projects = {
-        p.project_id: p
-        for p in db.session.scalars(
-            sa.select(VaProjectMaster).where(
-                VaProjectMaster.project_id.in_(project_ids),
-                VaProjectMaster.project_status == VaStatuses.active,
-            )
+    site_ids = {s for _, s in pairs}
+    active_pair_rows = db.session.execute(
+        sa.select(
+            VaProjectSites.project_id,
+            VaProjectSites.site_id,
+            VaProjectMaster.project_name,
+            VaProjectMaster.web_intake_mode,
+            VaSiteMaster.site_name,
         )
-    }
-    sites = {
-        s.site_id: s
-        for s in db.session.scalars(
-            sa.select(VaSiteMaster).where(VaSiteMaster.site_id.in_({s for _, s in pairs}))
+        .join(VaProjectMaster, VaProjectMaster.project_id == VaProjectSites.project_id)
+        .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
+        .where(
+            VaProjectSites.project_id.in_(project_ids),
+            VaProjectSites.site_id.in_(site_ids),
+            VaProjectSites.project_site_status == VaStatuses.active,
+            VaProjectMaster.project_status == VaStatuses.active,
         )
-    }
-    active_pairs = set(
-        db.session.execute(
-            sa.select(VaProjectSites.project_id, VaProjectSites.site_id).where(
-                VaProjectSites.project_id.in_(project_ids),
-                VaProjectSites.project_site_status == VaStatuses.active,
-            )
-        ).all()
-    )
+    ).all()
+    info_by_pair = {(r.project_id, r.site_id): r for r in active_pair_rows}
+
     context = []
     for (project_id, site_id), entry in sorted(pairs.items()):
-        project = projects.get(project_id)
-        if project is None or (project_id, site_id) not in active_pairs:
+        info = info_by_pair.get((project_id, site_id))
+        if info is None:
             continue
-        mode = project.web_intake_mode or "off"
+        mode = info.web_intake_mode or "off"
         if mode == "off":
             continue
-        site = sites.get(site_id)
         context.append(
             {
                 "project_id": project_id,
-                "project_name": project.project_name,
+                "project_name": info.project_name,
                 "site_id": site_id,
-                "site_name": site.site_name if site else site_id,
+                "site_name": info.site_name if info.site_name else site_id,
                 "web_intake_mode": mode,
                 "org_units": entry["org_units"],
             }
@@ -646,16 +649,19 @@ def _clean_abha(number: object, address: object) -> tuple[str | None, str | None
 
 
 def _clean_phone(raw: object, *, what: str) -> str | None:
-    """An Indian mobile number normalised to its 10 digits, or None if blank.
+    """A phone number normalised to its 10 digits, or None if blank.
 
-    Spaces and hyphens are ignored; a +91 or 0 prefix is dropped.
+    The VA form's one phone format: exactly 10 digits, no restriction on the
+    first. Spaces, hyphens and parentheses are ignored; a +91, 91 or 0 in
+    front is dropped when 10 digits remain. The client mirrors this in
+    ``mobile/digitva-collect/src/phoneFormat.ts``.
     """
     value = _clean(raw, what=what, max_len=32)
     if value is None:
         return None
     match = _PHONE_RE.match(_PHONE_SEPARATORS_RE.sub("", value))
     if not match:
-        raise WebIntakeError(f"{what} must be a 10-digit mobile number starting 6-9 (+91 or 0 in front is fine).")
+        raise WebIntakeError(f"{what} must be a 10-digit phone number, for example 987 654 3210.")
     return match.group(1)
 
 
@@ -676,6 +682,8 @@ REGISTER_FIELDS = (
     "informant_phone_2", "remarks", "father_name", "mother_name",
     "latitude", "longitude", "accuracy_m",
 )
+#: The informant phone columns, validated only when an edit changes them.
+_PHONE_FIELDS = ("informant_phone", "informant_phone_2")
 #: The GPS fix's columns; ``captured_at`` follows them, set by the server.
 LOCATION_FIELDS = ("latitude", "longitude", "accuracy_m")
 
@@ -715,10 +723,33 @@ def _clean_location(fields: dict) -> dict:
     }
 
 
-def _clean_death_fields(fields: dict) -> dict:
+#: The birth-date and age columns, one unit for the age-information rule.
+_AGE_INFO_FIELDS = ("date_of_birth", "date_of_birth_partial", "age_years")
+
+
+def _require_age_info(cleaned: dict, current: dict | None = None) -> None:
+    """A registration carries age information: a date of birth (exact, month
+    and year, or year only) or an estimated ``age_years``. 400 otherwise.
+
+    With *current* (the stored values, on an edit) the rule applies only when
+    this edit changes one of the three fields, so an older row without age
+    information stays editable until they are touched; clearing them on a row
+    that had one is a change and is refused. 0 is a valid age."""
+    if any(cleaned[name] is not None for name in _AGE_INFO_FIELDS):
+        return
+    if current is not None and all(cleaned[name] == current[name] for name in _AGE_INFO_FIELDS):
+        return
+    raise WebIntakeError(
+        "Enter the date of birth, or choose Date of birth unknown and enter an estimated age."
+    )
+
+
+def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset()) -> dict:
     """The register form's fields validated and normalised to ``VaDeathRegister``
     columns; the one validation path of ``register_death`` and ``update_death``.
-    Raises 400 on the first bad value."""
+    Raises 400 on the first bad value. A phone named in *keep_phones* is an
+    unchanged stored value and passes as it is, so an older non-conforming
+    number never blocks an edit of another field."""
     name = _clean(fields.get("deceased_name"), what="Deceased name", required=True)
     sex = (_clean(fields.get("deceased_sex"), what="Sex", required=True) or "").lower()
     if sex not in DEATH_SEX_VALUES:
@@ -756,8 +787,10 @@ def _clean_death_fields(fields: dict) -> dict:
         "informant_name": _clean(fields.get("informant_name"), what="Informant name"),
         "father_name": _clean(fields.get("father_name"), what="Father's name", max_len=200),
         "mother_name": _clean(fields.get("mother_name"), what="Mother's name", max_len=200),
-        "informant_phone": _clean_phone(fields.get("informant_phone"), what="Informant phone"),
-        "informant_phone_2": _clean_phone(fields.get("informant_phone_2"), what="Second phone"),
+        "informant_phone": fields.get("informant_phone") if "informant_phone" in keep_phones
+        else _clean_phone(fields.get("informant_phone"), what="Informant phone"),
+        "informant_phone_2": fields.get("informant_phone_2") if "informant_phone_2" in keep_phones
+        else _clean_phone(fields.get("informant_phone_2"), what="Second phone"),
         "remarks": _clean(fields.get("remarks"), what="Remarks"),
         **_clean_location(fields),
     }
@@ -771,6 +804,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
     # An interviewer or a death_reporter (register_death_context's predicate).
     _require_scope(user, project_id, site_id, org_unit_id, DEATH_REGISTERING_ROLES)
     cleaned = _clean_death_fields(fields)
+    _require_age_info(cleaned)
     unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
     number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
     death = VaDeathRegister(
@@ -889,7 +923,8 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     narrowing; one the caller has no reach in is 403), ``limit`` (clamped to
     1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400).
     Rows are ``serialize_death`` without the submission id: a reporter has no
-    business with the interview.
+    business with the interview. Each row is the caller's own registration,
+    so each carries its GPS fix (``shows_gps``).
     """
     try:
         limit = max(1, min(int(args.get("limit") or REPORTED_PAGE_DEFAULT), REPORTED_PAGE_MAX))
@@ -913,7 +948,10 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     ))
     page = rows[:limit]
     next_cursor = _encode_cursor(page[-1].updated_at, page[-1].death_id) if len(rows) > limit else None
-    return {"deaths": [dict(serialize_death(d), va_sid=None) for d in page], "next_cursor": next_cursor}
+    # Every row is the caller's own registration, so it keeps its GPS fix
+    # (``shows_gps``): the edit form shows the location its reporter captured.
+    return {"deaths": [dict(serialize_death(d, show_gps=True), va_sid=None) for d in page],
+            "next_cursor": next_cursor}
 
 
 def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None = None,
@@ -995,19 +1033,22 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     if if_updated_at is not None and draft_is_stale(death, if_updated_at):
         raise WebIntakeError("This death was changed since you opened it; reload it.", 409, "death_stale")
     current = {name: getattr(death, name) for name in REGISTER_FIELDS}
+    # A phone is validated only when this edit changes it.
+    keep_phones = frozenset(n for n in _PHONE_FIELDS if changes.get(n, current[n]) == current[n])
     try:
-        cleaned = _clean_death_fields({**current, **changes})
+        cleaned = _clean_death_fields({**current, **changes}, keep_phones=keep_phones)
     except WebIntakeError as exc:
         # The whole record is re-validated, so a stored value that is no
         # longer valid (older free-text phone) must be corrected in this edit.
         if exc.status_code != 400:
             raise
         try:
-            _clean_death_fields(current)
+            _clean_death_fields(current, keep_phones=frozenset(_PHONE_FIELDS))
         except WebIntakeError as stored:
             if str(stored) == str(exc):
                 raise WebIntakeError(f"{exc} The stored value is no longer valid; correct it in this edit.") from None
         raise
+    _require_age_info(cleaned, current)
     changed = [name for name in changes if cleaned[name] != current[name]]
     if not changed:
         return death
@@ -1204,6 +1245,21 @@ PREFILL_ANSWER_FIELDS = {
 PREFILL_LOCKED_FIELDS = ("abha_number", "abha_address")
 
 
+#: Id10010a's own constraint (``(.>=18 and .<90) or .=99``): an age outside it
+#: would trap the interviewer, so it is not prefilled.
+_INTERVIEWER_AGE_RANGE = range(18, 90)
+
+
+def _interviewer_age(user: VaUsers) -> int | None:
+    """The interviewer's age for Id10010a: the interview year (now, in the
+    user's timezone) minus the profile's ``year_of_birth``; None without a
+    year of birth or when the age is outside Id10010a's 18-89."""
+    if user.year_of_birth is None:
+        return None
+    age = _expression_now(user, _utcnow()).year - user.year_of_birth
+    return age if age in _INTERVIEWER_AGE_RANGE else None
+
+
 def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None,
                         unit_parts: tuple[dict, list[str]] | None = None) -> dict:
     """The draft's prefill, per the map in docs/policy/web-intake.md.
@@ -1212,7 +1268,7 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     ``createWhoVaInitialDataFromPrefill``; ``answers`` are WHO answers merged
     on top; ``lockedQuestionNames`` are the read-only ones (interviewer
     name, sex and id, area presets, ABHA). Everything else is an ordinary editable
-    answer. Name split: the last word is the surname (Id10018), the words
+    answer, the interviewer's age (``interviewer.age``) included. Name split: the last word is the surname (Id10018), the words
     before it the given name (Id10017); a one-word name is a given name only.
 
     Birth date: an exact ``date_of_birth`` goes as ``deceased.dateOfBirth``
@@ -1234,6 +1290,10 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     both are queried here.
     """
     interviewer: dict = {"name": user.name, "id": str(user.user_id)}
+    age = _interviewer_age(user)
+    if age is not None:
+        # Not locked: a birth year alone is accurate to a year.
+        interviewer["age"] = age
     locked = {"Id10010c"}
     if _INTERVIEWER_NAME_RE.fullmatch((user.name or "").strip()):
         locked.add("Id10010")
@@ -1313,8 +1373,9 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
 
 #: Locked interviewer questions and the ``prefill["interviewer"]`` key each is
 #: filled from, as prefill.ts's addInterviewer maps them.
-#: Id10010a (interviewer age) is not prefilled; leaving it out also stops a
-#: draft's stored lock list from enforcing it.
+#: Id10010a (interviewer age) is prefilled but never locked (owner,
+#: 2026-10-20); leaving it out also stops a draft's stored lock list from
+#: enforcing it.
 _INTERVIEWER_ANSWER_KEYS = {"Id10010": "name", "Id10010b": "sex", "Id10010c": "id"}
 
 
@@ -3500,13 +3561,14 @@ def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: fro
     """
     wide: set[tuple[str, str | None]] = set()
     unit_grants: dict[str, set[uuid.UUID]] = {}
-    for grant in resolve_grants(user).of(roles, virtual=False):
+    resolved = resolve_grants(user)
+    for grant in resolved.of(roles, virtual=False):
         if grant.is_wide:
             wide.add((grant.project_id, grant.site_id))  # site_id None: project grant
         else:
             unit_grants.setdefault(grant.project_id, set()).add(grant.org_unit_id)
     conditions = []
-    for entry in interviewer_context(user, roles) if context is None else context:
+    for entry in interviewer_context(user, roles, _grants=resolved) if context is None else context:
         project_id, site_id = entry["project_id"], entry["site_id"]
         pair = sa.and_(VaDeathRegister.project_id == project_id, VaDeathRegister.site_id == site_id)
         if (project_id, None) not in wide and (project_id, site_id) not in wide:
@@ -3624,6 +3686,12 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     ``sort="reported"`` orders by registration instead (newest first), keyset
     on (created_at, death_id); the cursor then comes from that order.
     ``context``: the caller's ``interviewer_context``, if already computed.
+
+    A death_reporter also gets the deaths they registered that their
+    death_reporter grants still reach (``reported_deaths_page``'s scope, so
+    no case they could not already list). ``reporter_only`` is the set of
+    the page's death ids reached that way alone, not by an interviewer
+    grant: their rows carry the reporter's shape (``worklist_page``).
     """
     for state in states or []:
         if state not in CASE_STATES:
@@ -3631,9 +3699,14 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
     if sort not in WORKLIST_SORTS:
         raise WebIntakeError("sort must be next_visit or reported.")
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    scope = _worklist_scope(user, context)
-    if scope is None:
-        return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}}
+    interviewer_scope = _worklist_scope(user, context)
+    reporter_scope = _worklist_scope(user, None, _DEATH_REPORTER)
+    if reporter_scope is not None:
+        reporter_scope = sa.and_(reporter_scope, VaDeathRegister.registered_by == user.user_id)
+    scopes = [s for s in (interviewer_scope, reporter_scope) if s is not None]
+    if not scopes:
+        return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}, "reporter_only": set()}
+    scope = scopes[0] if len(scopes) == 1 else sa.or_(*scopes)
     base = [scope]
     if project_id is not None:
         base.append(VaDeathRegister.project_id == project_id)
@@ -3663,13 +3736,16 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
         )
         if cursor:
             filters.append(_after_worklist_cursor(cursor))
+    via_interviewer = interviewer_scope if interviewer_scope is not None else sa.false()
     rows = db.session.execute(
         _worklist_select(user)
+        .add_columns(via_interviewer.label("via_interviewer"))
         .where(*filters)
         .order_by(*order_by)
         .limit(limit + 1)
     ).all()
-    page = [tuple(row) for row in rows[:limit]]
+    reporter_only = {row[0].death_id for row in rows[:limit] if not row[-1]}
+    page = [tuple(row)[:-1] for row in rows[:limit]]
     if len(rows) > limit:
         last = page[-1][0]
         next_cursor = (_encode_cursor(last.created_at, last.death_id) if sort == "reported"
@@ -3682,7 +3758,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
         possible.setdefault(row.subject_id, []).append(
             {"death_id": str(row.death_id), "unique_id": row.unique_id}
         )
-    return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible}
+    return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible,
+            "reporter_only": reporter_only}
 
 
 _TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
@@ -3696,8 +3773,15 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     *args* is the request's query string: ``mine`` (true/false), ``state``
     (comma-separated case states), ``limit`` (clamped to 1..200), ``cursor``
     (from ``next_cursor``), ``sort`` (``next_visit`` default, or ``reported``);
-    a malformed one is a 400 WebIntakeError.
-    *project_id* and *context* as ``list_worklist``.
+    a malformed one is a 400 WebIntakeError. Each row's ``can_interview`` is
+    False for a case reached only as its reporter (``list_worklist``).
+    ``latitude`` / ``longitude`` (the death-site GPS fix, for the card's map
+    link) only in organization projects (``projects_with_org_tree``, the
+    notion ``_require_scope`` uses), and there only where the case detail
+    would show the household address: a caller with personal-data access
+    (``should_redact_pii``), or the death's own reporter. A sites-mode
+    project's rows never carry them (owner, 2026-10-20). *project_id* and
+    *context* as ``list_worklist``.
     """
     mine = (args.get("mine") or "").lower()
     if mine not in _TRUE + _FALSE:
@@ -3720,10 +3804,23 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
         sort=sort,
     )
     possible = result["possible_duplicates"]
+    # One grant read and one org-tree read per page, not per row.
+    redact = should_redact_pii(user)
+    org_projects = org_grant_service.projects_with_org_tree(
+        {row[0].project_id for row in result["cases"]}) if result["cases"] else set()
     rows = []
     for row in result["cases"]:
         serialized = serialize_worklist_row(user, *row)
+        if row[0].project_id in org_projects and (not redact or serialized["registered_by_me"]):
+            serialized["latitude"] = row[0].latitude
+            serialized["longitude"] = row[0].longitude
         serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
+        # A case reached only as its reporter: no interview here, so nothing
+        # about other interviewers' drafts (as _case_body, digitva-t6q).
+        serialized["can_interview"] = row[0].death_id not in result["reporter_only"]
+        if not serialized["can_interview"]:
+            serialized.pop("other_draft_active")
+            serialized.pop("other_draft_started_at")
         rows.append(serialized)
     return {"cases": rows, "counts": result["counts"], "next_cursor": result["next_cursor"]}
 
@@ -4051,8 +4148,31 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
 # ---------------------------------------------------------------------------
 
 
-def _serialize_location(death: VaDeathRegister) -> dict:
-    """The GPS fix, for the serializers that already carry the address."""
+def gps_projects(user: VaUsers, project_ids: set[str]) -> set[str]:
+    """The projects among *project_ids* where *user* sees the GPS fix of a
+    death someone else registered: organization projects
+    (``projects_with_org_tree``) and only for a caller with personal-data
+    access (``should_redact_pii``). One grant read and one org-tree read, so
+    call it once per request, not per row. ``shows_gps`` adds the reporter's
+    own registrations (owner, 2026-10-20; docs/policy/web-intake.md)."""
+    if not project_ids or should_redact_pii(user):
+        return set()
+    return org_grant_service.projects_with_org_tree(set(project_ids))
+
+
+def shows_gps(user: VaUsers, death: VaDeathRegister, visible_projects: set[str]) -> bool:
+    """Whether a case detail or register row for *death* carries its GPS fix:
+    *death* is in one of *visible_projects* (``gps_projects``), or *user*
+    registered it, in any project, so the registration's edit form keeps the
+    fix its reporter captured."""
+    return death.registered_by == user.user_id or death.project_id in visible_projects
+
+
+def _serialize_location(death: VaDeathRegister, show_gps: bool) -> dict:
+    """The GPS fix, for the serializers that already carry the address; the
+    keys are omitted (not null) when *show_gps* is False (``shows_gps``)."""
+    if not show_gps:
+        return {}
     return {
         "latitude": death.latitude,
         "longitude": death.longitude,
@@ -4061,7 +4181,9 @@ def _serialize_location(death: VaDeathRegister) -> dict:
     }
 
 
-def serialize_death(death: VaDeathRegister) -> dict:
+def serialize_death(death: VaDeathRegister, *, show_gps: bool = False) -> dict:
+    """One register row. The GPS fix (``latitude``, ``longitude``,
+    ``accuracy_m``, ``captured_at``) only when *show_gps* (``shows_gps``)."""
     return {
         "death_id": str(death.death_id),
         "project_id": death.project_id,
@@ -4081,7 +4203,7 @@ def serialize_death(death: VaDeathRegister) -> dict:
         "address_house_street": death.address_house_street,
         "address_village_ward": death.address_village_ward,
         "address_landmark": death.address_landmark,
-        **_serialize_location(death),
+        **_serialize_location(death, show_gps),
         "informant_name": death.informant_name,
         "father_name": death.father_name,
         "mother_name": death.mother_name,
@@ -4163,7 +4285,10 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     submission id (``va_sid``) only to the interviewer whose draft became the
     submission (*my_submission*); ``other_draft_active``,
     ``other_draft_started_at`` and ``other_complete_interview`` as in
-    ``serialize_worklist_row``, as is ``code_now``."""
+    ``serialize_worklist_row``, as is ``code_now``. The household address's
+    GPS fix only where ``shows_gps`` allows it; otherwise its keys are
+    absent."""
+    show_gps = shows_gps(user, death, gps_projects(user, {death.project_id}))
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -4189,7 +4314,7 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
             "house_street": death.address_house_street,
             "village_ward": death.address_village_ward,
             "landmark": death.address_landmark,
-            **_serialize_location(death),
+            **_serialize_location(death, show_gps),
         },
         "informant": {
             "name": death.informant_name,
@@ -4232,7 +4357,9 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     return row
 
 
-def serialize_draft(draft: VaWebIntakeDraft) -> dict:
+def serialize_draft(draft: VaWebIntakeDraft, *, sections_saved: int | None = None) -> dict:
+    """One draft. *sections_saved*: the count already fetched for a list
+    (``serialize_drafts``); otherwise the draft's sections are loaded."""
     return {
         "draft_id": str(draft.draft_id),
         "project_id": draft.project_id,
@@ -4244,10 +4371,44 @@ def serialize_draft(draft: VaWebIntakeDraft) -> dict:
         "current_section": draft.current_section,
         "status": draft.status,
         "va_sid": draft.va_sid,
-        "sections_saved": len(draft.sections),
+        "sections_saved": len(draft.sections) if sections_saved is None else sections_saved,
         "created_at": draft.created_at.isoformat(),
         "updated_at": draft.updated_at.isoformat(),
     }
+
+
+def serialize_drafts(drafts: list[VaWebIntakeDraft]) -> list[dict]:
+    """``GET /drafts`` rows: ``serialize_draft`` plus the case's
+    ``deceased_name``, ``deceased_sex``, ``age_years`` and ``date_of_death``
+    (the caller's own drafts, whose answers already hold them; None for a
+    direct start without a case) so the list can filter like the worklist.
+    Two queries for the whole list, not a lazy sections load per row."""
+    if not drafts:
+        return []
+    counts = dict(db.session.execute(
+        sa.select(VaWebIntakeDraftSection.draft_id, sa.func.count())
+        .where(VaWebIntakeDraftSection.draft_id.in_([d.draft_id for d in drafts]))
+        .group_by(VaWebIntakeDraftSection.draft_id)
+    ).all())
+    death_ids = {d.death_id for d in drafts if d.death_id}
+    cases = {row.death_id: row for row in db.session.execute(
+        sa.select(
+            VaDeathRegister.death_id, VaDeathRegister.deceased_name, VaDeathRegister.deceased_sex,
+            VaDeathRegister.age_years, VaDeathRegister.date_of_death,
+        )
+        .where(VaDeathRegister.death_id.in_(death_ids))
+    ).all()} if death_ids else {}
+    rows = []
+    for d in drafts:
+        case = cases.get(d.death_id)
+        rows.append(dict(
+            serialize_draft(d, sections_saved=counts.get(d.draft_id, 0)),
+            deceased_name=case.deceased_name if case else None,
+            deceased_sex=case.deceased_sex if case else None,
+            age_years=case.age_years if case else None,
+            date_of_death=case.date_of_death.isoformat() if case and case.date_of_death else None,
+        ))
+    return rows
 
 
 def resolve_draft_display_names(draft: VaWebIntakeDraft) -> dict:
@@ -4255,7 +4416,7 @@ def resolve_draft_display_names(draft: VaWebIntakeDraft) -> dict:
     header (digitva-wdj) -- names instead of the bare codes it used to show.
 
     One query for a single draft: not folded into ``serialize_draft`` because
-    that is also called once per row of ``list_drafts``, where adding a join
+    that is also called once per row of ``serialize_drafts``, where adding a join
     here would turn into an N+1.
     """
     row = db.session.execute(

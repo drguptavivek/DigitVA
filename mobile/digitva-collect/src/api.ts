@@ -69,6 +69,15 @@ export interface AccessSummary {
   roles: string[];
   demo_coding: { available: boolean; project_ids: string[] };
   projects: AccessProject[];
+  account?: {
+    privileged?: boolean;
+    pii_visible?: boolean;
+    device_access?: boolean;
+    mentor?: {
+      member: boolean;
+      admin_of: Array<{ institute_code: string; institute_name: string }>;
+    };
+  };
 }
 
 /** Validate the access boundary before using server data to gate screens or pickers. */
@@ -107,6 +116,27 @@ export function parseAccessSummary(value: unknown): AccessSummary {
       if (!record(level) || typeof level.level_code !== "string" || typeof level.level_name !== "string" || typeof level.depth !== "number") throw new ApiError(200, "malformed_response");
     }
   }
+  if (value.account !== undefined) {
+    if (!record(value.account)) throw new ApiError(200, "malformed_response");
+    if (value.account.mentor !== undefined) {
+      if (
+        !record(value.account.mentor) ||
+        typeof value.account.mentor.member !== "boolean" ||
+        !Array.isArray(value.account.mentor.admin_of)
+      ) {
+        throw new ApiError(200, "malformed_response");
+      }
+      for (const inst of value.account.mentor.admin_of) {
+        if (
+          !record(inst) ||
+          typeof inst.institute_code !== "string" ||
+          typeof inst.institute_name !== "string"
+        ) {
+          throw new ApiError(200, "malformed_response");
+        }
+      }
+    }
+  }
   return value as unknown as AccessSummary;
 }
 
@@ -120,13 +150,15 @@ export const SUPERVISION_ROLES = ["interview_supervisor", "data_manager"];
 
 /** Navigation is advisory; each action remains authorised by the server. */
 export function accessCapabilities(access: AccessSummary): ClientBootstrap["capabilities"] {
+  const hasMentoring = Boolean(access.account?.mentor?.member || (access.account?.mentor?.admin_of?.length ?? 0) > 0);
   return {
     intake: access.projects.some((project) => project.actions.interview.length > 0),
     registerDeath: access.projects.some((project) => project.actions.register_death.length > 0),
     registeredDeaths: access.roles.includes("death_reporter"),
     coding: access.roles.some((role) => ["coder", "coding_tester"].includes(role)) || access.demo_coding.available,
     reviewing: access.roles.includes("reviewer"),
-    supervision: access.roles.some((role) => SUPERVISION_ROLES.includes(role))
+    supervision: access.roles.some((role) => SUPERVISION_ROLES.includes(role)),
+    ...(hasMentoring ? { mentoring: true } : {}),
   };
 }
 
@@ -186,7 +218,15 @@ export interface ClientLinks {
 export interface ClientBootstrap {
   user: { user_id: string; name: string };
   csrf: ClientCsrf;
-  capabilities: { intake: boolean; registerDeath: boolean; registeredDeaths: boolean; coding: boolean; reviewing: boolean; supervision: boolean };
+  capabilities: {
+    intake: boolean;
+    registerDeath: boolean;
+    registeredDeaths: boolean;
+    coding: boolean;
+    reviewing: boolean;
+    supervision: boolean;
+    mentoring?: boolean;
+  };
   access: AccessSummary;
   links: ClientLinks;
 }
@@ -269,7 +309,7 @@ export interface CaseRow {
   unit_name?: string | null;
   informant_phone_masked?: string | null;
   informant_phone_2_masked?: string | null;
-  /** Death-site GPS fix; only on the register list, which carries the address too. */
+  /** Death-site GPS fix: on the register list, and on GET /intake/cases rows only for a caller who may see it (else absent). */
   latitude?: number | null;
   longitude?: number | null;
   accuracy_m?: number | null;
@@ -280,6 +320,12 @@ export interface CaseRow {
   other_draft_started_at?: string | null;
   other_complete_interview?: boolean;
   code_now?: boolean;
+  /** The caller registered this death (GET /intake/cases). */
+  registered_by_me?: boolean;
+  /** False for a death the caller reaches only as its death_reporter: no interview or case detail. */
+  can_interview?: boolean;
+  created_at?: string;
+  updated_at?: string;
   [key: string]: unknown;
 }
 
@@ -389,6 +435,13 @@ export interface DraftSummary {
   status?: string;
   current_section?: string | null;
   updated_at?: string;
+  /** List rows only (`GET /drafts`): the case's name and the count of saved sections. */
+  deceased_name?: string | null;
+  sections_saved?: number;
+  deceased_sex?: string | null;
+  age_years?: number | null;
+  date_of_death?: string | null;
+  created_at?: string;
   [key: string]: unknown;
 }
 
@@ -793,13 +846,17 @@ export function getCases(
   link: string,
   csrf: ClientCsrf,
   cursor?: string | null,
+  projectId?: string,
 ): Promise<{
   cases: CaseRow[];
   counts?: Record<string, number>;
   next_cursor?: string | null;
 }> {
-  const suffix = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  return requestClientJson(`${link}${suffix}`, { csrf });
+  const params = new URLSearchParams();
+  if (projectId) params.set("project_id", projectId);
+  if (cursor) params.set("cursor", cursor);
+  const query = params.toString();
+  return requestClientJson(query ? `${link}?${query}` : link, { csrf });
 }
 
 export function getCaseDetail(
@@ -945,4 +1002,133 @@ export function submitDraft(
     }
     throw new ApiError(status, "malformed_response");
   });
+}
+
+export interface MentoringDistrict {
+  project_id: string;
+  project_name: string;
+  org_unit_id: string;
+  unit_code: string;
+  unit_name: string;
+}
+
+export interface MentoringInstituteSummary {
+  institute_code: string;
+  institute_name: string;
+  is_active: boolean;
+  is_admin: boolean;
+  districts: MentoringDistrict[];
+}
+
+export interface MentoringLanguage {
+  language_code: string;
+  language_name: string;
+}
+
+export interface MentoringSummary {
+  is_member: boolean;
+  is_institute_admin: boolean;
+  institutes: MentoringInstituteSummary[];
+  languages: MentoringLanguage[];
+}
+
+export interface MentorStaffMember {
+  user_id: string;
+  email: string | null;
+  name: string;
+  job_title: string | null;
+  is_admin: boolean;
+  account_status: string;
+}
+
+export interface CreateMentorStaffPayload {
+  name: string;
+  email: string;
+  email_confirm: string;
+  job_title?: string;
+  phone?: string;
+  languages: string[];
+}
+
+export async function getMentoringSummary(
+  csrf?: ClientCsrf,
+  server = "",
+  token?: string,
+): Promise<MentoringSummary> {
+  const response = await requestJson<MentoringSummary>(server, "/api/v1/me/mentoring", {
+    csrf,
+    token,
+  });
+  return response.body;
+}
+
+export async function listMentorInstituteStaff(
+  instituteCode: string,
+  csrf?: ClientCsrf,
+  server = "",
+): Promise<{ staff: MentorStaffMember[] }> {
+  const response = await requestJson<{ staff: MentorStaffMember[] }>(
+    server,
+    `/admin/api/mentor-institutes/${encodeURIComponent(instituteCode)}/staff`,
+    { csrf },
+  );
+  return response.body;
+}
+
+export async function createMentorInstituteStaff(
+  instituteCode: string,
+  payload: CreateMentorStaffPayload,
+  csrf?: ClientCsrf,
+  server = "",
+): Promise<{ staff: MentorStaffMember; sign_in_code?: string }> {
+  const response = await requestJson<{ staff: MentorStaffMember; sign_in_code?: string }>(
+    server,
+    `/admin/api/mentor-institutes/${encodeURIComponent(instituteCode)}/staff`,
+    {
+      method: "POST",
+      json: payload,
+      csrf,
+    },
+  );
+  return response.body;
+}
+
+export async function removeMentorInstituteStaff(
+  instituteCode: string,
+  userId: string,
+  csrf?: ClientCsrf,
+  server = "",
+): Promise<{ user_id: string; account_deactivated: boolean; grants_deactivated: number }> {
+  const response = await requestJson<{
+    user_id: string;
+    account_deactivated: boolean;
+    grants_deactivated: number;
+  }>(
+    server,
+    `/admin/api/mentor-institutes/${encodeURIComponent(instituteCode)}/staff/${encodeURIComponent(userId)}/remove`,
+    {
+      method: "POST",
+      csrf,
+    },
+  );
+  return response.body;
+}
+
+
+/** GET /api/v1/me/home: one Home block per role held, counts only (docs/current-state/api-v1.md). */
+export interface HomeBlocks {
+  death_reporter?: { registered: number; awaiting_interview: number };
+  interviewer?: { drafts_in_progress: number; needing_visit: number };
+  interview_supervisor?: { flagged: number; open: number; submitted: number };
+  /** `practice`: a coding tester without a coder grant; `completed` and `recodeable` are then absent. */
+  coder?: { ready: number; practice: boolean; completed?: number; recodeable?: number };
+  reviewer?: { available: number; completed: number };
+  data_manager?: { screening_pending: number; ready_for_coding: number; not_codeable: number };
+  /** No counts: the client loads /api/v1/me/kpis when the block is opened. */
+  progress?: { roles: string[] };
+}
+
+export interface HomeSummary {
+  roles: string[];
+  blocks: HomeBlocks;
 }

@@ -1,0 +1,238 @@
+{% if contextual_page_help %}
+<section
+  id="contextual-page-help"
+  data-page-key="{{ contextual_page_help.page_key }}"
+  data-api-url="/api/v1/help/contextual/{{ contextual_page_help.page_key }}"
+  aria-label="Contextual page help"
+>
+  {# The toggle (#contextual-page-help-toggle) lives in the navbar, va_navbar.html. #}
+  <div id="contextual-page-help-panel" class="d-none" role="dialog" aria-modal="false" aria-labelledby="contextual-page-help-title">
+    <div
+      id="contextual-page-help-backdrop"
+      style="position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); z-index: 1050;"
+    ></div>
+
+    <aside
+      class="bg-white border-start shadow-lg d-flex flex-column"
+      style="position: fixed; top: 0; right: 0; bottom: 0; width: 390px; max-width: 92vw; z-index: 1055; overflow-y: auto;"
+    >
+      <div class="p-3 border-bottom bg-light sticky-top d-flex align-items-start justify-content-between gap-2">
+        <div>
+          <span
+            class="badge rounded-pill text-bg-light border text-secondary fw-semibold mb-1"
+            data-help-stage-badge
+          >{{ contextual_page_help.stage_badge }}</span>
+          <h2 class="h6 fw-bold mb-0 text-body" id="contextual-page-help-title" data-help-title>{{ contextual_page_help.title }}</h2>
+        </div>
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary rounded-circle lh-1 px-2 py-1"
+          id="contextual-page-help-close"
+          aria-label="Close help drawer"
+        >&times;</button>
+      </div>
+
+      <div class="p-3 flex-grow-1">
+        <p class="small text-body mb-3" data-help-summary>{{ contextual_page_help.summary }}</p>
+
+        <ul class="small text-secondary mb-3 ps-3" data-help-bullets>
+          {% for bullet in contextual_page_help.bullets %}
+          <li class="mb-1">{{ bullet }}</li>
+          {% endfor %}
+        </ul>
+
+        <div class="d-flex flex-column gap-2" data-help-sections>
+          {% if contextual_page_help.sections %}
+            {% for section in contextual_page_help.sections %}
+            <div class="border rounded bg-light p-2">
+              <div class="small fw-semibold text-primary mb-1">{{ section['heading'] }}</div>
+              <ul class="small text-body mb-0 ps-3">
+                {% for item in section['items'] %}
+                <li class="mb-1">{{ item }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="p-3 border-top bg-light sticky-bottom">
+        <a
+          href="{{ contextual_page_help.help_slug }}"
+          target="_blank"
+          rel="noopener"
+          class="btn btn-sm btn-outline-primary rounded-pill w-100 fw-semibold"
+          data-help-guide-link
+        >Open Full Help Page (<span data-help-guide-label>{{ contextual_page_help.help_label }}</span>) ↗</a>
+      </div>
+    </aside>
+  </div>
+</section>
+<script>
+(function () {
+  var root = document.getElementById("contextual-page-help");
+  var toggle = document.getElementById("contextual-page-help-toggle");
+  var panel = document.getElementById("contextual-page-help-panel");
+  var backdrop = document.getElementById("contextual-page-help-backdrop");
+  var closeBtn = document.getElementById("contextual-page-help-close");
+  if (!root || !toggle || !panel) return;
+
+  var fetchedKeys = {};
+
+  function applyHelpPayload(data) {
+    if (!data || !data.page_key) return;
+    root.setAttribute("data-page-key", data.page_key);
+    root.setAttribute("data-api-url", "/api/v1/help/contextual/" + data.page_key);
+
+    if (data.stage_badge) {
+      root.querySelectorAll("[data-help-stage-badge]").forEach(function (el) {
+        el.textContent = data.stage_badge;
+      });
+    }
+    var titleEl = root.querySelector("[data-help-title]");
+    if (titleEl && data.title) titleEl.textContent = data.title;
+
+    var summaryEl = root.querySelector("[data-help-summary]");
+    if (summaryEl && data.summary) summaryEl.textContent = data.summary;
+
+    var bulletsEl = root.querySelector("[data-help-bullets]");
+    if (bulletsEl && Array.isArray(data.bullets)) {
+      bulletsEl.innerHTML = "";
+      data.bullets.forEach(function (b) {
+        var li = document.createElement("li");
+        li.className = "mb-1";
+        li.textContent = b;
+        bulletsEl.appendChild(li);
+      });
+    }
+
+    var sectionsEl = root.querySelector("[data-help-sections]");
+    if (sectionsEl && Array.isArray(data.sections)) {
+      sectionsEl.innerHTML = "";
+      data.sections.forEach(function (sec) {
+        var card = document.createElement("div");
+        card.className = "border rounded bg-light p-2";
+        var h = document.createElement("div");
+        h.className = "small fw-semibold text-primary mb-1";
+        h.textContent = sec.heading || "";
+        card.appendChild(h);
+        var ul = document.createElement("ul");
+        ul.className = "small text-body mb-0 ps-3";
+        (sec.items || []).forEach(function (item) {
+          var li = document.createElement("li");
+          li.className = "mb-1";
+          li.textContent = item;
+          ul.appendChild(li);
+        });
+        card.appendChild(ul);
+        sectionsEl.appendChild(card);
+      });
+    }
+
+    var linkEl = root.querySelector("[data-help-guide-link]");
+    if (linkEl && data.help_slug) linkEl.setAttribute("href", data.help_slug);
+
+    var labelEl = root.querySelector("[data-help-guide-label]");
+    if (labelEl && data.help_label) labelEl.textContent = data.help_label;
+  }
+
+  function fetchHelpByKey(key) {
+    if (!key || typeof window.fetch !== "function") return;
+    if (fetchedKeys[key]) {
+      applyHelpPayload(fetchedKeys[key]);
+      return;
+    }
+    window.fetch("/api/v1/help/contextual/" + encodeURIComponent(key), {
+      credentials: "same-origin",
+      headers: { "Accept": "application/json" }
+    }).then(function (resp) {
+      return resp.ok ? resp.json() : null;
+    }).then(function (data) {
+      if (!data || !data.page_key) return;
+      fetchedKeys[key] = data;
+      applyHelpPayload(data);
+    }).catch(function () {});
+  }
+
+  function setExpanded(expanded) {
+    panel.classList.toggle("d-none", !expanded);
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    var currentKey = root.getAttribute("data-page-key") || "home";
+    try {
+      window.localStorage.setItem("digitva.helpExpanded." + currentKey, expanded ? "true" : "false");
+    } catch (e) {
+      // Storage unavailable
+    }
+    if (expanded) {
+      fetchHelpByKey(currentKey);
+    }
+  }
+
+  toggle.addEventListener("click", function () {
+    var currentlyExpanded = toggle.getAttribute("aria-expanded") === "true";
+    setExpanded(!currentlyExpanded);
+  });
+
+  if (backdrop) {
+    backdrop.addEventListener("click", function () {
+      setExpanded(false);
+    });
+  }
+
+  if (closeBtn) {
+    closeBtn.addEventListener("click", function () {
+      setExpanded(false);
+    });
+  }
+
+  document.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
+      setExpanded(false);
+    }
+  });
+
+  function extractAdminSlug(panelUrl) {
+    var candidate = panelUrl || "";
+    if (!candidate && window.location && window.location.search) {
+      try {
+        candidate = new URLSearchParams(window.location.search).get("panel") || "";
+      } catch (e) {
+        candidate = "";
+      }
+    }
+    if (candidate.indexOf("/admin/panels/") !== -1) {
+      var after = candidate.split("/admin/panels/")[1] || "";
+      var slug = after.replace(/^\/+|\/+$/g, "").split("/")[0];
+      if (slug) return "admin_" + slug;
+    }
+    return null;
+  }
+
+  function syncAdminPanelHelp(panelUrl) {
+    var key = extractAdminSlug(panelUrl);
+    if (key) {
+      fetchHelpByKey(key);
+    }
+  }
+
+  if (window.location && window.location.pathname.indexOf("/admin") === 0) {
+    document.addEventListener("DOMContentLoaded", function () {
+      syncAdminPanelHelp();
+      document.querySelectorAll(".admin-nav-link").forEach(function (link) {
+        link.addEventListener("click", function () {
+          syncAdminPanelHelp(this.getAttribute("data-panel"));
+        });
+      });
+    });
+
+    document.body.addEventListener("htmx:afterSwap", function (evt) {
+      if (evt && evt.detail && evt.detail.target && evt.detail.target.id === "admin-panel") {
+        var pathInfo = evt.detail.pathInfo && evt.detail.pathInfo.requestPath;
+        syncAdminPanelHelp(pathInfo);
+      }
+    });
+  }
+}());
+</script>
+{% endif %}

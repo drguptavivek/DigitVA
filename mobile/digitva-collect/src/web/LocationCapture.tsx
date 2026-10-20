@@ -1,8 +1,9 @@
 import { createElement, useEffect, useRef, useState } from "react";
-import { Linking, Platform, Text, View } from "react-native";
+import { Linking, Platform, Pressable, Text, View, type ViewStyle } from "react-native";
+import Svg, { Path } from "react-native-svg";
 
 import { t, type StringKey } from "../i18n";
-import { fontSize, spacing, useTheme } from "../theme";
+import { controls, fontSize, radius, spacing, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 
 /** One optional GPS fix of the house (docs/policy/web-intake.md, "Death-site GPS location"). */
@@ -30,7 +31,54 @@ export function mapsUrl(latitude: number, longitude: number): string {
   return `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 }
 
-/** "Open in maps" plus the coordinates in small muted text. Renders nothing without a full fix. */
+/**
+ * Directions to a fix: Google Maps directions in a browser, the platform's maps app on a phone
+ * (Apple Maps on iOS, the geo: chooser on Android). The numbers are formatted here, never taken as text.
+ */
+export function directionsUrl(latitude: number, longitude: number, os: string = Platform.OS): string {
+  const at = `${latitude},${longitude}`;
+  if (os === "ios") return `maps://?daddr=${at}`;
+  if (os === "android") return `geo:${at}?q=${at}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${at}`;
+}
+
+/**
+ * A 44px map-pin button that opens directions to the fix (a case card's GPS). On the web it is a real
+ * link in a new tab (rel noopener noreferrer); on a phone it hands the URL to the maps app. Renders
+ * nothing without a full fix, so a row the server sent no coordinates for shows no icon.
+ */
+export function MapsPinButton({ latitude, longitude }: { latitude?: number | null; longitude?: number | null }) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+  if (!isFix(latitude, longitude)) return null;
+  const url = directionsUrl(latitude, longitude as number);
+  const web = Platform.OS === "web";
+  // react-native-web renders a Pressable with href as an <a>; RN's types do not list the web props.
+  const link = (web ? { href: url, hrefAttrs: { target: "_blank", rel: "noopener noreferrer" } } : {}) as object;
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={t("openInMaps")}
+      testID="case-maps-link"
+      onPress={web ? undefined : () => void Linking.openURL(url).catch(() => undefined)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      style={[
+        { minWidth: controls.minTouchTarget, minHeight: controls.minTouchTarget, alignItems: "center", justifyContent: "center", borderRadius: radius.md },
+        focused && web && ({ outlineStyle: "solid", outlineWidth: 2, outlineColor: theme.ui.ring, outlineOffset: 2 } as ViewStyle),
+      ]}
+      {...link}
+    >
+      <Svg width={24} height={24} viewBox="0 0 24 24" fill="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {PIN_PATHS.map((d) => (
+          <Path key={d} d={d} stroke={theme.ui.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        ))}
+      </Svg>
+    </Pressable>
+  );
+}
+
+/** "Open in Maps" plus the coordinates in small muted text. Renders nothing without a full fix. */
 export function MapsLink({ latitude, longitude }: { latitude?: number | null; longitude?: number | null }) {
   const styles = useUiStyles();
   const theme = useTheme();

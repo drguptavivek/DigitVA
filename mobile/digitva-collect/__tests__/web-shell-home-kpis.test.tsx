@@ -62,69 +62,32 @@ function navItem(renderer: ReactTestRenderer, label: string): ReactTestInstance 
   return renderer.root.findAll((node) => node.props.accessibilityLabel === label && typeof node.props.onPress === "function")[0];
 }
 
-describe("WebShell home KPI strip and My organization entry", () => {
+describe("WebShell without a KPI strip, and the My organization entry", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockBootstrap = bootstrap();
     mockPathname = "/coding";
   });
 
-  it("shows the strip above the page content", async () => {
-    mockRequest.mockResolvedValue({ projects: [{ project_id: "P1", project_name: "P", deaths_reported: 1, interviews_done: 0, coded: 0, interviews_pct: 0, coded_pct: 0 }] });
-    const renderer = await render();
-
-    expect(mockRequest).toHaveBeenCalledWith("/api/v1/me/kpis");
-    const text = JSON.stringify(renderer.toJSON());
-    expect(text).toContain("kpiLine");
-    expect(text).toContain("PAGE_BODY");
-    expect(text.indexOf("kpiLine")).toBeLessThan(text.indexOf("PAGE_BODY"));
-    await act(async () => { renderer.unmount(); });
-  });
-
-  it("fetches the KPIs once per mount, not again when the page re-renders", async () => {
-    mockRequest.mockResolvedValue({ projects: [] });
-    const renderer = await render();
-    await act(async () => {
-      renderer.update(<WebShell title="Title"><Text>PAGE_BODY_2</Text></WebShell>);
-    });
-
-    expect(mockRequest.mock.calls.filter(([path]) => path === "/api/v1/me/kpis")).toHaveLength(1);
-    await act(async () => { renderer.unmount(); });
-  });
-
-  it("shows the strip on /coding and not on a case page or settings", async () => {
-    mockRequest.mockResolvedValue({ projects: [{ project_id: "P1", project_name: "P", deaths_reported: 1, interviews_done: 0, coded: 0, interviews_pct: 0, coded_pct: 0 }] });
-    mockPathname = "/coding";
-    const onCoding = await render();
-    expect(JSON.stringify(onCoding.toJSON())).toContain("kpiLine");
-    await act(async () => { onCoding.unmount(); });
-
-    for (const path of ["/case", "/coding/case-1", "/settings"]) {
+  it("mounts no KPI strip on any page: Home shows progress inside its own block", async () => {
+    mockRequest.mockResolvedValue({ projects: [{ project_id: "P1", project_name: "P", deaths_reported: 1, interviews_done: 0, coded: 0, interviews_pct: null, coded_pct: null }] });
+    for (const path of ["/", "/workspace", "/coding", "/reviewing", "/collection", "/supervision", "/settings"]) {
       jest.clearAllMocks();
       mockPathname = path;
       const renderer = await render();
       expect(JSON.stringify(renderer.toJSON())).toContain("PAGE_BODY");
-      expect(JSON.stringify(renderer.toJSON())).not.toContain("kpiLine");
-      expect(mockRequest).not.toHaveBeenCalled();
+      expect(JSON.stringify(renderer.toJSON())).not.toContain("kpiDeathsCount");
+      expect(mockRequest).not.toHaveBeenCalledWith("/api/v1/me/kpis");
       await act(async () => { renderer.unmount(); });
     }
   });
 
-  it("still renders the page when the KPI call fails", async () => {
-    mockRequest.mockRejectedValue(new TypeError("network down"));
-    const renderer = await render();
-
-    const text = JSON.stringify(renderer.toJSON());
-    expect(text).toContain("PAGE_BODY");
-    expect(text).not.toContain("kpiLine");
-    await act(async () => { renderer.unmount(); });
-  });
-
-  it("offers My organization in the user menu, which opens the page", async () => {
+  it("offers Organization under More in the menu, which opens the page", async () => {
     mockRequest.mockResolvedValue({ projects: [] });
     const renderer = await render();
 
-    const entry = navItem(renderer, "navOrganization");
+    await act(async () => { navItem(renderer, "navMore")!.props.onPress(); });
+    const entry = navItem(renderer, "navOrg");
     expect(entry).toBeDefined();
     await act(async () => { entry!.props.onPress(); });
     expect(mockRouter.push).toHaveBeenCalledWith("/organization");

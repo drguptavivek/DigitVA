@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-20
 ---
 
 # Organization Model Policy
@@ -406,6 +406,22 @@ This is an explicit exception to the personal-data rule for worker names
 - Staff who never log in are included: the roster is the unit's worker
   list, not the set of users.
 - Capped at 500 people per unit per response.
+
+### My positions (owner, 2026-10-20)
+
+- The My organization page lists **every project** the user holds a live
+  grant in, sites-mode projects included, one card each. The card shows the
+  user's **own** roles: project-scope grants ("whole project"), project_site
+  grants (per site) and org_unit grants (on the unit, with the grant's cadre
+  where one is set). Roles are the grant's own role; derived roles
+  (data_manager from an In-charge) are not added.
+- A unit grant covers its subtree, so units below an own unit show that role
+  as inherited ("via <unit>"); project-scope roles show as "via project".
+  Units where the user holds no role are muted.
+- This discloses only the caller's own grants. Browsing the rest of the tree
+  is unchanged: any grant holder in the project may open any unit
+  ("Who sees worker names"); sites are listed only where the user holds a
+  site grant.
 
 ## Unit-scoped grants
 
@@ -821,7 +837,7 @@ See `.tasks/org-per-unit-coding-gates.md` for the full design record.
   unit columns are implemented — see
   [Implementation Report](../current-state/health-system-organization-model.md#open-questions))
 
-## Worker account entry
+## Worker account entry and multi-unit coding/supervision scope
 
 For a new worker whose level and cadre have default roles, Add worker uses
 email and confirm email, or an explicit No email address choice requiring
@@ -831,5 +847,40 @@ optional mobile supplied with email must also contain exactly ten digits.
 Year of birth and sex are optional and apply only to a newly created account;
 linking an existing account preserves its profile and password. Email accounts
 receive verification mail; mobile-only accounts return a one-time sign-in
-code shown before the roster refresh. An empty default-role mapping still
-creates only a roster worker.
+code shown before the roster refresh, and when mobile device enrolment is
+available the creator may also generate a one-scan Expo QR code for the linked
+account. An empty default-role mapping still creates only a roster worker.
+
+- **Existing account lookup (`GET /admin/api/organization/<project_id>/users/lookup`):**
+  an administrator or project PI entering an email address or ten-digit mobile
+  number in Add/Edit worker may look up an existing active `VaUsers` record by
+  exact email or normalized phone match so the UI can pre-fill the account's
+  name and skip redundant confirmation and demographic inputs.
+- **Per-worker multi-unit coding & supervision grants (`coding_unit_ids`, `supervision_unit_ids`):**
+  when creating or updating a worker linked to a `VaUsers` account whose
+  `level × cadre` allows coding (`can_code_va_form`) or interview supervision
+  (`can_supervise_interviews` / `site_pi`), the payload may optionally pass
+  `coding_unit_ids` (units at the worker's level where the worker's coding
+  roles apply — own unit for within-tree, sibling units for cross-tree, or a
+  custom subset) and `supervision_unit_ids` (units at the worker's level where
+  the worker's supervision roles apply). Each selected unit must belong to the
+  same project and active level as the worker's home unit, and grants are
+  validated through `access_grant_service` and the `level × cadre` capability
+  checks. Omitting `coding_unit_ids` or `supervision_unit_ids` preserves existing
+  grants on edit and defaults to the worker's home unit on create.
+
+## Project-scoped mentoring institutes and bulk VA mortality presets
+
+- **Mentoring institutes (`GET /admin/api/organization/<project_id>/mentoring`, `POST /admin/api/organization/<project_id>/mentoring/grants`):**
+  an administrator or project PI can inspect the project's top-level (District)
+  units, the mentoring institutes linked to them (`map_mentor_institute_org_unit`),
+  and the active institute scientists (`map_mentor_institute_user`), and
+  assign or revoke unit-scoped scientist grants (`coder`, `reviewer`,
+  `coding_tester`, `collaborator_pii`) across units of the mentored district's
+  subtree. Attaching or detaching mentoring institutes on a district remains
+  restricted to administrators (`POST /admin/api/organization/<project_id>/mentoring/districts`).
+- **Bulk VA mortality presets (`GET/PUT /admin/api/organization/<project_id>/va-presets`):**
+  an administrator or project PI can view and bulk-update `map_org_unit_va_presets`
+  (`hiv_mortality` for `Id10002` and `malaria_mortality` for `Id10003`: `high`,
+  `low`, `veryl`, or `null` to inherit from the nearest ancestor unit) across
+  any subset of units in the project.

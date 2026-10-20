@@ -54,6 +54,54 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function normalizeAstNode(node: unknown): unknown {
+  if (!isRecord(node) || typeof node.type !== "string") return node;
+  if (node.type === "literal") return { type: "literal", value: node.value };
+  if (node.type === "reference") return { type: "reference", name: node.name };
+  if (node.type === "unary") return { type: "unary", operator: node.operator, operand: normalizeAstNode(node.operand) };
+  if (node.type === "binary") {
+    return {
+      type: "binary",
+      operator: node.operator,
+      left: normalizeAstNode(node.left),
+      right: normalizeAstNode(node.right),
+    };
+  }
+  if (node.type === "call") {
+    return {
+      type: "call",
+      name: node.name,
+      arguments: Array.isArray(node.arguments) ? node.arguments.map(normalizeAstNode) : node.arguments,
+    };
+  }
+  return node;
+}
+
+function normalizeDefinitionAsts(definition: InstrumentDefinition): void {
+  for (const section of definition.sections) {
+    if (section.relevant?.ast) {
+      section.relevant = { ...section.relevant, ast: normalizeAstNode(section.relevant.ast) as typeof section.relevant.ast };
+    }
+  }
+  for (const question of definition.questions) {
+    for (const key of ["relevant", "constraint", "calculation"] as const) {
+      const expr = question[key];
+      if (expr?.ast) {
+        question[key] = { ...expr, ast: normalizeAstNode(expr.ast) as typeof expr.ast };
+      }
+    }
+    if (question.validation?.constraint?.ast) {
+      question.validation = {
+        ...question.validation,
+        constraint: {
+          ...question.validation.constraint,
+          ast: normalizeAstNode(question.validation.constraint.ast) as typeof question.validation.constraint.ast,
+        },
+      };
+    }
+  }
+}
+
 function assertIdentity(identity: DefinitionIdentity): void {
   if (
     !identity ||
@@ -141,6 +189,7 @@ export async function verifyAndCompileDefinition(input: {
   let definition: InstrumentDefinition;
   try {
     definition = parsed as unknown as InstrumentDefinition;
+    normalizeDefinitionAsts(definition);
     compileInstrumentDefinition(definition);
   } catch {
     throw new FormDefinitionError("invalid_definition");

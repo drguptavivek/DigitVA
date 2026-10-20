@@ -32,7 +32,6 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
 )
-from app.services import mentor_institute_service
 from app.services.authz import action_reach, resolve_grants, role_flags
 from app.services.authz.actions import ADMIN_BYPASS
 from app.services.authz.consulted import mark_consulted
@@ -49,6 +48,7 @@ _CODING_ROLES = frozenset(
 def build_access_summary(user, *, native: bool | None = None) -> dict:
     """The access summary of *user*; see docs/current-state/api-v1.md."""
     # Imported here: these import this package or route modules at load.
+    from app.services import mentor_institute_service
     from app.services.device_auth_service import has_device_access
     from app.services.web_intake_service import (
         interviewer_context,
@@ -260,7 +260,7 @@ def _tree(project_id, grants, resolved) -> dict:
     # Imported here so this service does not import a route module at load.
     from app.routes.api.organization import units_payload
 
-    tree = units_payload(project_id, None)
+    tree = units_payload(project_id, None, include_tree_version=False)
     if any(g.role == VaAccessRoles.project_pi for g in grants):
         # Web intake has no project_pi bypass (web_intake_service.reachable_unit_ids):
         # a unit interviewer or death_reporter grant stays its subtree.

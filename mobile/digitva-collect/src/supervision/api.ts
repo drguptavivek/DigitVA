@@ -23,6 +23,8 @@ export interface SupervisedCase {
   unit_name: string | null;
   registered_by_name: string | null;
   started_by_name: string | null;
+  /** When the death was reported (registered). */
+  created_at: string | null;
   updated_at: string | null;
   other_complete_interview: boolean;
 }

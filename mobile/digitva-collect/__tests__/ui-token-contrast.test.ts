@@ -74,6 +74,21 @@ describe.each(modes)("%s token pairs", (mode) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
   });
 
+  // Case cards (src/web/DeathsList.tsx CaseCard) hold their text to AAA: facts and the case ID in
+  // `foreground` on the card, badges in their foreground on their fill.
+  const caseCard: ReadonlyArray<[string, string, string]> = [
+    ["card fact on card", t.foreground, t.card],
+    ["neutral status badge", t.foreground, t.muted],
+    ["accent status badge", t.accentForeground, t.accent],
+    ["warning status badge", t.warningForeground, t.warning],
+    ["card notice on muted banner", t.foreground, t.muted],
+    ["card notice on danger banner", t.foreground, t.destructiveSoft],
+    ["card notice on accent banner", t.foreground, t.accent],
+  ];
+  it.each(caseCard)("%s keeps 7:1", (_name, fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(7);
+  });
+
   const edges: ReadonlyArray<[string, string, string]> = [
     ["control edge on input fill", t.input, t.background],
     ["control edge on card", t.input, t.card],

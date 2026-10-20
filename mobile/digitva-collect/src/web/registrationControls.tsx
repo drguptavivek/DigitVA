@@ -7,11 +7,13 @@ import {
   type QuestionControl,
   type ValidationIssue
 } from "@drguptavivek/who-2022-va";
-import { Platform, Text, TextInput, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 
 import type { RegistrationInput } from "../client/api";
 import { localToday } from "../cases";
 import { t, uiLocale } from "../i18n";
+import { MultilineInput } from "../MultilineInput";
+import { PhoneField } from "../PhoneInput";
 import { useUiStyles } from "../ui";
 import { useTheme } from "../theme";
 import { DateControl } from "../workspace/doris/DateControl.web";
@@ -101,7 +103,7 @@ export function RegistrationFieldControl({
     label,
     locale,
     kind === "date" ? "date" : kind === "integer" ? "integer" : "text",
-    kind === "multiline" ? "multiline" : dateAppearance === "exact" ? undefined : dateAppearance
+    dateAppearance === "exact" ? undefined : dateAppearance
   );
   const issues: ValidationIssue[] = issueMessage
     ? [{ question: field, code: "constraint", message: issueMessage }]
@@ -190,16 +192,21 @@ export function RegistrationFieldControl({
   if (kind === "phone") {
     return (
       <View style={themed}>
-      <TextInput
-        accessibilityLabel={label}
-        autoCorrect={false}
-        inputMode="tel"
-        keyboardType="phone-pad"
-        style={styles.input}
-        value={value}
-        onChangeText={onChange}
-      />
-      {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
+        <PhoneField
+          label={label}
+          value={value}
+          error={issueMessage}
+          onChange={onChange}
+          onValidity={(valid) => onIssue?.(valid ? undefined : t("errPhone"))}
+        />
+      </View>
+    );
+  }
+  if (kind === "multiline") {
+    return (
+      <View>
+        <MultilineInput label={label} value={value} onChange={(next) => { onChange(next); onIssue?.(); }} />
+        {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
       </View>
     );
   }

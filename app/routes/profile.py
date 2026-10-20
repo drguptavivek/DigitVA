@@ -1,6 +1,6 @@
 """User profile and account management routes — /profile/"""
 
-from flask import Blueprint, flash, redirect, render_template, url_for
+from flask import Blueprint, flash, redirect, render_template
 from flask_login import current_user, login_required
 
 from app import db, limiter
@@ -22,7 +22,7 @@ def view():
 @limiter.limit("5 per minute", methods=["POST"])
 def force_password_change():
     if current_user.pw_reset_t_and_c:
-        return redirect(url_for("coding.dashboard"))
+        return redirect(current_user.landing_url())
     form = VaForcePasswordChangeForm()
     if form.validate_on_submit():
         from app.services.user_account_service import accept_terms
@@ -30,5 +30,5 @@ def force_password_change():
         accept_terms(current_user._get_current_object(), via="web")
         db.session.commit()
         flash("Terms accepted successfully.", "success")
-        return redirect(url_for("coding.dashboard"))
+        return redirect(current_user.landing_url())
     return render_template("va_form_partials/va_forcepwreset.html", form=form)

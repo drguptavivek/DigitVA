@@ -294,6 +294,17 @@ def _coder_final_json(row) -> dict | None:
     }
 
 
+def _doris_summary_json(doris_result) -> dict:
+    """Codes only from a saved ``doris_result``: ``{doris_status, doris_code}``, each ``None`` when absent."""
+    doris = doris_result if isinstance(doris_result, dict) else {}
+    output = doris.get("result") if isinstance(doris.get("result"), dict) else {}
+    status, code = doris.get("status"), output.get("code")
+    return {
+        "doris_status": status if isinstance(status, str) else None,
+        "doris_code": code if isinstance(code, str) else None,
+    }
+
+
 def _reviewer_initial_json(row) -> dict | None:
     if row is None:
         return None
@@ -494,6 +505,9 @@ def workspace(va_sid):
         # The reviewer sees the coder's Step 1, final and not-codeable review
         # as read-only reference; the reviewer rows are their own.
         assessments["final"] = _coder_final_json(coder_final)
+        if assessments["final"] is not None and case.project_mode == "unmasked_doris":
+            # As the legacy reviewer panel: the coder's DORIS status and computed code, no reports.
+            assessments["final"].update(_doris_summary_json(coder_final.doris_result))
         assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
         assessments["coder_initial"] = _initial_json(artifacts.va_initial_assess)
         assessments["reviewer_initial"] = _reviewer_initial_json(artifacts.va_reviewer_initial_assess)

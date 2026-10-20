@@ -1,27 +1,48 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { getCases, getDrafts, getIntakeContext, type CaseRow, type DraftSummary, type IntakeBootstrap } from "../client/api";
+import { getDrafts, getIntakeContext, type DraftSummary, type IntakeBootstrap } from "../client/api";
 import { getSubmittedRevisions, type SubmittedRevisionSummary } from "../client/revisions";
 import { useAppState } from "../AppState";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
-import { t, type StringKey } from "../i18n";
-import { Button, stateLabel, useUiStyles } from "../ui";
+import { t } from "../i18n";
+import { controls, spacing, typography, useTheme } from "../theme";
+import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
-import { rememberCasePreviews } from "./newCasePreview";
+import { ContextualHelpBanner } from "./ContextualHelp";
+import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, type AdvancedFilters } from "./caseFilters";
+import { CaseCard, DeathsList, formatDisplayTimestamp, useCaseCardStyles, useDeathCases } from "./DeathsList";
+import { DirectInterviewPanel, directInterviewTargets, RefreshIconButton } from "./DirectInterviewPanel";
 
-function sexLabel(value: string | null | undefined): string {
-  if (!value) return "";
-  const normalized = value.toLowerCase();
-  const key = `sex${normalized[0]?.toUpperCase() ?? ""}${normalized.slice(1)}` as StringKey;
-  const label = t(key);
-  return label === key ? value : label;
+type InterviewStatusFilter = "all" | "in_progress" | "submitted";
+type CollectionTab = "interviews" | "deaths";
+
+function validTab(value: unknown): CollectionTab | undefined {
+  return value === "interviews" || value === "deaths" ? value : undefined;
 }
 
-const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "closed", "duplicate", "not_codeable"]);
+/** One "My interviews" row: an open draft (resume) or a submitted interview (revise). */
+type InterviewRow = (DraftSummary & { kind: "draft" }) | (SubmittedRevisionSummary & { kind: "submitted" });
+
+function useCollectionStyles() {
+  const { colors } = useTheme();
+  return useMemo(() => StyleSheet.create({
+    toolbarCard: { gap: spacing.sm },
+    toolbarActions: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
+    toolbarRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
+    tabBar: { flexDirection: "row", borderBottomWidth: 1, borderColor: colors.border },
+    tab: {
+      flex: 1, minHeight: 44, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xs,
+      borderBottomWidth: 2, borderColor: "transparent",
+    },
+    tabOn: { borderColor: colors.accent },
+    tabText: { ...typography.subhead, fontWeight: "600", color: colors.textMuted, fontFamily: controls.fontFamily, textAlign: "center" },
+    tabTextOn: { color: colors.text },
+  }), [colors]);
+}
 
 /** Browser-only refresh signal; native test and state interfaces omit it. */
 type BrowserNotificationRefresh = {
@@ -44,22 +65,31 @@ export default function CollectionScreen() {
     canCodeNow?: string;
     readyUniqueId?: string;
     readyVaSid?: string;
+    saved?: string;
+    tab?: string;
   }>();
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
   const styles = useUiStyles();
+  const c = useCollectionStyles();
+  const card = useCaseCardStyles();
   const workspaceApi = useMemo(
     () => bootstrap ? createWorkspaceApi(createWebWorkspaceTransport(bootstrap.csrf)) : undefined,
     [bootstrap?.csrf, bootstrap?.user.user_id],
   );
   const canCode = bootstrap?.access.roles.some((role) => role === "coder" || role === "coding_tester") === true;
+  const deaths = useDeathCases(bootstrap);
   const [intake, setIntake] = useState<IntakeBootstrap>();
-  const [cases, setCases] = useState<CaseRow[]>([]);
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
   const [submitted, setSubmitted] = useState<SubmittedRevisionSummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [unitFilter, setUnitFilter] = useState<string | undefined>(undefined);
+  const [interviewStatus, setInterviewStatus] = useState<InterviewStatusFilter>("all");
+  const [advanced, setAdvanced] = useState<AdvancedFilters>(EMPTY_ADVANCED);
+  const [projectFilter, setProjectFilter] = useState<string | undefined>(undefined);
+  const [tabChoice, setTabChoice] = useState<CollectionTab | undefined>(validTab(params.tab));
   const refreshInFlight = useRef<{ generation: number; promise: Promise<AuthoritativeRefreshResult> } | undefined>(undefined);
   const notificationRevisionRef = useRef(notificationGeneration ?? 0);
   const pendingNotificationRevision = useRef<number | undefined>(undefined);
@@ -92,6 +122,7 @@ export default function CollectionScreen() {
     return getIntakeContext(bootstrap.csrf);
   }, [bootstrap]);
 
+  const refreshDeaths = deaths.refresh;
   const refresh = useCallback(async () => {
     const revision = notificationRevisionRef.current;
     if (!bootstrap || bootstrapRef.current !== bootstrap) return { success: false, revision };
@@ -105,19 +136,17 @@ export default function CollectionScreen() {
       setMessage("");
       try {
         const nextIntake = await loadIntake();
-        const [caseResult, draftResult, submittedResult] = await Promise.all([
-          getCases(bootstrap.links.intakeCases, bootstrap.csrf),
+        // The deaths list keeps its own page and error; the refresh is authoritative only when it loaded too.
+        const [deathsLoaded, draftResult, submittedResult] = await Promise.all([
+          refreshDeaths(),
           getDrafts(bootstrap.links.intakeDrafts, bootstrap.csrf),
           getSubmittedRevisions(bootstrap.csrf)
         ]);
         if (!isCurrent()) return { success: false, revision };
         setIntake(nextIntake);
-        setCases(caseResult.cases ?? []);
-        rememberCasePreviews(bootstrap, caseResult.cases ?? []);
-        setNextCursor(caseResult.next_cursor ?? null);
         setDrafts(draftResult.drafts ?? []);
         setSubmitted(submittedResult);
-        return { success: true, revision };
+        return { success: deathsLoaded, revision };
       } catch (error) {
         if (isCurrent()) setMessage(browserErrorText(error));
         return { success: false, revision };
@@ -128,7 +157,7 @@ export default function CollectionScreen() {
     })();
     refreshInFlight.current = { generation, promise: task };
     return task;
-  }, [bootstrap, loadIntake]);
+  }, [bootstrap, loadIntake, refreshDeaths]);
 
   const requestNotificationRefresh = useCallback((revision: number) => {
     if (!mounted.current) return Promise.resolve();
@@ -174,34 +203,22 @@ export default function CollectionScreen() {
   }, [acknowledgeAuthoritativeRefresh, refresh]);
   requestNotificationRefreshRef.current = requestNotificationRefresh;
 
-  const loadMore = useCallback(async () => {
-    if (!bootstrap || !nextCursor) return;
-    const generation = generationRef.current;
-    const requestBootstrap = bootstrap;
-    setBusy(true);
-    try {
-      const result = await getCases(bootstrap.links.intakeCases, bootstrap.csrf, nextCursor);
-      if (generationRef.current !== generation || bootstrapRef.current !== requestBootstrap) return;
-      setCases((previous) => [...previous, ...(result.cases ?? [])]);
-      rememberCasePreviews(requestBootstrap, result.cases ?? []);
-      setNextCursor(result.next_cursor ?? null);
-    } catch (error) {
-      if (generationRef.current === generation && bootstrapRef.current === requestBootstrap) {
-        setMessage(browserErrorText(error));
-      }
-    } finally {
-      if (generationRef.current === generation && bootstrapRef.current === requestBootstrap) setBusy(false);
-    }
-  }, [bootstrap, nextCursor]);
+  useEffect(() => {
+    const fromUrl = validTab(params.tab);
+    if (fromUrl) setTabChoice(fromUrl);
+  }, [params.tab]);
 
   useEffect(() => {
     setIntake(undefined);
-    setCases([]);
     setDrafts([]);
     setSubmitted([]);
-    setNextCursor(null);
     setMessage("");
     setBusy(false);
+    setSearchQuery("");
+    setUnitFilter(undefined);
+    setInterviewStatus("all");
+    setAdvanced(EMPTY_ADVANCED);
+    setProjectFilter(undefined);
   }, [bootstrap]);
 
   useEffect(() => {
@@ -221,8 +238,70 @@ export default function CollectionScreen() {
     void requestNotificationRefresh(notificationGeneration);
   }, [notificationGeneration, requestNotificationRefresh]);
 
+  const interviewRows = useMemo<InterviewRow[]>(() => [
+    ...drafts.map((draft) => ({ ...draft, kind: "draft" as const })),
+    ...submitted.map((draft) => ({ ...draft, kind: "submitted" as const })),
+  ], [drafts, submitted]);
+
+  const interviewUnits = useMemo(
+    () => interviewRows.filter((row) => !projectFilter || row.project_id === projectFilter).map((row) => ({ id: row.org_unit_id, name: row.org_unit_name })),
+    [interviewRows, projectFilter],
+  );
+  const { orgLookup, unitOptions, unitMatches } = useAreaFilter(bootstrap?.access.projects, intake?.context, interviewUnits, projectFilter);
+
+  /** Projects the user interviews in (the intake context); the Project filter shows only with more than one. */
+  const projectOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const entry of intake?.context ?? []) {
+      if (!byId.has(entry.project_id)) byId.set(entry.project_id, entry.project_name ?? entry.project_id);
+    }
+    return Array.from(byId, ([value, label]) => ({ value, label }));
+  }, [intake?.context]);
+  const projectNames = useMemo(() => new Map(projectOptions.map((option) => [option.value, option.label])), [projectOptions]);
+
+  const directTargets = useMemo(() => directInterviewTargets(intake?.context ?? []), [intake?.context]);
+  const [directOpen, setDirectOpen] = useState(false);
+
+  /** Drafts and submitted interviews are whole lists (the caller's own, at most 200 each), so these filters are complete. */
+  const filteredInterviews = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    return interviewRows.filter((row) => {
+      if (interviewStatus === "in_progress" && row.kind !== "draft") return false;
+      if (interviewStatus === "submitted" && row.kind !== "submitted") return false;
+      if (projectFilter && row.project_id !== projectFilter) return false;
+      const unitInfo = row.org_unit_id ? orgLookup.byId.get(row.org_unit_id) : undefined;
+      const rowUnit = (unitInfo?.name ?? row.org_unit_name ?? "").trim();
+      if (!unitMatches(unitFilter, row.org_unit_id, rowUnit)) return false;
+      if (!matchesAdvanced(row, advanced)) return false;
+      if (!normalizedQuery) return true;
+      const haystack = [row.deceased_name, row.unique_id, rowUnit, unitInfo?.breadcrumb, unitInfo?.code, row.site_name, projectNames.get(row.project_id), row.date_of_death]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [advanced, interviewRows, interviewStatus, orgLookup, projectFilter, projectNames, searchQuery, unitFilter, unitMatches]);
+
+  const caseTotal = Object.values(deaths.counts).reduce((sum, n) => sum + n, 0) || deaths.cases.length;
+  const tab: CollectionTab = tabChoice ?? (drafts.length > 0 ? "interviews" : "deaths");
+  const selectTab = (next: CollectionTab) => {
+    setTabChoice(next);
+    router.setParams({ tab: next });
+  };
+  const clearInterviewFilters = () => {
+    setSearchQuery("");
+    setInterviewStatus("all");
+    setUnitFilter(undefined);
+    setAdvanced(EMPTY_ADVANCED);
+    setProjectFilter(undefined);
+  };
+
   return (
     <WebShell title={t("reportedDeaths")}>
+      <ContextualHelpBanner screen="collection" />
+      {params.saved === "1" ? (
+        <Text style={styles.text} accessibilityRole="alert">{t("registrationSaved")}</Text>
+      ) : null}
       {params.superseded === "1" ? (
         <Text style={styles.muted} accessibilityRole="alert">
           {t("supersededInterviewNotice")}
@@ -235,7 +314,7 @@ export default function CollectionScreen() {
           ) : null}
         </View>
       ) : null}
-      {params.canCodeNow === "1" && !cases.some((row) => row.unique_id === params.readyUniqueId) ? (
+      {params.canCodeNow === "1" && !deaths.cases.some((row) => row.unique_id === params.readyUniqueId) ? (
         <View style={styles.card}>
           <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
           {canCode && typeof params.readyVaSid === "string" && params.readyVaSid.trim() && workspaceApi ? (
@@ -252,127 +331,129 @@ export default function CollectionScreen() {
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>
       ) : (
         <>
-          {intake?.context.some((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both") ? (
-            <Button label={t("newDeath")} onPress={() => router.push("/death-registration")} />
-          ) : null}
-          {intake?.context.filter((entry) => entry.web_intake_mode === "direct" || entry.web_intake_mode === "both").map((entry) => {
-            const units = (entry.org_units ?? []).filter((unit) => unit.selectable !== false);
-            if (units.length > 1) {
-              return units.map((unit) => (
-                <Button
-                  key={`direct:${entry.project_id}:${entry.site_id}:${unit.org_unit_id}`}
-                  kind="secondary"
-                  label={`${t("newInterview")} · ${unit.unit_name ?? unit.unit_code ?? unit.org_unit_id}`}
-                  onPress={() => router.push({ pathname: "/interview", params: { projectId: entry.project_id, siteId: entry.site_id, orgUnitId: unit.org_unit_id } })}
-                />
-              ));
-            }
-            return (
-              <Button
-                key={`direct:${entry.project_id}:${entry.site_id}`}
-                kind="secondary"
-                label={t("newInterview")}
-                onPress={() => router.push({ pathname: "/interview", params: { projectId: entry.project_id, siteId: entry.site_id, ...(units[0] ? { orgUnitId: units[0].org_unit_id } : {}) } })}
+          <View style={[styles.card, c.toolbarCard]}>
+            <View style={c.toolbarRow}>
+              <View style={c.toolbarActions}>
+                {intake?.context.some((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both") ? (
+                  <Button label={t("recordDeath")} onPress={() => router.push("/death-registration")} />
+                ) : null}
+                {directTargets.length > 0 ? (
+                  <Button kind="secondary" label={t("directVaInterview")} expanded={directOpen} onPress={() => setDirectOpen((open) => !open)} />
+                ) : null}
+              </View>
+              <RefreshIconButton disabled={busy} onPress={() => {
+                void refresh().then((result) => {
+                  if (result.success) {
+                    acknowledgeAuthoritativeRefresh?.(result.revision);
+                    acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
+                  }
+                });
+              }} />
+            </View>
+            {directOpen && directTargets.length > 0 ? (
+              <DirectInterviewPanel
+                targets={directTargets}
+                onStart={(target) => router.push({ pathname: "/interview", params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
               />
-            );
-          })}
-          <Button kind="secondary" loading={busy} label={t("refresh")} onPress={() => {
-            void refresh().then((result) => {
-              if (result.success) {
-                acknowledgeAuthoritativeRefresh?.(result.revision);
-                acknowledgedNotificationRevision.current = Math.max(acknowledgedNotificationRevision.current, result.revision);
-              }
-            });
-          }} />
+            ) : null}
+          </View>
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
-          <Text style={styles.headline}>{t("draftsTitle")}</Text>
-          {drafts.length === 0 ? <Text style={styles.muted}>{t("noDrafts")}</Text> : null}
-          {drafts.map((draft) => (
-            <View key={draft.draft_id} style={styles.card}>
-              <Text style={styles.text}>{draft.unique_id ?? draft.draft_id}</Text>
-              <Text style={styles.muted}>{draft.current_section ?? t("draftInProgress")}</Text>
-              <Button label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: { draftId: draft.draft_id } })} />
-            </View>
-          ))}
-          <Text style={styles.headline}>{t("submittedInterviewsTitle")}</Text>
-          {submitted.length === 0 ? <Text style={styles.muted}>{t("noSubmittedInterviews")}</Text> : null}
-          {submitted.map((draft) => (
-            <View key={draft.draft_id} style={styles.card}>
-              <Text style={styles.text}>{draft.unique_id ?? draft.draft_id}</Text>
-              <Text style={styles.muted}>{draft.updated_at ?? draft.site_name ?? draft.site_id}</Text>
-              <Button
-                label={t("reviseInterview")}
-                onPress={() => router.push({ pathname: "/interview", params: {
-                  revisionDraftId: draft.draft_id,
-                  revisionProjectId: draft.project_id,
-                  revisionSiteId: draft.site_id,
-                  revisionVaSid: draft.va_sid,
-                } })}
-              />
-            </View>
-          ))}
-          <Text style={styles.headline}>{t("reportedDeaths")}</Text>
-          {cases.length === 0 ? <Text style={styles.muted}>{t("noReportedDeaths")}</Text> : null}
-          {cases.map((row) => (
-            <View key={row.death_id} style={styles.card}>
-              <Text style={styles.text}>{row.deceased_name ?? row.unique_id}</Text>
-              <Text style={styles.muted}>
-                {row.unique_id} · {stateLabel(row.state ?? row.status ?? "")}
-                {row.age_years == null ? "" : ` · ${row.age_years}`}
-                {row.deceased_sex ? ` · ${sexLabel(row.deceased_sex)}` : ""}
-                {row.unit_name || row.org_unit_name ? ` · ${row.unit_name ?? row.org_unit_name}` : ""}
-                {row.date_of_death ? ` · ${row.date_of_death}` : ""}
-              </Text>
-              {row.other_draft_active === true ? (
-                <Text style={styles.error} accessibilityRole="alert">
-                  {otherDraftNotice(row.other_draft_started_at)}
-                </Text>
-              ) : null}
-              {row.other_complete_interview === true ? (
-                <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
-              ) : null}
-              {row.code_now === true ? (
-                <Text style={styles.muted}>{t("readyForCode")}</Text>
-              ) : null}
-              {canCode && row.code_now === true && typeof row.va_sid === "string" && workspaceApi ? <CodeNowButton
-                api={workspaceApi}
-                vaSid={row.va_sid}
-                onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
-                onAccessLost={() => {
-                  void appState.reload();
-                  router.replace("/workspace");
-                }}
-              /> : null}
-              <Button
-                kind="secondary"
-                label={t("viewDetails")}
-                onPress={() => router.push({ pathname: "/case", params: { deathId: row.death_id } })}
-              />
-              {row.other_complete_interview !== true && row.details_pending !== true ? (
-                <Button
-                  kind="secondary"
-                  label={t("editRegistration")}
-                  onPress={() => router.push({ pathname: "/death-registration", params: { deathId: row.death_id } })}
+          <View style={c.tabBar} accessibilityRole="tablist">
+            {([
+              { key: "interviews" as const, label: `${t("myInterviews")} (${interviewRows.length})` },
+              { key: "deaths" as const, label: `${t("reportedDeaths")} (${caseTotal}${deaths.nextCursor && !Object.keys(deaths.counts).length ? "+" : ""})` },
+            ]).map((entry) => {
+              const on = tab === entry.key;
+              return (
+                <Pressable
+                  key={entry.key}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: on }}
+                  accessibilityLabel={entry.label}
+                  onPress={() => selectTab(entry.key)}
+                  style={[c.tab, on && c.tabOn]}
+                >
+                  <Text style={[c.tabText, on && c.tabTextOn]}>{entry.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {tab === "interviews" ? (
+            <>
+              {interviewRows.length > 0 ? (
+                <CaseFilterBar<InterviewStatusFilter>
+                  search={searchQuery}
+                  onSearch={setSearchQuery}
+                  statusChips={[
+                    { key: "all", label: t("filterAll") },
+                    { key: "in_progress", label: t("filterInProgress") },
+                    { key: "submitted", label: t("filterSubmitted") },
+                  ]}
+                  status={interviewStatus}
+                  allStatus="all"
+                  onStatus={setInterviewStatus}
+                  projects={projectOptions}
+                  project={projectFilter}
+                  onProject={setProjectFilter}
+                  units={unitOptions}
+                  unit={unitFilter}
+                  onUnit={setUnitFilter}
+                  advanced={advanced}
+                  onAdvanced={setAdvanced}
+                  reportedLabel={t("filterDateStarted")}
+                  onClearAll={clearInterviewFilters}
                 />
+              ) : (
+                <Text style={styles.muted}>{t("noInterviewsYet")}</Text>
+              )}
+              {interviewRows.length > 0 && filteredInterviews.length === 0 ? (
+                <Text style={styles.muted}>{t("noMatchingCases")}</Text>
               ) : null}
-              {row.my_draft_id && !TERMINAL_CASE_STATES.has(row.state ?? row.status ?? "") ? (
-                <Button label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: { draftId: row.my_draft_id!, ...(row.project_id ? { projectId: row.project_id } : {}), ...(row.site_id ? { siteId: row.site_id } : {}), ...(row.org_unit_id ? { orgUnitId: row.org_unit_id } : {}) } })} />
-              ) : null}
-            </View>
-          ))}
-          {nextCursor ? <Button kind="secondary" loading={busy} label={t("loadMore")} onPress={() => void loadMore()} /> : null}
+              {filteredInterviews.map((row) => {
+                const unitInfo = row.org_unit_id ? orgLookup.byId.get(row.org_unit_id) : undefined;
+                const rawPlace = unitInfo?.name ?? row.org_unit_name ?? row.site_name;
+                const place = rawPlace && !isInternalPlaceholderUnit(rawPlace) ? rawPlace : undefined;
+                const project = projectNames.get(row.project_id);
+                const extra = [
+                  ...(row.kind === "draft" && typeof row.sections_saved === "number" ? [{ key: "sections", text: t("sectionsSaved", { count: row.sections_saved }) }] : []),
+                  ...(row.updated_at ? [{ key: "updated", text: t("metaUpdated", { value: formatDisplayTimestamp(row.updated_at) }) }] : []),
+                  ...(project && projectOptions.length > 1 ? [{ key: "project", text: t("metaProject", { value: project }) }] : []),
+                ];
+                return (
+                  <CaseCard
+                    key={`${row.kind}:${row.draft_id}`}
+                    testID={`interview-card-${row.kind}-${row.draft_id}`}
+                    title={row.deceased_name || row.unique_id || row.draft_id}
+                    caseId={row.deceased_name ? row.unique_id : undefined}
+                    ageYears={row.age_years}
+                    sex={row.deceased_sex}
+                    dateOfDeath={row.date_of_death}
+                    area={place}
+                    extra={extra}
+                    badges={[row.kind === "draft" ? { label: t("draftInProgress"), tone: "accent" } : { label: t("filterSubmitted") }]}
+                    actions={row.kind === "draft" ? (
+                      <Button size="sm" style={card.actionButton} label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: { draftId: row.draft_id } })} />
+                    ) : (
+                      <Button
+                        size="sm"
+                        style={card.actionButton}
+                        label={t("reviseInterview")}
+                        onPress={() => router.push({ pathname: "/interview", params: {
+                          revisionDraftId: row.draft_id,
+                          revisionProjectId: row.project_id,
+                          revisionSiteId: row.site_id,
+                          revisionVaSid: row.va_sid,
+                        } })}
+                      />
+                    )}
+                  />
+                );
+              })}
+            </>
+          ) : null}
+          {tab === "deaths" ? <DeathsList list={deaths} /> : null}
         </>
       )}
     </WebShell>
   );
-}
-
-function otherDraftNotice(startedAt: string | null | undefined): string {
-  if (typeof startedAt === "string") {
-    const date = new Date(startedAt);
-    if (!Number.isNaN(date.getTime())) {
-      return t("otherDraftActiveAt", { date: date.toLocaleString() });
-    }
-  }
-  return t("otherDraftActive");
 }

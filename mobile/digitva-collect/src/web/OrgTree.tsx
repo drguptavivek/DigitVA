@@ -2,9 +2,25 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type ViewProps } from "react-native";
 
 import { t } from "../i18n";
-import type { BelowUnit, OrgPerson, OrgProject, UnitPeople } from "../organization/api";
+import type { BelowUnit, OrgPerson, OrgProject, UnitPeople, UnitRole } from "../organization/api";
 import { radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
+import { Chevron, FoldButton } from "./Chevron";
+import { roleLabelKey } from "./roleHome";
+
+/** Role values as plain labels, joined: "Coder, Reviewer". */
+export function roleNames(roles: string[]): string {
+  return roles.map((role) => t(roleLabelKey(role))).join(", ");
+}
+
+/** A unit grant's roles with their cadre: "Coder (Medical Officer), Reviewer". */
+function unitRoleNames(roles: UnitRole[]): string {
+  return roles.map(({ role, cadre }) => (cadre ? t("orgRoleCadre", { role: t(roleLabelKey(role)), cadre }) : t(roleLabelKey(role)))).join(", ");
+}
+
+/** A role reaching a node from above: from a unit grant (`unit`) or a project grant (`unit` null). */
+type Via = { roles: string; unit: string | null };
+const viaText = ({ roles, unit }: Via) => (unit ? t("orgViaUnit", { roles, unit }) : t("orgViaProject", { roles }));
 
 /** A Below unit opened in place: its people and child units, or why they did not load. */
 export type OpenedUnit = { loading: boolean; error: string; detail?: UnitPeople };
@@ -35,11 +51,13 @@ const layout = StyleSheet.create({
   // One vertical segment per child: it runs to the next sibling, and on the last child stops at its own stub (an elbow), so no line trails below.
   rail: { position: "absolute", left: -GUTTER - LINE, top: -spacing.xxs, borderLeftWidth: LINE },
   stub: { position: "absolute", left: -GUTTER - LINE, top: STUB_TOP, width: GUTTER + LINE, borderTopWidth: LINE },
-  branch: { alignSelf: "flex-start", minHeight: 24, justifyContent: "center", paddingHorizontal: spacing.xs },
-  branchText: { fontSize: 12 },
+  // 32px tall plus 6px hitSlop above and below = a 44px touch target without growing the card.
+  branch: { alignSelf: "flex-start", minHeight: 32, flexDirection: "row", alignItems: "center", gap: spacing.xxs, paddingHorizontal: spacing.xs },
+  branchText: { fontSize: 14 },
   top: { flexDirection: "row", alignItems: "flex-start", gap: spacing.xs },
   toggle: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 32 },
-  chevron: { width: 16, minHeight: 32, alignItems: "center", justifyContent: "center" },
+  // 44x44 target; the negative margin keeps the 32px row (node padding is 6) from growing.
+  chevron: { width: 44, height: 44, marginVertical: -6, alignItems: "center", justifyContent: "center", borderRadius: radius.md },
   count: { minWidth: 24, alignItems: "center", borderWidth: 1, borderRadius: 9999, paddingHorizontal: spacing.xs, paddingVertical: 2 },
   countText: { fontSize: 12 },
   // "fixed" is web-only: the flyout covers the viewport, not the card it is rendered inside.
@@ -156,6 +174,10 @@ type NodeProps = {
   title: string;
   unitName: string;
   mine?: boolean;
+  /** The user's own roles here (unit grants), already labelled. */
+  myRoles?: string;
+  /** Roles reaching this node from a unit above or the project; none and no own roles mutes the node. */
+  via?: Via[];
   count: number;
   onShowPeople: ShowPeople;
   /** Present on lazily opened nodes. */
@@ -165,7 +187,7 @@ type NodeProps = {
   children?: ReactNode[];
 };
 
-function Node({ id, title, unitName, mine, level, count, onShowPeople, toggle, children = [] }: NodeProps) {
+function Node({ id, title, unitName, mine, myRoles, via = [], level, count, onShowPeople, toggle, children = [] }: NodeProps) {
   const styles = useUiStyles();
   const { ui } = useTheme();
   const tints = useContext(LevelTints);
@@ -178,13 +200,15 @@ function Node({ id, title, unitName, mine, level, count, onShowPeople, toggle, c
   const foldable = Boolean(toggle) && toggle?.arrow !== false;
   const expanded = toggle?.expanded;
   const label = toggle ? (toggle.expanded ? t("orgCloseUnit", { unit: toggle.unit }) : t("orgOpenUnit", { unit: toggle.unit })) : title;
+  // No role here, own or inherited: the node is context only, so it reads muted.
+  const roleless = !mine && !via.length;
   const headerContent = (
     <>
       <View style={[layout.header, layout.wrap, { flex: 1 }]}>
-        <Text style={[styles.text, layout.unitName, layout.wrap, family && { color: family.foreground }]}>{title}</Text>
+        <Text style={[styles.text, layout.unitName, layout.wrap, roleless ? { color: ui.mutedForeground } : family && { color: family.foreground }]}>{title}</Text>
         {mine ? (
-          <View style={[layout.badge, { backgroundColor: ui.primary }]} accessibilityLabel={t("orgYouAreHere")}>
-            <Text style={[layout.badgeText, { color: ui.primaryForeground }]}>{t("orgYou")}</Text>
+          <View style={[layout.badge, layout.wrap, { backgroundColor: ui.primary }]} accessibilityLabel={t("orgYouAreHere")}>
+            <Text style={[layout.badgeText, { color: ui.primaryForeground }]}>{myRoles ? t("orgYouRoles", { roles: myRoles }) : t("orgYou")}</Text>
           </View>
         ) : null}
       </View>
@@ -225,23 +249,25 @@ function Node({ id, title, unitName, mine, level, count, onShowPeople, toggle, c
             <Text style={[layout.countText, { color: ui.mutedForeground }]}>{count}</Text>
           </Pressable>
           {foldable ? (
-            <Pressable hitSlop={12} onPress={toggle?.onPress} style={layout.chevron} aria-hidden>
-              <Text style={{ color: ui.mutedForeground, fontSize: 12, textAlign: "center" }}>{expanded ? "▾" : "▸"}</Text>
-            </Pressable>
+            <FoldButton label={label} expanded={Boolean(expanded)} onPress={toggle?.onPress} style={layout.chevron}>
+              <Chevron expanded={Boolean(expanded)} />
+            </FoldButton>
           ) : null}
         </View>
+        {via.map((entry, index) => (
+          <Text key={index} style={[layout.roles, { color: ui.mutedForeground }]}>{viaText(entry)}</Text>
+        ))}
         {kids.length ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={branchOpen ? t("orgFoldBranch", { unit: title }) : t("orgUnfoldBranch", { unit: title })}
-            accessibilityState={{ expanded: branchOpen }}
+          <FoldButton
+            label={branchOpen ? t("orgFoldBranch", { unit: title }) : t("orgUnfoldBranch", { unit: title })}
+            expanded={branchOpen}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             onPress={() => setBranchOpen((open) => !open)}
             style={layout.branch}
           >
-            <Text style={[layout.branchText, { color: ui.mutedForeground }]} aria-hidden>
-              {branchOpen ? "⌃" : "⌄"} {t("orgBranchUnits", { count: kids.length })}
-            </Text>
-          </Pressable>
+            <Chevron expanded={branchOpen} />
+            <Text style={[layout.branchText, { color: ui.foreground }]} aria-hidden>{t("orgBranchUnits", { count: kids.length })}</Text>
+          </FoldButton>
         ) : null}
         {toggle?.error ? <Text style={styles.error} accessibilityRole="alert">{toggle.error}</Text> : null}
       </View>
@@ -252,7 +278,7 @@ function Node({ id, title, unitName, mine, level, count, onShowPeople, toggle, c
 
 type Toggle = (orgUnitId: string) => void;
 
-function BelowNode({ unit, opened, onToggle, onShow }: { unit: BelowUnit; opened: Record<string, OpenedUnit>; onToggle: Toggle; onShow: (target: FlyoutTarget) => void }) {
+function BelowNode({ unit, via, opened, onToggle, onShow }: { unit: BelowUnit; via: Via[]; opened: Record<string, OpenedUnit>; onToggle: Toggle; onShow: (target: FlyoutTarget) => void }) {
   const state = opened[unit.org_unit_id];
   // A unit whose load failed is not open: its button offers a retry.
   const expanded = Boolean(state && !state.error);
@@ -263,6 +289,7 @@ function BelowNode({ unit, opened, onToggle, onShow }: { unit: BelowUnit; opened
       title={title}
       unitName={unit.unit_name}
       level={unit.level_name}
+      via={via}
       count={unit.people_count}
       // Load the names on first look (or retry a failure); never toggle an already open or loading unit shut.
       onShowPeople={() => {
@@ -272,7 +299,7 @@ function BelowNode({ unit, opened, onToggle, onShow }: { unit: BelowUnit; opened
       toggle={{ arrow: unit.has_children, unit: unit.unit_name, expanded, loading: state?.loading, error: state?.error, onPress: () => onToggle(unit.org_unit_id) }}
     >
       {(state?.detail?.children ?? []).map((child) => (
-        <BelowNode key={child.org_unit_id} unit={child} opened={opened} onToggle={onToggle} onShow={onShow} />
+        <BelowNode key={child.org_unit_id} unit={child} via={via} opened={opened} onToggle={onToggle} onShow={onShow} />
       ))}
     </Node>
   );
@@ -331,19 +358,20 @@ function OrgNodes({ project, opened, onToggle, onShow }: NodesProps) {
   };
   // A non-own unit at my level shares the user's level; own units carry their own.
   const levelOf = (id: string) => mine.get(id)?.level_name ?? project.my_units[0]?.level_name;
+  const ownRoles = (id: string) => mine.get(id)?.roles ?? [];
   const entries = [
-    ...project.above.map((unit) => ({ unit, render: (kids: ReactNode[]) => (
-      <Node key={unit.org_unit_id} id={unit.org_unit_id} title={t("orgUnitLine", { unit: unit.unit_name, level: unit.level_name })} unitName={unit.unit_name} level={unit.level_name} count={unit.people.length} onShowPeople={() => onShow({ id: unit.org_unit_id, title: t("orgUnitLine", { unit: unit.unit_name, level: unit.level_name }), people: unit.people })}>
+    ...project.above.map((unit) => ({ unit, render: (kids: ReactNode[], via: Via[]) => (
+      <Node key={unit.org_unit_id} id={unit.org_unit_id} title={t("orgUnitLine", { unit: unit.unit_name, level: unit.level_name })} unitName={unit.unit_name} level={unit.level_name} via={via} count={unit.people.length} onShowPeople={() => onShow({ id: unit.org_unit_id, title: t("orgUnitLine", { unit: unit.unit_name, level: unit.level_name }), people: unit.people })}>
         {kids}
       </Node>
     ) })),
-    ...project.my_level.map((unit) => ({ unit, render: (kids: ReactNode[]) => (
-      <Node key={unit.org_unit_id} id={unit.org_unit_id} title={ownTitle(unit)} unitName={unit.unit_name} level={levelOf(unit.org_unit_id)} mine={mine.has(unit.org_unit_id)} count={unit.people.length} onShowPeople={() => onShow({ id: unit.org_unit_id, title: ownTitle(unit), people: unit.people })}>
+    ...project.my_level.map((unit) => ({ unit, render: (kids: ReactNode[], via: Via[]) => (
+      <Node key={unit.org_unit_id} id={unit.org_unit_id} title={ownTitle(unit)} unitName={unit.unit_name} level={levelOf(unit.org_unit_id)} mine={mine.has(unit.org_unit_id)} myRoles={unitRoleNames(ownRoles(unit.org_unit_id))} via={via} count={unit.people.length} onShowPeople={() => onShow({ id: unit.org_unit_id, title: ownTitle(unit), people: unit.people })}>
         {kids}
       </Node>
     ) })),
     // A below unit's parent is an own unit (or none), so it never has in-reply children: BelowNode opens its own lazily.
-    ...project.below.map((unit) => ({ unit, render: () => <BelowNode key={unit.org_unit_id} unit={unit} opened={opened} onToggle={onToggle} onShow={onShow} /> })),
+    ...project.below.map((unit) => ({ unit, render: (_kids: ReactNode[], via: Via[]) => <BelowNode key={unit.org_unit_id} unit={unit} via={via} opened={opened} onToggle={onToggle} onShow={onShow} /> })),
   ];
   const hasParents = entries.every(({ unit }) => unit.parent_org_unit_id !== undefined);
   if (!hasParents) return <FlatTree project={project} opened={opened} onToggle={onToggle} onShow={onShow} />;
@@ -359,16 +387,22 @@ function OrgNodes({ project, opened, onToggle, onShow }: NodesProps) {
       roots.push(entry);
     }
   }
-  const build = (entry: (typeof entries)[number]): ReactNode =>
-    entry.render((kidsOf.get(entry.unit.org_unit_id) ?? []).map(build));
-  return <View role="tree" style={{ gap: spacing.xs }}>{roots.map(build)}</View>;
+  // A unit grant covers its subtree: each node passes its own roles down as "via <unit>", on top of what reached it.
+  const build = (entry: (typeof entries)[number], via: Via[]): ReactNode => {
+    const own = ownRoles(entry.unit.org_unit_id);
+    const below = own.length ? [...via, { roles: roleNames(own.map((r) => r.role)), unit: entry.unit.unit_name }] : via;
+    return entry.render((kidsOf.get(entry.unit.org_unit_id) ?? []).map((kid) => build(kid, below)), via);
+  };
+  const projectRoles = project.my_positions?.project_roles ?? [];
+  const rootVia: Via[] = projectRoles.length ? [{ roles: roleNames(projectRoles), unit: null }] : [];
+  return <View role="tree" style={{ gap: spacing.xs }}>{roots.map((root) => build(root, rootVia))}</View>;
 }
 
 /** Older-server layout, without parent ids: below units hang under the user's first own unit (or first level unit). */
 function FlatTree({ project, opened, onToggle, onShow }: NodesProps) {
   const mine = new Map(project.my_units.map((unit) => [unit.org_unit_id, unit]));
   const hostId = (project.my_level.find((unit) => mine.has(unit.org_unit_id)) ?? project.my_level[0])?.org_unit_id;
-  const below = project.below.map((unit) => <BelowNode key={unit.org_unit_id} unit={unit} opened={opened} onToggle={onToggle} onShow={onShow} />);
+  const below = project.below.map((unit) => <BelowNode key={unit.org_unit_id} unit={unit} via={[]} opened={opened} onToggle={onToggle} onShow={onShow} />);
 
   const levelNodes = project.my_level.map((unit) => {
     const own = mine.get(unit.org_unit_id);

@@ -350,7 +350,7 @@ While `pw_reset_t_and_c` is false, every endpoint except `static`,
 The page posts `accept_terms` (required checkbox) and `csrf_token`; success
 records the acceptance (`accept_terms`: `pw_reset_t_and_c = True` and a
 `terms_accepted` event, `via: web`), flashes "Terms accepted successfully."
-and redirects to `/coding/` (`coding.dashboard`), not to `next`. POST is
+and redirects to `current_user.landing_url()`, not to `next`. POST is
 limited to 5 per minute. The JSON equivalents are `POST /api/v1/profile/terms`
 (browser session, section 8.3) and `POST /api/v1/me/terms` (either
 credential, section 6.5); they record acceptance the same way (`via: api`,
@@ -762,7 +762,7 @@ the server's gate refuses. Every workflow API still checks scope.
 | GET/POST `/vaauth/reset-password/<token>` | form: `csrf_token` | GET page; POST 302 login; invalid: 200 page `token_valid=False`; CSRF fail: 400 | POST 5/min per IP | n/a | `password_generated` (`password_reset`) |
 | GET/POST `/vaauth/verify-email/<token>` | form: `csrf_token` | GET page; POST 302 login with flash | POST 5/min per IP | n/a | `email_verified`, `password_generated` (`email_verification`) when a first password is sent |
 | GET/POST `/vaauth/resend-verification` | form: `email` | 302 back with flash | POST 3/hour per IP | one message for every email; mobile gets the code advice | `verification_email_sent` when a link is queued |
-| GET/POST `/profile/force-password-change` | signed in; form: `accept_terms`, `csrf_token` | 302 `/coding/` | POST 5/min | n/a | `terms_accepted` (`web`) |
+| GET/POST `/profile/force-password-change` | signed in; form: `accept_terms`, `csrf_token` | 302 `landing_url()` | POST 5/min | n/a | `terms_accepted` (`web`) |
 
 ### 8.3 Profile JSON (`/api/v1/profile`, signed in, cookie session)
 

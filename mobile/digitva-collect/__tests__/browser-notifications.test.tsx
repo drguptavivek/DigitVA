@@ -2,7 +2,11 @@ import React from "react";
 import { act, create } from "react-test-renderer";
 
 jest.mock("../src/client/session", () => ({ loadBrowserSession: jest.fn() }));
-jest.mock("../src/preferences", () => ({ getUiLocalePreference: async () => "en", setUiLocalePreference: async () => undefined }));
+jest.mock("../src/preferences", () => ({
+  ...jest.requireActual("../src/preferences"),
+  getUiLocalePreference: async () => "en",
+  setUiLocalePreference: async () => undefined,
+}));
 jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value, t: (key: string) => key }));
 jest.mock("../src/client/api", () => ({
   ...jest.requireActual("../src/client/api"),

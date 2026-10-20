@@ -61,8 +61,19 @@ const DATA_TYPES_BY_CONTROL: Readonly<Record<QuestionControl, readonly AnswerDat
   ]
 };
 
+function canonicalizeJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeJsonValue);
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => [k, canonicalizeJsonValue(v)]);
+    return Object.fromEntries(entries);
+  }
+  return value;
+}
+
 function sameExpressionNode(left: ExpressionNode, right: ExpressionNode): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return JSON.stringify(canonicalizeJsonValue(left)) === JSON.stringify(canonicalizeJsonValue(right));
 }
 
 function compileExpression(expression: SourceExpression, owner: string): ExpressionNode {

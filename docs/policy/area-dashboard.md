@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-20
 ---
 
 # Area Dashboard Policy
@@ -184,7 +184,9 @@ viewing scope):
 - **Interviews done**: total VA submissions in scope, as `/area/` shows them.
 - **Coded**: submissions with a final COD.
 - **Interviews %** and **Coded %**: each as a percentage of deaths reported,
-  integers rounded half up. Null when deaths reported is 0.
+  integers rounded half up. Null when deaths reported is under 20 or smaller
+  than the count (a share of a small or non-covering denominator misleads).
+  Clients print the value as sent and never sum projects into a percentage.
 
 Totals only, no unit or site rows, and no names. Each grant's root units
 (or, in sites mode, the active sites in scope) are summed; the unrouted

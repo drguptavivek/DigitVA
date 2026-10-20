@@ -1,88 +1,228 @@
 <h2>What is DigitVA?</h2>
 
-<p>DigitVA is a web-based platform for <strong>verbal autopsy coding</strong>. It supports the full workflow from intake of verbal autopsy submissions collected via ODK, through cause-of-death (COD) coding using ICD-10, to review, reporting, and site-level quality dashboards.</p>
+<p>
+  <strong>DigitVA</strong> is a modern public health platform designed to help health systems record,
+  understand, and address causes of death in the community through <strong>Verbal Autopsy (VA)</strong>.
+  When someone dies at home or outside a hospital, a trained health worker visits the family to record the
+  illness timeline and symptoms using the World Health Organization (WHO) verbal autopsy questionnaire.
+  Doctors then evaluate the narrative and symptoms to assign an authoritative medical cause of death (ICD-10 or ICD-11).
+</p>
 
-<p>The platform is used by coders, reviewers, site investigators, data managers, project leads, and system administrators. Your role determines which parts of the system you can access.</p>
+<p>
+  DigitVA connects every member of the health system &mdash; from ASHAs and ANMs in villages, to Community Health Officers
+  (CHOs) and Staff Nurses at Ayushman Arogya Mandirs, Medical Officers at Primary Health Centres (PHCs) and Community
+  Health Centres (CHCs), District Programme Managers (DPMs), Chief Medical Officers (CMOs), and Medical College Mentors
+  &mdash; into a single, cohesive workflow.
+</p>
 
-<h2>Core Workflow</h2>
+<h2>The 5-Stage Process Pipeline</h2>
 
-<ol>
-  <li><strong>Sync</strong> &mdash; Verbal autopsy submissions are synced from ODK Central into DigitVA.</li>
-  <li><strong>Preprocessing</strong> &mdash; Attachments are downloaded and SmartVA processing runs automatically.</li>
-  <li><strong>Coding</strong> &mdash; Coders are allocated submissions and work through structured categories to determine a cause of death.</li>
-  <li><strong>Review</strong> &mdash; Reviewers perform secondary coding on a sample of finalized cases.</li>
-  <li><strong>Reporting</strong> &mdash; Site PIs and project leads view dashboards with KPIs, workflow outcome counts, and coder participation data.</li>
-</ol>
+<p>
+  Every death in DigitVA moves through 5 clear, structured stages:
+</p>
 
-<h2>First Steps After Login</h2>
+<div class="row g-3 my-2">
+  <div class="col-md-4">
+    <div class="p-3 border rounded bg-light h-100">
+      <h6 class="text-primary mb-1"><i class="fa-solid fa-book-skull me-1"></i> Stage 1: Death Register</h6>
+      <p class="small text-muted mb-0">
+        Recording a newly reported death in the village, sub-centre, or facility by an ANM, MPW, ASHA, or Interviewer.
+        Captures essential details like name, date of death, age, and informant contact.
+      </p>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="p-3 border rounded bg-light h-100">
+      <h6 class="text-primary mb-1"><i class="fa-solid fa-clipboard-question me-1"></i> Stage 2: Family Interview</h6>
+      <p class="small text-muted mb-0">
+        Visiting the bereaved family and completing the WHO Verbal Autopsy questionnaire on the mobile app or web
+        by a Community Health Officer (CHO), Staff Nurse, or trained Interviewer.
+      </p>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="p-3 border rounded bg-light h-100">
+      <h6 class="text-primary mb-1"><i class="fa-solid fa-code me-1"></i> Stage 3: Medical Coding</h6>
+      <p class="small text-muted mb-0">
+        A Medical Officer (MO) or Medical College Mentor reviews the illness story, clinical records, and symptom answers
+        to assign the authoritative WHO ICD cause of death.
+      </p>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="p-3 border rounded bg-light h-100">
+      <h6 class="text-primary mb-1"><i class="fa-solid fa-magnifying-glass me-1"></i> Stage 4: Independent Review</h6>
+      <p class="small text-muted mb-0">
+        A Senior Medical Officer (SMO) or Medical College Faculty Reviewer independently assesses a quality-assurance
+        sample of cases once the original coder's 24-hour correction window has closed.
+      </p>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="p-3 border rounded bg-light h-100">
+      <h6 class="text-primary mb-1"><i class="fa-solid fa-chart-pie me-1"></i> Stage 5: Summary Reports</h6>
+      <p class="small text-muted mb-0">
+        Facility In-charges, District Programme Managers (DPM), Epidemiologists, and State Project Leads view
+        real-time progress counts, mortality trends, and cause-of-death breakdowns for their area.
+      </p>
+    </div>
+  </div>
+</div>
 
-<p>When you log in, DigitVA automatically redirects you to the landing page for your primary role:</p>
+<h2>Configurable Project Workflows (Plain English)</h2>
 
-<table class="table">
+<p>
+  Different states and research studies run with tailored settings. DigitVA adapts smoothly to your project's rules:
+</p>
+
+<ul>
+  <li>
+    <strong>Mandatory vs. Optional Death Register:</strong> In some projects, every death must first be logged in the
+    Death Register (by an ANM or ASHA) before an interviewer can visit the family. In other projects, an interviewer
+    can start the verbal autopsy questionnaire directly during a household visit.
+  </li>
+  <li>
+    <strong>Self-Coding directly after interview:</strong> When configured by an administrator, a Medical Officer conducting
+    a field interview can choose to code the cause of death immediately upon completing the interview, eliminating delay.
+  </li>
+  <li>
+    <strong>Pick-and-Choose vs. Automatic Random Allocation:</strong> Projects can either allow doctors to pick specific
+    eligible cases from their area queue, or automatically assign the next random case to distribute workload evenly and
+    prevent selection bias.
+  </li>
+  <li>
+    <strong>"Within Area" vs. "All" Scope:</strong> Almost all district and facility staff have a <strong>"Within Area"</strong>
+    scope (e.g. <em>Within Area: Ballabgarh CHC</em> or <em>Within Area: District Rohtak</em>). This means you only see and work on
+    deaths belonging to your assigned health facility and the sub-centres or villages under it. State nodal officers and
+    system administrators have an <strong>"All"</strong> scope covering the entire project.
+  </li>
+</ul>
+
+<h2>What You See After Login</h2>
+
+<p>When you sign in, DigitVA opens your personal workspace based on your assigned role and facility:</p>
+
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle">
   <thead>
     <tr>
-      <th>Your Role</th>
-      <th>Landing Page</th>
-      <th>What You See</th>
+      <th>Your Health System Role</th>
+      <th>Landing Screen</th>
+      <th>What You See &amp; Can Do</th>
     </tr>
   </thead>
   <tbody>
     <tr>
-      <td>Admin</td>
-      <td>Admin Dashboard</td>
-      <td>User management, projects, sites, integrations, sync controls</td>
+      <td><strong>Death Reporter</strong><br><small class="text-muted">(ANM, MPW, ASHA)</small></td>
+      <td>Report a Death / My Registered Deaths</td>
+      <td>
+        Register newly reported deaths in your village or sub-centre; view and update your registered death list until an interviewer completes the family visit.
+        <br><a href="/help/data-collection" class="small">Read Data Collection Guide &rarr;</a>
+      </td>
     </tr>
     <tr>
-      <td>Coder</td>
-      <td>Coder Dashboard</td>
-      <td>Available forms, coding history, start coding button</td>
+      <td><strong>Interviewer</strong><br><small class="text-muted">(CHO, Staff Nurse, Field Worker)</small></td>
+      <td>Collection Worklist (<code>/collection</code>)</td>
+      <td>
+        View assigned deaths in your area; start or resume WHO Verbal Autopsy questionnaires; save in-progress drafts; submit completed family interviews.
+        <br><a href="/help/data-collection" class="small">Read Data Collection Guide &rarr;</a>
+      </td>
     </tr>
     <tr>
-      <td>Reviewer</td>
-      <td>Reviewer Dashboard</td>
-      <td>Eligible cases for secondary coding</td>
+      <td><strong>Interview Supervisor</strong><br><small class="text-muted">(CHC SMO, PHC MO, Field Supervisor)</small></td>
+      <td>Intake Supervision (<code>/supervision</code>)</td>
+      <td>
+        Monitor field visits in your facility area; review flagged interviews, address family refusals, reopen cases for correction, and mark duplicates.
+        <br><a href="/help/user-roles" class="small">Read User Roles Guide &rarr;</a>
+      </td>
     </tr>
     <tr>
-      <td>Data Manager</td>
-      <td>Data Manager Dashboard</td>
-      <td>Submission browse, sync status, triage controls</td>
+      <td><strong>Coder</strong><br><small class="text-muted">(PHC/CHC Medical Officer, Resident Doctor)</small></td>
+      <td>Coding Queue (<code>/coding</code>)</td>
+      <td>
+        Review family narratives and symptom responses; use WHO ICD-10 or ICD-11 coding tools; save Step 1 assessment and confirm final cause of death; recode within 24 hours.
+        <br><a href="/help/coding-workflow" class="small">Read Coding Workflow Guide &rarr;</a>
+      </td>
     </tr>
     <tr>
-      <td>Site PI</td>
-      <td>Site PI Dashboard</td>
-      <td>Site-level KPIs, workflow outcomes, coder participation</td>
+      <td><strong>Reviewer</strong><br><small class="text-muted">(Senior MO, Medical College Faculty)</small></td>
+      <td>Reviewer Queue (<code>/reviewing</code>)</td>
+      <td>
+        Independently evaluate a sample of finalized cases for clinical quality assurance once the coder's 24-hour correction window closes.
+        <br><a href="/help/coding-workflow" class="small">Read Coding Workflow Guide &rarr;</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Mentoring Staff &amp; College Admin</strong><br><small class="text-muted">(Medical College Faculty, Residents, Nodal Officer)</small></td>
+      <td>Mentoring Portal (<code>/app/mentoring</code>)</td>
+      <td>
+        View supported districts and assigned mentoring roles; manage faculty and resident accounts; jump directly into coding or reviewing queues.
+        <br><a href="/help/mentoring-institutes" class="small">Read Mentoring Institutes Guide &rarr;</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Data Manager</strong><br><small class="text-muted">(District/Block Programme Manager - DPM/BPM)</small></td>
+      <td>Data Manager Dashboard (<code>/data-management</code>)</td>
+      <td>
+        Track all submissions across the district or block; triage incoming cases; manage user accounts and staff grants; download summary reports and CSV exports.
+        <br><a href="/help/user-roles" class="small">Read User Roles Guide &rarr;</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>Facility In-charge</strong><br><small class="text-muted">(District CMO, Civil Surgeon, Block SMO, PHC MO)</small></td>
+      <td>Facility &amp; Area Dashboard (<code>/sitepi</code>, <code>/area</code>)</td>
+      <td>
+        Oversee all operations in your health jurisdiction; review mortality progress counts, coder completion rates, and causes of death.
+        <br><a href="/help/user-roles" class="small">Read User Roles Guide &rarr;</a>
+      </td>
+    </tr>
+    <tr>
+      <td><strong>System Admin</strong></td>
+      <td>Admin Dashboard (<code>/admin</code>)</td>
+      <td>
+        Global user management, project and site configuration, health facility hierarchy, ODK Central connections, and sync controls.
+      </td>
     </tr>
   </tbody>
 </table>
+</div>
 
 <div class="help-tip">
-  <strong>Tip:</strong> Your landing page is set automatically based on your role grants. If you hold multiple roles, the system uses your primary landing page. You can access additional dashboards if your role grants allow it.
+  <strong>Tip:</strong> Your landing page is set automatically based on your primary role. If you hold multiple roles
+  (for example, an officer who supervises interviews and also codes), you can easily switch between dashboards
+  from the navigation menu.
 </div>
 
 <h2>Onboarding Flow for New Users</h2>
 
-<p>If you are a new user, the onboarding sequence is:</p>
+<p>If you are a new user joining DigitVA, here is what happens:</p>
 
 <ol>
-  <li>An administrator creates your account with your email address.</li>
-  <li>You receive a <strong>verification email</strong>. Click the link to verify your address.</li>
-  <li>After verification, your password is <strong>emailed to you</strong>.</li>
-  <li>On first login, you may be asked to accept terms and conditions before proceeding to your dashboard.</li>
+  <li>Your District Programme Manager, College Admin, or System Administrator creates your account using your email address.</li>
+  <li>You receive an <strong>email verification link</strong>. Click the link to verify your address.</li>
+  <li>After verification, you can set your secure password (or receive your initial password by email).</li>
+  <li>On first login, accept the terms of service to proceed directly to your assigned dashboard.</li>
 </ol>
 
 <p>See the <a href="/help/email-verification">Email Verification</a> and <a href="/help/password-reset">Password Reset</a> help pages for details on each step.</p>
 
 <h2>Role-Specific Help</h2>
 
-<p>Each role has its own workflow and dashboard. Use the help sidebar or the links below to learn more about your specific role:</p>
+<p>Explore detailed guides tailored to your work in DigitVA:</p>
 
 <ul>
-  <li><a href="/help/user-roles">User Roles &amp; Permissions</a> &mdash; detailed breakdown of every role, its scope, and what actions it allows.</li>
-  <li><a href="/help/authentication">Logging In &amp; Authentication</a> &mdash; how to log in, rate limits, and maintenance mode.</li>
-  <li><a href="/help/coding-workflow">Coding Workflow (Step 1 &amp; 2)</a> &mdash; the coder step-by-step process.</li>
-  <li><a href="/help/dm-dashboard">Data Manager Dashboard</a> &mdash; for data managers browsing and triaging submissions.</li>
+  <li><a href="/help/user-roles">User Roles &amp; Permissions</a> &mdash; full breakdown of health system cadres, roles, and scope boundaries.</li>
+  <li><a href="/help/mentoring-institutes">Medical College &amp; Mentoring Staff</a> &mdash; complete guide for medical college faculty and resident mentors.</li>
+  <li><a href="/help/data-collection">Data Collection</a> &mdash; practical field guide for death reporters and interviewers.</li>
+  <li><a href="/help/coding-workflow">Coding Workflow (Step 1 &amp; 2)</a> &mdash; clinical guide for Medical Officers and Reviewers.</li>
+  <li><a href="/help/authentication">Logging In &amp; Authentication</a> &mdash; how to log in, password policies, and security settings.</li>
+  <li><a href="/help/dm-dashboard">Data Manager Dashboard</a> &mdash; for District and Block Programme Managers managing data and accounts.</li>
 </ul>
 
 <h2>Getting Help</h2>
 
-<p>If you encounter an issue not covered in these help pages, contact your project administrator or site PI. Administrators can manage user accounts, reset passwords, and investigate workflow issues through the admin panel.</p>
+<p>
+  If you encounter any difficulty or need your role or assigned area updated, contact your
+  <strong>District Programme Manager</strong>, <strong>Facility In-charge</strong>, or <strong>Project Lead</strong>.
+  System administrators can also assist with account resets and technical support.
+</p>

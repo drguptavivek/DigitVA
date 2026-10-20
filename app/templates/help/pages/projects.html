@@ -149,9 +149,26 @@
   access; they need an explicit coder or coding_tester grant to code.
 </div>
 
+<h3>Project Setup Workspace &amp; Organization Mode</h3>
+
+<p>
+  Clicking <strong>Projects</strong> in the top navigation bar (or clicking any project's ID, Name, or <strong>Project Setup</strong> button) opens the full-width <strong>Project Setup Workspace</strong> with a quick <strong>Project Switcher</strong> at the top. For projects using <strong>Structure: Organization</strong>, the <strong>Structure</strong> section provides six visual tabs:
+</p>
+
+<ol>
+  <li><strong>1. Levels:</strong> Define the health-system hierarchy tiers (e.g., <code>DH &gt; SDH &gt; CHC &gt; PHC-AAM &gt; SC-AAM &gt; Village</code>) and project-wide <strong>Coding scope</strong>.</li>
+  <li><strong>2. Units:</strong> Build or bulk-import the tree of districts, blocks, PHCs, sub-centres, and villages, and set per-unit coding gates.</li>
+  <li><strong>3. Cadres &amp; permissions ("Who can do what?"):</strong> Use the interactive Question-Driven Setup cards or the full-width Level &times; Cadre matrix to configure who reports deaths, conducts interviews, supervises interviews, codes VA forms, reviews VAs, or serves as Unit In-charge.</li>
+  <li><strong>4. Workers &amp; Scope:</strong> Add or edit health workers, auto-detect existing DigitVA users by email or 10-digit mobile number without resetting their password, configure per-worker <strong>within-tree or cross-tree coding &amp; supervision units</strong> (own unit, peer units, all units at level, or custom subset), and generate a one-scan <strong>DigitVA Expo mobile app QR code</strong>.</li>
+  <li><strong>5. HIV &amp; Malaria Mortality (<code>Id10002</code> &amp; <code>Id10003</code>):</strong> Visually set the epidemiological HIV/AIDS and Malaria mortality levels (<code>High</code>, <code>Low</code>, <code>Very low</code>) for the District (top-level unit) and any specific child units. Child units left as <em>Inherited</em> automatically inherit their nearest ancestor's setting so interviewers are not prompted for those questions during field data collection.</li>
+  <li><strong>6. Mentoring &amp; Scientists:</strong> Visually link Mentoring Institutes (Medical Colleges, AIIMS, ICMR institutes) to the project's District units and grant their Scientists unit-scoped roles (<code>coder</code>, <code>reviewer</code>, <code>coding_tester</code>, or <code>collaborator_pii</code>) across selected units.</li>
+</ol>
+
 <h3>Related Help Topics</h3>
 
 <ul>
+  <li><a href="/help/user-roles">User Roles, Within-Tree vs. Cross-Tree Scope &amp; Permissions</a></li>
+  <li><a href="/help/coding-tester">Coding Tester Role</a></li>
   <li><a href="/help/sites">Sites</a></li>
   <li><a href="/help/project-sites">Project-Site Associations</a></li>
   <li><a href="/help/project-forms">Project-Form Settings</a></li>

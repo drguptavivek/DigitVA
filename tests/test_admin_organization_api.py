@@ -1277,3 +1277,307 @@ class AdminOrganizationApiTests(BaseTestCase):
         allowed = self.client.put(url, json={"project_structure_mode": "sites"}, headers=headers)
         self.assertEqual(allowed.status_code, 200, allowed.get_json())
         self.assertEqual(allowed.get_json()["project"]["project_structure_mode"], "sites")
+
+    def test_user_lookup_active_and_channel_redaction(self):
+        active_user = VaUsers(
+            name="Dr Lookup Active",
+            email="dr.lookup.active@example.org",
+            phone="9876543210",
+            mobile_login="9876543210",
+            user_status=VaStatuses.active,
+            permission={},
+            landing_page="coder",
+            pw_reset_t_and_c=False,
+            email_verified=True,
+            vacode_language=["en"],
+        )
+        active_user.set_password("UnusedPassword123!")
+        inactive_user = VaUsers(
+            name="Dr Lookup Inactive",
+            email="dr.lookup.inactive@example.org",
+            phone="9876543211",
+            mobile_login="9876543211",
+            user_status=VaStatuses.deactive,
+            permission={},
+            landing_page="coder",
+            pw_reset_t_and_c=False,
+            email_verified=True,
+            vacode_language=["en"],
+        )
+        inactive_user.set_password("UnusedPassword123!")
+        db.session.add_all([active_user, inactive_user])
+        db.session.flush()
+        db.session.add(
+            VaUserAccessGrants(
+                user_id=self.base_project_pi_user.user_id,
+                role=VaAccessRoles.project_pi,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=self.PROJECT,
+                grant_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        # Platform admin sees full contact info.
+        self._login(str(self.base_admin_id))
+        res_admin = self.client.get(self._url("/users/lookup?q=dr.lookup.active@example.org"))
+        self.assertEqual(res_admin.status_code, 200)
+        body_admin = res_admin.get_json()
+        self.assertTrue(body_admin["found"])
+        self.assertEqual(body_admin["user"]["email"], "dr.lookup.active@example.org")
+        self.assertEqual(body_admin["user"]["phone"], "9876543210")
+
+        # Inactive user is not returned.
+        res_inactive = self.client.get(self._url("/users/lookup?q=dr.lookup.inactive@example.org"))
+        self.assertEqual(res_inactive.status_code, 200)
+        self.assertFalse(res_inactive.get_json()["found"])
+
+        # Non-admin Project PI has unqueried contact channel redacted.
+        self._login(str(self.base_project_pi_id))
+        res_pi_email = self.client.get(self._url("/users/lookup?q=dr.lookup.active@example.org"))
+        self.assertEqual(res_pi_email.status_code, 200)
+        user_by_email = res_pi_email.get_json()["user"]
+        self.assertEqual(user_by_email["email"], "dr.lookup.active@example.org")
+        self.assertIsNone(user_by_email["phone"])
+
+        res_pi_phone = self.client.get(self._url("/users/lookup?q=9876543210"))
+        self.assertEqual(res_pi_phone.status_code, 200)
+        user_by_phone = res_pi_phone.get_json()["user"]
+        self.assertEqual(user_by_phone["phone"], "9876543210")
+        self.assertIsNone(user_by_phone["email"])
+
+    def test_worker_multi_unit_coding_and_supervision_scope_preserves_site_pi(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        org.seed_default_organization(self.PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT)}
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
+
+        # Ensure MO at PHC can code VA forms and supervise interviews.
+        org.upsert_level_cadre(
+            self.PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            cadre_id=cadres["MO"].cadre_id,
+            can_fill_va_form=False,
+            can_code_va_form=True,
+            can_supervise_interviews=True,
+            default_roles=["coder", "interview_supervisor"],
+        )
+        dist = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="SCPD1",
+            unit_name="Scope District 1",
+        )
+        chc = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["chc"].org_level_id,
+            parent_org_unit_id=dist.org_unit_id,
+            unit_code="SCPC1",
+            unit_name="Scope CHC 1",
+        )
+        phc1 = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="SCPP1",
+            unit_name="Scope PHC 1",
+        )
+        phc2 = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="SCPP2",
+            unit_name="Scope PHC 2",
+        )
+        db.session.commit()
+
+        created = self.client.post(
+            self._url("/workers"),
+            json={
+                "org_unit_id": str(phc1.org_unit_id),
+                "cadre_id": str(cadres["MO"].cadre_id),
+                "worker_name": "Dr Cross Tree MO",
+                "email": "dr.crosstree.mo@example.org",
+                "email_confirm": "dr.crosstree.mo@example.org",
+                "phone": "9123456780",
+                "phone_confirm": "9123456780",
+                "language_codes": "en",
+                "coding_unit_ids": [str(phc1.org_unit_id), str(phc2.org_unit_id)],
+                "supervision_unit_ids": [str(phc1.org_unit_id), str(phc2.org_unit_id)],
+            },
+            headers=headers,
+        )
+        self.assertEqual(created.status_code, 201, created.get_json())
+        worker_payload = created.get_json()["worker"]
+        self.assertEqual(sorted(worker_payload["coding_unit_codes"]), ["SCPP1", "SCPP2"])
+        self.assertEqual(sorted(worker_payload["supervision_unit_codes"]), ["SCPP1", "SCPP2"])
+
+        worker_id = worker_payload["worker_id"]
+        user_id = worker_payload["user_id"]
+
+        # Add an independent site_pi grant on PHC2 and ensure narrowing supervision_unit_ids preserves it.
+        site_pi_grant = VaUserAccessGrants(
+            user_id=user_id,
+            role=VaAccessRoles.site_pi,
+            scope_type=VaAccessScopeTypes.org_unit,
+            org_unit_id=phc2.org_unit_id,
+            grant_status=VaStatuses.active,
+        )
+        db.session.add(site_pi_grant)
+        db.session.commit()
+
+        patched = self.client.patch(
+            self._url(f"/workers/{worker_id}"),
+            json={
+                "coding_unit_ids": [str(phc2.org_unit_id)],
+                "supervision_unit_ids": [str(phc1.org_unit_id)],
+            },
+            headers=headers,
+        )
+        self.assertEqual(patched.status_code, 200, patched.get_json())
+        updated_worker = patched.get_json()["worker"]
+        self.assertEqual(updated_worker["coding_unit_codes"], ["SCPP2"])
+        self.assertEqual(updated_worker["supervision_unit_codes"], ["SCPP1"])
+
+        db.session.expire_all()
+        refreshed_site_pi = db.session.get(VaUserAccessGrants, site_pi_grant.grant_id)
+        self.assertEqual(refreshed_site_pi.grant_status, VaStatuses.active)
+
+    def test_bulk_va_presets_and_inheritance(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        org.seed_default_organization(self.PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT)}
+        dist = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="PRSD1",
+            unit_name="Preset District 1",
+        )
+        chc = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["chc"].org_level_id,
+            parent_org_unit_id=dist.org_unit_id,
+            unit_code="PRSC1",
+            unit_name="Preset CHC 1",
+        )
+        phc1 = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="PRSP1",
+            unit_name="Preset PHC 1",
+        )
+        phc2 = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="PRSP2",
+            unit_name="Preset PHC 2",
+        )
+        db.session.commit()
+
+        put_res = self.client.put(
+            self._url("/va-presets"),
+            json={
+                "items": [
+                    {"org_unit_id": str(dist.org_unit_id), "hiv_mortality": "high", "malaria_mortality": "low"},
+                    {"org_unit_id": str(phc1.org_unit_id), "hiv_mortality": "veryl", "malaria_mortality": "high"},
+                ]
+            },
+            headers=headers,
+        )
+        self.assertEqual(put_res.status_code, 200, put_res.get_json())
+        by_code = {u["unit_code"]: u for u in put_res.get_json()["units"]}
+        self.assertEqual(by_code["PRSD1"]["effective_hiv_mortality"], "high")
+        self.assertEqual(by_code["PRSD1"]["effective_malaria_mortality"], "low")
+        self.assertEqual(by_code["PRSP1"]["effective_hiv_mortality"], "veryl")
+        self.assertEqual(by_code["PRSP1"]["effective_malaria_mortality"], "high")
+        # PHC2 inherits from PRSD1 via PRSC1
+        self.assertEqual(by_code["PRSP2"]["org_unit_id"], str(phc2.org_unit_id))
+        self.assertIsNone(by_code["PRSP2"]["own_hiv_mortality"])
+        self.assertEqual(by_code["PRSP2"]["effective_hiv_mortality"], "high")
+        self.assertEqual(by_code["PRSP2"]["effective_malaria_mortality"], "low")
+
+    def test_mentoring_overview_districts_and_scientist_grants(self):
+        from app.models import MapMentorInstituteUser, MasMentorInstitute
+
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        org.seed_default_organization(self.PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT)}
+        dist = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="MNTD1",
+            unit_name="Mentoring District 1",
+        )
+        sci_user = VaUsers(
+            name="Dr Mentor Scientist",
+            email="dr.mentor.sci@example.org",
+            user_status=VaStatuses.active,
+            permission={},
+            landing_page="coder",
+            pw_reset_t_and_c=False,
+            email_verified=True,
+            vacode_language=["en"],
+        )
+        sci_user.set_password("UnusedPassword123!")
+        inst = MasMentorInstitute(
+            institute_code="AIIMSMNT",
+            institute_name="AIIMS Mentoring Institute",
+            is_active=True,
+        )
+        db.session.add_all([sci_user, inst])
+        db.session.flush()
+        db.session.add(
+            MapMentorInstituteUser(
+                institute_id=inst.institute_id,
+                user_id=sci_user.user_id,
+                is_admin=False,
+                is_active=True,
+            )
+        )
+        db.session.commit()
+
+        attach_res = self.client.post(
+            self._url("/mentoring/districts"),
+            json={"institute_code": "AIIMSMNT", "unit_code": "MNTD1", "action": "attach"},
+            headers=headers,
+        )
+        self.assertEqual(attach_res.status_code, 200, attach_res.get_json())
+        overview = attach_res.get_json()
+        self.assertTrue(
+            any(
+                link["institute_code"] == "AIIMSMNT" and link["unit_code"] == "MNTD1"
+                for link in overview["attached_links"]
+            )
+        )
+
+        grant_res = self.client.post(
+            self._url("/mentoring/grants"),
+            json={
+                "user_id": str(sci_user.user_id),
+                "role": "reviewer",
+                "org_unit_ids": [str(dist.org_unit_id)],
+            },
+            headers=headers,
+        )
+        self.assertEqual(grant_res.status_code, 200, grant_res.get_json())
+        sci_rows = [s for s in grant_res.get_json()["scientists"] if s["user_id"] == str(sci_user.user_id)]
+        self.assertEqual(len(sci_rows), 1)
+        self.assertEqual(sci_rows[0]["grants_by_role"].get("reviewer"), [str(dist.org_unit_id)])
+
+        detach_res = self.client.post(
+            self._url("/mentoring/districts"),
+            json={"institute_code": "AIIMSMNT", "unit_code": "MNTD1", "action": "detach"},
+            headers=headers,
+        )
+        self.assertEqual(detach_res.status_code, 200, detach_res.get_json())
+        self.assertFalse(
+            any(
+                link["institute_code"] == "AIIMSMNT" and link["unit_code"] == "MNTD1"
+                for link in detach_res.get_json()["attached_links"]
+            )
+        )

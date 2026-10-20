@@ -37,6 +37,7 @@ import {
   replaceCases,
   resolveDraftHost,
   saveRegistration,
+  registrationAgeInfoIssue,
   validateRegistration,
   visitAt,
   type CaseDetail,
@@ -636,10 +637,11 @@ describe("register form rules", () => {
     expect(validateRegistration({ ...fields, age_years: "4.5" }, today)).toEqual({ age_years: "errAge" });
     expect(validateRegistration({ ...fields, abha_number: "123" }, today)).toEqual({ abha_number: "errAbhaNumber" });
     expect(validateRegistration({ ...fields, abha_address: "x@gmail" }, today)).toEqual({ abha_address: "errAbhaAddress" });
-    expect(validateRegistration({ ...fields, informant_phone: "12345", informant_phone_2: "5876543210" }, today)).toEqual({
+    expect(validateRegistration({ ...fields, informant_phone: "12345", informant_phone_2: "98765432101" }, today)).toEqual({
       informant_phone: "errPhone",
       informant_phone_2: "errPhone"
     });
+    expect(validateRegistration({ ...fields, informant_phone: "5876543210", informant_phone_2: "987 654 3210" }, today)).toEqual({});
   });
 
   it("allows an age through 125, rejects older completed ages, and confirms ages over 85", () => {
@@ -671,7 +673,9 @@ describe("register form rules", () => {
     expect(normalisePhone("+91 98765-43210")).toBe("9876543210");
     expect(normalisePhone("09876543210")).toBe("9876543210");
     expect(normalisePhone("9876543210")).toBe("9876543210");
-    expect(normalisePhone("5876543210")).toBeNull();
+    expect(normalisePhone("5876543210")).toBe("5876543210");
+    expect(normalisePhone("919876543210")).toBe("9876543210");
+    expect(normalisePhone("(987) 654-3210")).toBe("9876543210");
     expect(normalisePhone("98765432101")).toBeNull();
   });
 
@@ -699,5 +703,28 @@ describe("project mode", () => {
     expect(registersDeaths(project, "S1")).toBe(false);
     expect(registersDeaths(project, "S2")).toBe(true);
     expect(registersDeaths(undefined)).toBe(false);
+  });
+});
+
+describe("registration age information", () => {
+  const none = { date_of_birth: "", date_of_birth_partial: "", age_years: "" };
+
+  it("accepts an exact date, a month and year, a year, or an estimated age", () => {
+    for (const given of [{ date_of_birth: "1987-04-12" }, { date_of_birth_partial: "1987-04" }, { date_of_birth_partial: "1987" }, { age_years: "39" }, { age_years: "0" }]) {
+      expect(registrationAgeInfoIssue({ ...none, ...given })).toBeUndefined();
+    }
+  });
+
+  it("refuses none of them, blanks included", () => {
+    expect(registrationAgeInfoIssue(none)).toBe("errBirthOrAge");
+    expect(registrationAgeInfoIssue({})).toBe("errBirthOrAge");
+    expect(registrationAgeInfoIssue({ date_of_birth: "  ", age_years: " " })).toBe("errBirthOrAge");
+  });
+
+  it("lets an edit of an older row without age information pass until the age fields change", () => {
+    expect(registrationAgeInfoIssue(none, none)).toBeUndefined();
+    expect(registrationAgeInfoIssue({}, none)).toBeUndefined();
+    expect(registrationAgeInfoIssue({ date_of_birth: "" }, { date_of_birth: "1987-04-12" })).toBe("errBirthOrAge");
+    expect(registrationAgeInfoIssue({ age_years: "39" }, none)).toBeUndefined();
   });
 });

@@ -215,13 +215,35 @@ export interface ResolveSavedEnvelopeDefinitionInput {
   narrationLanguageCodes: readonly string[];
   bundledLegacyDefinitions: readonly BundledLegacyDefinition[];
   legacyDefinitionExtensions?: readonly string[];
+  /**
+   * The bundled instrument a new interview would fall back to. A pinless draft
+   * started on that fallback saved only `instrumentVersion`; when it matches
+   * this bundle's version and the bundle carries no extensions, the draft
+   * resumes on the bundle. A pinless draft records no extensions, so an
+   * extension-bearing bundle (built from the project's current extensions)
+   * could relabel it; that case and any other pinless version still fail with
+   * `unknown_saved_definition`.
+   */
+  bundledOriginal?: BundledDefinitionCompatibility;
 }
+
+const SUPPORTED_SAVED_INSTRUMENT_IDS = new Set(["WHO_2022_VA", "va_who_2022"]);
+const NON_TAGGED_FORM_EXTENSIONS = new Set([
+  "digitva_core",
+  "doris_support_whova_2022",
+  "intake_screen",
+  "geography",
+]);
 
 /** Recover the exact saved definition or fail without rewriting the envelope. */
 export async function resolveSavedEnvelopeDefinition(
   input: ResolveSavedEnvelopeDefinitionInput,
 ): Promise<ResolvedInstrument> {
-  if (!isRecord(input.envelope) || input.envelope.instrumentId !== "WHO_2022_VA") {
+  if (
+    !isRecord(input.envelope) ||
+    typeof input.envelope.instrumentId !== "string" ||
+    !SUPPORTED_SAVED_INSTRUMENT_IDS.has(input.envelope.instrumentId)
+  ) {
     throw new PinnedDefinitionError("unknown_saved_definition");
   }
   const envelope = input.envelope;
@@ -236,7 +258,21 @@ export async function resolveSavedEnvelopeDefinition(
       legacyExtensions !== undefined &&
       sameExtensions(candidate.extensions, legacyExtensions)
     );
-    if (!legacy) throw new PinnedDefinitionError("unknown_saved_definition");
+    if (!legacy) {
+      const fallback = input.bundledOriginal;
+      if (
+        fallback &&
+        fallback.extensions.length === 0 &&
+        fallback.instrumentVersion === envelope.instrumentVersion
+      ) {
+        return {
+          instrument: prepareBundledInstrument(fallback.instrument, input.narrationLanguageCodes),
+          provenance: "bundled-original",
+          pin: null,
+        };
+      }
+      throw new PinnedDefinitionError("unknown_saved_definition");
+    }
     return {
       instrument: prepareBundledInstrument(legacy.instrument, input.narrationLanguageCodes),
       provenance: "bundled-original",
@@ -308,9 +344,11 @@ function prepareBundledInstrument(
 }
 
 function assertExtensions(value: VerifiedFormDefinition, expected: readonly string[]): void {
-  if (!sameExtensions(readDefinitionExtensions(value), expected)) {
-    throw new FormDefinitionError("invalid_definition");
-  }
+  const actual = readDefinitionExtensions(value);
+  if (sameExtensions(actual, expected)) return;
+  const tagFilteredExpected = expected.filter((ext) => !NON_TAGGED_FORM_EXTENSIONS.has(ext));
+  if (sameExtensions(actual, tagFilteredExpected)) return;
+  throw new FormDefinitionError("invalid_definition");
 }
 
 function sameExtensions(left: readonly string[], right: readonly string[]): boolean {

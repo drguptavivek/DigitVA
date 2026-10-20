@@ -3,7 +3,7 @@ title: Test Harness Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-10-20
 ---
 
 # Test Harness Policy
@@ -34,6 +34,49 @@ default.
 
 The name must contain `test`, or `conftest.pytest_configure` skips its
 stale-connection cleanup.
+
+### Parallel runs (pytest-xdist)
+
+The full suite runs in parallel inside one pytest process:
+
+    docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/<db> \
+      minerva_app_service uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4
+
+- **Per-worker databases.** Each xdist worker (`gw0`..`gwN`) runs against
+  `<db>_<worker>`, e.g. `minerva_test_pii_gw0`. `conftest.pytest_configure`
+  creates it on first use (under an advisory lock, through the `postgres`
+  maintenance database) and repoints `TestConfig` and `TEST_DATABASE_URL` at
+  it, so the stale-connection cleanup, `create_all` at session start and
+  `drop_all` at session end touch that worker's database only. The databases
+  are left in place (empty schema) for the next run; drop them with the base
+  database when a tree is retired.
+- **The controller touches no database.** With `-n N` (N > 0) the controller
+  process runs no tests and skips every database hook. `<db>` itself is not
+  used in a parallel run; it need not exist.
+- **Files stay on one worker.** The controller turns xdist's default
+  `--dist load` into `--dist loadfile`: each migration test module creates and
+  drops a fixed-name scratch database, and a class's `setUpClass` fixtures
+  should be built once, not once per worker. Do not pass `--dist load`.
+- **A crashed worker fails the run.** The controller also sets
+  `--max-worker-restart 0` unless you pass one: xdist would otherwise respawn
+  crashed workers (each with a new `<db>_gwN`) and can end with "no tests
+  ran". A summary with fewer tests than expected is a failed run, not a fast
+  one. The usual crash is memory: four workers need about 2 GB, so the dev
+  override raises `minerva_app_service` to 3g (production keeps 1g; do not
+  run `-n 4` in a 1g container).
+- **subTest parameters cross a process boundary.** execnet cannot serialise
+  enums, UUIDs or Decimals, so `conftest.pytest_report_to_serializable` sends
+  any other subTest value as its `repr`. Results are unaffected; only the
+  label in a parallel failure report shows the repr.
+- **Serial is unchanged.** `-n0` or `-p no:xdist` runs exactly as before, on
+  `<db>` itself. Use it for a single file or when bisecting.
+- **One run per base database.** Parallelism lives inside one run. Two runs
+  on the same `<db>` share the same worker databases and terminate each
+  other's connections, exactly as two serial runs on one database would. The
+  single-runner rule in `CLAUDE.md` stands.
+- **New tests must be parallel-safe across files.** Anything a test creates
+  outside its database (a scratch database, a Redis key, a file path) needs a
+  name no other test file uses, or a `uuid` suffix.
 
 **Why it is not optional.** Session teardown calls `db.drop_all()`, which orders
 drops from `db.Model.metadata` -- the models *this* tree imports. A table created

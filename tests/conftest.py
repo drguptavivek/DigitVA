@@ -12,12 +12,106 @@ Per-test isolation uses an external transaction: each test gets its own
 connection with an outer transaction that is rolled back in tearDown, and the
 scoped session joins it via SAVEPOINT (see base.py setUp/tearDown).
 """
+import os
+import re
+
 import pytest
 import sqlalchemy as sa
+
+# Arbitrary constant: serialises CREATE DATABASE across xdist workers.
+_CREATE_DB_LOCK_KEY = 74_201_901
+
+
+def _is_xdist_controller(config):
+    """True in the process that hands tests to xdist workers (-n N, N > 0).
+
+    The controller runs no tests, so it must not create, clean or drop any
+    database: the workers own theirs. Without xdist, or with -n0, this is
+    False and the session runs exactly as a serial run always has."""
+    return not hasattr(config, "workerinput") and bool(
+        getattr(config.option, "numprocesses", None)
+    )
+
+
+def _use_worker_database(worker_id):
+    """Point TestConfig at <base>_<worker_id>, creating that database if absent.
+
+    Each xdist worker gets its own database so the session schema, the
+    stale-connection cleanup and drop_all never cross workers. The migration
+    tests derive their throwaway URLs from TestConfig, so they follow."""
+    from config import TestConfig
+
+    base = sa.engine.make_url(TestConfig.SQLALCHEMY_DATABASE_URI)
+    name = f"{base.database}_{worker_id}"
+    # CREATE DATABASE cannot bind an identifier; allow only a plain name.
+    if not re.fullmatch(r"[A-Za-z0-9_]+", name) or "test" not in name:
+        raise pytest.UsageError(f"refusing per-worker test database name {name!r}")
+
+    maintenance = sa.create_engine(
+        base.set(database="postgres"), isolation_level="AUTOCOMMIT"
+    )
+    try:
+        with maintenance.connect() as conn:
+            conn.execute(sa.text("SELECT pg_advisory_lock(:k)"), {"k": _CREATE_DB_LOCK_KEY})
+            try:
+                exists = conn.execute(
+                    sa.text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": name}
+                ).scalar()
+                if not exists:
+                    conn.execute(sa.text(f'CREATE DATABASE "{name}"'))
+            finally:
+                conn.execute(
+                    sa.text("SELECT pg_advisory_unlock(:k)"), {"k": _CREATE_DB_LOCK_KEY}
+                )
+    finally:
+        maintenance.dispose()
+
+    url = base.set(database=name).render_as_string(hide_password=False)
+    TestConfig.SQLALCHEMY_DATABASE_URI = url
+    TestConfig.CELERY = {**TestConfig.CELERY, "beat_dburi": url}
+    os.environ["TEST_DATABASE_URL"] = url
+
+
+_WIRE_SAFE = (str, int, float, bool, type(None))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_report_to_serializable(report):
+    """Make subTest(...) parameters serialisable for xdist.
+
+    A worker ships each subtest report to the controller through execnet,
+    which refuses enums, UUIDs and Decimals; tests pass those as subTest
+    params freely. Only the copy on the wire changes (to its repr)."""
+    data = yield
+    context = (data or {}).get("_subtest.context")
+    if context and context.get("kwargs"):
+        context["kwargs"] = {
+            key: value if isinstance(value, _WIRE_SAFE) else repr(value)
+            for key, value in context["kwargs"].items()
+        }
+    return data
 
 
 def pytest_configure(config):
     """Terminate stale connections to the test database before collection."""
+    if _is_xdist_controller(config):
+        # xdist's default "load" splits one file across workers, but each
+        # migration test module creates and drops a fixed-name database, so
+        # a file must stay on one worker. loadfile also keeps a class's
+        # setUpClass fixtures from being rebuilt on every worker.
+        if config.option.dist == "load":
+            config.option.dist = "loadfile"
+        # A crashed worker (usually the container's memory limit) must fail
+        # the run: by default xdist respawns workers and can exit 0 with
+        # "no tests ran".
+        if config.option.maxworkerrestart is None:
+            config.option.maxworkerrestart = 0
+        return
+
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker_id:
+        _use_worker_database(worker_id)
+
     from config import TestConfig
 
     url = TestConfig.SQLALCHEMY_DATABASE_URI
@@ -56,6 +150,9 @@ def get_session_app():
 def pytest_sessionstart(session):
     """Create the test schema once for the entire pytest session."""
     global _session_app, _session_ctx
+
+    if _is_xdist_controller(session.config):
+        return
 
     from config import TestConfig
     from sqlalchemy.exc import ProgrammingError

@@ -35,6 +35,7 @@ from app.models import (
     VaProjectMaster,
     VaStatuses,
 )
+from app.routes.api.request_helpers import error as api_error
 from app.services import organization_service as org
 from app.services import served_form_service
 from app.services import web_intake_service as intake_svc
@@ -46,7 +47,6 @@ from app.services.web_form_instruments import (
     FALLBACK_INSTRUMENT_CODE,
     instrument_locale_catalogue,
 )
-from app.routes.api.request_helpers import error as api_error
 from app.services.web_intake_service import resolve_intake_note
 
 bp = Blueprint("organization_api", __name__)
@@ -87,17 +87,17 @@ def _tree_version(project_id: str) -> str | None:
     A client caches the tree and refetches when this moves, which is how a
     deactivated unit or a new one reaches a form that is already open.
     """
-    latest_unit = db.session.scalar(
-        sa.select(sa.func.max(MasOrgUnit.updated_at)).where(
-            MasOrgUnit.project_id == project_id
+    row = db.session.execute(
+        sa.select(
+            sa.select(sa.func.max(MasOrgUnit.updated_at))
+            .where(MasOrgUnit.project_id == project_id)
+            .scalar_subquery(),
+            sa.select(sa.func.max(MasOrgLevel.updated_at))
+            .where(MasOrgLevel.project_id == project_id)
+            .scalar_subquery(),
         )
-    )
-    latest_level = db.session.scalar(
-        sa.select(sa.func.max(MasOrgLevel.updated_at)).where(
-            MasOrgLevel.project_id == project_id
-        )
-    )
-    stamps = [value for value in (latest_unit, latest_level) if value is not None]
+    ).first()
+    stamps = [value for value in row if value is not None] if row else []
     return max(stamps).isoformat() if stamps else None
 
 
@@ -154,21 +154,28 @@ def project_units(project_id: str):
     return jsonify(units_payload(project_id, reachable, include_inactive=request.args.get("include_inactive") == "1"))
 
 
-def units_payload(project_id: str, reachable: set | None, *, include_inactive: bool = False) -> dict:
+def units_payload(
+    project_id: str,
+    reachable: set | None,
+    *,
+    include_inactive: bool = False,
+    include_tree_version: bool = True,
+) -> dict:
     """The ``/units`` body for *project_id*, narrowed to *reachable* (None:
     the whole tree); the caller decides access. Also used by
     ``GET /api/v1/me/access`` (access_summary_service)."""
     levels = org.list_levels(project_id, include_inactive=include_inactive)
-    units = org.list_units(project_id, include_inactive=include_inactive)
-    if reachable is not None:
-        units = [u for u in units if u["org_unit_id"] in {str(x) for x in reachable}]
+    top_depth = levels[0].depth if levels else None
+    units = org.list_units(project_id, include_inactive=include_inactive, top_depth=top_depth)
     # An unplaced unit (imported, parent not yet mapped) and its subtree are
     # not offered: a picker cannot cascade to them, and their ancestor codes
     # would be wrong once they are placed. docs/policy/organization-model.md
     # ("Unplaced units").
-    unplaced = set(org.unplaced_unit_codes(project_id, include_inactive=include_inactive))
+    unplaced = {u["unit_code"] for u in units if u.get("is_unplaced")}
     if unplaced:
         units = [u for u in units if str(u["path"]).split(".")[0] not in unplaced]
+    if reachable is not None:
+        units = [u for u in units if u["org_unit_id"] in {str(x) for x in reachable}]
 
     # A scoped caller's `units` are their reachable subtree only -- a
     # PHC-scoped interviewer never gets the District or CHC rows above it.
@@ -192,7 +199,12 @@ def units_payload(project_id: str, reachable: set | None, *, include_inactive: b
             for code in str(unit["path"]).split(".")[:-1]
         } - own_codes
         ancestor_units = (
-            org.list_units_by_codes(project_id, ancestor_codes, include_inactive=include_inactive)
+            org.list_units_by_codes(
+                project_id,
+                ancestor_codes,
+                include_inactive=include_inactive,
+                top_depth=top_depth,
+            )
             if ancestor_codes
             else []
         )
@@ -207,7 +219,7 @@ def units_payload(project_id: str, reachable: set | None, *, include_inactive: b
         "project_id": project_id,
         # Moves whenever a level or unit changes, so a client can cache the
         # tree and revalidate cheaply instead of refetching per form.
-        "tree_version": _tree_version(project_id),
+        "tree_version": _tree_version(project_id) if include_tree_version else None,
         "scoped": reachable is not None,
         "levels": [
             {
@@ -759,10 +771,12 @@ def form_options_payload(project: VaProjectMaster) -> dict:
 @limiter.limit("120 per minute")
 def my_organization():
     """The My organization page: the signed-in user's units, the units above
-    them with their people, their level, and the units below.
+    them with their people, their level, and the units below, plus the user's
+    own roles per project (``my_positions``, unit roles on ``my_units``).
 
-    Org-tree projects only, where the user holds a grant. Names and cadres
-    only (docs/policy/organization-model.md, "Who sees worker names").
+    Every project where the user holds a grant; sites-mode projects carry no
+    tree. Names, cadres and roles only (docs/policy/organization-model.md,
+    "Who sees worker names", "My positions").
     """
     return jsonify(org.my_organization(current_user))
 

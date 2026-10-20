@@ -2987,9 +2987,15 @@ def admin_panel_project_setup(project_id):
             MasOrgUnit.is_active.is_(True),
         )
     )
+    all_projects = list(
+        db.session.scalars(
+            sa.select(VaProjectMaster).order_by(VaProjectMaster.project_id)
+        ).all()
+    )
     return render_template(
         "admin/panels/project_setup.html",
         project=project,
+        all_projects=all_projects,
         site_count=site_count,
         unit_count=unit_count,
         saved=request.args.get("saved") == "1",

@@ -39,7 +39,8 @@ function makeApi(overrides: Partial<WorkspaceApi> = {}): WorkspaceApi {
   return {
     getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: true }),
     getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }], last_project_id: null }),
-    getReviewerProjects: jest.fn().mockResolvedValue({ project_options: [{ project_id: "P1", project_name: "Project One" }, { project_id: "P2", project_name: "Project Two" }], last_project_id: null }),
+    // One project: no last project and nothing to choose between, so the queue opens on All projects.
+    getReviewerProjects: jest.fn().mockResolvedValue({ project_options: [{ project_id: "P1", project_name: "Project One" }], last_project_id: null }),
     getCodingAllocation: jest.fn().mockResolvedValue(null),
     getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 3, completed: 1, available: 2, allocation: null }),
     getReviewerAllocation: jest.fn().mockResolvedValue(null),
@@ -491,6 +492,111 @@ describe("queue project defaults", () => {
     expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: "P2", limit: 50, offset: 0 });
     expect(button(renderer.root, "Project: Project Two")).toBeDefined();
   });
+
+  test("without a last project the review queue opens on the first project with cases to review", async () => {
+    const api = makeApi({
+      getReviewerProjects: jest.fn().mockResolvedValue({ project_options: projectOptions, last_project_id: null }),
+      getReviewerStats: jest.fn(async (projectId?: string) => ({ in_scope: 3, completed: 0, available: projectId === "P2" ? 3 : 0, allocation: null })),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="reviewing" onOpen={jest.fn()} />); });
+    await flush();
+    expect(api.getReviewerStats).toHaveBeenCalledWith("P1");
+    expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    expect(api.getReviewerAvailable).not.toHaveBeenCalledWith(expect.objectContaining({ projectId: "P1" }));
+    expect(button(renderer.root, "Project: Project Two")).toBeDefined();
+    await unmount(renderer);
+  });
+
+  test("with nothing to review anywhere, or a failed count, the review queue opens on All projects", async () => {
+    const api = makeApi({
+      getReviewerProjects: jest.fn().mockResolvedValue({ project_options: projectOptions, last_project_id: null }),
+      getReviewerStats: jest.fn(async (projectId?: string) => {
+        if (projectId === "P2") throw new ApiError(503, "unavailable");
+        return { in_scope: 3, completed: 0, available: 0, allocation: null };
+      }),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="reviewing" onOpen={jest.fn()} />); });
+    await flush();
+    expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(button(renderer.root, "Project: All projects")).toBeDefined();
+    await unmount(renderer);
+  });
+
+  test("an explicit All projects in the URL skips the per-project counts", async () => {
+    const api = makeApi({ getReviewerProjects: jest.fn().mockResolvedValue({ project_options: projectOptions, last_project_id: null }) });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="reviewing" initialView={{ allProjects: true, showHistory: false, offset: 0 }} onOpen={jest.fn()} />);
+    });
+    await flush();
+    expect(api.getReviewerStats).not.toHaveBeenCalledWith("P1");
+    expect(api.getReviewerStats).not.toHaveBeenCalledWith("P2");
+    expect(api.getReviewerAvailable).toHaveBeenCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    await unmount(renderer);
+  });
+});
+
+describe("active case banner and empty reasons", () => {
+  async function flush() {
+    await act(async () => {
+      for (let i = 0; i < 8; i++) await Promise.resolve();
+    });
+  }
+
+  test("the held case is named once, with its project and site, and looked up once per case", async () => {
+    const api = makeApi({
+      getReviewerAllocation: jest.fn().mockResolvedValue({ va_sid: "held-sid" }),
+      getWorkspace: jest.fn().mockResolvedValue({ case: { instance_name: "FORM-HELD-1", project_code: "P1", site_code: "S9" } }),
+    });
+    const screen = await render("reviewing", api);
+    await flush();
+    const text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("You have an active review case");
+    expect(text).toContain("FORM-HELD-1 · Project / Site: P1/S9 · Project One");
+    expect(text.split("You have an active review case").length).toBe(2);
+    expect(api.getWorkspace).toHaveBeenCalledWith("held-sid", "reviewing");
+    await press(screen.renderer, "Refresh cases");
+    await flush();
+    expect(api.getReviewerAllocation).toHaveBeenCalledTimes(2);
+    expect(api.getWorkspace).toHaveBeenCalledTimes(1);
+    expect(button(screen.renderer.root, "Resume case")).toBeDefined();
+    expect(button(screen.renderer.root, "Release case")).toBeDefined();
+    await unmount(screen.renderer);
+  });
+
+  test("a failed case lookup keeps the banner and its actions without a label", async () => {
+    const api = makeApi({
+      getReviewerAllocation: jest.fn().mockResolvedValue({ va_sid: "held-sid" }),
+      getWorkspace: jest.fn().mockRejectedValue(new ApiError(503, "unavailable")),
+    });
+    const screen = await render("reviewing", api);
+    await flush();
+    const text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("You have an active review case");
+    expect(text).not.toContain("Project / Site:");
+    expect(button(screen.renderer.root, "Resume case")).toBeDefined();
+    await unmount(screen.renderer);
+  });
+
+  test("an empty review list says why", async () => {
+    const empty = { cases: [], count: 0, limit: 50, offset: 0, has_more: false };
+    const waiting = await render("reviewing", makeApi({
+      getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 1, completed: 0, available: 0, allocation: null }),
+      getReviewerAvailable: jest.fn().mockResolvedValue(empty),
+    }));
+    expect(JSON.stringify(waiting.renderer.toJSON())).toContain("Nothing to review in your projects yet: cases appear here after a coder finalises them.");
+    expect(JSON.stringify(waiting.renderer.toJSON())).not.toContain("No available cases on this page.");
+    await unmount(waiting.renderer);
+
+    const none = await render("reviewing", makeApi({
+      getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 0, completed: 0, available: 0, allocation: null }),
+      getReviewerAvailable: jest.fn().mockResolvedValue(empty),
+    }));
+    expect(JSON.stringify(none.renderer.toJSON())).toContain("No cases in your projects yet.");
+    await unmount(none.renderer);
+  });
 });
 
 describe("queue layout", () => {
@@ -628,5 +734,163 @@ describe("queue layout", () => {
     const available = await render("coding", makeApi({ getCodingAvailable: jest.fn().mockResolvedValue({ forms: [], ...empty }) }));
     expect(JSON.stringify(available.renderer.toJSON())).toContain("No cases to pick right now.");
     await unmount(available.renderer);
+  });
+
+  test("renders rich case card metadata and filters queue cases by search, sex, site, and recodeable status", async () => {
+    const api = makeApi({
+      getCodingStats: jest.fn().mockResolvedValue({
+        random_ready: 3,
+        pick_ready: 2,
+        completed: 14,
+        not_codeable: 1,
+        has_random_mode: true,
+        has_pick_mode: true,
+      }),
+      getCodingAvailable: jest.fn().mockResolvedValue({
+        forms: [
+          {
+            va_sid: "sid-f1",
+            va_uniqueid_masked: "UID-FEM-1",
+            va_form_id: "WHO2022_ADULT",
+            project_id: "P1",
+            site_id: "S1",
+            va_submission_date: "2026-10-10",
+            va_data_collector: "Collector Anita",
+            va_deceased_age: 64,
+            va_deceased_gender: "Female",
+          },
+          {
+            va_sid: "sid-m2",
+            va_uniqueid_masked: "UID-MALE-2",
+            va_form_id: "WHO2022_CHILD",
+            project_id: "P1",
+            site_id: "S2",
+            va_submission_date: "2026-10-11",
+            va_data_collector: "Collector Ravi",
+            va_deceased_age: 4,
+            va_deceased_gender: "Male",
+          },
+        ],
+        count: 2,
+        limit: 50,
+        offset: 0,
+        has_more: false,
+      }),
+      getCodingHistory: jest.fn().mockResolvedValue({
+        history: [
+          {
+            va_sid: "sid-h1",
+            va_uniqueid_masked: "UID-HIST-1",
+            va_form_id: "WHO2022_ADULT",
+            project_id: "P1",
+            site_id: "S1",
+            va_submission_date: "2026-10-08",
+            va_coding_date: "2026-10-09",
+            va_code_status: "Coded",
+            va_deceased_age: 71,
+            va_deceased_gender: "Female",
+            recodeable: true,
+          },
+          {
+            va_sid: "sid-h2",
+            va_uniqueid_masked: "UID-HIST-2",
+            va_form_id: "WHO2022_ADULT",
+            project_id: "P1",
+            site_id: "S2",
+            va_submission_date: "2026-10-07",
+            va_coding_date: "2026-10-08",
+            va_code_status: "Final",
+            va_deceased_age: 52,
+            va_deceased_gender: "Male",
+            recodeable: false,
+          },
+        ],
+        count: 2,
+        limit: 50,
+        offset: 0,
+        has_more: false,
+      }),
+    });
+
+    const screen = await render("coding", api);
+    await settle();
+
+    let text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("Random pool");
+    expect(text).toContain("Ready to pick");
+    expect(text).toContain("Not codeable");
+    expect(text).toContain("Age: 64");
+    expect(text).toContain("Sex: Female");
+    expect(text).toContain("Collector: Collector Anita");
+    expect(text).toContain("Form: WHO2022_ADULT");
+
+    // Filter by sex: Female
+    await press(screen.renderer, "Filter sex: Female");
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-FEM-1");
+    expect(text).not.toContain("UID-MALE-2");
+
+    // Clear filters
+    await press(screen.renderer, "Clear filters");
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-FEM-1");
+    expect(text).toContain("UID-MALE-2");
+
+    // Filter by area: Within Area
+    await press(screen.renderer, "Filter area: Within Area");
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-FEM-1");
+    expect(text).not.toContain("UID-MALE-2");
+
+    // Filter by area: All
+    await press(screen.renderer, "Filter area: All");
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-FEM-1");
+    expect(text).toContain("UID-MALE-2");
+
+    // Filter by area: S2
+    await press(screen.renderer, "Filter area: S2");
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-MALE-2");
+    expect(text).not.toContain("UID-FEM-1");
+
+    // Filter by text search that matches nothing
+    const filterInput = screen.renderer.root.findByProps({ accessibilityLabel: "Filter cases" });
+    await act(async () => { filterInput.props.onChangeText("no-such-case"); });
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("No cases match your filters.");
+
+    // Switch to History tab (resets filters automatically) and test Recodeable filter
+    await press(screen.renderer, "History");
+    await settle();
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-HIST-1");
+    expect(text).toContain("UID-HIST-2");
+    expect(text).toContain("Coded: 2026-10-09");
+
+    await press(screen.renderer, "Filter recodeable only");
+    text = JSON.stringify(screen.renderer.toJSON());
+    expect(text).toContain("UID-HIST-1");
+    expect(text).not.toContain("UID-HIST-2");
+
+    await unmount(screen.renderer);
+  });
+
+  test("shows Project: All projects picker when single offered project does not match requested project", async () => {
+    const api = makeApi({
+      getCodingProjects: jest.fn().mockResolvedValue({
+        projects: ["SADEMO"],
+        project_options: [{ project_id: "SADEMO", project_name: "WHO 2022 Demo" }],
+        last_project_id: null,
+      }),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" initialView={{ projectId: "TST001", allProjects: false, showHistory: false, offset: 0 }} onOpen={jest.fn()} />);
+    });
+    await settle();
+    await settle();
+    expect(button(renderer.root, "Project: All projects")).toBeDefined();
+    await unmount(renderer);
   });
 });

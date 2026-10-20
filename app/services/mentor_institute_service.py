@@ -32,11 +32,13 @@ from app.logging.va_logger import log_mentor_institute_action
 from app.models import (
     MapMentorInstituteOrgUnit,
     MapMentorInstituteUser,
+    MasLanguages,
     MasMentorInstitute,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaProjectMaster,
     VaStatuses,
     VaUserAccessGrants,
     VaUsers,
@@ -685,3 +687,99 @@ def mentors_for_unit(unit_id) -> list[tuple[MasMentorInstitute, VaUsers]]:
         .order_by(MasMentorInstitute.institute_code, VaUsers.name)
     )
     return [(institute, user) for institute, user in db.session.execute(stmt)]
+
+
+def user_mentoring_summary(user: VaUsers) -> dict:
+    """Mentoring institute memberships, supported districts, and languages for *user*."""
+    member_stmt = (
+        sa.select(MasMentorInstitute, MapMentorInstituteUser.is_admin)
+        .join(
+            MapMentorInstituteUser,
+            MapMentorInstituteUser.institute_id == MasMentorInstitute.institute_id,
+        )
+        .where(
+            MapMentorInstituteUser.user_id == user.user_id,
+            MapMentorInstituteUser.is_active.is_(True),
+            MasMentorInstitute.is_active.is_(True),
+        )
+        .order_by(MasMentorInstitute.institute_code)
+    )
+    member_rows = db.session.execute(member_stmt).all()
+    member_institutes = [inst for inst, _ in member_rows]
+
+    is_platform_admin = bool(user.is_admin())
+    if is_platform_admin:
+        all_active_institutes = db.session.scalars(
+            sa.select(MasMentorInstitute)
+            .where(MasMentorInstitute.is_active.is_(True))
+            .order_by(MasMentorInstitute.institute_code)
+        ).all()
+        institute_pairs = [(inst, True) for inst in all_active_institutes]
+    else:
+        institute_pairs = [(inst, bool(is_admin)) for inst, is_admin in member_rows]
+
+    institute_ids = [inst.institute_id for inst, _ in institute_pairs]
+    districts_by_inst_id: dict[uuid.UUID, list[dict]] = {inst_id: [] for inst_id in institute_ids}
+
+    if institute_ids:
+        district_stmt = (
+            sa.select(
+                MapMentorInstituteOrgUnit.institute_id,
+                MasOrgUnit.org_unit_id,
+                MasOrgUnit.unit_code,
+                MasOrgUnit.unit_name,
+                VaProjectMaster.project_id,
+                VaProjectMaster.project_name,
+            )
+            .join(MasOrgUnit, MasOrgUnit.org_unit_id == MapMentorInstituteOrgUnit.org_unit_id)
+            .join(VaProjectMaster, VaProjectMaster.project_id == MasOrgUnit.project_id)
+            .where(
+                MapMentorInstituteOrgUnit.institute_id.in_(institute_ids),
+                MapMentorInstituteOrgUnit.is_active.is_(True),
+                MasOrgUnit.is_active.is_(True),
+                VaProjectMaster.project_status == VaStatuses.active,
+            )
+            .order_by(VaProjectMaster.project_name, MasOrgUnit.unit_name)
+        )
+        for row in db.session.execute(district_stmt):
+            districts_by_inst_id[row.institute_id].append(
+                {
+                    "project_id": row.project_id,
+                    "project_name": row.project_name,
+                    "org_unit_id": str(row.org_unit_id),
+                    "unit_code": row.unit_code,
+                    "unit_name": row.unit_name,
+                }
+            )
+
+    institutes = [
+        {
+            "institute_code": inst.institute_code,
+            "institute_name": inst.institute_name,
+            "is_active": inst.is_active,
+            "is_admin": bool(is_admin),
+            "districts": districts_by_inst_id.get(inst.institute_id, []),
+        }
+        for inst, is_admin in institute_pairs
+    ]
+
+    is_institute_admin = any(i["is_admin"] for i in institutes)
+    languages = []
+    if is_institute_admin or is_platform_admin:
+        lang_stmt = (
+            sa.select(MasLanguages.language_code, MasLanguages.language_name)
+            .where(MasLanguages.is_active.is_(True))
+            .order_by(MasLanguages.language_code)
+            .limit(200)
+        )
+        languages = [
+            {"language_code": r.language_code, "language_name": r.language_name}
+            for r in db.session.execute(lang_stmt)
+        ]
+
+    return {
+        "is_member": bool(member_institutes),
+        "is_institute_admin": is_institute_admin,
+        "institutes": institutes,
+        "languages": languages,
+    }

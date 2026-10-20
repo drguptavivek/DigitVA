@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-20
 ---
 
 # Field Data Collection Policy
@@ -530,6 +530,26 @@ real interviews**, and must be pointed at a non-production DigitVA.
   location or contact details **must be added to that registry in the same
   change that introduces it**. The registry is an allowlist of known-personal
   fields, so an unlisted new field defaults to exportable.
+
+## Phone numbers
+
+Informant phones (`informant_phone`, optional `informant_phone_2`) are exactly
+10 digits with no country code and no restriction on the first digit, shown
+3-3-4 ("987 654 3210") and stored and sent as the plain 10 digits; a leading
+`+91`, `91` or `0` is dropped from a pasted number when 10 digits remain. The
+server is authoritative (the same validation error as the other
+registration fields, no new error code) and validates a phone on an edit only when the edit changes it, so an older
+non-conforming stored value never blocks an unrelated correction.
+
+Age information (owner, 2026-10-20). A registration carries a date of birth
+(exact date, month and year, or year only) or, when "Date of birth unknown" is
+chosen, an estimated `age_years`. Both clients mark the field required (Date of
+birth *, or Estimated age * under unknown) and block the save with an inline
+message; the server is authoritative with the same validation error as the other
+registration fields, on create and on edit. An edit is checked only when it
+changes `date_of_birth`, `date_of_birth_partial` or `age_years`, so an older row
+holding none of them (or an ODK-sourced or direct-start case) stays editable while
+they are untouched; clearing them on a row that had one is refused.
 
 ## Data minimization
 

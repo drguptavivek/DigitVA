@@ -9,7 +9,8 @@ import { radius, useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
 import { loginRecoveryUrl } from "./loginRecovery";
-import { showBottomTabs, type NavParams } from "./navTabs";
+import { guardedNavigate } from "./navigationGuard";
+import { activeTab, navEntries, type NavEntry, type NavParams } from "./navTabs";
 import { openServerPage, rememberVisit, ROLE_SCREENS } from "./roleHome";
 
 const DESKTOP_BREAKPOINT = 900;
@@ -142,23 +143,28 @@ type NavigationItem = {
   key: string;
   label: string;
   icon: string;
-  route?: string;
   action: () => void;
+  /** Opens a new tab, so it leaves nothing behind and skips the navigation guard. */
+  newTab?: boolean;
 };
 
-function activeRoute(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(route + "/");
-}
+/** Sidebar glyphs per navEntries key; decorative, every link carries its label. */
+const NAV_ICONS: Record<string, string> = {
+  "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/area/": "▦",
+  "/organization": "⚲", "/settings": "⚙", website: "↗", "/supervision": "⚑", "/data-management/": "▤", "/mentoring": "🏛", "/admin/": "◆",
+};
 
 function NavigationLink({
   item,
   active,
   compact,
+  expanded,
   onPress
 }: {
   item: NavigationItem;
   active: boolean;
   compact: boolean;
+  expanded?: boolean;
   onPress: () => void;
 }) {
   const theme = useTheme();
@@ -167,7 +173,7 @@ function NavigationLink({
       accessibilityRole="button"
       accessibilityLabel={item.label}
       accessibilityHint={active ? t("active") : undefined}
-      accessibilityState={{ selected: active }}
+      accessibilityState={{ selected: active, ...(expanded === undefined ? {} : { expanded }) }}
       onPress={onPress}
       style={({ pressed }) => [
         navigationStyles.link,
@@ -185,7 +191,12 @@ function NavigationLink({
   );
 }
 
-function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boolean> }) {
+/**
+ * The left menu of wide screens (a compact rail with a drawer from 768 to 899px): the items of navEntries, the
+ * same as the phone bottom bar, which replaces this menu below 768px. Every item but a new-tab one goes through
+ * the navigation guard (navigationGuard.ts).
+ */
+function NavigationMenu() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useGlobalSearchParams() as NavParams;
@@ -193,6 +204,11 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
   const { bootstrap, logout } = useAppState();
   const theme = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const current = activeTab(pathname, params);
+  const entries = bootstrap ? navEntries(bootstrap) : { primary: [], more: [] };
+  const moreCurrent = entries.more.some((entry) => entry.key === current);
+  // Opens by itself when the current page lives under More, so the highlighted item is visible.
+  const [moreOpen, setMoreOpen] = useState(moreCurrent);
   const wide = width >= DESKTOP_BREAKPOINT;
   const navigationLandmarkProps = Platform.OS === "web"
     ? ({ role: "navigation", "aria-label": t("menuLabel") } as unknown as ViewProps)
@@ -236,91 +252,60 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
     }
   }, [drawerOpen, wide]);
 
-  // The phone bottom bar already carries these destinations.
-  if (!bootstrap || (Platform.OS === "web" && width < 768 && showBottomTabs(pathname, params))) return null;
+  // Below 768px on the web the phone bottom bar carries these destinations; the rail never shows there, also where
+  // the bar is hidden on purpose (a case in focus mode).
+  if (!bootstrap || (Platform.OS === "web" && width < 768)) return null;
 
-  const { capabilities, access } = bootstrap;
-  const roles = access.roles;
-  const items: NavigationItem[] = [];
-  if (roles.some((role) => role === "coder" || role === "coding_tester")) {
-    items.push({ key: "coding", label: t("navCoding"), icon: "✎", route: "/coding", action: () => router.push("/coding") });
-  }
-  if (roles.includes("reviewer")) {
-    items.push({ key: "reviewing", label: t("navReview"), icon: "✓", route: "/reviewing", action: () => router.push("/reviewing") });
-  }
-  if (capabilities.intake) {
-    items.push({ key: "collection", label: t("reportedDeaths"), icon: "☷", route: "/collection", action: () => router.push("/collection") });
-  }
-  if (capabilities.registerDeath) {
-    items.push({ key: "registerDeath", label: t("registerDeath"), icon: "+", route: "/death-registration", action: () => router.push("/death-registration") });
-  }
-  if (capabilities.registeredDeaths) {
-    items.push({ key: "registeredDeaths", label: t("myRegisteredDeaths"), icon: "≡", route: "/death-registration", action: () => router.push({ pathname: "/death-registration", params: { view: "mine" } }) });
-  }
-  if (capabilities.supervision) {
-    items.push({ key: "supervision", label: t("supervisionTitle"), icon: "⚑", route: "/supervision", action: () => router.push("/supervision") });
-  }
-  if (roles.includes("data_manager")) {
-    items.push({ key: "area", label: t("navArea"), icon: "▦", action: () => openServerPage(bootstrap.user.user_id, "/area/") });
-    items.push({ key: "dataManagement", label: t("navDataManagement"), icon: "▤", action: () => openServerPage(bootstrap.user.user_id, "/data-management/") });
-  }
-  const organization: NavigationItem = {
-    key: "organization",
-    label: t("navOrganization"),
-    icon: "⚲",
-    route: "/organization",
-    action: () => router.push("/organization"),
-  };
-  const settings: NavigationItem = {
-    key: "settings",
-    label: t("navSettings"),
-    icon: "⚙",
-    route: "/settings",
-    action: () => router.push("/settings")
-  };
+  const userId = bootstrap.user.user_id;
+  const toItem = (entry: NavEntry): NavigationItem => ({
+    key: entry.key,
+    label: t(entry.labelKey),
+    icon: NAV_ICONS[entry.key] ?? "•",
+    action: entry.route
+      ? () => router.push(entry.params ? { pathname: entry.route as never, params: entry.params } : (entry.route as never))
+      : entry.serverPath
+        ? () => openServerPage(userId, entry.serverPath!)
+        : () => void window.open(entry.href, "_blank", "noopener"),
+    newTab: !entry.route && !entry.serverPath,
+  });
 
-  async function navigate(action: () => void) {
-    if (beforeNavigate && !(await beforeNavigate())) return;
-    setDrawerOpen(false);
-    action();
+  function navigate(item: NavigationItem) {
+    if (item.newTab) {
+      item.action();
+      return;
+    }
+    guardedNavigate(() => {
+      setDrawerOpen(false);
+      item.action();
+    });
   }
 
   async function signOut() {
-    if (beforeNavigate && !(await beforeNavigate())) return;
-    setDrawerOpen(false);
-    await logout?.();
+    await guardedNavigate(async () => {
+      setDrawerOpen(false);
+      await logout?.();
+    });
   }
 
-  const linksFor = (compact: boolean) => (
-    <>
-      <View style={navigationStyles.linkList}>
-        {items.map((item) => (
-          <NavigationLink
-            key={item.key}
-            item={item}
-            compact={compact}
-            active={item.route ? activeRoute(pathname, item.route) : false}
-            onPress={() => void navigate(item.action)}
-          />
-        ))}
-      </View>
-      <View style={[navigationStyles.divider, { backgroundColor: theme.colors.border }]} />
-      <NavigationLink
-        item={organization}
-        compact={compact}
-        active={activeRoute(pathname, organization.route!)}
-        onPress={() => void navigate(organization.action)}
-      />
-      <NavigationLink
-        item={settings}
-        compact={compact}
-        active={activeRoute(pathname, settings.route!)}
-        onPress={() => void navigate(settings.action)}
-      />
-    </>
+  const signOutItem: NavigationItem = { key: "signOut", label: t("signOut"), icon: "↪", action: () => void signOut() };
+  const moreItem: NavigationItem = { key: "more", label: t("navMore"), icon: "⋯", action: () => setMoreOpen((open) => !open) };
+  const link = (item: NavigationItem, compact: boolean) => (
+    <NavigationLink key={item.key} item={item} compact={compact} active={item.key === current} onPress={() => navigate(item)} />
   );
 
-  const signOutItem: NavigationItem = { key: "signOut", label: t("signOut"), icon: "↪", action: () => void signOut() };
+  const linksFor = (compact: boolean) => (
+    <View style={navigationStyles.linkList}>
+      {entries.primary.map((entry) => link(toItem(entry), compact))}
+      <NavigationLink item={moreItem} compact={compact} active={moreCurrent && !moreOpen} expanded={moreOpen} onPress={moreItem.action} />
+      {moreOpen ? (
+        <View style={[navigationStyles.linkList, !compact && navigationStyles.subList, { borderLeftColor: theme.colors.border }]}>
+          {entries.more.map((entry) => link(toItem(entry), compact))}
+          <NavigationLink item={signOutItem} compact={compact} active={false} onPress={signOutItem.action} />
+        </View>
+      ) : null}
+    </View>
+  );
+
   const menuBody = (
     <>
       <View style={navigationStyles.brand} accessibilityRole="header" accessibilityLabel={t("appName")}>
@@ -333,8 +318,6 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
       </View>
       <Text style={[navigationStyles.user, { color: theme.colors.textMuted }]} numberOfLines={2}>{bootstrap.user.name}</Text>
       {linksFor(false)}
-      <View style={navigationStyles.spacer} />
-      <NavigationLink item={signOutItem} compact={false} active={false} onPress={signOutItem.action} />
     </>
   );
 
@@ -352,8 +335,6 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
         <Text style={[navigationStyles.menuIcon, { color: theme.colors.text }]}>☰</Text>
       </Pressable>
       {linksFor(true)}
-      <View style={navigationStyles.spacer} />
-      <NavigationLink item={signOutItem} compact active={false} onPress={signOutItem.action} />
     </>
   );
 
@@ -389,15 +370,16 @@ function NavigationMenu({ beforeNavigate }: { beforeNavigate?: () => Promise<boo
 export function WebShell({
   title,
   children,
-  beforeNavigate,
   headerAction,
-  footer
+  footer,
+  lead
 }: {
   title: string;
   children: React.ReactNode;
-  beforeNavigate?: () => Promise<boolean>;
   headerAction?: React.ReactNode;
   footer?: React.ReactNode;
+  /** Rendered above the title inside the scroller (Screen `lead`); the interview passes its header bar here. */
+  lead?: React.ReactNode;
 }) {
   const { bootstrap, ready } = useAppState();
   const pathname = usePathname();
@@ -410,7 +392,7 @@ export function WebShell({
   if (!bootstrap) return <LoginLanding />;
   const resolvedHeaderAction = headerAction === undefined ? <UiLanguageSwitcher /> : headerAction;
   return (
-    <Screen title={title} sidebar={<NavigationMenu beforeNavigate={beforeNavigate} />} headerAction={resolvedHeaderAction} footer={footer}>
+    <Screen title={title} sidebar={<NavigationMenu />} headerAction={resolvedHeaderAction} footer={footer} lead={lead}>
       {KPI_SCREENS.includes(pathname) ? <KpiStrip csrf={bootstrap.csrf} /> : null}
       {children}
     </Screen>
@@ -442,8 +424,7 @@ const navigationStyles = StyleSheet.create({
   compactLink: { width: 48, paddingHorizontal: 0, justifyContent: "center" },
   icon: { width: 22, textAlign: "center", fontSize: 18, fontWeight: "700" },
   linkText: { fontSize: 16, fontWeight: "600", flexShrink: 1 },
-  spacer: { flex: 1 },
-  divider: { height: 1, marginVertical: 4 },
+  subList: { paddingLeft: 8, marginLeft: 12, borderLeftWidth: 1 },
   menuButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   menuIcon: { fontSize: 20, lineHeight: 26 },
   drawerLayer: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 10, flexDirection: "row" },

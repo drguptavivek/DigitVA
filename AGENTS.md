@@ -54,6 +54,8 @@ The main session plans, decides, reviews results and commits. It delegates:
   of your own (`minerva_test_pii` exists for this tree); never contend for
   `minerva_test`. Run:
   `docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/<db> minerva_app_service uv run --no-sync python -m pytest <targets> -q -p no:cacheprovider`
+  Full suite in parallel: the same command with `tests -n 4` (workers use
+  `<db>_gw0`..`<db>_gw3`; `make test-parallel`).
 - Migrations chain onto committed revisions only, checked in `git log`. Run
   `flask db heads` before and after adding one.
 

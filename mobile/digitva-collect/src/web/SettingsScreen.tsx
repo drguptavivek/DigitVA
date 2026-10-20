@@ -4,12 +4,14 @@ import { t } from "../i18n";
 import { Button, useUiStyles } from "../ui";
 import { useTheme } from "../theme";
 import { WebShell } from "./common";
+import { ContextualHelpBanner } from "./ContextualHelp";
 
 export default function SettingsScreen() {
   const styles = useUiStyles();
   const theme = useTheme();
   return (
     <WebShell title={t("navSettings")}>
+      <ContextualHelpBanner screen="settings" />
       <Text style={styles.headline}>{t("appearance")}</Text>
       <View style={styles.row}>
         <Button kind={theme.preference === "system" ? "primary" : "secondary"} label={t("themeSystem")} onPress={() => void theme.setPreference("system")} />

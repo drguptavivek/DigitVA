@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert } from "react-native";
+import { Alert, StyleSheet } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ApiError } from "../src/api";
@@ -35,6 +35,14 @@ async function settle() {
 }
 
 describe("CodeNowButton", () => {
+  test("keeps the 44px touch target of the other case-card buttons", async () => {
+    const screen = await render(makeApi());
+    const target = button(screen.renderer.root, "Code this case now");
+    expect(target).toBeDefined();
+    expect(StyleSheet.flatten(target!.props.style({ pressed: false })).minHeight).toBeGreaterThanOrEqual(44);
+    await act(async () => { screen.renderer.unmount(); });
+  });
+
   test("does not allocate until pressed and opens the submitted case after success", async () => {
     const api = makeApi({ codeOwnSubmission: jest.fn().mockResolvedValue({ va_sid: "sid" }) });
     const screen = await render(api);

@@ -4,6 +4,8 @@ import { act, create } from "react-test-renderer";
 let mockLocale = "en";
 let mockParams: Record<string, string> = {};
 const mockReplace = jest.fn();
+const mockPush = jest.fn();
+const mockSetParams = jest.fn();
 
 const access = (mode: string | undefined, userId = "u1", name = "Interviewer") => ({
   user: { user_id: userId, name },
@@ -29,11 +31,12 @@ const createBootstrap = (userId = "u1", name = "Interviewer") => ({
 });
 let mockBootstrap = createBootstrap();
 
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
+jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, push: mockPush, setParams: mockSetParams, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap }) }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key) }));
 jest.mock("../src/ui", () => ({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
+  stateLabel: (state: string) => `state:${state}`,
   useUiStyles: () => ({ error: {}, muted: {}, input: {}, card: {}, text: {}, row: {} })
 }));
 jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: ReactNode }) => <>{children}</>, browserErrorText: () => "error" }));
@@ -44,28 +47,37 @@ jest.mock("../src/web/registrationControls", () => {
       React.createElement("button", { "data-field": field, "data-value": value, "data-appearance": dateAppearance, "data-issue": issueMessage, onClick: onChange as unknown as () => void, onIssue } as Record<string, unknown>)
   };
 });
+jest.mock("../src/PhoneInput", () => {
+  const React = require("react") as typeof import("react");
+  return {
+    PhoneNumbers: () => React.createElement("button", { "data-field": "informant_phone" } as Record<string, unknown>)
+  };
+});
 jest.mock("../src/web/LocationCapture", () => {
   const React = require("react") as typeof import("react");
   return {
     LocationCapture: ({ value, onChange }: { value: unknown; onChange: (next: unknown) => void }) =>
       React.createElement("button", { "data-location": JSON.stringify(value), onClick: onChange as unknown as () => void }),
     MapsLink: ({ latitude, longitude }: { latitude?: number; longitude?: number }) =>
-      typeof latitude === "number" && typeof longitude === "number" ? React.createElement("a", { "data-maps": `${latitude},${longitude}` }) : null
+      typeof latitude === "number" && typeof longitude === "number" ? React.createElement("a", { "data-maps": `${latitude},${longitude}` }) : null,
+    MapsPinButton: () => null
   };
 });
 jest.mock("../src/client/api", () => ({
   INTAKE_API: "/api/v1/intake",
+  getCases: jest.fn(),
   getIntakeContext: jest.fn(),
   registerDeath: jest.fn(),
   startDraft: jest.fn()
 }));
 
 import DeathRegistrationScreen from "../src/web/DeathRegistrationScreen";
-import { registerDeath, startDraft } from "../src/client/api";
+import { getCases, registerDeath, startDraft } from "../src/client/api";
 import * as sharedApi from "../src/api";
 
 const mockRegisterDeath = registerDeath as jest.Mock;
 const mockStartDraft = startDraft as jest.Mock;
+const mockGetCases = getCases as jest.Mock;
 
 async function settle(): Promise<void> {
   await act(async () => {
@@ -78,6 +90,8 @@ describe("DeathRegistrationScreen", () => {
     mockLocale = "en";
     mockParams = {};
     mockReplace.mockReset();
+    mockPush.mockReset();
+    mockSetParams.mockReset();
     jest.restoreAllMocks();
     jest.clearAllMocks();
     mockBootstrap = createBootstrap();
@@ -85,6 +99,8 @@ describe("DeathRegistrationScreen", () => {
     mockBootstrap.access = access("death_register");
     mockRegisterDeath.mockResolvedValue({ case: { death_id: "d1" } });
     mockStartDraft.mockResolvedValue({ draft: { draft_id: "draft1" } });
+    mockGetCases.mockReset();
+    mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
   });
 
   it("blocks submit while a date control reports an invalid draft, then recovers", async () => {
@@ -129,7 +145,7 @@ describe("DeathRegistrationScreen", () => {
     });
     const issueFor = (field: string) => tree!.root.findByProps({ "data-field": field }).props["data-issue"];
     expect(issueFor("deceased_name")).toBe("errRequired");
-    expect(issueFor("date_of_birth")).toBe("errRequired");
+    expect(issueFor("date_of_birth")).toBe("errBirthOrAge");
     expect(issueFor("date_of_death")).toBe("errRequired");
     expect(mockRegisterDeath).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
@@ -144,7 +160,7 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
     mockLocale = "hi";
     await act(async () => tree!.update(<DeathRegistrationScreen />));
-    expect(tree!.root.findByProps({ "data-field": "date_of_birth" }).props["data-issue"]).toBe("hi:errRequired");
+    expect(tree!.root.findByProps({ "data-field": "date_of_birth" }).props["data-issue"]).toBe("hi:errBirthOrAge");
     await act(async () => tree!.unmount());
   });
 
@@ -332,8 +348,8 @@ describe("DeathRegistrationScreen", () => {
       .map((node) => node.props["data-field"]);
     expect(orderedFields).toEqual([
       "deceased_name",
-      "date_of_birth",
       "date_of_death",
+      "date_of_birth",
       "address",
       "informant_name",
       "informant_phone",
@@ -342,34 +358,105 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("shows only the reporter's bounded own-death page without loading interview data", async () => {
-    mockParams = { view: "mine" };
+  it("offers the deaths list from the add form, moves the URL to it and shows loading, not empty, while it loads", async () => {
     mockBootstrap.capabilities = { intake: false, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
-    mockBootstrap.access = access("death_register");
-    const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({
-      deaths: [{ death_id: "d1", unique_id: "U1", deceased_name: "Private Name", date_of_death: "2026-09-30" }],
-      next_cursor: null,
+    let resolvePage!: (page: { cases: never[]; next_cursor: null }) => void;
+    mockGetCases.mockReturnValueOnce(new Promise((resolve) => { resolvePage = resolve; }));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(tree!.root.findByProps({ "data-field": "deceased_name" })).toBeDefined();
+
+    await act(async () => tree!.root.findByProps({ "data-label": "reportedDeaths" }).props.onClick());
+    expect(mockSetParams).toHaveBeenCalledWith({ view: "mine" });
+    const shown = (key: string) => tree!.root.findAll((node) => node.props.children === key).length > 0;
+    expect(shown("loading")).toBe(true);
+    expect(shown("noReportedDeaths")).toBe(false);
+
+    await act(async () => { resolvePage({ cases: [], next_cursor: null }); await Promise.resolve(); });
+    expect(shown("noReportedDeaths")).toBe(true);
+    expect(shown("loading")).toBe(false);
+
+    // The list's primary action opens the form.
+    await act(async () => tree!.root.findByProps({ "data-label": "registerDeath" }).props.onClick());
+    expect(mockSetParams).toHaveBeenLastCalledWith({ view: undefined });
+    await act(async () => tree!.unmount());
+  });
+
+  it("confirms a saved registration on the deaths list", async () => {
+    mockBootstrap.capabilities = { intake: false, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const findField = (field: string) => tree!.root.findByProps({ "data-field": field });
+    await act(async () => {
+      findField("deceased_name").props.onClick("Asha");
+      findField("date_of_birth").props.onClick("1987-04-12");
+      findField("date_of_death").props.onClick("2026-09-30");
     });
+    await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    expect(mockSetParams).toHaveBeenCalledWith({ view: "mine" });
+    expect(mockGetCases).toHaveBeenCalled();
+    expect(tree!.root.findAll((node) => node.props.accessibilityRole === "alert" && node.props.children === "savedDeath").length).toBeGreaterThan(0);
+    await act(async () => tree!.unmount());
+  });
+
+  it("lists the deaths of the interviewer's scope with status and starts an interview directly", async () => {
+    mockParams = { view: "mine" };
+    mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
+    mockGetCases.mockResolvedValue({ cases: [
+      { death_id: "d1", unique_id: "U1", deceased_name: "Asha", state: "registered", project_id: "P1", site_id: "S1" },
+      { death_id: "d2", unique_id: "U2", deceased_name: "Bina", state: "completed", project_id: "P1", site_id: "S1" },
+    ], next_cursor: null });
+    const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths");
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
 
-    expect(ownPage).toHaveBeenCalledWith(mockBootstrap.csrf, false, undefined);
-    expect(JSON.stringify(tree!.toJSON())).toContain("Private Name");
-    expect(mockRegisterDeath).not.toHaveBeenCalled();
-    expect(mockStartDraft).not.toHaveBeenCalled();
-    ownPage.mockRestore();
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain("state:registered");
+    expect(text).toContain("state:completed");
+    expect(ownPage).not.toHaveBeenCalled();
+    const starts = tree!.root.findAllByProps({ "data-label": "startInterview" });
+    expect(starts).toHaveLength(1);
+    await act(async () => starts[0].props.onClick());
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/interview", params: { deathId: "d1" } });
     await act(async () => tree!.unmount());
   });
 
-  it("redirects a reporter deep link to the bounded own list without requesting case detail", async () => {
+  it("shows a reporter its own deaths from the case list without interview actions", async () => {
+    mockParams = { view: "mine" };
+    mockBootstrap.capabilities = { intake: false, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
+    mockBootstrap.access = { ...access("death_register"), roles: ["death_reporter"] };
+    mockGetCases.mockResolvedValue({ cases: [
+      { death_id: "d1", unique_id: "U1", deceased_name: "Private Name", state: "registered", registered_by_me: true, can_interview: false },
+    ], next_cursor: null });
+    const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths");
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+
+    expect(mockGetCases).toHaveBeenCalledWith(mockBootstrap.links.intakeCases, mockBootstrap.csrf, null, undefined);
+    expect(ownPage).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree!.toJSON())).toContain("Private Name");
+    expect(tree!.root.findAllByProps({ "data-label": "startInterview" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-label": "viewDetails" })).toHaveLength(0);
+    await act(async () => tree!.root.findByProps({ "data-label": "editRegistration" }).props.onClick());
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/death-registration", params: { deathId: "d1", registered: "mine" } });
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
+    expect(mockStartDraft).not.toHaveBeenCalled();
+    await act(async () => tree!.unmount());
+  });
+
+  it("redirects a reporter deep link to the deaths list without requesting case detail", async () => {
     mockParams = { deathId: "d1" };
     mockBootstrap.capabilities = { intake: false, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
     mockBootstrap.access = access("death_register");
-    const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({
-      deaths: [{ death_id: "d1", unique_id: "U1", deceased_name: "Private Name" }],
-      next_cursor: null,
-    });
+    mockGetCases.mockResolvedValue({ cases: [{ death_id: "d1", unique_id: "U1", deceased_name: "Private Name", registered_by_me: true }], next_cursor: null });
     const getDetail = jest.spyOn(sharedApi, "getCaseDetail");
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
@@ -377,7 +464,6 @@ describe("DeathRegistrationScreen", () => {
 
     expect(getDetail).not.toHaveBeenCalled();
     expect(mockReplace).toHaveBeenCalledWith({ pathname: "/death-registration", params: { view: "mine" } });
-    expect(ownPage).toHaveBeenCalledWith(mockBootstrap.csrf, false, undefined);
     expect(JSON.stringify(tree!.toJSON())).toContain("Private Name");
     await act(async () => tree!.unmount());
   });
@@ -456,7 +542,7 @@ describe("DeathRegistrationScreen", () => {
   });
 
   it("refetches an own reporter record from the bounded own list after a stale conflict", async () => {
-    mockParams = { view: "mine" };
+    mockParams = { deathId: "d1", registered: "mine" };
     mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
     const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({
       deaths: [{
@@ -470,7 +556,7 @@ describe("DeathRegistrationScreen", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "editRegistration" }).props.onClick());
+    expect(tree!.root.findByProps({ "data-field": "address" }).props["data-value"]).toBe("Old address");
     await act(async () => tree!.root.findByProps({ "data-field": "address" }).props.onClick("My change"));
     await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
     await settle();
@@ -485,15 +571,16 @@ describe("DeathRegistrationScreen", () => {
     mockParams = { view: "mine" };
     mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
     mockBootstrap.access = access("death_register");
-    let resolveA!: (page: { deaths: never[]; next_cursor: null }) => void;
-    const list = jest.spyOn(sharedApi, "getRegisteredDeaths")
-      .mockReturnValueOnce(new Promise((resolve) => { resolveA = resolve; }) as never)
-      .mockResolvedValue({
-        deaths: [{
-          death_id: "b1", unique_id: "UB1", project_id: "P1", site_id: "S1", status: "registered",
-          deceased_name: "Person B", date_of_death: "2026-09-30", address: "B address"
-        }], next_cursor: null
-      } as never);
+    let resolveA!: (page: { cases: never[]; next_cursor: null }) => void;
+    mockGetCases
+      .mockReturnValueOnce(new Promise((resolve) => { resolveA = resolve; }))
+      .mockResolvedValue({ cases: [{ death_id: "b1", unique_id: "UB1", project_id: "P1", site_id: "S1", state: "registered", deceased_name: "Person B" }], next_cursor: null });
+    jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({
+      deaths: [{
+        death_id: "b1", unique_id: "UB1", project_id: "P1", site_id: "S1", status: "registered",
+        deceased_name: "Person B", date_of_death: "2026-09-30", address: "B address"
+      }], next_cursor: null
+    } as never);
     let tree: ReturnType<typeof create>;
     let captureTransition = false;
     const transitionViews: string[] = [];
@@ -518,27 +605,32 @@ describe("DeathRegistrationScreen", () => {
     expect(transitionViews[0]).not.toContain("UA1");
 
     await act(async () => {
-      resolveA({ deaths: [{ death_id: "a1", unique_id: "UA1", deceased_name: "Person A" }] as never[], next_cursor: null });
+      resolveA({ cases: [{ death_id: "a1", unique_id: "UA1", deceased_name: "Person A" }] as never[], next_cursor: null });
       await Promise.resolve();
     });
     await settle();
     expect(JSON.stringify(tree!.toJSON())).toContain("Person B");
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Person A");
 
-    await act(async () => tree!.root.findByProps({ "data-label": "editRegistration" }).props.onClick());
+    // B opens its own registration; switching back to A hides B's form at once.
+    mockParams = { deathId: "b1", registered: "mine" };
+    await act(async () => tree!.update(screen()));
+    await settle();
     expect(tree!.root.findByProps({ "data-field": "deceased_name" }).props["data-value"]).toBe("Person B");
+    // A has no such registration (the mocks would otherwise answer A with B's rows).
+    jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({ deaths: [], next_cursor: null });
+    mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
     mockBootstrap = accountA;
     captureTransition = true;
     await act(async () => tree!.update(screen()));
     captureTransition = false;
     expect(transitionViews.at(-1)).not.toContain("Person B");
     expect(transitionViews.at(-1)).not.toContain("B address");
-    expect(list).toHaveBeenCalledTimes(2);
     await act(async () => tree!.unmount());
   });
 
   it("refreshes a page-two reporter edit with its source cursor and omits an absent timestamp", async () => {
-    mockParams = { view: "mine" };
+    mockParams = { deathId: "d2", registered: "mine" };
     mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
     const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths")
       .mockResolvedValueOnce({ deaths: [], next_cursor: "page-two" })
@@ -559,9 +651,7 @@ describe("DeathRegistrationScreen", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "loadMore" }).props.onClick());
-    await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "editRegistration" }).props.onClick());
+    expect(ownPage).toHaveBeenNthCalledWith(2, mockBootstrap.csrf, true, "page-two");
     await act(async () => tree!.root.findByProps({ "data-field": "address" }).props.onClick("My change"));
     await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
     await settle();
@@ -574,13 +664,11 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("discards a pending own-list response when the browser is hidden", async () => {
+  it("discards a pending deaths-list response when the browser is hidden", async () => {
     mockParams = { view: "mine" };
     mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
-    let resolvePage!: (page: { deaths: never[]; next_cursor: null }) => void;
-    jest.spyOn(sharedApi, "getRegisteredDeaths").mockReturnValueOnce(
-      new Promise((resolve) => { resolvePage = resolve; }) as never
-    );
+    let resolvePage!: (page: { cases: never[]; next_cursor: null }) => void;
+    mockGetCases.mockReturnValueOnce(new Promise((resolve) => { resolvePage = resolve; }));
     const originalDocument = global.document;
     let visibilityHandler: (() => void) | undefined;
     const testDocument = {
@@ -598,17 +686,17 @@ describe("DeathRegistrationScreen", () => {
     (testDocument as { visibilityState: string }).visibilityState = "hidden";
     await act(async () => visibilityHandler?.());
     await act(async () => {
-      resolvePage({ deaths: [{ death_id: "d1", unique_id: "U1", deceased_name: "Private Name" }] as never[], next_cursor: null });
+      resolvePage({ cases: [{ death_id: "d1", unique_id: "U1", deceased_name: "Private Name" }] as never[], next_cursor: null });
       await Promise.resolve();
     });
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Private Name");
-    expect(tree!.root.findAllByProps({ "data-label": "myRegisteredDeaths" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-label": "reportedDeaths" })).toHaveLength(0);
     await act(async () => tree!.unmount());
     Object.defineProperty(global, "document", { configurable: true, value: originalDocument });
   });
 
   it("allows an unrelated correction to an age-only registration", async () => {
-    mockParams = { view: "mine" };
+    mockParams = { deathId: "d1", registered: "mine" };
     mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
     jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({
       deaths: [{
@@ -624,7 +712,6 @@ describe("DeathRegistrationScreen", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "editRegistration" }).props.onClick());
     expect(tree!.root.findByProps({ "data-label": "dobUnknown" })).toBeDefined();
     expect(tree!.root.findAllByProps({ "data-field": "date_of_birth" })).toHaveLength(0);
     await act(async () => tree!.root.findByProps({ "data-field": "address" }).props.onClick("New address"));
@@ -635,6 +722,20 @@ describe("DeathRegistrationScreen", () => {
       json: { address: "New address", if_updated_at: "2026-10-06T12:00:00+00:00" },
       csrf: mockBootstrap.csrf
     });
+    await act(async () => tree!.unmount());
+  });
+
+  it("says so when an own registration to edit is not in the own list", async () => {
+    mockParams = { deathId: "gone", registered: "mine" };
+    mockBootstrap.capabilities = { intake: false, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
+    const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths").mockResolvedValue({ deaths: [], next_cursor: null });
+    const getDetail = jest.spyOn(sharedApi, "getCaseDetail");
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(ownPage).toHaveBeenCalledTimes(1);
+    expect(getDetail).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree!.toJSON())).toContain("serverError");
     await act(async () => tree!.unmount());
   });
 
@@ -686,6 +787,105 @@ describe("DeathRegistrationScreen", () => {
     expect(mockRegisterDeath.mock.calls[0][1]).not.toHaveProperty("date_of_birth");
     expect(mockRegisterDeath.mock.calls[0][1]).not.toHaveProperty("date_of_birth_partial");
     await act(async () => tree!.unmount());
+  });
+
+  describe("age information is required", () => {
+    const field = (tree: ReturnType<typeof create>, name: string) => tree.root.findByProps({ "data-field": name });
+    async function fillAndSave(tree: ReturnType<typeof create>) {
+      await act(async () => {
+        field(tree, "deceased_name").props.onClick("Asha");
+        field(tree, "date_of_death").props.onClick("2026-09-30");
+        tree.root.findByProps({ "data-label": "sexFemale" }).props.onClick();
+      });
+      await act(async () => tree.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+    }
+
+    it.each([
+      ["dobExact", "date_of_birth", "1987-04-12"],
+      ["dobMonthYear", "date_of_birth_partial", "1987-04"],
+      ["dobYear", "date_of_birth_partial", "1987"],
+    ])("accepts %s", async (mode, key, value) => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await act(async () => tree!.root.findByProps({ "data-label": mode }).props.onClick());
+      await act(async () => field(tree!, key).props.onClick(value));
+      await fillAndSave(tree!);
+      expect(mockRegisterDeath).toHaveBeenCalledWith("/api/v1/intake/deaths", expect.objectContaining({ [key]: value }), mockBootstrap.csrf);
+      await act(async () => tree!.unmount());
+    });
+
+    it("blocks a registration with no birth date and no age, naming the missing fields", async () => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await fillAndSave(tree!);
+      expect(mockRegisterDeath).not.toHaveBeenCalled();
+      expect(field(tree!, "date_of_birth").props["data-issue"]).toBe("errBirthOrAge");
+      await act(async () => tree!.root.findByProps({ "data-label": "dobUnknown" }).props.onClick());
+      await fillAndSave(tree!);
+      expect(mockRegisterDeath).not.toHaveBeenCalled();
+      expect(field(tree!, "age_years").props["data-issue"]).toBe("errRequired");
+      await act(async () => tree!.unmount());
+    });
+
+    it("shows the error when focus leaves the birth block empty, not while focus stays inside it", async () => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      const birthBlock = () => tree!.root.findAll((node) => node.props.onBlur?.name === "birthBlur")[0];
+      const block = birthBlock();
+      await act(async () => block.props.onBlur({ currentTarget: { contains: () => true }, relatedTarget: {} }));
+      expect(field(tree!, "date_of_birth").props["data-issue"]).toBeUndefined();
+      await act(async () => block.props.onBlur({ currentTarget: { contains: () => false }, relatedTarget: {} }));
+      expect(field(tree!, "date_of_birth").props["data-issue"]).toBe("errBirthOrAge");
+      await act(async () => field(tree!, "date_of_birth").props.onClick("1987-04-12"));
+      expect(field(tree!, "date_of_birth").props["data-issue"]).toBeUndefined();
+      await act(async () => birthBlock().props.onBlur({}));
+      expect(field(tree!, "date_of_birth").props["data-issue"]).toBeUndefined();
+      await act(async () => tree!.unmount());
+    });
+
+    describe("editing", () => {
+      const legacy = {
+        death_id: "d1", project_id: "P1", site_id: "S1", org_unit_id: null, state: "registered",
+        updated_at: "2026-10-06T12:00:00+00:00", details_pending: false, other_complete_interview: false,
+        deceased: { name: "Asha", sex: "female", date_of_death: "2026-09-30", date_of_birth: null, date_of_birth_partial: null, age_years: null },
+        household_address: { address: "Old address" }, informant: {}, remarks: null,
+        links: { self: "/case/d1", attempts: "/attempts", visit: "/visit" }
+      };
+      async function openEdit(detail: unknown) {
+        mockParams = { deathId: "d1" };
+        jest.spyOn(sharedApi, "getCaseDetail").mockResolvedValue({ case: detail } as never);
+        const patch = jest.spyOn(sharedApi, "requestClientJson").mockResolvedValue({ case: { death_id: "d1", updated_at: "2026-10-06T12:05:00+00:00" } } as never);
+        let tree: ReturnType<typeof create>;
+        await act(async () => { tree = create(<DeathRegistrationScreen />); });
+        await settle();
+        return { tree: tree!, patch };
+      }
+
+      it("lets a stored row without age information be corrected while the age fields stay untouched", async () => {
+        const { tree, patch } = await openEdit(legacy);
+        await act(async () => field(tree, "address").props.onClick("New address"));
+        await act(async () => tree.root.findByProps({ "data-label": "save" }).props.onClick());
+        await settle();
+        expect(patch).toHaveBeenCalledWith("/api/v1/intake/deaths/d1", expect.objectContaining({
+          method: "PATCH", json: { address: "New address", if_updated_at: "2026-10-06T12:00:00+00:00" }
+        }));
+        await act(async () => tree.unmount());
+      });
+
+      it("refuses clearing the birth date of a row that had one, without an age", async () => {
+        const { tree, patch } = await openEdit({ ...legacy, deceased: { ...legacy.deceased, date_of_birth: "1987-04-12" } });
+        await act(async () => field(tree, "date_of_birth").props.onClick(""));
+        await act(async () => tree.root.findByProps({ "data-label": "save" }).props.onClick());
+        await settle();
+        expect(patch).not.toHaveBeenCalled();
+        expect(field(tree, "date_of_birth").props["data-issue"]).toBe("errBirthOrAge");
+        await act(async () => tree.unmount());
+      });
+    });
   });
 
   it("does not restore a stale reload after the browser becomes hidden", async () => {

@@ -138,6 +138,8 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.profile_api.get_profile": "Own profile.",
     "api_v1.profile_api.accept_terms": "Own terms acceptance.",
     "api_v1.me_api.accept_terms": "Own terms acceptance (same view as profile's).",
+    "api_v1.me_api.activity": "Own personal activity counts (user_id = the caller in every "
+                              "query); counts only, no case or respondent data.",
     "api_v1.me_api.notifications": "Own notification rows only (user_id = the caller in "
                                    "the query); kinds and case/draft ids only, no "
                                    "names, phones or answers.",

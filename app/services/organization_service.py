@@ -75,6 +75,10 @@ __all__ = [
     "list_level_cadres", "upsert_level_cadre", "get_level_cadre_permission",
     # workers
     "list_workers", "create_worker", "update_worker", "resolve_user",
+    "lookup_existing_user", "sync_worker_unit_scope_grants",
+    # presets and mentoring
+    "list_project_va_presets", "bulk_set_unit_va_presets",
+    "project_mentoring_overview", "sync_mentor_scientist_unit_grants",
     # template, export, import
     "seed_default_organization", "district_reference_model",
     "export_organization_rows", "export_organization_xlsx", "export_organization_csv",
@@ -462,7 +466,18 @@ def serialize_level_cadre(row: MapOrgLevelCadre, *, level: MasOrgLevel, cadre: M
     }
 
 
-def serialize_worker(worker: MasOrgUnitWorker, *, unit: MasOrgUnit, cadre: MasCadre, user_email: str | None) -> dict:
+def serialize_worker(
+    worker: MasOrgUnitWorker,
+    *,
+    unit: MasOrgUnit,
+    cadre: MasCadre,
+    user_email: str | None,
+    coding_unit_ids: list[str] | None = None,
+    coding_unit_codes: list[str] | None = None,
+    supervision_unit_ids: list[str] | None = None,
+    supervision_unit_codes: list[str] | None = None,
+    active_roles: list[str] | None = None,
+) -> dict:
     return {
         "worker_id": str(worker.worker_id),
         "project_id": worker.project_id,
@@ -478,6 +493,11 @@ def serialize_worker(worker: MasOrgUnitWorker, *, unit: MasOrgUnit, cadre: MasCa
         "user_email": user_email,
         "remarks": worker.remarks,
         "is_active": worker.is_active,
+        "coding_unit_ids": list(coding_unit_ids or []),
+        "coding_unit_codes": list(coding_unit_codes or []),
+        "supervision_unit_ids": list(supervision_unit_ids or []),
+        "supervision_unit_codes": list(supervision_unit_codes or []),
+        "active_roles": list(active_roles or []),
     }
 
 
@@ -593,7 +613,7 @@ def update_level(project_id: str, org_level_id: object, **fields) -> MasOrgLevel
 # ---------------------------------------------------------------------------
 
 
-def list_units(project_id: str, *, include_inactive: bool = False) -> list[dict]:
+def list_units(project_id: str, *, include_inactive: bool = False, top_depth: int | None = None) -> list[dict]:
     parent = _aliased_parent()
     stmt = (
         sa.select(MasOrgUnit, MasOrgLevel, parent.unit_code)
@@ -604,14 +624,15 @@ def list_units(project_id: str, *, include_inactive: bool = False) -> list[dict]
     if not include_inactive:
         stmt = stmt.where(MasOrgUnit.is_active.is_(True))
     rows = db.session.execute(stmt.order_by(MasOrgUnit.path)).all()
-    top_depth = _top_level_depth(project_id)
+    if top_depth is None:
+        top_depth = _top_level_depth(project_id)
     return [
         serialize_unit(unit, level=level, parent_code=parent_code, top_depth=top_depth)
         for unit, level, parent_code in rows
     ]
 
 
-def list_units_by_codes(project_id: str, unit_codes, *, include_inactive: bool = False) -> list[dict]:
+def list_units_by_codes(project_id: str, unit_codes, *, include_inactive: bool = False, top_depth: int | None = None) -> list[dict]:
     """Units in *project_id* named by *unit_codes*, in one query.
 
     For resolving the codes packed into another unit's ``path`` ltree back
@@ -636,7 +657,8 @@ def list_units_by_codes(project_id: str, unit_codes, *, include_inactive: bool =
     if not include_inactive:
         stmt = stmt.where(MasOrgUnit.is_active.is_(True))
     rows = db.session.execute(stmt.order_by(MasOrgUnit.path)).all()
-    top_depth = _top_level_depth(project_id)
+    if top_depth is None:
+        top_depth = _top_level_depth(project_id)
     return [
         serialize_unit(unit, level=level, parent_code=parent_code, top_depth=top_depth)
         for unit, level, parent_code in rows
@@ -1416,6 +1438,16 @@ def get_level_cadre_permission(org_level_id: uuid.UUID, cadre_id: uuid.UUID) -> 
 # ---------------------------------------------------------------------------
 
 
+_WORKER_CODING_ROLES = frozenset({
+    VaAccessRoles.coder,
+    VaAccessRoles.reviewer,
+    VaAccessRoles.coding_tester,
+})
+_WORKER_SUPERVISION_ROLES = frozenset({
+    VaAccessRoles.interview_supervisor,
+})
+
+
 def list_workers(project_id: str, *, include_inactive: bool = False, org_unit_id: object | None = None) -> list[dict]:
     stmt = (
         sa.select(MasOrgUnitWorker, MasOrgUnit, MasCadre, VaUsers.email)
@@ -1429,10 +1461,62 @@ def list_workers(project_id: str, *, include_inactive: bool = False, org_unit_id
     if not include_inactive:
         stmt = stmt.where(MasOrgUnitWorker.is_active.is_(True))
     rows = db.session.execute(stmt.order_by(MasOrgUnit.path, MasOrgUnitWorker.worker_code)).all()
-    return [
-        serialize_worker(worker, unit=unit, cadre=cadre, user_email=email)
-        for worker, unit, cadre, email in rows
-    ]
+    user_ids = {worker.user_id for worker, _, _, _ in rows if worker.user_id is not None}
+    grants_by_user: dict[uuid.UUID, list[tuple[VaAccessRoles, uuid.UUID, str, uuid.UUID]]] = {}
+    if user_ids:
+        grant_rows = db.session.execute(
+            sa.select(
+                VaUserAccessGrants.user_id,
+                VaUserAccessGrants.role,
+                MasOrgUnit.org_unit_id,
+                MasOrgUnit.unit_code,
+                MasOrgUnit.org_level_id,
+            )
+            .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+            .where(
+                VaUserAccessGrants.user_id.in_(user_ids),
+                VaUserAccessGrants.grant_status == VaStatuses.active,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                MasOrgUnit.project_id == project_id,
+                MasOrgUnit.is_active.is_(True),
+            )
+            .order_by(MasOrgUnit.path)
+        ).all()
+        for uid, role, u_id, u_code, u_level_id in grant_rows:
+            grants_by_user.setdefault(uid, []).append((role, u_id, u_code, u_level_id))
+
+    result = []
+    for worker, unit, cadre, email in rows:
+        coding_ids: list[str] = []
+        coding_codes: list[str] = []
+        sup_ids: list[str] = []
+        sup_codes: list[str] = []
+        roles_set: set[str] = set()
+        if worker.user_id and worker.user_id in grants_by_user:
+            for role, u_id, u_code, u_level_id in grants_by_user[worker.user_id]:
+                roles_set.add(role.value if hasattr(role, "value") else str(role))
+                u_id_str = str(u_id)
+                if u_level_id == unit.org_level_id:
+                    if role in _WORKER_CODING_ROLES and u_id_str not in coding_ids:
+                        coding_ids.append(u_id_str)
+                        coding_codes.append(u_code)
+                    if role in _WORKER_SUPERVISION_ROLES and u_id_str not in sup_ids:
+                        sup_ids.append(u_id_str)
+                        sup_codes.append(u_code)
+        result.append(
+            serialize_worker(
+                worker,
+                unit=unit,
+                cadre=cadre,
+                user_email=email,
+                coding_unit_ids=coding_ids,
+                coding_unit_codes=coding_codes,
+                supervision_unit_ids=sup_ids,
+                supervision_unit_codes=sup_codes,
+                active_roles=sorted(roles_set),
+            )
+        )
+    return result
 
 
 def _get_worker(project_id: str, worker_id: object) -> MasOrgUnitWorker:
@@ -2301,19 +2385,35 @@ def _granted_project_ids(user) -> set[str]:
     not mark the request consulted itself, so this does it, as the other
     services that read resolved grants do.
     """
+    return set(_granted(user)[0])
+
+
+def _granted(user) -> tuple[dict[str, list], authz.ResolvedGrants]:
+    """The user's live explicit grants grouped by project, and the resolved
+    grants they came from (see ``_granted_project_ids``)."""
     mark_consulted()
-    return {grant.project_id for grant in authz.resolve_grants(user).grants if not grant.virtual}
+    resolved = authz.resolve_grants(user)
+    by_project: dict[str, list] = {}
+    for grant in resolved.grants:
+        if not grant.virtual:
+            by_project.setdefault(grant.project_id, []).append(grant)
+    return by_project, resolved
 
 
 def _my_units(user_id: uuid.UUID, project_id: str) -> dict[str, dict]:
     """Units the user is placed at in *project_id*: its unit grants and its own
-    worker rows. Keyed by unit id; two queries whatever the unit count.
+    worker rows. Keyed by unit id; one query whatever the unit count. Each
+    entry carries ``roles``: ``{role value: cadre name or None}`` from the unit
+    grants (a worker row adds a cadre, no role).
     """
-    grant_rows = db.session.execute(
-        sa.select(MasOrgUnit, MasOrgLevel, MasCadre.cadre_name)
+    grant_stmt = (
+        sa.select(
+            MasOrgUnit.org_unit_id.label("org_unit_id"),
+            MasCadre.cadre_name.label("cadre_name"),
+            sa.cast(VaUserAccessGrants.role, sa.Text).label("role"),
+        )
         .select_from(VaUserAccessGrants)
         .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
-        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
         .outerjoin(MasCadre, MasCadre.cadre_id == VaUserAccessGrants.cadre_id)
         .where(
             VaUserAccessGrants.user_id == user_id,
@@ -2322,12 +2422,15 @@ def _my_units(user_id: uuid.UUID, project_id: str) -> dict[str, dict]:
             MasOrgUnit.project_id == project_id,
             MasOrgUnit.is_active.is_(True),
         )
-    ).all()
-    worker_rows = db.session.execute(
-        sa.select(MasOrgUnit, MasOrgLevel, MasCadre.cadre_name)
+    )
+    worker_stmt = (
+        sa.select(
+            MasOrgUnit.org_unit_id.label("org_unit_id"),
+            MasCadre.cadre_name.label("cadre_name"),
+            sa.cast(sa.null(), sa.Text).label("role"),
+        )
         .select_from(MasOrgUnitWorker)
         .join(MasOrgUnit, MasOrgUnit.org_unit_id == MasOrgUnitWorker.org_unit_id)
-        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
         .join(MasCadre, MasCadre.cadre_id == MasOrgUnitWorker.cadre_id)
         .where(
             MasOrgUnitWorker.user_id == user_id,
@@ -2335,12 +2438,23 @@ def _my_units(user_id: uuid.UUID, project_id: str) -> dict[str, dict]:
             MasOrgUnit.project_id == project_id,
             MasOrgUnit.is_active.is_(True),
         )
+    )
+    combined = sa.union(grant_stmt, worker_stmt).subquery("my_units_placement")
+    rows = db.session.execute(
+        sa.select(MasOrgUnit, MasOrgLevel, combined.c.cadre_name, combined.c.role)
+        .select_from(combined)
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == combined.c.org_unit_id)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
     ).all()
     mine: dict[str, dict] = {}
-    for unit, level, cadre_name in [*grant_rows, *worker_rows]:
-        entry = mine.setdefault(str(unit.org_unit_id), {"unit": unit, "level": level, "cadres": set()})
+    for unit, level, cadre_name, role in rows:
+        entry = mine.setdefault(
+            str(unit.org_unit_id), {"unit": unit, "level": level, "cadres": set(), "roles": {}})
         if cadre_name:
             entry["cadres"].add(cadre_name)
+        if role:
+            # Two grants of one role at one unit: keep a cadre over none.
+            entry["roles"][role] = entry["roles"].get(role) or cadre_name
     return mine
 
 
@@ -2486,10 +2600,15 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
             MasOrgUnit.org_unit_id.not_in(mine_ids),
         )
     else:
+        top_depth_subq = (
+            sa.select(sa.func.min(MasOrgLevel.depth))
+            .where(MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True))
+            .scalar_subquery()
+        )
         below = _unit_summaries(
             project_id,
             MasOrgUnit.parent_org_unit_id.is_(None),
-            MasOrgLevel.depth == _top_level_depth(project_id),
+            MasOrgLevel.depth == top_depth_subq,
         )
     people = _people_by_unit([*mine, *(unit["org_unit_id"] for unit in ancestors)])
     ordered = sorted(mine.items(), key=lambda item: str(item[1]["unit"].path))
@@ -2502,6 +2621,10 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
                 "unit_name": entry["unit"].unit_name,
                 "level_name": entry["level"].level_name,
                 "cadres": sorted(entry["cadres"]),
+                "roles": [
+                    {"role": role, "cadre": cadre}
+                    for role, cadre in sorted(entry["roles"].items())
+                ],
             }
             for unit_id, entry in ordered
         ],
@@ -2530,24 +2653,78 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
     }
 
 
-def my_organization(user) -> dict:
-    """The My organization page's data: every org-tree project the user holds
-    a grant in. Sites-mode projects are left out (they have no tree).
-    """
-    from app.services.org_grant_service import projects_with_org_tree
+def _granted_site_names(grants_by_project: dict[str, list]) -> dict[tuple[str, str], str]:
+    """``{(project_id, site_id): site_name}`` for the active project sites the
+    user holds a project_site grant at, all projects in one query."""
+    pairs = sorted({
+        (grant.project_id, grant.site_id)
+        for grants in grants_by_project.values()
+        for grant in grants
+        if grant.scope_type == VaAccessScopeTypes.project_site and grant.site_id
+    })
+    if not pairs:
+        return {}
+    rows = db.session.execute(
+        sa.select(VaProjectSites.project_id, VaProjectSites.site_id, VaSiteMaster.site_name)
+        .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
+        .where(
+            sa.tuple_(VaProjectSites.project_id, VaProjectSites.site_id).in_(pairs),
+            VaProjectSites.project_site_status == VaStatuses.active,
+        )
+    ).all()
+    return {(row.project_id, row.site_id): row.site_name for row in rows}
 
-    granted = _granted_project_ids(user)
-    tree_projects = sorted(projects_with_org_tree(granted)) if granted else []
-    if not tree_projects:
+
+def _my_positions(project_id: str, grants: list, site_names: dict) -> dict:
+    """The user's own project- and site-scope roles in one project (unit roles
+    ride on ``my_units``). Grant roles as granted, sorted; no derived roles."""
+    project_roles = sorted({
+        grant.role.value for grant in grants if grant.scope_type == VaAccessScopeTypes.project
+    })
+    site_roles: dict[str, set[str]] = {}
+    for grant in grants:
+        if grant.scope_type == VaAccessScopeTypes.project_site and (project_id, grant.site_id) in site_names:
+            site_roles.setdefault(grant.site_id, set()).add(grant.role.value)
+    return {
+        "project_roles": project_roles,
+        "sites": [
+            {"site_id": site_id, "site_name": site_names[(project_id, site_id)], "roles": sorted(roles)}
+            for site_id, roles in sorted(site_roles.items())
+        ],
+    }
+
+
+def my_organization(user) -> dict:
+    """The My organization page's data: every project the user holds a live
+    grant in, with ``has_tree`` and ``my_positions`` (their own roles). The
+    tree lists (``my_units``, ``above``, ``my_level``, ``below``) are filled for
+    org-tree projects and empty for sites-mode projects.
+    """
+    grants_by_project, resolved = _granted(user)
+    if not grants_by_project:
         return {"projects": []}
+    project_ids = sorted(grants_by_project)
     names = dict(
         db.session.execute(
             sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name).where(
-                VaProjectMaster.project_id.in_(tree_projects)
+                VaProjectMaster.project_id.in_(project_ids)
             )
         ).all()
     )
-    return {"projects": [_my_project(user.user_id, pid, names[pid]) for pid in tree_projects]}
+    site_names = _granted_site_names(grants_by_project)
+    projects = []
+    for pid in project_ids:
+        has_tree = resolved.has_tree(pid)
+        block = (
+            _my_project(user.user_id, pid, names[pid])
+            if has_tree
+            else {"project_id": pid, "project_name": names[pid],
+                  "my_units": [], "above": [], "my_level": [], "below": []}
+        )
+        block["has_tree"] = has_tree
+        block["my_positions"] = _my_positions(pid, grants_by_project[pid], site_names)
+        projects.append(block)
+    return {"projects": projects}
 
 
 def unit_people(user, org_unit_id: object) -> dict | None:
@@ -2580,3 +2757,666 @@ def unit_people(user, org_unit_id: object) -> dict | None:
         "people": _people_by_unit([unit_id]).get(unit_id, []),
         "children": _unit_summaries(unit.project_id, MasOrgUnit.parent_org_unit_id == unit.org_unit_id),
     }
+
+
+# ---------------------------------------------------------------------------
+# Existing account lookup, per-worker multi-unit scope grants, bulk VA
+# mortality presets, and project mentoring institutes overview.
+# ---------------------------------------------------------------------------
+
+
+def lookup_existing_user(query: object, *, is_admin: bool = True) -> dict:
+    """Exact email or 10-digit mobile match on active VaUsers for Add/Edit Worker UI."""
+    from app.services.mentor_institute_service import member_user_ids
+    from app.services.user_account_service import PHONE_CANONICAL, canonical_mobile
+
+    raw = str(query or "").strip()
+    if not raw:
+        return {"found": False}
+    user = None
+    matched_by_email = "@" in raw
+    if matched_by_email:
+        user = db.session.scalar(
+            sa.select(VaUsers).where(
+                sa.func.lower(VaUsers.email) == raw.lower(),
+                VaUsers.user_status == VaStatuses.active,
+            )
+        )
+    else:
+        mobile = canonical_mobile(raw)
+        if mobile:
+            user = db.session.scalar(
+                sa.select(VaUsers).where(
+                    sa.or_(VaUsers.mobile_login == mobile, PHONE_CANONICAL == mobile),
+                    VaUsers.user_status == VaStatuses.active,
+                )
+            )
+    if user is None:
+        return {"found": False}
+    is_mentor = user.user_id in member_user_ids([user.user_id])
+    # Do not disclose the unqueried contact channel to non-admin callers.
+    email_out = user.email if (is_admin or matched_by_email) else None
+    phone_out = (user.phone or user.mobile_login) if (is_admin or not matched_by_email) else None
+    status_str = user.user_status.value if hasattr(user.user_status, "value") else str(user.user_status)
+    user_payload = {
+        "user_id": str(user.user_id),
+        "name": user.name,
+        "email": email_out,
+        "phone": phone_out,
+        "mobile": phone_out,
+        "is_active": user.user_status == VaStatuses.active,
+        "user_status": status_str,
+        "coding_languages": list(user.vacode_language or []),
+        "is_mentor_member": is_mentor,
+    }
+    return {
+        "found": True,
+        **user_payload,
+        "user": user_payload,
+    }
+
+
+def sync_worker_unit_scope_grants(
+    project_id: str,
+    worker: MasOrgUnitWorker,
+    *,
+    coding_unit_ids: Iterable[object] | None = None,
+    supervision_unit_ids: Iterable[object] | None = None,
+    actor: VaUsers,
+) -> list[tuple[dict, str]]:
+    """Sync a worker's multi-unit coding and/or supervision grants at their level.
+
+    Allows configuring within-tree (own unit), cross-tree (other units at the
+    same level), all units at the level, or a custom selection of units at the
+    worker's level (e.g. 2 PHCs for one MO and 10 PHCs for another).
+    Omitting ``coding_unit_ids`` or ``supervision_unit_ids`` leaves that bucket
+    unchanged.
+    """
+    from app.services.org_grant_service import validate_org_unit_grant
+
+    if coding_unit_ids is None and supervision_unit_ids is None:
+        return []
+    if worker.user_id is None:
+        if (coding_unit_ids and list(coding_unit_ids)) or (supervision_unit_ids and list(supervision_unit_ids)):
+            raise OrganizationError(
+                "Link this worker to a DigitVA account (email or mobile) before assigning coding or supervision units."
+            )
+        return []
+
+    unit = _get_unit(project_id, worker.org_unit_id)
+    cadre = _get_cadre(project_id, worker.cadre_id)
+    permission = get_level_cadre_permission(unit.org_level_id, cadre.cadre_id)
+    if permission is None:
+        raise OrganizationError(
+            f"Cadre {cadre.cadre_code!r} is not active at level {unit.level.level_code!r}."
+        )
+
+    level_units = {
+        u.org_unit_id: u
+        for u in db.session.scalars(
+            sa.select(MasOrgUnit).where(
+                MasOrgUnit.project_id == project_id,
+                MasOrgUnit.org_level_id == unit.org_level_id,
+                MasOrgUnit.is_active.is_(True),
+            )
+        ).all()
+    }
+    existing_grants = {
+        (g.role, g.org_unit_id): g
+        for g in db.session.scalars(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == worker.user_id,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                VaUserAccessGrants.org_unit_id.in_(list(level_units.keys())),
+            )
+        ).all()
+    }
+    actor_grants = authz.resolve_grants(actor)
+    changed: list[tuple[dict, str]] = []
+
+    def _sync_bucket(
+        raw_ids: Iterable[object] | None,
+        bucket_roles: frozenset[VaAccessRoles],
+        fallback_role: VaAccessRoles,
+    ) -> None:
+        if raw_ids is None:
+            return
+        target_ids: list[uuid.UUID] = []
+        for raw in raw_ids:
+            uid = _uuid(raw, what="Unit id")
+            if uid not in level_units:
+                raise OrganizationError(
+                    "Selected coding or supervision units must be active units at the worker's level in this project."
+                )
+            if uid not in target_ids:
+                target_ids.append(uid)
+
+        active_bucket_roles = {
+            r for (r, _), g in existing_grants.items()
+            if r in bucket_roles and g.grant_status == VaStatuses.active
+        }
+        default_bucket_roles = {
+            VaAccessRoles(r) for r in (permission.default_roles or ())
+            if r in {br.value for br in bucket_roles}
+        }
+        roles_to_sync = sorted(
+            active_bucket_roles or default_bucket_roles or ({fallback_role} if target_ids else set()),
+            key=lambda r: r.value,
+        )
+
+        for role in roles_to_sync:
+            for uid in target_ids:
+                validate_org_unit_grant(
+                    role=role,
+                    org_unit_id=uid,
+                    cadre_id=cadre.cadre_id,
+                    user_id=worker.user_id,
+                )
+                if not authz.can_grant(
+                    actor,
+                    authz.GrantTarget(
+                        role=role,
+                        scope_type=VaAccessScopeTypes.org_unit,
+                        project_id=None,
+                        org_unit_id=uid,
+                    ),
+                    _grants=actor_grants,
+                ):
+                    raise OrganizationError("You are not permitted to grant this role on the selected unit.")
+                g = existing_grants.get((role, uid))
+                if g is None:
+                    g = VaUserAccessGrants(
+                        user_id=worker.user_id,
+                        role=role,
+                        scope_type=VaAccessScopeTypes.org_unit,
+                        project_id=None,
+                        org_unit_id=uid,
+                        cadre_id=cadre.cadre_id,
+                        grant_status=VaStatuses.active,
+                        created_by_user_id=actor.user_id,
+                    )
+                    db.session.add(g)
+                    db.session.flush()
+                    existing_grants[(role, uid)] = g
+                    changed.append((
+                        {
+                            "user_id": worker.user_id,
+                            "grant_id": g.grant_id,
+                            "role": role.value,
+                            "scope_type": VaAccessScopeTypes.org_unit.value,
+                            "org_unit_id": uid,
+                            "cadre_id": cadre.cadre_id,
+                        },
+                        "grant_created",
+                    ))
+                elif g.grant_status != VaStatuses.active or g.cadre_id != cadre.cadre_id:
+                    was_active = g.grant_status == VaStatuses.active
+                    g.grant_status = VaStatuses.active
+                    g.cadre_id = cadre.cadre_id
+                    changed.append((
+                        {
+                            "user_id": worker.user_id,
+                            "grant_id": g.grant_id,
+                            "role": role.value,
+                            "scope_type": VaAccessScopeTypes.org_unit.value,
+                            "org_unit_id": uid,
+                            "cadre_id": cadre.cadre_id,
+                        },
+                        "grant_updated" if was_active else "grant_reactivated",
+                    ))
+
+        target_set = set(target_ids)
+        for (role, uid), g in list(existing_grants.items()):
+            if role in bucket_roles and uid not in target_set and g.grant_status == VaStatuses.active:
+                g.grant_status = VaStatuses.deactive
+                changed.append((
+                    {
+                        "user_id": worker.user_id,
+                        "grant_id": g.grant_id,
+                        "role": role.value,
+                        "scope_type": VaAccessScopeTypes.org_unit.value,
+                        "org_unit_id": uid,
+                        "cadre_id": g.cadre_id,
+                    },
+                    "grant_revoked",
+                ))
+
+    _sync_bucket(coding_unit_ids, _WORKER_CODING_ROLES, VaAccessRoles.coder)
+    _sync_bucket(supervision_unit_ids, _WORKER_SUPERVISION_ROLES, VaAccessRoles.interview_supervisor)
+    db.session.flush()
+    return changed
+
+
+def list_project_va_presets(project_id: str) -> list[dict]:
+    """All active units of *project_id* with own and resolved (inherited) HIV/malaria presets."""
+    from app.services.org_grant_service import resolve_unit_va_presets
+
+    _get_project(project_id)
+    units = list_units(project_id, include_inactive=False)
+    if not units:
+        return []
+    unit_uuids = [uuid.UUID(u["org_unit_id"]) for u in units]
+    own_rows = {
+        str(row.org_unit_id): row
+        for row in db.session.scalars(
+            sa.select(MapOrgUnitVaPresets).where(MapOrgUnitVaPresets.org_unit_id.in_(unit_uuids))
+        ).all()
+    }
+    resolved_map = resolve_unit_va_presets(unit_uuids)
+    result = []
+    for u in units:
+        uid = u["org_unit_id"]
+        u_uuid = uuid.UUID(uid)
+        own = own_rows.get(uid)
+        res = resolved_map.get(u_uuid, {})
+        hiv_res = res.get("hiv_mortality")
+        mal_res = res.get("malaria_mortality")
+        own_hiv = own.hiv_mortality if own else None
+        own_mal = own.malaria_mortality if own else None
+        eff_hiv = hiv_res["value"] if hiv_res else None
+        eff_mal = mal_res["value"] if mal_res else None
+        hiv_src = (
+            hiv_res["source_unit_name"]
+            if hiv_res and str(hiv_res["source_unit_id"]) != uid
+            else None
+        )
+        mal_src = (
+            mal_res["source_unit_name"]
+            if mal_res and str(mal_res["source_unit_id"]) != uid
+            else None
+        )
+        result.append({
+            "org_unit_id": uid,
+            "org_level_id": u["org_level_id"],
+            "unit_code": u["unit_code"],
+            "unit_name": u["unit_name"],
+            "level_code": u["level_code"],
+            "level_name": u["level_name"],
+            "depth": u["depth"],
+            "parent_org_unit_id": u["parent_org_unit_id"],
+            "path": u["path"],
+            "own_hiv_mortality": own_hiv,
+            "own_malaria_mortality": own_mal,
+            "hiv_aids": own_hiv,
+            "malaria": own_mal,
+            "Id10002": own_hiv,
+            "Id10003": own_mal,
+            "effective_hiv_mortality": eff_hiv,
+            "effective_hiv_aids": eff_hiv,
+            "effective_Id10002": eff_hiv,
+            "hiv_source_unit_name": hiv_src,
+            "inherited_hiv_aids_from": hiv_src,
+            "effective_malaria_mortality": eff_mal,
+            "effective_malaria": eff_mal,
+            "effective_Id10003": eff_mal,
+            "malaria_source_unit_name": mal_src,
+            "inherited_malaria_from": mal_src,
+        })
+    return result
+
+
+def bulk_set_unit_va_presets(project_id: str, items: list[dict], *, actor_id=None) -> int:
+    """Update HIV/malaria presets across multiple units of *project_id* in one batch without N+1 queries."""
+    _get_project(project_id)
+    if not isinstance(items, list):
+        raise OrganizationError("items must be a list of unit preset updates.")
+    if len(items) > 1000:
+        raise OrganizationError("At most 1000 units can be updated in one request.")
+    if not items:
+        return 0
+
+    project_units = {
+        u.org_unit_id: u
+        for u in db.session.scalars(
+            sa.select(MasOrgUnit).where(MasOrgUnit.project_id == project_id)
+        ).all()
+    }
+    existing_presets = {
+        row.org_unit_id: row
+        for row in db.session.scalars(
+            sa.select(MapOrgUnitVaPresets).where(
+                MapOrgUnitVaPresets.org_unit_id.in_(list(project_units.keys()))
+            )
+        ).all()
+    }
+
+    updated = 0
+    for item in items:
+        if not isinstance(item, dict):
+            raise OrganizationError("Each preset entry must be an object.")
+        uid = _uuid(item.get("org_unit_id"), what="Unit id")
+        if uid not in project_units:
+            raise OrganizationError("Unit does not belong to this project.")
+        raw_hiv = (
+            item.get("hiv_mortality")
+            if "hiv_mortality" in item
+            else (item.get("hiv_aids") if "hiv_aids" in item else item.get("Id10002"))
+        )
+        raw_mal = (
+            item.get("malaria_mortality")
+            if "malaria_mortality" in item
+            else (item.get("malaria") if "malaria" in item else item.get("Id10003"))
+        )
+        hiv = _validate_va_preset_value(raw_hiv, what="hiv_mortality")
+        malaria = _validate_va_preset_value(raw_mal, what="malaria_mortality")
+        row = existing_presets.get(uid)
+        if hiv is None and malaria is None:
+            if row is not None:
+                db.session.delete(row)
+                del existing_presets[uid]
+                updated += 1
+        elif row is None:
+            row = MapOrgUnitVaPresets(
+                org_unit_id=uid,
+                hiv_mortality=hiv,
+                malaria_mortality=malaria,
+                updated_by_user_id=actor_id,
+            )
+            db.session.add(row)
+            existing_presets[uid] = row
+            updated += 1
+        elif row.hiv_mortality != hiv or row.malaria_mortality != malaria:
+            row.hiv_mortality = hiv
+            row.malaria_mortality = malaria
+            row.updated_by_user_id = actor_id
+            updated += 1
+
+    db.session.flush()
+    return updated
+
+
+def project_mentoring_overview(project_id: str) -> dict:
+    """Districts, attached mentoring institutes, institute scientists, and their unit grants in *project_id*."""
+    from app.models import MapMentorInstituteOrgUnit, MapMentorInstituteUser, MasMentorInstitute
+    from app.services.mentor_institute_service import MENTOR_ROLES
+
+    _get_project(project_id)
+    units = list_units(project_id, include_inactive=False)
+    districts = [u for u in units if u["depth"] == 1]
+    district_uuids = [uuid.UUID(d["org_unit_id"]) for d in districts]
+
+    inst_objs = db.session.scalars(
+        sa.select(MasMentorInstitute)
+        .where(MasMentorInstitute.is_active.is_(True))
+        .order_by(MasMentorInstitute.institute_code)
+    ).all()
+
+    links = []
+    attached_inst_ids: set[uuid.UUID] = set()
+    districts_by_inst: dict[uuid.UUID, list[str]] = {}
+    if district_uuids:
+        link_rows = db.session.execute(
+            sa.select(MapMentorInstituteOrgUnit, MasMentorInstitute, MasOrgUnit)
+            .join(
+                MasMentorInstitute,
+                MasMentorInstitute.institute_id == MapMentorInstituteOrgUnit.institute_id,
+            )
+            .join(MasOrgUnit, MasOrgUnit.org_unit_id == MapMentorInstituteOrgUnit.org_unit_id)
+            .where(
+                MapMentorInstituteOrgUnit.org_unit_id.in_(district_uuids),
+                MapMentorInstituteOrgUnit.is_active.is_(True),
+                MasMentorInstitute.is_active.is_(True),
+            )
+            .order_by(MasOrgUnit.unit_code, MasMentorInstitute.institute_code)
+        ).all()
+        for link, inst, dist in link_rows:
+            attached_inst_ids.add(inst.institute_id)
+            districts_by_inst.setdefault(inst.institute_id, []).append(str(dist.org_unit_id))
+            links.append({
+                "institute_id": str(inst.institute_id),
+                "institute_code": inst.institute_code,
+                "institute_name": inst.institute_name,
+                "org_unit_id": str(dist.org_unit_id),
+                "unit_code": dist.unit_code,
+                "unit_name": dist.unit_name,
+            })
+
+    scientists = []
+    scientists_by_inst: dict[uuid.UUID, list[dict]] = {}
+    all_inst_uuids = [inst.institute_id for inst in inst_objs]
+    if all_inst_uuids:
+        staff_rows = db.session.execute(
+            sa.select(VaUsers, MapMentorInstituteUser, MasMentorInstitute)
+            .join(MapMentorInstituteUser, MapMentorInstituteUser.user_id == VaUsers.user_id)
+            .join(
+                MasMentorInstitute,
+                MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
+            )
+            .where(
+                MapMentorInstituteUser.institute_id.in_(all_inst_uuids),
+                MapMentorInstituteUser.is_active.is_(True),
+                VaUsers.user_status == VaStatuses.active,
+            )
+            .order_by(MasMentorInstitute.institute_code, VaUsers.name, VaUsers.email)
+        ).all()
+        staff_user_ids = {u.user_id for u, _, _ in staff_rows}
+        grants_by_user: dict[uuid.UUID, list[dict]] = {}
+        if staff_user_ids:
+            g_rows = db.session.execute(
+                sa.select(VaUserAccessGrants, MasOrgUnit)
+                .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+                .where(
+                    VaUserAccessGrants.user_id.in_(staff_user_ids),
+                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                    VaUserAccessGrants.grant_status == VaStatuses.active,
+                    VaUserAccessGrants.role.in_(MENTOR_ROLES),
+                    MasOrgUnit.project_id == project_id,
+                    MasOrgUnit.is_active.is_(True),
+                )
+                .order_by(MasOrgUnit.path)
+            ).all()
+            for g, u in g_rows:
+                grants_by_user.setdefault(g.user_id, []).append({
+                    "grant_id": str(g.grant_id),
+                    "role": g.role.value,
+                    "org_unit_id": str(u.org_unit_id),
+                    "unit_code": u.unit_code,
+                    "unit_name": u.unit_name,
+                })
+        for u, member_link, inst in staff_rows:
+            user_grants = grants_by_user.get(u.user_id, [])
+            grants_by_role: dict[str, list[str]] = {}
+            for g_item in user_grants:
+                grants_by_role.setdefault(g_item["role"], []).append(g_item["org_unit_id"])
+            sci_entry = {
+                "user_id": str(u.user_id),
+                "name": u.name,
+                "email": u.email,
+                "phone": u.phone or u.mobile_login,
+                "mobile": u.phone or u.mobile_login,
+                "coding_languages": list(u.vacode_language or []),
+                "institute_code": inst.institute_code,
+                "institute_name": inst.institute_name,
+                "is_institute_admin": bool(member_link.is_admin),
+                "grants": user_grants,
+                "grants_by_role": grants_by_role,
+            }
+            scientists_by_inst.setdefault(inst.institute_id, []).append(sci_entry)
+            if inst.institute_id in attached_inst_ids:
+                scientists.append(sci_entry)
+
+    all_institutes = [
+        {
+            "institute_id": str(inst.institute_id),
+            "mentor_institute_id": str(inst.institute_id),
+            "institute_code": inst.institute_code,
+            "institute_name": inst.institute_name,
+            "is_active": inst.is_active,
+            "project_district_unit_ids": districts_by_inst.get(inst.institute_id, []),
+            "scientists": scientists_by_inst.get(inst.institute_id, []),
+        }
+        for inst in inst_objs
+    ]
+
+    return {
+        "units": units,
+        "districts": districts,
+        "all_institutes": all_institutes,
+        "institutes": all_institutes,
+        "attached_links": links,
+        "scientists": scientists,
+        "mentor_roles": ["coder", "reviewer", "coding_tester", "collaborator_pii"],
+    }
+
+
+def sync_mentor_scientist_unit_grants(
+    project_id: str,
+    *,
+    user_id: object,
+    role_name: str,
+    org_unit_ids: Iterable[object],
+    actor: VaUsers,
+) -> list[tuple[dict, str]]:
+    """Sync a mentoring-institute scientist's unit grants for *role_name* in *project_id*."""
+    from app.services.mentor_institute_service import MENTOR_ROLES, check_mentor_grant
+    from app.services.org_grant_service import validate_org_unit_grant
+
+    _get_project(project_id)
+    target_user_uuid = _uuid(user_id, what="Scientist user id")
+    user = db.session.get(VaUsers, target_user_uuid)
+    if user is None or user.user_status != VaStatuses.active:
+        raise OrganizationError("Active scientist account not found.")
+    try:
+        role = VaAccessRoles(str(role_name or "").strip())
+    except ValueError as exc:
+        raise OrganizationError(f"Invalid role {role_name!r}.") from exc
+    if role not in MENTOR_ROLES:
+        raise OrganizationError(f"Role {role.value!r} is not a mentoring institute role.")
+
+    target_ids: list[uuid.UUID] = []
+    for raw in org_unit_ids or ():
+        uid = _uuid(raw, what="Unit id")
+        if uid not in target_ids:
+            target_ids.append(uid)
+
+    project_units = {
+        u.org_unit_id: u
+        for u in db.session.scalars(
+            sa.select(MasOrgUnit).where(
+                MasOrgUnit.project_id == project_id,
+                MasOrgUnit.is_active.is_(True),
+            )
+        ).all()
+    }
+    for uid in target_ids:
+        if uid not in project_units:
+            raise OrganizationError("Selected unit does not belong to this project or is inactive.")
+
+    # For 'coder', validate_org_unit_grant requires an active cadre at the unit's level with can_code_va_form=True.
+    coding_cadre_by_level: dict[uuid.UUID, uuid.UUID] = {}
+    if role == VaAccessRoles.coder and target_ids:
+        for lc, cadre in db.session.execute(
+            sa.select(MapOrgLevelCadre, MasCadre)
+            .join(MasCadre, MasCadre.cadre_id == MapOrgLevelCadre.cadre_id)
+            .join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
+            .where(
+                MasOrgLevel.project_id == project_id,
+                MapOrgLevelCadre.is_active.is_(True),
+                MapOrgLevelCadre.can_code_va_form.is_(True),
+                MasCadre.is_active.is_(True),
+            )
+            .order_by(MasCadre.cadre_code)
+        ).all():
+            coding_cadre_by_level.setdefault(lc.org_level_id, cadre.cadre_id)
+
+    existing_grants = {
+        g.org_unit_id: g
+        for g in db.session.scalars(
+            sa.select(VaUserAccessGrants)
+            .join(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+            .where(
+                VaUserAccessGrants.user_id == target_user_uuid,
+                VaUserAccessGrants.role == role,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                MasOrgUnit.project_id == project_id,
+            )
+        ).all()
+    }
+    actor_grants = authz.resolve_grants(actor)
+    changed: list[tuple[dict, str]] = []
+
+    for uid in target_ids:
+        unit = project_units[uid]
+        check_mentor_grant(target_user_uuid, role, unit)
+        cadre_id = coding_cadre_by_level.get(unit.org_level_id) if role == VaAccessRoles.coder else None
+        if role == VaAccessRoles.coder and cadre_id is None:
+            raise OrganizationError(
+                f"To grant 'coder' at {unit.unit_code} ({unit.level.level_name}), enable 'Code VA' for at least one cadre at that level first."
+            )
+        validate_org_unit_grant(
+            role=role,
+            org_unit_id=uid,
+            cadre_id=cadre_id,
+            user_id=target_user_uuid,
+        )
+        if not authz.can_grant(
+            actor,
+            authz.GrantTarget(
+                role=role,
+                scope_type=VaAccessScopeTypes.org_unit,
+                project_id=None,
+                org_unit_id=uid,
+            ),
+            _grants=actor_grants,
+        ):
+            raise OrganizationError("You are not permitted to grant this role on the selected unit.")
+        g = existing_grants.get(uid)
+        if g is None:
+            g = VaUserAccessGrants(
+                user_id=target_user_uuid,
+                role=role,
+                scope_type=VaAccessScopeTypes.org_unit,
+                project_id=None,
+                org_unit_id=uid,
+                cadre_id=cadre_id,
+                grant_status=VaStatuses.active,
+                created_by_user_id=actor.user_id,
+            )
+            db.session.add(g)
+            db.session.flush()
+            existing_grants[uid] = g
+            changed.append((
+                {
+                    "user_id": target_user_uuid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": uid,
+                    "cadre_id": cadre_id,
+                },
+                "grant_created",
+            ))
+        elif g.grant_status != VaStatuses.active:
+            g.grant_status = VaStatuses.active
+            if cadre_id is not None:
+                g.cadre_id = cadre_id
+            changed.append((
+                {
+                    "user_id": target_user_uuid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": uid,
+                    "cadre_id": g.cadre_id,
+                },
+                "grant_reactivated",
+            ))
+
+    target_set = set(target_ids)
+    for uid, g in list(existing_grants.items()):
+        if uid not in target_set and g.grant_status == VaStatuses.active:
+            g.grant_status = VaStatuses.deactive
+            changed.append((
+                {
+                    "user_id": target_user_uuid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": uid,
+                    "cadre_id": g.cadre_id,
+                },
+                "grant_revoked",
+            ))
+
+    db.session.flush()
+    return changed

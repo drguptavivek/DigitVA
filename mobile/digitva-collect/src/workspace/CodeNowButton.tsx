@@ -3,11 +3,14 @@ import { Alert, Platform, Text } from "react-native";
 
 import { ApiError } from "../api";
 import { t } from "../i18n";
+import { controls } from "../theme";
 import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 
 const RETRY_DELAY_MS = 2_000;
 const MAX_NOT_READY_RETRIES = 2;
+// Same 44px minimum as the other action buttons on a case card.
+const touchTarget = { minHeight: controls.minTouchTarget };
 
 /** Allocate only on the user's explicit action, then open the real coding workspace. */
 export function CodeNowButton({
@@ -174,9 +177,9 @@ export function CodeNowButton({
   }
 
   return <>
-    {!unavailable ? <Button label={t("codeNow")} loading={busy} disabled={busy || disabled} onPress={() => void start()} /> : null}
-    {retrying ? <Button kind="secondary" label={t("cancel")} onPress={cancel} /> : null}
-    {releaseRequired ? <Button kind="danger" label={t("codeNowReleaseAction")} onPress={() => confirmRelease(contextRef.current)} /> : null}
+    {!unavailable ? <Button label={t("codeNow")} loading={busy} disabled={busy || disabled} style={touchTarget} onPress={() => void start()} /> : null}
+    {retrying ? <Button kind="secondary" label={t("cancel")} style={touchTarget} onPress={cancel} /> : null}
+    {releaseRequired ? <Button kind="danger" label={t("codeNowReleaseAction")} style={touchTarget} onPress={() => confirmRelease(contextRef.current)} /> : null}
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
   </>;
 }

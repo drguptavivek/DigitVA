@@ -1,19 +1,22 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { ApiError, getCaseDetail, getRegisteredDeaths, hasInterviewRegistrationAccess, intakeContextFromAccess, requestClientJson, type CaseDetail, type CaseRow, type IntakeBootstrap, type RegistrationInput } from "../api";
 import { INTAKE_API, registerDeath, startDraft } from "../client/api";
 import { useAppState } from "../AppState";
-import { localToday, registrationNeedsAgeConfirmation, validateRegistration, type RegistrationFields } from "../cases";
+import { localToday, registrationAgeInfoIssue, registrationNeedsAgeConfirmation, validateRegistration, type RegistrationFields } from "../cases";
 import { t, type StringKey } from "../i18n";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
+import { ContextualHelpBanner } from "./ContextualHelp";
+import { DeathsListPanel } from "./DeathsList";
 import { convertPrecision, type Precision } from "../workspace/doris/dateFieldShared";
-import { LocationCapture, MapsLink, type GpsFix } from "./LocationCapture";
+import { LocationCapture, type GpsFix } from "./LocationCapture";
 import { RegistrationFieldControl, type RegistrationDateAppearance } from "./registrationControls";
+import { PhoneNumbers } from "../PhoneInput";
 
 const FIELD_DEFINITIONS: Array<{ key: keyof RegistrationInput; label: StringKey; help?: StringKey }> = [
   { key: "deceased_name", label: "fieldDeceasedName" },
@@ -98,6 +101,27 @@ function birthModeFor(fields: Partial<RegistrationInput>): BirthMode {
   return "exact";
 }
 
+//: Pages of 50 the edit walks to find a death in the caller's own registrations.
+const OWN_LIST_PAGES = 20;
+
+/**
+ * One of the caller's own registrations, with the cursor of its page, from
+ * GET /intake/deaths (the reporter's full registration, unlike a list row).
+ * ponytail: walks at most OWN_LIST_PAGES pages (the 1000 most recently
+ * updated); an additive `death_id` filter on that endpoint would make it one read.
+ */
+async function findOwnRegistration(csrf: Parameters<typeof getRegisteredDeaths>[0], registeredMine: boolean, deathId: string) {
+  let cursor: string | undefined;
+  for (let page = 0; page < OWN_LIST_PAGES; page += 1) {
+    const result = await getRegisteredDeaths(csrf, registeredMine, cursor);
+    const row = result.deaths.find((death) => death.death_id === deathId);
+    if (row) return { row, cursor };
+    if (!result.next_cursor) return undefined;
+    cursor = result.next_cursor;
+  }
+  return undefined;
+}
+
 function draftIssueFor(key: keyof RegistrationInput, message: string): DraftIssue {
   const code = key === "date_of_death" || key === "date_of_birth" || key === "date_of_birth_partial"
     ? "errDate"
@@ -109,7 +133,7 @@ function draftIssueFor(key: keyof RegistrationInput, message: string): DraftIssu
 
 export default function DeathRegistrationScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ view?: string | string[]; deathId?: string | string[] }>();
+  const params = useLocalSearchParams<{ view?: string | string[]; deathId?: string | string[]; registered?: string | string[] }>();
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
   const [intake, setIntake] = useState<IntakeBootstrap>();
@@ -135,47 +159,19 @@ export default function DeathRegistrationScreen() {
   const registrationSource = useRef<"mine" | "case" | undefined>(undefined);
   const registrationSourceCursor = useRef<string | undefined>(undefined);
   const registrationGeneration = useRef(0);
+  const pendingSaveOnly = useRef(false);
   const bootstrapRef = useRef(bootstrap);
   const activeRef = useRef(true);
   bootstrapRef.current = bootstrap;
-  const [listMode, setListMode] = useState(params.view === "mine");
-  const [registeredDeaths, setRegisteredDeaths] = useState<CaseRow[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [listBusy, setListBusy] = useState(false);
-  const listGeneration = useRef(0);
+  const viewParam = Array.isArray(params.view) ? params.view[0] : params.view;
+  const [listMode, setListMode] = useState(viewParam === "mine");
+  const [notice, setNotice] = useState("");
+  // The shared deaths list (docs/policy/case-list-views.md) for anyone who interviews or reports deaths.
+  const canList = Boolean(bootstrap?.capabilities.intake || bootstrap?.capabilities.registeredDeaths);
   const registeredDeathCursors = useRef<{
     owner: typeof bootstrap;
     byDeath: Record<string, string | undefined>;
   }>({ owner: bootstrap, byDeath: {} });
-
-  const loadRegisteredDeaths = useCallback(async (cursor?: string | null) => {
-    if (!bootstrap) return;
-    const requestBootstrap = bootstrap;
-    const generation = ++listGeneration.current;
-    const current = () => generation === listGeneration.current && bootstrapRef.current === requestBootstrap && activeRef.current;
-    if (registeredDeathCursors.current.owner !== requestBootstrap || !cursor) {
-      registeredDeathCursors.current = { owner: requestBootstrap, byDeath: {} };
-    }
-    setListBusy(true);
-    setMessage("");
-    try {
-      const page = await getRegisteredDeaths(requestBootstrap.csrf, requestBootstrap.capabilities.intake && requestBootstrap.capabilities.registeredDeaths, cursor);
-      if (!current()) return;
-      registeredDeathCursors.current = {
-        owner: requestBootstrap,
-        byDeath: {
-          ...registeredDeathCursors.current.byDeath,
-          ...Object.fromEntries(page.deaths.map((death) => [death.death_id, cursor ?? undefined]))
-        }
-      };
-      setRegisteredDeaths((rows) => cursor ? [...rows, ...page.deaths] : page.deaths);
-      setNextCursor(page.next_cursor);
-    } catch (error) {
-      if (current()) setMessage(browserErrorText(error));
-    } finally {
-      if (current()) setListBusy(false);
-    }
-  }, [bootstrap]);
 
   useEffect(() => {
     const visibilityChanged = () => {
@@ -184,11 +180,8 @@ export default function DeathRegistrationScreen() {
       setIsVisible(activeRef.current);
       if (!activeRef.current) {
         registrationGeneration.current += 1;
-        listGeneration.current += 1;
         setFields({}); setLocation(null);
         setSex("");
-        setRegisteredDeaths([]);
-        setNextCursor(null);
         setListMode(false);
         setEditingDeathId(undefined);
         registrationBase.current = undefined;
@@ -196,8 +189,8 @@ export default function DeathRegistrationScreen() {
         registrationSource.current = undefined;
         registrationSourceCursor.current = undefined;
         registeredDeathCursors.current = { owner: bootstrapRef.current, byDeath: {} };
-        setListBusy(false);
         setMessage("");
+        setNotice("");
         setBusy(false);
       }
     };
@@ -208,7 +201,6 @@ export default function DeathRegistrationScreen() {
     return () => {
       activeRef.current = false;
       registrationGeneration.current += 1;
-      listGeneration.current += 1;
       if (typeof document !== "undefined") document.removeEventListener("visibilitychange", visibilityChanged);
     };
   }, []);
@@ -216,9 +208,6 @@ export default function DeathRegistrationScreen() {
   useEffect(() => {
     let active = true;
     registrationGeneration.current += 1;
-    listGeneration.current += 1;
-    setRegisteredDeaths([]);
-    setNextCursor(null);
     setIntake(undefined);
     setProjectId("");
     setSiteId("");
@@ -232,8 +221,8 @@ export default function DeathRegistrationScreen() {
     registrationSource.current = undefined;
     registrationSourceCursor.current = undefined;
     registeredDeathCursors.current = { owner: bootstrap, byDeath: {} };
-    setListBusy(false);
     setMessage("");
+    setNotice("");
     setValidationIssues({});
     setDraftIssues({});
     setPrivateBootstrap(bootstrap);
@@ -255,9 +244,34 @@ export default function DeathRegistrationScreen() {
   useEffect(() => {
     const deathId = Array.isArray(params.deathId) ? params.deathId[0] : params.deathId;
     if (!bootstrap || !deathId || bootstrapRef.current !== bootstrap || !activeRef.current) return undefined;
+    const registered = Array.isArray(params.registered) ? params.registered[0] : params.registered;
+    if (registered === "mine" && bootstrap.capabilities.registeredDeaths) {
+      // A death reached only as its reporter: edit it from the reporter's own registrations, never the case detail.
+      const generation = ++registrationGeneration.current;
+      let active = true;
+      const current = () => active && generation === registrationGeneration.current && bootstrapRef.current === bootstrap && activeRef.current;
+      setBusy(true);
+      setMessage("");
+      void findOwnRegistration(bootstrap.csrf, bootstrap.capabilities.intake, deathId).then((found) => {
+        if (!current()) return;
+        if (!found) {
+          setMessage(t("serverError"));
+          return;
+        }
+        registeredDeathCursors.current = {
+          owner: bootstrap,
+          byDeath: { ...registeredDeathCursors.current.byDeath, [deathId]: found.cursor },
+        };
+        beginEdit(found.row);
+      }).catch((error: unknown) => {
+        if (current()) setMessage(browserErrorText(error));
+      }).finally(() => {
+        if (active && generation === registrationGeneration.current) setBusy(false);
+      });
+      return () => { active = false; };
+    }
     if (!bootstrap.capabilities.intake && bootstrap.capabilities.registeredDeaths) {
       registrationGeneration.current += 1;
-      listGeneration.current += 1;
       setProjectId("");
       setSiteId("");
       setOrgUnitId("");
@@ -272,9 +286,6 @@ export default function DeathRegistrationScreen() {
       setValidationIssues({});
       setDraftIssues({});
       setAgeConfirmationPending(false);
-      setRegisteredDeaths([]);
-      setNextCursor(null);
-      setListBusy(false);
       setBusy(false);
       setMessage("");
       setListMode(true);
@@ -309,19 +320,33 @@ export default function DeathRegistrationScreen() {
       if (active && generation === registrationGeneration.current) setBusy(false);
     });
     return () => { active = false; };
-  }, [bootstrap, params.deathId]);
+  }, [bootstrap, params.deathId, params.registered]);
+
+  // Browser back/forward between the form and the list moves the URL first;
+  // only a change follows it, so the mount keeps the deep-link redirect's choice.
+  const syncedView = useRef(viewParam);
+  useEffect(() => {
+    if (syncedView.current === viewParam) return;
+    syncedView.current = viewParam;
+    setListMode(viewParam === "mine");
+  }, [viewParam]);
+
+  /** Switch between the form and the deaths list; the URL carries it so the navigation highlights the right entry. */
+  function showList(on: boolean) {
+    setListMode(on);
+    router.setParams({ view: on ? "mine" : undefined });
+  }
 
   useEffect(() => {
-    if (listMode && bootstrap?.capabilities.registeredDeaths) void loadRegisteredDeaths();
-    else if (listMode) setListMode(false);
-    return () => { listGeneration.current += 1; };
-  }, [listMode, loadRegisteredDeaths]);
+    // Only once the bootstrap is known: before it loads canList is false for everyone.
+    if (bootstrap && listMode && !canList) setListMode(false);
+  }, [bootstrap, listMode, canList]);
 
   const context = useMemo(
     () => intake?.context.find((entry) => entry.project_id === projectId && entry.site_id === siteId),
     [intake, projectId, siteId]
   );
-  const showRegisteredDeaths = listMode && Boolean(bootstrap?.capabilities.registeredDeaths);
+  const showRegisteredDeaths = listMode && canList;
   const privateUiReady = Boolean(bootstrap && privateBootstrap === bootstrap && isVisible && activeRef.current);
 
   const ageDisplay = calculateRegistrationAge({
@@ -375,7 +400,8 @@ export default function DeathRegistrationScreen() {
     setValidationIssues({});
     setDraftIssues({});
     setAgeConfirmationPending(false);
-    setListMode(false);
+    setNotice("");
+    showList(false);
     setMessage(death.details_pending === true || death.other_complete_interview === true ? t("serverValidation") : "");
   }
 
@@ -436,12 +462,40 @@ export default function DeathRegistrationScreen() {
     }));
   }
 
+  // The age-information rule (a date of birth or an estimated age), against the opened values when editing.
+  function missingAgeInfoIssue(values: RegistrationFields): Partial<Record<keyof RegistrationInput, StringKey>> {
+    const stored = editingDeathId ? (registrationBase.current as Partial<RegistrationFields> | undefined) : undefined;
+    if (!registrationAgeInfoIssue(values, stored)) return {};
+    if (birthMode === "unknown") return { age_years: "errRequired" };
+    return { [birthMode === "exact" ? "date_of_birth" : "date_of_birth_partial"]: "errBirthOrAge" };
+  }
+
+  // Focus leaving the birth-date block with no age information shows the same error as submit.
+  function birthBlur(event: { currentTarget?: unknown; relatedTarget?: unknown }) {
+    const block = event.currentTarget as { contains?: (node: unknown) => boolean } | undefined;
+    if (event.relatedTarget && block?.contains?.(event.relatedTarget)) return;
+    const issues = missingAgeInfoIssue({ ...fields, deceased_name: "", deceased_sex: "", date_of_death: "" } as RegistrationFields);
+    if (Object.keys(issues).length) setValidationIssues((previous) => ({ ...previous, ...issues }));
+  }
+
   function issueMessage(key: keyof RegistrationInput): string | undefined {
     const code = validationIssues[key] ?? draftIssues[key]?.code;
     return code ? t(code) : draftIssues[key]?.message;
   }
 
-  const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => (
+  // An older stored number left untouched in an edit is not an error: the server validates a phone only when it changes.
+  const phoneUnchanged = (key: "informant_phone" | "informant_phone_2") =>
+    Boolean(editingDeathId) && String(fields[key] ?? "") === String(registrationBase.current?.[key] ?? "");
+
+  const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => field.key === "informant_phone" ? (
+    <PhoneNumbers
+      key={field.key}
+      values={{ informant_phone: fields.informant_phone ?? "", informant_phone_2: fields.informant_phone_2 ?? "" }}
+      errors={{ informant_phone: issueMessage("informant_phone"), informant_phone_2: issueMessage("informant_phone_2") }}
+      onChange={updateField}
+      onValidity={(key, valid) => updateFieldIssue(key, valid || phoneUnchanged(key) ? undefined : t("errPhone"))}
+    />
+  ) : (
     <View key={field.key}>
       <Text style={styles.fieldLabel}>{t(field.label)}</Text>
       <RegistrationFieldControl
@@ -456,10 +510,12 @@ export default function DeathRegistrationScreen() {
     </View>
   );
 
-  async function submit(confirmAge = false) {
+  async function submit(confirmAge = false, saveOnly = false) {
     const editing = Boolean(editingDeathId);
     if (!bootstrap || (!editing && (!intake || !context)) || editingReadOnly) return;
+    pendingSaveOnly.current = saveOnly;
     setMessage("");
+    setNotice("");
     const validationFields = {
       ...fields,
       deceased_name: fields.deceased_name ?? "",
@@ -467,14 +523,12 @@ export default function DeathRegistrationScreen() {
       date_of_death: fields.date_of_death ?? ""
     } as RegistrationFields;
     const validation = validateRegistration(validationFields, localToday());
+    for (const key of ["informant_phone", "informant_phone_2"] as const) if (phoneUnchanged(key)) delete validation[key];
     const nextIssues: Partial<Record<keyof RegistrationInput, StringKey>> = {};
     for (const [key, issue] of Object.entries(validation)) {
       nextIssues[key as keyof RegistrationInput] = issue as StringKey;
     }
-    const birthField = birthMode === "exact" ? "date_of_birth" : "date_of_birth_partial";
-    const birthValue = validationFields[birthField];
-    if (birthMode !== "unknown" && !birthValue?.trim()) nextIssues[birthField] = "errRequired";
-    if (birthMode === "unknown" && !validationFields.age_years?.trim()) nextIssues.age_years = "errRequired";
+    Object.assign(nextIssues, missingAgeInfoIssue(validationFields));
     setValidationIssues(nextIssues);
     if (Object.values(nextIssues).some(Boolean) || Object.values(draftIssues).some(Boolean)) {
       setAgeConfirmationPending(false);
@@ -506,7 +560,7 @@ export default function DeathRegistrationScreen() {
           ? {}
           : { latitude: location?.latitude ?? null, longitude: location?.longitude ?? null, accuracy_m: location?.accuracy_m ?? null };
         if (!Object.keys(changes).length && !Object.keys(locationChanges).length) {
-          if (bootstrap.capabilities.registeredDeaths) setListMode(true);
+          if (bootstrap.capabilities.registeredDeaths) showList(true);
           else router.replace("/collection");
           return;
         }
@@ -524,11 +578,10 @@ export default function DeathRegistrationScreen() {
           setEditingDeathId(undefined);
           setFields({}); setLocation(null);
           setSex("");
-          setListMode(true);
-          setRegisteredDeaths([]);
-          void loadRegisteredDeaths();
+          showList(true);
+          setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
         } else {
-          router.replace("/collection");
+          router.replace({ pathname: "/collection", params: { saved: "1" } });
         }
         return;
       }
@@ -553,13 +606,18 @@ export default function DeathRegistrationScreen() {
         bootstrap.csrf
       );
       if (!current()) return;
-      const mayStartInterview = bootstrap.capabilities.intake &&
+      const mayStartInterview = !saveOnly && bootstrap.capabilities.intake &&
         hasInterviewRegistrationAccess(bootstrap.access, projectId, siteId, orgUnitId || undefined) &&
         typeof registration.case.links?.start_interview === "string";
       if (!mayStartInterview) {
-        if (bootstrap.capabilities.registeredDeaths) {
-          setListMode(true);
-          setRegisteredDeaths([]);
+        // The name stays out of the URL: the collection page says only that a registration was saved.
+        if (saveOnly && bootstrap.capabilities.intake) {
+          router.replace({ pathname: "/collection", params: { saved: "1" } });
+        } else if (bootstrap.capabilities.registeredDeaths) {
+          setFields({}); setLocation(null);
+          setSex("");
+          showList(true);
+          setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
         } else {
           router.replace("/workspace");
         }
@@ -597,16 +655,18 @@ export default function DeathRegistrationScreen() {
   }
 
   return (
-    <WebShell title={t("registrationTitle")}>
+    <WebShell title={showRegisteredDeaths ? t("reportedDeaths") : editingDeathId ? t("editRegistration") : t("registrationTitle")}>
       {privateUiReady ? <>
-      {/* The add form stays clear of the list switch: the list is one tap away from the home page and the list view itself. */}
-      {bootstrap?.capabilities.registeredDeaths && (listMode || editingDeathId) ? (
+      <ContextualHelpBanner screen={showRegisteredDeaths ? "myRegisteredDeaths" : "deathRegistration"} />
+      {canList && !showRegisteredDeaths ? (
         <Button
+          size="sm"
           kind="secondary"
-          label={listMode ? t("registerDeath") : t("myRegisteredDeaths")}
+          label={t("reportedDeaths")}
           onPress={() => {
             if (busy) return;
             setMessage("");
+            setNotice("");
             if (editingDeathId) {
               setEditingDeathId(undefined);
               registrationBase.current = undefined;
@@ -615,59 +675,54 @@ export default function DeathRegistrationScreen() {
               registrationSourceCursor.current = undefined;
               setFields({}); setLocation(null);
               setSex("");
-              setListMode(true);
-            } else setListMode((current) => !current);
+            }
+            showList(true);
           }}
           disabled={busy}
         />
       ) : null}
+      {notice ? <Text style={styles.text} accessibilityRole="alert">{notice}</Text> : null}
       {showRegisteredDeaths ? (
         <>
           {message ? <Text style={styles.error}>{message}</Text> : null}
-          {registeredDeaths.map((death) => (
-            <View key={death.death_id} style={styles.card}>
-              <Text style={styles.text}>{death.deceased_name ?? death.unique_id}</Text>
-              <Text style={styles.muted}>
-                {death.unique_id}{death.date_of_death ? ` · ${death.date_of_death}` : ""}
-                {death.unit_name || death.org_unit_name ? ` · ${death.unit_name ?? death.org_unit_name}` : ""}
-              </Text>
-              <MapsLink {...(registrationLocation(death) ?? {})} />
-              {death.details_pending !== true && death.other_complete_interview !== true && !["draft_identity", "completed", "submitted"].includes(String(death.status ?? "")) ? (
-                <Button kind="secondary" label={t("editRegistration")} onPress={() => beginEdit(death)} />
-              ) : null}
-            </View>
-          ))}
-          {!registeredDeaths.length && !listBusy && !message ? <Text style={styles.muted}>{t("noReportedDeaths")}</Text> : null}
-          {nextCursor ? <Button kind="secondary" loading={listBusy} label={t("loadMore")} onPress={() => void loadRegisteredDeaths(nextCursor)} /> : null}
+          <DeathsListPanel
+            headerAction={intake?.context.length ? (
+              <Button label={t("registerDeath")} onPress={() => { setMessage(""); setNotice(""); showList(false); }} />
+            ) : null}
+          />
         </>
       ) : editingReadOnly ? (
         <>
           <Text style={styles.error} accessibilityRole="alert">{message || t("serverValidation")}</Text>
           <Button kind="secondary" label={t("cancel")} onPress={() => {
-            if (bootstrap?.capabilities.registeredDeaths) setListMode(true);
+            if (bootstrap?.capabilities.registeredDeaths) showList(true);
             else router.back();
           }} />
         </>
       ) : intake?.context.length || editingDeathId ? (
         <>
           {editingDeathId ? (
-            <Text style={styles.muted}>{projectId} · {siteId}</Text>
+            <Text style={styles.muted}>{/^sites_in_project_/i.test(siteId) ? projectId : `${projectId} · ${siteId}`}</Text>
           ) : (
             <>
               <Text style={styles.fieldLabel}>{t("chooseSite")}</Text>
               <View style={styles.row} accessibilityRole="radiogroup">
-                {intake?.context.map((entry) => (
-                  <Button
-                    key={`${entry.project_id}:${entry.site_id}`}
-                    kind={entry.project_id === projectId && entry.site_id === siteId ? "primary" : "secondary"}
-                    label={`${entry.project_name ?? entry.project_id} · ${entry.site_name ?? entry.site_id}`}
-                    onPress={() => {
-                      setProjectId(entry.project_id);
-                      setSiteId(entry.site_id);
-                      setOrgUnitId("");
-                    }}
-                  />
-                ))}
+                {intake?.context.map((entry) => {
+                  const rawSite = entry.site_name ?? entry.site_id;
+                  const sitePart = /^sites_in_project_/i.test(rawSite) || /^sites_in_project_/i.test(entry.site_id) ? "" : ` · ${rawSite}`;
+                  return (
+                    <Button
+                      key={`${entry.project_id}:${entry.site_id}`}
+                      kind={entry.project_id === projectId && entry.site_id === siteId ? "primary" : "secondary"}
+                      label={`${entry.project_name ?? entry.project_id}${sitePart}`}
+                      onPress={() => {
+                        setProjectId(entry.project_id);
+                        setSiteId(entry.site_id);
+                        setOrgUnitId("");
+                      }}
+                    />
+                  );
+                })}
               </View>
             </>
           )}
@@ -687,8 +742,10 @@ export default function DeathRegistrationScreen() {
             </View>
           ) : null}
           {renderField(FIELD_DEFINITIONS[0])}
+          {renderField(FIELD_DEFINITIONS[1])}
+          <View onBlur={birthBlur}>
           <Text style={styles.fieldLabel}>{t("fieldDateOfBirth")}</Text>
-          <Text style={styles.fieldLabel}>{t("dobPrecision")}</Text>
+          <Text style={styles.muted}>{t("dobPrecision")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
             {(
               [
@@ -729,11 +786,11 @@ export default function DeathRegistrationScreen() {
             />
           ) : null}
           <View>
-            <Text style={styles.fieldLabel}>{t("fieldEstimatedAge")}</Text>
+            <Text style={styles.fieldLabel}>{t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldEstimatedAge")}</Text>
             {birthMode === "unknown" ? (
               <RegistrationFieldControl
                 field="age_years"
-                label={t("fieldEstimatedAge")}
+                label={t("fieldEstimatedAgeRequired")}
                 value={String(fields.age_years ?? "")}
                 onChange={(value) => updateField("age_years", value)}
                 issueMessage={issueMessage("age_years")}
@@ -744,6 +801,7 @@ export default function DeathRegistrationScreen() {
             ) : !fields.date_of_death?.trim() ? (
               <Text style={styles.muted}>{t("ageNeedsDeathDate")}</Text>
             ) : null}
+          </View>
           </View>
           <Text style={styles.fieldLabel}>{t("fieldSex")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
@@ -763,7 +821,7 @@ export default function DeathRegistrationScreen() {
           {issueMessage("deceased_sex") ? (
             <Text style={styles.error} accessibilityRole="alert">{issueMessage("deceased_sex")}</Text>
           ) : null}
-          {FIELD_DEFINITIONS.slice(1).map((field) => field.key === "address" ? (
+          {FIELD_DEFINITIONS.slice(2).map((field) => field.key === "address" ? (
             <View key={field.key}>
               {renderField(field)}
               <LocationCapture value={location} onChange={setLocation} />
@@ -775,17 +833,20 @@ export default function DeathRegistrationScreen() {
               <Text style={styles.text}>{t("ageReviewConfirm")}</Text>
               <View style={styles.row}>
                 <Button kind="secondary" label={t("cancel")} onPress={() => setAgeConfirmationPending(false)} />
-                <Button loading={busy} disabled={busy} label={t("ageReviewSave")} onPress={() => void submit(true)} />
+                <Button loading={busy} disabled={busy} label={t("ageReviewSave")} onPress={() => void submit(true, pendingSaveOnly.current)} />
               </View>
             </View>
           ) : null}
-          <Button loading={busy} disabled={busy || ageConfirmationPending} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit()} />
+          <Button loading={busy} disabled={busy || ageConfirmationPending} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
+          {!editingDeathId && bootstrap?.capabilities.intake ? (
+            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending} label={t("save")} onPress={() => void submit(false, true)} />
+          ) : null}
           <Button kind="secondary" label={t("cancel")} onPress={() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {
               setEditingDeathId(undefined);
               setFields({}); setLocation(null);
               setSex("");
-              setListMode(true);
+              showList(true);
             } else router.back();
           }} />
         </>

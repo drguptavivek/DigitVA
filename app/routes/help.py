@@ -13,6 +13,7 @@ from flask import (
     Response,
     abort,
     current_app,
+    has_request_context,
     jsonify,
     render_template,
     request,
@@ -95,6 +96,7 @@ HELP_PAGES = [
     ("email-verification",    "Email Verification",           "fa-envelope-circle-check", "User Onboarding",  None),
     # ── User Roles ───────────────────────────────────────────────────
     ("user-roles",            "User Roles & Permissions",     "fa-users-gear",           "User Roles",       None),
+    ("mentoring-institutes",  "Medical College & Mentoring Staff", "fa-building-columns", "User Roles",      None),
     # ── Data Collection ──────────────────────────────────────────────
     ("data-collection",       "Data Collection",              "fa-clipboard-question",   "Data Collection",  None),
     # ── Coding Workflow ──────────────────────────────────────────────
@@ -205,6 +207,8 @@ ENGINEERING_DOCS = [
     ("category-rendering",         "Category Rendering",           "fa-layer-group",        "Field Mapping",
      "docs/current-state/category-rendering-and-visibility.md"),
     # ── Access Control ──────────────────────────────────────────────
+    ("roles-explained",            "Who Can Do What (Plain Guide)", "fa-users",             "Access Control",
+     "docs/policy/roles-explained.md"),
     ("access-control",             "Access Control Model",         "fa-user-lock",          "Access Control",
      "docs/policy/access-control-model.md"),
     ("admin-api-access",           "Admin API Access",             "fa-key",                "Access Control",
@@ -333,6 +337,26 @@ def _base_ctx():
         engineering_docs=ENGINEERING_DOCS,
         eng_doc_categories=_ENG_DOC_CATEGORIES,
     )
+
+
+@help_bp.app_context_processor
+def inject_contextual_page_help():
+    """Inject in-page contextual help for the current Flask page when authenticated."""
+    # Email rendering runs this processor outside any request.
+    if not has_request_context() or not current_user or not current_user.is_authenticated:
+        return {"contextual_page_help": None}
+    from app.services.contextual_help_service import (
+        get_contextual_help,
+        resolve_flask_page_key,
+    )
+
+    key = resolve_flask_page_key(
+        request.endpoint,
+        request.path,
+        request.args.get("panel"),
+    )
+    return {"contextual_page_help": get_contextual_help(key) if key else None}
+
 
 
 def _valid_android_apk_url():

@@ -144,7 +144,7 @@ type DraftStatus = "idle" | "saving" | "saved" | "error";
  * Form-width breakpoints (the form's own width, not the window's). Below
  * MEDIUM the section rail and the label-left question layout give way to the
  * horizontal stepper, drawer and stacked labels; below COMPACT the footer
- * stacks into two rows.
+ * labels shrink so the four buttons still fit one row.
  */
 const MEDIUM_FORM_WIDTH = 900;
 const COMPACT_FORM_WIDTH = 600;
@@ -330,11 +330,12 @@ export function createWhoVaForm(
   const nextIcon = svgPrimitives ? <FooterIcon name="next" primitives={svgPrimitives} /> : null;
 
   /**
-   * Back, Save draft, Preview answers, Next. Back and Next are the
-   * sequential controls; the section rail and drawer are the random-access
-   * ones, so the old "<" ">" arrows beside the tab strip, which duplicated
-   * Back and Next, are gone. Narrow forms stack a small secondary row (save,
-   * preview) above a full-width row of Back and Next.
+   * Back, Save draft, Preview answers, Next: one row of four equal-width
+   * buttons at every form width (labels wrap on a narrow phone rather than
+   * the row splitting in two). Back and Next are the sequential controls; the
+   * section rail and drawer are the random-access ones. The row carries
+   * testID "form-footer" so a host can position it (DigitVA sticks it to the
+   * bottom of a phone viewport).
    */
   function FormFooter({
     canGoBack,
@@ -360,92 +361,60 @@ export function createWhoVaForm(
     onSave: () => void;
   }) {
     const saving = draftStatus === "saving";
-    const backButton = (
-      <Pressable
-        accessibilityRole="button"
-        disabled={!canGoBack}
-        style={[
-          questionControlStyles.button,
-          questionControlStyles.buttonSecondary,
-          styles.navButton,
-          narrow && styles.navGrow,
-          !canGoBack && questionControlStyles.buttonDisabled
-        ]}
-        onPress={onBack}
-      >
-        <Text style={questionControlStyles.buttonTextSecondary}>{messages.back}</Text>
-      </Pressable>
-    );
-    const saveButton = (
-      <Pressable
-        accessibilityRole="button"
-        disabled={!canSave || saving}
-        style={[
-          questionControlStyles.button,
-          questionControlStyles.buttonSecondary,
-          styles.navIconButton,
-          narrow && styles.navSmallButton,
-          (!canSave || saving) && questionControlStyles.buttonDisabled
-        ]}
-        onPress={onSave}
-        accessibilityLabel={saving ? messages.saving : messages.saveDraft}
-      >
-        {saveDraftIcon}
-        <Text style={[questionControlStyles.buttonTextSecondary, narrow && styles.navSmallText]}>
-          {saving ? messages.saving : messages.saveDraft}
-        </Text>
-      </Pressable>
-    );
-    const previewButton = (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={messages.previewAnswers}
-        style={[
-          questionControlStyles.button,
-          questionControlStyles.buttonSecondary,
-          styles.navIconButton,
-          narrow && styles.navSmallButton
-        ]}
-        onPress={onPreview}
-      >
-        {previewIcon}
-        <Text style={[questionControlStyles.buttonTextSecondary, narrow && styles.navSmallText]}>
-          {messages.previewAnswers}
-        </Text>
-      </Pressable>
-    );
-    const nextButton = (
-      <Pressable
-        accessibilityRole="button"
-        style={[questionControlStyles.button, styles.navPrimaryButton, narrow && styles.navGrowPrimary]}
-        onPress={onNext}
-      >
-        <Text style={questionControlStyles.buttonText}>
-          {canGoForward ? messages.next : messages.complete}
-        </Text>
-        {nextIcon}
-      </Pressable>
-    );
-    if (!narrow) {
-      return (
-        <View style={styles.navigation}>
-          {backButton}
-          {saveButton}
-          {previewButton}
-          {nextButton}
-        </View>
-      );
-    }
+    const secondaryText = [
+      questionControlStyles.buttonTextSecondary,
+      styles.navText,
+      narrow && styles.navSmallText
+    ];
     return (
-      <View style={styles.navigationNarrow}>
-        <View style={styles.navRowSecondary}>
-          {saveButton}
-          {previewButton}
-        </View>
-        <View style={styles.navRowPrimary}>
-          {backButton}
-          {nextButton}
-        </View>
+      <View style={styles.footer} testID="form-footer">
+        <Pressable
+          accessibilityRole="button"
+          disabled={!canGoBack}
+          style={[
+            questionControlStyles.button,
+            questionControlStyles.buttonSecondary,
+            styles.navButton,
+            !canGoBack && questionControlStyles.buttonDisabled
+          ]}
+          onPress={onBack}
+        >
+          <Text style={secondaryText}>{messages.back}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          disabled={!canSave || saving}
+          style={[
+            questionControlStyles.button,
+            questionControlStyles.buttonSecondary,
+            styles.navButton,
+            (!canSave || saving) && questionControlStyles.buttonDisabled
+          ]}
+          onPress={onSave}
+          accessibilityLabel={saving ? messages.saving : messages.saveDraft}
+        >
+          {saveDraftIcon}
+          <Text style={secondaryText}>{saving ? messages.saving : messages.saveDraft}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={messages.previewAnswers}
+          style={[questionControlStyles.button, questionControlStyles.buttonSecondary, styles.navButton]}
+          onPress={onPreview}
+        >
+          {previewIcon}
+          <Text style={secondaryText}>{messages.previewAnswers}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          style={[questionControlStyles.button, styles.navButton]}
+          onPress={onNext}
+        >
+          <Text style={[questionControlStyles.buttonText, styles.navText, narrow && styles.navSmallText]}>
+            {canGoForward ? messages.next : messages.complete}
+          </Text>
+          {nextIcon}
+        </Pressable>
       </View>
     );
   }

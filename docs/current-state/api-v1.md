@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-20
 ---
 
 # API v1 Reference
@@ -128,6 +128,8 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | Call | Notes |
 |---|---|
 | `GET /me/access` | The whole access body, below. Sets `X-CSRFToken` for a cookie request. |
+| `GET /me/activity` | The caller's own personal activity counts (overall and per-project), below. Either credential. 120/min. |
+| `GET /me/home` | The Home page's one block per role the caller holds, counts only, below. 120/min. |
 | `GET /me/notifications?after=<id>` | The caller's own notifications, below. Either credential. 120/min. |
 | `POST /me/terms` | Below. Also `POST /profile/terms` (the same view). |
 | `GET /organization/<project>/units?role=interviewer` | The unit picker: `web_intake_service.reachable_unit_ids` (grant-based; a project grant or any site grant of the project reaches the whole tree). 403 when nothing is reachable. `role=death_reporter` is the same rule over a death reporter's own unit grants (the Register death picker for a reporter). Other `role` values and none are the browsing views. |
@@ -156,21 +158,22 @@ interview right.
 | `POST /intake/submissions/<va_sid>/revisions` | The submitting interviewer revises their own submitted interview. Body `reason_code` (`interviewer_correction`, `respondent_correction`, `more_information`, `finish_partial`), `answers_json` + `answers_sha256` (as `/submissions`), `completion: {valid, issues}`, `draft` (meta; only `startedAt`/`completedAt` are taken). 200 `{changed, va_sid, payload_version_id, answers_sha256, outcome, workflow_state}`; `changed: false` writes nothing. 404 `not_found` (not the caller's), 409 `revision_locked` / `case_already_submitted` / `case_closed` / `case_state_conflict`, 422 `invalid_reason` (the server's own `resubmitted` is not accepted) / `answers_hash_*` / `invalid_interview`. A completed interview may be revised to a refused or partial one (the case leaves coding). Body cap 2 MB. Detail: [Device Collection API](device-collection-api.md) "Interviewer revisions". |
 | `POST /intake/supervision/submissions/<va_sid>/reopen-for-revision` | Reopen a finalised web or device interview for its interviewer to revise (`interview_supervisor`, `data_manager` or `admin`). Body `reason_code` (`cod_review_requested`, `new_information`, `data_correction`). 200 `{va_sid, workflow_state: "finalized_upstream_changed", reason_code}`. From `coder_finalized`, `reviewer_eligible`, `reviewer_finalized`. An admin, or a supervisor or data manager whose supervision reach covers the interview's case (404 otherwise); 409 `not_web_submission` / `case_closed` / `wrong_state`; 422 `invalid_reason`. The final COD stays until the interviewer's revision arrives. |
 | `POST /intake/outstanding` | Device session only (a cookie: 403 `device_session_required`). Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
-| `GET /intake/cases?project_id=&mine=&state=&sort=&limit=&cursor=` | The case list, below. 120/min. `project_id` optional. `sort=next_visit` (default: next visit, then last activity) or `sort=reported` (newest registration first, keyset on `created_at`, `death_id`; the VA Interview page's Recent chip, index `ix_va_death_register_created`). Any other value is a 400, and a cursor from one order is refused by the other. |
+| `GET /intake/cases?project_id=&mine=&state=&sort=&limit=&cursor=` | The case list, below. 120/min. `project_id` optional. Also open to a `death_reporter`: the list adds the deaths the caller registered that a `death_reporter` grant of theirs still reaches (the scope of `GET /intake/deaths`, nothing wider); such a row reached by no interviewer grant has `can_interview: false` and no `other_draft_*` keys, every other row `can_interview: true`. A reporter's `project_id` may name any project it registers in. `sort=next_visit` (default: next visit, then last activity) or `sort=reported` (newest registration first, keyset on `created_at`, `death_id`; the VA Interview page's Recent chip, index `ix_va_death_register_created`). Any other value is a 400, and a cursor from one order is refused by the other. |
 | `GET /intake/cases/<death_id>` | Case detail with full contacts, links and (when the caller may start or resume it) prefill, below. 600/min per user, so a device can fetch each active case's detail after the list; on 429 a client keeps its previous complete copy and retries after `Retry-After`. |
 | `POST /intake/cases/<death_id>/flags`, `/pause` | The browser worklist's calls, now for every client. Each replies `{"case": <detail>}`, the body of `GET /intake/cases/<id>` (below). |
 | `GET /intake/cases/<death_id>/possible-duplicates` reply | `{"possible_duplicates": [...]}`, up to 50, most similar first, only cases inside the caller's own worklist scope (a case outside it is never returned, no id and no detail). Each: `death_id`, `unique_id`, `unit_name`, `state`, `score`, and `deceased_name`, `date_of_death` (ISO date), `village` (the village or ward of the case's recorded address, `null` when empty; the org unit is `unit_name`), `age_years`, `sex`, `informant_name`, `previous_interviewer_name` (the user who started the interview, `null` when nobody did; new here, since the worklist and case detail never name another interviewer, and shown only for these in-scope candidates by the owner's 2026-10-01 rule) and `reported_by_name` (the user who registered the death, who may be a data manager or death reporter rather than an interviewer; owner, 2026-10-09). The detail keys are additive. No phone or address. The per-row `possible_duplicates` of `GET /intake/cases` and the device list stays `death_id` and `unique_id` only. |
 | `GET/POST /intake/deaths` | List (`project_id`, `site_id` required) and register (`project_id` required; `client_death_id` optional, idempotent), below. |
-| `POST /intake/deaths` / `GET /intake/deaths` (death reporter) | A `death_reporter` registers a death as an interviewer does (same body, same 201 `{"case": <detail>}`, same `client_death_id` idempotency) in the unit subtree its grant reaches (403 outside it, or in a project whose `web_intake_mode` keeps no death register). The reply's `case` carries no `prefill` and `links` is only `{"update": "/api/v1/intake/deaths/<id>"}`: no start-interview, attempts or visit link. `GET /intake/deaths` serves a reporter (one with no interviewer right) **its own registered deaths** within reach, newest activity first: query `project_id`, `site_id` (optional narrowing; no reach there is 403), `limit` (default 50, clamped to 200), `cursor`; reply `{"deaths": [<death, as the interviewer's list, `va_sid` null>], "next_cursor": str \| null}`; malformed `limit`/`cursor` 400. Index-backed (`ix_va_death_register_registered_by`). A user who also holds `interviewer` gets the interviewer list unchanged (`project_id` and `site_id` required, no cursor) unless they ask `?registered=mine`, which serves any caller holding a `death_reporter` grant this same paged list (any other value is 400). A reply about a case is reporter-shaped (no `prefill`, `links` only `update`, no `other_draft_*`) for a caller with a `death_reporter` grant that no interviewer grant of theirs reaches the case through. Every other `/intake` route (worklist, case detail, drafts, attempts, visit, pause, flags, uploads, outstanding, prefill-policy, supervision) answers a reporter 403. |
+| `POST /intake/deaths` / `GET /intake/deaths` (death reporter) | A `death_reporter` registers a death as an interviewer does (same body, same 201 `{"case": <detail>}`, same `client_death_id` idempotency) in the unit subtree its grant reaches (403 outside it, or in a project whose `web_intake_mode` keeps no death register). The reply's `case` carries no `prefill` and `links` is only `{"update": "/api/v1/intake/deaths/<id>"}`: no start-interview, attempts or visit link. `GET /intake/deaths` serves a reporter (one with no interviewer right) **its own registered deaths** within reach, newest activity first: query `project_id`, `site_id` (optional narrowing; no reach there is 403), `limit` (default 50, clamped to 200), `cursor`; reply `{"deaths": [<death, as the interviewer's list, `va_sid` null>], "next_cursor": str \| null}`; malformed `limit`/`cursor` 400. Index-backed (`ix_va_death_register_registered_by`). A user who also holds `interviewer` gets the interviewer list unchanged (`project_id` and `site_id` required, no cursor) unless they ask `?registered=mine`, which serves any caller holding a `death_reporter` grant this same paged list (any other value is 400). A reply about a case is reporter-shaped (no `prefill`, `links` only `update`, no `other_draft_*`) for a caller with a `death_reporter` grant that no interviewer grant of theirs reaches the case through. Every other `/intake` route (case detail, drafts, attempts, visit, pause, flags, uploads, outstanding, prefill-policy, supervision) answers a reporter 403. |
 | `PATCH /intake/deaths/<death_id>` | Correct a registered death until an interview of it is completed (`interviewer`, `interview_supervisor`, `data_manager`, or the `death_reporter` who registered it and whose grant still reaches its unit; the caller must see or supervise the case, else 404). Body: only the register fields to change, optional `if_updated_at` (the `case.updated_at` last seen). 200 `{"case": <detail>}`; 409 `case_completed` (a completed interview exists) / `details_pending` / `death_stale`; 422 `invalid_death` (`register_death`'s validation, a list or object in a field, nothing to change). Audited as `details_edited`: the audit's `reason` names the fields, its `changes` column keeps each one's old and new value (never returned by any API). Policy: [Web Intake](../policy/web-intake.md) "Correcting a registered death". |
-| Death-site GPS fix (`POST /intake/deaths`, `PATCH /intake/deaths/<id>`) | Optional body fields `latitude` (-90..90), `longitude` (-180..180), `accuracy_m` (>= 0), all finite numbers; latitude and longitude come together, accuracy only with them (else 422 `invalid_registration` / `invalid_death`). Replies carry them, plus server-set `captured_at`, in `case.household_address` and in each `GET /intake/deaths` item (the address's audience); never in worklist or supervision rows. A `captured_at` in the body is ignored/unknown (422 on PATCH). A PATCH omitting the fields keeps the fix; explicit nulls clear it; any change re-stamps `captured_at`. Policy: "Death-site GPS location". |
+| Death-site GPS fix (`POST /intake/deaths`, `PATCH /intake/deaths/<id>`) | Optional body fields `latitude` (-90..90), `longitude` (-180..180), `accuracy_m` (>= 0), all finite numbers; latitude and longitude come together, accuracy only with them (else 422 `invalid_registration` / `invalid_death`). Replies carry them, plus server-set `captured_at`, in `case.household_address` and in each `GET /intake/deaths` item only where `web_intake_service.shows_gps` allows (owner, 2026-10-20): the caller registered the death (any project; the reporter's own `GET /intake/deaths` list always), or the case is in an organization project (`projects_with_org_tree`) and the caller has personal-data access (`should_redact_pii` false). Otherwise the four keys are omitted, not null. One grant check and one organization-tree query per reply. Never in supervision rows; worklist rows as below. A `captured_at` in the body is ignored/unknown (422 on PATCH). A PATCH omitting the fields keeps the fix; explicit nulls clear it; any change re-stamps `captured_at`. Policy: "Death-site GPS location". |
 | `POST /intake/cases/<death_id>/attempts`, `/visit` | Attempts (`client_attempt_id` optional, idempotent) and visits, keyed by the case (no `project_id`), below. |
 | `POST /intake/drafts/sync` | The phone's in-progress interview into the caller's one open draft of a case; newer save wins whole, the loser is kept as a `replaced` draft. Reply `{draft, kept, conflict, answers_sha256, message, envelope}`; 422 `answers_hash_*`/`invalid_interview` store nothing; 409 on a closed case. Contract: [Device Collection API](device-collection-api.md) "Draft sync". |
 | `PUT /intake/drafts/<id>/attachments/<client_attachment_id>` | One audio, image or PDF file for the caller's own open draft ([Web Intake Policy](../policy/web-intake.md), "Attachments"). Raw body (`Content-Type: application/octet-stream`), `Content-Length` required; optional `X-Content-SHA256` (64 hex: a body that differs is 400 `checksum_mismatch`; on a retried id a different checksum or size is 409); cookie plus `X-CSRFToken`; 120/min. `client_attachment_id` is the page's UUID for the file (the `id` of the answer's attachment reference) and the idempotency key: 201 `{attachment: {id, filename, mime_type, size, created_at}, created: true}` when stored, 200 with the same record and `created: false` when that id is already held (nothing stored again). The type is decided from the leading bytes (webm, wav, amr, mp3, m4a, jpeg, png, pdf), never from the name or `Content-Type`. Bytes go through the attachment store; the uploader's filename is not kept; an `.amr` is converted to MP3 as ODK sync does. Errors: 400 malformed id, 404 `not_found` (not the caller's draft), 409 (draft not open; `attachment_id_conflict`: that id holds a different size), 411 `length_required`, 413 `payload_too_large` (over 50 MB; an `.amr` over 5 MB), 415 `unsupported_media_type`, 422 `empty_attachment` / `attachment_limit` (60 per draft) / `audio_conversion_failed`, 503 `unavailable`. |
 | `GET /intake/drafts/<id>/attachments/<client_attachment_id>` | The stored file to the draft's own interviewer (so a form shows a file the device no longer holds), any draft status of the caller's; `no-store`, `Content-Security-Policy: sandbox; default-src 'none'`, a PDF as `Content-Disposition: attachment`, `Range` honoured on the local store. 404 for another's draft or an unknown file. 300/min. |
-| `GET/POST /intake/drafts`, `GET/PATCH /intake/drafts/<id>`, `POST /intake/drafts/<id>/discard`, `/submit` | The web draft store. Draft saves and submits take no body cap beyond the service's answer checks. `PATCH` takes optional `if_updated_at` (the last seen `draft.updated_at`): a newer saved version is 409 `draft_stale`, nothing written. One open draft per interviewer per case: `POST` returns the caller's own, another interviewer's never blocks (no 409). `/submit`: 422 `outcome_conflicts_consent` (answers say `Id10013` yes and `interview_outcome` refused, valid form or not; `fields` names both), 409 `attachments_pending` while an answer names a file that has not been uploaded (nothing stored; a device upload keeps such a reference as before); otherwise 201 `{va_sid, draft, superseded: false, validation_err, can_code_now}`; on a draft that is already `submitted` (a stale tab) it is a correction, 200 with the same body plus `kept` and `locked`; on an open draft whose case's winning submission is the caller's own earlier draft it is the same correction (the draft is closed as `replaced`; `va_sid` and `draft` are the winning interview's); on a case already `submitted`, `duplicate` or `cancelled` (a teammate won, or a supervisor closed it) the draft is kept as `superseded` (no submission, case untouched) and the reply is 200 `{va_sid: null, draft, superseded: true, validation_err: null, can_code_now: false}`. `can_code_now` (bool, also on the correction's reply and on the `/intake/submissions` result) is true when the caller may now be offered "Code this case now": a completed interview with valid consent in a self-coding project where the caller holds a coder grant that codes (`web_intake_service.can_code_now`; grants only, the action re-checks). |
+| `GET/POST /intake/drafts`, `GET/PATCH /intake/drafts/<id>`, `POST /intake/drafts/<id>/discard`, `/submit` | The web draft store. `GET /intake/drafts` rows add the case's `deceased_name`, `deceased_sex`, `age_years` and `date_of_death` (null without a case) and carry `sections_saved`, all fetched for the whole list in two queries. Draft saves and submits take no body cap beyond the service's answer checks. `PATCH` takes optional `if_updated_at` (the last seen `draft.updated_at`): a newer saved version is 409 `draft_stale`, nothing written. One open draft per interviewer per case: `POST` returns the caller's own, another interviewer's never blocks (no 409). `/submit`: 422 `outcome_conflicts_consent` (answers say `Id10013` yes and `interview_outcome` refused, valid form or not; `fields` names both), 409 `attachments_pending` while an answer names a file that has not been uploaded (nothing stored; a device upload keeps such a reference as before); otherwise 201 `{va_sid, draft, superseded: false, validation_err, can_code_now}`; on a draft that is already `submitted` (a stale tab) it is a correction, 200 with the same body plus `kept` and `locked`; on an open draft whose case's winning submission is the caller's own earlier draft it is the same correction (the draft is closed as `replaced`; `va_sid` and `draft` are the winning interview's); on a case already `submitted`, `duplicate` or `cancelled` (a teammate won, or a supervisor closed it) the draft is kept as `superseded` (no submission, case untouched) and the reply is 200 `{va_sid: null, draft, superseded: true, validation_err: null, can_code_now: false}`. `can_code_now` (bool, also on the correction's reply and on the `/intake/submissions` result) is true when the caller may now be offered "Code this case now": a completed interview with valid consent in a self-coding project where the caller holds a coder grant that codes (`web_intake_service.can_code_now`; grants only, the action re-checks). |
 | `GET /intake/supervision/cases`, `POST /intake/supervision/cases/<id>/resolve-flag`, `/cancel`, `/reopen`, `/duplicate` | Supervisor list and actions (`interview_supervisor` or `data_manager`). Each action replies `{"case": <row>}`, the case in the supervisor list's row shape (`serialize_supervised_row`: who registered and started it, no contact details, no prefill), not the interviewer's detail: a supervisor need not hold an interviewer grant. The list takes `state`, `flagged`, `candidates` (true: only cases with a second complete interview to choose), `visit_note` (true: only cases whose submission holds a visit note; composes with the others, one query), `limit`, `cursor`; every row carries `other_complete_interview` (bool). |
 | `GET /intake/cases` rows and `GET /intake/cases/<id>` | Also carry `started` (bool: someone started the case; no name, the worklist never names an interviewer) and `created_at` (the registration time, the page's Reported column). Also carry `code_now` (bool): the caller's own submission of the case is `ready_for_coding` in a self-coding project where they hold a coder grant that codes, so "Code now" works (`POST /coding/submissions/<va_sid>/code-now`, below). Read from the worklist query (`ready_for_coding` joins `va_submission_workflow`), no per-row query. Not in supervision rows. |
+| `GET /intake/cases` rows: `latitude`, `longitude` | The death-site GPS fix (numbers or `null`), for the case card's map pin. Present only for cases in organization projects (a project with an active organization level, `projects_with_org_tree`; never in a sites-mode project's rows, even an interviewer's), and there only where the case detail would show the household address: the caller has personal-data access (`should_redact_pii` is false, as for every interviewer) or registered the death (`registered_by_me`, a death reporter's own rows). Read from the worklist row already loaded; one grant check and one organization-tree query per page, no per-row query. Never in supervision rows (`GET /intake/supervision/cases`). Coordinates are not logged. |
 | `GET /intake/supervision/cases/<id>` | One supervised case: `{"case": <supervisor row>, "candidates": [{draft_id, interviewer_name, completed_at, outcome}], "visit_note": {date, address, remarks, redacted} \| null}`, the other complete interviews a supervisor may choose (`outcome` is always `completed`). The interviewers' names are for supervisors only. `visit_note` is the case's visit note as the viewer may see it (`redacted` true, with `address` and `remarks` null, for a viewer `should_redact_pii` redacts), or null when there is none. 404 outside the caller's reach. |
 | `GET /intake/supervision/cases/<id>/possible-duplicates` | Cases in the caller's supervision reach that may be the same death as this one, a warning only (`interview_supervisor`, `data_manager` or `admin`; same rules as the interviewer's `GET /intake/cases/<id>/possible-duplicates`). Reply `{"possible_duplicates": [{death_id, unique_id, unit_name, state, score, deceased_name, date_of_death, age_years, sex}]}`, supervisor-row fields only: no `informant_name`, `village` or phone. A case outside the reach is never a candidate. 404 when the subject is outside the caller's reach; 403 for an interviewer-only caller. |
 | `POST /intake/supervision/cases/<id>/choose-interview` | Choose another interviewer's complete interview of a submitted case over the one it holds (`interview_supervisor`, `data_manager` or `admin`; [Web Intake Policy](../policy/web-intake.md), "Supervisors"). Body `draft_id` (a candidate), `reason_code` (`better_quality`, `more_complete`, `original_incorrect`, `switch_back`). 200 `{"case": <supervisor row>}`; the case keeps its `va_sid`, coding restarts from any stage (earlier COD kept as history), the other interview stays a candidate. 400 malformed `draft_id`; 404 outside reach or another case's draft; 409 `case_not_submitted` / `not_web_submission` / `not_a_candidate` / `form_mismatch` / `wrong_state` (a reviewer session is live); 422 `invalid_reason`. |
@@ -491,7 +494,7 @@ view authorization, masking and workflow semantics remain unchanged.
 | `categories`, `default_category` | ordered `[{code, label, nav_label, render_mode}]` the mode's role sees (the COD panel `vacodassessment` last), and the code to open first |
 | `step` | `initial`, `final` or `done`. Coding: Step 1 while the caller has neither an active Step 1 nor a not-codeable review (an unmasked project has no Step 1, so `final`); `final` once Step 1 is saved; `done` after a not-codeable review with no Step 1. Reviewing: masked and no own Step 1 is `initial`, own Step 1 or an unmasked project is `final`, a saved reviewer final is `done` |
 | `blocked_by` | codes that stop the final save: `narrative_qa` (coders; NQA enabled and not saved by the caller) and `social_autopsy` (the role's analysis required and not saved) |
-| `assessments` | always these keys, null when absent. Coding: `initial` (the caller's own active Step 1: `id`, `immediate_cod`, `antecedent_cod`, `other_conditions` as a list, `created_at`), `initial_prefill` (what the Step 1 form opens with: the same row, or in a recode episode the caller's latest prior draft), `final` (the authoritative coder final: `id`, `conclusive_cod`, `immediate_cod`, `other_conditions`, `remark`, `created_at`; only once `step` is `final`, as the web's Step 2 form shows it, so a masked Step 1 stays blind to an earlier coder's result), `not_codeable` (`reason`, `other`, `created_at`; only the caller's own review). Reviewing: `coder_initial`, `final` and `not_codeable` as read-only reference (the web panel shows them to a reviewer), and the caller's own `reviewer_initial` and `reviewer_final` (another reviewer's final is neither shown nor makes `step` `done`). Another coder's Step 1 is never shown to a coder |
+| `assessments` | always these keys, null when absent. Coding: `initial` (the caller's own active Step 1: `id`, `immediate_cod`, `antecedent_cod`, `other_conditions` as a list, `created_at`), `initial_prefill` (what the Step 1 form opens with: the same row, or in a recode episode the caller's latest prior draft), `final` (the authoritative coder final: `id`, `conclusive_cod`, `immediate_cod`, `other_conditions`, `remark`, `created_at`; only once `step` is `final`, as the web's Step 2 form shows it, so a masked Step 1 stays blind to an earlier coder's result), `not_codeable` (`reason`, `other`, `created_at`; only the caller's own review). Reviewing: `coder_initial`, `final` and `not_codeable` as read-only reference (the web panel shows them to a reviewer; in an `unmasked_doris` project `final` also carries the coder's saved `doris_status` and `doris_code`, codes only, no reports), and the caller's own `reviewer_initial` and `reviewer_final` (another reviewer's final is neither shown nor makes `step` `done`). Another coder's Step 1 is never shown to a coder |
 | `smartva` | the active SmartVA result read live (not from the section cache; it completes asynchronously): `age` (a whole number when integral, `"28"` not `"28.0"`), `gender`, `key_symptoms` (always three entries, primary to tertiary, `null` when empty), `causes` (`rank`, `cause`, `icd10`, `icd11` mapping, `likelihood`; all three ranks, `cause` null when empty), `symptoms`; null when none, and on a masked project until the caller has their own Step 1 (Step 1 is blind) |
 | `smartva_status`, `smartva_can_run` | status-only `not_requested`, `queued`, `running`, `done` or `failed`, and whether the existing SmartVA action can run; `smartva_can_run` is false in view mode. Masked Step 1 can show status while `smartva` remains null. |
 | `other_conditions_options` | the Step 1 other-conditions list of the age group (`coding`); null for `reviewing`, whose form takes free text |
@@ -920,17 +923,116 @@ caller's area (the scope of `/api/v1/area/projects`, any grant). Totals only,
 no names. `deaths_reported` excludes duplicate and cancelled cases;
 `interviews_done` is total VA submissions in scope; `coded` is submissions
 with a final COD. Both percentages are integers of `deaths_reported`, rounded
-half up, `null` when it is 0 (policy: `docs/policy/area-dashboard.md`, "Home
+half up, `null` when it is under 20 or smaller than the count (policy: `docs/policy/area-dashboard.md`, "Home
 KPIs"). A user with no grants gets `{"projects": []}`. Cached 60 seconds per
 user; 120 requests per minute.
 
+## GET /api/v1/me/home (body)
+
+The Expo Home page (`app/routes/api/me.py`,
+`user_home_service.get_home_blocks`). Signed in only; JSON 401 otherwise.
+Built for the browser session: a bearer token gets the same role list, and
+the supervisor block then counts nothing (`supervised_case_condition` is
+browser-only).
+`roles` are the access summary's (explicit grants only). `blocks` holds a key
+only for a role held, each counted inside that role's own scope by the
+service its screen uses; nothing is summed across roles or projects.
+
+```json
+{
+  "roles": ["coder", "death_reporter", "interviewer", "project_pi"],
+  "blocks": {
+    "death_reporter": {"registered": 12, "awaiting_interview": 3},
+    "interviewer": {"drafts_in_progress": 2, "needing_visit": 5},
+    "interview_supervisor": {"flagged": 1, "open": 40, "submitted": 210},
+    "coder": {"ready": 14, "practice": false, "completed": 80, "recodeable": 2},
+    "reviewer": {"available": 6, "completed": 31},
+    "data_manager": {"screening_pending": 4, "ready_for_coding": 14, "not_codeable": 2},
+    "progress": {"roles": ["project_pi"]}
+  }
+}
+```
+
+- `death_reporter`: register entries the caller registered (as
+  `/me/activity` `deaths_reported`, "Deaths I registered", not the
+  scope-wide count of `/me/kpis`); `awaiting_interview` those still
+  `registered`, `scheduled`, `in_progress`, `paused` or `not_reachable`.
+- `interviewer`: own open drafts; `needing_visit` open cases (same states)
+  in the worklist's scope under its "Mine" rule.
+- `interview_supervisor`: cases of `supervised_case_condition`; `flagged`
+  holds a flag awaiting a supervisor (`pending_flag`), `open` the states
+  above.
+- `coder` (a coder or coding tester): `ready` is the `/coding/stats` ready
+  pool (random plus pick). A coding tester without a coder grant gets
+  `practice: true` and `ready` only; otherwise `completed` (as
+  `/coding/stats`) and `recodeable` (own codings still inside the recode
+  window, `get_coder_recodeable_sids`).
+- `reviewer`: `available` and `completed` as `/reviewing/stats`.
+- `data_manager`: submissions of the data manager dashboard's scope in
+  `screening_pending`, `ready_for_coding` and either not-codeable state,
+  from the analytics snapshot.
+- `progress`: present for `project_pi`, `site_pi` or a collaborator, with
+  the roles held and no counts: the client loads `/me/kpis` when the block
+  is opened.
+
+## GET /api/v1/me/activity (body)
+
+The caller's own personal activity counts across all projects and per project
+(`digitva-dsj2`, `app/routes/api/me.py`,
+`user_home_service.get_user_activity_summary`). Signed in only; JSON 401
+otherwise. 120 requests per minute; `Cache-Control: no-store`.
+
+```json
+{
+  "totals": {
+    "deaths_reported": 12,
+    "interviews_submitted": 10,
+    "drafts_in_progress": 2,
+    "coded": 8,
+    "not_codeable": 1,
+    "reviewed": 4
+  },
+  "by_project": {
+    "TST001": {
+      "deaths_reported": 12,
+      "interviews_submitted": 10,
+      "drafts_in_progress": 2,
+      "coded": 8,
+      "not_codeable": 1,
+      "reviewed": 4
+    }
+  }
+}
+```
+
+- `deaths_reported`: register entries (`source = 'register'`) in
+  `va_death_register` registered by the caller, excluding `duplicate` and
+  `cancelled` cases. A direct start is an interview, not a reported death.
+- `interviews_submitted` and `drafts_in_progress`: the caller's rows in
+  `va_web_intake_draft` (`status` `"submitted"` and `"draft"`), excluding
+  confirmed duplicate and cancelled cases.
+- `coded` and `not_codeable`: distinct submissions where the caller holds an
+  active final assessment (`va_final_assessments`) or active not-codeable coder
+  review (`va_coder_review`), excluding demo-training projects.
+- `reviewed`: distinct submissions where the caller holds an active reviewer
+  final assessment (`va_reviewer_final_assessments`), excluding demo-training
+  projects.
+- `by_project` includes an entry for every active project in the caller's
+  resolved grants plus any project where the caller has recorded activity. A
+  user with no grants and no activity receives zeroed `totals` and
+  `"by_project": {}`.
+
 ## My organization (`GET /api/v1/organization/me` and `.../units/<org_unit_id>/people`, `app/routes/api/organization.py`)
 
-`digitva-e7sz`. Org-tree projects where the caller holds any active grant;
-sites-mode projects are omitted.
+`digitva-e7sz`. Every project where the caller holds a live explicit grant
+(sites-mode projects included since 2026-10-20, with empty tree lists).
 
-- `GET /me`: per project `my_units` (own unit grants and worker placements,
-  with cadre names), `above` (ancestor units, root first, each with
+- `GET /me`: per project `has_tree`, `my_positions`
+  (`{project_roles: string[], sites: [{site_id, site_name, roles: string[]}]}`:
+  the caller's project-scope roles and project_site roles, role values as
+  granted, sites only where a site grant exists), `my_units` (own unit grants
+  and worker placements, with cadre names and `roles: [{role, cadre|null}]`
+  from the unit grants), `above` (ancestor units, root first, each with
   `people`), `my_level` (people at each own unit), `below` (child units of
   own units with `people_count` and `has_children`, or the root units when the
   caller has no unit). Every unit in `above`, `my_level`, `below` and

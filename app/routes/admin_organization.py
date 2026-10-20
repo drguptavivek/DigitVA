@@ -15,7 +15,7 @@ from flask_login import current_user
 from openpyxl import Workbook
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from app import db
+from app import db, limiter
 from app.decorators import role_required
 from app.models import MapOrgLevelCadre, MasCadre, MasOrgUnit, VaUsers
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
@@ -623,6 +623,15 @@ def admin_org_create_worker(project_id):
             **{k: p.get(k) for k in _WORKER_FIELDS if k != "user"},
             user=worker_user,
         )
+        if "coding_unit_ids" in p or "supervision_unit_ids" in p:
+            extra_grants = org.sync_worker_unit_scope_grants(
+                project_id,
+                worker,
+                coding_unit_ids=p.get("coding_unit_ids"),
+                supervision_unit_ids=p.get("supervision_unit_ids"),
+                actor=current_user,
+            )
+            changed_grants.extend(extra_grants)
         serialized = org.list_workers(project_id, include_inactive=True, org_unit_id=worker.org_unit_id)
         serialized = next(w for w in serialized if w["worker_id"] == str(worker.worker_id))
         db.session.commit()
@@ -658,14 +667,32 @@ def admin_org_update_worker(project_id, worker_id):
         return err
     p = _payload()
     allowed = {k: p[k] for k in _WORKER_FIELDS + ("is_active",) if k in p}
+    scope_changed = []
     try:
         worker = org.update_worker(project_id, worker_id, **allowed)
+        if "coding_unit_ids" in p or "supervision_unit_ids" in p:
+            scope_changed = org.sync_worker_unit_scope_grants(
+                project_id,
+                worker,
+                coding_unit_ids=p.get("coding_unit_ids"),
+                supervision_unit_ids=p.get("supervision_unit_ids"),
+                actor=current_user,
+            )
         serialized = org.list_workers(project_id, include_inactive=True, org_unit_id=worker.org_unit_id)
         serialized = next(w for w in serialized if w["worker_id"] == str(worker.worker_id))
     except org.OrganizationError as exc:
         db.session.rollback()
         return _json_error(str(exc), 400)
     _commit_and_log("worker-update", project_id, worker.worker_code)
+    if scope_changed:
+        user_import.finalize_apply(
+            project_id,
+            actor_user_id=current_user.user_id,
+            actor_role="admin" if current_user.is_admin() else "project_pi",
+            changed_grants=scope_changed,
+            invitations=[],
+            request_ip=request.remote_addr,
+        )
     return jsonify({"worker": serialized})
 
 
@@ -917,3 +944,191 @@ def admin_org_import(project_id):
         db.session.rollback()
     status = 400 if plan.errors else 200
     return jsonify({"plan": plan.as_dict(), "dry_run": dry_run}), status
+
+
+# ---------------------------------------------------------------------------
+# Existing user lookup, bulk VA mortality presets, and mentoring institutes
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/users/lookup")
+@role_required("admin", "project_pi")
+@limiter.limit("60 per minute")
+def admin_org_user_lookup(project_id):
+    if err := _guard(project_id):
+        return err
+    return jsonify(
+        org.lookup_existing_user(
+            request.args.get("q"),
+            is_admin=current_user.is_admin(),
+        )
+    )
+
+
+@admin.get(f"{_API}/va-presets")
+@role_required("admin", "project_pi")
+def admin_org_list_va_presets(project_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        units = org.list_project_va_presets(project_id)
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 400)
+    return jsonify({"units": units})
+
+
+@admin.put(f"{_API}/va-presets")
+@role_required("admin", "project_pi")
+def admin_org_bulk_set_va_presets(project_id):
+    if err := _guard(project_id):
+        return err
+    p = _payload()
+    items = p.get("items") if "items" in p else (p.get("presets") or [])
+    try:
+        updated = org.bulk_set_unit_va_presets(
+            project_id,
+            items,
+            actor_id=current_user.user_id,
+        )
+        units = org.list_project_va_presets(project_id)
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    _commit_and_log("va-presets-bulk", project_id, {"updated": updated})
+    return jsonify({"updated": updated, "units": units})
+
+
+@admin.get(f"{_API}/mentoring")
+@role_required("admin", "project_pi")
+def admin_org_mentoring_overview(project_id):
+    if err := _guard(project_id):
+        return err
+    try:
+        overview = org.project_mentoring_overview(project_id)
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 400)
+    return jsonify(overview)
+
+
+@admin.post(f"{_API}/mentoring/grants")
+@role_required("admin", "project_pi")
+def admin_org_mentoring_grants(project_id):
+    if err := _guard(project_id):
+        return err
+    p = _payload()
+    try:
+        changed = org.sync_mentor_scientist_unit_grants(
+            project_id,
+            user_id=p.get("user_id"),
+            role_name=str(p.get("role") or p.get("role_name") or ""),
+            org_unit_ids=p.get("org_unit_ids") or [],
+            actor=current_user,
+        )
+        db.session.commit()
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    if changed:
+        user_import.finalize_apply(
+            project_id,
+            actor_user_id=current_user.user_id,
+            actor_role="admin" if current_user.is_admin() else "project_pi",
+            changed_grants=changed,
+            invitations=[],
+            request_ip=request.remote_addr,
+        )
+    overview = org.project_mentoring_overview(project_id)
+    return jsonify({"changed": len(changed), "overview": overview, **overview})
+
+
+@admin.post(f"{_API}/mentoring/districts")
+@role_required("admin")
+def admin_org_mentoring_districts(project_id):
+    """Platform-admin actions for project mentoring institutes: sync district links or create/attach/detach/add_scientist."""
+    if err := _guard(project_id):
+        return err
+    from app.models import MapMentorInstituteOrgUnit, MasMentorInstitute, MasOrgUnit
+    from app.services import mentor_institute_service as mentor_svc
+
+    p = _payload()
+    action = str(p.get("action") or "").strip()
+    try:
+        if not action and p.get("mentor_institute_id") is not None:
+            inst_uuid = org._uuid(p.get("mentor_institute_id"), what="Institute id")
+            inst = db.session.get(MasMentorInstitute, inst_uuid)
+            if inst is None or not inst.is_active:
+                return _json_error("Active mentoring institute not found.", 404)
+            desired_ids = {
+                org._uuid(uid, what="Unit id")
+                for uid in (p.get("district_unit_ids") or [])
+            }
+            project_districts = {
+                u.org_unit_id: u
+                for u in db.session.scalars(
+                    sa.select(MasOrgUnit).where(
+                        MasOrgUnit.project_id == project_id,
+                        MasOrgUnit.is_active.is_(True),
+                    )
+                ).all()
+            }
+            for uid in desired_ids:
+                if uid not in project_districts:
+                    raise org.OrganizationError("Selected district unit does not belong to this project.")
+            for uid in desired_ids:
+                mentor_svc.attach_district(
+                    inst.institute_code,
+                    project_id,
+                    project_districts[uid].unit_code,
+                    actor_user_id=current_user.user_id,
+                )
+            existing_links = db.session.scalars(
+                sa.select(MapMentorInstituteOrgUnit).where(
+                    MapMentorInstituteOrgUnit.institute_id == inst.institute_id,
+                    MapMentorInstituteOrgUnit.org_unit_id.in_(list(project_districts.keys())),
+                    MapMentorInstituteOrgUnit.is_active.is_(True),
+                )
+            ).all()
+            for link in existing_links:
+                if link.org_unit_id not in desired_ids:
+                    mentor_svc.detach_district(
+                        inst.institute_code,
+                        project_id,
+                        project_districts[link.org_unit_id].unit_code,
+                        actor_user_id=current_user.user_id,
+                    )
+        elif action == "create_and_attach":
+            code = p.get("institute_code")
+            name = p.get("institute_name")
+            unit_code = p.get("unit_code")
+            mentor_svc.create_institute(code, name, actor_user_id=current_user.user_id)
+            if unit_code:
+                mentor_svc.attach_district(code, project_id, unit_code, actor_user_id=current_user.user_id)
+        elif action == "attach":
+            mentor_svc.attach_district(
+                p.get("institute_code"),
+                project_id,
+                p.get("unit_code"),
+                actor_user_id=current_user.user_id,
+            )
+        elif action == "detach":
+            mentor_svc.detach_district(
+                p.get("institute_code"),
+                project_id,
+                p.get("unit_code"),
+                actor_user_id=current_user.user_id,
+            )
+        elif action == "add_scientist":
+            mentor_svc.add_member(
+                p.get("institute_code"),
+                email=str(p.get("email") or "").strip() or None,
+                user_id=p.get("user_id") or None,
+                actor_user_id=current_user.user_id,
+            )
+        else:
+            return _json_error("Unknown action; use create_and_attach, attach, detach, or add_scientist.", 400)
+        db.session.commit()
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    overview = org.project_mentoring_overview(project_id)
+    return jsonify({"overview": overview, **overview})

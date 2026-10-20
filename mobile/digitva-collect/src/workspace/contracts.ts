@@ -136,6 +136,9 @@ export interface WorkspaceAssessment {
   remark?: string | null;
   reason?: string | null;
   other?: string | null;
+  /** Reviewing, unmasked DORIS only: the coder final's saved DORIS status and computed code (codes, no reports). */
+  doris_status?: string | null;
+  doris_code?: string | null;
   created_at?: string;
 }
 
@@ -464,7 +467,7 @@ function assessment(value: unknown, field: string): WorkspaceAssessment | null {
   for (const key of ["id", "created_at"] as const) {
     if (source[key] !== undefined) parsed[key] = string(source[key], `${field}.${key}`);
   }
-  for (const key of ["immediate_cod", "antecedent_cod", "antecedent_cod_label", "conclusive_cod", "remark", "reason", "other"] as const) {
+  for (const key of ["immediate_cod", "antecedent_cod", "antecedent_cod_label", "conclusive_cod", "remark", "reason", "other", "doris_status", "doris_code"] as const) {
     if (source[key] !== undefined) parsed[key] = nullableString(source[key], `${field}.${key}`);
   }
   if (source.other_conditions !== undefined) {

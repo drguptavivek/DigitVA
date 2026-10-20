@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-20
 ---
 
 # Policy Docs
@@ -51,7 +51,9 @@ Current policy docs:
 - [User Management CLI Policy](user-management-cli.md)
 - [VA Form Project Configuration Policy](va-form-project-configuration.md) — extensions a project enables, narration languages vs display translations, geography codes
 - [Web Intake Policy](web-intake.md) — WHO VA 2022 questionnaire filled in DigitVA, death register, interviewer role
+- [Death Registration Identifiers Policy](death-registration-identifiers.md) — proposed: per-project identifier types (CRS, MCCD, certificate numbers) with safe validation patterns, late entry by supervisors, audit and PII rules
 - [Area Dashboard Policy](area-dashboard.md) — every granted user sees collection and coding progress for their subtree
+- [Case List Views Policy](case-list-views.md) — proposed: Deaths, VA Interview, VA Code and Supervision as presets of one scoped case list, navigation, filters, field visibility
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
 - [WHO 2022 ICD-10 Coding Allowability Policy](who-2022-icd10-coding-allowability.md)
 - [ICD-10 to ICD-11 Transition for VA Cause Buckets](icd10-to-icd11-transition.md)

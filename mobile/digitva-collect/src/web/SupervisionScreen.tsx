@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
-import { WhoVaQuestionControls } from "../whoControls";
 
 import { useAppState } from "../AppState";
 import { listCases, SUPERVISION_STATES, type SupervisedCase } from "../supervision/api";
@@ -8,15 +7,15 @@ import { SUPERVISION_ROLES } from "../api";
 import { t } from "../i18n";
 import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
-import { choiceQuestion } from "../workspace/QualityPanels";
 import { Button, stateLabel, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
+import { SupervisionHelpBanner } from "./ContextualHelp";
 import { CaseSummary, SupervisionCaseDetail } from "./SupervisionCase";
 import { SupervisionActions } from "./SupervisionActions";
 
 const ANY_STATE = "any";
 
-/** Interview supervisors' cases: flags to resolve, all cases, and each case's detail. */
+/** Interview supervisors' and data managers' cases: all cases by state (the default), flags to resolve, and each case's detail. */
 export default function SupervisionScreen() {
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
@@ -24,7 +23,7 @@ export default function SupervisionScreen() {
     () => (bootstrap ? createWebWorkspaceTransport(bootstrap.csrf) : undefined),
     [bootstrap],
   );
-  const [flagsOnly, setFlagsOnly] = useState(true);
+  const [flagsOnly, setFlagsOnly] = useState(false);
   const [state, setState] = useState(ANY_STATE);
   const [visitNotesOnly, setVisitNotesOnly] = useState(false);
   const [rows, setRows] = useState<SupervisedCase[]>([]);
@@ -102,11 +101,18 @@ export default function SupervisionScreen() {
     setFlagsOnly(flags);
   }
 
+  /** A state's count button: the all-cases list in that state. */
+  function showState(code: string) {
+    showTab(false);
+    setState(code);
+  }
+
   const inScope = Object.values(counts).reduce((sum, count) => sum + count, 0);
   const emptyText = !inScope ? t("supervisionNoScope") : flagsOnly ? t("supervisionNoFlags") : t("supervisionNoCasesHere");
-  const stateOptions = [
-    { value: ANY_STATE, label: t("supervisionAnyState") },
-    ...SUPERVISION_STATES.map((code) => ({ value: code, label: stateLabel(code) })),
+  // Counts ignore every filter, so the buttons stay put; states with no case are left out.
+  const stateButtons = [
+    { code: ANY_STATE, label: `${t("supervisionAnyState")} (${inScope})` },
+    ...SUPERVISION_STATES.filter((code) => counts[code]).map((code) => ({ code, label: `${stateLabel(code)} (${counts[code]})` })),
   ];
 
   return (
@@ -115,28 +121,28 @@ export default function SupervisionScreen() {
         <SupervisionCaseDetail request={request} deathId={selected} onBack={() => setSelected(undefined)} onDone={finish} />
       ) : (
         <>
+          <SupervisionHelpBanner />
           <View style={styles.row}>
-            <Button kind={flagsOnly ? "primary" : "secondary"} label={t("supervisionTabFlags")} onPress={() => showTab(true)} />
-            <Button kind={flagsOnly ? "secondary" : "primary"} label={t("supervisionTabAll")} onPress={() => showTab(false)} />
+            <Button size="sm" kind={flagsOnly ? "primary" : "secondary"} label={t("supervisionTabFlags")} onPress={() => showTab(true)} />
+            <Button size="sm" kind={flagsOnly ? "secondary" : "primary"} label={t("supervisionTabAll")} onPress={() => showTab(false)} />
             <Button
+              size="sm"
               kind={visitNotesOnly ? "primary" : "secondary"}
               label={t("supervisionVisitNotes")}
               onPress={() => setVisitNotesOnly((on) => !on)}
             />
           </View>
-          {!flagsOnly ? (
-            <WhoVaQuestionControls.SingleChoice
-              question={choiceQuestion("supervision-state", t("supervisionStateFilter"), "singleChoice", stateOptions)}
-              value={state}
-              data={{}}
-              locale="en"
-              issues={[]}
-              choiceColumns={2}
-              onAnswer={(value) => {
-                if (typeof value === "string") setState(value);
-              }}
-            />
-          ) : null}
+          <View style={styles.row} accessibilityLabel={t("supervisionStateFilter")}>
+            {stateButtons.map((button) => (
+              <Button
+                key={button.code}
+                size="sm"
+                kind={!flagsOnly && state === button.code ? "primary" : "secondary"}
+                label={button.label}
+                onPress={() => showState(button.code)}
+              />
+            ))}
+          </View>
           {notice ? <Text style={styles.muted} accessibilityRole="alert">{notice}</Text> : null}
           {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
           {rows.length === 0 && !busy ? <Text style={styles.muted}>{emptyText}</Text> : null}
@@ -144,10 +150,10 @@ export default function SupervisionScreen() {
             <View key={row.death_id} style={styles.card}>
               <CaseSummary row={row} />
               {request ? <SupervisionActions request={request} row={row} onDone={finish} /> : null}
-              <Button kind="secondary" label={t("viewDetails")} onPress={() => setSelected(row.death_id)} />
+              <Button size="sm" kind="secondary" label={t("viewDetails")} onPress={() => setSelected(row.death_id)} />
             </View>
           ))}
-          {nextCursor ? <Button kind="secondary" loading={busy} label={t("loadMore")} onPress={() => void loadMore()} /> : null}
+          {nextCursor ? <Button size="sm" kind="secondary" loading={busy} label={t("loadMore")} onPress={() => void loadMore()} /> : null}
         </>
       )}
     </WebShell>

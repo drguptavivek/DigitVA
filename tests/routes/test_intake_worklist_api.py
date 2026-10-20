@@ -68,6 +68,7 @@ class IntakeWorklistApiTests(BaseTestCase):
                 "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": name,
                 "deceased_sex": "female",
                 "date_of_death": (date.today() - timedelta(days=5)).isoformat(),
+                "age_years": 45,
             },
             headers=self._csrf_headers(),
         )

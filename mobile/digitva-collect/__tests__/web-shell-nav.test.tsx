@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import type { ClientBootstrap } from "../src/client/api";
@@ -36,13 +37,14 @@ jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
     Button: () => null,
-    Screen: ({ sidebar, children }: { sidebar?: React.ReactNode; children?: React.ReactNode }) => ReactActual.createElement("screen", null, sidebar, children),
+    Screen: ({ sidebar, children, lead }: { sidebar?: React.ReactNode; children?: React.ReactNode; lead?: React.ReactNode }) => ReactActual.createElement("screen", { lead }, sidebar, children),
     useUiStyles: () => ({ muted: {}, text: {} }),
   };
 });
 
 import { WebShell } from "../src/web/common";
 import { ROLE_SCREENS } from "../src/web/roleHome";
+import { leaveDialogOpen, leavePage, registerNavigationGuard, stayOnPage } from "../src/web/navigationGuard";
 
 const LOCAL_KEY = "digitva.lastVisit.u1";
 
@@ -92,6 +94,17 @@ describe("web shell navigation and last visit", () => {
     Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
   });
 
+  test("passes a screen's lead (the interview's header bar) to Screen, and none otherwise", async () => {
+    const plain = await render();
+    expect(plain.root.findByType("screen" as never).props.lead).toBeUndefined();
+    act(() => plain.unmount());
+    const lead = <header />;
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<WebShell title="Title" lead={lead}><></></WebShell>); });
+    expect(renderer.root.findByType("screen" as never).props.lead).toBe(lead);
+    act(() => renderer.unmount());
+  });
+
   test.each(ROLE_SCREENS)("remembers the role screen %s on mount", async (route) => {
     mockPathname = route;
     const renderer = await render();
@@ -106,36 +119,114 @@ describe("web shell navigation and last visit", () => {
     await act(async () => { renderer.unmount(); });
   });
 
-  test("shows the role entries for the user's roles and capabilities", async () => {
-    mockBootstrap = bootstrap(["coder", "reviewer", "death_reporter"], { intake: true, registerDeath: true, registeredDeaths: true });
+  // Scoped to the menu landmark, so other press targets on the page (the KPI strip) never count.
+  const navLabels = (renderer: ReactTestRenderer) =>
+    renderer.root.findAll((node) => node.props["aria-label"] === "menuLabel" || node.props.accessibilityLabel === "menuLabel")[0].findAll((node) => typeof node.props.accessibilityLabel === "string" && typeof node.props.onPress === "function")
+      .map((node) => node.props.accessibilityLabel as string)
+      .filter((label) => label !== "openMenu" && label !== "closeMenu");
+  const openMore = async (renderer: ReactTestRenderer) => { await act(async () => { navItem(renderer, "navMore")!.props.onPress(); }); };
+
+  test("shows the owner's items in order for the user's roles and capabilities, the rest under More", async () => {
+    mockBootstrap = bootstrap(["coder", "reviewer", "death_reporter", "data_manager"], { intake: true, registerDeath: true, registeredDeaths: true, supervision: true });
     const renderer = await render();
-    for (const label of ["navCoding", "navReview", "reportedDeaths", "registerDeath", "myRegisteredDeaths"]) {
-      expect(navItem(renderer, label)).toBeDefined();
-    }
-    expect(navItem(renderer, "navArea")).toBeUndefined();
-    expect(navItem(renderer, "navDataManagement")).toBeUndefined();
+    expect(navLabels(renderer)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics", "navMore"]);
+    await openMore(renderer);
+    expect(navLabels(renderer)).toEqual([
+      "home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics", "navMore",
+      "navOrg", "navSettings", "navWebsite", "supervisionTitle", "navDataManagement", "signOut",
+    ]);
     await act(async () => { renderer.unmount(); });
   });
 
-  test("shows Area and Data management only for a data manager", async () => {
-    mockBootstrap = bootstrap(["data_manager"], { supervision: true });
+  test("a coder sees no Deaths, Interview, Statistics or Data management", async () => {
     const renderer = await render();
-    expect(navItem(renderer, "navArea")).toBeDefined();
-    expect(navItem(renderer, "navDataManagement")).toBeDefined();
+    await openMore(renderer);
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navMore", "navOrg", "navSettings", "navWebsite", "signOut"]);
     await act(async () => { renderer.unmount(); });
   });
 
-  test("Area remembers the page before opening it", async () => {
+  test("Deaths opens my registrations; Home goes to /; Website opens the public site in a new tab", async () => {
+    mockBootstrap = bootstrap(["death_reporter"], { registerDeath: true, registeredDeaths: true });
+    const open = jest.fn();
+    Object.defineProperty(window, "open", { configurable: true, value: open });
+    const renderer = await render();
+    await act(async () => { navItem(renderer, "navDeaths")!.props.onPress(); });
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: "/death-registration", params: { view: "mine" } });
+    await act(async () => { navItem(renderer, "home")!.props.onPress(); });
+    expect(mockRouter.push).toHaveBeenLastCalledWith("/");
+    await openMore(renderer);
+    await act(async () => { navItem(renderer, "navWebsite")!.props.onPress(); });
+    expect(open).toHaveBeenCalledWith("/vaindex", "_blank", "noopener");
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("Deaths is active on the death-registration screen; More opens itself on a page it holds", async () => {
+    mockBootstrap = bootstrap(["death_reporter"], { registerDeath: true, registeredDeaths: true });
+    mockPathname = "/death-registration";
+    let renderer = await render();
+    expect(navItem(renderer, "navDeaths")!.props.accessibilityState.selected).toBe(true);
+    expect(navItem(renderer, "home")!.props.accessibilityState.selected).toBe(false);
+    await act(async () => { renderer.unmount(); });
+    mockPathname = "/organization";
+    renderer = await render();
+    expect(navItem(renderer, "navMore")!.props.accessibilityState.expanded).toBe(true);
+    expect(navItem(renderer, "navOrg")!.props.accessibilityState.selected).toBe(true);
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("below 768px on the web the left menu never renders, on /interview as on every other route", async () => {
+    const platform = jest.replaceProperty(Platform, "OS", "web");
+    const dims = jest.spyOn(require("react-native"), "useWindowDimensions").mockReturnValue({ width: 375, height: 812, scale: 2, fontScale: 1 });
+    mockPathname = "/interview";
+    let renderer = await render();
+    expect(renderer.root.findAll((node) => node.props.accessibilityLabel === "menuLabel" || node.props["aria-label"] === "menuLabel")).toHaveLength(0);
+    await act(async () => { renderer.unmount(); });
+    dims.mockReturnValue({ width: 1200, height: 800, scale: 1, fontScale: 1 });
+    renderer = await render();
+    expect(navItem(renderer, "navVaCode")).toBeDefined();
+    expect(navItem(renderer, "navVaInterview")).toBeUndefined(); // coder: no interview item, but the sidebar is there
+    await act(async () => { renderer.unmount(); });
+    dims.mockRestore();
+    platform.restore();
+  });
+
+  test("Statistics remembers the page before opening it", async () => {
     mockBootstrap = bootstrap(["data_manager"]);
     const renderer = await render();
-    await act(async () => { navItem(renderer, "navArea")!.props.onPress(); });
+    await act(async () => { navItem(renderer, "navStatistics")!.props.onPress(); });
     expect(local.getItem(LOCAL_KEY)).toBe("/area/");
     expect(assign).toHaveBeenCalledWith("/area/");
     await act(async () => { renderer.unmount(); });
   });
 
-  test("sign-out goes through the shared logout, which clears the first-load flag", async () => {
+  test("with a dirty navigation guard the left menu asks first: Stay keeps the user, Leave navigates; a new tab is never held", async () => {
+    mockBootstrap = bootstrap(["data_manager"], { intake: true });
+    const open = jest.fn();
+    Object.defineProperty(window, "open", { configurable: true, value: open });
+    const unregister = registerNavigationGuard({ isDirty: () => true, save: async () => true });
     const renderer = await render();
+    await act(async () => { navItem(renderer, "home")!.props.onPress(); });
+    expect(leaveDialogOpen()).toBe(true);
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    await act(async () => { stayOnPage(); });
+    await act(async () => { navItem(renderer, "navStatistics")!.props.onPress(); });
+    expect(assign).not.toHaveBeenCalled();
+    await act(async () => { leavePage(); });
+    expect(assign).toHaveBeenCalledWith("/area/");
+    unregister();
+    const again = registerNavigationGuard({ isDirty: () => true, save: async () => true });
+    await openMore(renderer);
+    await act(async () => { navItem(renderer, "navWebsite")!.props.onPress(); });
+    expect(open).toHaveBeenCalledWith("/vaindex", "_blank", "noopener");
+    expect(leaveDialogOpen()).toBe(false);
+    again();
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("sign-out sits under More and goes through the shared logout, which clears the first-load flag", async () => {
+    const renderer = await render();
+    expect(navItem(renderer, "signOut")).toBeUndefined();
+    await openMore(renderer);
     await act(async () => { navItem(renderer, "signOut")!.props.onPress(); });
     expect(mockLogout).toHaveBeenCalled();
     await act(async () => { renderer.unmount(); });

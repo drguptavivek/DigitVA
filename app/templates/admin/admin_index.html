@@ -21,6 +21,28 @@
 
       <nav class="nav flex-column gap-1">
 
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1 fw-semibold"
+           href="#"
+           title="Projects"
+           data-panel="/admin/panels/projects"
+           hx-get="/admin/panels/projects"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-folder-open admin-nav-icon"></i>
+          <span class="admin-nav-label">Projects</span>
+        </a>
+
+        <a class="nav-link admin-nav-link rounded px-2 py-1"
+           href="#"
+           title="Organization"
+           data-panel="/admin/panels/organization"
+           hx-get="/admin/panels/organization"
+           hx-target="#admin-panel"
+           hx-swap="innerHTML">
+          <i class="fa-solid fa-sitemap admin-nav-icon"></i>
+          <span class="admin-nav-label">Organization</span>
+        </a>
+
         <a class="nav-link admin-nav-link rounded px-2 py-1"
            href="#"
            title="Access Grants"
@@ -41,17 +63,6 @@
            hx-swap="innerHTML">
           <i class="fa-solid fa-diagram-project admin-nav-icon"></i>
           <span class="admin-nav-label">Project Sites</span>
-        </a>
-
-        <a class="nav-link admin-nav-link rounded px-2 py-1"
-           href="#"
-           title="Organization"
-           data-panel="/admin/panels/organization"
-           hx-get="/admin/panels/organization"
-           hx-target="#admin-panel"
-           hx-swap="innerHTML">
-          <i class="fa-solid fa-sitemap admin-nav-icon"></i>
-          <span class="admin-nav-label">Organization</span>
         </a>
 
         {# Admin-only items — revealed by JS after bootstrap fetch #}
@@ -84,17 +95,6 @@
            hx-swap="innerHTML">
           <i class="fa-solid fa-user-tie admin-nav-icon"></i>
           <span class="admin-nav-label">Project PIs</span>
-        </a>
-
-        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
-           href="#"
-           title="Projects"
-           data-panel="/admin/panels/projects"
-           hx-get="/admin/panels/projects"
-           hx-target="#admin-panel"
-           hx-swap="innerHTML">
-          <i class="fa-solid fa-folder admin-nav-icon"></i>
-          <span class="admin-nav-label">Projects</span>
         </a>
 
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
@@ -315,7 +315,13 @@
     min-width: 0;
     overflow-x: auto;
   }
-  #main-content { padding-top: 0 !important; }
+  #main-content {
+    padding-top: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
   .admin-nav-link {
     color: #555 !important;
     font-size: 0.9rem;
@@ -433,6 +439,10 @@
           htmx.ajax('GET', urlPanel, { target: '#admin-panel', swap: 'innerHTML' });
           return;
         }
+      } else {
+        var defaultPanel = adminState.user.is_admin ? '/admin/panels/projects' : '/admin/panels/organization';
+        var defaultLink = document.querySelector('.admin-nav-link[data-panel="' + defaultPanel + '"]');
+        if (defaultLink) { defaultLink.click(); return; }
       }
 
     } catch (e) {

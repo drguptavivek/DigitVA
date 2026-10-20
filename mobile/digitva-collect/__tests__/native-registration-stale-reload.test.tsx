@@ -96,10 +96,12 @@ it("does not restore a delayed stale reload after the registration screen loses 
   mockLoad.mockReturnValueOnce(Promise.resolve({ deaths: [death], next_cursor: null }))
     .mockReturnValueOnce(new Promise((resolve) => { resolveReload = resolve; }));
   let tree!: ReturnType<typeof create>;
+  // Address is a plain multiline TextInput, not a WHO control.
+  const address = () => tree.root.findAllByProps({ accessibilityLabel: "fieldAddress" })[0];
   await act(async () => { tree = create(<Register />); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => {
-    tree.root.findByProps({ "data-field": "address" }).props.onChange({ target: { value: "My change" } });
+    address().props.onChangeText("My change");
   });
   await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
   await act(async () => { await Promise.resolve(); });
@@ -110,7 +112,7 @@ it("does not restore a delayed stale reload after the registration screen loses 
     resolveReload({ deaths: [{ ...death, household_address: { address: "Fresh address" } }], next_cursor: null });
     await Promise.resolve();
   });
-  expect(tree.root.findByProps({ "data-field": "address" }).props["data-value"]).toBe("");
+  expect(address().props.value).toBe("");
   expect(JSON.stringify(tree.toJSON())).not.toContain("Fresh address");
   await act(async () => tree.unmount());
 });
@@ -125,5 +127,16 @@ it("clears a saved DOB with a changed-only patch when age remains", async () => 
   expect(tree.root.findAllByProps({ "data-field": "date_of_birth" })).toHaveLength(0);
   await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
   expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { date_of_birth: "" }, "2026-10-06T12:00:00+00:00");
+  await act(async () => tree.unmount());
+});
+
+it("orders the core fields as the browser form: name, date of death, then birth date", async () => {
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<Register />); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  const fields = tree.root
+    .findAll((node) => node.type === "input" && typeof node.props["data-field"] === "string")
+    .map((node) => node.props["data-field"]);
+  expect(fields.slice(0, 3)).toEqual(["deceased_name", "date_of_death", "date_of_birth"]);
   await act(async () => tree.unmount());
 });

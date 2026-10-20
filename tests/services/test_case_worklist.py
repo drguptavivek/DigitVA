@@ -113,7 +113,7 @@ class CaseWorklistTests(BaseTestCase):
     # ── helpers ────────────────────────────────────────────────────────────
 
     def _register(self, user=None, unit=0, **overrides):
-        fields = {"deceased_name": "Asha Devi", "deceased_sex": "female", "date_of_death": _dod()}
+        fields = {"deceased_name": "Asha Devi", "deceased_sex": "female", "date_of_death": _dod(), "age_years": 62}
         fields.update(overrides)
         return intake_svc.register_death(
             user or self.alice, project_id=self.PROJECT_ID, site_id=self.SITE_ID,

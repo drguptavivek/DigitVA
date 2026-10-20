@@ -33,10 +33,11 @@ export default function NativeCollectionGate({
   if (!ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!bootstrap) return <Redirect href="/" />;
   if (COLLECTION_ROUTES.has(pathname) && bootstrap.capabilities.intake) return children;
-  if (REGISTRATION_ROUTES.has(pathname) && bootstrap.capabilities.registerDeath) return children;
+  if (REGISTRATION_ROUTES.has(pathname) && (bootstrap.capabilities.registerDeath || bootstrap.capabilities.registeredDeaths)) return children;
+  const hasOtherActiveRole = (bootstrap.access?.roles?.length ?? 0) > 0 || Boolean(bootstrap.access?.is_admin);
   return (
     <Screen title={t("workspaceTitle")}>
-      <Text style={styles.text}>{t("codingReviewPending")}</Text>
+      <Text style={styles.text}>{t(hasOtherActiveRole ? "noCollectionAccess" : "codingReviewPending")}</Text>
       <Button label={t("workspaceTitle")} onPress={() => router.replace("/workspace")} />
     </Screen>
   );

@@ -3,7 +3,7 @@ title: Test Harness and Database Connection Management
 doc_type: reference
 status: current
 owner: vgz
-last_updated: 2026-03-09
+last_updated: 2026-10-20
 ---
 
 # Test Harness and Database Connection Management
@@ -23,6 +23,9 @@ Run tests:
 ```
 docker exec minerva_app python -m pytest tests/ -v
 ```
+
+Full suite in parallel (`-n 4`, pytest-xdist): each worker gets its own
+database `<db>_gw0`..; see `docs/policy/test-harness.md` ("Parallel runs").
 
 ## BaseTestCase (`tests/base.py`)
 

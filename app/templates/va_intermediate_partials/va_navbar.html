@@ -43,6 +43,14 @@
   </li>
 {% endif %}
 
+{% if can_admin %}
+  <li class="nav-item">
+    <a class="nav-link fw-semibold" href="{{ url_for('admin.admin_index', panel='/admin/panels/projects' if u.is_admin() else '/admin/panels/organization') }}">
+      <i class="fa-solid fa-folder-open me-1"></i>Projects
+    </a>
+  </li>
+{% endif %}
+
 {# Oversight and management views share one menu; each entry keeps its own gate. #}
 {% if can_pi_dash or can_supervise or has_grant or is_dm or is_viewer or can_admin %}
   <li class="nav-item dropdown">
@@ -50,6 +58,7 @@
       <i class="fa-solid fa-sliders me-1"></i>Manage
     </a>
     <ul class="dropdown-menu" aria-labelledby="manageDropdown">
+      {% if can_admin %}<li><a class="dropdown-item fw-semibold" href="{{ url_for('admin.admin_index', panel='/admin/panels/projects' if u.is_admin() else '/admin/panels/organization') }}"><i class="fa-solid fa-folder-open me-2 text-primary"></i>Projects Workspace</a></li>{% endif %}
       {% if can_pi_dash %}<li><a class="dropdown-item" href="{{ url_for('sitepi.dashboard') }}"><i class="fa-solid fa-chart-line me-2"></i>VA Dashboard</a></li>{% endif %}
       {% if has_grant %}<li><a class="dropdown-item" href="{{ url_for('area.dashboard') }}"><i class="fa-solid fa-chart-column me-2"></i>Area</a></li>{% endif %}
       {% if can_supervise %}<li><a class="dropdown-item" href="{{ url_for('intake.supervision_page') }}"><i class="fa-solid fa-user-shield me-2"></i>Supervision</a></li>{% endif %}
@@ -116,7 +125,22 @@
         {% endif %} -->
 #}
 
-        {% if current_user.is_authenticated %}
+        {# One Help per page: a page with contextual help gets its drawer toggle here
+           (wired by _contextual_page_help.html), never a pill floating over the page. #}
+        {% if current_user.is_authenticated and contextual_page_help %}
+          <li class="nav-item d-flex align-items-center">
+            <button
+              type="button"
+              class="btn btn-sm btn-outline-light rounded-pill px-3 py-1 fw-semibold d-inline-flex align-items-center gap-1"
+              id="contextual-page-help-toggle"
+              aria-expanded="false"
+              aria-controls="contextual-page-help-panel"
+            >
+              <span class="badge rounded-pill bg-white text-primary fw-bold" aria-hidden="true">?</span>
+              <span>Help</span>
+            </button>
+          </li>
+        {% elif current_user.is_authenticated %}
           <li class="nav-item">
             <a class="nav-link" href="{{ url_for('help.index') }}">
               <i class="fa-solid fa-circle-question me-1"></i>

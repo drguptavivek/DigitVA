@@ -46,11 +46,15 @@ describe("WHO VA expression semantics", () => {
     // added by doris_support_whova_2022 (18 relevance, 8 constraints; its
     // Id10366 constraint and Id10340 relevance replace WHO's rather than
     // adding one).
+    // The asserted count is the instrument's actual one: 560, down from 561
+    // when the DigitVA core override in src/instrument.ts (commit 308d15979)
+    // dropped WHO's relevance on Id10476 so the typed narrative stays visible
+    // next to saved audio.
     // This count is asserted explicitly, not derived from
     // whoVa2022Instrument, because the count under test is exactly
     // whoVa2022Instrument's own expression count — deriving it from the
     // instrument would make the assertion vacuous.
-    expect(expressions).toHaveLength(561);
+    expect(expressions).toHaveLength(560);
     for (const expression of expressions) {
       expect(
         () =>

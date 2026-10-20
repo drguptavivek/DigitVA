@@ -27,6 +27,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "intake",
         "interview",
         "login",
+        "mentoring",
         "new-death",
         "organization",
         "pin-setup",

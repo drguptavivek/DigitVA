@@ -21,9 +21,10 @@ function FaIcon({ name, label, color }: { name: string; label?: string; color?: 
   });
 }
 
-function WebButton({ label, onPress, disabled = false, disabledReason }: { label: string; onPress: () => void; disabled?: boolean; disabledReason?: string }) {
+function WebButton({ id, label, onPress, disabled = false, disabledReason }: { id?: string; label: string; onPress: () => void; disabled?: boolean; disabledReason?: string }) {
   const [webStyles, w] = useWebStyles(makeStyles);
   return React.createElement("button", {
+    id,
     type: "button",
     disabled,
     onClick: onPress,
@@ -134,10 +135,12 @@ function CategoryNavigation({
       <Pressable nativeID="digitva-category-drawer-close" accessibilityRole="button" accessibilityLabel="Close category names" onPress={() => setOpen(false)} style={webStyles.categoryDrawerClose}><FaIcon name="fa-times" color={w.blue} /></Pressable>
     </View>
     {categories.length ? categories.map((item) => categoryItem(item, false)) : <Text style={webStyles.empty}>No visible categories for this submission.</Text>}
-    {smartvaPanel ?? <View style={webStyles.smartvaCard}>
-      <Text style={webStyles.smartvaTitle}><FaIcon name="fa-chart-pie" color={w.blue} /> SmartVA</Text>
-      <Text style={webStyles.smartvaText}>{smartvaAvailable ? "Done (result shown in the assessment steps)" : "Results are shown in COD Assessment when available."}</Text>
-    </View>}
+    {!categories.some((c) => c.code === "smartva_section") ? (
+      smartvaPanel ?? <View style={webStyles.smartvaCard}>
+        <Text style={webStyles.smartvaTitle}><FaIcon name="fa-chart-pie" color={w.blue} /> SmartVA</Text>
+        <Text style={webStyles.smartvaText}>{smartvaAvailable ? "Done (result shown in the assessment steps)" : "Results are shown in COD Assessment when available."}</Text>
+      </View>
+    ) : null}
     <IcdBrowserLink classification={icdClassification} />
   </View>;
 
@@ -158,10 +161,12 @@ function CategoryNavigation({
         style={webStyles.categoryRailMenu}
       ><FaIcon name={open ? "fa-times" : "fa-bars"} color={w.onBar} /></Pressable>
       {categories.map((item) => categoryItem(item, true))}
-      <Pressable accessibilityRole="button" accessibilityLabel="Open SmartVA status" onPress={() => setOpen(true)} style={webStyles.smartvaRail}>
-        <FaIcon name="fa-chart-pie" color={w.blue} />
-        <Text style={webStyles.srOnly}>SmartVA: {smartvaAvailable ? "Done" : "Results available in COD Assessment when available"}</Text>
-      </Pressable>
+      {!categories.some((c) => c.code === "smartva_section") ? (
+        <Pressable accessibilityRole="button" accessibilityLabel="Open SmartVA status" onPress={() => setOpen(true)} style={webStyles.smartvaRail}>
+          <FaIcon name="fa-chart-pie" color={w.blue} />
+          <Text style={webStyles.srOnly}>SmartVA: {smartvaAvailable ? "Done" : "Results available in COD Assessment when available"}</Text>
+        </Pressable>
+      ) : null}
     </View>
     {layer}
   </View>;
@@ -185,23 +190,25 @@ export function WorkspaceLayout({
   const wide = width >= WIDE_BREAKPOINT;
   const phone = width < PHONE_BREAKPOINT;
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(wide);
-  const [hintsOpen, setHintsOpen] = useState(wide);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const wasWide = useRef(wide);
 
   useEffect(() => {
     if (!wide && wasWide.current) {
       setCategoriesOpen(false);
-      setDetailsOpen(false);
-      setHintsOpen(false);
-    }
-    if (wide && !wasWide.current) {
-      setDetailsOpen(true);
-      setHintsOpen(true);
     }
     wasWide.current = wide;
   }, [wide]);
+
+  useEffect(() => {
+    if (!infoOpen || typeof document === "undefined") return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setInfoOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [infoOpen]);
 
   useEffect(() => {
     if (!notesOpen || typeof document === "undefined") return undefined;
@@ -345,23 +352,28 @@ export function WorkspaceLayout({
             <Text numberOfLines={1} style={webStyles.sectionBarTitle}>{categories[selectedIndex]?.nav_label ?? ""}</Text>
             <Text numberOfLines={1} accessibilityLabel={infoLabel} style={webStyles.sectionBarInfo}>{infoLine}</Text>
           </View>
-        </View> : null}
-        {wide ? hintsCard : <View style={webStyles.mobileDisclosure}>
-          <View style={webStyles.mobileCaseHeader}>
-            <Text style={webStyles.mobileCaseId}>{workspace.case.instance_name}</Text>
-            <View style={webStyles.mobileCaseMeta} accessibilityLabel={`Age ${age}, ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}${workspace.case.is_demo_project ? ", DEMO" : ""}`}><Text style={webStyles.mobileCaseMetaText}>Age {age}</Text><Text style={webStyles.mobileCaseMetaText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text>{workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}</View>
+          <Pressable
+            nativeID="digitva-case-info-trigger"
+            accessibilityRole="button"
+            accessibilityLabel="Open VA Form Details and Hints"
+            onPress={() => setInfoOpen(true)}
+            style={webStyles.sectionBarInfoBtn}
+          >
+            <FaIcon name="fa-info-circle" color={w.blue} />
+            <Text style={webStyles.sectionBarInfoBtnText}>Case Info</Text>
+          </Pressable>
+        </View> : (
+          <View style={webStyles.desktopTopActions}>
+            <View nativeID="digitva-case-strip" style={webStyles.caseStrip}>
+              <Text numberOfLines={1} style={webStyles.caseStripId}>{workspace.case.instance_name}</Text>
+              <Text numberOfLines={1} accessibilityLabel={infoLabel} style={webStyles.caseStripText}>{infoLine}</Text>
+              <Text numberOfLines={1} accessibilityLabel={`Project / Site ${projectSite}`} style={webStyles.caseStripText}>{projectSite}</Text>
+              {workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}
+            </View>
+            <WebButton id="digitva-case-info-trigger" label="Case Info & Form Details" onPress={() => setInfoOpen(true)} />
+            <WebButton label="Back to Dashboard" onPress={onExit} />
           </View>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: hintsOpen }} onPress={() => setHintsOpen((value) => !value)} style={webStyles.mobileDisclosureButton}>
-            <Text style={webStyles.mobileDisclosureText}><FaIcon name="fa-info-circle" color={w.blue} /> Hints</Text><FaIcon name={hintsOpen ? "fa-chevron-up" : "fa-chevron-down"} color={w.blue} />
-          </Pressable>
-          {hintsOpen ? hintsCard : null}
-        </View>}
-        {wide ? detailsCard : <View style={webStyles.mobileDisclosure}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: detailsOpen }} onPress={() => setDetailsOpen((value) => !value)} style={webStyles.mobileDisclosureButton}>
-            <Text style={webStyles.mobileDisclosureText}><FaIcon name="fa-file-alt" color={w.blue} /> VA Form Details</Text><FaIcon name={detailsOpen ? "fa-chevron-up" : "fa-chevron-down"} color={w.blue} />
-          </Pressable>
-          {detailsOpen ? detailsCard : null}
-        </View>}
+        )}
 
       <View style={[webStyles.workspaceGrid, !wide && webStyles.workspaceGridNarrow]}>
           <CategoryNavigation categories={categories} formId={workspace.case.instance_name} smartvaAvailable={workspace.smartva_status === "done" || workspace.smartva !== null} icdClassification={workspace.case.icd_classification} selectedCode={selectedCode} onSelectCategory={onSelectCategory} open={categoriesOpen} narrow={!wide} phone={phone} setOpen={setCategoriesOpen} smartvaPanel={smartvaPanel} />
@@ -392,6 +404,31 @@ export function WorkspaceLayout({
         <View style={webStyles.notesBody}>{notes}</View>
       </View>
     </> : null}
+
+    <View
+      nativeID="digitva-case-info-panel"
+      {...((wide ? { role: "complementary", "aria-label": "Case details and hints" } : { role: "dialog", "aria-modal": true, "aria-label": "Case details and hints" }) as any)}
+      style={[webStyles.notesPanel, !wide && webStyles.notesPanelMobile, infoOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}
+    >
+      <View style={webStyles.notesHeader}>
+        <Text style={webStyles.notesTitle}><FaIcon name="fa-info-circle" color={w.onBar} /> VA Form Details & Hints</Text>
+        <Pressable nativeID="digitva-case-info-close" accessibilityRole="button" accessibilityLabel="Close Case Details" onPress={() => setInfoOpen(false)}>
+          <FaIcon name="fa-times" color={w.onBar} />
+        </Pressable>
+      </View>
+      <ScrollView style={webStyles.infoPanelScroll} contentContainerStyle={webStyles.infoPanelContent}>
+        <View style={webStyles.mobileCaseHeader}>
+          <Text style={webStyles.mobileCaseId}>{workspace.case.instance_name}</Text>
+          <View style={webStyles.mobileCaseMeta} accessibilityLabel={`Age ${age}, ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}${workspace.case.is_demo_project ? ", DEMO" : ""}`}>
+            <Text style={webStyles.mobileCaseMetaText}>Age {age}</Text>
+            <Text style={webStyles.mobileCaseMetaText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text>
+            {workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}
+          </View>
+        </View>
+        {detailsCard}
+        {hintsCard}
+      </ScrollView>
+    </View>
   </View>;
 }
 
@@ -453,6 +490,15 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   sectionBarText: { flex: 1, minWidth: 0 } as any,
   sectionBarInfo: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12, lineHeight: 17 } as any,
   sectionBarTitle: { minWidth: 0, color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16 } as any,
+  sectionBarInfoBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: w.blue, backgroundColor: w.card } as any,
+  sectionBarInfoBtnText: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 12 } as any,
+  desktopTopActions: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8, paddingRight: 88 } as any,
+  // Always-visible case identity on desktop; the flyout keeps the full details and hints.
+  caseStrip: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 14, minHeight: 44, paddingHorizontal: 12, backgroundColor: w.card, borderWidth: 1, borderColor: w.border, borderRadius: radius.lg } as any,
+  caseStripId: { flexShrink: 0, color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14 } as any,
+  caseStripText: { flexShrink: 1, minWidth: 0, color: w.text, fontFamily: ROBOTO, fontSize: 14 } as any,
+  infoPanelScroll: { flex: 1 } as any,
+  infoPanelContent: { padding: 12, gap: 12 } as any,
   pagePhone: { paddingHorizontal: 8, paddingVertical: 8 },
   pageWithNotesPill: { paddingBottom: 72 },
   mainCardPhone: { borderWidth: 0, borderRadius: 0, padding: 14, "--digitva-card-pad": "14px" } as any,

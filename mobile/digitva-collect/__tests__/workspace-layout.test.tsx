@@ -214,3 +214,24 @@ test("the sections drawer locks body scrolling while open and restores it on clo
   expect(fakeDocument.body.style.overflow).toBe("auto");
   delete (globalThis as any).document;
 });
+
+test("desktop layout keeps a compact case strip visible beside the Case Info trigger (digitva-yeg3.21)", async () => {
+  const demoWorkspace: WorkspacePayload = { ...layoutWorkspace, case: { ...layoutWorkspace.case, age: 74, gender: "female", is_demo_project: true } };
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(<WorkspaceLayout identity={{ vaSid: "sid-1", mode: "coding" }} workspace={demoWorkspace} categories={demoWorkspace.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()}><Text>category content</Text></WorkspaceLayout>);
+    await Promise.resolve();
+  });
+  const strip = renderer.root.findAll((node) => node.props.nativeID === "digitva-case-strip")[0];
+  expect(strip).toBeDefined();
+  const stripText = JSON.stringify(strip.findAllByType(Text).map((node) => node.props.children));
+  expect(stripText).toContain("form-1");
+  expect(stripText).toContain("74 y");
+  expect(stripText).toContain("Female");
+  expect(stripText).toContain("P1/S1");
+  expect(stripText).toContain("DEMO");
+  // The flyout stays closed and its trigger stays available for the rest of the details.
+  expect(renderer.root.findAll((node) => node.props.id === "digitva-case-info-trigger").length).toBeGreaterThan(0);
+  const panel = renderer.root.findAll((node) => node.props.nativeID === "digitva-case-info-panel")[0];
+  expect(StyleSheet.flatten(panel.props.style)).toMatchObject({ display: "none" });
+});

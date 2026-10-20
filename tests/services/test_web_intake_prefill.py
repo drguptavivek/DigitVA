@@ -8,6 +8,7 @@ editable answer.
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from unittest.mock import patch
 
 from app import db
 from app.models import (
@@ -168,7 +169,7 @@ class WebIntakePrefillTests(BaseTestCase):
         self.assertEqual(answers["Id10061"], "Mohan Lal")
         self.assertEqual(answers["Id10062"], "Kamla Devi")
         self.assertEqual(prefill["interviewer"], {
-            "name": "Meera Thakur", "id": str(self.interviewer.user_id), "sex": "female",
+            "name": "Meera Thakur", "id": str(self.interviewer.user_id), "sex": "female", "age": 40,
         })
 
     def test_name_split_takes_the_last_word_as_surname(self):
@@ -283,6 +284,38 @@ class WebIntakePrefillTests(BaseTestCase):
         self.assertIn("Id10010c", prefill["lockedQuestionNames"])
         self.assertNotIn("sex", prefill["interviewer"])
         self.assertNotIn("Id10010b", prefill["lockedQuestionNames"])
+
+    # ── interviewer age (owner decision 2026-10-20) ────────────────────────
+
+    def _age_for_birth_year_offset(self, offset):
+        year = intake_svc._expression_now(self.interviewer, datetime.now(UTC)).year
+        self.interviewer.year_of_birth = None if offset is None else year - offset
+        return self._start().prefill
+
+    def test_interviewer_age_is_the_interview_year_minus_birth_year_and_unlocked(self):
+        prefill = self._age_for_birth_year_offset(40)
+        self.assertEqual(prefill["interviewer"]["age"], 40)
+        self.assertNotIn("Id10010a", prefill["lockedQuestionNames"])
+        self.assertNotIn("Id10010a", prefill["answers"])
+
+    def test_interviewer_age_is_left_empty_without_a_birth_year_or_outside_18_to_89(self):
+        for offset in (None, 0, 17, 90, 120):
+            with self.subTest(offset=offset):
+                self.assertNotIn("age", self._age_for_birth_year_offset(offset)["interviewer"])
+        for offset in (18, 89):
+            with self.subTest(offset=offset):
+                self.assertEqual(self._age_for_birth_year_offset(offset)["interviewer"]["age"], offset)
+
+    def test_interviewer_age_year_follows_the_interviewers_timezone(self):
+        # Just after midnight on 1 January in Kolkata, still 31 December UTC.
+        self.interviewer.timezone = "Asia/Kolkata"
+        self.interviewer.year_of_birth = 1990
+        new_year_utc = datetime(2030, 12, 31, 19, 0, tzinfo=UTC)  # 2031-01-01 00:30 IST
+        with patch.object(intake_svc, "_utcnow", return_value=new_year_utc):
+            self.assertEqual(intake_svc._interviewer_age(self.interviewer), 41)
+        self.interviewer.timezone = "UTC"
+        with patch.object(intake_svc, "_utcnow", return_value=new_year_utc):
+            self.assertEqual(intake_svc._interviewer_age(self.interviewer), 40)
 
     def test_name_outside_the_who_constraint_is_not_locked(self):
         self.interviewer.name = "Dr. Meera Thakur"

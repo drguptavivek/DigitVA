@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-13
+last_updated: 2026-10-20
 ---
 
 # Current Data Model
@@ -1543,9 +1543,9 @@ Other important tables:
   `sex` (String(16), nullable, `female` | `male` | `undetermined`, checked by
   `VaUsers.set_interviewer_profile`, no CHECK) from migration `c5e2b7a9d4f6`
   (`digitva-vzk.3`): optional interviewer details, PII, set in Profile or by
-  an admin. Web intake prefills and locks `Id10010b` from `sex`;
-  `year_of_birth` prefills nothing since `digitva-q219` (`Id10010a` is
-  answered in the interview).
+  an admin. Web intake prefills and locks `Id10010b` from `sex`, and
+  prefills (unlocked) `Id10010a` from `year_of_birth` when the resulting age is
+  18-89 (owner decision 2026-10-20; `docs/policy/web-intake.md`).
 - `va_project_master` — also carries `project_target_completion_date` (DATE, nullable), the
   admin-set target the DM burndown KPI projects against
   (`app/routes/api/dm_kpi/dm_kpi_burndown.py`), and the four web intake form

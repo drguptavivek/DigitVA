@@ -514,3 +514,199 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         with mock.patch.object(intake, "interviewer_context", wraps=intake.interviewer_context) as spy:
             self.assertEqual(self.client.get(ACCESS).status_code, 200)
         self.assertEqual(spy.call_count, 1)
+
+    def test_activity_endpoint_returns_overall_and_per_project_counts(self):
+        import uuid as _uuid
+        from datetime import UTC, datetime
+
+        from app.models import (
+            VaCoderReview,
+            VaDeathRegister,
+            VaFinalAssessments,
+            VaReviewerFinalAssessments,
+            VaWebIntakeDraft,
+        )
+
+        # Unauthenticated request receives 401 JSON.
+        unauth = self.client.get("/api/v1/me/activity")
+        self.assertEqual(unauth.status_code, 401)
+        self.assertEqual(unauth.get_json()["code"], "unauthorized")
+
+        # User with no grants receives zeroed totals and empty by_project.
+        self._login(str(self.users["nobody"].user_id))
+        nobody_resp = self.client.get("/api/v1/me/activity")
+        self.assertEqual(nobody_resp.status_code, 200)
+        self.assertEqual(
+            nobody_resp.get_json(),
+            {
+                "totals": {
+                    "deaths_reported": 0,
+                    "interviews_submitted": 0,
+                    "drafts_in_progress": 0,
+                    "coded": 0,
+                    "not_codeable": 0,
+                    "reviewed": 0,
+                },
+                "by_project": {},
+            },
+        )
+
+        # Record activity for coder_p1 across TA (deaths, drafts, coded, not_codeable, reviewed).
+        user = self.users["coder_p1"]
+        now = datetime.now(UTC)
+        sid_ta = "ta-p1"
+        form_ta = "AZTA01AZS101"
+
+        death = VaDeathRegister(
+            death_id=_uuid.uuid4(),
+            project_id=TA,
+            site_id="AZS1",
+            org_unit_id=self.units["P1"].org_unit_id,
+            death_number=1,
+            unique_id=f"AZTA-ACT-{_uuid.uuid4().hex[:6]}",
+            deceased_name="Test Deceased",
+            deceased_sex="male",
+            date_of_death=now.date(),
+            status="registered",
+            registered_by=user.user_id,
+            created_at=now,
+            updated_at=now,
+        )
+        db.session.add(death)
+        # A direct start is an interview, not a reported death: not counted.
+        db.session.add(VaDeathRegister(
+            death_id=_uuid.uuid4(),
+            project_id=TA,
+            site_id="AZS1",
+            org_unit_id=self.units["P1"].org_unit_id,
+            death_number=2,
+            unique_id=f"AZTA-DIR-{_uuid.uuid4().hex[:6]}",
+            status="draft_identity",
+            source="direct",
+            registered_by=user.user_id,
+            started_by_user_id=user.user_id,
+            created_at=now,
+            updated_at=now,
+        ))
+        db.session.flush()
+
+        db.session.add(
+            VaWebIntakeDraft(
+                draft_id=_uuid.uuid4(),
+                user_id=user.user_id,
+                project_id=TA,
+                site_id="AZS1",
+                form_id=form_ta,
+                org_unit_id=self.units["P1"].org_unit_id,
+                death_id=death.death_id,
+                unique_id=f"AZTA-DRF-{_uuid.uuid4().hex[:6]}",
+                status="submitted",
+                va_sid=sid_ta,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        db.session.add(
+            VaWebIntakeDraft(
+                draft_id=_uuid.uuid4(),
+                user_id=user.user_id,
+                project_id=TA,
+                site_id="AZS1",
+                form_id=form_ta,
+                org_unit_id=self.units["P1"].org_unit_id,
+                unique_id=f"AZTA-DRF-{_uuid.uuid4().hex[:6]}",
+                status="draft",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        db.session.add(
+            VaFinalAssessments(
+                va_sid=sid_ta,
+                va_conclusive_cod="A00",
+                va_finassess_by=user.user_id,
+                va_finassess_status=VaStatuses.active,
+                va_finassess_createdat=now,
+                va_finassess_updatedat=now,
+            )
+        )
+        db.session.add(
+            VaCoderReview(
+                va_sid=sid_ta,
+                va_creview_reason="no_info",
+                va_creview_by=user.user_id,
+                va_creview_status=VaStatuses.active,
+                va_creview_createdat=now,
+                va_creview_updatedat=now,
+            )
+        )
+        db.session.add(
+            VaReviewerFinalAssessments(
+                va_sid=sid_ta,
+                va_conclusive_cod="A00",
+                va_rfinassess_by=user.user_id,
+                va_rfinassess_status=VaStatuses.active,
+                va_rfinassess_createdat=now,
+                va_rfinassess_updatedat=now,
+            )
+        )
+        db.session.commit()
+
+        self._login(str(user.user_id))
+        act_resp = self.client.get("/api/v1/me/activity")
+        self.assertEqual(act_resp.status_code, 200)
+        expected_counts = {
+            "deaths_reported": 1,
+            "interviews_submitted": 1,
+            "drafts_in_progress": 1,
+            "coded": 1,
+            "not_codeable": 1,
+            "reviewed": 1,
+        }
+        self.assertEqual(act_resp.get_json()["totals"], expected_counts)
+        self.assertEqual(act_resp.get_json()["by_project"][TA], expected_counts)
+
+    def test_me_mentoring_unauthenticated_returns_401(self):
+        response = self.client.get("/api/v1/me/mentoring")
+        self.assertEqual(response.status_code, 401)
+
+    def test_me_mentoring_non_mentor_returns_empty_institutes(self):
+        self._login(str(self.users["coder_p1"].user_id))
+        response = self.client.get("/api/v1/me/mentoring")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertEqual(body["institutes"], [])
+        self.assertFalse(body["is_member"])
+        self.assertFalse(body["is_institute_admin"])
+        self.assertEqual(body["languages"], [])
+
+    def test_me_mentoring_member_and_admin_views(self):
+        # 1. Member view: sees their institute and attached districts
+        self._login(str(self.users["mentor"].user_id))
+        response = self.client.get("/api/v1/me/mentoring")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["is_member"])
+        self.assertFalse(body["is_institute_admin"])
+        self.assertEqual(len(body["institutes"]), 1)
+        inst = body["institutes"][0]
+        self.assertEqual(inst["institute_code"], "AZMI")
+        self.assertEqual(inst["institute_name"], "Authz Mentor Institute")
+        self.assertFalse(inst["is_admin"])
+        self.assertEqual(len(inst["districts"]), 1)
+        dist = inst["districts"][0]
+        self.assertEqual(dist["project_id"], TA)
+        self.assertEqual(dist["unit_code"], "D1")
+        self.assertEqual(body["languages"], [])
+
+        # 2. Institute admin view: sees is_admin: True and languages
+        mentors.set_member_admin("AZMI", self.users["mentor"].email, True)
+        db.session.commit()
+        response = self.client.get("/api/v1/me/mentoring")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_json()
+        self.assertTrue(body["is_member"])
+        self.assertTrue(body["is_institute_admin"])
+        self.assertTrue(body["institutes"][0]["is_admin"])
+        self.assertIsInstance(body["languages"], list)
+

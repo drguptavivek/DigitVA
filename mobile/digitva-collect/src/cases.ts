@@ -14,6 +14,7 @@ import type { SubmissionData, WhoVaHostPrefill } from "@drguptavivek/who-2022-va
 
 import { getDraftPrefill, getDraftRow, type Db, type DraftBinding, purgeProjectData } from "./drafts";
 import type { StringKey } from "./i18n";
+import { normalisePhone } from "./phoneFormat";
 
 /** What the server's prefill builder returns (web_intake_service._prefill_from_death). */
 export interface Prefill {
@@ -404,16 +405,12 @@ export async function deleteAction(db: Db, clientId: string): Promise<void> {
 export const SEX_VALUES = ["male", "female", "undetermined", "unknown"] as const;
 export const MAX_REGISTRATION_AGE = 125;
 export const AGE_REVIEW_THRESHOLD = 85;
-const PHONE = /^(?:\+91|0)?([6-9]\d{9})$/;
 const ABHA_NUMBER = /^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$/;
 const ABHA_ADDRESS = /^[A-Za-z0-9._]{4,32}@(abdm|sbx)$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const PARTIAL_BIRTH_DATE = /^(?:\d{4}|\d{4}-(0[1-9]|1[0-2]))$/;
 
-/** An Indian mobile number as the server stores it (10 digits), or null when it is not one. Mirrors web_intake_service._clean_phone. */
-export function normalisePhone(value: string): string | null {
-  return PHONE.exec(value.replace(/[\s-]/g, ""))?.[1] ?? null;
-}
+export { normalisePhone };
 
 function isRealDate(value: string): boolean {
   if (!ISO_DATE.test(value)) return false;
@@ -533,12 +530,31 @@ export function validateRegistration(
   return errors;
 }
 
+type AgeInfoFields = Pick<RegistrationFields, "date_of_birth" | "date_of_birth_partial" | "age_years">;
+const AGE_INFO_KEYS = ["date_of_birth", "date_of_birth_partial", "age_years"] as const;
+
+/**
+ * A registration must carry age information: a date of birth at any
+ * precision (exact, month and year, year only) or an estimated age. Returns
+ * "errBirthOrAge" when it carries neither. When `stored` (the values a
+ * registration being edited was opened with) is given and none of the three
+ * fields differ from it, returns undefined: an older row without age
+ * information stays editable until its age fields are touched. The server
+ * applies the same rule (web_intake_service.update_death).
+ */
+export function registrationAgeInfoIssue(fields: AgeInfoFields, stored?: AgeInfoFields): "errBirthOrAge" | undefined {
+  const text = (source: AgeInfoFields, key: (typeof AGE_INFO_KEYS)[number]) => String(source[key] ?? "").trim();
+  if (AGE_INFO_KEYS.some((key) => text(fields, key))) return undefined;
+  if (stored && AGE_INFO_KEYS.every((key) => text(fields, key) === text(stored, key))) return undefined;
+  return "errBirthOrAge";
+}
+
 /** Trimmed fields with blanks dropped: what is stored and sent. */
 export function cleanRegistration(fields: RegistrationFields): RegistrationFields {
   const clean: Record<string, string> = {};
   for (const [key, raw] of Object.entries(fields)) {
     const v = typeof raw === "string" ? raw.trim() : "";
-    if (v) clean[key] = v;
+    if (v) clean[key] = key === "informant_phone" || key === "informant_phone_2" ? normalisePhone(v) ?? v : v;
   }
   return clean as unknown as RegistrationFields;
 }

@@ -49,6 +49,7 @@ do not conflict with base fixtures or other test classes in the same session.
 
 Provisioning the test database (one-time, already done):
   docker exec minerva_db psql -U minerva -c "CREATE DATABASE minerva_test;"
+  (pytest -n N creates its per-worker databases <db>_gw0.. itself.)
 
 Running tests (inside Docker):
   python -m pytest tests/ -v

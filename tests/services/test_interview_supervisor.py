@@ -150,7 +150,7 @@ class InterviewSupervisorTests(BaseTestCase):
     # ── helpers ────────────────────────────────────────────────────────────
 
     def _register(self, unit=None, **overrides):
-        fields = {"deceased_name": "Asha Devi", "deceased_sex": "female", "date_of_death": _dod()}
+        fields = {"deceased_name": "Asha Devi", "deceased_sex": "female", "date_of_death": _dod(), "age_years": 62}
         fields.update(overrides)
         return intake_svc.register_death(
             self.ian, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
@@ -290,7 +290,7 @@ class InterviewSupervisorTests(BaseTestCase):
         # Another project's case, even pointing at a unit in the subtree.
         other = intake_svc.register_death(
             self.ian, project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID,
-            deceased_name="Ravi", deceased_sex="male", date_of_death=_dod(),
+            deceased_name="Ravi", deceased_sex="male", date_of_death=_dod(), age_years=62,
         )
         other.org_unit_id = self.s1.org_unit_id
         db.session.flush()
@@ -884,7 +884,7 @@ class InterviewSupervisorTests(BaseTestCase):
                                    scope_type=VaAccessScopeTypes.project, project_id=self.OTHER_PROJECT_ID)
         other = intake_svc.register_death(
             self.ian, project_id=self.OTHER_PROJECT_ID, site_id=self.OTHER_SITE_ID,
-            deceased_name="Ravi", deceased_sex="male", date_of_death=_dod(),
+            deceased_name="Ravi", deceased_sex="male", date_of_death=_dod(), age_years=62,
         )
         self.assertFalse(other_pi.is_interview_supervisor())
         self.assertFalse(cases.is_interview_supervisor_for(other_pi, other))

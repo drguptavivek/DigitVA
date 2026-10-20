@@ -45,6 +45,7 @@ import {
   targetsFrom,
 } from "../sync";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
+import { ContextualHelpBanner } from "../web/ContextualHelp";
 import RegisteredDeaths from "./RegisteredDeaths";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
@@ -807,6 +808,7 @@ function InterviewWorklist() {
   );
   return (
     <Screen title={t("worklistTitle")}>
+      <ContextualHelpBanner screen="collection" />
       <Text style={styles.muted}>{account.name}</Text>
       {account.coding_access ? <Button label={t("navCoding")} onPress={() => router.push({ pathname: "/coding", params: { userId: account.user_id } })} /> : null}
       {account.reviewing_access ? <Button label={t("navReview")} onPress={() => router.push({ pathname: "/reviewing", params: { userId: account.user_id } })} /> : null}
@@ -934,34 +936,36 @@ function InterviewWorklist() {
               router.replace({ pathname: "/workspace", params: { userId: account.user_id } });
             }}
           /> : null}
-          {[
-            fieldValue(
-              t("fieldAge").replace(/\s*\*\s*$/, ""),
-              row.deceased?.age_years,
-            ),
-            fieldValue(
-              t("fieldSex").replace(/\s*\*\s*$/, ""),
-              row.deceased?.sex,
-            ),
-            fieldValue(
-              t("fieldDateOfDeath").replace(/\s*\*\s*$/, ""),
-              displayDate(row.deceased?.date_of_death),
-            ),
-            fieldValue(t("chooseUnit"), row.unit_name),
-            fieldValue(t("deathStatus"), stateLabel(row.state)),
-            row.next_visit_at
-              ? t("nextVisit", {
-                  date: displayDate(row.next_visit_at) ?? row.next_visit_at,
-                })
-              : undefined,
-          ]
-            .filter((value): value is string => Boolean(value))
-            .map((value) => (
-              <Text key={value} style={styles.muted}>
-                {value}
-              </Text>
-            ))}
+          {(() => {
+            const metaSummary = [
+              fieldValue(
+                t("fieldAge").replace(/\s*\*\s*$/, ""),
+                row.deceased?.age_years,
+              ),
+              fieldValue(
+                t("fieldSex").replace(/\s*\*\s*$/, ""),
+                row.deceased?.sex,
+              ),
+              fieldValue(
+                t("fieldDateOfDeath").replace(/\s*\*\s*$/, ""),
+                displayDate(row.deceased?.date_of_death),
+              ),
+              fieldValue(t("chooseUnit"), row.unit_name),
+              fieldValue(t("deathStatus"), stateLabel(row.state)),
+              row.next_visit_at
+                ? t("nextVisit", {
+                    date: displayDate(row.next_visit_at) ?? row.next_visit_at,
+                  })
+                : undefined,
+            ]
+              .filter((value): value is string => Boolean(value))
+              .join(" · ");
+            return metaSummary ? (
+              <Text style={styles.muted}>{metaSummary}</Text>
+            ) : null;
+          })()}
           <Button
+            size="sm"
             kind="secondary"
             label={t("viewDetails")}
             onPress={() =>
@@ -1005,6 +1009,7 @@ function InterviewWorklist() {
                 <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
               ) : null}
               <Button
+                size="sm"
                 kind="secondary"
                 label={t("viewDetails")}
                 onPress={() =>
@@ -1127,6 +1132,7 @@ function InterviewWorklist() {
             <Text style={styles.muted}>{otherDraftDate(row.updated_at)}</Text>
           ) : null}
           <Button
+            size="sm"
             kind="secondary"
             label={t("reviseInterview")}
             disabled={!db || !isUnlocked(account.user_id)}

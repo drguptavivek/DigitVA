@@ -58,6 +58,9 @@ class HomeKpiTests(AreaDashboardFixture):
             self._death(990300 + number, "submitted", unit=self.phc_a1)
         self._death(990310, "submitted", unit=self.chc_b)
         self._death(990311, "submitted", unit=self.chc_b)
+        # Twenty reported deaths: the smallest denominator a share is shown for.
+        for number in range(10):
+            self._death(990330 + number, "registered", unit=self.chc_b)
         # Duplicates and cancelled cases are not reported deaths.
         self._death(990312, DUPLICATE_CASE_STATUS, unit=self.phc_a1)
         self._death(990313, area.CANCELLED_CASE_STATUS, unit=self.phc_a1)
@@ -66,11 +69,11 @@ class HomeKpiTests(AreaDashboardFixture):
 
         row = self._rows(self.project_user)[self.TREE]
 
-        self.assertEqual(row["deaths_reported"], 10)
+        self.assertEqual(row["deaths_reported"], 20)
         self.assertEqual(row["interviews_done"], 7)
         self.assertEqual(row["coded"], 2)
-        self.assertEqual(row["interviews_pct"], 70)
-        self.assertEqual(row["coded_pct"], 20)
+        self.assertEqual(row["interviews_pct"], 35)
+        self.assertEqual(row["coded_pct"], 10)
 
     def test_percentages_are_null_without_deaths(self):
         row = self._rows(self.project_user)[self.TREE]
@@ -78,6 +81,18 @@ class HomeKpiTests(AreaDashboardFixture):
         self.assertEqual(row["interviews_done"], 7)
         self.assertEqual(row["deaths_reported"], 0)
         self.assertIsNone(row["interviews_pct"])
+        self.assertIsNone(row["coded_pct"])
+
+    def test_percentages_are_null_when_interviews_exceed_deaths(self):
+        # ODK submissions with only one register row: 7 of 1 is not a share.
+        self._death(990320, "submitted", unit=self.phc_a1)
+
+        row = self._rows(self.project_user)[self.TREE]
+
+        self.assertEqual(row["deaths_reported"], 1)
+        self.assertEqual(row["interviews_done"], 7)
+        self.assertIsNone(row["interviews_pct"])
+        self.assertEqual(row["coded"], 0)
         self.assertIsNone(row["coded_pct"])
 
     def test_sites_mode_project(self):
@@ -92,7 +107,20 @@ class HomeKpiTests(AreaDashboardFixture):
         self.assertEqual(row["deaths_reported"], 2)
         self.assertEqual(row["interviews_done"], 1)
         self.assertEqual(row["coded"], 1)
-        self.assertEqual((row["interviews_pct"], row["coded_pct"]), (50, 50))
+        # Two deaths are under the 20 a percentage needs.
+        self.assertEqual((row["interviews_pct"], row["coded_pct"]), (None, None))
+
+    def test_percentages_are_null_under_twenty_deaths(self):
+        for number in range(19):
+            self._death(990340 + number, "registered", unit=self.phc_a1)
+        row = self._rows(self.project_user)[self.TREE]
+        self.assertEqual(row["deaths_reported"], 19)
+        self.assertIsNone(row["coded_pct"])
+        self._death(990360, "registered", unit=self.phc_a1)
+        area.cache.clear()
+        row = self._rows(self.project_user)[self.TREE]
+        self.assertEqual(row["deaths_reported"], 20)
+        self.assertEqual(row["interviews_pct"], 35)
 
     def test_a_user_sees_only_their_subtree(self):
         for number in range(3):

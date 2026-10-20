@@ -847,6 +847,31 @@ class VaCaseApiTests(BaseTestCase):
         doris = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["doris"]
         self.assertEqual(doris["initial_certificate"], own)
 
+    def test_an_unmasked_doris_reviewer_sees_the_coders_doris_codes_only(self):
+        self._doris(masked=False)
+        sid = self._reviewing_case()
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=self.base_coder_user.user_id,
+            payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_conclusive_cod="1B10.Z TB", va_finassess_status=VaStatuses.active,
+            doris_certificate=self._CERT,
+            doris_result={"status": "completed", "result": {"code": "1B10.Z", "report": "free text"}},
+        ))
+        db.session.commit()
+        final = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["assessments"]["final"]
+        self.assertEqual(final["conclusive_cod"], "1B10.Z TB")
+        self.assertEqual(final["doris_status"], "completed")
+        self.assertEqual(final["doris_code"], "1B10.Z")
+        self.assertNotIn("free text", str(final))
+
+    def test_a_masked_doris_reviewer_gets_no_coder_doris_summary(self):
+        self._doris(masked=True)
+        sid = self._reviewing_case()
+        self._coder_final_behind_a_step_one(sid)
+        final = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["assessments"]["final"]
+        self.assertEqual(final["conclusive_cod"], "1B10.Z TB")
+        self.assertNotIn("doris_code", final)
+
     def test_social_autopsy_blocks_the_final_until_saved(self):
         self._mode(social_autopsy=True)
         sid = self._coding_case()

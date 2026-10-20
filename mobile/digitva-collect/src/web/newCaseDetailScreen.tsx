@@ -19,6 +19,7 @@ import { localToday, visitAt } from "../cases";
 import { t, type StringKey } from "../i18n";
 import { stateLabel, Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
+import { ContextualHelpBanner } from "./ContextualHelp";
 import { MapsLink } from "./LocationCapture";
 import { RegistrationFieldControl } from "./registrationControls";
 import { CodeNowButton } from "../workspace/CodeNowButton";
@@ -325,6 +326,7 @@ export default function NewCaseDetailScreen() {
 
   return (
     <WebShell title={t("deathDetails")}>
+      <ContextualHelpBanner screen="caseDetail" />
       <Button
         kind="secondary"
         label={t("backToDeaths")}

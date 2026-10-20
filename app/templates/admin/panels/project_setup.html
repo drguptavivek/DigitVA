@@ -10,11 +10,33 @@
 <div id="panel-project-setup" data-project-id="{{ project.project_id }}">
 
   {# Header #}
-  <button type="button" class="btn btn-sm btn-link px-0 mb-2" id="setup-back-btn">
-    <i class="fa-solid fa-arrow-left me-1"></i>All projects
-  </button>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <button type="button" class="btn btn-sm btn-link px-0" id="setup-back-btn">
+      <i class="fa-solid fa-arrow-left me-1"></i>All projects
+    </button>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      {% if all_projects %}
+      <div class="input-group input-group-sm" style="width: auto; min-width: 240px;">
+        <span class="input-group-text bg-light text-muted"><i class="fa-solid fa-folder-tree me-1"></i>Project</span>
+        <select class="form-select form-select-sm" id="setup-project-switcher" aria-label="Switch project">
+          {% for p in all_projects %}
+            <option value="{{ p.project_id }}" {% if p.project_id == project.project_id %}selected{% endif %}>
+              {{ p.project_id }} — {{ p.project_name }} ({{ 'Org' if p.project_structure_mode == 'organization' else 'Sites' }})
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <a href="{{ url_for('help.page', slug='projects') }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Open Projects & Organization Setup Guide">
+        <i class="fa-solid fa-circle-question me-1"></i>Setup Help
+      </a>
+      <a href="{{ url_for('help.page', slug='user-roles') }}" target="_blank" class="btn btn-sm btn-outline-secondary" title="Open Roles, Cadres & Permissions Guide">
+        <i class="fa-solid fa-user-shield me-1"></i>Roles Guide
+      </a>
+    </div>
+  </div>
   <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-    <h5 class="mb-0"><i class="fa-solid fa-folder-open me-2 text-secondary"></i>{{ project.project_name }}</h5>
+    <h5 class="mb-0"><i class="fa-solid fa-folder-open me-2 text-primary"></i>{{ project.project_name }}</h5>
     <span class="badge text-bg-light border">{{ project.project_id }}</span>
     <span class="text-muted small">{{ project.project_nickname }}</span>
     <span class="badge text-bg-light border">{{ 'Organization' if is_org else 'Sites' }}</span>
@@ -22,6 +44,22 @@
       <span class="badge text-bg-success">Active</span>
     {% else %}
       <span class="badge text-bg-secondary">Inactive</span>
+    {% endif %}
+    {% if is_org %}
+      <div class="ms-auto d-flex flex-wrap gap-1">
+        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small" data-jump-section="structure" data-jump-org-tab="cadres">
+          <i class="fa-solid fa-user-check me-1"></i>Who can do what? (Cadres)
+        </button>
+        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small" data-jump-section="structure" data-jump-org-tab="workers">
+          <i class="fa-solid fa-users me-1"></i>Workers &amp; Cross-Unit Scope
+        </button>
+        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small" data-jump-section="structure" data-jump-org-tab="presets">
+          <i class="fa-solid fa-virus me-1"></i>HIV &amp; Malaria Mortality
+        </button>
+        <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small" data-jump-section="structure" data-jump-org-tab="mentoring">
+          <i class="fa-solid fa-building-columns me-1"></i>Mentoring &amp; Scientists
+        </button>
+      </div>
     {% endif %}
   </div>
   {% if saved %}
@@ -316,6 +354,21 @@
   document.getElementById('setup-back-btn').addEventListener('click', function () {
     openShellPanel('/admin/panels/projects');
   });
+
+  var projectSwitcher = document.getElementById('setup-project-switcher');
+  if (projectSwitcher) {
+    projectSwitcher.addEventListener('change', function () {
+      var targetId = this.value;
+      if (!targetId || targetId === projectId) return;
+      var currentSection = new URLSearchParams(window.location.search).get('section') || 'overview';
+      var nextPanelUrl = '/admin/panels/project-setup/' + encodeURIComponent(targetId);
+      if (window.setUrlParam) {
+        window.setUrlParam('panel', nextPanelUrl);
+        window.setUrlParam('section', currentSection);
+      }
+      htmx.ajax('GET', nextPanelUrl, { target: '#admin-panel', swap: 'innerHTML' });
+    });
+  }
 
   // ── readiness ─────────────────────────────────────────────────────────────
   // Same endpoint the Projects panel badge reads; each problem links to the

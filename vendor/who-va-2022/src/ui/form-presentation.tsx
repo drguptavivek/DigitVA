@@ -266,36 +266,31 @@ export const formStyles = {
     marginBottom: 8,
     rowGap: 8
   },
-  navButton: { minHeight: 44, minWidth: 72, paddingHorizontal: 14, paddingVertical: 10 },
-  navIconButton: {
-    alignItems: "center" as const,
-    columnGap: 6,
-    flexDirection: "row" as const,
-    justifyContent: "center" as const,
-    minHeight: 44,
-    minWidth: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 10
-  },
-  navPrimaryButton: {
-    alignItems: "center" as const,
+  // Form footer: one row of four equal-width buttons. flexBasis 0 with
+  // minWidth 0 makes the widths equal regardless of label length; labels wrap.
+  footer: {
+    alignItems: "stretch" as const,
     columnGap: 8,
     flexDirection: "row" as const,
+    flexWrap: "nowrap" as const,
+    marginTop: 16,
+    marginBottom: 8
+  },
+  navButton: {
+    alignItems: "center" as const,
+    columnGap: 6,
+    flexBasis: 0,
+    flexDirection: "row" as const,
+    flexGrow: 1,
+    flexShrink: 1,
     justifyContent: "center" as const,
     minHeight: 44,
-    minWidth: 112,
-    paddingHorizontal: 18,
-    paddingVertical: 10
+    minWidth: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 8
   },
-  // Narrow layout: a small secondary row (save, preview) above a full-width
-  // row of Back and Next.
-  navigationNarrow: { marginTop: 16, marginBottom: 8, rowGap: 8 },
-  navRowSecondary: { columnGap: 8, flexDirection: "row" as const, justifyContent: "flex-end" as const },
-  navRowPrimary: { columnGap: 8, flexDirection: "row" as const },
-  navSmallButton: { minHeight: 40, paddingHorizontal: 10, paddingVertical: 8 },
+  navText: { flexShrink: 1, textAlign: "center" as const },
   navSmallText: { fontSize: 14 },
-  navGrow: { flex: 1 },
-  navGrowPrimary: { flex: 2 },
   icon: { height: 20, width: 20 },
   draftStatus: withWebTheme(
     {

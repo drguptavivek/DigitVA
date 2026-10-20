@@ -415,12 +415,12 @@
         + '<i class="fa-solid fa-pen"></i></button>';
       var setupBtn = '<button class="btn btn-sm py-0 px-2 btn-primary project-setup-btn" '
         + ' data-id="' + esc(p.project_id) + '" title="Open the project\'s Setup home">'
-        + '<i class="fa-solid fa-sliders me-1"></i>Setup</button>';
+        + '<i class="fa-solid fa-sliders me-1"></i>Project Setup</button>';
 
       return '<tr class="' + (isActive ? '' : 'text-muted') + '">'
-        + '<td class="align-middle py-2"><span class="fw-semibold small">' + esc(p.project_id) + '</span></td>'
+        + '<td class="align-middle py-2"><a href="#" class="fw-semibold small text-decoration-none project-setup-btn" data-id="' + esc(p.project_id) + '">' + esc(p.project_id) + '</a></td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_code || '') + '</td>'
-        + '<td class="align-middle py-2 small">' + esc(p.project_name)
+        + '<td class="align-middle py-2 small"><a href="#" class="fw-medium text-body text-decoration-none project-setup-btn" data-id="' + esc(p.project_id) + '">' + esc(p.project_name) + '</a>'
         +   (p.project_structure_mode === 'organization' ? ' <span class="badge text-bg-light border">Organization</span>' : '')
         + '</td>'
         + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
@@ -471,7 +471,8 @@
     // carries it across a reload (admin_index.html restores it).
     var setupBtns = wrap.querySelectorAll('.project-setup-btn');
     for (var s = 0; s < setupBtns.length; s++) {
-      setupBtns[s].addEventListener('click', function () {
+      setupBtns[s].addEventListener('click', function (e) {
+        e.preventDefault();
         var url = '/admin/panels/project-setup/' + encodeURIComponent(this.getAttribute('data-id'));
         if (window.setUrlParam) {
           window.setUrlParam('project', null);

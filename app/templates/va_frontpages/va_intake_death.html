@@ -23,10 +23,10 @@
   <div class="col-md-4"><label class="form-label">Informant name</label><input name="informant_name" class="form-control"></div>
   <div class="col-md-4"><label class="form-label">Father's name</label><input name="father_name" class="form-control" maxlength="200"></div>
   <div class="col-md-4"><label class="form-label">Mother's name</label><input name="mother_name" class="form-control" maxlength="200"></div>
-  {# Mirrors _PHONE_RE in app/services/web_intake_service.py; the server decides. #}
-  <div class="col-md-4"><label class="form-label">Informant phone</label><input name="informant_phone" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|0)?[ \-]?[6-9]([ \-]?[0-9]){9}" title="10-digit mobile number starting 6-9" aria-describedby="phone-help"></div>
-  <div class="col-md-4"><label class="form-label">Second phone</label><input name="informant_phone_2" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|0)?[ \-]?[6-9]([ \-]?[0-9]){9}" title="10-digit mobile number starting 6-9" aria-describedby="phone-help"></div>
-  <div class="col-12 form-text mt-0" id="phone-help">Mobile numbers: 10 digits starting 6-9; +91 or 0 in front is fine.</div>
+  {# Mirrors _clean_phone in app/services/web_intake_service.py; the server decides. #}
+  <div class="col-md-4"><label class="form-label">Informant phone</label><input name="informant_phone" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|91|0)?[ \-()]*([0-9][ \-()]*){10}" title="10-digit phone number, for example 987 654 3210" aria-describedby="phone-help"></div>
+  <div class="col-md-4"><label class="form-label">Second phone</label><input name="informant_phone_2" type="tel" inputmode="tel" class="form-control" maxlength="32" pattern="(\+91|91|0)?[ \-()]*([0-9][ \-()]*){10}" title="10-digit phone number, for example 987 654 3210" aria-describedby="phone-help"></div>
+  <div class="col-12 form-text mt-0" id="phone-help">Phone numbers: 10 digits, for example 987 654 3210; +91 or 0 in front is fine.</div>
   <div class="col-md-5"><label class="form-label">Remarks</label><input name="remarks" class="form-control"></div>
   <div class="col-12 d-flex gap-2">
     <button type="submit" class="btn btn-primary" id="death-save">Save</button>

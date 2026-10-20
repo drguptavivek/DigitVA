@@ -94,7 +94,9 @@
     <li class="nav-item"><button class="nav-link active" data-org-tab="levels" type="button">1. Levels</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="units" type="button">2. Units</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="cadres" type="button">3. Cadres &amp; permissions</button></li>
-    <li class="nav-item"><button class="nav-link" data-org-tab="workers" type="button">4. Workers</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="workers" type="button">4. Workers &amp; Scope</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="presets" type="button"><i class="fa-solid fa-virus me-1 text-danger"></i>5. HIV &amp; Malaria Mortality</button></li>
+    <li class="nav-item"><button class="nav-link" data-org-tab="mentoring" type="button"><i class="fa-solid fa-building-columns me-1 text-primary"></i>6. Mentoring &amp; Scientists</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="odkform" type="button">ODK form fields</button></li>
     <li class="nav-item"><button class="nav-link" data-org-tab="transfer" type="button">Export / Import</button></li>
   </ul>
@@ -314,17 +316,71 @@
 
   {# ---- Cadres & permissions ---- #}
   <div class="org-tab d-none" data-org-pane="cadres">
-    <p class="small"><a href="/help/user-roles" target="_blank" rel="noopener">What each role can do</a> — compare interviewer, interview supervisor, coder, reviewer, data manager and In-charge responsibilities before assigning default roles.</p>
-    {# Sub-tabs: define cadres first, then place them at levels. #}
+    <div class="card border-primary-subtle bg-light-subtle mb-3">
+      <div class="card-body py-2 px-3 small">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <div class="fw-semibold text-primary">
+            <i class="fa-solid fa-circle-info me-1"></i>Plain-Language Guide: Roles, Capabilities &amp; Within-Tree vs. Cross-Tree Scope
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="/help/user-roles" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary py-0 px-2 small">
+              <i class="fa-solid fa-book-open me-1"></i>Full Roles Guide
+            </a>
+            <a href="/help/coding-tester" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary py-0 px-2 small">
+              <i class="fa-solid fa-flask me-1"></i>What is a Coding Tester?
+            </a>
+            <a href="/help/projects" target="_blank" rel="noopener" class="btn btn-xs btn-outline-secondary py-0 px-2 small">
+              <i class="fa-solid fa-sitemap me-1"></i>Cross-Tree &amp; Mentoring Guide
+            </a>
+          </div>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-4">
+            <div class="border rounded bg-white p-2 h-100">
+              <div class="fw-semibold mb-1"><i class="fa-solid fa-clipboard-user me-1 text-success"></i>Field &amp; Supervision Roles</div>
+              <ul class="mb-0 ps-3">
+                <li><strong>Death reporter</strong>: Registers community/facility deaths into the Death Register.</li>
+                <li><strong>Interviewer (Fill VA)</strong>: Conducts VA interviews in the browser or <strong>DigitVA mobile app</strong>.</li>
+                <li><strong>Supervise interviews</strong>: Reviews interview progress, reassigns uninterviewed deaths, and returns incomplete forms across assigned unit(s).</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="border rounded bg-white p-2 h-100">
+              <div class="fw-semibold mb-1"><i class="fa-solid fa-stethoscope me-1 text-primary"></i>Coding, Review &amp; Coding Tester</div>
+              <ul class="mb-0 ps-3">
+                <li><strong>Coder (Code VA)</strong>: Assigns ICD-10/ICD-11 cause of death for forms in their assigned unit(s).</li>
+                <li><strong>Reviewer</strong>: Performs QA review and resolves discordant dual-coded VAs.</li>
+                <li><strong>Coding tester</strong>: <em>Practice/calibration sandbox only.</em> Their codes are stored separately, <strong>never</strong> mark a form as coded, and <strong>never</strong> enter production data.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="border rounded bg-white p-2 h-100">
+              <div class="fw-semibold mb-1"><i class="fa-solid fa-building-user me-1 text-dark"></i>In-Charge &amp; Within vs. Cross-Tree</div>
+              <ul class="mb-0 ps-3">
+                <li><strong>In-charge (<code>site_pi</code>)</strong>: Facility/unit head (e.g. MO In-charge, BMO, CMO) with oversight dashboards for their unit's subtree.</li>
+                <li><strong>Within-tree vs. Cross-tree</strong>: In <em>4. Workers &amp; Scope</em>, each MO or Supervisor can be assigned <strong>Own unit (within-tree)</strong>, <strong>Other units (cross-tree)</strong>, <strong>All units at level</strong>, or <strong>Custom selected units</strong> (e.g. 2 PHCs vs. 10 PHCs).</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# Sub-tabs: Permissions by level (question-driven + matrix) first, and Cadre master definitions alongside. #}
     <ul class="nav nav-pills nav-sm mb-3 small" role="tablist">
       <li class="nav-item"><button class="nav-link py-1 active" data-bs-toggle="tab" data-bs-target="#org-sub-cadres" type="button" role="tab">a. Cadres</button></li>
-      <li class="nav-item"><button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#org-sub-perms" type="button" role="tab">b. Permissions by level</button></li>
+      <li class="nav-item"><button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#org-sub-perms" type="button" role="tab">b. Who can do what? (Permissions by level)</button></li>
     </ul>
     <div class="tab-content">
       <div class="tab-pane fade show active" id="org-sub-cadres" role="tabpanel">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <span class="text-muted small">The kinds of health worker in this project. Then say at which levels each exists in <em>Permissions by level</em>.</span>
-          <button class="btn btn-sm btn-primary" id="org-cadre-add-btn"><i class="fa-solid fa-plus me-1"></i>Add cadre</button>
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <span class="text-muted small">The kinds of health worker in this project. Then configure who can do what in <em>b. Who can do what? (Permissions by level)</em>.</span>
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary" type="button" id="org-goto-perms-btn"><i class="fa-solid fa-table-cells me-1"></i>Configure Who Can Do What &rarr;</button>
+            <button class="btn btn-sm btn-primary" id="org-cadre-add-btn"><i class="fa-solid fa-plus me-1"></i>Add cadre</button>
+          </div>
         </div>
         <div id="org-cadre-form" class="card mb-2 d-none"><div class="card-body p-2">
           <input type="hidden" id="oc-id">
@@ -337,7 +393,8 @@
         <div id="org-cadre-table"></div>
       </div>
       <div class="tab-pane fade" id="org-sub-perms" role="tabpanel">
-        <div class="text-muted small mb-2">Add the cadres that exist at each level, then tick what each may do there.</div>
+        <div id="org-who-can-do-what" class="mb-3"></div>
+        <div class="text-muted small mb-2">Full-width Level &times; Cadre matrix: add the cadres that exist at each level, then toggle their capabilities and default roles in one click.</div>
         <div id="org-perm-grid" class="table-responsive"></div>
       </div>
     </div>
@@ -350,13 +407,18 @@
       #org-worker-toolbar .ts-wrapper { min-width: 260px; }
     </style>
     <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-      <span class="text-muted small">Health workers attached to units. Names and phones are personal data.</span>
-      <button class="btn btn-sm btn-primary" id="org-worker-add-btn"><i class="fa-solid fa-plus me-1"></i>Add worker</button>
+      <span class="text-muted small">Health workers attached to units. Configure per-worker within-tree or cross-tree coding &amp; supervision units, link existing DigitVA users, or generate an Expo app QR code.</span>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" type="button" id="org-worker-app-qr-btn" title="Generate a project device enrolment QR code for the DigitVA Expo mobile app">
+          <i class="fa-solid fa-qrcode me-1"></i>Project App QR
+        </button>
+        <button class="btn btn-sm btn-primary" id="org-worker-add-btn"><i class="fa-solid fa-plus me-1"></i>Add worker</button>
+      </div>
     </div>
     <div id="org-worker-toolbar" class="d-flex align-items-center gap-2 mb-2 flex-wrap d-none">
       <div class="input-group input-group-sm" style="max-width:280px;">
         <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
-        <input type="search" id="org-worker-search" class="form-control" placeholder="Name or phone" aria-label="Filter workers by name or phone">
+        <input type="search" id="org-worker-search" class="form-control" placeholder="Name, email or phone" aria-label="Filter workers by name or phone">
       </div>
       <select id="org-worker-unit-filter" class="form-select form-select-sm" style="max-width:280px;" aria-label="Filter by unit (includes units below it)"></select>
       <select id="org-worker-cadre-filter" class="form-select form-select-sm w-auto" aria-label="Filter by cadre"></select>
@@ -366,8 +428,8 @@
     <div id="org-worker-table" class="table-responsive"></div>
   </div>
 
-  {# Add/edit worker form, an offcanvas like the unit form. #}
-  <div class="offcanvas offcanvas-end" tabindex="-1" id="org-worker-canvas" aria-labelledby="org-worker-form-title" style="--bs-offcanvas-width:460px;">
+  {# Add/edit worker form, an offcanvas widened to 640px for multi-unit scope & user lookup. #}
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="org-worker-canvas" aria-labelledby="org-worker-form-title" style="--bs-offcanvas-width:640px;">
     <div class="offcanvas-header border-bottom">
       <h6 class="offcanvas-title mb-0" id="org-worker-form-title">Add worker</h6>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -376,47 +438,173 @@
       <div id="ow-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
       <input type="hidden" id="ow-id">
       <div class="row g-2">
-        <div class="col-12"><label class="form-label small mb-1" for="ow-unit">Unit <span class="text-danger">*</span></label><select id="ow-unit" class="form-select form-select-sm"></select></div>
-        <div class="col-12"><label class="form-label small mb-1" for="ow-cadre">Cadre <span class="text-danger">*</span></label><select id="ow-cadre" class="form-select form-select-sm"></select>
-          <div class="form-text" id="ow-cadre-hint"></div></div>
-        <div class="col-12"><label class="form-label small mb-1" for="ow-name">Name <span class="text-danger">*</span></label><input id="ow-name" class="form-control form-control-sm"></div>
-        <div class="col-12" id="ow-no-email-wrap"><div class="form-check"><input id="ow-no-email" type="checkbox" class="form-check-input"><label for="ow-no-email" class="form-check-label small">I have no email ID</label></div></div>
-        <div class="col-12" id="ow-email-wrap"><label class="form-label small mb-1" for="ow-email">Email</label><input id="ow-email" type="email" class="form-control form-control-sm" autocomplete="email">
+        <div class="col-md-6"><label class="form-label small mb-1" for="ow-unit">Home Unit <span class="text-danger">*</span></label><select id="ow-unit" class="form-select form-select-sm"></select></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="ow-cadre">Cadre <span class="text-danger">*</span></label><select id="ow-cadre" class="form-select form-control-sm"></select></div>
+        <div class="col-12"><div class="form-text mt-0" id="ow-cadre-hint"></div></div>
+
+        {# Live existing-user lookup alert banner #}
+        <div class="col-12 d-none" id="ow-user-lookup-banner"></div>
+
+        <div class="col-md-6" id="ow-email-wrap"><label class="form-label small mb-1" for="ow-email">Email</label><input id="ow-email" type="email" class="form-control form-control-sm" autocomplete="email" placeholder="Type email to check existing user…">
           <div class="form-text" id="ow-email-hint">Existing account or a new account for this worker.</div></div>
-        <div class="col-12" id="ow-email-confirm-wrap"><label class="form-label small mb-1" for="ow-email-confirm">Confirm email</label><input id="ow-email-confirm" type="email" class="form-control form-control-sm" autocomplete="off"></div>
-        <div class="col-12"><label class="form-label small mb-1" for="ow-phone">Mobile number</label><input id="ow-phone" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm"><div class="form-text">Exactly 10 digits; required without email.</div></div>
-        <div class="col-12 d-none" id="ow-phone-confirm-wrap"><label class="form-label small mb-1" for="ow-phone-confirm">Confirm mobile number</label><input id="ow-phone-confirm" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm" autocomplete="off"></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="ow-phone">Mobile number</label><input id="ow-phone" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm" placeholder="10-digit mobile"><div class="form-text">Exactly 10 digits; auto-checks existing users.</div></div>
+        <div class="col-12" id="ow-no-email-wrap"><div class="form-check"><input id="ow-no-email" type="checkbox" class="form-check-input"><label for="ow-no-email" class="form-check-label small">I have no email ID (mobile-only account)</label></div></div>
+        <div class="col-md-6" id="ow-email-confirm-wrap"><label class="form-label small mb-1" for="ow-email-confirm">Confirm email</label><input id="ow-email-confirm" type="email" class="form-control form-control-sm" autocomplete="off"></div>
+        <div class="col-md-6 d-none" id="ow-phone-confirm-wrap"><label class="form-label small mb-1" for="ow-phone-confirm">Confirm mobile number</label><input id="ow-phone-confirm" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm" autocomplete="off"></div>
+
+        <div class="col-12"><label class="form-label small mb-1" for="ow-name">Full Name <span class="text-danger">*</span></label><input id="ow-name" class="form-control form-control-sm"></div>
         <div class="col-6" id="ow-year-wrap"><label class="form-label small mb-1" for="ow-year">Year of birth (optional)</label><input id="ow-year" type="number" min="1900" step="1" class="form-control form-control-sm"></div>
         <div class="col-6" id="ow-sex-wrap"><label class="form-label small mb-1" for="ow-sex">Sex (optional)</label><select id="ow-sex" class="form-select form-select-sm"><option value="">Not provided</option><option value="male">Male</option><option value="female">Female</option><option value="undetermined">Undetermined</option></select></div>
-        <div class="col-12"><label class="form-label small mb-1" for="ow-language-codes">VA languages <span class="text-muted">(new accounts)</span></label><select id="ow-language-codes" class="form-select form-select-sm" multiple></select>
-          <div class="form-text" id="ow-language-hint">Required only when an administrator creates a new account.</div></div>
+        <div class="col-12" id="ow-languages-wrap"><label class="form-label small mb-1" for="ow-language-codes">VA languages <span class="text-muted">(new accounts)</span></label><select id="ow-language-codes" class="form-select form-select-sm" multiple></select>
+          <div class="form-text" id="ow-language-hint">Required only when an administrator creates a brand-new account.</div></div>
+
+        {# Per-worker Within-Tree / Cross-Tree Coding & Supervision Unit Scope Picker #}
+        <div class="col-12 d-none" id="ow-coding-scope-wrap">
+          <div class="border rounded p-2 bg-light-subtle mt-1">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small fw-semibold mb-0"><i class="fa-solid fa-stethoscope me-1 text-primary"></i>Coding Units Scope (Within-Tree vs. Cross-Tree)</label>
+              <span class="badge text-bg-primary" id="ow-coding-scope-count">1 unit</span>
+            </div>
+            <div class="text-muted small mb-2">Choose which units' VA forms this worker can code (e.g., their own PHC only, other PHCs outside their tree, all PHCs, or a custom subset like 2 or 10 PHCs).</div>
+            <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Coding unit scope mode">
+              <input type="radio" class="btn-check" name="ow-coding-mode" id="ow-coding-mode-own" value="own" checked>
+              <label class="btn btn-outline-primary" for="ow-coding-mode-own">Own unit (within-tree)</label>
+              <input type="radio" class="btn-check" name="ow-coding-mode" id="ow-coding-mode-cross" value="cross_only">
+              <label class="btn btn-outline-primary" for="ow-coding-mode-cross">Other units (cross-tree)</label>
+              <input type="radio" class="btn-check" name="ow-coding-mode" id="ow-coding-mode-all" value="all_level">
+              <label class="btn btn-outline-primary" for="ow-coding-mode-all">All units at level</label>
+              <input type="radio" class="btn-check" name="ow-coding-mode" id="ow-coding-mode-custom" value="custom">
+              <label class="btn btn-outline-primary" for="ow-coding-mode-custom">Custom units</label>
+            </div>
+            <div id="ow-coding-units-box" class="border rounded bg-white p-2" style="max-height:170px; overflow-y:auto;"></div>
+          </div>
+        </div>
+
+        <div class="col-12 d-none" id="ow-supervision-scope-wrap">
+          <div class="border rounded p-2 bg-light-subtle mt-1">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <label class="form-label small fw-semibold mb-0"><i class="fa-solid fa-user-shield me-1 text-success"></i>Interview Supervision Units Scope</label>
+              <span class="badge text-bg-success" id="ow-supervision-scope-count">1 unit</span>
+            </div>
+            <div class="text-muted small mb-2">Choose which units' interviews and death register entries this supervisor oversees.</div>
+            <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="Supervision unit scope mode">
+              <input type="radio" class="btn-check" name="ow-supervision-mode" id="ow-supervision-mode-own" value="own" checked>
+              <label class="btn btn-outline-success" for="ow-supervision-mode-own">Own unit (within-tree)</label>
+              <input type="radio" class="btn-check" name="ow-supervision-mode" id="ow-supervision-mode-cross" value="cross_only">
+              <label class="btn btn-outline-success" for="ow-supervision-mode-cross">Other units (cross-tree)</label>
+              <input type="radio" class="btn-check" name="ow-supervision-mode" id="ow-supervision-mode-all" value="all_level">
+              <label class="btn btn-outline-success" for="ow-supervision-mode-all">All units at level</label>
+              <input type="radio" class="btn-check" name="ow-supervision-mode" id="ow-supervision-mode-custom" value="custom">
+              <label class="btn btn-outline-success" for="ow-supervision-mode-custom">Custom units</label>
+            </div>
+            <div id="ow-supervision-units-box" class="border rounded bg-white p-2" style="max-height:170px; overflow-y:auto;"></div>
+          </div>
+        </div>
+
         <input type="hidden" id="ow-user">
         <div class="col-12"><label class="form-label small mb-1" for="ow-remarks">Remarks</label><input id="ow-remarks" class="form-control form-control-sm"></div>
       </div>
       <div id="ow-onboarding-note" class="alert alert-info small py-2 mt-3 mb-0 d-none" role="status"></div>
       <div class="mt-3 d-flex gap-2">
-        <button class="btn btn-sm btn-success" id="ow-save-btn"><i class="fa-solid fa-check me-1"></i>Save</button>
+        <button class="btn btn-sm btn-success" id="ow-save-btn"><i class="fa-solid fa-check me-1"></i>Save worker &amp; scope</button>
         <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
       </div>
     </div>
   </div>
 
-  {# The response may contain a one-time mobile sign-in code. Keep it in this
-     modal only; never put it in the page result, local storage or a log. #}
+  {# The response may contain a one-time mobile sign-in code or Expo QR code.
+     Keep it in this modal only; never put it in local storage or a log. #}
   <div class="modal fade" id="org-worker-onboarding-modal" tabindex="-1" aria-labelledby="org-worker-onboarding-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header py-2">
-          <h6 class="modal-title" id="org-worker-onboarding-title">Worker added</h6>
+          <h6 class="modal-title" id="org-worker-onboarding-title">Worker &amp; Expo App Onboarding</h6>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body small" id="org-worker-onboarding-body"></div>
         <div class="modal-footer py-2">
+          <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="org-worker-onboarding-qr-btn"><i class="fa-solid fa-qrcode me-1"></i>Show Expo App QR</button>
           <button type="button" class="btn btn-sm btn-outline-primary d-none" id="org-worker-onboarding-copy">Copy code</button>
           <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal">Done</button>
         </div>
       </div>
     </div>
+  </div>
+
+  {# ---- 5. HIV & Malaria Mortality (VA Presets) ---- #}
+  <div class="org-tab d-none" data-org-pane="presets">
+    <div class="card mb-3 border-danger-subtle">
+      <div class="card-body py-2 px-3 small">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <div>
+            <h6 class="mb-0"><i class="fa-solid fa-virus me-1 text-danger"></i>District &amp; Unit HIV (<code>Id10002</code>) and Malaria (<code>Id10003</code>) Mortality Levels</h6>
+            <div class="text-muted">Set the epidemiological mortality level for the District (top-level unit) and optionally override specific blocks/PHCs/sub-units. Any unit left as <em>Inherited</em> automatically inherits its nearest ancestor's setting so interviewers don't have to answer these questions manually.</div>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-success" id="org-presets-save-all-btn">
+              <i class="fa-solid fa-check me-1"></i>Save mortality settings
+            </button>
+          </div>
+        </div>
+        <div class="row g-2 align-items-end border-top pt-2">
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="org-presets-filter-level">Filter by Level</label>
+            <select id="org-presets-filter-level" class="form-select form-select-sm"><option value="">All levels</option></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1" for="org-presets-search">Filter by Unit</label>
+            <input type="search" id="org-presets-search" class="form-control form-control-sm" placeholder="Code or name…">
+          </div>
+          <div class="col-md-6">
+            <div class="d-flex flex-wrap gap-2 align-items-end justify-content-md-end">
+              <div>
+                <label class="form-label small mb-1" for="org-presets-bulk-hiv">Set Top-Level (District) HIV</label>
+                <select id="org-presets-bulk-hiv" class="form-select form-select-sm">
+                  <option value="__keep__">— Keep current —</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                  <option value="veryl">Very low</option>
+                  <option value="">Not set</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label small mb-1" for="org-presets-bulk-malaria">Set Top-Level (District) Malaria</label>
+                <select id="org-presets-bulk-malaria" class="form-select form-select-sm">
+                  <option value="__keep__">— Keep current —</option>
+                  <option value="high">High</option>
+                  <option value="low">Low</option>
+                  <option value="veryl">Very low</option>
+                  <option value="">Not set</option>
+                </select>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="org-presets-apply-top-btn">
+                Apply to Top-Level Units
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="org-presets-msg" class="small mb-2" role="status"></div>
+    <div id="org-presets-table-wrap" class="table-responsive"></div>
+  </div>
+
+  {# ---- 6. Mentoring Institutes & Scientists ---- #}
+  <div class="org-tab d-none" data-org-pane="mentoring">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="small">
+        <span class="fw-semibold"><i class="fa-solid fa-building-columns me-1 text-primary"></i>Mentoring Institutes &amp; Scientists</span> —
+        Attach mentoring institutions (Medical Colleges, AIIMS, ICMR institutes) to this project's District units and assign their Scientists to code, review, test-code, or view VA records.
+      </div>
+      {% if current_user.is_admin() %}
+        <a href="/admin/?panel=%2Fadmin%2Fpanels%2Fmentor-institutes" class="btn btn-sm btn-outline-primary">
+          <i class="fa-solid fa-up-right-from-square me-1"></i>Manage Master Institutes &amp; Staff Directory
+        </a>
+      {% endif %}
+    </div>
+    <div id="org-mentoring-msg" class="small mb-2" role="status"></div>
+    <div id="org-mentoring-institutes-wrap" class="mb-4"></div>
+    <div id="org-mentoring-scientists-wrap"></div>
   </div>
 
   {# ---- Export / Import ---- #}
@@ -729,7 +917,7 @@
       _workerLanguagePicker = new TomSelect(sel, { plugins: ['remove_button'], maxOptions: null, placeholder: 'Select languages…' });
     }
   }
-  function renderAll() { renderLevels(); renderScope(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderTransfer(); renderOdkForm(); }
+  function renderAll() { renderLevels(); renderScope(); renderTree(); renderCadres(); renderPermGrid(); renderWorkers(); renderPresetsTab(); renderMentoringTab(); renderTransfer(); renderOdkForm(); }
 
   $('org-seed-btn').addEventListener('click', function () {
     if (!PROJECT_ID) { alertBox('warning', 'Select a project first.'); return; }
@@ -1218,6 +1406,13 @@
   });
 
   // ── cadres & permissions ──────────────────────────────────────────────────
+  var gotoPermsBtn = $('org-goto-perms-btn');
+  if (gotoPermsBtn) {
+    gotoPermsBtn.addEventListener('click', function () {
+      var tabTrigger = document.querySelector('[data-bs-target="#org-sub-perms"]');
+      if (tabTrigger) bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+    });
+  }
   function renderCadres() {
     var rows = STATE.cadres.map(function (c) {
       return '<tr class="' + (c.is_active ? '' : 'text-muted') + '"><td><code>' + esc(c.cadre_code) + '</code></td><td>' + esc(c.cadre_name) + '</td>'
@@ -1242,55 +1437,148 @@
   // map_org_level_cadre row), each with its Fill / Code / Supervise permissions. Adding a
   // cadre creates the row; removing it deactivates the row, never deletes.
   // Default roles (digitva-vjt): unit-scope roles pre-ticked in the grant forms
-  // for a person of this cadre at this level. A role with a flag is offered only
-  // while the row carries it (the server enforces the same rule on save).
+  // for a person of this cadre at this level.
   var UNIT_ROLE_LABELS = [
     ['site_pi', 'In-charge'], ['data_manager', 'Data manager'], ['coder', 'Coder'], ['reviewer', 'Reviewer'],
     ['coding_tester', 'Coding tester'], ['interviewer', 'Interviewer'], ['interview_supervisor', 'Interview supervisor'],
     ['death_reporter', 'Death reporter'], ['collaborator', 'Viewer'], ['collaborator_pii', 'Viewer (with PII)']
   ];
   var ROLE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
+  var CAPABILITY_QUESTIONS = [
+    { key: 'death_reporter', flag: 'can_report_deaths', icon: 'fa-file-circle-plus', badge: 'secondary', title: 'Who can report deaths?', desc: 'Registers community or facility deaths into the Death Register.' },
+    { key: 'interviewer', flag: 'can_fill_va_form', icon: 'fa-clipboard-list', badge: 'success', title: 'Who can conduct VA interviews?', desc: 'Fills VA questionnaires in the browser or DigitVA mobile app.' },
+    { key: 'interview_supervisor', flag: 'can_supervise_interviews', icon: 'fa-user-shield', badge: 'info', title: 'Who can supervise interviews?', desc: 'Monitors field interviews, assigns deaths, and returns incomplete forms.' },
+    { key: 'coder', flag: 'can_code_va_form', icon: 'fa-stethoscope', badge: 'primary', title: 'Who can code VA forms (Cause of Death)?', desc: 'Assigns ICD-10/ICD-11 cause of death (within-tree or cross-tree).' },
+    { key: 'reviewer', flag: null, icon: 'fa-clipboard-check', badge: 'warning', title: 'Who can review coded VAs (QA)?', desc: 'Performs quality review and adjudicates discordant dual-coded VAs.' },
+    { key: 'site_pi', flag: null, icon: 'fa-building-user', badge: 'dark', title: 'Who is Unit / Facility In-charge?', desc: 'Sees VA Dashboard, Area, and People oversight for their unit subtree.' },
+    { key: 'coding_tester', flag: null, icon: 'fa-flask', badge: 'secondary', title: 'Who is a Coding Tester (practice sandbox)?', desc: 'Practices coding in an isolated sandbox; never affects real VA records.' },
+    { key: 'data_manager', flag: null, icon: 'fa-database', badge: 'primary', title: 'Who manages data & KPIs?', desc: 'Accesses Data Manager, KPI Dashboard, and COD reports.' }
+  ];
   function defaultRolesHtml(lc, attrs) {
     var chosen = lc.default_roles || [];
     var boxes = UNIT_ROLE_LABELS.map(function (r) {
       var off = ROLE_FLAG[r[0]] && !lc[ROLE_FLAG[r[0]]];
       return '<label class="d-block mb-0 text-nowrap' + (off ? ' text-muted' : '') + '"><input type="checkbox" class="perm-role me-1"' + attrs + ' value="' + r[0] + '" '
-        + (chosen.indexOf(r[0]) >= 0 ? 'checked' : '') + (off ? ' disabled' : '') + '>' + esc(r[1]) + '</label>';
+        + (chosen.indexOf(r[0]) >= 0 ? 'checked' : '') + '>' + esc(r[1]) + (off ? ' <span class="text-muted">(auto-enables capability)</span>' : '') + '</label>';
     }).join('');
     return '<details class="d-inline-block"><summary class="small" title="Pre-ticked when this cadre is granted at this level; saved as ordinary grants">Default roles (' + chosen.length + ')</summary>' + boxes + '</details>';
   }
   function renderPermGrid() {
     var levels = STATE.levels.filter(function (l) { return l.is_active; }), cadres = STATE.cadres.filter(function (c) { return c.is_active; });
-    if (!levels.length || !cadres.length) { $('org-perm-grid').innerHTML = '<p class="text-muted small">Define levels and cadres first.</p>'; return; }
+    var qWrap = $('org-who-can-do-what');
+    if (!levels.length || !cadres.length) {
+      if (qWrap) qWrap.innerHTML = '';
+      $('org-perm-grid').innerHTML = '<p class="text-muted small">Define levels and cadres first.</p>';
+      return;
+    }
     var lookup = {}; STATE.level_cadres.forEach(function (lc) { lookup[lc.org_level_id + '|' + lc.cadre_id] = lc; });
+
+    // Collect all active (level, cadre, lc) placements for the Question-Driven Setup cards
+    var placements = [];
+    levels.forEach(function (l) {
+      cadres.forEach(function (c) {
+        var lc = lookup[l.org_level_id + '|' + c.cadre_id];
+        if (lc && lc.is_active) placements.push({ level: l, cadre: c, lc: lc });
+      });
+    });
+
+    if (qWrap) {
+      if (!placements.length) {
+        qWrap.innerHTML = '<div class="alert alert-info small py-2 mb-2">Place cadres at levels in the table below (or click <strong>Populate district defaults</strong> above), then click any cadre pill to answer <em>Who can do what?</em></div>';
+      } else {
+        var qCards = CAPABILITY_QUESTIONS.map(function (q) {
+          var pills = placements.map(function (p) {
+            var roles = p.lc.default_roles || [];
+            var hasRole = roles.indexOf(q.key) >= 0;
+            var hasFlag = q.flag ? !!p.lc[q.flag] : false;
+            var active = hasRole || (q.key === 'interviewer' && hasFlag && roles.indexOf('interviewer') >= 0);
+            if (q.flag && !hasRole && hasFlag) {
+              // Capability flag is on, role not in default_roles yet
+              active = true;
+            }
+            var btnClass = active ? ('btn-' + q.badge) : 'btn-outline-secondary';
+            return '<button type="button" class="btn btn-xs py-0 px-2 small org-q-pill ' + btnClass + '"'
+              + ' data-l="' + esc(p.level.org_level_id) + '"'
+              + ' data-c="' + esc(p.cadre.cadre_id) + '"'
+              + ' data-role="' + esc(q.key) + '"'
+              + ' data-flag="' + esc(q.flag || '') + '"'
+              + ' data-active="' + (active ? '1' : '0') + '"'
+              + ' title="' + esc(p.level.level_name + ' · ' + p.cadre.cadre_name) + '">'
+              + '<i class="fa-solid ' + (active ? 'fa-check me-1' : 'fa-plus me-1 opacity-50') + '"></i>'
+              + esc(p.level.level_code || p.level.level_name) + ' · <strong>' + esc(p.cadre.cadre_code) + '</strong>'
+              + '</button>';
+          }).join(' ');
+          return '<div class="col-12 col-md-6 col-xl-3">'
+            + '<div class="card h-100 shadow-sm border-0 bg-body-tertiary">'
+            + '<div class="card-body p-2 small">'
+            + '<div class="fw-semibold mb-1"><i class="fa-solid ' + q.icon + ' me-1 text-' + q.badge + '"></i>' + esc(q.title) + '</div>'
+            + '<div class="text-muted mb-2" style="font-size:0.78rem;">' + esc(q.desc) + '</div>'
+            + '<div class="d-flex flex-wrap gap-1">' + pills + '</div>'
+            + '</div></div></div>';
+        }).join('');
+        qWrap.innerHTML = '<div class="card border-primary-subtle mb-3"><div class="card-body p-3">'
+          + '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">'
+          + '<div><h6 class="mb-0"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Quick Question-Driven Setup: Who can do what?</h6>'
+          + '<div class="text-muted small">Click any <code>Level · Cadre</code> pill below to toggle that capability and its default role in one click.</div></div>'
+          + '</div>'
+          + '<div class="row g-2">' + qCards + '</div>'
+          + '</div></div>';
+      }
+    }
+
     var body = levels.map(function (l) {
       var here = cadres.filter(function (c) { var lc = lookup[l.org_level_id + '|' + c.cadre_id]; return lc && lc.is_active; });
       var missing = cadres.filter(function (c) { return here.indexOf(c) < 0; });
       var chips = here.map(function (c) {
         var lc = lookup[l.org_level_id + '|' + c.cadre_id];
         var attrs = ' data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '"';
-        return '<span class="d-inline-flex align-items-center gap-2 border rounded px-2 py-1 me-1 mb-1">'
-          + '<code title="' + esc(c.cadre_name) + '">' + esc(c.cadre_code) + '</code>'
-          + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '>Fill VA</label>'
-          + '<label class="mb-0"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '>Code VA</label>'
-          + '<label class="mb-0" title="May hold an interview supervisor grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '>Supervise interviews</label>'
-          + '<label class="mb-0" title="May hold a death reporter grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '>Report deaths</label>'
+        return '<div class="d-inline-flex flex-wrap align-items-center gap-2 border rounded bg-white px-2 py-1 me-2 mb-2 shadow-xs">'
+          + '<span class="fw-semibold"><code title="' + esc(c.cadre_name) + '">' + esc(c.cadre_code) + '</code> <span class="text-muted small">(' + esc(c.cadre_name) + ')</span></span>'
+          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '>Fill VA</label>'
+          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '>Code VA</label>'
+          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal" title="May hold an interview supervisor grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '>Supervise interviews</label>'
+          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal" title="May hold a death reporter grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '>Report deaths</label>'
           + defaultRolesHtml(lc, attrs)
           + '<button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from this level"><i class="fa-solid fa-xmark"></i></button>'
-          + '</span>';
+          + '</div>';
       }).join('');
       var add = missing.length
         ? '<select class="form-select form-select-sm d-inline-block w-auto perm-add" data-l="' + l.org_level_id + '"><option value="">+ Add cadre…</option>'
           + missing.map(function (c) { return '<option value="' + c.cadre_id + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>'; }).join('') + '</select>'
         : '';
-      return '<tr><th class="text-nowrap align-top">' + esc(l.level_name) + '</th><td>'
+      return '<tr><th class="text-nowrap align-top bg-light" style="width:160px;">' + esc(l.level_name) + '<div class="text-muted fw-normal small"><code>' + esc(l.level_code) + '</code></div></th><td>'
         + (chips || '<span class="text-muted me-2">No cadres at this level.</span>') + add + '</td></tr>';
     }).join('');
-    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle"><tbody>' + body + '</tbody></table>';
+    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle mb-0"><tbody>' + body + '</tbody></table>';
     // defaults omitted (undefined) keeps the row's current default roles.
     function save(l, c, fill, code, supervise, report, active, defaults) {
       api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, default_roles: defaults, is_active: active })
         .then(function (res) { if (!res.ok) fail(res); else alertBox(); loadAll(); });
+    }
+    if (qWrap) {
+      qWrap.querySelectorAll('.org-q-pill').forEach(function (pill) {
+        pill.addEventListener('click', function () {
+          var l = pill.dataset.l, c = pill.dataset.c, role = pill.dataset.role, flag = pill.dataset.flag;
+          var lc = lookup[l + '|' + c];
+          if (!lc) return;
+          var turningOn = pill.dataset.active !== '1';
+          var roles = (lc.default_roles || []).slice();
+          if (turningOn) {
+            if (roles.indexOf(role) < 0) roles.push(role);
+          } else {
+            roles = roles.filter(function (r) { return r !== role; });
+          }
+          var fill = lc.can_fill_va_form;
+          var code = lc.can_code_va_form;
+          var supervise = lc.can_supervise_interviews;
+          var report = lc.can_report_deaths;
+          if (flag === 'can_fill_va_form') fill = turningOn;
+          if (flag === 'can_code_va_form') code = turningOn;
+          if (flag === 'can_supervise_interviews') supervise = turningOn;
+          if (flag === 'can_report_deaths') report = turningOn;
+          save(l, c, fill, code, supervise, report, true, roles);
+        });
+      });
     }
     document.querySelectorAll('.perm-box').forEach(function (box) { box.addEventListener('change', function () {
       var l = box.dataset.l, c = box.dataset.c;
@@ -1303,7 +1591,11 @@
     document.querySelectorAll('.perm-role').forEach(function (box) { box.addEventListener('change', function () {
       var l = box.dataset.l, c = box.dataset.c, lc = lookup[l + '|' + c];
       var roles = Array.prototype.map.call(document.querySelectorAll('.perm-role[data-l="' + l + '"][data-c="' + c + '"]:checked'), function (b) { return b.value; });
-      save(l, c, lc.can_fill_va_form, lc.can_code_va_form, lc.can_supervise_interviews, lc.can_report_deaths, true, roles);
+      var fill = lc.can_fill_va_form || roles.indexOf('interviewer') >= 0;
+      var code = lc.can_code_va_form || roles.indexOf('coder') >= 0;
+      var supervise = lc.can_supervise_interviews || roles.indexOf('interview_supervisor') >= 0;
+      var report = lc.can_report_deaths || roles.indexOf('death_reporter') >= 0;
+      save(l, c, fill, code, supervise, report, true, roles);
     }); });
     document.querySelectorAll('.perm-add').forEach(function (sel) { sel.addEventListener('change', function () {
       if (sel.value) save(sel.dataset.l, sel.value, false, false, false, false, true);
@@ -1318,15 +1610,9 @@
   }
 
   // ── workers ───────────────────────────────────────────────────────────────
-  //
-  // A filtered table over STATE.workers (the server already drops inactive
-  // workers unless Show inactive is on) and an offcanvas editor like the
-  // unit form. A worker's cadre must be placed at its unit's level (an active
-  // map_org_level_cadre row); the server enforces that too.
-  // ponytail: the API returns every worker of the project; past a few
-  // thousand, page it server-side instead of capping the rendered rows.
   var WORKER_ROW_LIMIT = 500;
   var _workerUnitPicker = null, _workerFormUnitPicker = null, _workerLanguagePicker = null, _editingWorker = null;
+  var _matchedExistingUser = null, _userLookupTimer = null;
   var WORKER_ROLE_LABELS = {
     collaborator: 'Viewer', collaborator_pii: 'Viewer (with PII)', coder: 'Coder',
     coding_tester: 'Coding Tester', reviewer: 'Reviewer', data_manager: 'Data Manager',
@@ -1339,7 +1625,6 @@
   function fillWorkerUnitSelect(sel, units, first) {
     sel.innerHTML = first + units.map(function (u) { return '<option value="' + esc(u.org_unit_id) + '">' + esc(workerUnitLabel(u)) + '</option>'; }).join('');
   }
-  // Active cadres with an active placement at this level, as {lc, cadre}.
   function cadresAtLevel(levelId) {
     return STATE.level_cadres
       .filter(function (lc) { return lc.is_active && lc.org_level_id === levelId; })
@@ -1368,7 +1653,6 @@
     }
     empty.innerHTML = '';
 
-    // Filters are rebuilt from the fresh STATE, keeping what was chosen.
     var unitSel = $('org-worker-unit-filter');
     var keepUnit = unitSel.value;
     if (_workerUnitPicker) { _workerUnitPicker.destroy(); _workerUnitPicker = null; }
@@ -1383,6 +1667,16 @@
     drawWorkerRows();
   }
 
+  function formatScopeBadge(w, codesKey, label, color) {
+    var codes = w[codesKey] || [];
+    if (!codes.length) return '';
+    var isOwnOnly = codes.length === 1 && codes[0] === w.unit_code;
+    var text = isOwnOnly
+      ? (label + ': Own unit (' + esc(w.unit_code) + ')')
+      : (label + ' (' + codes.length + ' units): ' + esc(codes.slice(0, 3).join(', ')) + (codes.length > 3 ? ' +' + (codes.length - 3) : ''));
+    return '<span class="badge text-bg-' + color + '-subtle border border-' + color + '-subtle text-' + color + '-emphasis me-1" title="' + esc(codes.join(', ')) + '">' + text + '</span>';
+  }
+
   function drawWorkerRows() {
     var units = byId(STATE.units, 'org_unit_id'), cadres = byId(STATE.cadres, 'cadre_id');
     var q = $('org-worker-search').value.trim().toLowerCase();
@@ -1392,35 +1686,41 @@
       if (!w.is_active && !inactiveOk) return false;
       if (cadreId && w.cadre_id !== cadreId) return false;
       if (within) {
-        // The chosen unit and everything below it, by ltree path prefix.
         var wu = units[w.org_unit_id];
         if (!wu || (wu.path !== within.path && wu.path.indexOf(within.path + '.') !== 0)) return false;
       }
-      return !q || [w.worker_name, w.phone].join(' ').toLowerCase().indexOf(q) >= 0;
+      return !q || [w.worker_name, w.phone, w.user_email || ''].join(' ').toLowerCase().indexOf(q) >= 0;
     });
     var total = STATE.workers.length;
     $('org-worker-count').textContent = (matches.length === total ? '' : matches.length + ' of ') + total + ' worker' + (total === 1 ? '' : 's');
     if (!matches.length) { $('org-worker-table').innerHTML = '<p class="text-muted small">No workers match these filters.</p>'; return; }
     var rows = matches.slice(0, WORKER_ROW_LIMIT).map(function (w) {
       var u = units[w.org_unit_id], c = cadres[w.cadre_id], id = esc(w.worker_id);
+      var scopeHtml = formatScopeBadge(w, 'coding_unit_codes', 'Coding', 'primary')
+        + formatScopeBadge(w, 'supervision_unit_codes', 'Supervise', 'success');
+      var rolesHtml = (w.active_roles || []).map(function (r) {
+        return '<span class="badge text-bg-light border text-secondary me-1">' + esc(WORKER_ROLE_LABELS[r] || r) + '</span>';
+      }).join('');
+      var qrBtn = '<button type="button" class="btn btn-sm btn-link py-0 px-1 text-primary" data-act="qr" data-id="' + id + '" title="Show Expo mobile app QR code"><i class="fa-solid fa-qrcode"></i></button>';
       return '<tr class="' + (w.is_active ? '' : 'org-inactive') + '">'
-        + '<td>' + esc(w.worker_name) + '</td>'
+        + '<td><div class="fw-medium">' + esc(w.worker_name) + '</div>' + (rolesHtml ? '<div class="mt-1">' + rolesHtml + '</div>' : '') + '</td>'
         + '<td><span class="badge text-bg-light border" title="' + esc(c ? c.cadre_name : w.cadre_code) + '">' + esc(w.cadre_code) + '</span></td>'
-        + '<td>' + (u ? '<span class="badge text-bg-light border text-secondary me-1" title="' + esc(u.level_name) + '">' + esc(u.level_code) + '</span>' : '')
-        + esc(w.unit_name) + ' <code class="small">' + esc(w.unit_code) + '</code></td>'
+        + '<td><div>' + (u ? '<span class="badge text-bg-light border text-secondary me-1" title="' + esc(u.level_name) + '">' + esc(u.level_code) + '</span>' : '')
+        + esc(w.unit_name) + ' <code class="small">' + esc(w.unit_code) + '</code></div>'
+        + (scopeHtml ? '<div class="mt-1">' + scopeHtml + '</div>' : '') + '</td>'
         + '<td class="text-nowrap">' + esc(w.phone) + '</td>'
-        + '<td>' + (w.user_email ? esc(w.user_email) : '<span class="text-muted">—</span>') + '</td>'
+        + '<td>' + (w.user_email ? esc(w.user_email) : (w.user_id ? '<span class="badge text-bg-info-subtle text-info-emphasis border">Mobile account</span>' : '<span class="text-muted">—</span>')) + '</td>'
         + '<td>' + (w.is_active ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>') + '</td>'
         + '<td class="text-end text-nowrap">'
-        + '<button type="button" class="btn btn-sm btn-link py-0 px-1" data-act="edit" data-id="' + id + '" title="Edit"><i class="fa-solid fa-pen"></i></button>'
+        + qrBtn
+        + '<button type="button" class="btn btn-sm btn-link py-0 px-1" data-act="edit" data-id="' + id + '" title="Edit worker &amp; unit scope"><i class="fa-solid fa-pen"></i></button>'
         + '<button type="button" class="btn btn-sm btn-link py-0 px-1 ' + (w.is_active ? 'text-danger' : 'text-success') + '" data-act="toggle" data-id="' + id + '" title="' + (w.is_active ? 'Deactivate' : 'Activate') + '"><i class="fa-solid ' + (w.is_active ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i></button>'
         + '</td></tr>';
     }).join('');
-    $('org-worker-table').innerHTML = '<table class="table table-sm small align-middle"><thead><tr><th>Name</th><th>Cadre</th><th>Unit</th><th>Phone</th><th>DigitVA user</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
+    $('org-worker-table').innerHTML = '<table class="table table-sm small align-middle"><thead><tr><th>Name &amp; Roles</th><th>Cadre</th><th>Home Unit &amp; Scope</th><th>Phone</th><th>DigitVA user</th><th>Status</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>'
       + (matches.length > WORKER_ROW_LIMIT ? '<p class="text-muted small">Showing the first ' + WORKER_ROW_LIMIT + '. Narrow the filters to see the rest.</p>' : '');
   }
   $('org-worker-search').addEventListener('input', drawWorkerRows);
-  // Tom Select fires change on the underlying select, so one listener serves both.
   $('org-worker-unit-filter').addEventListener('change', drawWorkerRows);
   $('org-worker-cadre-filter').addEventListener('change', drawWorkerRows);
   $('org-worker-table').addEventListener('click', function (ev) {
@@ -1429,10 +1729,15 @@
     var w = findBy(STATE.workers, 'worker_id', b.dataset.id);
     if (!w) return;
     if (b.dataset.act === 'edit') { openWorkerForm(w, null); return; }
+    if (b.dataset.act === 'qr') { showExpoQrModalForWorker(w); return; }
     var on = !w.is_active;
     var go = function () { api(base() + '/workers/' + w.worker_id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
     if (on) go(); else askConfirm('Deactivate worker ' + w.worker_name + '?', go);
   });
+  var appQrBtn = $('org-worker-app-qr-btn');
+  if (appQrBtn) {
+    appQrBtn.addEventListener('click', function () { showExpoQrModalForWorker(null); });
+  }
   $('org-worker-empty').addEventListener('click', function (ev) {
     var a = ev.target.closest('[data-org-goto]');
     if (!a) return;
@@ -1443,9 +1748,112 @@
     if (to === 'perms') bootstrap.Tab.getOrCreateInstance(document.querySelector('[data-bs-target="#org-sub-perms"]')).show();
   });
 
-  // Cadres offered = those placed at the chosen unit's level. While editing,
-  // the worker's own cadre stays listed at its own unit even if it has since
-  // been removed from that level, so opening the form changes nothing.
+  // ── Per-worker multi-unit coding & supervision scope pickers ──────────────
+  function renderScopeUnitCheckboxes(boxId, cbClass, modeName, countBadgeId, homeUnitId, selectedIds) {
+    var box = $(boxId);
+    if (!box) return;
+    var homeUnit = unitById(homeUnitId);
+    var activeUnits = STATE.units.filter(function (u) { return u.is_active; });
+    var sameLevelUnits = homeUnit
+      ? activeUnits.filter(function (u) { return u.org_level_id === homeUnit.org_level_id; })
+      : activeUnits;
+    var otherLevelUnits = homeUnit
+      ? activeUnits.filter(function (u) { return u.org_level_id !== homeUnit.org_level_id; })
+      : [];
+    var chosenSet = {};
+    (selectedIds || []).forEach(function (id) { chosenSet[id] = true; });
+
+    // Determine initial radio mode from selectedIds
+    var peerIds = sameLevelUnits.filter(function (u) { return u.org_unit_id !== homeUnitId; }).map(function (u) { return u.org_unit_id; });
+    var allLevelIds = sameLevelUnits.map(function (u) { return u.org_unit_id; });
+    var mode = 'custom';
+    if (selectedIds.length === 1 && selectedIds[0] === homeUnitId) {
+      mode = 'own';
+    } else if (allLevelIds.length > 1 && selectedIds.length === allLevelIds.length && allLevelIds.every(function (id) { return chosenSet[id]; })) {
+      mode = 'all_level';
+    } else if (peerIds.length > 0 && !chosenSet[homeUnitId] && selectedIds.length === peerIds.length && peerIds.every(function (id) { return chosenSet[id]; })) {
+      mode = 'cross_only';
+    }
+    var modeRadio = document.querySelector('input[name="' + modeName + '"][value="' + mode + '"]');
+    if (modeRadio) modeRadio.checked = true;
+
+    function buildUnitRow(u) {
+      var isHome = u.org_unit_id === homeUnitId;
+      var checked = !!chosenSet[u.org_unit_id];
+      return '<label class="form-check form-check-inline d-flex align-items-center gap-2 mb-1 me-0 py-1 px-2 rounded ' + (isHome ? 'bg-primary-subtle' : '') + '">'
+        + '<input type="checkbox" class="form-check-input mt-0 ' + cbClass + '" value="' + esc(u.org_unit_id) + '" ' + (checked ? 'checked' : '') + '>'
+        + '<span class="small">' + esc(u.unit_name) + ' <code>' + esc(u.unit_code) + '</code>'
+        + (isHome ? ' <span class="badge text-bg-primary">Home unit</span>' : '')
+        + '</span></label>';
+    }
+
+    var html = '';
+    if (sameLevelUnits.length) {
+      html += '<div class="text-muted small fw-semibold mb-1">Units at ' + esc(homeUnit ? homeUnit.level_name : 'this level') + ' (' + sameLevelUnits.length + ')</div>';
+      html += sameLevelUnits.map(buildUnitRow).join('');
+    }
+    if (otherLevelUnits.length) {
+      html += '<details class="mt-2"><summary class="small text-muted">Other levels (' + otherLevelUnits.length + ')</summary><div class="mt-1">'
+        + otherLevelUnits.map(buildUnitRow).join('') + '</div></details>';
+    }
+    box.innerHTML = html || '<div class="text-muted small">No active units.</div>';
+
+    function updateCountBadge() {
+      var cbs = box.querySelectorAll('.' + cbClass + ':checked');
+      var badge = $(countBadgeId);
+      if (badge) badge.textContent = cbs.length + ' unit' + (cbs.length === 1 ? '' : 's');
+    }
+    updateCountBadge();
+
+    box.querySelectorAll('.' + cbClass).forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var customRadio = document.querySelector('input[name="' + modeName + '"][value="custom"]');
+        if (customRadio) customRadio.checked = true;
+        updateCountBadge();
+      });
+    });
+
+    document.querySelectorAll('input[name="' + modeName + '"]').forEach(function (radio) {
+      radio.onchange = function () {
+        var m = this.value;
+        box.querySelectorAll('.' + cbClass).forEach(function (cb) {
+          var uid = cb.value;
+          var isSameLevel = sameLevelUnits.some(function (u) { return u.org_unit_id === uid; });
+          if (m === 'own') cb.checked = (uid === homeUnitId);
+          else if (m === 'cross_only') cb.checked = (isSameLevel && uid !== homeUnitId);
+          else if (m === 'all_level') cb.checked = isSameLevel;
+        });
+        updateCountBadge();
+      };
+    });
+  }
+
+  function updateWorkerScopeSections() {
+    var u = unitById(val('ow-unit')), cid = $('ow-cadre').value, w = _editingWorker;
+    var lc = u && STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0];
+    var defaultRoles = (lc && lc.default_roles) || [];
+    var canCode = !!(lc && (lc.can_code_va_form || defaultRoles.indexOf('coder') >= 0))
+      || !!(w && (w.coding_unit_ids || []).length);
+    var canSupervise = !!(lc && (lc.can_supervise_interviews || defaultRoles.indexOf('interview_supervisor') >= 0))
+      || !!(w && (w.supervision_unit_ids || []).length);
+
+    show('ow-coding-scope-wrap', canCode && !!u);
+    show('ow-supervision-scope-wrap', canSupervise && !!u);
+
+    if (canCode && u) {
+      var initialCodingIds = (w && w.coding_unit_ids && w.coding_unit_ids.length)
+        ? w.coding_unit_ids
+        : [u.org_unit_id];
+      renderScopeUnitCheckboxes('ow-coding-units-box', 'ow-coding-unit-cb', 'ow-coding-mode', 'ow-coding-scope-count', u.org_unit_id, initialCodingIds);
+    }
+    if (canSupervise && u) {
+      var initialSupIds = (w && w.supervision_unit_ids && w.supervision_unit_ids.length)
+        ? w.supervision_unit_ids
+        : [u.org_unit_id];
+      renderScopeUnitCheckboxes('ow-supervision-units-box', 'ow-supervision-unit-cb', 'ow-supervision-mode', 'ow-supervision-scope-count', u.org_unit_id, initialSupIds);
+    }
+  }
+
   function fillWorkerCadreSelect(preferId) {
     var u = unitById(val('ow-unit')), w = _editingWorker;
     var here = u ? cadresAtLevel(u.org_level_id) : [];
@@ -1463,16 +1871,18 @@
     $('ow-cadre').disabled = !cid;
     $('ow-save-btn').disabled = !cid;
     hint.className = 'form-text';
-    if (!val('ow-unit')) { hint.textContent = 'Choose a unit first.'; return; }
+    if (!val('ow-unit')) { hint.textContent = 'Choose a unit first.'; updateWorkerScopeSections(); return; }
     if (!cid) {
       hint.className = 'form-text text-danger';
       hint.textContent = 'No cadres at this level — add them in Cadres & permissions → Permissions by level.';
+      updateWorkerScopeSections();
       return;
     }
     var lc = u ? STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0] : null;
     if (!lc) {
       hint.textContent = 'This cadre is not placed at this unit\'s level; saving may be refused.';
       updateWorkerOnboardingNote();
+      updateWorkerScopeSections();
       return;
     }
     var roles = (lc.default_roles || []).map(function (role) { return WORKER_ROLE_LABELS[role] || role; });
@@ -1480,6 +1890,7 @@
     if (roles.length) hint.textContent += ' Default access: ' + roles.join(', ') + '.';
     else hint.textContent += ' No default roles: this will remain a roster-only worker unless an existing account is linked.';
     updateWorkerOnboardingNote();
+    updateWorkerScopeSections();
   }
 
   function updateWorkerOnboardingNote() {
@@ -1489,11 +1900,14 @@
     var lc = u && STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0];
     if (_editingWorker) {
       note.className = 'alert alert-secondary small py-2 mt-3 mb-0';
-      note.textContent = 'Editing the roster entry does not change this person\'s grants or password.';
+      note.textContent = 'Saving updates this worker\'s roster details and any Coding / Supervision unit scope changes without resetting their password.';
+    } else if (_matchedExistingUser) {
+      note.className = 'alert alert-success small py-2 mt-3 mb-0';
+      note.textContent = 'Existing DigitVA account (' + (_matchedExistingUser.email || _matchedExistingUser.mobile) + ') will be linked and granted this role/unit scope without changing their password.';
     } else if (lc && (lc.default_roles || []).length) {
       var roles = lc.default_roles.map(function (role) { return WORKER_ROLE_LABELS[role] || role; }).join(', ');
       note.className = 'alert alert-info small py-2 mt-3 mb-0';
-      note.textContent = (CURRENT_USER_IS_ADMIN ? 'An account can be created or an existing account linked. ' : 'A project PI can link an existing active account; an administrator must create a new account. ') + 'This worker will receive the configured access: ' + roles + '. No role checkboxes are needed.';
+      note.textContent = (CURRENT_USER_IS_ADMIN ? 'An account can be created or an existing account linked. ' : 'A project PI can link an existing active account; an administrator must create a new account. ') + 'This worker will receive the configured access: ' + roles + '.';
     } else {
       note.className = 'alert alert-secondary small py-2 mt-3 mb-0';
       note.textContent = 'No default roles are configured for this level and cadre. The worker will be added to the roster; no account or grant is required.';
@@ -1502,24 +1916,83 @@
 
   function updateWorkerContactMode() {
     var editing = !!_editingWorker, noEmail = !editing && $('ow-no-email').checked;
+    var existingMatched = !!_matchedExistingUser;
     show('ow-no-email-wrap', !editing);
     show('ow-email-wrap', !noEmail);
-    show('ow-email-confirm-wrap', !editing && !noEmail);
-    show('ow-phone-confirm-wrap', noEmail);
-    show('ow-year-wrap', !editing); show('ow-sex-wrap', !editing);
+    show('ow-email-confirm-wrap', !editing && !noEmail && !existingMatched);
+    show('ow-phone-confirm-wrap', !editing && noEmail && !existingMatched);
+    show('ow-year-wrap', !editing && !existingMatched);
+    show('ow-sex-wrap', !editing && !existingMatched);
     $('ow-email').disabled = noEmail;
   }
   $('ow-no-email').addEventListener('change', updateWorkerContactMode);
 
+  // Live existing-user lookup (by email or 10-digit mobile)
+  function runExistingUserLookup() {
+    if (!PROJECT_ID) return;
+    var email = val('ow-email'), phone = val('ow-phone');
+    var q = '';
+    if (email && email.indexOf('@') > 0) q = email;
+    else if (phone && /^[0-9]{10}$/.test(phone)) q = phone;
+    var banner = $('ow-user-lookup-banner');
+    if (!q) {
+      _matchedExistingUser = null;
+      if (banner) { banner.classList.add('d-none'); banner.innerHTML = ''; }
+      updateWorkerContactMode();
+      updateWorkerOnboardingNote();
+      return;
+    }
+    api(base() + '/users/lookup?q=' + encodeURIComponent(q)).then(function (res) {
+      if (!res.ok || !res.data || !res.data.found || !res.data.user) {
+        _matchedExistingUser = null;
+        if (banner) { banner.classList.add('d-none'); banner.innerHTML = ''; }
+        updateWorkerContactMode();
+        updateWorkerOnboardingNote();
+        return;
+      }
+      var u = res.data.user;
+      _matchedExistingUser = u;
+      if (!val('ow-name') && u.name) $('ow-name').value = u.name;
+      if (u.email && !$('ow-no-email').checked) {
+        $('ow-email').value = u.email;
+        $('ow-email-confirm').value = u.email;
+      }
+      if (u.mobile && !val('ow-phone')) {
+        $('ow-phone').value = u.mobile;
+        $('ow-phone-confirm').value = u.mobile;
+      }
+      $('ow-user').value = u.email || u.user_id || '';
+      if (banner) {
+        banner.className = 'col-12';
+        banner.innerHTML = '<div class="alert alert-success small py-2 mb-1 d-flex align-items-center justify-content-between">'
+          + '<div><i class="fa-solid fa-user-check me-1"></i><strong>Existing DigitVA user found:</strong> '
+          + esc(u.name) + ' (' + esc(u.email || u.mobile || 'mobile account') + ')'
+          + (u.is_active ? ' <span class="badge text-bg-success ms-1">Active</span>' : ' <span class="badge text-bg-secondary ms-1">Inactive</span>')
+          + '<div class="text-muted">Already registered in DigitVA. Saving will link this account and grant access in this project without resetting their password.</div></div>'
+          + '</div>';
+      }
+      updateWorkerContactMode();
+      updateWorkerOnboardingNote();
+    }).catch(function () {});
+  }
+  function scheduleExistingUserLookup() {
+    if (_userLookupTimer) clearTimeout(_userLookupTimer);
+    _userLookupTimer = setTimeout(runExistingUserLookup, 280);
+  }
+  $('ow-email').addEventListener('input', scheduleExistingUserLookup);
+  $('ow-phone').addEventListener('input', scheduleExistingUserLookup);
+
   function openWorkerForm(w, unit) {
     _editingWorker = w;
+    _matchedExistingUser = null;
+    var lookupBanner = $('ow-user-lookup-banner');
+    if (lookupBanner) { lookupBanner.classList.add('d-none'); lookupBanner.innerHTML = ''; }
     $('org-worker-form-title').textContent = w ? 'Edit worker ' + w.worker_name : (unit ? 'Add worker at ' + unit.unit_code : 'Add worker');
     if (_workerFormUnitPicker) { _workerFormUnitPicker.destroy(); _workerFormUnitPicker = null; }
     var sel = $('ow-unit');
     fillWorkerUnitSelect(sel, STATE.units.filter(function (u) { return u.is_active; }), '<option value="">Choose a unit…</option>');
     var unitId = w ? w.org_unit_id : (unit ? unit.org_unit_id : '');
     if (unitId && !sel.querySelector('option[value="' + CSS.escape(unitId) + '"]')) {
-      // An edited worker whose unit is inactive: keep it selectable rather than silently move them.
       sel.insertAdjacentHTML('beforeend', '<option value="' + esc(unitId) + '">' + esc((w ? w.unit_name + ' (' + w.unit_code + ')' : unitId)) + ' — inactive</option>');
     }
     sel.value = unitId;
@@ -1541,7 +2014,7 @@
     }
     $('ow-email-hint').textContent = w
       ? 'Existing account link; editing does not reset its password or grants.'
-      : (CURRENT_USER_IS_ADMIN ? 'Use an existing account email or select No email for a mobile-only account.' : 'Project PIs may link existing active accounts; administrators create new accounts.');
+      : (CURRENT_USER_IS_ADMIN ? 'Type email or phone to auto-detect an existing DigitVA user, or create a new account.' : 'Project PIs may link existing active accounts; administrators create new accounts.');
     updateWorkerOnboardingNote();
     show('ow-alert', false);
     unitCanvas('org-worker-canvas').show();
@@ -1552,19 +2025,60 @@
   $('ow-email').addEventListener('input', function () {
     if (!_editingWorker) return;
     var email = this.value.trim();
-    // Keep the legacy user reference in sync when an editor relinks a worker.
-    // A mobile-only account with no email keeps its UUID until a replacement is entered.
     $('ow-user').value = email || (_editingWorker.user_email ? '' : (_editingWorker.user_id || ''));
   });
   $('org-worker-add-btn').addEventListener('click', function () { openWorkerForm(null, null); });
   function selectedWorkerLanguages() {
     return Array.prototype.map.call($('ow-language-codes').selectedOptions || [], function (option) { return option.value; });
   }
-  function showWorkerOnboarding(onboarding) {
+
+  function appendExpoQrToModalBody(body, worker) {
+    if (!PROJECT_ID || !CURRENT_USER_IS_ADMIN) return;
+    var qrWrap = document.createElement('div');
+    qrWrap.className = 'border rounded p-2 mt-3 bg-light-subtle';
+    qrWrap.innerHTML = '<div class="fw-semibold small mb-1"><i class="fa-solid fa-qrcode me-1 text-primary"></i>DigitVA Expo Mobile App Onboarding QR</div>'
+      + '<div class="text-muted small mb-2">Scan this QR code in the DigitVA mobile app to configure the server &amp; project on the worker\'s phone in one scan.</div>'
+      + '<div id="org-modal-qr-slot" class="text-muted small"><i class="fa-solid fa-spinner fa-spin me-1"></i>Generating QR code…</div>';
+    body.appendChild(qrWrap);
+    api('/admin/api/projects/' + encodeURIComponent(PROJECT_ID) + '/device-enrolments', 'POST', {
+      expires_in_minutes: 1440,
+      max_uses: 5
+    }).then(function (res) {
+      var slot = document.getElementById('org-modal-qr-slot');
+      if (!slot) return;
+      if (!res.ok || !res.data || !res.data.qr_svg) {
+        slot.innerHTML = '<span class="text-danger">' + esc((res.data && res.data.error) || 'Could not generate QR code.') + '</span>';
+        return;
+      }
+      slot.innerHTML = '<div class="d-flex flex-wrap gap-3 align-items-center">'
+        + '<div class="border p-2 bg-white rounded">' + res.data.qr_svg + '</div>'
+        + '<div class="small">'
+        + (worker ? '<div class="fw-semibold mb-1">' + esc(worker.worker_name) + ' (' + esc(worker.unit_code) + ')</div>' : '')
+        + '<div>Enrolment code: <code>' + esc(res.data.code) + '</code></div>'
+        + '<div class="text-muted">Valid for 24 hours (' + esc(res.data.max_uses) + ' uses).</div>'
+        + '</div></div>';
+    }).catch(function () {
+      var slot = document.getElementById('org-modal-qr-slot');
+      if (slot) slot.innerHTML = '<span class="text-danger">Network error generating QR.</span>';
+    });
+  }
+
+  function showExpoQrModalForWorker(worker) {
     var modalEl = $('org-worker-onboarding-modal'), body = $('org-worker-onboarding-body'), copy = $('org-worker-onboarding-copy');
     body.textContent = '';
     copy.classList.add('d-none');
     delete modalEl.dataset.code;
+    $('org-worker-onboarding-title').textContent = worker ? ('Expo App QR — ' + worker.worker_name) : ('Project ' + PROJECT_ID + ' — Expo App Enrolment QR');
+    appendExpoQrToModalBody(body, worker);
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
+
+  function showWorkerOnboarding(onboarding, savedWorker) {
+    var modalEl = $('org-worker-onboarding-modal'), body = $('org-worker-onboarding-body'), copy = $('org-worker-onboarding-copy');
+    body.textContent = '';
+    copy.classList.add('d-none');
+    delete modalEl.dataset.code;
+    $('org-worker-onboarding-title').textContent = 'Worker & Expo App Onboarding';
     onboarding = onboarding || {};
     var summary = document.createElement('p');
     summary.className = 'mb-2';
@@ -1602,6 +2116,18 @@
       body.appendChild(warning);
       copy.classList.remove('d-none');
     }
+    var qrBtn = $('org-worker-onboarding-qr-btn');
+    if (qrBtn) {
+      if (CURRENT_USER_IS_ADMIN) {
+        qrBtn.classList.remove('d-none');
+        qrBtn.onclick = function () {
+          qrBtn.classList.add('d-none');
+          appendExpoQrToModalBody(body, savedWorker);
+        };
+      } else {
+        qrBtn.classList.add('d-none');
+      }
+    }
     bootstrap.Modal.getOrCreateInstance(modalEl).show();
   }
   $('org-worker-onboarding-copy').addEventListener('click', function () {
@@ -1617,33 +2143,350 @@
     delete $('org-worker-onboarding-modal').dataset.code;
     $('org-worker-onboarding-copy').classList.add('d-none');
     $('org-worker-onboarding-copy').textContent = 'Copy code';
+    var qrBtn = $('org-worker-onboarding-qr-btn');
+    if (qrBtn) qrBtn.classList.add('d-none');
   });
   $('ow-save-btn').addEventListener('click', function () {
     var id = val('ow-id');
     var noEmail = !id && $('ow-no-email').checked;
     var email = noEmail ? '' : val('ow-email');
     var phone = $('ow-phone').value;
+    var existingMatched = !!_matchedExistingUser;
+    var emailConfirm = existingMatched ? email : (noEmail ? '' : val('ow-email-confirm'));
+    var phoneConfirm = existingMatched ? phone : $('ow-phone-confirm').value;
     if (!id) {
       var u = unitById(val('ow-unit'));
       var lc = u && STATE.level_cadres.find(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === val('ow-cadre'); });
       var needsAccount = lc && (lc.default_roles || []).length;
       var error = '';
       if (phone && !/^[0-9]{10}$/.test(phone)) error = 'Mobile number must contain exactly 10 digits.';
-      else if (needsAccount && noEmail && (!phone || phone !== $('ow-phone-confirm').value)) error = 'Enter and confirm the same 10-digit mobile number.';
-      else if (needsAccount && !noEmail && (!email || !$('ow-email').checkValidity() || email.toLowerCase() !== val('ow-email-confirm').toLowerCase())) error = 'Enter and confirm the same email address, or select No email.';
-      else if (!$('ow-year').checkValidity()) error = 'Year of birth must be between 1900 and this year.';
+      else if (needsAccount && !existingMatched && noEmail && (!phone || phone !== phoneConfirm)) error = 'Enter and confirm the same 10-digit mobile number.';
+      else if (needsAccount && !existingMatched && !noEmail && (!email || !$('ow-email').checkValidity() || email.toLowerCase() !== emailConfirm.toLowerCase())) error = 'Enter and confirm the same email address, or select No email.';
+      else if (!existingMatched && !$('ow-year').checkValidity()) error = 'Year of birth must be between 1900 and this year.';
       if (error) { canvasFail('ow-alert', { data: { error: error } }); return; }
     }
-    var body = { org_unit_id: val('ow-unit'), cadre_id: val('ow-cadre'), worker_name: val('ow-name'), phone: phone, user: val('ow-user'), email: email, no_email: noEmail, email_confirm: noEmail ? '' : val('ow-email-confirm'), phone_confirm: $('ow-phone-confirm').value, year_of_birth: val('ow-year'), sex: val('ow-sex'), language_codes: selectedWorkerLanguages().join(';'), remarks: val('ow-remarks') };
+    var body = {
+      org_unit_id: val('ow-unit'),
+      cadre_id: val('ow-cadre'),
+      worker_name: val('ow-name'),
+      phone: phone,
+      user: val('ow-user'),
+      email: email,
+      no_email: noEmail,
+      email_confirm: emailConfirm,
+      phone_confirm: phoneConfirm,
+      year_of_birth: val('ow-year'),
+      sex: val('ow-sex'),
+      language_codes: selectedWorkerLanguages().join(';'),
+      remarks: val('ow-remarks')
+    };
+    if (!$('ow-coding-scope-wrap').classList.contains('d-none')) {
+      body.coding_unit_ids = Array.prototype.map.call(document.querySelectorAll('#ow-coding-units-box .ow-coding-unit-cb:checked'), function (cb) { return cb.value; });
+    }
+    if (!$('ow-supervision-scope-wrap').classList.contains('d-none')) {
+      body.supervision_unit_ids = Array.prototype.map.call(document.querySelectorAll('#ow-supervision-units-box .ow-supervision-unit-cb:checked'), function (cb) { return cb.value; });
+    }
     var save = $('ow-save-btn');
     save.disabled = true;
     api(base() + '/workers' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', body).then(function (res) {
-      if (!res.ok) { save.disabled = false; canvasFail('ow-alert', res); return; }
+      save.disabled = false;
+      if (!res.ok) { canvasFail('ow-alert', res); return; }
       unitCanvas('org-worker-canvas').hide();
-      showWorkerOnboarding(res.data && res.data.onboarding);
+      if (!id || (res.data && res.data.onboarding)) {
+        showWorkerOnboarding((res.data && res.data.onboarding) || { created_users: 0, changed_grants: 0 }, res.data && res.data.worker);
+      }
       loadAll().catch(function () { alertBox('warning', 'Worker saved; refresh the page to update the roster.'); });
     }).catch(function () { save.disabled = false; canvasFail('ow-alert', { data: { error: 'Network error.' } }); });
   });
+
+  // ── 5. HIV & Malaria Mortality (VA Presets) Tab ───────────────────────────
+  var _presetsRows = [];
+  function renderPresetsTab() {
+    if (!PROJECT_ID) return;
+    var levelSel = $('org-presets-filter-level');
+    if (levelSel) {
+      var keep = levelSel.value;
+      levelSel.innerHTML = '<option value="">All levels</option>' + activeLevels().map(function (l) {
+        return '<option value="' + esc(l.org_level_id) + '">' + esc(l.depth + ' · ' + l.level_name) + '</option>';
+      }).join('');
+      levelSel.value = keep;
+    }
+    api(base() + '/va-presets').then(function (res) {
+      if (!res.ok || !res.data) return;
+      _presetsRows = res.data.units || [];
+      drawPresetsTable();
+    }).catch(function () {});
+  }
+  function presetBadge(eff, own, fromCode) {
+    var labels = { high: 'High', low: 'Low', veryl: 'Very low' };
+    var colors = { high: 'danger', low: 'warning', veryl: 'success' };
+    if (!eff) return '<span class="badge text-bg-light border text-muted">Ask interviewer</span>';
+    var badge = '<span class="badge text-bg-' + (colors[eff] || 'secondary') + '">' + esc(labels[eff] || eff) + '</span>';
+    if (own) return badge + ' <span class="text-muted small">(explicit)</span>';
+    return badge + ' <span class="text-muted small">(inherited from <code>' + esc(fromCode || '') + '</code>)</span>';
+  }
+  function drawPresetsTable() {
+    var wrap = $('org-presets-table-wrap');
+    if (!wrap) return;
+    if (!_presetsRows.length) {
+      wrap.innerHTML = '<p class="text-muted small">Add active units in tab 2 first to configure HIV and Malaria mortality levels.</p>';
+      return;
+    }
+    var filterLevel = $('org-presets-filter-level') ? $('org-presets-filter-level').value : '';
+    var q = ($('org-presets-search') ? $('org-presets-search').value : '').trim().toLowerCase();
+    var visible = _presetsRows.filter(function (r) {
+      if (filterLevel && r.org_level_id !== filterLevel) return false;
+      if (q && (r.unit_code + ' ' + r.unit_name).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    var minDepth = Math.min.apply(null, _presetsRows.map(function (r) { return r.depth || 1; }));
+    var trs = visible.map(function (r) {
+      var indent = Math.max(0, (r.depth || 1) - minDepth) * 1.25;
+      var hivOpts = [['', 'Inherited / Not set'], ['high', 'High'], ['low', 'Low'], ['veryl', 'Very low']].map(function (o) {
+        return '<option value="' + o[0] + '"' + ((r.hiv_aids || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('');
+      var malOpts = [['', 'Inherited / Not set'], ['high', 'High'], ['low', 'Low'], ['veryl', 'Very low']].map(function (o) {
+        return '<option value="' + o[0] + '"' + ((r.malaria || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('');
+      return '<tr data-preset-unit-id="' + esc(r.org_unit_id) + '" data-preset-depth="' + esc(r.depth) + '">'
+        + '<td style="padding-left:' + (0.5 + indent) + 'rem;">'
+        + '<span class="badge text-bg-light border text-secondary me-1">' + esc(r.level_code) + '</span>'
+        + '<span class="fw-medium">' + esc(r.unit_name) + '</span> <code class="small">' + esc(r.unit_code) + '</code>'
+        + '</td>'
+        + '<td style="width:220px;"><select class="form-select form-select-sm org-preset-hiv-sel" data-unit-id="' + esc(r.org_unit_id) + '">' + hivOpts + '</select></td>'
+        + '<td>' + presetBadge(r.effective_hiv_aids, r.hiv_aids, r.inherited_hiv_aids_from) + '</td>'
+        + '<td style="width:220px;"><select class="form-select form-select-sm org-preset-malaria-sel" data-unit-id="' + esc(r.org_unit_id) + '">' + malOpts + '</select></td>'
+        + '<td>' + presetBadge(r.effective_malaria, r.malaria, r.inherited_malaria_from) + '</td>'
+        + '</tr>';
+    }).join('');
+    wrap.innerHTML = '<table class="table table-sm table-bordered align-middle small mb-0">'
+      + '<thead class="table-light"><tr><th>Unit Hierarchy</th><th>HIV/AIDS Mortality (<code>Id10002</code>)</th><th>Effective HIV Setting</th><th>Malaria Mortality (<code>Id10003</code>)</th><th>Effective Malaria Setting</th></tr></thead>'
+      + '<tbody>' + trs + '</tbody></table>';
+  }
+  if ($('org-presets-filter-level')) $('org-presets-filter-level').addEventListener('change', drawPresetsTable);
+  if ($('org-presets-search')) $('org-presets-search').addEventListener('input', drawPresetsTable);
+  if ($('org-presets-apply-top-btn')) {
+    $('org-presets-apply-top-btn').addEventListener('click', function () {
+      if (!_presetsRows.length) return;
+      var minDepth = Math.min.apply(null, _presetsRows.map(function (r) { return r.depth || 1; }));
+      var hivVal = $('org-presets-bulk-hiv').value;
+      var malVal = $('org-presets-bulk-malaria').value;
+      var items = [];
+      _presetsRows.forEach(function (r) {
+        if ((r.depth || 1) === minDepth) {
+          items.push({
+            org_unit_id: r.org_unit_id,
+            hiv_aids: hivVal === '__keep__' ? r.hiv_aids : (hivVal || null),
+            malaria: malVal === '__keep__' ? r.malaria : (malVal || null)
+          });
+        }
+      });
+      if (!items.length) return;
+      api(base() + '/va-presets', 'PUT', { items: items }).then(function (res) {
+        var msg = $('org-presets-msg');
+        if (!res.ok) {
+          if (msg) { msg.className = 'small mb-2 text-danger'; msg.textContent = (res.data && res.data.error) || 'Failed to save.'; }
+          return;
+        }
+        _presetsRows = (res.data && res.data.units) || [];
+        drawPresetsTable();
+        if (msg) { msg.className = 'small mb-2 text-success'; msg.textContent = 'Top-level (District) HIV & Malaria mortality settings saved and inherited across child units.'; }
+      });
+    });
+  }
+  if ($('org-presets-save-all-btn')) {
+    $('org-presets-save-all-btn').addEventListener('click', function () {
+      var wrap = $('org-presets-table-wrap');
+      if (!wrap) return;
+      var items = [];
+      wrap.querySelectorAll('tr[data-preset-unit-id]').forEach(function (tr) {
+        var uid = tr.getAttribute('data-preset-unit-id');
+        var hivSel = tr.querySelector('.org-preset-hiv-sel');
+        var malSel = tr.querySelector('.org-preset-malaria-sel');
+        items.push({
+          org_unit_id: uid,
+          hiv_aids: hivSel && hivSel.value ? hivSel.value : null,
+          malaria: malSel && malSel.value ? malSel.value : null
+        });
+      });
+      api(base() + '/va-presets', 'PUT', { items: items }).then(function (res) {
+        var msg = $('org-presets-msg');
+        if (!res.ok) {
+          if (msg) { msg.className = 'small mb-2 text-danger'; msg.textContent = (res.data && res.data.error) || 'Failed to save.'; }
+          return;
+        }
+        _presetsRows = (res.data && res.data.units) || [];
+        drawPresetsTable();
+        if (msg) { msg.className = 'small mb-2 text-success'; msg.textContent = 'Mortality settings saved (' + (res.data.updated || 0) + ' unit(s) updated).'; }
+      });
+    });
+  }
+
+  // ── 6. Mentoring Institutes & Scientists Tab ──────────────────────────────
+  function renderMentoringTab() {
+    if (!PROJECT_ID) return;
+    var instWrap = $('org-mentoring-institutes-wrap');
+    var sciWrap = $('org-mentoring-scientists-wrap');
+    if (!instWrap || !sciWrap) return;
+    api(base() + '/mentoring').then(function (res) {
+      if (!res.ok || !res.data) {
+        instWrap.innerHTML = '<div class="alert alert-danger small py-2">' + esc((res.data && res.data.error) || 'Could not load mentoring institutes.') + '</div>';
+        return;
+      }
+      drawMentoringInstitutes(res.data);
+      drawMentoringScientists(res.data);
+    }).catch(function () {});
+  }
+
+  function drawMentoringInstitutes(data) {
+    var instWrap = $('org-mentoring-institutes-wrap');
+    var institutes = data.institutes || [];
+    var topUnits = (data.units || []).filter(function (u) { return !u.parent_org_unit_id; });
+    if (!topUnits.length) topUnits = (data.units || []).slice(0, 20);
+    if (!institutes.length) {
+      instWrap.innerHTML = '<div class="alert alert-secondary small py-2 mb-0">No active mentoring institutes exist yet. '
+        + (CURRENT_USER_IS_ADMIN ? '<a href="/admin/?panel=%2Fadmin%2Fpanels%2Fmentor-institutes">Create mentoring institutes and attach scientists</a>.' : 'Ask an administrator to register mentoring institutes.')
+        + '</div>';
+      return;
+    }
+    var rows = institutes.map(function (inst) {
+      var linkedSet = {};
+      (inst.project_district_unit_ids || []).forEach(function (id) { linkedSet[id] = true; });
+      var unitChecks = topUnits.map(function (u) {
+        return '<label class="form-check form-check-inline small mb-0 me-3">'
+          + '<input type="checkbox" class="form-check-input org-mentor-dist-cb" data-inst-id="' + esc(inst.mentor_institute_id) + '" value="' + esc(u.org_unit_id) + '" ' + (linkedSet[u.org_unit_id] ? 'checked' : '') + '>'
+          + esc(u.unit_name) + ' <code>' + esc(u.unit_code) + '</code></label>';
+      }).join('');
+      var saveBtn = CURRENT_USER_IS_ADMIN
+        ? '<button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 org-mentor-dist-save" data-inst-id="' + esc(inst.mentor_institute_id) + '">Save District Links</button>'
+        : '';
+      return '<tr>'
+        + '<td><div class="fw-semibold">' + esc(inst.institute_name) + ' <code>' + esc(inst.institute_code) + '</code></div>'
+        + '<div class="text-muted small">' + (inst.scientists || []).length + ' scientist(s)</div></td>'
+        + '<td>' + (unitChecks || '<span class="text-muted small">Add top-level District units in Tab 2 first.</span>') + '</td>'
+        + '<td class="text-end text-nowrap">' + saveBtn + '</td>'
+        + '</tr>';
+    }).join('');
+    instWrap.innerHTML = '<div class="card"><div class="card-body p-3">'
+      + '<h6 class="card-title mb-1">1. Mentoring Institutes Attached to Project Districts</h6>'
+      + '<p class="text-muted small mb-2">Tick which District / top-level units each Mentoring Institute supports in this project.</p>'
+      + '<div class="table-responsive"><table class="table table-sm align-middle small mb-0">'
+      + '<thead class="table-light"><tr><th>Mentoring Institute</th><th>Supported District / Top-Level Units in ' + esc(PROJECT_ID) + '</th><th></th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div></div></div>';
+
+    instWrap.querySelectorAll('.org-mentor-dist-save').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var instId = btn.dataset.instId;
+        var checked = Array.prototype.map.call(instWrap.querySelectorAll('.org-mentor-dist-cb[data-inst-id="' + instId + '"]:checked'), function (cb) { return cb.value; });
+        api(base() + '/mentoring/districts', 'POST', { mentor_institute_id: instId, district_unit_ids: checked }).then(function (res) {
+          var msg = $('org-mentoring-msg');
+          if (!res.ok) {
+            if (msg) { msg.className = 'small mb-2 text-danger'; msg.textContent = (res.data && res.data.error) || 'Failed to update district links.'; }
+            return;
+          }
+          if (msg) { msg.className = 'small mb-2 text-success'; msg.textContent = 'Mentoring institute district links saved.'; }
+          renderMentoringTab();
+        });
+      });
+    });
+  }
+
+  function drawMentoringScientists(data) {
+    var sciWrap = $('org-mentoring-scientists-wrap');
+    var institutes = data.institutes || [];
+    var units = data.units || [];
+    var roles = data.mentor_roles || ['coder', 'reviewer', 'coding_tester', 'collaborator_pii'];
+    var allScientists = [];
+    institutes.forEach(function (inst) {
+      (inst.scientists || []).forEach(function (s) {
+        allScientists.push({ inst: inst, sci: s });
+      });
+    });
+    if (!allScientists.length) {
+      sciWrap.innerHTML = '<div class="card"><div class="card-body p-3 small text-muted">No scientists are attached to the mentoring institutes yet.</div></div>';
+      return;
+    }
+    var rows = allScientists.map(function (item, idx) {
+      var inst = item.inst, s = item.sci;
+      var roleOpts = roles.map(function (r) {
+        return '<option value="' + esc(r) + '">' + esc(WORKER_ROLE_LABELS[r] || r) + '</option>';
+      }).join('');
+      var currentBadges = [];
+      Object.keys(s.grants_by_role || {}).forEach(function (r) {
+        var uids = s.grants_by_role[r] || [];
+        if (uids.length) {
+          var ucodes = uids.map(function (id) { var u = findBy(units, 'org_unit_id', id); return u ? u.unit_code : id; });
+          currentBadges.push('<span class="badge text-bg-primary-subtle border border-primary-subtle text-primary-emphasis me-1">'
+            + esc(WORKER_ROLE_LABELS[r] || r) + ': ' + esc(ucodes.join(', ')) + '</span>');
+        }
+      });
+      var defaultRole = roles[0] || 'coder';
+      var grantedForDefault = (s.grants_by_role && s.grants_by_role[defaultRole]) || [];
+      var grantedSet = {};
+      grantedForDefault.forEach(function (id) { grantedSet[id] = true; });
+      var unitCbs = units.map(function (u) {
+        return '<label class="form-check form-check-inline small mb-1 me-2">'
+          + '<input type="checkbox" class="form-check-input org-sci-unit-cb" data-row="' + idx + '" value="' + esc(u.org_unit_id) + '" ' + (grantedSet[u.org_unit_id] ? 'checked' : '') + '>'
+          + '<span class="text-muted">' + esc(u.level_code) + ':</span> ' + esc(u.unit_name) + ' <code>' + esc(u.unit_code) + '</code></label>';
+      }).join('');
+      return '<tr data-sci-row="' + idx + '" data-user-id="' + esc(s.user_id) + '">'
+        + '<td><div class="fw-semibold">' + esc(s.name) + '</div>'
+        + '<div class="text-muted small">' + esc(s.email || s.mobile || '') + '</div>'
+        + '<span class="badge text-bg-light border mt-1">' + esc(inst.institute_code) + '</span>'
+        + (currentBadges.length ? '<div class="mt-1">' + currentBadges.join('') + '</div>' : '')
+        + '</td>'
+        + '<td style="width:180px;"><select class="form-select form-select-sm org-sci-role-sel" data-row="' + idx + '">' + roleOpts + '</select></td>'
+        + '<td><div class="border rounded p-2 bg-light-subtle" style="max-height:110px; overflow-y:auto;">' + (unitCbs || '<span class="text-muted">No units</span>') + '</div></td>'
+        + '<td class="text-end text-nowrap"><button type="button" class="btn btn-sm btn-success org-sci-save-btn" data-row="' + idx + '"><i class="fa-solid fa-check me-1"></i>Save Grants</button></td>'
+        + '</tr>';
+    }).join('');
+
+    sciWrap.innerHTML = '<div class="card"><div class="card-body p-3">'
+      + '<h6 class="card-title mb-1">2. Assign Mentoring Scientists to Project Units &amp; Roles</h6>'
+      + '<p class="text-muted small mb-2">Pick a role (Coder, Reviewer, Coding Tester, or Viewer with PII) for a scientist and tick the unit(s) they cover in this project.</p>'
+      + '<div class="table-responsive"><table class="table table-sm align-middle small mb-0">'
+      + '<thead class="table-light"><tr><th>Scientist &amp; Active Grants</th><th>Role to Configure</th><th>Units in ' + esc(PROJECT_ID) + '</th><th></th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div></div></div>';
+
+    // When role dropdown changes, update unit checkboxes to reflect that role's current grants
+    sciWrap.querySelectorAll('.org-sci-role-sel').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var idx = parseInt(sel.dataset.row, 10);
+        var item = allScientists[idx];
+        if (!item) return;
+        var role = sel.value;
+        var uids = (item.sci.grants_by_role && item.sci.grants_by_role[role]) || [];
+        var set = {}; uids.forEach(function (id) { set[id] = true; });
+        sciWrap.querySelectorAll('.org-sci-unit-cb[data-row="' + idx + '"]').forEach(function (cb) {
+          cb.checked = !!set[cb.value];
+        });
+      });
+    });
+
+    sciWrap.querySelectorAll('.org-sci-save-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var idx = parseInt(btn.dataset.row, 10);
+        var item = allScientists[idx];
+        if (!item) return;
+        var roleSel = sciWrap.querySelector('.org-sci-role-sel[data-row="' + idx + '"]');
+        var role = roleSel ? roleSel.value : 'coder';
+        var uids = Array.prototype.map.call(sciWrap.querySelectorAll('.org-sci-unit-cb[data-row="' + idx + '"]:checked'), function (cb) { return cb.value; });
+        api(base() + '/mentoring/grants', 'POST', {
+          user_id: item.sci.user_id,
+          role_name: role,
+          org_unit_ids: uids
+        }).then(function (res) {
+          var msg = $('org-mentoring-msg');
+          if (!res.ok) {
+            if (msg) { msg.className = 'small mb-2 text-danger'; msg.textContent = (res.data && res.data.error) || 'Failed to save scientist grants.'; }
+            return;
+          }
+          if (msg) { msg.className = 'small mb-2 text-success'; msg.textContent = 'Saved ' + (WORKER_ROLE_LABELS[role] || role) + ' unit grants for ' + item.sci.name + '.'; }
+          renderMentoringTab();
+        });
+      });
+    });
+  }
 
   // ── export / import ───────────────────────────────────────────────────────
   // ── ODK form fields ───────────────────────────────────────────────────────

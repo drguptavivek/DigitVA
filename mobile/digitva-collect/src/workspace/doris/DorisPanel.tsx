@@ -116,7 +116,34 @@ function hasAdministrativeData(certificate: JsonObject): boolean {
   return Object.keys(object(certificate.AdministrativeData)).length > 0;
 }
 
+/**
+ * Unsaved editor drafts, in memory only, per signed-in requester and per `draftKey`. They survive the panel
+ * unmounting on a section switch, a hidden tab (the workspace suspends) and the ICD browser tab, and are
+ * dropped on a successful save or a lost allocation. Never written to browser storage: the certificate
+ * holds health data and free text (viewState.ts keeps drafts out of sessionStorage on purpose).
+ */
+// ponytail: a page reload still loses the draft; persist server-side if that matters.
+type Draft = Omit<CertificateState, "owner" | "busy" | "error" | "cleared">;
+const drafts = new WeakMap<JsonRequester, Map<string, Draft>>();
+
+function draftKey(owner: CertificateState["owner"]): string {
+  return `${owner.vaSid}:${owner.mode}:${owner.step}:${owner.projectMode}`;
+}
+
+function draftsFor(request: JsonRequester): Map<string, Draft> {
+  let map = drafts.get(request);
+  if (!map) drafts.set(request, map = new Map());
+  return map;
+}
+
+function forgetDraft(owner: CertificateState["owner"]): void {
+  drafts.get(owner.request)?.delete(draftKey(owner));
+}
+
+/** The saved draft for this owner, else the server seed. */
 function initialState(owner: CertificateState["owner"], workspace: WorkspacePayload): CertificateState {
+  const draft = drafts.get(owner.request)?.get(draftKey(owner));
+  if (draft) return { ...draft, owner, busy: false, error: "", cleared: false, notice: draft.notice || "Unsaved draft restored." };
   const maskedStepTwo = workspace.case.project_mode === "masked_doris" && workspace.step === "final";
   const seeded = maskedStepTwo ? { certificate: {}, derivedAge: null } : initialCertificate(workspace);
   const certificate = seeded.certificate;
@@ -164,7 +191,7 @@ function makeSaveError(error: unknown): string {
   return [...messages, ...blocked].join(" ") || errorText(error);
 }
 
-/** DORIS editor and process proof stay in component memory and are allocation-scoped. */
+/** DORIS editor and process proof stay in memory (the draft map above) and are allocation-scoped. */
 export function DorisPanel({
   workspace,
   identity,
@@ -248,6 +275,18 @@ export function DorisPanel({
   };
 
   useEffect(() => {
+    // A busy state only flags an in-flight request; persisting it could re-save a draft a successful save just forgot.
+    if (stored.cleared || stored.busy || !sameOwner(stored.owner, ownerRef.current)) return;
+    // Back to the server seed (a masked Step 2 choice cleared): nothing unsaved to keep.
+    if (stored.revision === 0 && !stored.selectedCause) {
+      forgetDraft(stored.owner);
+      return;
+    }
+    const { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge } = stored;
+    draftsFor(stored.owner.request).set(draftKey(stored.owner), { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge });
+  }, [stored]);
+
+  useEffect(() => {
     generation.current += 1;
     live.current = true;
     setStored(initialState(owner, workspace));
@@ -295,6 +334,7 @@ export function DorisPanel({
   const currentRequest = (requestId: number, sentRevision: number) => live.current && sameOwner(ownerRef.current, owner) && generation.current === requestId && stateRef.current.revision === sentRevision;
 
   const clearAllocation = () => {
+    forgetDraft(owner);
     generation.current += 1;
     live.current = false;
     setStored((current) => sameOwner(current.owner, owner) ? { ...current, certificate: {}, processing: null, selectedCause: null, busy: false, cleared: true } : current);
@@ -359,12 +399,14 @@ export function DorisPanel({
           antecedent_cod: state.selectedCause.code,
           ...dorisFields,
         }, identity.mode === "reviewing" ? "reviewing" : "coding");
+        forgetDraft(owner);
         if (!currentRequest(requestId, sentRevision)) return;
         await onSaved();
       } else {
         const body: JsonObject = { conclusive_cod: state.selectedCause.code };
         Object.assign(body, dorisFields);
         await api.saveFinal(identity.vaSid, body, identity.mode === "reviewing" ? "reviewing" : "coding");
+        forgetDraft(owner);
         if (!currentRequest(requestId, sentRevision)) return;
         onDone();
       }
@@ -397,6 +439,7 @@ export function DorisPanel({
     update((current) => ({ ...current, busy: true, error: "" }));
     try {
       await api.saveNotCodeable(identity.vaSid, { reason: notCodeableReason, other: notCodeableReason === "others" ? notCodeableOther.trim() : "" });
+      forgetDraft(owner);
       if (!currentRequest(requestId, sentRevision)) return;
       onDone();
     } catch (reportError) {
@@ -514,6 +557,7 @@ export function DorisPanel({
     update((current) => ({ ...current, busy: true, error: "" }));
     try {
       await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code }, identity.mode === "reviewing" ? "reviewing" : "coding");
+      forgetDraft(owner);
       if (!currentRequest(requestId, sentRevision)) return;
       onDone();
     } catch (saveError) {

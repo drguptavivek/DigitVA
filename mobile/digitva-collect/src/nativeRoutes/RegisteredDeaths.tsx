@@ -9,6 +9,7 @@ import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import type { CaseRow } from "../api";
 import { Button, Screen, useUiStyles } from "../ui";
+import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { isUnlocked } from "../interviewerDb";
 
 export default function RegisteredDeaths({
@@ -135,6 +136,7 @@ export default function RegisteredDeaths({
 
   return (
     <Screen title={t("reportedDeaths")}>
+      <ContextualHelpBanner screen="myRegisteredDeaths" />
       <Text style={styles.muted}>{account?.name}</Text>
       {account.collection_access ? (
         <Button kind="secondary" label={t("worklistTitle")} onPress={() => router.replace({ pathname: "/worklist", params: { userId } })} />

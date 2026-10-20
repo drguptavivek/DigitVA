@@ -40,14 +40,20 @@ const mockRouter = {back: jest.fn(), replace: jest.fn()};
 const mockServerFlush = jest.fn(async () => undefined);
 const mockHasServed = jest.fn(() => false);
 const mockMarkServed = jest.fn(async () => undefined);
-jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams}));
+let mockBeforeRemove: ((event: {preventDefault: () => void; data: {action: unknown}}) => void) | undefined;
+const mockNavigation = {
+  addListener: jest.fn((_event: string, listener: typeof mockBeforeRemove) => { mockBeforeRemove = listener; return () => { mockBeforeRemove = undefined; }; }),
+  dispatch: jest.fn(),
+};
+jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, useIsFocused: () => true, useNavigation: () => mockNavigation}));
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
-jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, useTheme: () => ({colors: {}})}));
+jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, useTheme: () => ({colors: {}})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
   useUiStyles: () => ({}),
 }));
-jest.mock("../src/web/common", () => ({WebShell: ({children}: {children: ReactNode}) => <>{children}</>, browserErrorText: (error: Error) => error.message}));
+let mockShellProps: {lead?: React.ReactElement<{sticky?: boolean}>} = {};
+jest.mock("../src/web/common", () => ({WebShell: (props: {children: ReactNode; lead?: React.ReactElement<{sticky?: boolean}>}) => { mockShellProps = props; return <>{props.children}</>; }, browserErrorText: (error: Error) => error.message}));
 jest.mock("../src/client/api", () => ({
   ...jest.requireActual("../src/client/api"),
   getIntakeContext: jest.fn(async () => ({})),
@@ -73,15 +79,18 @@ jest.mock("../src/client/serverDraftStore", () => ({
 jest.mock("@drguptavivek/who-2022-va", () => ({
   createWhoVa2022Instrument: () => ({id: "WHO_2022_VA", version: "1", sections: [], questions: []}),
   compileInstrumentDefinition: jest.fn(), ENGINE_VERSION: 1, WHO_VA_FORM_VERSION: "2022",
+  WHO_VA_BUILT_IN_UI_TRANSLATIONS: {hi: {back: "पीछे", moreSectionsNote: "उत्तर देने पर और अनुभाग दिखेंगे"}},
 }), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});
 
-import InterviewScreen from "../src/web/InterviewScreen";
+import InterviewScreen, { INTERVIEW_FORM_CSS } from "../src/web/InterviewScreen";
 import { ClientApiError, getCaseDetail, getDraft, getIntakeContext, getProjectFormOptions, getInstrumentTranslations, startDraft, submitDraft } from "../src/client/api";
 import { getRevisionDetail, postRevision } from "../src/client/revisions";
 import { ServerDraftStore } from "../src/client/serverDraftStore";
 import { WhoVaForm } from "@drguptavivek/who-2022-va/web";
 import { t, setUiLocale } from "../src/i18n";
+import { guardedNavigate, leaveDialogOpen, leavePage, leaveSaveFailed, saveAndLeave, stayOnPage } from "../src/web/navigationGuard";
+import { AppHeaderBar } from "../src/web/AppHeader";
 
 jest.mock("../src/prefill", () => ({initialDataFromPrefill: () => ({})}));
 
@@ -128,6 +137,35 @@ it("starts a later-page case using its authorized detail by id", async () => {
   expect(getCaseDetail).toHaveBeenCalledWith("/api/v1/intake/cases", "later-page", mockBootstrap.csrf);
   expect(startDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", {project_id: "P2", site_id: "S2", org_unit_id: "U2", death_id: "later-page"}, mockBootstrap.csrf);
   expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+  await act(async () => tree.unmount());
+});
+
+it("shows the reported death's case strip when the draft is linked to a death, not for a direct interview", async () => {
+  const caseDraft = {draft: {project_id: "P", death_id: "death-1"}, envelope: {id: "draft-1", schemaVersion: 1, formVersion: "2022", instrumentId: "WHO_2022_VA", instrumentVersion: "server-v1", definitionSha256: mockDefinitionSha256, definitionExtensions: [], currentSection: "s1", createdAt: "2026-10-04T10:00:00+05:30", updatedAt: "2026-10-04T11:00:00+05:30", locale: "en", data: {}}, prefill: {deceased: {givenNames: "Asha", surname: "Devi", sex: "female", dateOfDeath: "2026-09-22", ageInYears: 51}}};
+  (getDraft as jest.Mock).mockResolvedValue(caseDraft);
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  expect(JSON.stringify(tree.toJSON())).toContain("Asha Devi · 51\u00A0y · Female · Died\u00A02026-09-22");
+  await act(async () => tree.unmount());
+
+  (getDraft as jest.Mock).mockResolvedValue({...caseDraft, draft: {project_id: "P", death_id: null}});
+  await act(async () => {tree = create(<InterviewScreen />);});
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+  expect(JSON.stringify(tree.toJSON())).not.toContain("Asha Devi");
+  await act(async () => tree.unmount());
+});
+
+it("blanks the more-sections note in every UI locale and keeps the built-in packs", async () => {
+  const {resolveUiMessages} = jest.requireActual("../../../vendor/who-va-2022/dist/index.js");
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  const uiTranslations = tree.root.findByType(WhoVaForm).props.uiTranslations;
+  // The subject is there: the package's English note is non-empty by default.
+  expect(resolveUiMessages("en").moreSectionsNote).toBe("More sections appear as you answer");
+  for (const locale of ["en", "hi", "hi-IN", "fr", "bn"]) {
+    expect(resolveUiMessages(locale, uiTranslations).moreSectionsNote).toBe("");
+  }
+  expect(resolveUiMessages("hi", uiTranslations).back).toBe("पीछे");
   await act(async () => tree.unmount());
 });
 
@@ -559,4 +597,154 @@ it("does not create a draft when a served definition resolves after unmount", as
 
   expect(startDraft).not.toHaveBeenCalled();
   expect(mockMarkServed).not.toHaveBeenCalled();
+});
+
+describe("leave guard of an open interview", () => {
+  const backButton = (tree: ReturnType<typeof create>) =>
+    tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t("backToCollection"))[0];
+  async function openEdited(edit = true) {
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const form = tree.root.findByType(WhoVaForm);
+    const saveDraft = jest.fn(async () => { form.props.onDraftSaved(); });
+    await act(async () => { form.props.onDraftController({draftId: "draft-1", saveDraft}); });
+    if (edit) await act(async () => { form.props.onChange(); });
+    return {tree, form, saveDraft};
+  }
+  afterEach(() => stayOnPage());
+
+  it("keeps Back to collection above the form with no second Save: answers autosave", async () => {
+    const {tree} = await openEdited(false);
+    expect(backButton(tree)).toBeDefined();
+    const labels = tree.root.findAll((node) => String(node.type) === "mock-button").map((node) => node.props.label);
+    expect(labels).toContain(t("backToCollection"));
+    expect(labels).not.toContain(t("save"));
+    await act(async () => tree.unmount());
+  });
+
+  it("does not ask on a pristine draft: Back to collection goes straight back", async () => {
+    const {tree} = await openEdited(false);
+    await act(async () => { backButton(tree).props.onPress(); });
+    expect(leaveDialogOpen()).toBe(false);
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("asks before leaving an edited draft; Stay keeps the user, Leave without saving goes back", async () => {
+    const {tree, saveDraft} = await openEdited();
+    await act(async () => { backButton(tree).props.onPress(); });
+    expect(leaveDialogOpen()).toBe(true);
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    await act(async () => { stayOnPage(); });
+    expect(leaveDialogOpen()).toBe(false);
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    await act(async () => { backButton(tree).props.onPress(); });
+    await act(async () => { leavePage(); });
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    expect(saveDraft).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("Save and leave saves the form and the server write, then leaves", async () => {
+    const {tree, saveDraft} = await openEdited();
+    const leave = jest.fn();
+    guardedNavigate(leave);
+    expect(leave).not.toHaveBeenCalled();
+    await act(async () => { expect(await saveAndLeave()).toBe(true); });
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(mockServerFlush).toHaveBeenCalled();
+    expect(leave).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("a failed save keeps the user on the interview and shows the error", async () => {
+    const {tree} = await openEdited();
+    mockServerFlush.mockRejectedValueOnce(new Error("save failed"));
+    const leave = jest.fn();
+    guardedNavigate(leave);
+    await act(async () => { expect(await saveAndLeave()).toBe(false); });
+    expect(leave).not.toHaveBeenCalled();
+    expect(leaveDialogOpen()).toBe(false);
+    expect(JSON.stringify(tree.toJSON())).toContain("save failed");
+    await act(async () => tree.unmount());
+  });
+
+  it("holds router back and the tab close while edited, and unregisters on unmount", async () => {
+    const {tree} = await openEdited();
+    const preventDefault = jest.fn();
+    mockBeforeRemove!({preventDefault, data: {action: {type: "GO_BACK"}}});
+    expect(preventDefault).toHaveBeenCalled();
+    expect(leaveDialogOpen()).toBe(true);
+    await act(async () => { leavePage(); });
+    expect(mockNavigation.dispatch).toHaveBeenCalledWith({type: "GO_BACK"});
+    const unload = (window.addEventListener as jest.Mock).mock.calls.filter(([name]) => name === "beforeunload").map(([, handler]) => handler);
+    expect(unload.length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+    const leave = jest.fn();
+    guardedNavigate(leave);
+    expect(leave).toHaveBeenCalledTimes(1);
+    expect(leaveDialogOpen()).toBe(false);
+  });
+
+  it("asks on tab close or reload while edited, not once saved", async () => {
+    const {tree, form} = await openEdited();
+    const handlers = (window.addEventListener as jest.Mock).mock.calls.filter(([name]) => name === "beforeunload").map(([, handler]) => handler);
+    const unloadEvent = () => ({preventDefault: jest.fn(), returnValue: undefined as unknown});
+    const edited = unloadEvent();
+    handlers.forEach((handler) => handler(edited));
+    expect(edited.preventDefault).toHaveBeenCalled();
+    await act(async () => { form.props.onDraftSaved(); });
+    const saved = unloadEvent();
+    handlers.forEach((handler) => handler(saved));
+    expect(saved.preventDefault).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("a save of older answers settling late keeps newer answers pending; the save of the latest ones clears it", async () => {
+    const {tree, form} = await openEdited(false);
+    const older = {Id10007: "a"};
+    const newer = {Id10007: "ab"};
+    await act(async () => { form.props.onChange(older); form.props.onChange(newer); });
+    await act(async () => { form.props.onDraftSaved({data: older}); });
+    const leave = jest.fn();
+    guardedNavigate(leave);
+    expect(leaveDialogOpen()).toBe(true);
+    expect(leaveSaveFailed()).toBe(false);
+    await act(async () => { stayOnPage(); });
+    await act(async () => { form.props.onDraftSaved({data: newer}); });
+    guardedNavigate(leave);
+    expect(leave).toHaveBeenCalledTimes(1);
+    expect(leaveDialogOpen()).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  it("reports a failed autosave to the leave dialog until a later save succeeds", async () => {
+    const {tree, form} = await openEdited(false);
+    const answers = {Id10007: "a"};
+    await act(async () => { form.props.onChange(answers); });
+    expect(leaveSaveFailed()).toBe(false);
+    await act(async () => { form.props.onDraftError(new Error("offline")); });
+    expect(leaveSaveFailed()).toBe(true);
+    guardedNavigate(jest.fn());
+    expect(leaveDialogOpen()).toBe(true);
+    await act(async () => { stayOnPage(); });
+    await act(async () => { form.props.onDraftSaved({data: answers}); });
+    expect(leaveSaveFailed()).toBe(false);
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("pinned case strip", () => {
+  it("renders the header bar as the scroller's first, non-sticky row", async () => {
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    expect(mockShellProps.lead).toBeDefined();
+    expect(mockShellProps.lead!.type).toBe(AppHeaderBar);
+    expect(mockShellProps.lead!.props.sticky).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  it("spans the phone viewport like the footer", () => {
+    expect(INTERVIEW_FORM_CSS).toMatch(/@media \(max-width: 767px\)[\s\S]*#digitva-interview-case-strip \{\s*width: 100vw;\s*margin-inline: calc\(50% - 50vw\);/);
+  });
 });

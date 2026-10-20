@@ -1,5 +1,6 @@
 import {
   createWhoVa2022Instrument,
+  WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   WHO_VA_FORM_VERSION,
   type SubmissionData,
   type InstrumentDefinition,
@@ -14,7 +15,7 @@ import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, get
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
-import { resolveNewInterviewDefinition, resolveSavedEnvelopeDefinition, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
+import { readDefinitionPin, resolveNewInterviewDefinition, resolveSavedEnvelopeDefinition, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
 import type { DefinitionRequest } from "../formDefinitions";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
@@ -23,7 +24,67 @@ import { questionnaireDefault, questionnaireLocales, t, type StringKey } from ".
 import { radius, useTheme } from "../theme";
 import { applyTranslations } from "../translations";
 import { Button, useUiStyles } from "../ui";
+import { AppHeaderBar } from "./AppHeader";
 import { browserErrorText, WebShell } from "./common";
+import { ContextualHelpBanner } from "./ContextualHelp";
+import { InterviewCaseStrip } from "./InterviewCaseStrip";
+import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
+
+/**
+ * The package's own UI strings (en, plus its built-in Hindi and French packs)
+ * with the "More sections appear as you answer" note blanked: the owner
+ * dropped it from the section progress. Supplying uiTranslations replaces the
+ * built-in packs, so they are spread back in; every other locale falls back
+ * to the blank English entry.
+ */
+export const INTERVIEW_UI_TRANSLATIONS = Object.fromEntries(
+  Object.entries({ en: {}, ...WHO_VA_BUILT_IN_UI_TRANSLATIONS }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
+);
+
+/**
+ * The package's footer row (Back, Save draft, Preview, Next; testID
+ * "form-footer") runs edge to edge and sticks to the bottom of a phone
+ * viewport. The scroller is WebShell's, which already ends above BottomTabs
+ * (its in-flow spacer), so bottom 0 sits directly on the tab bar and follows
+ * it when the keyboard hides the bar. The package's own ScrollView never
+ * scrolls here (it grows with its content) but would capture the sticky row,
+ * so it is made overflow-visible. From 768px the row sits in flow at the end
+ * of the form card.
+ *
+ * The case strip spans the phone viewport the same way, so the form never
+ * shows beside it while it is pinned at the top.
+ */
+export const INTERVIEW_FORM_CSS = `
+  #digitva-who-form-theme [stroke="#004687"] {
+    stroke: var(--who-2022-web-color-brand-deep) !important;
+  }
+  #digitva-who-form-theme [stroke="#ffffff"],
+  #digitva-who-form-theme [stroke="#fff"] {
+    stroke: var(--who-2022-web-color-on-accent, #ffffff) !important;
+  }
+  @media (max-width: 767px) {
+    #digitva-who-form-theme div:has(> div > [data-testid="form-footer"]) {
+      overflow: visible;
+    }
+    #digitva-interview-case-strip {
+      width: 100vw;
+      margin-inline: calc(50% - 50vw);
+      padding-inline: 8px;
+      box-sizing: border-box;
+    }
+    #digitva-who-form-theme [data-testid="form-footer"] {
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+      width: 100vw;
+      margin-inline: calc(50% - 50vw);
+      margin-bottom: 0;
+      padding: 8px;
+      background: var(--who-2022-web-color-surface);
+      border-top: 1px solid var(--who-2022-web-color-border);
+    }
+  }
+`;
 
 function instrumentCode(options: FormOptions): string {
   const code = options.form_types?.find((formType) => formType.is_default)?.instrument_code;
@@ -101,9 +162,10 @@ export function normalizeRevisionEnvelope(
   envelope: RevisionDetail["envelope"],
   instrument: InstrumentDefinition
 ): RevisionDetail["envelope"] {
+  const acceptedInstrumentIds = new Set([instrument.id, "WHO_2022_VA", "va_who_2022"]);
   if (
     (envelope.formVersion && envelope.formVersion !== WHO_VA_FORM_VERSION) ||
-    (envelope.instrumentId && envelope.instrumentId !== instrument.id) ||
+    (envelope.instrumentId && !acceptedInstrumentIds.has(envelope.instrumentId)) ||
     (envelope.instrumentVersion && envelope.instrumentVersion !== instrument.version)
   ) {
     throw new Error("revision_instrument_mismatch");
@@ -145,12 +207,19 @@ export default function InterviewScreen() {
   const [locales, setLocales] = useState<FormOptions["available_locales"]>([]);
   const [store, setStore] = useState<ServerDraftStore | RevisionMemoryStore>();
   const [controller, setController] = useState<WhoVaDraftController>();
-  const [dirty, setDirty] = useState(false);
+  // Changed since the last acknowledged save. A ref, not state: the navigation guard reads it in the same tick a
+  // save or submit settles, and nothing renders from it.
+  const dirtyRef = useRef(false);
+  // The answers of the latest change: a save of older answers settling later must not mark newer ones saved.
+  const changedDataRef = useRef<SubmissionData | undefined>(undefined);
+  // The last autosave or leave-save failed; the leave dialog then says the answers could not be saved.
+  const saveFailedRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [translationFallback, setTranslationFallback] = useState(false);
   const [message, setMessage] = useState("");
   const [revisionReason, setRevisionReason] = useState<RevisionReasonCode>();
   const [needsNewSnapshot, setNeedsNewSnapshot] = useState(false);
+  const [caseStripHeight, setCaseStripHeight] = useState(0);
   const [loadedBootstrap, setLoadedBootstrap] = useState(bootstrap);
   const bootstrapRef = useRef(bootstrap);
   const generationRef = useRef(0);
@@ -275,15 +344,27 @@ export default function InterviewScreen() {
     options ??= await getProjectFormOptions(nextDraft.draft.project_id, bootstrap.csrf);
     if (!isCurrent()) return;
     instrumentCode(options);
-    resolved ??= await resolveSavedEnvelopeDefinition({
-      accountId: bootstrap.user.user_id,
-      projectId: nextDraft.draft.project_id,
-      envelope: nextDraft.envelope,
-      request,
-      cache: currentDefinitionCache,
-      narrationLanguageCodes: narrationLanguageCodes(options),
-      bundledLegacyDefinitions: [],
-    });
+    if (!resolved) {
+      if (!nextRevision && !readDefinitionPin(nextDraft.envelope) && !nextDraft.envelope.instrumentVersion) {
+        resolved = await resolveNew(nextDraft.draft.project_id, options);
+      } else {
+        const bundledFallback = createWhoVa2022Instrument(options.enabled_extensions ?? []);
+        resolved = await resolveSavedEnvelopeDefinition({
+          accountId: bootstrap.user.user_id,
+          projectId: nextDraft.draft.project_id,
+          envelope: nextDraft.envelope,
+          request,
+          cache: currentDefinitionCache,
+          narrationLanguageCodes: narrationLanguageCodes(options),
+          bundledLegacyDefinitions: [],
+          bundledOriginal: {
+            instrument: bundledFallback,
+            instrumentVersion: bundledFallback.version,
+            extensions: options.enabled_extensions ?? [],
+          },
+        });
+      }
+    }
     if (!isCurrent()) return;
     const base = resolved.instrument;
     const normalizedRevision = nextRevision
@@ -321,7 +402,11 @@ export default function InterviewScreen() {
           },
           locale: nextLocale,
           translationVersion: nextDraft.envelope.translation_version ?? options.translation_versions?.[nextLocale] ?? 0,
-          onError: (error) => { if (isCurrent()) setMessage(interviewErrorText(error)); }
+          onError: (error) => {
+            if (!isCurrent()) return;
+            saveFailedRef.current = true;
+            setMessage(interviewErrorText(error));
+          }
         });
     if (nextStore instanceof ServerDraftStore) await nextStore.load(nextDraftId);
     if (!isCurrent()) return;
@@ -344,7 +429,9 @@ export default function InterviewScreen() {
     setResolvedInstrument(undefined);
     setStore(undefined);
     setController(undefined);
-    setDirty(false);
+    dirtyRef.current = false;
+    changedDataRef.current = undefined;
+    saveFailedRef.current = false;
     setRevisionReason(undefined);
     setNeedsNewSnapshot(false);
     setMessage("");
@@ -369,32 +456,20 @@ export default function InterviewScreen() {
     return () => { active = false; };
   }, [bootstrap, initialise, params.revisionDraftId, sessionGeneration]);
 
-  // Browser navigation warns before losing a revision held only in memory.
+  // A best-effort save as the page unloads; the navigation guard owns the browser's leave prompt.
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (dirty) {
-        event.preventDefault();
-        event.returnValue = "";
-      }
+    const handleBeforeUnload = () => {
       void controller?.saveDraft().then(() => store instanceof ServerDraftStore ? store.flush() : undefined).catch(() => undefined);
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [controller, dirty, store]);
+  }, [controller, store]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return undefined;
     const style = document.createElement("style");
-    style.textContent = `
-      #digitva-who-form-theme [stroke="#004687"] {
-        stroke: var(--who-2022-web-color-brand-deep) !important;
-      }
-      #digitva-who-form-theme [stroke="#ffffff"],
-      #digitva-who-form-theme [stroke="#fff"] {
-        stroke: var(--who-2022-web-color-on-accent, #ffffff) !important;
-      }
-    `;
+    style.textContent = INTERVIEW_FORM_CSS;
     document.head.appendChild(style);
     return () => style.remove();
   }, []);
@@ -464,10 +539,10 @@ export default function InterviewScreen() {
         setRevisionReason(undefined);
       }
       if (revisionGenerationRef.current === snapshot.generation) {
-        setDirty(false);
+        dirtyRef.current = false;
         router.replace("/collection");
       } else {
-        setDirty(true);
+        dirtyRef.current = true;
         setMessage(acknowledgement.changed ? t("revisionSaved") : t("revisionNoCodingChange"));
       }
     } catch (error) {
@@ -548,6 +623,7 @@ export default function InterviewScreen() {
         store instanceof ServerDraftStore ? store.getServerUpdatedAt() : undefined,
       );
       if (!isCurrent()) return;
+      dirtyRef.current = false;
       if (submission.superseded) {
         router.replace({ pathname: "/collection", params: { superseded: "1" } });
       } else if (submission.kept === "server") {
@@ -574,33 +650,15 @@ export default function InterviewScreen() {
     }
   }
 
-  async function leave() {
-    const requestBootstrap = bootstrap;
-    const generation = generationRef.current;
-    const isCurrent = () => bootstrapRef.current === requestBootstrap && generationRef.current === generation;
-    try {
-      await controller?.saveDraft();
-      if (!isCurrent()) return;
-      if (store instanceof RevisionMemoryStore && dirty) {
-        setMessage(t("revisionUnsavedWarning"));
-        return;
-      }
-      if (store instanceof ServerDraftStore) await store.flush();
-      if (!isCurrent()) return;
-      router.back();
-    } catch (error) {
-      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
-    }
-  }
-
-  const beforeNavigate = useCallback(async () => {
+  /** The leave dialog's Save and leave: the form's save, then the server write; a held revision cannot be saved here. */
+  const saveForLeave = useCallback(async () => {
     const requestBootstrap = bootstrap;
     const generation = generationRef.current;
     const isCurrent = () => bootstrapRef.current === requestBootstrap && generationRef.current === generation;
     try {
       await controller?.saveDraft();
       if (!isCurrent()) return false;
-      if (store instanceof RevisionMemoryStore && dirty) {
+      if (store instanceof RevisionMemoryStore && dirtyRef.current) {
         setMessage(t("revisionUnsavedWarning"));
         return false;
       }
@@ -608,13 +666,21 @@ export default function InterviewScreen() {
       if (!isCurrent()) return false;
       return true;
     } catch (error) {
-      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
+      if (!isCurrent()) return false;
+      saveFailedRef.current = true;
+      setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
       return false;
     }
-  }, [bootstrap, controller, dirty, store]);
+  }, [bootstrap, controller, store]);
+
+  // Answers autosave about 600 ms after the last change, so the leave dialog only opens while that save is pending
+  // or after it failed.
+  useNavigationGuard(() => dirtyRef.current, saveForLeave, () => saveFailedRef.current);
 
   const localeLabel = useMemo(() => locales?.find((entry) => entry.code === locale)?.label ?? locale, [locale, locales]);
   const availableLocales = locales ?? [];
+  // Only an interview started from a reported death; a direct one has no case to show.
+  const showCaseStrip = !!draft?.draft.death_id;
   const webFormStyle = Platform.OS === "web"
     ? ({
         "--who-2022-web-color-brand": theme.colors.accent,
@@ -638,14 +704,16 @@ export default function InterviewScreen() {
         "--who-2022-web-radius-card": "16px",
         "--who-2022-web-form-max-width": "48rem",
         "--who-2022-web-form-padding": "16px",
-        "--who-2022-web-sticky-top": "0px"
+        "--who-2022-web-sticky-top": `${showCaseStrip ? caseStripHeight : 0}px`
       } as unknown as ViewStyle)
     : undefined;
 
   return (
     <WebShell
       title={t(revision ? "revisionTitle" : "interviewTitle")}
-      beforeNavigate={beforeNavigate}
+      // The header bar, the title row with the language switch and Back to collection scroll away with the form;
+      // only the case strip stays pinned at the top.
+      lead={<AppHeaderBar sticky={false} />}
       headerAction={availableLocales.length ? (
         <QuestionnaireLanguageMenu
           locales={availableLocales}
@@ -656,14 +724,16 @@ export default function InterviewScreen() {
         />
       ) : null}
     >
+      <ContextualHelpBanner screen="interview" />
       {loadedBootstrap === bootstrap && instrument && store && draftId ? (
         <>
+          {/* Leaves the interview; the footer's Back only steps to the previous
+              section. Answers autosave (and the footer's Save draft saves at
+              once), so there is no second Save here. */}
           <View style={styles.row}>
-            <Button kind="secondary" label={t("backToCollection")} onPress={() => void leave()} />
-            {store instanceof ServerDraftStore ? (
-              <Button loading={busy} kind="secondary" label={t("save")} onPress={() => void store.flush().catch((error) => setMessage(browserErrorText(error)))} />
-            ) : null}
+            <Button kind="secondary" label={t("backToCollection")} onPress={() => guardedNavigate(() => router.back())} />
           </View>
+          {showCaseStrip ? <InterviewCaseStrip prefill={draftPrefill} onHeight={setCaseStripHeight} /> : null}
           {revision ? (
             <View>
               <Text style={styles.headline}>{t("revisionReason")}</Text>
@@ -716,17 +786,26 @@ export default function InterviewScreen() {
               instrument={instrument}
               locale={locale}
               showEnglish={locale !== "en"}
+              uiTranslations={INTERVIEW_UI_TRANSLATIONS}
               draftId={draftId}
               draftStore={store}
               autoSaveDraftOnChange
               onDraftController={setController}
-              onChange={() => {
+              onChange={(data) => {
                 if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
                 setNeedsNewSnapshot(false);
-                setDirty(true);
+                dirtyRef.current = true;
+                changedDataRef.current = data;
               }}
-              onDraftSaved={() => { if (store instanceof ServerDraftStore) setDirty(false); }}
-              onDraftError={(error) => setMessage(revision ? revisionErrorText(error) : browserErrorText(error))}
+              onDraftSaved={(saved) => {
+                if (!(store instanceof ServerDraftStore)) return;
+                saveFailedRef.current = false;
+                if (saved?.data === changedDataRef.current) dirtyRef.current = false;
+              }}
+              onDraftError={(error) => {
+                saveFailedRef.current = true;
+                setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
+              }}
               onComplete={complete}
               lockedQuestionNames={draftPrefill?.lockedQuestionNames}
               portalThemeStyle={webFormStyle}

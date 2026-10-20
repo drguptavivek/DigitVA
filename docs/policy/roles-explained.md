@@ -3,7 +3,7 @@ title: Roles Explained
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-20
 ---
 
 # Who can do what in DigitVA
@@ -16,6 +16,23 @@ district.
 DigitVA runs two kinds of project. A **site project** is a research study
 with a few field sites. A **district project** follows the public health
 system: district, block (CHC), PHC and sub-centre.
+
+## The 5-Stage Process in DigitVA
+
+Work in DigitVA flows through 5 clear stages, matching real-world health system operations:
+
+1. **1. Death Register** — Recording a death in the area (by an ANM, MPW, ASHA, or Interviewer). Depending on project configuration, registering a death can be mandatory before an interview or optional. Field workers capture key identity details, place of death, and informant contacts.
+2. **2. Interview** — Visiting the family and completing the WHO Verbal Autopsy questionnaire on mobile or web (by a Community Health Officer / CHO, Staff Nurse, or trained Interviewer). Interviewers record the illness timeline, symptoms, and medical history.
+3. **3. Coding** — A Medical Officer or Medical College Mentor reads the narrative and questionnaire answers and assigns the ICD cause of death. Depending on project settings, this happens either immediately after the interview in self-coding projects, by picking a case from their area worklist, or by automatic random assignment.
+4. **4. Review** — A Senior Medical Officer or Medical College Faculty Reviewer independently reviews a sample of coded deaths for quality assurance once the coder's 24-hour correction window closes.
+5. **5. Summary Reports** — Facility In-charges, District Programme Managers, Epidemiologists, and Project Leads view progress counts and cause-of-death summaries for their area without needing technical expertise.
+
+## "Within Area" vs "All" Scope
+
+Every role in DigitVA is assigned at a specific **Scope**:
+
+- **Within Area (e.g., `Within Area: Ballabgarh CHC` or `Within Area: PHC01, PHC02`)**: Your role covers that specific health facility/area and every sub-centre or village under it (or the specific cross-area facilities assigned to you). You only see deaths and take actions within your assigned health area.
+- **All**: Your role covers the entire project across all facilities and sites. This is typically used by State Nodal Officers, Project Principal Investigators, and Central Data Managers.
 
 ## Three rules for everyone
 
@@ -170,13 +187,19 @@ Programme Manager for a block)
 - Same as a viewer with names, but names and other personal details are
   hidden.
 
-**ANM, MPW and ASHA**
-- Have no role yet. A role for reporting deaths is planned.
+**Death reporter (ANM, MPW and ASHA)**
+- Can register deaths in their village or sub-centre on the mobile app or web.
+- Can view their own registered deaths list to follow up on cases.
+- Can update and correct death details until an interviewer completes the family interview.
+- Cannot conduct or submit the full verbal autopsy interview, code, or review.
 
 ### Medical college mentors
 
 A medical college is not part of the district's chain of facilities. It is
-linked to the districts it supports.
+linked to the districts it supports. Medical college staff have a dedicated
+**Mentoring Institution** screen (`/app/mentoring`) where faculty and
+residents can see their college's supported districts, their assigned
+"Within Area" roles, and jump straight into coding or review queues.
 
 **Mentor** (faculty or resident)
 - Can be given one of four roles, only in districts their college supports:
@@ -184,14 +207,17 @@ linked to the districts it supports.
 - Their coding and review count toward the district's results, like any
   doctor's.
 - Are listed separately from district staff and not counted in the
-  district's staff numbers.
+  district's staff numbers, allowing institutions to provide expert academic
+  oversight alongside district health teams.
 - Cannot manage data, be an in-charge or interview.
 - Need a separate account for any work they also do for the district.
 
-**College admin**
-- Can add and remove the college's own staff.
-- Cannot give anyone a role. Mentors get their roles from the project lead
-  or from a District Programme Manager of a district the college supports.
+**College / Institute Admin**
+- Can add and remove the college's own faculty and resident accounts in the
+  Mentoring Institution screen (`/app/mentoring`).
+- Cannot give anyone a role directly. Mentors get their "Within Area" roles
+  assigned by the project lead or by a District Programme Manager of a
+  district the college supports.
 
 ## Self-coding projects
 

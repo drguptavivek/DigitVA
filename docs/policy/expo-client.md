@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-19
 ---
 
 # Expo Web Client Boundary
@@ -56,22 +56,33 @@ factor is introduced.
 
 ## Role home and login landing
 
-Owner decision, 2026-10-11 and 2026-10-12 (design: `.tasks/2026-10-11-home-jump-page.md`).
-After login, a user holding one of the field, coding or data manager roles
-lands on the Expo role home at `/app/`:
+Owner decision, 2026-10-11, 2026-10-12 and 2026-10-19 (design: `.tasks/2026-10-11-home-jump-page.md`, bead `digitva-dsj2`).
+After login (and after accepting terms on `/profile/force-password-change`),
+a user holding one of the field, coding or data manager roles — or a new user
+with no role grants yet — lands on the Expo role home dashboard at `/app/`:
 
 - `admin` or `project_pi`: unchanged (today's landing).
 - Any of `interviewer`, `death_reporter`, `interview_supervisor`, `coder`,
-  `coding_tester`, `reviewer`, `data_manager`, in the user's effective roles:
-  `/app/`. A data manager reaches the area view from the data manager tab on `/app/`.
-- Anything else (collaborators, viewers, `site_pi` alone): today's landing,
-  unchanged. If the Expo export is missing (no `index.html`), every user
-  keeps today's landing. `/app/` resumes the user's last visited screen
-  client-side (Expo bead digitva-k6i9).
+  `coding_tester`, `reviewer`, `data_manager`, in the user's effective roles,
+  or a user with no effective roles yet: `/app/`.
+- Anything else (collaborators, viewers, `site_pi` at a project site alone):
+  today's landing, unchanged. If the Expo export is missing (no `index.html`),
+  every user keeps today's landing.
+- `/app/` renders the user's Home / Dashboard directly on login:
+  - When the user holds roles or project grants, it shows overall personal
+    activity totals (forms filled, drafts in progress, deaths reported, forms
+    coded, forms reviewed from `GET /api/v1/me/activity`), role-appropriate
+    quick action buttons, and a card per project listing the user's assigned
+    roles and scopes in that project, per-project personal activity counts, and
+    per-project action buttons.
+  - When a user holds no roles in any project yet, `/app/` shows a Welcome
+    home state explaining that no project roles have been assigned yet, with
+    links to Settings / Profile, Help, and Demo Coding when available.
 
 Effective roles come from the authz helper, so a `site_pi` held at an org
 unit (the In-charge) counts as `data_manager` and `interview_supervisor`.
-`VaUsers.landing_url()` implements the rule.
+`VaUsers.landing_url()` implements the rule, and `/profile/force-password-change`
+redirects to `current_user.landing_url()`.
 
 ## Hosting and languages
 

@@ -12,7 +12,7 @@ APP_SERVICE  = minerva_app_service
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
         prod prod-build prod-rebuild prod-down \
         logs logs-app ps shell \
-        migrate db-head test test-projects \
+        migrate db-head test test-parallel test-projects \
         restart-celery backup-db ensure-secrets help
 
 .DEFAULT_GOAL := help
@@ -45,6 +45,7 @@ help:
 	@echo "  make migrate         Run flask db upgrade"
 	@echo "  make db-head         Show current and head migration revision"
 	@echo "  make test            Run pytest"
+	@echo "  make test-parallel   Full suite on 4 xdist workers (TEST_DATABASE_URL=... to pick the DB)"
 	@echo "  make restart-celery  Restart celery worker and beat"
 	@echo ""
 	@echo "  make ensure-secrets  Add missing CAPTCHA/TOTP keys to .env (run by dev/prod targets)"
@@ -135,6 +136,11 @@ db-head:
 
 test:
 	$(COMPOSE) exec $(APP_SERVICE) uv run pytest
+
+# Each worker uses <test db>_gw0.. (docs/policy/test-harness.md).
+test-parallel:
+	$(COMPOSE) exec -T $(if $(TEST_DATABASE_URL),-e TEST_DATABASE_URL=$(TEST_DATABASE_URL)) $(APP_SERVICE) \
+		uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4
 
 # Seeds TST001 (organization, pick-and-choose) and its accounts, then lists the
 # classical (sites) projects already in the DB. Idempotent. The seed itself

@@ -67,8 +67,9 @@ class VaUsers(UserMixin, db.Model):
     )
     other: so.Mapped[Optional[dict]] = so.mapped_column(JSONB, nullable=True)
     # Interviewer demographics (PII, optional; digitva-vzk.3). Web intake
-    # prefills and locks WHO Id10010a (age, from year_of_birth at interview
-    # time) and Id10010b (sex: one of USER_SEX_VALUES). Never logged or exported.
+    # prefills WHO Id10010a (age, from year_of_birth at interview time; not
+    # locked) and prefills and locks Id10010b (sex: one of USER_SEX_VALUES).
+    # Never logged or exported.
     year_of_birth: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     sex: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     # The person's post, free text (e.g. "Chief Medical Officer, Faridabad").
@@ -145,9 +146,10 @@ class VaUsers(UserMixin, db.Model):
         """Return the correct post-login URL for this user.
 
         Admin and project_pi keep the landing below. Any role in
-        ROLE_HOME_ROLES (authz effective roles, so derived roles count) goes to
-        the Expo role home while the export is present; otherwise, and for
-        everyone else, the stored landing_page and the role fallbacks apply.
+        ROLE_HOME_ROLES (authz effective roles, so derived roles count) or a
+        user with no effective roles yet goes to the Expo role home while the
+        export is present; otherwise, and for everyone else, the stored
+        landing_page and the role fallbacks apply.
         Rule: docs/policy/expo-client.md, "Role home and login landing".
         """
         from flask import url_for
@@ -156,7 +158,7 @@ class VaUsers(UserMixin, db.Model):
 
         roles = role_flags(self)
         if not roles & {"admin", "project_pi"}:
-            if roles & ROLE_HOME_ROLES and export_ready():
+            if (roles & ROLE_HOME_ROLES or not roles) and export_ready():
                 return url_for("expo_client.expo_index")
         if self.landing_page == "admin":
             return url_for("admin.admin_index")

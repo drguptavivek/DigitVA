@@ -1,4 +1,4 @@
-/** My organization calls over the browser session, through the shared JSON requester. Names and role labels only (cadre stays in the API, unshown). */
+/** My organization calls over the browser session, through the shared JSON requester. Other people: names and role labels only (their cadre stays unshown); the user's own roles carry their cadre. */
 import type { JsonRequester } from "../workspace/api";
 
 const ORG_API = "/api/v1/organization";
@@ -9,11 +9,25 @@ export interface OrgPerson {
   roles?: string[];
 }
 
+/** One role the user holds by a unit grant, with that grant's cadre (null when none was set). */
+export interface UnitRole {
+  role: string;
+  cadre: string | null;
+}
+
 export interface MyUnit {
   org_unit_id: string;
   unit_name: string;
   level_name: string;
   cadres: string[];
+  /** Absent on an older server. */
+  roles?: UnitRole[];
+}
+
+/** The user's own project- and site-scope roles (role values as granted). */
+export interface MyPositions {
+  project_roles: string[];
+  sites: { site_id: string; site_name: string; roles: string[] }[];
 }
 
 export interface AboveUnit {
@@ -45,6 +59,9 @@ export interface BelowUnit {
 export interface OrgProject {
   project_id: string;
   project_name: string;
+  /** Absent on an older server, which lists tree projects only. */
+  has_tree?: boolean;
+  my_positions?: MyPositions;
   my_units: MyUnit[];
   above: AboveUnit[];
   my_level: LevelUnit[];

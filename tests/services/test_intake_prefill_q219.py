@@ -1,7 +1,8 @@
 """Prefill locks after the 2026-10-03 owner decision (digitva-q219), with the
 age unlocked on 2026-10-06 (digitva-uq6v).
 
-Interviewer age (Id10010a) is neither prefilled nor locked; the deceased's
+Interviewer age (Id10010a) is prefilled from the profile's year of birth since
+2026-10-20 but never locked; the deceased's
 registered age is prefilled but editable, like the date of birth, exact or
 partial (an interview's own wins on completion); a draft whose stored
 prefill has no ``lockedQuestionNames`` is recomputed from the case.
@@ -70,7 +71,7 @@ class IntakePrefillQ219Tests(BaseTestCase):
         super().setUp()
         self.interviewer.name = "Field Worker"
         self.interviewer.sex = "female"
-        self.interviewer.year_of_birth = date.today().year - 40
+        self.interviewer.year_of_birth = intake_svc._expression_now(self.interviewer, datetime.now(UTC)).year - 40
 
     def _start(self, **overrides):
         fields = {
@@ -78,7 +79,14 @@ class IntakePrefillQ219Tests(BaseTestCase):
             "date_of_death": (date.today() - timedelta(days=10)).isoformat(), "age_years": 62,
         }
         fields.update(overrides)
+        # age_years=None is a row older than the age-information rule, which registering refuses.
+        legacy = fields["age_years"] is None
+        if legacy:
+            fields["age_years"] = 62
         death = intake_svc.register_death(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, **fields)
+        if legacy:
+            death.age_years = None
+            db.session.flush()
         return intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
         )
@@ -96,14 +104,15 @@ class IntakePrefillQ219Tests(BaseTestCase):
 
     # ── interviewer age ────────────────────────────────────────────────────
 
-    def test_interviewer_age_is_neither_prefilled_nor_locked(self):
+    def test_interviewer_age_is_prefilled_but_not_locked(self):
         prefill = self._start().prefill
         self.assertEqual(prefill["interviewer"]["sex"], "female")
-        self.assertNotIn("age", prefill["interviewer"])
+        self.assertEqual(prefill["interviewer"]["age"], 40)
         self.assertIn("Id10010c", prefill["lockedQuestionNames"])
         self.assertNotIn("Id10010a", prefill["lockedQuestionNames"])
 
     def test_interviewer_age_entered_in_the_interview_is_kept(self):
+        # Prefilled 40, corrected to 33: the server does not overwrite it.
         payload = self._submit(self._start(), {"Id10010a": 33})
         self.assertEqual(payload["Id10010a"], 33)
 

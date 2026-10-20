@@ -147,14 +147,20 @@ def _site_id(p: dict) -> str:
 
 
 @bp.get("/cases")
-@role_required("interviewer")
+@role_required("interviewer", "death_reporter")
 @limiter.limit("120 per minute")
 def list_cases():
-    """Team cases in the caller's interviewer scope (the worklist):
+    """Team cases in the caller's interviewer scope (the worklist), plus the
+    deaths a death_reporter registered in their reporter reach:
     ``web_intake_service.worklist_page``. Query: ``project_id`` (optional
     filter), ``mine``, ``state``, ``limit``, ``cursor``. The app downloads its
     active cases with ``state=`` and then each case's detail."""
-    project_id = request_project_id(required=False)
+    # A reporter's own deaths widen the projects it may narrow to; an
+    # interviewer alone keeps the interviewer refusal.
+    if current_user.is_death_reporter():
+        project_id = request_project_id(required=False, roles=DEATH_REGISTERING_ROLES)
+    else:
+        project_id = request_project_id(required=False)
     return jsonify(intake_svc.worklist_page(current_user, request.args, project_id=project_id, context=interviewer_context()))
 
 
@@ -321,7 +327,8 @@ def list_deaths():
     rights, the deaths they registered across their reach: optional
     ``project_id``, ``site_id``, ``limit``, ``cursor``; replies ``{"deaths",
     "next_cursor"}`` (``web_intake_service.reported_deaths_page``). A user who
-    holds both roles asks for that list with ``registered=mine``."""
+    holds both roles asks for that list with ``registered=mine``. A row's GPS
+    fix follows ``intake_svc.shows_gps``; otherwise its keys are absent."""
     registered = request.args.get("registered")
     if registered not in (None, "", "mine"):
         return error("registered must be mine.", "invalid_request", 400)
@@ -333,7 +340,10 @@ def list_deaths():
     if not project_id or not site_id:
         return error("project_id and site_id are required.", "invalid_request", 400)
     deaths = intake_svc.list_deaths(current_user, project_id=project_id, site_id=site_id, status=status)
-    return jsonify({"deaths": [intake_svc.serialize_death(d) for d in deaths]})
+    visible = intake_svc.gps_projects(current_user, {project_id}) if deaths else set()
+    return jsonify({"deaths": [
+        intake_svc.serialize_death(d, show_gps=intake_svc.shows_gps(current_user, d, visible)) for d in deaths
+    ]})
 
 
 @bp.post("/deaths")
@@ -406,7 +416,7 @@ def update_death(death_id):
 @role_required("interviewer")
 def list_drafts():
     status = request.args.get("status", "draft") or None
-    return jsonify({"drafts": [intake_svc.serialize_draft(d) for d in intake_svc.list_drafts(current_user, status=status)]})
+    return jsonify({"drafts": intake_svc.serialize_drafts(intake_svc.list_drafts(current_user, status=status))})
 
 
 @bp.post("/drafts")

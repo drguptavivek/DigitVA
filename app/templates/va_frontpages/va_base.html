@@ -101,6 +101,7 @@
       {% endif %}
     {% endif %}
     <main id="main-content" class="container py-4">
+      {% include "va_intermediate_partials/_contextual_page_help.html" %}
       {% block content %}{% endblock %}
     </main>
     {% if site_maintenance_watcher_enabled %}

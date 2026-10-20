@@ -6,8 +6,14 @@ from flask_wtf.csrf import generate_csrf
 from app import limiter
 from app.routes.api import profile
 from app.routes.api.request_helpers import error
-from app.services import area_dashboard_service, notification_service
+from app.services import (
+    area_dashboard_service,
+    mentor_institute_service,
+    notification_service,
+    user_home_service,
+)
 from app.services.access_summary_service import build_access_summary
+from app.services.authz import effective_roles
 
 bp = Blueprint("me_api", __name__)
 
@@ -25,6 +31,25 @@ def access():
     if not g.get("bearer_auth"):
         response.headers["X-CSRFToken"] = generate_csrf()
     return response
+
+
+@bp.get("/activity")
+@login_required
+@limiter.limit("120 per minute")
+def activity():
+    """Personal activity counts (overall and per project) for the caller's
+    Home / Dashboard (docs/current-state/api-v1.md, digitva-dsj2)."""
+    return jsonify(user_home_service.get_user_activity_summary(current_user._get_current_object()))
+
+
+@bp.get("/home")
+@login_required
+@limiter.limit("120 per minute")
+def home():
+    """The Home page's one block per role the caller holds, counts only, each
+    within that role's own scope (docs/current-state/api-v1.md). JSON 401
+    when signed out."""
+    return jsonify(user_home_service.get_home_blocks(current_user._get_current_object()))
 
 
 @bp.get("/kpis")
@@ -50,6 +75,15 @@ def notifications():
     if not raw.isascii() or not raw.isdigit() or int(raw) > notification_service.BIGINT_MAX:
         return error("after must be a non-negative integer.", "invalid_request", 400)
     return jsonify(notification_service.poll(current_user.user_id, int(raw)))
+
+
+@bp.get("/mentoring")
+@login_required
+@limiter.limit("120 per minute")
+def mentoring():
+    """The caller's own mentoring-institute memberships and supported districts."""
+    effective_roles(current_user._get_current_object())
+    return jsonify(mentor_institute_service.user_mentoring_summary(current_user._get_current_object()))
 
 
 # The terms screen's call, same view as POST /api/v1/profile/terms: one

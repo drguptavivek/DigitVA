@@ -44,6 +44,7 @@ export function CaseSummary({ row }: { row: SupervisedCase }) {
     row.deceased_sex ?? t("emptyDash"),
     row.age_years != null ? t("supervisionAge", { years: row.age_years }) : t("emptyDash"),
     t("supervisionDied", { date: row.date_of_death ?? t("emptyDash") }),
+    t("supervisionReported", { date: whenText(row.created_at) }),
     row.unit_name ?? t("supervisionNoUnit"),
   ].join(" · ");
   return (

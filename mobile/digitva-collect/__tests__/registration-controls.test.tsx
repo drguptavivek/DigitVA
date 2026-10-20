@@ -1,8 +1,9 @@
 import React from "react";
 import { act, create } from "react-test-renderer";
+import { StyleSheet, TextInput } from "react-native";
 
 jest.mock("../src/i18n", () => ({ t: (key: string) => key, uiLocale: () => "hi" }));
-jest.mock("../src/ui", () => ({ useUiStyles: () => ({ error: {}, input: {} }) }));
+jest.mock("../src/ui", () => ({ useUiStyles: () => ({ error: {}, input: { minHeight: 44 } }) }));
 jest.mock("../src/theme", () => {
   const actual = jest.requireActual("../src/theme");
   return { ...actual, useTheme: () => ({ ...actual.getTheme("light"), colors: { ...actual.getTheme("light").colors } }) };
@@ -126,6 +127,31 @@ describe("death registration field controls", () => {
     expect(years[years.length - 1]).toBe(String(new Date().getFullYear() - 120));
     act(() => select.props.onChange({ target: { value: "1987" } }));
     expect(onChange).toHaveBeenLastCalledWith("1987");
+    await act(async () => tree.unmount());
+  });
+
+  it("draws address and remarks as a plain two-line box that grows to six lines, not the narrative box", async () => {
+    const onChange = jest.fn();
+    const onIssue = jest.fn();
+    let tree!: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<RegistrationFieldControl field="address" label="Address" value="Ward 4" issueMessage="errAddress" onChange={onChange} onIssue={onIssue} />);
+    });
+    expect(tree.root.findAllByProps({ "data-testid": "text-control" })).toHaveLength(0);
+    const input = tree.root.findByType(TextInput);
+    expect(input.props.accessibilityLabel).toBe("Address");
+    expect(input.props.multiline).toBe(true);
+    expect(input.props.value).toBe("Ward 4");
+    expect(tree.root.findByProps({ children: "errAddress" })).toBeDefined();
+    const height = () => StyleSheet.flatten(tree.root.findByType(TextInput).props.style).height;
+    expect(height()).toBe(66);
+    act(() => input.props.onContentSizeChange({ nativeEvent: { contentSize: { width: 100, height: 72 } } }));
+    expect(height()).toBe(66 + 24);
+    act(() => input.props.onContentSizeChange({ nativeEvent: { contentSize: { width: 100, height: 600 } } }));
+    expect(height()).toBe(162);
+    act(() => input.props.onChangeText("Ward 5"));
+    expect(onChange).toHaveBeenLastCalledWith("Ward 5");
+    expect(onIssue).toHaveBeenLastCalledWith();
     await act(async () => tree.unmount());
   });
 });

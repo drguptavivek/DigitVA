@@ -197,6 +197,50 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(self.client.get("/api/v1/intake/cases").status_code, 200)
         self.assertEqual(self.client.get("/api/v1/intake/drafts").status_code, 200)
 
+    def test_draft_list_carries_each_drafts_saved_section_count_and_deceased_name(self):
+        self._login(self.interviewer_id)
+        drafts = []
+        for name in ("Asha Devi", "Bina Sahu"):
+            response = self.client.post(
+                "/api/v1/intake/deaths", json=self._death_payload(deceased_name=name), headers=self._csrf_headers()
+            )
+            self.assertEqual(response.status_code, 201, response.get_json())
+            drafts.append(self._start_draft(death_id=response.get_json()["case"]["death_id"]))
+        saved = self.client.patch(
+            f"/api/v1/intake/drafts/{drafts[0]['draft_id']}",
+            json={"sections": {"consent": {"Id10013": "yes"}, "background": {"Id10019": "female"}}},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+
+        listed = {d["draft_id"]: d for d in self.client.get("/api/v1/intake/drafts").get_json()["drafts"]}
+        self.assertIn(drafts[0]["draft_id"], listed)
+        self.assertIn(drafts[1]["draft_id"], listed)
+        self.assertEqual(listed[drafts[0]["draft_id"]]["sections_saved"], 2)
+        self.assertEqual(listed[drafts[0]["draft_id"]]["deceased_name"], "Asha Devi")
+        self.assertEqual(listed[drafts[1]["draft_id"]]["sections_saved"], 0)
+        self.assertEqual(listed[drafts[1]["draft_id"]]["deceased_name"], "Bina Sahu")
+
+    def test_draft_list_carries_the_cases_sex_age_and_date_of_death_for_filtering(self):
+        self._login(self.interviewer_id)
+        dod = (date.today() - timedelta(days=9)).isoformat()
+        response = self.client.post(
+            "/api/v1/intake/deaths",
+            json=self._death_payload(deceased_sex="male", age_years=4, date_of_death=dod),
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 201, response.get_json())
+        linked = self._start_draft(death_id=response.get_json()["case"]["death_id"])
+        direct = self._start_draft()
+
+        listed = {d["draft_id"]: d for d in self.client.get("/api/v1/intake/drafts").get_json()["drafts"]}
+        self.assertIn(linked["draft_id"], listed)
+        row = listed[linked["draft_id"]]
+        self.assertEqual((row["deceased_sex"], row["age_years"], row["date_of_death"]), ("male", 4, dod))
+        self.assertIn(direct["draft_id"], listed)
+        row = listed[direct["draft_id"]]
+        self.assertEqual((row["deceased_sex"], row["age_years"], row["date_of_death"]), (None, None, None))
+
     # ── page context (no bootstrap route: the page renders it) ─────────────
 
     def test_dashboard_renders_csrf_token_and_scope_for_its_script(self):
@@ -1463,11 +1507,36 @@ class IntakeApiTests(BaseTestCase):
             f"/api/v1/intake/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}").get_json()["deaths"]
         self.assertEqual(
             [d["latitude"] for d in listed if d["death_id"] == death_id], [self.FIX["latitude"]])
-        # Absent: the worklist rows carry no address and no coordinates.
+        # The worklist rows carry no address, and this is a sites-mode project
+        # (no organization tree), so even the interviewer gets no fix in the
+        # rows (web-intake.md, "Case-list rows", owner 2026-10-20; the
+        # organization-project case is tested in test_death_reporter.py).
         rows = self.client.get(f"/api/v1/intake/cases?project_id={self.PROJECT_ID}").get_json()
         row = next(r for r in rows["cases"] if r["death_id"] == death_id)
         self.assertNotIn("latitude", row)
         self.assertNotIn("longitude", row)
+        self.assertNotIn("address", row)
+        self.assertNotIn("accuracy_m", row)
+        # The registrant above keeps its own fix (the edit form shows what it
+        # captured); a colleague in this sites-mode project gets none in the
+        # detail or the register list, keys absent (owner, 2026-10-20).
+        colleague = self._get_or_make_user("api.colleague@test.local", "IntakeApi123")
+        db.session.add(VaUserAccessGrants(
+            user_id=colleague.user_id, role=VaAccessRoles.interviewer,
+            scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._login(str(colleague.user_id))
+        detail = self.client.get(f"/api/v1/intake/cases/{death_id}").get_json()["case"]
+        self.assertIn("village_ward", detail["household_address"])  # the address itself still shows
+        listed = self.client.get(
+            f"/api/v1/intake/deaths?project_id={self.PROJECT_ID}&site_id={self.SITE_ID}").get_json()["deaths"]
+        [entry] = [d for d in listed if d["death_id"] == death_id]
+        for key in ("latitude", "longitude", "accuracy_m", "captured_at"):
+            self.assertNotIn(key, detail["household_address"])
+            self.assertNotIn(key, entry)
+        self._login(self.interviewer_id)
         # A user without the interviewer right reads and changes nothing.
         self._login(self.base_coder_id)
         self.assertEqual(self.client.get(f"/api/v1/intake/cases/{death_id}").status_code, 403)

@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-20
 ---
 
 # CLI Reference
@@ -167,6 +167,21 @@ consequence, unless `--acknowledge-demotion` is passed; with it, the import
 proceeds and the locale ends `in_review`, deactivated, with its approval
 cleared. Importing into a `draft` or `in_review` locale needs no flag and
 never changes its state.
+
+**Reference translation edits kept in the repo** (owner, 2026-10-20). The 36 Hindi
+guidance hints and labels edited on staging (`source=edited`, last changed
+2026-10-19 11:28 UTC) are saved as
+`resource/instrument_translations_hi_edited_2026_10_19.xlf` (XLIFF 2.0, edited
+units only, each `reviewed`). To restore them on any database, including
+production at go-live, run:
+
+```bash
+docker compose exec minerva_app_service uv run flask instrument-translations import-xliff WHO_2022_VA hi resource/instrument_translations_hi_edited_2026_10_19.xlf --as edited
+```
+
+It writes only those 36 targets, keeps the locale's lifecycle state (importing
+into an `approved` locale needs `--acknowledge-demotion`), and never deletes a
+string. Re-export from the live locale before reusing it after more edits.
 
 `lifecycle` moves a locale through its approval states: `draft` ->
 `in_review` -> `approved` (decided 2026-09-20 — see "Approval before

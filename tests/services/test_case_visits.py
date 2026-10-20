@@ -92,7 +92,7 @@ class CaseVisitTests(BaseTestCase):
     # ── helpers ────────────────────────────────────────────────────────────
 
     def _register(self, user=None, **overrides):
-        fields = {"deceased_name": "Meena Rao", "deceased_sex": "female", "date_of_death": _dod()}
+        fields = {"deceased_name": "Meena Rao", "deceased_sex": "female", "date_of_death": _dod(), "age_years": 62}
         fields.update(overrides)
         return intake_svc.register_death(
             user or self.alice, project_id=self.PROJECT_ID, site_id=self.SITE_ID, **fields
@@ -114,19 +114,37 @@ class CaseVisitTests(BaseTestCase):
     # ── phones and address ─────────────────────────────────────────────────
 
     def test_register_normalises_valid_indian_mobiles(self):
-        for raw in ("9876543210", "+919876543210", "09876543210", "98765 43210", "+91 98765-43210"):
+        for raw in ("9876543210", "+919876543210", "919876543210", "09876543210", "98765 43210",
+                    "+91 98765-43210", "(987) 654-3210", "987 654 3210"):
             case = self._register(informant_phone=raw)
             self.assertEqual(case.informant_phone, "9876543210", raw)
-        case = self._register(informant_phone="", informant_phone_2="6123456789")
+        case = self._register(informant_phone="", informant_phone_2="5123456789")
         self.assertIsNone(case.informant_phone)
-        self.assertEqual(case.informant_phone_2, "6123456789")
+        self.assertEqual(case.informant_phone_2, "5123456789")  # no restriction on the first digit
+        case = self._register(informant_phone="9123456789")  # starts 91, still 10 digits: not a prefix
+        self.assertEqual(case.informant_phone, "9123456789")
 
     def test_register_refuses_invalid_phones(self):
-        for raw in ("5876543210", "987654321", "98765432101", "+929876543210", "phone me", "1-800-DEATH"):
+        for raw in ("987654321", "98765432101", "+929876543210", "phone me", "1-800-DEATH"):
             for field in ("informant_phone", "informant_phone_2"):
                 with self.assertRaises(cases.WebIntakeError, msg=f"{field}={raw}") as ctx:
                     self._register(**{field: raw})
                 self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_edit_validates_a_phone_only_when_it_changes(self):
+        case = self._register(informant_phone="9876543210")
+        case.informant_phone = "old free text"  # a value stored before the 10-digit rule
+        db.session.flush()
+        intake_svc.update_death(self.alice, case.death_id, {"remarks": "visited"})
+        self.assertEqual((case.remarks, case.informant_phone), ("visited", "old free text"))
+        intake_svc.update_death(self.alice, case.death_id, {"informant_phone": "old free text", "remarks": "again"})
+        self.assertEqual(case.informant_phone, "old free text")
+        with self.assertRaises(cases.WebIntakeError) as ctx:
+            intake_svc.update_death(self.alice, case.death_id, {"informant_phone": "12345"})
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertNotIn("no longer valid", str(ctx.exception))
+        intake_svc.update_death(self.alice, case.death_id, {"informant_phone": "987 654 3210", "informant_phone_2": "987 654 3210"})
+        self.assertEqual((case.informant_phone, case.informant_phone_2), ("9876543210", "9876543210"))
 
     def test_structured_address_and_full_phones_on_the_case_only(self):
         case = self._register(
@@ -359,10 +377,10 @@ class CaseVisitTests(BaseTestCase):
     def test_api_register_takes_the_new_fields_and_validates_phones(self):
         self._login(str(self.alice.user_id))
         base = {"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": "Api Case",
-                "deceased_sex": "male", "date_of_death": _dod()}
-        response = self._post("/api/v1/intake/deaths", {**base, "informant_phone": "5555555555"})
+                "deceased_sex": "male", "date_of_death": _dod(), "age_years": 62}
+        response = self._post("/api/v1/intake/deaths", {**base, "informant_phone": "55555"})
         self.assertEqual(response.status_code, 422)
-        self.assertIn("mobile", response.get_json()["error"])
+        self.assertIn("10-digit phone number", response.get_json()["error"])
 
         response = self._post("/api/v1/intake/deaths", {
             **base, "informant_phone": "+91 98765 43210", "informant_phone_2": "07012345678",
@@ -379,6 +397,17 @@ class CaseVisitTests(BaseTestCase):
         self.assertIn(death["death_id"], rows)
         self.assertEqual(rows[death["death_id"]]["informant_phone_masked"], "******3210")
         self.assertNotIn("informant_phone", rows[death["death_id"]])
+
+    def test_api_register_refuses_a_case_with_no_date_of_birth_and_no_age(self):
+        self._login(str(self.alice.user_id))
+        base = {"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": "Api Case",
+                "deceased_sex": "male", "date_of_death": _dod()}
+        response = self._post("/api/v1/intake/deaths", base)
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("estimated age", response.get_json()["error"])
+        for given in ({"date_of_birth_partial": "1980"}, {"age_years": 39}):
+            response = self._post("/api/v1/intake/deaths", {**base, **given})
+            self.assertEqual(response.status_code, 201, response.get_json())
 
     def test_api_actions_need_csrf_and_scope(self):
         case = self._register()
@@ -430,7 +459,7 @@ class CaseVisitTests(BaseTestCase):
         self.assertEqual(page.status_code, 200)
         html = page.get_data(as_text=True)
         for name in ("informant_phone_2", "address_house_street", "address_village_ward", "address_landmark",
-                     'type="tel"', "10 digits starting 6-9"):
+                     'type="tel"', "10-digit phone number"):
             self.assertIn(name, html)
         dashboard = self.client.get("/intake/")
         self.assertEqual(dashboard.status_code, 200)

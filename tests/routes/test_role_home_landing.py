@@ -171,3 +171,25 @@ class RoleHomeLandingTests(BaseTestCase):
         user = self._user("coder_page", (R.coder, self.ch1))
         self._login(str(user.user_id))
         self.assertEqual(self.client.get("/intake/deaths/new").status_code, 403)
+
+    def test_user_with_no_roles_lands_on_the_role_home(self):
+        user = self._user("no_roles")
+        self.assertEqual(self._landing(user), self._app_url())
+        with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+            with self.app.test_request_context():
+                expected = url_for("va_main.va_index")
+            self.assertEqual(self._landing(user), expected)
+
+    def test_force_password_change_redirects_to_landing_url(self):
+        user = self._user("new_onboarded_user")
+        user.pw_reset_t_and_c = False
+        db.session.commit()
+        self._login(str(user.user_id))
+        resp = self.client.post(
+            "/profile/force-password-change",
+            data={"accept_terms": "y"},
+            headers=self._csrf_headers(),
+            follow_redirects=False,
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.headers["Location"], self._app_url())

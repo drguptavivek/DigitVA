@@ -268,6 +268,49 @@ class WebIntakeServiceTests(BaseTestCase):
         with self.assertRaises(intake_svc.WebIntakeError):
             self._register_death(deceased_name="   ")
 
+    def test_register_death_requires_a_date_of_birth_or_an_estimated_age(self):
+        year_ago = (date.today() - timedelta(days=365)).isoformat()
+        for given in (
+            {"date_of_birth": "1960-01-01"},
+            {"date_of_birth_partial": "1960-01"},
+            {"date_of_birth_partial": "1960"},
+            {"age_years": 0},
+            {"age_years": "39"},
+        ):
+            with self.subTest(given=given):
+                death = self._register_death(**{"age_years": None, **given})
+                self.assertTrue(any(
+                    value is not None for value in (death.date_of_birth, death.date_of_birth_partial, death.age_years)))
+        for missing in ({"age_years": None}, {"age_years": ""}, {"age_years": None, "date_of_birth": "  "}):
+            with self.subTest(missing=missing):
+                with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+                    self._register_death(date_of_death=year_ago, **missing)
+                self.assertEqual(ctx.exception.status_code, 400)
+                self.assertIn("estimated age", str(ctx.exception))
+
+    def test_update_death_requires_age_information_only_when_the_age_fields_change(self):
+        death = self._register_death(age_years=62)
+        # Clearing the only age information of a row that had it is refused...
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"age_years": ""})
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(death.age_years, 62)
+        # ...swapping it for a date of birth is not.
+        intake_svc.update_death(self.interviewer, death.death_id, {"date_of_birth": "1960-02-03", "age_years": ""})
+        self.assertEqual((death.date_of_birth, death.age_years), (date(1960, 2, 3), None))
+        with self.assertRaises(intake_svc.WebIntakeError):
+            intake_svc.update_death(self.interviewer, death.death_id, {"date_of_birth": ""})
+
+        # A row older than the rule (neither stored) stays editable while the fields are untouched.
+        legacy = self._register_death(age_years=62)
+        legacy.age_years = None
+        db.session.flush()
+        intake_svc.update_death(self.interviewer, legacy.death_id, {"place_of_death": "Home"})
+        intake_svc.update_death(self.interviewer, legacy.death_id, {"age_years": "", "date_of_birth": "", "remarks": "x"})
+        self.assertEqual(legacy.place_of_death, "Home")
+        intake_svc.update_death(self.interviewer, legacy.death_id, {"age_years": 41})
+        self.assertEqual(legacy.age_years, 41)
+
     def test_register_death_validates_abha_identifiers(self):
         death = self._register_death(abha_number="12-3456-7890-1234", abha_address="asha.devi@abdm")
         self.assertEqual(death.abha_number, "12-3456-7890-1234")
@@ -1450,6 +1493,7 @@ class WebIntakeServiceTests(BaseTestCase):
             deceased_name="Inside Subtree",
             deceased_sex="male",
             date_of_death=date.today().isoformat(),
+            age_years=62,
         )
         self.assertEqual(death.org_unit_id, granted_unit.org_unit_id)
 
@@ -1754,18 +1798,31 @@ class WebIntakeServiceTests(BaseTestCase):
 
     def test_a_legacy_invalid_stored_value_must_be_fixed_in_the_same_edit(self):
         death = self._register_death()
-        death.informant_phone = "ask the neighbour"  # free text from before phone validation
+        death.abha_number = "not an abha"  # from before ABHA validation
         db.session.flush()
         with self.assertRaises(intake_svc.WebIntakeError) as ctx:
             intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "x"})
         self.assertEqual(ctx.exception.status_code, 400)
-        self.assertIn("Informant phone", str(ctx.exception))
+        self.assertIn("ABHA number", str(ctx.exception))
         self.assertIn("correct it in this edit", str(ctx.exception))
         self.assertIsNone(death.remarks)
         updated = intake_svc.update_death(
-            self.interviewer, death.death_id, {"remarks": "x", "informant_phone": "98765 43210"},
+            self.interviewer, death.death_id, {"remarks": "x", "abha_number": "12-3456-7890-1234"},
         )
-        self.assertEqual((updated.remarks, updated.informant_phone), ("x", "9876543210"))
+        self.assertEqual((updated.remarks, updated.abha_number), ("x", "12-3456-7890-1234"))
+
+    def test_a_legacy_stored_phone_is_left_alone_unless_the_edit_changes_it(self):
+        death = self._register_death()
+        death.informant_phone = "ask the neighbour"  # free text from before phone validation
+        db.session.flush()
+        updated = intake_svc.update_death(self.interviewer, death.death_id, {"remarks": "x"})
+        self.assertEqual((updated.remarks, updated.informant_phone), ("x", "ask the neighbour"))
+        with self.assertRaises(intake_svc.WebIntakeError) as ctx:
+            intake_svc.update_death(self.interviewer, death.death_id, {"informant_phone": "12345"})
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Informant phone", str(ctx.exception))
+        updated = intake_svc.update_death(self.interviewer, death.death_id, {"informant_phone": "98765 43210"})
+        self.assertEqual(updated.informant_phone, "9876543210")
 
     def test_a_direct_start_awaiting_its_details_is_not_editable(self):
         draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID)
@@ -1795,7 +1852,14 @@ class WebIntakeServiceTests(BaseTestCase):
 
     def _interview_birth_case(self, **register):
         """A registered death, and the death list's row of it before any interview."""
+        # age_years=None is a row older than the age-information rule, which registering refuses.
+        legacy = "age_years" in register and register["age_years"] is None
+        if legacy:
+            register["age_years"] = 62
         death = self._register_death(**register)
+        if legacy:
+            death.age_years = None
+            db.session.flush()
         return death, intake_svc.serialize_death(death)
 
     def test_completion_copies_an_exact_date_of_birth_and_age_and_the_list_shows_them(self):
@@ -2201,6 +2265,7 @@ class InterviewerUnitScopeTests(BaseTestCase):
         return intake_svc.register_death(
             user, project_id=self.P, site_id=site_id, org_unit_id=str(unit.org_unit_id),
             deceased_name="Scope Test", deceased_sex="male", date_of_death=date.today().isoformat(),
+            age_years=62,
         ).death_id
 
     def _user(self, label, *grants):

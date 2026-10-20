@@ -880,3 +880,66 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     await act(async () => tree.unmount());
   });
 });
+
+describe("unsaved draft across remounts (digitva-yeg3.20)", () => {
+  const removePart2 = (tree: ReactTestRenderer) => tree.root.findAllByProps({ accessibilityLabel: "Remove Part II" });
+
+  it("restores an edited certificate when the panel mounts again for the same case and session", async () => {
+    const api = apiFor();
+    const request: JsonRequester = jest.fn(async () => ({}));
+    const first = renderPanel(makeWorkspace(), api, jest.fn(), request);
+    expect(removePart2(first.tree).length).toBeGreaterThan(0);
+    await act(async () => removePart2(first.tree)[0].props.onPress());
+    expect(removePart2(first.tree)).toHaveLength(0);
+    await act(async () => first.tree.unmount());
+
+    const again = renderPanel(makeWorkspace(), api, jest.fn(), request);
+    expect(byLabel(again.tree, "Process current certificate")).toBeTruthy();
+    expect(removePart2(again.tree)).toHaveLength(0);
+    expect(JSON.stringify(again.tree.toJSON())).toContain("Process it again before saving");
+    await act(async () => again.tree.unmount());
+
+    // Another session (requester) never sees it.
+    const other = renderPanel(makeWorkspace(), api);
+    expect(removePart2(other.tree).length).toBeGreaterThan(0);
+    await act(async () => other.tree.unmount());
+  });
+
+  it("forgets the draft after a successful save", async () => {
+    const api = apiFor({ processDoris: jest.fn(async (_sid: string, _role: string, revision: number) => ({ ...processReply, client_revision: revision })) as never });
+    const request: JsonRequester = jest.fn(async () => ({}));
+    const first = renderPanel(makeWorkspace(), api, jest.fn(), request);
+    await act(async () => removePart2(first.tree)[0].props.onPress());
+    await act(async () => { byLabel(first.tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(first.tree, "Confirm Step 1 underlying cause open search").props.onPress());
+    await pickViaPicker("Y55");
+    await act(async () => { byLabel(first.tree, "Save Step 1").props.onPress(); await flushAll(); });
+    expect(api.saveInitial).toHaveBeenCalledTimes(1);
+    await act(async () => first.tree.unmount());
+
+    const again = renderPanel(makeWorkspace(), api, jest.fn(), request);
+    expect(removePart2(again.tree).length).toBeGreaterThan(0);
+    await act(async () => again.tree.unmount());
+  });
+
+  it("keeps the draft when a save fails", async () => {
+    const api = apiFor({
+      processDoris: jest.fn(async (_sid: string, _role: string, revision: number) => ({ ...processReply, client_revision: revision })) as never,
+      saveInitial: jest.fn(async () => { throw new Error("Network down"); }),
+    });
+    const request: JsonRequester = jest.fn(async () => ({}));
+    const first = renderPanel(makeWorkspace(), api, jest.fn(), request);
+    await act(async () => removePart2(first.tree)[0].props.onPress());
+    await act(async () => { byLabel(first.tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(first.tree, "Confirm Step 1 underlying cause open search").props.onPress());
+    await pickViaPicker("Y55");
+    await act(async () => { byLabel(first.tree, "Save Step 1").props.onPress(); await flushAll(); });
+    expect(JSON.stringify(first.tree.toJSON())).toContain("Network down");
+    await act(async () => first.tree.unmount());
+
+    const again = renderPanel(makeWorkspace(), api, jest.fn(), request);
+    expect(byLabel(again.tree, "Process current certificate")).toBeTruthy();
+    expect(removePart2(again.tree)).toHaveLength(0);
+    await act(async () => again.tree.unmount());
+  });
+});

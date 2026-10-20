@@ -1,17 +1,41 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { ActivityIndicator, Alert, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
+import { ContextualHelpBanner } from "../web/ContextualHelp";
 import type { WorkspaceApi } from "./api";
 import type { QueueView } from "./viewState";
-import type { AllocationSnapshot, CoderHistory, CoderQueue, ProjectOptions, CodingStats, ReviewerHistory, ReviewerQueue, ReviewerStats, WorkspaceIdentity } from "./contracts";
+import type {
+  AllocationSnapshot,
+  CoderAvailableCase,
+  CoderHistory,
+  CoderHistoryCase,
+  CoderQueue,
+  CodingStats,
+  ProjectOptions,
+  QueueCase,
+  ReviewerHistory,
+  ReviewerQueue,
+  ReviewerStats,
+  WorkspaceIdentity,
+} from "./contracts";
 
 const PAGE_SIZE = 50;
 const MAX_OFFSET = 1_000_000;
 
 type QueueScope = { api: WorkspaceApi; mode: "coding" | "reviewing"; projectId?: string; offset: number; showHistory: boolean };
+type GenderFilter = "all" | "female" | "male";
+type AnyQueueCase = CoderAvailableCase | CoderHistoryCase | QueueCase;
+
+function normalizeGenderKey(raw: string | null | undefined): "female" | "male" | "other" | null {
+  if (!raw) return null;
+  const lower = raw.trim().toLowerCase();
+  if (lower === "f" || lower === "female") return "female";
+  if (lower === "m" || lower === "male") return "male";
+  return "other";
+}
 
 type QueueData = {
   api: WorkspaceApi;
@@ -30,7 +54,7 @@ type AllocationData = { api: WorkspaceApi; mode: "coding" | "reviewing"; generat
 type QueueMessage = { scope: QueueScope; text: string };
 
 function useQueueStyles() {
-  const { colors } = useTheme();
+  const { colors, ui } = useTheme();
   return useMemo(() => StyleSheet.create({
     field: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: 44, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.sm },
     fieldText: { flex: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
@@ -43,11 +67,94 @@ function useQueueStyles() {
     titleMain: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: spacing.xs },
     iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
-    actionBtn: { flexGrow: 1, flexBasis: 140, minHeight: 44 },
+    segmentedTrack: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, padding: spacing.xxs, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
+    actionBtn: { flexGrow: 1, flexBasis: 132 },
     pager: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-    pagerBtn: { flex: 1, minHeight: 44 },
-    pageText: { flex: 1, textAlign: "center", ...typography.body, color: colors.text, fontFamily: controls.fontFamily },
-  }), [colors]);
+    pagerBtn: { flex: 1 },
+    pageText: { flex: 1, textAlign: "center", ...typography.subhead, color: colors.textMuted, fontFamily: controls.fontFamily },
+    statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+    statTile: { flexGrow: 1, flexBasis: 96, paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, gap: 2 },
+    statValue: { ...typography.headline, color: colors.text, fontFamily: controls.fontFamily },
+    statLabel: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
+    filterBox: { gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    searchInput: { minHeight: 38, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
+    chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
+    chip: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.sm, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    chipActive: { borderColor: colors.accent, backgroundColor: colors.accent },
+    chipText: { ...typography.caption, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
+    chipTextActive: { color: colors.onAccent },
+    caseCard: { gap: spacing.xxs },
+    caseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs, flexWrap: "wrap" },
+    caseHeaderMain: { flex: 1, minWidth: 160, gap: 2 },
+    badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
+    badge: { paddingVertical: 2, paddingHorizontal: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    badgeAccent: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+    badgeText: { ...typography.caption, fontWeight: "600", color: colors.textMuted, fontFamily: controls.fontFamily },
+    badgeAccentText: { color: ui.accentForeground },
+    metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs },
+    metaChip: { paddingVertical: 2, paddingHorizontal: spacing.xs, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    metaChipText: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
+  }), [colors, ui]);
+}
+
+function isInternalPlaceholderArea(name: string | null | undefined): boolean {
+  return !name || /^sites_in_project_/i.test(name.trim());
+}
+
+function formatQueueDate(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+  const match = /^(\d{4}-\d{2}-\d{2})T/.exec(trimmed);
+  if (match) return match[1];
+  return trimmed;
+}
+
+function CaseCardDetails({ item }: { item: AnyQueueCase }) {
+  const q = useQueueStyles();
+  const hasAge = item.va_deceased_age != null && String(item.va_deceased_age).trim() !== "";
+  const hasGender = Boolean(item.va_deceased_gender);
+  const collector = "va_data_collector" in item && item.va_data_collector ? item.va_data_collector : null;
+  const formId = item.va_form_id ? item.va_form_id : null;
+  const codingDate = "va_coding_date" in item && item.va_coding_date ? formatQueueDate(item.va_coding_date) : null;
+  const reviewedAt = "va_reviewed_at" in item && item.va_reviewed_at ? formatQueueDate(item.va_reviewed_at) : null;
+
+  if (!hasAge && !hasGender && !collector && !formId && !codingDate && !reviewedAt) return null;
+
+  return (
+    <View style={q.metaGrid}>
+      {hasAge ? (
+        <View style={q.metaChip}>
+          <Text style={q.metaChipText}>{`Age: ${item.va_deceased_age}`}</Text>
+        </View>
+      ) : null}
+      {hasGender ? (
+        <View style={q.metaChip}>
+          <Text style={q.metaChipText}>{`Sex: ${item.va_deceased_gender}`}</Text>
+        </View>
+      ) : null}
+      {collector ? (
+        <View style={q.metaChip}>
+          <Text style={q.metaChipText}>{`Collector: ${collector}`}</Text>
+        </View>
+      ) : null}
+      {formId ? (
+        <View style={q.metaChip}>
+          <Text style={q.metaChipText}>{`Form: ${formId}`}</Text>
+        </View>
+      ) : null}
+      {codingDate ? (
+        <View style={q.metaChip}>
+          <Text style={q.metaChipText}>{`Coded: ${codingDate}`}</Text>
+        </View>
+      ) : null}
+      {reviewedAt ? (
+        <View style={q.metaChip}>
+          <Text style={q.metaChipText}>{`Reviewed: ${reviewedAt}`}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
 }
 
 function Chevron({ color }: { color: string }) {
@@ -122,6 +229,7 @@ export function QueueScreen({
   onExit,
   initialView,
   onViewChange,
+  Shell,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -131,13 +239,18 @@ export function QueueScreen({
   initialView?: QueueView;
   /** Reports the settled project, tab and page so the route can keep them in the URL across a reload. */
   onViewChange?: (view: { projectId?: string; showHistory: boolean; offset: number }) => void;
+  /** Optional shell component (e.g. WebShell on web) to wrap the queue with left navigation and language switcher. */
+  Shell?: ComponentType<{ title: string; headerAction?: ReactNode; children: ReactNode }>;
 }) {
+  const ActiveShell = Shell ?? Screen;
   const styles = useUiStyles();
   const q = useQueueStyles();
+  const { colors } = useTheme();
   const [projectId, setProjectId] = useState<string | undefined>(initialView?.projectId);
   const [offset, setOffset] = useState(initialView?.offset ?? 0);
   const [showHistory, setShowHistory] = useState(initialView?.showHistory ?? false);
   const startedOnAll = useRef(initialView?.allProjects === true);
+  const startedOnProject = useRef(initialView?.projectId !== undefined);
   const [data, setData] = useState<QueueData | null>(null);
   const [allocationData, setAllocationData] = useState<AllocationData | null>(null);
   const [catalog, setCatalog] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; projects?: ProjectOptions } | null>(null);
@@ -145,6 +258,10 @@ export function QueueScreen({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<QueueMessage | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>("all");
+  const [siteFilter, setSiteFilter] = useState<string | undefined>(undefined);
+  const [recodeableOnly, setRecodeableOnly] = useState(false);
   const generation = useRef(0);
   // null until the first coder stats answer; load() uses it to pick the tab before fetching a page.
   const lastPickMode = useRef<boolean | null>(null);
@@ -160,6 +277,13 @@ export function QueueScreen({
     actionError.current = null;
     setMessage(null);
   }
+
+  useEffect(() => {
+    setSearchQuery("");
+    setGenderFilter("all");
+    setSiteFilter(undefined);
+    setRecodeableOnly(false);
+  }, [projectId, showHistory, offset, mode]);
 
   function isCurrent(requestGeneration: number, requestScope: typeof scopeRef.current) {
     const current = scopeRef.current;
@@ -258,17 +382,27 @@ export function QueueScreen({
     }
   }, [api, catalogReady, mode, offset, projectId, showHistory]);
 
-  // Load the project catalogue once per api and mode; the last project is the default, when still offered.
+  // Load the project catalogue once per api and mode. Default: the URL's project, else the last project
+  // when still offered, else (reviewers) the first project with cases to review, else All projects.
   useEffect(() => {
     let active = true;
     const request = mode === "coding" ? api.getCodingProjects() : api.getReviewerProjects();
-    void request.then((projects) => {
+    void request.then(async (projects) => {
       if (!active) return;
       const offered = (id: string | null | undefined) => id != null && projects.project_options.some((option) => option.project_id === id);
+      let fallback = !startedOnAll.current && offered(projects.last_project_id) ? projects.last_project_id ?? undefined : undefined;
+      if (fallback === undefined && !startedOnAll.current && !startedOnProject.current
+        && mode === "reviewing" && projects.project_options.length > 1) {
+        // ponytail: one stats call per offered project, only on this fallback path; a per-project
+        // `available` count on /reviewing/projects would remove the fan-out.
+        const counts = await Promise.all(projects.project_options.map((option) => api.getReviewerStats(option.project_id).catch(() => null)));
+        if (!active) return;
+        fallback = projects.project_options.find((_, index) => (counts[index]?.available ?? 0) > 0)?.project_id;
+      }
       // A project named by the URL that is not offered (stale or edited) falls back to All projects.
       setProjectId((current) => {
         if (current !== undefined) return offered(current) ? current : undefined;
-        return !startedOnAll.current && offered(projects.last_project_id) ? projects.last_project_id ?? undefined : undefined;
+        return fallback;
       });
       setCatalog({ api, mode, projects });
     }).catch(() => {
@@ -467,7 +601,34 @@ export function QueueScreen({
     && allocationData.generation === generation.current && allocationData.verified;
   const stats = currentData?.stats;
   const projects = catalogReady ? catalog?.projects : undefined;
+
+  // The allocation snapshot carries only the SID; one workspace read per held case names its form and project.
+  const [heldCase, setHeldCase] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; vaSid: string; formId: string; projectCode: string | null; siteCode: string | null } | null>(null);
+  const heldCaseRef = useRef(heldCase);
+  heldCaseRef.current = heldCase;
+  const allocationSid = allocation?.va_sid;
+  useEffect(() => {
+    const known = heldCaseRef.current;
+    if (!allocationSid || (known?.api === api && known.mode === mode && known.vaSid === allocationSid)) return undefined;
+    let active = true;
+    void Promise.resolve()
+      .then(() => api.getWorkspace(allocationSid, mode))
+      .then((workspace) => {
+        if (active) setHeldCase({ api, mode, vaSid: allocationSid, formId: workspace.case.instance_name, projectCode: workspace.case.project_code ?? null, siteCode: workspace.case.site_code ?? null });
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [allocationSid, api, mode]);
+  const heldLabel = allocation && heldCase?.api === api && heldCase.mode === mode && heldCase.vaSid === allocation.va_sid ? heldCase : null;
+  // Same "Project / Site" the case workspace shows; the project's name when its code is also a catalogue id.
+  const heldProjectName = heldLabel?.projectCode
+    ? projects?.project_options.find((option) => option.project_id === heldLabel.projectCode)?.project_name ?? null
+    : null;
+  const heldText = heldLabel
+    ? [heldLabel.formId, `Project / Site: ${heldLabel.projectCode ?? "-"}/${heldLabel.siteCode ?? "-"}`, heldProjectName].filter(Boolean).join(" · ")
+    : "";
   const coderStats = mode === "coding" && stats && "random_ready" in stats ? stats : undefined;
+  const reviewerStats = mode === "reviewing" && stats && "available" in stats ? stats : undefined;
   const randomReady = coderStats?.random_ready;
   const canAllocateRandom = mode === "coding"
     && allocationVerified
@@ -493,20 +654,215 @@ export function QueueScreen({
     else readyText = `${(randomMode ? randomReady : pickReady) ?? 0} ready`;
   }
   useEffect(() => {
-    if (coderStats && !pickMode && !showHistory) { setOffset(0); setShowHistory(true); }
-  }, [coderStats, pickMode, showHistory]);
+    if (coderStats && (!pickMode || (pickReady === 0 && randomMode && typeof randomReady === "number" && randomReady > 0)) && !showHistory) {
+      setOffset(0);
+      setShowHistory(true);
+    }
+  }, [coderStats, pickMode, pickReady, randomMode, randomReady, showHistory]);
   // A project that has pick mode (after one that had not) must not stay stuck on the history tab.
   const wasPickMode = useRef(pickMode || showHistory);
   useEffect(() => {
-    if (pickMode && !wasPickMode.current && showHistory) { setOffset(0); setShowHistory(false); }
-    wasPickMode.current = pickMode;
-  }, [pickMode, showHistory]);
+    if (pickMode && (pickReady === undefined || pickReady > 0) && !wasPickMode.current && showHistory) {
+      setOffset(0);
+      setShowHistory(false);
+    }
+    wasPickMode.current = pickMode && (pickReady === undefined || pickReady > 0);
+  }, [pickMode, pickReady, showHistory]);
 
   const viewChanged = useRef(onViewChange);
   viewChanged.current = onViewChange;
   useEffect(() => {
     if (catalogReady) viewChanged.current?.({ projectId, showHistory, offset });
   }, [catalogReady, projectId, showHistory, offset]);
+
+  const activeItems = useMemo<AnyQueueCase[]>(() => {
+    if (mode === "coding") {
+      return showHistory
+        ? (currentData?.coderHistory?.history ?? [])
+        : (currentData?.coderAvailable?.forms ?? []);
+    }
+    return reviewerRows ?? [];
+  }, [currentData, mode, reviewerRows, showHistory]);
+
+  const siteOptions = useMemo(() => {
+    const sites = new Set<string>();
+    for (const item of activeItems) {
+      if (item.site_id && !isInternalPlaceholderArea(item.site_id)) sites.add(item.site_id);
+    }
+    return Array.from(sites);
+  }, [activeItems]);
+
+  const hasGenderData = useMemo(
+    () => activeItems.some((item) => Boolean(item.va_deceased_gender)),
+    [activeItems],
+  );
+
+  const hasRecodeableData = useMemo(
+    () => mode === "coding" && showHistory && activeItems.some((item) => "recodeable" in item && item.recodeable === true),
+    [activeItems, mode, showHistory],
+  );
+
+  const matchesCase = useCallback((item: AnyQueueCase): boolean => {
+    if (siteFilter === "__within_area__") {
+      const primaryArea = siteOptions[0];
+      if (primaryArea && item.site_id !== primaryArea) return false;
+    } else if (siteFilter && item.site_id !== siteFilter) {
+      return false;
+    }
+    if (genderFilter !== "all" && normalizeGenderKey(item.va_deceased_gender) !== genderFilter) return false;
+    if (recodeableOnly && mode === "coding" && showHistory) {
+      if (!("recodeable" in item && item.recodeable === true)) return false;
+    }
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    const haystack = [
+      item.va_uniqueid_masked,
+      item.va_form_id,
+      item.project_id,
+      item.site_id,
+      item.va_submission_date,
+      "va_data_collector" in item ? item.va_data_collector : undefined,
+      "va_code_status" in item ? item.va_code_status : undefined,
+      "va_narration_language" in item ? item.va_narration_language : undefined,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  }, [genderFilter, mode, recodeableOnly, searchQuery, showHistory, siteFilter, siteOptions]);
+
+  const filteredCoderHistory = useMemo(
+    () => (currentData?.coderHistory?.history ?? []).filter(matchesCase),
+    [currentData?.coderHistory?.history, matchesCase],
+  );
+  const filteredCoderAvailable = useMemo(
+    () => (currentData?.coderAvailable?.forms ?? []).filter(matchesCase),
+    [currentData?.coderAvailable?.forms, matchesCase],
+  );
+  const filteredReviewerRows = useMemo(
+    () => (reviewerRows ?? []).filter(matchesCase),
+    [matchesCase, reviewerRows],
+  );
+
+  const hasActiveFilters = searchQuery.trim().length > 0 || genderFilter !== "all" || siteFilter !== undefined || recodeableOnly;
+  const filteredCount = mode === "coding"
+    ? (showHistory ? filteredCoderHistory.length : filteredCoderAvailable.length)
+    : filteredReviewerRows.length;
+
+  function renderFilterControls() {
+    if (activeItems.length === 0) return null;
+    return (
+      <View style={q.filterBox}>
+        <TextInput
+          accessibilityLabel="Filter cases"
+          placeholder="Filter by ID, area, collector, or form..."
+          placeholderTextColor={colors.textMuted}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={q.searchInput}
+        />
+        {(hasGenderData || hasRecodeableData) ? (
+          <View style={q.chipRow}>
+            {hasGenderData ? (
+              <>
+                {([
+                  { key: "all" as const, label: "All sexes" },
+                  { key: "female" as const, label: "Female" },
+                  { key: "male" as const, label: "Male" },
+                ]).map((opt) => {
+                  const active = genderFilter === opt.key;
+                  return (
+                    <Pressable
+                      key={opt.key}
+                      hitSlop={spacing.xs}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Filter sex: ${opt.label}`}
+                      accessibilityState={{ selected: active }}
+                      onPress={() => setGenderFilter(opt.key)}
+                      style={[q.chip, active && q.chipActive]}
+                    >
+                      <Text style={[q.chipText, active && q.chipTextActive]}>{opt.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </>
+            ) : null}
+            {hasRecodeableData ? (
+              <Pressable
+                hitSlop={spacing.xs}
+                accessibilityRole="button"
+                accessibilityLabel="Filter recodeable only"
+                accessibilityState={{ selected: recodeableOnly }}
+                onPress={() => setRecodeableOnly((prev) => !prev)}
+                style={[q.chip, recodeableOnly && q.chipActive]}
+              >
+                <Text style={[q.chipText, recodeableOnly && q.chipTextActive]}>Recodeable only</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        {siteOptions.length > 1 ? (
+          <View style={q.chipRow}>
+            <Pressable
+              hitSlop={spacing.xs}
+              accessibilityRole="button"
+              accessibilityLabel="Filter area: Within Area"
+              accessibilityState={{ selected: siteFilter === "__within_area__" }}
+              onPress={() => setSiteFilter(siteFilter === "__within_area__" ? undefined : "__within_area__")}
+              style={[q.chip, siteFilter === "__within_area__" && q.chipActive]}
+            >
+              <Text style={[q.chipText, siteFilter === "__within_area__" && q.chipTextActive]}>Within Area</Text>
+            </Pressable>
+            <Pressable
+              hitSlop={spacing.xs}
+              accessibilityRole="button"
+              accessibilityLabel="Filter area: All"
+              accessibilityState={{ selected: siteFilter === undefined }}
+              onPress={() => setSiteFilter(undefined)}
+              style={[q.chip, siteFilter === undefined && q.chipActive]}
+            >
+              <Text style={[q.chipText, siteFilter === undefined && q.chipTextActive]}>All</Text>
+            </Pressable>
+            {siteOptions.map((site) => {
+              const active = siteFilter === site;
+              return (
+                <Pressable
+                  key={site}
+                  hitSlop={spacing.xs}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Filter area: ${site}`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setSiteFilter(active ? undefined : site)}
+                  style={[q.chip, active && q.chipActive]}
+                >
+                  <Text style={[q.chipText, active && q.chipTextActive]}>{site}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+        {hasActiveFilters ? (
+          <View style={q.chipRow}>
+            <Text style={styles.muted}>Showing {filteredCount} of {activeItems.length} cases</Text>
+            <Pressable
+              hitSlop={spacing.xs}
+              accessibilityRole="button"
+              accessibilityLabel="Clear filters"
+              onPress={() => {
+                setSearchQuery("");
+                setGenderFilter("all");
+                setSiteFilter(undefined);
+                setRecodeableOnly(false);
+              }}
+              style={q.chip}
+            >
+              <Text style={q.chipText}>Clear filters</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
 
   /** Allocate a SID from the current server page; mismatches fail and action errors survive refresh. */
   async function allocatePicked(vaSid: string) {
@@ -554,6 +910,18 @@ export function QueueScreen({
     }
   }
 
+  /** Why the reviewer list is empty, in plain words; the counts alone do not say. */
+  function reviewerEmptyText(): string {
+    if (showHistory) return "No reviewed cases yet.";
+    if (offset > 0) return "No more cases to review.";
+    const where = projectId === undefined ? "in your projects" : "in this project";
+    if (reviewerStats?.in_scope === 0) return `No cases ${where} yet.`;
+    if (reviewerStats && reviewerStats.available === 0) {
+      return `Nothing to review ${where} yet: cases appear here after a coder finalises them.`;
+    }
+    return "No cases to review right now.";
+  }
+
   function refreshCases() {
     clearMessage();
     setShowHistory(false);
@@ -562,16 +930,29 @@ export function QueueScreen({
   }
 
   return (
-    <Screen
+    <ActiveShell
       title={mode === "coding" ? "Coding queue" : "Review queue"}
-      headerAction={onExit ? <Button label="Back" kind="secondary" onPress={onExit} /> : undefined}
+      headerAction={onExit ? <Button label="Back" kind="secondary" size="sm" onPress={onExit} /> : undefined}
     >
+      <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />
       {loading ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole="alert" style={styles.error}>{currentMessage}</Text> : null}
 
+      {allocation ? (
+        <View style={styles.card}>
+          <Text style={styles.headline}>{`You have an active ${mode === "coding" ? "coding" : "review"} case`}</Text>
+          {heldText ? <Text style={styles.text}>{heldText}</Text> : null}
+          <Text style={styles.muted}>Resume it, or release it, before you start another case.</Text>
+          <View style={q.actions}>
+            <Button label="Resume case" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: allocation.va_sid, mode })} />
+            <Button label="Release case" kind="danger" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={confirmRelease} />
+          </View>
+        </View>
+      ) : null}
+
       {projects?.project_options.length ? (
         <View style={styles.card}>
-          {projects.project_options.length > 1 ? (
+          {projects.project_options.length > 1 || (projectId === undefined && (startedOnAll.current || initialView?.projectId !== undefined)) ? (
             <ProjectPicker
               options={projects.project_options}
               value={projectId}
@@ -584,16 +965,6 @@ export function QueueScreen({
         </View>
       ) : null}
 
-      {allocation ? (
-        <View style={styles.card}>
-          <Text style={styles.headline}>You have an active {mode === "coding" ? "coding" : "review"} case</Text>
-          <View style={q.actions}>
-            <Button label="Resume case" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: allocation.va_sid, mode })} />
-            <Button label="Release case" kind="danger" style={q.actionBtn} disabled={busy || loading} onPress={confirmRelease} />
-          </View>
-        </View>
-      ) : null}
-
       {mode === "coding" ? (
         <View style={styles.card}>
           <View style={q.titleRow}>
@@ -603,32 +974,88 @@ export function QueueScreen({
             </View>
             <RefreshIcon disabled={busy || loading} onPress={refreshCases} />
           </View>
-          {randomMode ? <Button label="Start a random case" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
+          {coderStats ? (
+            <View style={q.statsGrid}>
+              {randomMode && typeof coderStats.random_ready === "number" ? (
+                <View style={q.statTile}>
+                  <Text style={q.statValue}>{coderStats.random_ready}</Text>
+                  <Text style={q.statLabel}>Random pool</Text>
+                </View>
+              ) : null}
+              {pickMode && typeof coderStats.pick_ready === "number" ? (
+                <View style={q.statTile}>
+                  <Text style={q.statValue}>{coderStats.pick_ready}</Text>
+                  <Text style={q.statLabel}>Ready to pick</Text>
+                </View>
+              ) : null}
+              {typeof coderStats.completed === "number" ? (
+                <View style={q.statTile}>
+                  <Text style={q.statValue}>{coderStats.completed}</Text>
+                  <Text style={q.statLabel}>Coded</Text>
+                </View>
+              ) : null}
+              {typeof coderStats.not_codeable === "number" && coderStats.not_codeable > 0 ? (
+                <View style={q.statTile}>
+                  <Text style={q.statValue}>{coderStats.not_codeable}</Text>
+                  <Text style={q.statLabel}>Not codeable</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          {randomMode ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
           {pickMode ? (
-            <View style={q.actions}>
-              <Button label="Available" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
-              <Button label="My coded cases" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
+            <View style={q.segmentedTrack}>
+              <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
+              <Button label="My coded cases" size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
             </View>
           ) : <Text style={styles.muted}>My coded cases</Text>}
-          {showHistory ? currentData?.coderHistory?.history.map((item) => (
-            <View key={item.va_sid} style={styles.card}>
-              <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
-              <Text style={styles.text}>{item.project_id} · {item.site_id} · {item.va_submission_date}</Text>
-              <Button label="View case" kind="secondary" disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
-              {item.recodeable ? <Button label="Recode" disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
+          {renderFilterControls()}
+          {showHistory ? filteredCoderHistory.map((item) => (
+            <View key={item.va_sid} style={[styles.card, q.caseCard]}>
+              <View style={q.caseHeader}>
+                <View style={q.caseHeaderMain}>
+                  <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
+                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
+                </View>
+                {(item.va_code_status || item.recodeable) ? (
+                  <View style={q.badgeRow}>
+                    {item.va_code_status ? (
+                      <View style={[q.badge, q.badgeAccent]}>
+                        <Text style={[q.badgeText, q.badgeAccentText]}>{item.va_code_status}</Text>
+                      </View>
+                    ) : null}
+                    {item.recodeable ? (
+                      <View style={[q.badge, q.badgeAccent]}>
+                        <Text style={[q.badgeText, q.badgeAccentText]}>Recodeable</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                ) : null}
+              </View>
+              <CaseCardDetails item={item} />
+              <View style={q.actions}>
+                <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
+              </View>
             </View>
-          )) : currentData?.coderAvailable?.forms.map((item) => (
-            <View key={item.va_sid} style={styles.card}>
-              <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
-              <Text style={styles.text}>{item.project_id} · {item.site_id} · {item.va_submission_date}</Text>
-              <Button label="Pick case" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
+          )) : filteredCoderAvailable.map((item) => (
+            <View key={item.va_sid} style={[styles.card, q.caseCard]}>
+              <View style={q.caseHeader}>
+                <View style={q.caseHeaderMain}>
+                  <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
+                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
+                </View>
+              </View>
+              <CaseCardDetails item={item} />
+              <Button label="Pick case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
             </View>
           ))}
           {coderCount === 0 ? <Text style={styles.muted}>{showHistory ? "No coded cases yet." : pickMode ? "No cases to pick right now." : "No available cases on this page."}</Text> : null}
+          {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
           <View style={q.pager}>
-            <Button label="Previous" kind="secondary" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
+            <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
-            <Button label="Next" kind="secondary" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
+            <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
           </View>
         </View>
       ) : (
@@ -637,34 +1064,66 @@ export function QueueScreen({
             <View style={q.titleMain}>
               <Text style={styles.headline}>Reviewer queue</Text>
               <Text style={styles.muted}>
-                {stats && "available" in stats ? `${stats.available} available · ${stats.completed} completed` : "Queue counts are loading."}
+                {reviewerStats ? `${reviewerStats.available} available · ${reviewerStats.completed} completed` : "Queue counts are loading."}
               </Text>
             </View>
             <RefreshIcon disabled={busy || loading} onPress={refreshCases} />
           </View>
-          <View style={q.actions}>
-            <Button label="Available" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
-            <Button label="My reviewed cases" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
+          {reviewerStats ? (
+            <View style={q.statsGrid}>
+              <View style={q.statTile}>
+                <Text style={q.statValue}>{String(reviewerStats.available ?? 0)}</Text>
+                <Text style={q.statLabel}>Available to review</Text>
+              </View>
+              <View style={q.statTile}>
+                <Text style={q.statValue}>{String(reviewerStats.completed ?? 0)}</Text>
+                <Text style={q.statLabel}>Reviewed</Text>
+              </View>
+              {typeof reviewerStats.in_scope === "number" ? (
+                <View style={q.statTile}>
+                  <Text style={q.statValue}>{reviewerStats.in_scope}</Text>
+                  <Text style={q.statLabel}>In scope</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          <View style={q.segmentedTrack}>
+            <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
+            <Button label="My reviewed cases" size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
           </View>
-          {reviewerRows?.map((item) => (
-            <View key={item.va_sid} style={styles.card}>
-              <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
-              <Text style={styles.text}>{item.project_id} · {item.site_id} · {item.va_submission_date}</Text>
+          {renderFilterControls()}
+          {filteredReviewerRows.map((item) => (
+            <View key={item.va_sid} style={[styles.card, q.caseCard]}>
+              <View style={q.caseHeader}>
+                <View style={q.caseHeaderMain}>
+                  <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
+                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
+                </View>
+                {item.va_narration_language ? (
+                  <View style={q.badgeRow}>
+                    <View style={[q.badge, q.badgeAccent]}>
+                      <Text style={[q.badgeText, q.badgeAccentText]}>{item.va_narration_language}</Text>
+                    </View>
+                  </View>
+                ) : null}
+              </View>
+              <CaseCardDetails item={item} />
               {showHistory ? (
-                <Button label="View case" kind="secondary" disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                <Button label="View case" kind="secondary" size="sm" disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
               ) : (
-                <Button label="Review case" disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
+                <Button label="Review case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
               )}
             </View>
           ))}
-          {reviewerRows?.length === 0 ? <Text style={styles.muted}>{showHistory ? "No reviewed cases yet." : "No available cases on this page."}</Text> : null}
+          {reviewerRows?.length === 0 ? <Text style={styles.muted}>{reviewerEmptyText()}</Text> : null}
+          {(reviewerRows?.length ?? 0) > 0 && filteredReviewerRows.length === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
           <View style={q.pager}>
-            <Button label="Previous" kind="secondary" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
+            <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
-            <Button label="Next" kind="secondary" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
+            <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
           </View>
         </View>
       )}
-    </Screen>
+    </ActiveShell>
   );
 }

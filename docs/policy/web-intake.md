@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-20
 ---
 
 # Web Intake Policy
@@ -144,11 +144,32 @@ submission enters the workflow. Plan:
   and `captured_at` (UTC, set by the server when the fix is saved, never taken
   from the client). Latitude and longitude come together or not at all; the
   accuracy and timestamp only exist with them.
-- **Who sees it**: exactly those who see the registration's address (the case
-  detail and the registered-deaths lists that carry the address), and nobody
-  else. It is absent from the worklist rows, supervision rows, exports,
-  analytics and every unrelated endpoint. The apps show an "Open in maps" link
-  (Google Maps search by coordinates) and the coordinates in small muted text.
+- **Who sees it** (owner, 2026-10-20): one rule everywhere. A case's fix is
+  sent only for cases in an **organization** project (an active organization
+  level, `projects_with_org_tree`) and only to a caller with personal-data
+  access (`should_redact_pii` false), plus, on the case detail
+  (`GET /intake/cases/<id>` and every reply carrying `{"case": <detail>}`)
+  and the register lists (`GET /intake/deaths`), the caller's **own
+  registration** in any project: the edit form reads the fix from there and
+  its reporter captured it (`web_intake_service.gps_projects` /
+  `shows_gps`). Otherwise `latitude`, `longitude`, `accuracy_m` and
+  `captured_at` are omitted, not null; a correction omitting them keeps the
+  stored fix. It is absent from supervision rows, exports, analytics and every
+  unrelated endpoint. The apps show an "Open in maps" link (Google Maps search
+  by coordinates, built on the client) and the coordinates in small muted
+  text.
+- **Case-list rows (owner, 2026-10-20)**: in **organization** projects,
+  interviewers and death reporters have PII access and need the fix to reach
+  the household, so `latitude` and `longitude` may also be carried in the
+  rows of `GET /intake/cases` (the worklist rows) and shown as a map-pin
+  button on the card, **only for callers whose role or project has PII access
+  for that case**, using the same authorization and redaction predicates
+  (`should_redact_pii`) as the case detail's contact details. They are never
+  sent to supervisors without PII access, coders, reviewers or data managers
+  without PII access, never in supervision rows, never in the rows of a
+  non-organization (sites-mode) project, even to interviewers, and never
+  logged.
+  `case-list-views.md` decision 6 is the list-side statement.
 - **Editing**: a correction may keep the stored fix (omit the fields), replace
   it (a new capture) or clear it (explicit nulls). The existing audit of a
   details edit keeps old and new values like any other personal field.
@@ -1096,11 +1117,23 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `Id10007` respondent name | case informant name | no |
 | `Id10061` / `Id10062` father's / mother's name | optional registration-form fields `father_name` / `mother_name` (`digitva-vzk.1`) | no |
 | `Id10010b` interviewer sex | user-profile `sex` (`digitva-vzk.3`) | yes, when the profile has a sex |
+| `Id10010a` interviewer age | user-profile `year_of_birth`: interview year in the interviewer's timezone minus it, only when 18-89 (owner decision 2026-10-20) | no: prefilled but editable, a birth year alone is accurate to a year |
 | `abha_number` / `abha_address` | case | yes (unchanged) |
 | `Id10020` = no, `dob_precision`, `dob_month_year` / `dob_year` | case `date_of_birth_partial` when there is no exact date: `YYYY-MM` gives `month_year` and `dob_month_year` = YYYY-MM-01; `YYYY` gives `year` and `dob_year` = YYYY-01-01 (the ODK date storage for those appearances). `Id10021` stays empty. Age still prefills beside it (`digitva-tld2`) | no |
 
-`Id10010a` interviewer age is not prefilled or locked (owner decision
-2026-10-03, `digitva-q219`); the interviewer answers it.
+`Id10010a` interviewer age is prefilled but not locked (owner decision
+2026-10-20, reversing 2026-10-03 `digitva-q219`): when the profile has a year
+of birth, the age is the year of the interview date, read in the interviewer's
+own timezone, minus the year of birth, and only when it falls within the
+question's own constraint of 18 to 89 (WHO also accepts 99, "do not wish to
+disclose", which is never prefilled). A birth year alone is accurate to a
+year, so the interviewer may correct it. With no year of birth, or an age
+outside 18 to 89, the question stays empty and the interviewer answers it.
+Web, device and native all take the value from the server's interviewer
+prefill (`prefill.interviewer.age`, mapped by the form package), so they agree;
+a device's cached prefill policy carries the age as of its last sync. A draft
+keeps the prefill it was created with; drafts created before 2026-10-20 do not
+gain the age.
 
 Rules as built:
 
@@ -1149,7 +1182,7 @@ Rules as built:
   prefilled parents' names are dropped as irrelevant at submission.
 - Year of birth and sex are optional, set in Profile or by an admin (the
   admin master list shows them; the user search a project PI calls does
-  not), and never logged; year of birth no longer prefills anything. `Id10010a` / `Id10010b` are registered PII fields
+  not), and never logged; year of birth prefills the interviewer age `Id10010a` (unlocked), sex prefills and locks `Id10010b`. Both are registered PII fields
   (`app/services/pii_field_registry.py`).
 
 ### The list
@@ -1347,10 +1380,11 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   `last_contact_at`; `informant_phone_2`; structured address
   `address_house_street`, `address_village_ward`, `address_landmark` (200
   characters each) beside the free-text `address`.
-- **Phones:** both phones must be an Indian mobile number: 10 digits starting
-  6-9, with an optional `+91` or `0` in front; spaces and hyphens are ignored.
-  Stored as the 10 digits. Checked on register (there is no edit endpoint
-  yet). Worklist rows carry only `informant_phone_masked` /
+- **Phones:** both phones are optional and take the VA form's one phone format
+  (`field-data-collection.md`, "Phone numbers"): 10 digits, any first digit,
+  with an optional `+91`, `91` or `0` in front; spaces, hyphens and
+  parentheses are ignored. Stored as the 10 digits. Checked on register, and
+  on an edit only when the edit changes that phone. Worklist rows carry only `informant_phone_masked` /
   `informant_phone_2_masked` (`******1234`); `serialize_death` (the register
   response) keeps the full numbers. Older free-text phones are masked to their
   last four digits.
@@ -1546,7 +1580,10 @@ its name and date of death.
   draft, log a contact attempt or a visit, pause, flag, or any other worklist
   action: those routes are interviewer-only and answer 403. It sees no other
   user's cases (a death registered by someone else in its unit reads as 404),
-  no worklist and no prefill.
+  no worklist and no prefill. The shared deaths list
+  ([Case List Views](case-list-views.md), owner 2026-10-20) reads
+  `GET /intake/cases`, which serves a reporter exactly the deaths it
+  registered within reach (`can_interview: false`, no other-draft hints).
 - **The list.** `GET /api/v1/intake/deaths` serves a reporter its own
   registered deaths (`registered_by` = the caller) within its reach, newest
   first, keyset-paged on `(updated_at, death_id)` with `limit` (default 50,

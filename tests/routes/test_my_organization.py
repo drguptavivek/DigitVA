@@ -2,7 +2,8 @@
 
 Rules under test live in app/services/organization_service.py (``my_organization``,
 ``unit_people``). Policy: docs/policy/organization-model.md, "Who sees worker
-names" (name and cadre only, org-tree projects only).
+names" (names, cadres and roles only) and "My positions" (every granted
+project, with the caller's own roles).
 """
 from datetime import UTC, datetime
 
@@ -14,6 +15,7 @@ from app.models import (
     VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
+    VaProjectSites,
     VaStatuses,
     VaUserAccessGrants,
 )
@@ -185,8 +187,12 @@ class MyOrganizationTests(BaseTestCase):
             "unit_name": "My Sub-centre A",
             "level_name": block["my_units"][0]["level_name"],
             "cadres": ["Community Health Officer"],
+            "roles": [{"role": "interviewer", "cadre": "Community Health Officer"}],
         }])
-        self.assertEqual(set(block["my_units"][0]), {"org_unit_id", "unit_name", "level_name", "cadres"})
+        self.assertEqual(set(block["my_units"][0]),
+                         {"org_unit_id", "unit_name", "level_name", "cadres", "roles"})
+        self.assertTrue(block["has_tree"])
+        self.assertEqual(block["my_positions"], {"project_roles": [], "sites": []})
         self.assertIn("Meena Devi", str(body))  # names are present before absence is asserted
         # Above is root first: district, CHC, PHC.
         self.assertEqual([u["unit_name"] for u in block["above"]],
@@ -295,14 +301,16 @@ class MyOrganizationTests(BaseTestCase):
     def test_project_level_user_sees_roots_below_and_no_my_units(self):
         self._grant(self.project_user, VaAccessRoles.interviewer,
                     scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT)
-        # A sites-mode project grant is not an org-tree project: omitted.
+        # A sites-mode project is listed too, with its roles and no tree.
         self._grant(self.project_user, VaAccessRoles.interviewer,
                     scope_type=VaAccessScopeTypes.project, project_id=self.SITES)
         self._login(str(self.project_user.user_id))
 
         body = self._get("/me").get_json()
-        self.assertEqual([p["project_id"] for p in body["projects"]], [self.PROJECT])
-        block = body["projects"][0]
+        self.assertEqual([p["project_id"] for p in body["projects"]], [self.PROJECT, self.SITES])
+        block = self._project_block(body, self.PROJECT)
+        self.assertTrue(block["has_tree"])
+        self.assertEqual(block["my_positions"], {"project_roles": ["interviewer"], "sites": []})
         self.assertEqual(block["my_units"], [])
         self.assertEqual(block["above"], [])
         self.assertEqual(block["my_level"], [])
@@ -311,9 +319,65 @@ class MyOrganizationTests(BaseTestCase):
         self.assertTrue(block["below"][0]["has_children"])
         self._assert_no_contact_fields(body)
 
-    def test_sites_only_user_gets_nothing(self):
+    def test_sites_mode_project_lists_project_roles_without_a_tree(self):
         self._grant(self.sites_user, VaAccessRoles.interviewer,
                     scope_type=VaAccessScopeTypes.project, project_id=self.SITES)
+        self._grant(self.sites_user, VaAccessRoles.coder,
+                    scope_type=VaAccessScopeTypes.project, project_id=self.SITES)
+        self._login(str(self.sites_user.user_id))
+
+        self.assertEqual(self._get("/me").get_json(), {"projects": [{
+            "project_id": self.SITES,
+            "project_name": "My Org Sites Project",
+            "has_tree": False,
+            "my_positions": {"project_roles": ["coder", "interviewer"], "sites": []},
+            "my_units": [], "above": [], "my_level": [], "below": [],
+        }]})
+
+    def test_site_grant_lists_only_that_site_with_its_roles(self):
+        project_site = db.session.execute(db.select(VaProjectSites).where(
+            VaProjectSites.project_id == self.BASE_PROJECT_ID,
+            VaProjectSites.site_id == self.BASE_SITE_ID,
+        )).scalar_one()
+        for role in (VaAccessRoles.coder, VaAccessRoles.reviewer):
+            self._grant(self.sites_user, role, scope_type=VaAccessScopeTypes.project_site,
+                        project_site_id=project_site.project_site_id)
+        self._login(str(self.sites_user.user_id))
+
+        block = self._project_block(self._get("/me").get_json(), self.BASE_PROJECT_ID)
+        self.assertEqual(block["my_positions"], {
+            "project_roles": [],
+            "sites": [{"site_id": self.BASE_SITE_ID, "site_name": "Base Test Site",
+                       "roles": ["coder", "reviewer"]}],
+        })
+
+    def test_unit_roles_carry_their_grant_cadre(self):
+        self._grant(self.mo_user, VaAccessRoles.coder,
+                    scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc.org_unit_id,
+                    cadre_id=self.cadre_mo)
+        self._grant(self.mo_user, VaAccessRoles.reviewer,
+                    scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc.org_unit_id)
+        self._grant(self.mo_user, VaAccessRoles.data_manager,
+                    scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT)
+        self._login(str(self.mo_user.user_id))
+
+        block = self._project_block(self._get("/me").get_json(), self.PROJECT)
+        self.assertEqual([u["unit_name"] for u in block["my_units"]], ["My PHC"])
+        self.assertEqual(block["my_units"][0]["roles"], [
+            {"role": "coder", "cadre": "Medical Officer"},
+            {"role": "reviewer", "cadre": None},
+        ])
+        self.assertEqual(block["my_positions"]["project_roles"], ["data_manager"])
+        # Units below the PHC are listed for browsing; the user's roles there
+        # are inherited, which the client derives from parentage.
+        self.assertEqual({u["unit_name"] for u in block["below"]}, {"My Sub-centre A", "My Sub-centre B"})
+
+    def test_inactive_grant_lists_no_project(self):
+        db.session.add(VaUserAccessGrants(
+            user_id=self.sites_user.user_id, role=VaAccessRoles.coder,
+            grant_status=VaStatuses.deactive,
+            scope_type=VaAccessScopeTypes.project, project_id=self.SITES))
+        db.session.commit()
         self._login(str(self.sites_user.user_id))
         self.assertEqual(self._get("/me").get_json(), {"projects": []})
 

@@ -262,7 +262,9 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
         testID="section-rail"
       >
         <VerticalStepper items={items} onSelect={onSelect} scrollBox={railRef} />
-        {moreToCome ? <Text style={navStyles.moreNote}>{messages.moreSectionsNote}</Text> : null}
+        {moreToCome && messages.moreSectionsNote ? (
+          <Text style={navStyles.moreNote}>{messages.moreSectionsNote}</Text>
+        ) : null}
       </View>
     );
   }
@@ -375,7 +377,9 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
             <Text numberOfLines={1} style={navStyles.headerText}>
               {position}
             </Text>
-            {moreToCome ? <Text style={navStyles.moreNoteInline}>{messages.moreSectionsNote}</Text> : null}
+            {moreToCome && messages.moreSectionsNote ? (
+              <Text style={navStyles.moreNoteInline}>{messages.moreSectionsNote}</Text>
+            ) : null}
           </View>
           <Text style={navStyles.headerHint}>{`☰ ${messages.sections}`}</Text>
         </Pressable>
@@ -489,7 +493,9 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
                 onClose();
               }}
             />
-            {moreToCome ? <Text style={navStyles.moreNote}>{messages.moreSectionsNote}</Text> : null}
+            {moreToCome && messages.moreSectionsNote ? (
+              <Text style={navStyles.moreNote}>{messages.moreSectionsNote}</Text>
+            ) : null}
           </ScrollView>
         </View>
       </View>

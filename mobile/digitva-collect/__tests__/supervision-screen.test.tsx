@@ -124,31 +124,55 @@ describe("SupervisionScreen", () => {
     mockBootstrap = { csrf: { header: "X-CSRFToken", token: "csrf-token" }, access: { roles: ACCESS_ROLES } };
   });
 
-  it("lists flags first and pages with the keyset cursor", async () => {
+  it("opens on all cases, shows the reported date, and pages with the keyset cursor", async () => {
     fakeApi({
       list: (path) => path.includes("cursor=C2")
         ? page([caseRow({ death_id: "D2", deceased_name: "Second woman" })])
-        : page([caseRow({ pending_flag: "duplicate" })], { next_cursor: "C2" }),
+        : page([caseRow({ pending_flag: "duplicate", created_at: "2026-09-02T08:00:00Z" })], { next_cursor: "C2" }),
     });
     const tree = await render();
 
-    expect(requestedPaths()[0]).toBe("/api/v1/intake/supervision/cases?flagged=true");
-    expect(JSON.stringify(tree.toJSON())).toContain("Asha");
-    expect(JSON.stringify(tree.toJSON())).toContain(en.supervisionPendingDuplicate);
+    expect(requestedPaths()[0]).toBe("/api/v1/intake/supervision/cases?");
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Asha");
+    expect(text).toContain(en.supervisionPendingDuplicate);
+    expect(text).toContain(en.supervisionReported.replace("{date}", new Date("2026-09-02T08:00:00Z").toLocaleString()));
 
     await press(tree, en.loadMore);
-    expect(requestedPaths()).toContain("/api/v1/intake/supervision/cases?flagged=true&cursor=C2");
+    expect(requestedPaths()).toContain("/api/v1/intake/supervision/cases?cursor=C2");
     expect(JSON.stringify(tree.toJSON())).toContain("Second woman");
+  });
+
+  it("shows a count button per state in scope, each filtering the list", async () => {
+    fakeApi({ list: () => page([caseRow()], { counts: { registered: 3, submitted: 2 } }) });
+    const tree = await render();
+
+    expect(buttons(tree, `${en.supervisionAnyState} (5)`)).toHaveLength(1);
+    expect(buttons(tree, "registered (3)")).toHaveLength(1);
+    expect(buttons(tree, "submitted (2)")).toHaveLength(1);
+    expect(buttons(tree, "cancelled (0)")).toHaveLength(0);
+
+    await press(tree, "submitted (2)");
+    expect(requestedPaths().at(-1)).toBe("/api/v1/intake/supervision/cases?state=submitted");
+
+    // From the flags tab, a count button returns to all cases in that state.
+    await press(tree, en.supervisionTabFlags);
+    expect(requestedPaths().at(-1)).toBe("/api/v1/intake/supervision/cases?flagged=true");
+    await press(tree, "registered (3)");
+    expect(requestedPaths().at(-1)).toBe("/api/v1/intake/supervision/cases?state=registered");
   });
 
   it("sends the tab, state and visit-note filters the server expects", async () => {
     fakeApi();
     const tree = await render();
 
+    await press(tree, en.supervisionTabFlags);
+    expect(requestedPaths().at(-1)).toBe("/api/v1/intake/supervision/cases?flagged=true");
+
     await press(tree, en.supervisionTabAll);
     expect(requestedPaths().at(-1)).toBe("/api/v1/intake/supervision/cases?");
 
-    await pick(tree, "supervision-state", "registered");
+    await press(tree, "registered (1)");
     expect(requestedPaths().at(-1)).toBe("/api/v1/intake/supervision/cases?state=registered");
 
     await press(tree, en.supervisionVisitNotes);
@@ -424,8 +448,11 @@ describe("SupervisionScreen", () => {
     expect(JSON.stringify(empty.toJSON())).toContain(en.supervisionNoScope);
 
     fakeApi({ list: () => ({ cases: [], counts: { registered: 2 }, next_cursor: null }) });
-    const noFlags = await render();
-    expect(JSON.stringify(noFlags.toJSON())).toContain(en.supervisionNoFlags);
+    const scoped = await render();
+    // The screen opens on All cases; the Flags tab has its own empty text.
+    expect(JSON.stringify(scoped.toJSON())).toContain(en.supervisionNoCasesHere);
+    await press(scoped, en.supervisionTabFlags);
+    expect(JSON.stringify(scoped.toJSON())).toContain(en.supervisionNoFlags);
   });
 
   it("shows the forbidden text and calls nothing without a supervisor role", async () => {

@@ -7,11 +7,13 @@ cadre grid (ANM may report deaths at a sub-centre, CHO may not). Every
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
+from unittest.mock import patch
 
 import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOrgLevel,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaDeathRegister,
@@ -222,13 +224,13 @@ class DeathReporterTests(BaseTestCase):
         self.assertNotIn(start, page)
         self.assertIn('id="death-save"', page)
 
-    def test_a_reporter_cannot_interview_log_visits_or_use_the_worklist(self):
+    def test_a_reporter_cannot_interview_log_visits_or_open_a_case(self):
         case = self._register(self.reporter, self.sca)
         death_id = case["death_id"]
         self._login(str(self.reporter.user_id))
         headers = self._csrf_headers()
         calls = (
-            ("get", "/cases", None), ("get", f"/cases/{death_id}", None),
+            ("get", f"/cases/{death_id}", None),
             ("get", f"/cases/{death_id}/possible-duplicates", None),
             ("post", f"/cases/{death_id}/attempts", {"outcome": "no_answer"}),
             ("post", f"/cases/{death_id}/visit", {"next_visit_at": None}),
@@ -303,6 +305,184 @@ class DeathReporterTests(BaseTestCase):
         self.assertEqual(self._list(self.reporter, "?project_id=NOPE01").status_code, 403)
         # The page size is clamped, not trusted.
         self.assertEqual(self._list(self.reporter, "?limit=100000").status_code, 200)
+
+    def _cases(self, user, query=""):
+        self._login(str(user.user_id))
+        return self.client.get(f"{API}/cases{query}")
+
+    def test_the_case_list_holds_a_reporters_own_deaths_within_reach_only(self):
+        # The shared deaths list (docs/policy/case-list-views.md) reads /cases.
+        mine = self._register(self.reporter, self.sca, deceased_name="Mine")["death_id"]
+        colleague = self._register(self.reporter_ph1, self.sca, deceased_name="Colleague's")["death_id"]
+        interviewer = self._register(self.interviewer, self.sca, deceased_name="Interviewer's")["death_id"]
+        response = self._cases(self.reporter)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        rows = {row["death_id"]: row for row in response.get_json()["cases"]}
+        self.assertIn(mine, rows)
+        self.assertNotIn(colleague, rows)
+        self.assertNotIn(interviewer, rows)
+        row = rows[mine]
+        self.assertTrue(row["registered_by_me"])
+        self.assertFalse(row["can_interview"])
+        self.assertNotIn("other_draft_active", row)
+        self.assertNotIn("other_draft_started_at", row)
+        self.assertEqual(response.get_json()["counts"], {"registered": 1})
+        # Project narrowing takes the reporter's projects; another is refused.
+        self.assertEqual(self._cases(self.reporter, f"?project_id={PROJECT}").status_code, 200)
+        self.assertEqual(self._cases(self.reporter, "?project_id=NOPE01").status_code, 403)
+        # A grant moved to another branch no longer reaches its own death.
+        grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == self.reporter.user_id))
+        grant.org_unit_id = self.scc.org_unit_id
+        db.session.commit()
+        invalidate(self.reporter.user_id)
+        response = self._cases(self.reporter)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(mine, {row["death_id"] for row in response.get_json()["cases"]})
+
+    def test_the_case_list_unions_both_roles_without_lending_the_interview(self):
+        # BOTH reports at SCA and interviews at SCB only.
+        reported = self._register(self.both, self.sca, deceased_name="Reported")["death_id"]
+        sibling = self._register(self.interviewer, self.sca, deceased_name="Not theirs")["death_id"]
+        in_reach = self._register(self.interviewer, self.scb, deceased_name="Interviewed")["death_id"]
+        rows = {row["death_id"]: row for row in self._cases(self.both).get_json()["cases"]}
+        self.assertIn(in_reach, rows)
+        self.assertTrue(rows[in_reach]["can_interview"])
+        self.assertIn("other_draft_active", rows[in_reach])
+        self.assertIn(reported, rows)
+        self.assertFalse(rows[reported]["can_interview"])
+        self.assertNotIn("other_draft_active", rows[reported])
+        self.assertNotIn(sibling, rows)
+        # An interviewer's list is unchanged: every case in reach, interview allowed.
+        rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
+        self.assertTrue({reported, sibling, in_reach} <= set(rows))
+        self.assertTrue(all(row["can_interview"] for row in rows.values()))
+
+    def test_case_rows_carry_the_gps_fix_only_where_the_caller_sees_contact_details(self):
+        # The card's map link (docs/current-state/api-v1.md, GET /intake/cases).
+        gps = {"latitude": 12.971599, "longitude": 77.594566}
+        mine = self._register(self.reporter, self.sca, deceased_name="Mine GPS", **gps)["death_id"]
+        theirs = self._register(self.interviewer, self.sca, deceased_name="Theirs GPS", **gps)["death_id"]
+
+        # An interviewer (personal-data access) gets the fix on every case in reach.
+        rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
+        self.assertIn(mine, rows)
+        self.assertEqual((rows[mine]["latitude"], rows[mine]["longitude"]), (12.971599, 77.594566))
+        self.assertEqual(rows[theirs]["latitude"], 12.971599)
+
+        # A reporter lists, and so locates, only its own deaths.
+        rows = {row["death_id"]: row for row in self._cases(self.reporter).get_json()["cases"]}
+        self.assertIn(mine, rows)
+        self.assertEqual(rows[mine]["longitude"], 77.594566)
+        self.assertNotIn(theirs, rows)
+
+        # A caller without personal-data access keeps the fix of its own
+        # registrations only (the case detail's rule), never of the team's.
+        with patch("app.services.web_intake_service.should_redact_pii", return_value=True):
+            rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
+        self.assertIn(mine, rows)
+        self.assertNotIn("latitude", rows[mine])
+        self.assertNotIn("longitude", rows[mine])
+        self.assertIn(theirs, rows)
+        self.assertEqual(rows[theirs]["latitude"], 12.971599)
+
+    def test_case_rows_carry_no_gps_fix_once_the_project_has_no_organization_tree(self):
+        # Owner, 2026-10-20: coordinates in rows only in organization projects.
+        death = self._register(self.interviewer, self.sca, deceased_name="Treeless GPS",
+                               latitude=12.5, longitude=77.5)["death_id"]
+        rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
+        self.assertEqual(rows[death]["latitude"], 12.5)
+        active = sa.select(MasOrgLevel.org_level_id).where(
+            MasOrgLevel.project_id == PROJECT, MasOrgLevel.is_active.is_(True))
+        level_ids = list(db.session.scalars(active))
+        self.assertTrue(level_ids)
+        levels = sa.update(MasOrgLevel).where(MasOrgLevel.org_level_id.in_(level_ids))
+        db.session.execute(levels.values(is_active=False))
+        db.session.commit()
+        try:
+            rows = {row["death_id"]: row for row in self._cases(self.interviewer).get_json()["cases"]}
+            self.assertIn(death, rows)
+            self.assertNotIn("latitude", rows[death])
+            self.assertNotIn("longitude", rows[death])
+        finally:
+            db.session.execute(levels.values(is_active=True))
+            db.session.commit()
+
+    def _detail_address(self, user, death_id):
+        self._login(str(user.user_id))
+        response = self.client.get(f"{API}/cases/{death_id}")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return response.get_json()["case"]["household_address"]
+
+    def _register_rows(self, user):
+        response = self._list(user, f"?project_id={PROJECT}&site_id={SITE}")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return {d["death_id"]: d for d in response.get_json()["deaths"]}
+
+    def test_the_case_detail_and_register_list_carry_the_gps_fix_by_the_rows_rule(self):
+        # Owner, 2026-10-20: organization project, and personal-data access or
+        # the caller's own registration (docs/policy/web-intake.md).
+        gps = {"latitude": 12.971599, "longitude": 77.594566}
+        mine = self._register(self.reporter, self.sca, deceased_name="Mine Detail GPS", **gps)["death_id"]
+        theirs = self._register(self.interviewer, self.sca, deceased_name="Theirs Detail GPS", **gps)["death_id"]
+        gps_keys = ("latitude", "longitude", "accuracy_m", "captured_at")
+
+        # An interviewer with personal-data access: every case's fix.
+        self.assertEqual(self._detail_address(self.interviewer, mine)["latitude"], 12.971599)
+        self.assertEqual(self._register_rows(self.interviewer)[mine]["longitude"], 77.594566)
+        # The reporter's own list keeps its own fix (its edit form reads it).
+        reported = {d["death_id"]: d for d in self._list(self.reporter).get_json()["deaths"]}
+        self.assertEqual(reported[mine]["latitude"], 12.971599)
+
+        # Without personal-data access: only the caller's own registration.
+        with patch("app.services.web_intake_service.should_redact_pii", return_value=True):
+            other = self._detail_address(self.interviewer, mine)
+            own = self._detail_address(self.interviewer, theirs)
+            rows = self._register_rows(self.interviewer)
+        self.assertIn("address", other)
+        self.assertEqual(own["latitude"], 12.971599)
+        self.assertEqual(rows[theirs]["latitude"], 12.971599)
+        self.assertIn(mine, rows)
+        for key in gps_keys:
+            self.assertNotIn(key, other)
+            self.assertNotIn(key, rows[mine])
+
+        # No organization tree: no fix of another's registration, even with
+        # personal-data access; the caller's own keeps its fix.
+        active = sa.select(MasOrgLevel.org_level_id).where(
+            MasOrgLevel.project_id == PROJECT, MasOrgLevel.is_active.is_(True))
+        level_ids = list(db.session.scalars(active))
+        self.assertTrue(level_ids)
+        levels = sa.update(MasOrgLevel).where(MasOrgLevel.org_level_id.in_(level_ids))
+        db.session.execute(levels.values(is_active=False))
+        db.session.commit()
+        try:
+            other = self._detail_address(self.interviewer, mine)
+            own = self._detail_address(self.interviewer, theirs)
+            rows = self._register_rows(self.interviewer)
+        finally:
+            db.session.execute(levels.values(is_active=True))
+            db.session.commit()
+        self.assertIn("address", other)
+        self.assertEqual(own["latitude"], 12.971599)
+        self.assertEqual(rows[theirs]["latitude"], 12.971599)
+        self.assertIn(mine, rows)
+        for key in gps_keys:
+            self.assertNotIn(key, other)
+            self.assertNotIn(key, rows[mine])
+
+    def test_the_supervision_list_never_carries_the_gps_fix(self):
+        death = self._register(self.interviewer, self.sca, deceased_name="Supervised GPS",
+                               latitude=12.5, longitude=77.5)["death_id"]
+        supervisor = self._user("supervisor.gps", (R.interview_supervisor, self.ph1))
+        db.session.commit()
+        self._login(str(supervisor.user_id))
+        response = self.client.get(f"{API}/supervision/cases")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        rows = {row["death_id"]: row for row in response.get_json()["cases"]}
+        self.assertIn(death, rows)
+        self.assertNotIn("latitude", rows[death])
+        self.assertNotIn("longitude", rows[death])
 
     def test_an_interviewer_keeps_the_register_list_unchanged(self):
         case = self._register(self.reporter, self.sca)

@@ -1,22 +1,53 @@
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import Svg from "react-native-svg";
 
-import type { ClientBootstrap } from "../src/client/api";
+import type { HomeSummary } from "../src/api";
+import type { AccessProject, ClientBootstrap } from "../src/client/api";
 
 let mockRouteParams: Record<string, string> = {};
 let mockAppBootstrap: ClientBootstrap;
 let mockLoadedSession: { authenticated: boolean; bootstrap?: ClientBootstrap };
+let mockHome: HomeSummary | Error;
+const mockRequest = jest.fn(async (path: string) => {
+  if (path !== "/api/v1/me/home") throw new Error(`unexpected ${path}`);
+  if (mockHome instanceof Error) throw mockHome;
+  return mockHome;
+});
 const mockRouter = { push: jest.fn(), replace: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
 
-function bootstrap(roles: string[], capabilities: Partial<ClientBootstrap["capabilities"]> = {}): ClientBootstrap {
+function bootstrap(
+  roles: string[],
+  capabilities: Partial<ClientBootstrap["capabilities"]> = {},
+  projects: AccessProject[] = [],
+  demoAvailable = false,
+): ClientBootstrap {
   return {
     user: { user_id: "u1", name: "Worker" },
     csrf: { header: "X-CSRFToken", token: "csrf" },
-    access: { user: { user_id: "u1", name: "Worker" }, roles, is_admin: false,
-      demo_coding: { available: false, project_ids: [] }, projects: [] },
-    capabilities: { intake: false, registerDeath: false, registeredDeaths: false, coding: false, reviewing: false, supervision: false, ...capabilities },
-    links: { login: "/login", logout: "/logout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" },
+    access: {
+      user: { user_id: "u1", name: "Worker" },
+      roles,
+      is_admin: roles.includes("admin"),
+      demo_coding: { available: demoAvailable, project_ids: demoAvailable ? ["DEMO01"] : [] },
+      projects,
+    },
+    capabilities: {
+      intake: false,
+      registerDeath: false,
+      registeredDeaths: false,
+      coding: false,
+      reviewing: false,
+      supervision: false,
+      ...capabilities,
+    },
+    links: {
+      login: "/login",
+      logout: "/logout",
+      intakeCases: "/api/v1/intake/cases",
+      intakeDrafts: "/api/v1/intake/drafts",
+    },
   } as ClientBootstrap;
 }
 
@@ -26,11 +57,20 @@ jest.mock("expo-router", () => ({
 }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockAppBootstrap, reload: mockReload }) }));
 jest.mock("../src/client/session", () => ({ loadBrowserSession: () => Promise.resolve(mockLoadedSession) }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
+jest.mock("../src/workspace/transport.web", () => ({ createWebWorkspaceTransport: () => mockRequest }));
+jest.mock("../src/web/KpiStrip", () => {
+  const ReactActual = jest.requireActual("react") as typeof React;
+  return { KpiStrip: () => ReactActual.createElement("kpi-strip") };
+});
+jest.mock("../src/i18n", () => ({
+  t: (key: string, params?: Record<string, string | number>) =>
+    params ? `${key}:${JSON.stringify(params)}` : key,
+}));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
-    Button: ({ label, onPress }: { label: string; onPress?: () => void }) => ReactActual.createElement("button", { label, onPress }),
+    Button: ({ label, onPress }: { label: string; onPress?: () => void }) =>
+      ReactActual.createElement("button", { label, onPress }),
     useUiStyles: () => ({ error: {}, muted: {}, text: {}, headline: {}, card: {} }),
   };
 });
@@ -50,20 +90,34 @@ jest.mock("../src/workspace/CaseWorkspaceScreen", () => ({ CaseWorkspaceScreen: 
 jest.mock("../src/workspace/doris/DorisPanel", () => ({ DorisPanel: () => null }));
 jest.mock("../src/workspace/media/AttachmentMedia.web", () => ({ AttachmentMedia: () => null }));
 
-import WorkspaceScreen, { CodingScreen } from "../src/web/WorkspaceScreen";
-
-const LOCAL_KEY = "digitva.lastVisit.u1";
-const SESSION_KEY = "digitva.homeLanded.u1";
+import WorkspaceScreen, { CodingScreen, MANY_PROJECTS, projectSubline } from "../src/web/WorkspaceScreen";
+import {
+  claimFirstHomeLoad,
+  describeProjectGrant,
+  describeProjectGrants,
+  homeLanding,
+  projectActionItems,
+  readLastVisit,
+  rememberVisit,
+  resetFirstHomeLoad,
+  roleScreens,
+} from "../src/web/roleHome";
 
 function memoryStorage() {
   const data = new Map<string, string>();
   return {
     getItem: (key: string) => data.get(key) ?? null,
-    setItem: (key: string, value: string) => { data.set(key, String(value)); },
-    removeItem: (key: string) => { data.delete(key); },
+    setItem: (key: string, value: string) => {
+      data.set(key, String(value));
+    },
+    removeItem: (key: string) => {
+      data.delete(key);
+    },
     clear: () => data.clear(),
-    key: () => null,
-    length: 0,
+    key: (index: number) => [...data.keys()][index] ?? null,
+    get length() {
+      return data.size;
+    },
   };
 }
 
@@ -80,7 +134,7 @@ function buttonLabels(renderer: ReactTestRenderer): string[] {
   return renderer.root.findAllByType("button" as never).map((node) => node.props.label as string);
 }
 
-describe("role home landing", () => {
+describe("role home dashboard", () => {
   let local: ReturnType<typeof memoryStorage>;
   let session: ReturnType<typeof memoryStorage>;
   let assign: jest.Mock;
@@ -95,6 +149,7 @@ describe("role home landing", () => {
     assign = jest.fn();
     Object.defineProperty(window, "location", { configurable: true, value: { ...originalLocation, assign } });
     mockRouteParams = {};
+    mockHome = { roles: ["coder"], blocks: { coder: { ready: 3, practice: false, completed: 5, recodeable: 1 } } };
     mockAppBootstrap = bootstrap(["coder"], {});
     mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
   });
@@ -103,88 +158,229 @@ describe("role home landing", () => {
     Object.defineProperty(window, "location", { configurable: true, value: originalLocation });
   });
 
-  test("the first home load goes to the remembered screen once, then shows the home list", async () => {
-    mockAppBootstrap = bootstrap(["coder", "interview_supervisor"], { supervision: true });
+  test("a new user with no roles sees the Welcome Home screen without redirecting", async () => {
+    mockAppBootstrap = bootstrap([], {}, [], true);
     mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
-    local.setItem(LOCAL_KEY, "/supervision");
 
-    const first = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
-    expect(mockRouter.replace).toHaveBeenCalledWith("/supervision");
-    await act(async () => { first.unmount(); });
-
-    const second = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(second.toJSON())).toContain("loginSuccess");
-    expect(buttonLabels(second)).toContain("navCoding");
-    // The home has no Supervision button; that entry lives in the shell menu.
-    expect(buttonLabels(second)).not.toContain("supervisionTitle");
-    await act(async () => { second.unmount(); });
-  });
-
-  test("without a remembered screen the first load goes to the first role screen", async () => {
-    mockAppBootstrap = bootstrap(["coder", "reviewer"], { reviewing: true });
-    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
     const renderer = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).toHaveBeenCalledWith("/coding");
-    await act(async () => { renderer.unmount(); });
-  });
-
-  it.each([
-    ["reviewer lands on /reviewing", ["reviewer"], { intake: true }, "/reviewing"],
-    ["interviewer lands on /collection", ["interviewer"], { intake: true }, "/collection"],
-    ["death reporter lands on /death-registration", ["death_reporter"], { registerDeath: true, registeredDeaths: true }, "/death-registration"],
-    ["supervisor lands on /supervision", ["interview_supervisor"], { supervision: true }, "/supervision"],
-  ])("%s", async (_name, roles, capabilities, expected) => {
-    mockAppBootstrap = bootstrap(roles, capabilities);
-    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
-    const renderer = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).toHaveBeenCalledWith(expected);
-    await act(async () => { renderer.unmount(); });
-  });
-
-  test("a data manager with no role screen goes to Area with a full page load", async () => {
-    mockAppBootstrap = bootstrap(["data_manager"], { supervision: true });
-    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
-    const renderer = await render(<WorkspaceScreen />);
-    expect(assign).toHaveBeenCalledWith("/area/");
     expect(mockRouter.replace).not.toHaveBeenCalled();
-    await act(async () => { renderer.unmount(); });
+    const json = JSON.stringify(renderer.toJSON());
+    expect(json).toContain("homeNoRolesTitle");
+    expect(json).toContain("homeNoRolesDescription");
+    expect(buttonLabels(renderer)).toEqual(
+      expect.arrayContaining(["navSettings", "homeOpenHelp", "homePracticeDemoCoding"]),
+    );
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
-  test("a remembered server page is only resumed for a data manager", async () => {
-    mockAppBootstrap = bootstrap(["coder"]);
+  test("one block per role, most actionable backlog first, numbers and one action each, no role chips or project cards", async () => {
+    const project: AccessProject = {
+      project_id: "TST001",
+      project_name: "Test Project",
+      has_tree: true,
+      grants: [
+        { role: "interviewer", scope: "org_unit", org_unit_id: "u-sc1", unit_name: "Subcentre A", active: true, source: "assigned" },
+        { role: "coder", scope: "org_unit", org_unit_id: "u-ph1", unit_name: "PHC 1", codes: true, active: true, source: "assigned" },
+        { role: "reviewer", scope: "project_site", site_id: "S01", codes: true, active: true, source: "assigned" },
+      ],
+      sites: [{ site_id: "S01", site_name: "Sites_in_project_TST001", roles: ["reviewer"] }],
+      actions: { interview: [], register_death: [] },
+      units: [],
+      levels: [],
+    };
+    mockAppBootstrap = bootstrap(["interviewer", "coder", "reviewer"], { intake: true, coding: true, reviewing: true }, [project]);
     mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
-    local.setItem(LOCAL_KEY, "/area/");
+    mockHome = {
+      roles: ["coder", "interviewer", "reviewer"],
+      blocks: {
+        interviewer: { drafts_in_progress: 0, needing_visit: 2 },
+        coder: { ready: 9, practice: false, completed: 4, recodeable: 1 },
+        reviewer: { available: 5, completed: 0 },
+      },
+    };
+
     const renderer = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).toHaveBeenCalledWith("/coding");
-    expect(assign).not.toHaveBeenCalled();
-    await act(async () => { renderer.unmount(); });
+    expect(mockRequest).toHaveBeenCalledWith("/api/v1/me/home");
+    const json = JSON.stringify(renderer.toJSON());
+    // Coder (9) before reviewer (5) before interviewer (2).
+    expect(json).toContain("homeBlockCoder");
+    expect(json.indexOf("homeBlockCoder")).toBeLessThan(json.indexOf("homeBlockReviewer"));
+    expect(json.indexOf("homeBlockReviewer")).toBeLessThan(json.indexOf("homeBlockInterviewer"));
+    // The project is a subline, not a card with role chips or per-project actions.
+    expect(json).toContain("Test Project");
+    expect(json).not.toContain("role_coder");
+    expect(json).not.toContain("Sites_in_project_TST001");
+    const labels = buttonLabels(renderer);
+    expect(labels).toContain("homeCtaCodeNext");
+    expect(labels).not.toContain("navCoding");
+    expect(labels).not.toContain("navOrganization");
+    // No progress role: no progress block.
+    expect(json).not.toContain("homeBlockProgress");
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
-  test("storage that throws falls back to the first role screen", async () => {
-    const denied = () => { throw new Error("storage denied"); };
-    Object.defineProperty(window, "localStorage", { configurable: true, get: denied });
-    Object.defineProperty(window, "sessionStorage", { configurable: true, get: denied });
+  test("the first block takes the action, an interviewer with drafts resumes, and a practice tester is never ranked by backlog", async () => {
+    mockAppBootstrap = bootstrap(["interviewer", "coding_tester"], { intake: true, coding: true });
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    mockHome = {
+      roles: ["coding_tester", "interviewer"],
+      blocks: {
+        coder: { ready: 50, practice: true },
+        interviewer: { drafts_in_progress: 1, needing_visit: 0 },
+      },
+    };
+
     const renderer = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).toHaveBeenCalledWith("/coding");
-    await act(async () => { renderer.unmount(); });
+    const json = JSON.stringify(renderer.toJSON());
+    expect(json).toContain("homeBlockInterviewer");
+    expect(json.indexOf("homeBlockInterviewer")).toBeLessThan(json.indexOf("homeBlockPracticeCoding"));
+    const labels = buttonLabels(renderer);
+    expect(labels).toContain("homeCtaResumeDraft");
+    renderer.root.findAllByType("button" as never).find((node) => node.props.label === "homeCtaResumeDraft")?.props.onPress();
+    expect(mockRouter.push).toHaveBeenCalledWith("/collection");
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  test("a progress role gets a folded block that loads project progress only when opened", async () => {
+    mockAppBootstrap = bootstrap(["project_pi"]);
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    mockHome = { roles: ["project_pi"], blocks: { progress: { roles: ["project_pi"] } } };
+
+    const renderer = await render(<WorkspaceScreen />);
+    expect(JSON.stringify(renderer.toJSON())).toContain("homeBlockProgress");
+    expect(renderer.root.findAllByType("kpi-strip" as never)).toHaveLength(0);
+    const toggle = renderer.root.findAll(
+      (node) => node.props.accessibilityLabel === "homeShowProgress" && typeof node.props.onPress === "function",
+    )[0];
+    expect(toggle).toBeDefined();
+    expect(toggle.props.accessibilityState).toEqual({ expanded: false });
+    expect(JSON.stringify(renderer.toJSON())).not.toMatch(/[▾▸]/);
+    expect(renderer.root.findAllByType(Svg).length).toBeGreaterThanOrEqual(1);
+    await act(async () => {
+      toggle.props.onPress();
+    });
+    expect(renderer.root.findAllByType("kpi-strip" as never)).toHaveLength(1);
+    renderer.root.findAllByType("button" as never).find((node) => node.props.label === "navStatistics")?.props.onPress();
+    expect(assign).toHaveBeenCalledWith("/area/");
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  test("a failed home call says so and still offers the links", async () => {
+    mockAppBootstrap = bootstrap(["coder"], { coding: true });
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    mockHome = new Error("down");
+
+    const renderer = await render(<WorkspaceScreen />);
+    expect(JSON.stringify(renderer.toJSON())).toContain("homeCountsUnavailable");
+    expect(buttonLabels(renderer)).toContain("homeOpenCaseById");
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  test("quick actions keep only what the sidebar lacks: no Area, Data management or Supervision for a data manager", async () => {
+    mockAppBootstrap = bootstrap(["data_manager", "interview_supervisor", "site_pi"], { supervision: true });
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    const renderer = await render(<WorkspaceScreen />);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    const labels = buttonLabels(renderer);
+    expect(labels).toContain("homeSitePiDashboard");
+    renderer.root.findAllByType("button" as never).find((node) => node.props.label === "homeSitePiDashboard")?.props.onPress();
+    expect(assign).toHaveBeenCalledWith("/sitepi/");
+    expect(labels).not.toContain("navArea");
+    expect(labels).not.toContain("navDataManagement");
+    expect(labels).not.toContain("supervisionTitle");
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  test("a role's projects are named up to MANY_PROJECTS, then counted", () => {
+    const grants: AccessProject["grants"] = [{ role: "coder", scope: "project", codes: true, active: true, source: "assigned" }];
+    const make = (id: string): AccessProject => ({ project_id: id, project_name: `Name ${id}`, has_tree: false, grants, sites: [], units: [], levels: [], actions: { interview: [], register_death: [] } });
+    const three = ["A", "B", "C"].map(make);
+    expect(projectSubline(three, ["coder"])).toBe("Name A · Name B · Name C");
+    expect(projectSubline(three, ["reviewer"])).toBe("");
+    expect(projectSubline([...three, make("D")], ["coder"])).toBe('homeProjectsCount:{"count":4}');
+    expect(MANY_PROJECTS).toBe(3);
   });
 
   test("the coding and reviewing screens never redirect", async () => {
     const renderer = await render(<CodingScreen />);
     expect(mockRouter.replace).not.toHaveBeenCalled();
     expect(renderer.root.findAllByType("queue-screen" as never)).toHaveLength(1);
-    await act(async () => { renderer.unmount(); });
+    await act(async () => {
+      renderer.unmount();
+    });
   });
 
-  test("a data manager's home list offers Area and Data management after the first load", async () => {
-    mockAppBootstrap = bootstrap(["data_manager", "interview_supervisor"], { supervision: true });
-    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
-    session.setItem(SESSION_KEY, "1");
-    const renderer = await render(<WorkspaceScreen />);
-    expect(mockRouter.replace).not.toHaveBeenCalled();
-    expect(buttonLabels(renderer)).toEqual(expect.arrayContaining(["navArea", "navDataManagement"]));
-    await act(async () => { renderer.unmount(); });
+  test("roleHome helpers resolve primary landing, lastVisit, Within Area / All grant labels, and Death Reporter actions", () => {
+    expect(homeLanding(bootstrap(["coder", "reviewer"], { reviewing: true }), undefined)).toBe("/coding");
+    expect(homeLanding(bootstrap(["coder", "reviewer"], { reviewing: true }), "/reviewing")).toBe("/reviewing");
+    // A data manager supervises too, so Supervision is their first role screen.
+    expect(homeLanding(bootstrap(["data_manager"], { supervision: true }), undefined)).toBe("/supervision");
+    expect(roleScreens(bootstrap(["data_manager"], { supervision: true }))).toEqual(["/supervision"]);
+    expect(roleScreens(bootstrap(["interview_supervisor"], { supervision: true }))).toEqual(["/supervision"]);
+    expect(roleScreens(bootstrap(["coder"]))).not.toContain("/supervision");
+
+    rememberVisit("u1", "/supervision");
+    expect(readLastVisit("u1")).toBe("/supervision");
+
+    expect(claimFirstHomeLoad("u1")).toBe(true);
+    expect(claimFirstHomeLoad("u1")).toBe(false);
+    resetFirstHomeLoad();
+    expect(claimFirstHomeLoad("u1")).toBe(true);
+
+    const fmt = (k: string, p?: Record<string, string | number>) => (p ? `${k}:${JSON.stringify(p)}` : k);
+    const unitLabel = describeProjectGrant(
+      { role: "coder", scope: "org_unit", org_unit_id: "u1", unit_name: "PHC 1", codes: true, active: true, source: "assigned" },
+      [],
+      fmt,
+    );
+    expect(unitLabel).toContain("role_coder");
+    expect(unitLabel).toContain("PHC 1");
+
+    const containerSiteLabel = describeProjectGrant(
+      { role: "reviewer", scope: "project_site", site_id: "S01", codes: true, active: true, source: "assigned" },
+      [{ site_id: "S01", site_name: "Sites_in_project_TST001", roles: ["reviewer"] }],
+      fmt,
+    );
+    expect(containerSiteLabel).toContain("homeScopeProject");
+    expect(containerSiteLabel).not.toContain("Sites_in_project_TST001");
+
+    const grouped = describeProjectGrants(
+      [
+        { role: "interviewer", scope: "org_unit", org_unit_id: "u1", unit_name: "PHC-AAM 1", active: true, source: "assigned" },
+        { role: "interviewer", scope: "org_unit", org_unit_id: "u2", unit_name: "SC-AAM 1", active: true, source: "assigned" },
+      ],
+      [],
+      fmt,
+    );
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]).toContain("PHC-AAM 1, SC-AAM 1");
+
+    const deathReporterActions = projectActionItems(
+      {
+        project_id: "TST001",
+        project_name: "Test Project",
+        has_tree: false,
+        grants: [{ role: "death_reporter", scope: "org_unit", org_unit_id: "u1", unit_name: "SC 1", active: true, source: "assigned" }],
+        sites: [],
+        actions: {
+          interview: [],
+          register_death: [{ site_id: "S01", site_name: "S01", web_intake_mode: "death_register", org_units: [] }],
+        },
+      },
+      ["death_reporter"],
+    );
+    expect(deathReporterActions.map((a) => a.key)).toEqual(["registerDeath", "myRegisteredDeaths"]);
   });
 });

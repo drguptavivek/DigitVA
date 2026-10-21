@@ -24,7 +24,7 @@ from app.services.icd11_titles import icd11_alternatives_label
 from app.services.smartva_icd11 import smartva_icd11_mapping
 from app.services.doris_prefill import doris_prefill_from_payload
 from app.services.final_cod_authority_service import get_authoritative_final_assessment
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
 
 
 def _redacted(certificate, redact_pii: bool):
@@ -56,7 +56,9 @@ def doris_initial(
     if submission is None or not is_doris(project_mode) or redact_pii:
         return {}, {}
     version = active_version or get_active_payload_version(submission.va_sid)
-    return doris_prefill_from_payload(version.payload_data if version else None)
+    # Joined with the sealed fields (a date of birth an admin flagged is_pii
+    # is sealed); the redacting viewer returned above never reaches this.
+    return doris_prefill_from_payload(joined_payload(version) if version else None)
 
 
 def saved_step1_processing(step1, redact_pii: bool) -> dict | None:

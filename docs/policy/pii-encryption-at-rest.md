@@ -731,7 +731,8 @@ Offline PHC bundles (sealed to the `PII_KEM_*` public key, Aadhaar last 3 digits
 
 Slice 1b part II-A implemented behind PAYLOAD_PII_SPLIT_ENABLED, with the
 2026-10-21 review fix batch (sealed set per side row, flag-off guard,
-rotation, upstream copies, key custody); readers pending, flag stays false
+rotation, upstream copies, key custody); part II-B (readers) implemented, flag stays false
+until the release
 (docs/kb/pii-slice-1b.md, "Part II-A", "Release procedure", "Blind-key
 rotation"). Follow-up 2026-10-21: the never-sealed list (OD9) and the flag-off
 refusal in `stored_payload_fingerprint` (the national-ID sweep) are

@@ -73,6 +73,7 @@ from app.services.submission_payload_version_service import (
     VOLATILE_PAYLOAD_KEYS,
     get_payload_version,
     normalize_payload_for_fingerprint,
+    joined_payload,
     promote_pending_upstream_payload_version,
     payload_copy,
     version_pii_digest,
@@ -974,7 +975,8 @@ def dm_submissions_page(
 
     # One query for the page's visit notes (consent refusals only).
     visit_notes = visit_notes_for(
-        row["va_sid"] for row in rows if str(row.get("va_consent") or "").strip().lower() == "no"
+        (row["va_sid"] for row in rows if str(row.get("va_consent") or "").strip().lower() == "no"),
+        redact_pii=redact_pii,
     )
 
     data = []
@@ -2931,9 +2933,11 @@ def dm_accept_upstream_change(user, va_sid: str) -> None:
     deactivate_coding_for_accepted_change(va_sid, actor=actor, audit_by=user.user_id)
 
     promote_pending_upstream_payload_version(submission, pending_payload_version)
+    # The joined payload: the category list and summary are derived from the
+    # whole answer set, sealed fields included.
     apply_payload_to_submission_summary(
         submission,
-        pending_payload_version.payload_data,
+        joined_payload(pending_payload_version),
         source_updated_at=pending_payload_version.source_updated_at,
     )
 
@@ -3077,9 +3081,11 @@ def dm_keep_current_icd_on_upstream_change(user, va_sid: str) -> str | None:
     actor_role = actor.audit_role
 
     promote_pending_upstream_payload_version(submission, pending_payload_version)
+    # The joined payload: the category list and summary are derived from the
+    # whole answer set, sealed fields included.
     apply_payload_to_submission_summary(
         submission,
-        pending_payload_version.payload_data,
+        joined_payload(pending_payload_version),
         source_updated_at=pending_payload_version.source_updated_at,
     )
     promote_active_smartva_to_payload(

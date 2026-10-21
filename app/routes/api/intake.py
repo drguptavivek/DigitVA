@@ -1122,11 +1122,12 @@ def supervised_case_detail(death_id):
     names. ``visit_note``: the case's visit note as the viewer may see it
     (``visit_note_for_viewer``), or null. 404 outside the caller's reach."""
     death = intake_svc.get_supervised_case(current_user, death_id)
-    note = visit_notes_for([death.va_sid] if death.va_sid else []).get(death.va_sid)
+    redact_pii = should_redact_pii(current_user)
+    note = visit_notes_for([death.va_sid] if death.va_sid else [], redact_pii=redact_pii).get(death.va_sid)
     return jsonify({
         "case": _supervised_body(*intake_svc.supervised_case_row(death)),
         "candidates": intake_svc.list_candidates(death),
-        "visit_note": visit_note_for_viewer(note, redact_pii=should_redact_pii(current_user)),
+        "visit_note": visit_note_for_viewer(note, redact_pii=redact_pii),
     })
 
 

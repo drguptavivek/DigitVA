@@ -74,7 +74,7 @@ from app.services.payload_bound_coding_artifact_service import (
     get_submission_with_current_payload,
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
 from app.services.user_note_service import get_active_note, save_note
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
@@ -284,7 +284,8 @@ def renderpartial(va_sid, va_partial):
         va_partial = "vafinalasses"
     _require_partial_write(va_sid, va_partial, va_action, va_actiontype)
     _active_version = get_active_payload_version(va_sid) if va_submission else None
-    va_payload_data = _active_version.payload_data if _active_version else None
+    # Joined with the sealed fields: category visibility may hang on one.
+    va_payload_data = joined_payload(_active_version) if _active_version else None
     _form_type_code = va_get_form_type_code_for_form(
         va_submission.va_form_id if va_submission else None
     )

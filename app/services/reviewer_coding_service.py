@@ -58,6 +58,7 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
     get_latest_active_reviewer_initial_assessment,
 )
+from app.services.submission_payload_version_service import joined_payload
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE, WhoIcdApiUnavailable
 from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
@@ -209,7 +210,7 @@ def _doris_prefill_snapshot(project, who_image_digest, submission, certificate) 
     return {
         **cod_entry_mode_snapshot(project, who_image_digest),
         "doris_prefill": doris_prefill_record(
-            version.payload_data if version else None, certificate
+            joined_payload(version) if version else None, certificate
         ),
     }
 
@@ -231,7 +232,7 @@ def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) ->
 
     active_payload = get_active_payload_version(va_sid)
     visible_category_codes = get_visible_category_codes(
-        active_payload.payload_data if active_payload else None,
+        joined_payload(active_payload) if active_payload else None,
         submission.va_form_id,
     )
     form_type_code = va_get_form_type_code_for_form(submission.va_form_id)

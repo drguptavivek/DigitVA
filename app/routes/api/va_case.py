@@ -40,6 +40,7 @@ from app.services.case_content_service import (
     reviewing_step,
     smartva_summary,
     social_autopsy_enabled,
+    viewer_source_payload,
 )
 from app.services.category_rendering_service import (
     get_category_rendering_service,
@@ -74,7 +75,7 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
 from app.services.user_note_service import get_active_note, save_note
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
@@ -210,7 +211,7 @@ def _authorize(va_sid: str):
         form_type_code=va_get_form_type_code_for_form(submission.va_form_id),
         active_version=active_version,
         visible_category_codes=get_visible_category_codes(
-            active_version.payload_data if active_version else None, submission.va_form_id
+            joined_payload(active_version) if active_version else None, submission.va_form_id
         ),
         recode_active=recode_active,
     )
@@ -533,7 +534,7 @@ def workspace(va_sid):
         case,
         nav,
         payload_for_viewer(
-            case.active_version.payload_data if case.active_version else None,
+            viewer_source_payload(case.active_version, should_redact_pii(current_user)),
             case.form_type_code,
             should_redact_pii(current_user),
         ),

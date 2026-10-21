@@ -24,6 +24,8 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.services.org_grant_service import projects_with_org_tree
+from app.services.payload_pii_accessor import get_pii_many, split_enabled
+from app.services.payload_pii_split import join_payload
 from app.services.web_intake_service import (
     _allocate_unique_id,
     _birth_age_from_answers,
@@ -175,6 +177,7 @@ def backfill_odk_cases(*, project_id: str | None = None, dry_run: bool = False) 
             VaSubmissions.org_unit_id,
             VaForms.project_id,
             VaForms.site_id,
+            VaSubmissions.active_payload_version_id,
             VaSubmissionPayloadVersion.payload_data,
             linked,
         )
@@ -193,11 +196,19 @@ def backfill_odk_cases(*, project_id: str | None = None, dry_run: bool = False) 
         ).all()
         if not rows:
             break
+        # The name (Id10017/Id10018) is sealed with the flag on: open the
+        # chunk's side rows in one query, for the unlinked rows only.
+        sealed = (
+            get_pii_many(row.active_payload_version_id for row in rows if not row.linked)
+            if split_enabled()
+            else {}
+        )
         for row in rows:
             if row.linked:
                 counts["linked"] += 1
                 continue
-            identity = _identity_or_none(row.payload_data or {})
+            payload = join_payload(row.payload_data, sealed.get(row.active_payload_version_id))
+            identity = _identity_or_none(payload)
             if identity is None:
                 counts["identity_missing"] += 1
                 continue
@@ -211,7 +222,7 @@ def backfill_odk_cases(*, project_id: str | None = None, dry_run: bool = False) 
                         org_unit_id=row.org_unit_id,
                         project_id=row.project_id,
                         site_id=row.site_id,
-                        payload=row.payload_data or {},
+                        payload=payload,
                         identity=identity,
                     )
             except Exception as exc:

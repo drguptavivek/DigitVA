@@ -342,6 +342,22 @@ def opened_payload(version: VaSubmissionPayloadVersion | None) -> dict:
     return get_full_payload(version)
 
 
+def joined_payload(version: VaSubmissionPayloadVersion) -> dict | None:
+    """The payload of *version* for a reader that needs the sealed fields
+    (coding screens, category visibility, DORIS prefill, the upstream-accept
+    projection): flag on, ``payload_data`` with the sealed fields opened and
+    joined back (``get_full_payload``); flag off, ``payload_data`` exactly as
+    stored (today's behaviour; writers, not readers, refuse a split version
+    in a process with the flag off). Server side only; the caller decides
+    whether the viewer may see PII (``case_content_service.
+    viewer_source_payload``) and never logs the result."""
+    if not _split_enabled():
+        return version.payload_data
+    from app.services.payload_pii_accessor import get_full_payload
+
+    return get_full_payload(version)
+
+
 def payload_copy(va_sid: str, payload_data: dict | None) -> dict:
     """*payload_data* as a copy may store it (upstream-change rows): national
     IDs reduced and, flag on, the sealed set stripped. A plaintext sealed

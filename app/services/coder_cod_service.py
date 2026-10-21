@@ -68,7 +68,7 @@ from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     verify_doris_submission,
 )
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
 from app.services.workflow.definition import (
     WORKFLOW_CODER_STEP1_SAVED,
     WORKFLOW_CODING_IN_PROGRESS,
@@ -586,7 +586,7 @@ def _masked_doris_step1_fields(
         "cod_entry_mode_snapshot": {
             **cod_entry_mode_snapshot(project, who_image_digest),
             "doris_prefill": doris_prefill_record(
-                active_payload_version.payload_data, verified["certificate"]
+                joined_payload(active_payload_version), verified["certificate"]
             ),
         },
     }
@@ -784,7 +784,7 @@ def submit_coder_final_cod(
     if _social_autopsy_required(
         project,
         submission,
-        active_payload_version.payload_data if active_payload_version else None,
+        joined_payload(active_payload_version) if active_payload_version else None,
     ) and not get_current_payload_social_autopsy_analysis(va_sid, user.user_id):
         blocking_messages.append(
             "Social Autopsy Analysis must be completed before submitting the final COD."
@@ -836,7 +836,7 @@ def submit_coder_final_cod(
         # Which fields the interview prefilled and whether the coder changed
         # them, recomputed here rather than trusted (digitva-hln).
         snapshot["doris_prefill"] = doris_prefill_record(
-            active_payload_version.payload_data, verified_certificate
+            joined_payload(active_payload_version), verified_certificate
         )
     if mode == "masked_doris":
         snapshot["final_ucod_source"] = final_ucod_source(

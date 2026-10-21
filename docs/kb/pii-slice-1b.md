@@ -9,15 +9,12 @@ last_updated: 2026-10-21
 # PII Slice 1b
 
 Slice 1b of [the encryption-at-rest baseline](../policy/pii-encryption-at-rest.md)
-(follows [pii-slice-1a.md](pii-slice-1a.md)). **Part I (foundations) and
-part II-A (write side and backfill, behind `PAYLOAD_PII_SPLIT_ENABLED`) are
-implemented, uncommitted on 2026-10-21.** The flag is off everywhere and must
-stay off until part II-B switches the readers (coding screens,
-`case_content_service`, `visit_note`, `odk_case_service.backfill_odk_cases`
-and the rest of "Readers" below): with it on and the readers unchanged, those
-screens would show no sealed field. No backfill ran on real data. The release
-runs the backfill and flips the flag in one sync-paused window ("Release
-procedure").
+(follows [pii-slice-1a.md](pii-slice-1a.md)). **Part I (foundations), part
+II-A (write side and backfill, behind `PAYLOAD_PII_SPLIT_ENABLED`) and part
+II-B (readers, below) are implemented, uncommitted on 2026-10-21.** The flag
+is off everywhere and stays off until the release flips it. No backfill ran on
+real data. The release runs the backfill and flips the flag in one sync-paused
+window ("Release procedure").
 
 **Review fix batch (2026-10-21, uncommitted).** After two independent
 reviews: side rows record their own sealed set (`sealed_ids`, column added to
@@ -167,25 +164,8 @@ Writers and copies:
 - `app/services/payload_enrichment_backfill_service.py:1029`
   (`_flush_single_update`, `sa.update` `:1038`, payload at `:1041`).
 
-Readers (through the accessor, only when the viewer may see PII):
-
-- `app/services/case_content_service.py:127` (`invalidate_section_data_cache`,
-  `:113`; read `va_category_list` instead), `:238-239` (`payload_for_viewer`,
-  `:175`); call `invalidate_section_data_cache` on side-row writes.
-- `app/services/coding_service.py:117`; `app/routes/va_form.py:287`;
-  `app/routes/api/va_case.py:213, 436, 536`;
-  `app/services/reviewer_coding_service.py:212, 234`.
-- No change needed (read no sealed key): `app/routes/va_form.py:769` and
-  `app/routes/api/va_case.py:480` (`other_conditions_choices`, age flags
-  only); `app/routes/va_form.py:782` passes the payload to
-  `submit_coder_initial_cod`, check in the part II review what it reads.
-- `app/services/odk_case_service.py:200` (`backfill_odk_cases`, `:157`,
-  `_identity_or_none` `:46`); `_insert_case` (`:78`, identity from `:127`)
-  reads the incoming plaintext before the split.
-- `app/services/visit_note.py:25` (SQL `payload_data[key]`): presence of
-  `visit_address` / `visit_remarks` moves to `sealed ? '<field>'`.
-- `app/services/submission_payload_projection_service.py:60`
-  (`apply_submission_projection`): derive before the split.
+Readers (through the accessor, only when the viewer may see PII): **done in
+part II-B**, see "Part II-B: the readers" below for what was switched.
 
 Unchanged per the baseline (no sealed key): `open_submission_repair_service.py:48, 119`;
 SmartVA prepdata already drops the sealed set (slice 1a,
@@ -259,9 +239,75 @@ Per call site:
 | `national_id_sweep_service._write_row` | `stored_payload_fingerprint` (new rule with the flag on; flag off, refused for a split version, so the sweep stops instead of writing an old-rule fingerprint) |
 | `synthetic_demo_service._seed_cases` | `write_payload_version(new=True)` (its own `sha256(json.dumps)` is gone; flag off the column is now `canonical_payload_fingerprint`, never compared) |
 
-Not changed here (part II-B, readers): see "Readers" above. Upstream-change
+Readers: see "Part II-B" below. Upstream-change
 rows written before the flip are stripped by `flask pii strip-upstream-copies`
 (below).
+
+## Part II-B: the readers (flag on)
+
+Flag off, every reader returns `payload_data` as stored (the existing suites
+pass unchanged). On, a reader that needs a sealed field joins the side row in:
+
+- **`submission_payload_version_service.joined_payload(version)`**: the reader
+  entry point. Flag off: `version.payload_data` (no refusal and no database
+  access; a split version read by a mis-set process shows the stripped payload,
+  while the writers and `opened_payload` still refuse it). Flag on:
+  `payload_pii_accessor.get_full_payload`. One DEK unwrap per version per
+  request (DEK cache).
+- **`payload_pii_accessor.get_pii_many(version_ids)`**: the list form, one
+  query for a chunk, `{payload_version_id: opened fields}` for versions that
+  have a side row. No N+1.
+- **`case_content_service.viewer_source_payload(version, redact_pii)`**: a
+  viewer who may see PII gets `joined_payload`; a redacting viewer gets the
+  stripped `payload_data` and never causes a decrypt; `payload_for_viewer`
+  then applies the PII-set redaction (so a pre-split version is redacted as
+  before).
+
+Switched:
+
+| Site | Reads |
+| --- | --- |
+| `case_content_service.get_section_data` | `viewer_source_payload` (category tables and summary) |
+| `coding_service.render_va_coding_page` | joined payload: category visibility, attachment counts, the header visit note (address and remarks redacted by `visit_note_for_viewer` for a redacting viewer) |
+| `routes/va_form.renderpartial` | joined payload for `get_visible_category_codes`; `other_conditions_choices` and `submit_coder_initial_cod(payload_data=...)` read the age flags only |
+| `routes/api/va_case._authorize` (visible categories), `_survey_location` input | joined payload; `viewer_source_payload` through `payload_for_viewer` |
+| `reviewer_coding_service._reviewer_social_autopsy_required`, `_doris_prefill_snapshot` | joined payload |
+| `coder_cod_service` final: `_social_autopsy_required` input and both `doris_prefill_record` calls | joined payload (the record is recomputed from the payload the display prefill used) |
+| `doris_context_service.doris_initial` | joined payload for `doris_prefill_from_payload` (non-redacting viewers only; a date of birth an admin flagged `is_pii` is sealed) |
+| `data_management_service.dm_accept_upstream_change`, `dm_keep_current_icd_on_upstream_change` | `apply_payload_to_submission_summary(joined_payload(pending))`: the category list and summary derive from the whole answer set |
+| `visit_note.has_visit_note_condition` | adds `EXISTS` on the side row with `sealed ? 'visit_address'` (no decrypt) beside the payload keys |
+| `visit_note.visit_notes_for(va_sids, *, redact_pii)` | the keyword is required: a redacting viewer's address and remarks stay sealed, others get one `get_pii_many` batch; callers `data_management_service` (list) and `routes/api/intake.supervised_case_detail` |
+| `odk_case_service.backfill_odk_cases` | `get_pii_many` per chunk of `BACKFILL_CHUNK` for unlinked rows (name `Id10017`/`Id10018`), joined before `_identity_or_none` and `_insert_case` |
+
+Checked and left as they are:
+
+- `odk_case_service.ensure_case_for_odk_submission` / `_insert_case` on the
+  sync path read the incoming plaintext `va_submission`, which the sync passes
+  before any split. `org_routing.route_submission(payload=...)` and the
+  projections (`_submission_projection_fields`, web intake
+  `build_submission_projection`) are likewise derived from the full payload
+  before `write_payload_version`.
+- Exports (`dm_submissions_export_csv`, the SmartVA input export): both drop
+  every `is_pii` field of the confirmed set (`_filter_export_payload`) and
+  withhold an unconfirmed form type, and the sealed set is a subset of the
+  flagged set (the registry flags `PII_FIELDS` on every form type; the sealed
+  set also subtracts `NEVER_SEALED_FIELDS`), so a stripped payload loses
+  nothing an export carries.
+- `sync_tasks` repair scan (`KEY`, `FormVersion`, `DeviceID`, `SubmitterID`,
+  `instanceID`, attachment counts), `_count_attachments_per_category`,
+  `other_conditions_choices`, the analytics MV and `not_analysable` read no
+  sealed key. Dev flags only `PII_FIELDS` plus `Id10023`
+  (never sealed). An admin who flags one of those operational keys `is_pii`
+  would seal it; the repair scan would then read it as missing, so do not
+  flag them.
+- `payload_enrichment_backfill_service` reads `KEY` and the attachment
+  fields; its write already joins the opened PII (part II-A).
+- `invalidate_section_data_cache` already joined the payload in part II-A.
+
+Cost: a coding screen or API workspace request opens the side row once for
+category visibility even for a redacting viewer (the visibility decision must
+not depend on the viewer; only the category codes, never a value, reach that
+viewer). Tests: `tests/services/test_payload_pii_readers.py`.
 
 ## Backfill: `flask pii split-payloads`
 
@@ -322,7 +368,7 @@ rows written before the flip are stripped by `flask pii strip-upstream-copies`
 ## Release procedure
 
 Rule and strip ship together (baseline, "Release"); nothing syncs or writes
-in between. Part II-B (readers) must be in the deployed code before step 5.
+in between. Part II-B (readers, implemented) must be in the deployed code before step 5.
 
 1. **Pause writers.** Disable the ODK sync beat row ("ODK Sync — every 6
    hours", `celery_periodictask.enabled`, or `docker compose stop

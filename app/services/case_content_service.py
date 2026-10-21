@@ -49,7 +49,7 @@ from app.services.reviewer_final_assessment_service import (
 )
 from app.services.icd11_titles import icd11_alternatives_label
 from app.services.smartva_icd11 import smartva_icd11_mapping
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
 from app.services.submission_summary_service import build_submission_summary
 from app.services.viewer_pii_service import should_redact_pii
 from app.utils import va_render_processcategorydata
@@ -196,6 +196,19 @@ def payload_for_viewer(payload_data, form_type_code: str, redact_pii: bool):
     return {k: v for k, v in payload_data.items() if k not in withheld}
 
 
+def viewer_source_payload(version, redact_pii: bool):
+    """The stored payload of *version* a viewer's view is built from (None
+    for no version): a viewer who may see PII gets the sealed fields joined
+    back in (``joined_payload``); a redacting viewer is served the stripped
+    ``payload_data`` and never causes a decrypt. Feed the result to
+    ``payload_for_viewer``, which applies the PII-set redaction, so a
+    pre-split version (sealed fields still in ``payload_data``) is redacted
+    as before. PAYLOAD_PII_SPLIT_ENABLED off: ``payload_data`` as stored."""
+    if version is None:
+        return None
+    return version.payload_data if redact_pii else joined_payload(version)
+
+
 def get_section_data(
     *,
     va_submission,
@@ -240,8 +253,9 @@ def get_section_data(
         return cached
 
     mapping_svc = get_mapping_service()
-    payload_data = active_version.payload_data if active_version else None
-    render_payload = payload_for_viewer(payload_data, form_type_code, redact_pii)
+    render_payload = payload_for_viewer(
+        viewer_source_payload(active_version, redact_pii), form_type_code, redact_pii
+    )
     choices = mapping_svc.get_choices(form_type_code)
     datalevel = va_get_render_datalevel(va_action, form_type_code, visible_category_codes)
     form_id = va_submission.va_form_id

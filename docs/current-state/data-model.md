@@ -748,8 +748,8 @@ Migration `d4f1b8c2a6e9` (PII slice 1b part I; policy
 "Payload design"; model `app/models/map_payload_version_pii.py`; status
 [pii-slice-1b.md](../kb/pii-slice-1b.md)). Additive. **Empty until the
 release**: the writers are wired (part II-A) but write it only with
-`PAYLOAD_PII_SPLIT_ENABLED` on, which stays off until the readers are switched
-(part II-B); `flask pii split-payloads --apply` fills it for every existing
+`PAYLOAD_PII_SPLIT_ENABLED` on, which stays off until the release (the readers are
+switched, part II-B); `flask pii split-payloads --apply` fills it for every existing
 version in the release window, and `--restore` joins it back. While it is
 empty `payload_data` holds every field. The downgrade drops it.
 

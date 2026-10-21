@@ -39,13 +39,14 @@ jest 105 suites / 1598 tests, tsc clean.
    google-re2), Expo export, both migrations, verified dump. Then the ONE
    controlled Aadhaar sweep `digitva-ddfx`: `flask pii sweep-national-id
    --apply --confirm-backup <dump>`; mask every non-empty `Id10073`; dry-run first.
-2. PII part II-B readers, then flip the flag (`digitva-kzyp` family): case
-   content, `va_case.py`, `va_form.py`, coding, visit note, ODK identity, DORIS
-   prefill, exports, upstream accept (list, release procedure and rollback in
-   `docs/kb/pii-slice-1b.md`). Then the client stage (vendor form engine + Expo
-   reduce `Id10073` at capture, hash the reduced text), then slice 2 (register
-   columns encrypted; phones shown/callable; exact blind index only). Never-sealed
-   list (`Id10023`, sex, age fields) is in `pii_field_registry.py`.
+2. PII part II-B readers are done and committed (bead `digitva-asj0`, closed; flag
+   still OFF). Next: release procedure in `docs/kb/pii-slice-1b.md` (backfill,
+   verify, flip `PAYLOAD_PII_SPLIT_ENABLED`) with the staging deploy, then the
+   client stage (vendor form engine + Expo reduce `Id10073` at capture, hash the
+   reduced text), then slice 2 (register columns encrypted; phones shown/callable;
+   exact blind index only). Never-sealed list is in `pii_field_registry.py`.
+   Accepted: a viewer without PII access triggers a key unwrap for category
+   visibility, so a bad key or tampered row is a 500 on those pages.
 3. Offline server side, epic `digitva-gb8w` (.2-.8): bundle ingest
    `POST /api/v1/intake/bundles`, consent tables + `GET /intake/consent-config`
    + `consent` on submissions and registration (`digitva-athy`), signed station

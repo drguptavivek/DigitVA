@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 
+import sqlalchemy as sa
 from flask import current_app
 
 from app import db
@@ -61,6 +62,20 @@ def get_pii(version) -> dict:
     _version_id(version)
     row = get_side_row(version)
     return {} if row is None else _open_row(row)
+
+
+def get_pii_many(version_ids) -> dict:
+    """``{payload_version_id: opened sealed fields}`` for those versions that
+    have a side row, in one query (a list or a job chunk: no N+1). A version
+    without a side row is absent from the result. Callers authorize first; a
+    row that does not open raises ``PiiCryptoError`` (row id only)."""
+    ids = [version_id for version_id in version_ids if version_id is not None]
+    if not ids:
+        return {}
+    rows = db.session.scalars(
+        sa.select(MapPayloadVersionPii).where(MapPayloadVersionPii.payload_version_id.in_(ids))
+    ).all()
+    return {row.payload_version_id: _open_row(row) for row in rows}
 
 
 def get_full_payload(version) -> dict:

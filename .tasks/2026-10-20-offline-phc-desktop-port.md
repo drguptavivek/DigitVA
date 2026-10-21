@@ -1,0 +1,21 @@
+# Task: Offline PHC Desktop Port (`digitva-ke83`)
+
+- **Status**: in_progress
+- **Priority**: P1
+- **Created**: 2026-10-20
+- **Goal**: Build the standalone offline desktop edition of DigitVA ("DigitVA Field / PHC Edition") using Rust + Tauri v2 + PyO3 (in-process SmartVA) + bundled WHO ICD-11 2.6.0 / DORIS sidecar + SQLite + React/Expo UI (`mobile/digitva-collect`).
+- **Context**: Medical Officers (MOs) in remote Primary Health Centres (PHCs) need to register deaths, conduct standardized WHO 2022 VA interviews, run automated SmartVA scoring, assign ICD-10 / ICD-11 causes of death with full DORIS & CoDEdit checks, view local results, and export encrypted `.digitva-export` bundles or push over HTTPS when connectivity is available—without requiring central server multi-tenant administration, ODK Central sync, PostgreSQL, or Redis/Celery.
+- **References**:
+  - `docs/policy/offline-phc-desktop-edition.md`
+  - `app/services/smartva_service.py`
+  - `app/utils/va_smartva/`
+  - `vendor/smartva-analyze/src/smartva/`
+  - `app/services/who_icd_api.py`
+  - `app/services/doris_processing.py`
+  - `mobile/digitva-collect/`
+- **Expected Scope**:
+  - **Phase 1 (`digitva-ke83.1`)**: Pure-Python in-memory SmartVA runner (zero C extensions, cached `TariffPrep.process_training_data()`) + Rust `PyO3` crate (`desktop/crates/digitva-smartva`) with golden parity tests.
+  - **Phase 2 (`digitva-ke83.2`)**: Offline WHO ICD-11 2.6.0 / DORIS sidecar manager & Rust client crate (`desktop/crates/digitva-icd11`).
+  - **Phase 3 (`digitva-ke83.3`)**: Local SQLite schema, migrations, and FTS5 reference catalog seeder (`desktop/crates/digitva-db`).
+  - **Phase 4 (`digitva-ke83.4`)**: Rust Axum `/api/v1/*` local server + WHO Standard MCCD PDF generator (`GET /api/v1/cases/<va_sid>/certificate.pdf` via `desktop/crates/digitva-pdf`) + station provisioning (`.digitva-config` + online enrollment code) + federated export/push (`.digitva-export`) (`desktop/crates/digitva-server`, `desktop/crates/digitva-crypto`, `desktop/src-tauri`).
+  - **Phase 5 (`digitva-ke83.5`)**: Central Server Flask federation endpoints (`app/routes/api_v1/federation_routes.py`, `app/services/federation_service.py`).

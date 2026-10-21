@@ -1,3 +1,6 @@
 [submodule "vendor/smartva-analyze"]
 	path = vendor/smartva-analyze
 	url = https://github.com/ihmeuw/SmartVA-Analyze.git
+[submodule "vendor/who-icd11-api"]
+	path = vendor/who-icd11-api
+	url = https://github.com/drguptavivek/who-icd11-api.git

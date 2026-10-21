@@ -13,6 +13,7 @@ import {
   validateSubmission
 } from "./validation.js";
 import { formatLocalDate } from "./date.js";
+import { reduceNationalIdData } from "../national-id.js";
 import type {
   AnswerValue,
   InstrumentDefinition,
@@ -84,7 +85,7 @@ class UniversalWhoVaSession implements WhoVaSession {
     this.messages = resolveUiMessages(this.locale, options.uiTranslations);
     const startedAt = this.now();
     this.data = {};
-    const initialData = options.initialData ?? {};
+    const initialData = reduceNationalIdData(options.initialData ?? {});
     const { choiceValuesByQuestionName, questionsByName } = getInstrumentRuntimeIndex(instrument);
     this.lockedQuestionNames = new Set(
       [...this.lockedQuestionNames].filter((name) => questionsByName.has(name))
@@ -218,7 +219,8 @@ class UniversalWhoVaSession implements WhoVaSession {
     const nextData = { ...this.data };
     if (value == null || value === "" || (Array.isArray(value) && value.length === 0)) delete nextData[name];
     else nextData[name] = value;
-    const calculatedNextData = applyCalculations(this.instrument, nextData);
+    // The full national ID never enters session data (and so no draft).
+    const calculatedNextData = applyCalculations(this.instrument, reduceNationalIdData(nextData));
     const fieldIssues = validateAnswer(
       question,
       value,
@@ -241,7 +243,7 @@ class UniversalWhoVaSession implements WhoVaSession {
       if (["calculated", "system"].includes(question.control)) continue;
       delete replacement[question.name];
     }
-    for (const [name, value] of Object.entries(data)) {
+    for (const [name, value] of Object.entries(reduceNationalIdData(data))) {
       const question = questionsByName.get(name);
       if (!question) continue;
       if (["calculated", "system"].includes(question.control)) continue;

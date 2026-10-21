@@ -4,7 +4,7 @@
  * local row is kept only while that revision is being edited or sent.
  */
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
-import { createWhoVa2022Instrument, type SubmissionData, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
+import { createWhoVa2022Instrument, reduceNationalIdData, type SubmissionData, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import { createProjectStoreGuard, localDateTimeWithOffset, type Completion, type Db, type DeviceTimedDraft } from "./drafts";
@@ -189,7 +189,7 @@ function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config
   }
   return {
     ...summary,
-    envelope: envelope as unknown as DeviceTimedDraft,
+    envelope: reducedEnvelope(envelope as unknown as DeviceTimedDraft),
     prefill: detail.prefill,
     ...(config ? { config } : {}),
     original_answers_sha256: detail.answers_sha256 as string | null,
@@ -276,6 +276,13 @@ export async function listLocalRevisions(db: Db): Promise<RevisionRow[]> {
   return rows.map(({ row_json }) => rowFromJson(row_json));
 }
 
+/** *envelope* with Id10073 reduced; the full number never persists on the device. */
+function reducedEnvelope(envelope: DeviceTimedDraft): DeviceTimedDraft {
+  if (!envelope.data || typeof envelope.data !== "object") return envelope;
+  const data = reduceNationalIdData(envelope.data);
+  return data === envelope.data ? envelope : { ...envelope, data };
+}
+
 function envelopeForSave(draft: WhoVaDraft, existing: DeviceTimedDraft): DeviceTimedDraft {
   const pin = readDefinitionPin(existing);
   if (pin && pin.instrumentVersion !== draft.instrumentVersion) throw new Error("instrument_incompatible");
@@ -310,7 +317,7 @@ export function createRevisionDraftStore(db: Db, draftId: string, projectId: str
         if (draft.instrumentId !== current.row.envelope.instrumentId ||
             draft.instrumentVersion !== current.row.envelope.instrumentVersion ||
             draft.formVersion !== current.row.envelope.formVersion) throw new Error("instrument_incompatible");
-        const envelope = envelopeForSave(draft, current.row.envelope);
+        const envelope = reducedEnvelope(envelopeForSave(draft, current.row.envelope));
         const next: RevisionRow = {
           ...current.row,
           envelope,
@@ -369,11 +376,11 @@ export async function queueRevision(db: Db, draftId: string, reason: RevisionRea
     throw new Error("finish_partial_required");
   }
   const completedAt = localDateTimeWithOffset();
-  const envelope: DeviceTimedDraft = {
+  const envelope: DeviceTimedDraft = reducedEnvelope({
     ...current.row.envelope,
     updatedAt: completedAt,
     completedAt
-  };
+  });
   const frozenJson = JSON.stringify(envelope.data as SubmissionData);
   const next: RevisionRow = {
     ...current.row,

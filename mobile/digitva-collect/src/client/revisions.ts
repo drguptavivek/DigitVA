@@ -1,4 +1,4 @@
-import type { SubmissionData } from "@drguptavivek/who-2022-va";
+import { reduceNationalIdData, type SubmissionData } from "@drguptavivek/who-2022-va";
 
 import { ClientApiError, requestClientJson, type ClientCsrf, type DraftResponse, type DraftSummary } from "./api";
 import { localDateTimeWithOffset } from "../drafts";
@@ -143,7 +143,7 @@ export async function createRevisionSnapshot(
     generation: number;
   },
 ): Promise<RevisionSnapshot> {
-  const answersJson = JSON.stringify(input.data);
+  const answersJson = JSON.stringify(reduceNationalIdData(input.data));
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(answersJson));
   const answersSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   return {

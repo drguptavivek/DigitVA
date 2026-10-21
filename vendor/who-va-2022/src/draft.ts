@@ -3,6 +3,7 @@
  * adapter. Native hosts provide their own implementation of the same contract.
  */
 import type { AnswerValue, SubmissionData, WhoVaDraft, WhoVaDraftStore } from "./types.js";
+import { reduceNationalIdData } from "./national-id.js";
 import { WHO_VA_FORM_VERSION } from "./version.js";
 
 export const WHO_VA_DRAFT_KEY_PREFIX = "who-va-2022:draft:";
@@ -81,7 +82,8 @@ export function decodeWhoVaDraft(value: unknown): WhoVaDraft {
     currentSection,
     createdAt,
     updatedAt,
-    data: { ...data }
+    // Drafts saved before the reduction existed hold the full number.
+    data: { ...reduceNationalIdData(data) }
   };
 }
 

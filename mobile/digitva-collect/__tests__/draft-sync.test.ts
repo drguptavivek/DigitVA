@@ -12,7 +12,11 @@ jest.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: { SHA256: "SHA-256" },
   digestStringAsync: jest.fn(async () => "a".repeat(64))
 }));
-jest.mock("@drguptavivek/who-2022-va", () => ({
+jest.mock("@drguptavivek/who-2022-va", () => {
+  // The reduction is the engine's own; decoding is a stub that applies it as the real decoder does.
+  const { reduceNationalIdData } = jest.requireActual("@drguptavivek/who-2022-va");
+  return {
+  reduceNationalIdData,
   decodeWhoVaDraft: (value: unknown) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid draft");
     const draft = value as Record<string, unknown>;
@@ -20,9 +24,10 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
       if (typeof draft[field] !== "string" || !draft[field]) throw new Error("invalid draft");
     }
     if (!draft.data || typeof draft.data !== "object" || Array.isArray(draft.data)) throw new Error("invalid draft");
-    return draft;
+    return { ...draft, data: reduceNationalIdData(draft.data) };
   }
-}), { virtual: true });
+  };
+}, { virtual: true });
 
 const request = authedRequest as jest.Mock;
 const SERVER_ID = "22222222-2222-4222-8222-222222222222";
@@ -166,6 +171,21 @@ describe("native draft sync", () => {
     expect(payload?.draft).toMatchObject({
       instrumentVersion: "served-v2", definitionSha256: "c".repeat(64), definitionExtensions: ["geography"],
     });
+  });
+
+  it("uploads a draft saved before the reduction with the national ID reduced", async () => {
+    const item = await saveLocal();
+    const legacy = { ...JSON.parse(item.envelope), data: { Id10007: "local", Id10073: "123456789012" } };
+    await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [JSON.stringify(legacy), LOCAL_ID]);
+    const [stored] = await unfinishedDraftsForSync(db, "PROJECT1");
+    let payload: Record<string, unknown> | undefined;
+    request.mockImplementationOnce(async (_userId: string, _path: string, init: { bodyFactory: () => unknown }) => {
+      payload = init.bodyFactory() as Record<string, unknown>;
+      return { status: 200, body: syncReply("incoming") };
+    });
+    await syncDraftSnapshot("user-1", db, stored);
+    expect(JSON.parse(payload!.answers_json as string)).toEqual({ Id10007: "local", Id10073: "XXXXXXXXX012" });
+    expect(payload!.answers_json).not.toContain("123456789012");
   });
 
   it("blocks a malformed local definition pin without uploading or discarding answers", async () => {

@@ -12,6 +12,7 @@ import {
   type ImageAttachmentPolicy
 } from "../attachments.js";
 import { validateAnswer } from "../engine/validation.js";
+import { NATIONAL_ID_FIELD } from "../national-id.js";
 import type {
   AnswerValue,
   AttachmentCandidate,
@@ -204,6 +205,18 @@ export function dateBounds(question: InstrumentQuestion): { min?: string; max?: 
   return bounds;
 }
 
+/** Commits that buffered controls (the national ID) hold back until blur. */
+const pendingFlushes = new Set<() => void>();
+
+/**
+ * Commit every buffered, still-focused answer now. A native Next, Save or
+ * Submit tap does not blur the focused TextInput, so the form calls this
+ * before it advances, saves, navigates or submits.
+ */
+export function flushPendingAnswers(): void {
+  for (const flush of [...pendingFlushes]) flush();
+}
+
 export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrimitives) {
   const {
     View,
@@ -283,6 +296,39 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const masked = hasAppearance(question, "masked");
     const grouped = hasAppearance(question, "thousands-sep");
     const readOnly = question.readOnly;
+    // The national ID is typed into a local buffer and committed (reduced by
+    // the session) on blur, end/submit editing, unmount, or a flush by the
+    // form before it advances, saves or submits, so the full number never
+    // reaches the session data or a draft and typing is not rewritten key by
+    // key. A buffer typed over a value that then changed from outside
+    // (replaceData, server merge, relevance reset) is dropped, not shown stale.
+    const buffered = question.name === NATIONAL_ID_FIELD;
+    const [typed, setTyped] = useState<string>();
+    const typedOver = useRef<unknown>(undefined);
+    const stale = typed !== undefined && value !== typedOver.current;
+    const live = stale ? undefined : typed;
+    const pending = useRef<{ text: string | undefined; commit: typeof onAnswer }>({ text: undefined, commit: onAnswer });
+    pending.current = { text: live, commit: onAnswer };
+    const commitTyped = () => {
+      const { text, commit } = pending.current;
+      if (text === undefined) return;
+      pending.current = { text: undefined, commit };
+      setTyped(undefined);
+      commit(text || undefined);
+    };
+    useEffect(() => {
+      if (stale) setTyped(undefined);
+    }, [stale]);
+    useEffect(() => {
+      if (!buffered) return undefined;
+      pendingFlushes.add(commitTyped);
+      return () => {
+        pendingFlushes.delete(commitTyped);
+        const { text, commit } = pending.current;
+        if (text !== undefined) commit(text || undefined);
+      };
+      // commitTyped only reads refs, so the first one registered stays valid.
+    }, [buffered]);
     return (
       <TextInput
         accessibilityLabel={questionLabel(question, locale)}
@@ -297,8 +343,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         aria-readonly={readOnly || undefined}
         editable={!readOnly}
         readOnly={readOnly || undefined}
+        onBlur={buffered ? commitTyped : undefined}
+        onEndEditing={buffered ? commitTyped : undefined}
+        onSubmitEditing={buffered ? commitTyped : undefined}
         value={
-          grouped && !multiline && value != null && value !== ""
+          buffered && live !== undefined
+            ? live
+            : grouped && !multiline && value != null && value !== ""
             ? formatGrouped(String(value).replace(/[^\d.eE+-]/g, ""), locale)
             : value == null
               ? ""
@@ -312,7 +363,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           if (readOnly) return;
           // `numbers` restricts what can be typed but still stores text.
           const next = numbersOnly ? asciiDigits(text).replace(/[^\d.+-]/g, "") : text;
-          onAnswer(next || undefined);
+          if (buffered) {
+            if (live === undefined) typedOver.current = value;
+            setTyped(next);
+          }
+          else onAnswer(next || undefined);
         }}
       />
     );

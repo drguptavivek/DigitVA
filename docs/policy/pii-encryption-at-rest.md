@@ -455,10 +455,29 @@ browser reduces too, and the server reduces again as the authority:
   (`web_intake_service.py:3444`) compares the stored hash (`:3480-3481`) and
   keeps it in history. The client hashes the reduced text, so the server's
   reduction is a no-op and the stored draft matches the hash.
-- Local drafts from before the update upload once with the full number: the
-  server reduces it and keeps the client hash as sent. The hash is an upload
-  identity (resend detection), never recomputed from stored content, so this
-  one mismatch is accepted; a test pins it.
+- Implemented (digitva-vi5p): `vendor/who-va-2022/src/national-id.ts` ports
+  `reduce_national_id`; the session (`setAnswer`, initial data, `replaceData`)
+  and `decodeWhoVaDraft` reduce, the text control buffers the typed number
+  and commits it, reduced, on blur, end or submit editing, unmount, or a flush
+  the form runs before it advances, saves, goes back, switches section or
+  submits (a native Next or Save tap does not blur a focused field; never key
+  by key). A buffer is dropped when the answer changes from outside while it
+  is focused (`replaceData`, server merge, relevance reset). The Expo draft
+  store reduces on save, and so do the revision store (seed, autosave,
+  freeze) and the browser revision snapshot. Both sides are held to
+  `vendor/who-va-2022/tests/national-id-vectors.json`, including Python
+  `str.strip()` whitespace (`\x1c`-`\x1f`, `\x85`; not U+FEFF) and non-ASCII
+  digits. The browser form is the same Expo web export, so it inherits all
+  of it. Drafts already on a device stay full at rest until their next
+  save; they are reduced on load, when marked completed, and when listed for
+  upload (the upload hash is of the reduced text). The bundles
+  (`app/static/vendor/who-va-2022`, the Expo web export) must be rebuilt to
+  ship it.
+- A local draft from before the update is reduced on the device before it
+  uploads, so the hash matches the stored text. Only an older app that does
+  not reduce still sends the full number: the server reduces it and keeps the
+  client hash as sent (an upload identity, never recomputed from stored
+  content), a mismatch that is accepted; a test pins it.
 - Browser entry: the browser form reduces at capture like the device
   engines and hashes the **reduced** answers. There is no `aadhaar_full`
   field and no separate channel: the full number never reaches the server

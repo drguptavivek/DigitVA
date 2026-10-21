@@ -78,7 +78,7 @@ jest.mock("../src/client/serverDraftStore", () => ({
 }));
 jest.mock("@drguptavivek/who-2022-va", () => ({
   createWhoVa2022Instrument: () => ({id: "WHO_2022_VA", version: "1", sections: [], questions: []}),
-  compileInstrumentDefinition: jest.fn(), ENGINE_VERSION: 1, WHO_VA_FORM_VERSION: "2022",
+  compileInstrumentDefinition: jest.fn(), ENGINE_VERSION: 1, reduceNationalIdData: (data: unknown) => data, WHO_VA_FORM_VERSION: "2022",
   WHO_VA_BUILT_IN_UI_TRANSLATIONS: {hi: {back: "पीछे", moreSectionsNote: "उत्तर देने पर और अनुभाग दिखेंगे"}},
 }), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});

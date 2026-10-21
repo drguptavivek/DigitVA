@@ -231,6 +231,24 @@ describe("native submitted interview revisions", () => {
     expect(ready.state).toBe("ready");
   });
 
+  it("keeps the full national ID off the device through seed, autosave and freeze", async () => {
+    const seeded = envelope({ interview_outcome: "completed", Id10013: "yes", Id10073: "123456789012" });
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail({ envelope: seeded }) });
+    const row = await beginRevision(USER, db, DRAFT_ID);
+    expect(row.envelope.data.Id10073).toBe("XXXXXXXXX012");
+    const store = createRevisionDraftStore(db, DRAFT_ID, PROJECT);
+    await store.save({ ...(envelope() as WhoVaDraft), data: { interview_outcome: "completed", Id10013: "yes", Id10073: "1234 5678 9012" } });
+    const stored = await db.getFirstAsync<{ row_json: string }>("SELECT row_json FROM revision_drafts WHERE draft_id = ?", [DRAFT_ID]);
+    expect(stored!.row_json).not.toContain("9012 ");
+    expect((await store.load!(DRAFT_ID))!.data.Id10073).toBe("XXXXXXXXX012");
+    const ready = await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
+    expect(ready.frozen_json).toContain("XXXXXXXXX012");
+    expect(ready.frozen_json).not.toContain("1234");
+    expect(ready.answers_sha256).toBe(hash(ready.frozen_json!));
+  });
+
   it("keeps the server's original outcome through autosave and requires finish_partial to complete it", async () => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }

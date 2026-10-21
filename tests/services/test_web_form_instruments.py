@@ -187,3 +187,19 @@ class ServableLocaleTests(BaseTestCase):
         self.assertIn("hi", all_instrument_locales())
         self.assertIn("kn", all_instrument_locales())
         self.assertEqual(all_instrument_locales_under_review(), {"kn"})
+
+
+def test_national_id_reduction_matches_the_client_engine_vectors():
+    """The form engine's port (vendor/who-va-2022/src/national-id.ts) is held
+    to the same inputs; change both sides together."""
+    import json
+    from pathlib import Path
+
+    from app.utils.national_id import reduce_national_id
+
+    vectors = json.loads(
+        (Path(__file__).resolve().parents[2] / "vendor/who-va-2022/tests/national-id-vectors.json").read_text("utf-8")
+    )
+    assert len(vectors) > 20
+    for case in vectors:
+        assert reduce_national_id(case["input"]) == case["expected"], case["input"]

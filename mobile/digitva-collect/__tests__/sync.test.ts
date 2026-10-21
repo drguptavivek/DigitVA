@@ -22,6 +22,7 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
     questions: [],
   }),
   decodeWhoVaDraft: (value: unknown) => value,
+  reduceNationalIdData: (data: unknown) => data,
 }), { virtual: true });
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 

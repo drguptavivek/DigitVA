@@ -59,6 +59,15 @@ describe("draft store", () => {
     await migrate(db); // idempotent
   });
 
+  it("stores the national ID reduced to its last three digits", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("nid", "2026-09-30T01:00:00Z", { Id10073: "1234 5678 9012", Id10007: "keep" }));
+    const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["nid"]);
+    expect(row!.envelope).not.toContain("9012 ");
+    expect(row!.envelope).not.toContain("123456789012");
+    expect((await store.load!("nid"))!.data).toEqual({ Id10073: "XXXXXXXXX012", Id10007: "keep" });
+  });
+
   it("formats local wall time with its explicit offset across midnight", () => {
     const date = new Date("2026-10-01T18:31:00.123Z");
     jest.spyOn(date, "getTimezoneOffset").mockReturnValue(-330);
@@ -210,6 +219,25 @@ describe("draft store", () => {
     expect(ready[0].draft.data).toEqual({ Id10007: "z" });
     expect(ready[0].completion).toEqual({ valid: false, issues });
     expect(await draftIds(db)).toEqual(["a", "b"]);
+  });
+
+  it("reduces the national ID of a completed draft saved before the reduction existed", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("legacy", "2026-09-30T01:00:00Z", { Id10007: "z" }));
+    // Simulate a pre-update row: the envelope holds the full number.
+    const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["legacy"]);
+    const legacy = JSON.stringify({ ...JSON.parse(row!.envelope), data: { Id10007: "z", Id10073: "1234 5678 9012" } });
+    await db.runAsync("UPDATE drafts SET envelope = ?, completed = 1, completion = ? WHERE id = ?", [
+      legacy, JSON.stringify({ valid: true, issues: [] }), "legacy"
+    ]);
+    const [ready] = await completedDrafts(db);
+    expect(ready.draft.data).toEqual({ Id10007: "z", Id10073: "XXXXXXXXX012" });
+    expect(JSON.stringify(ready.draft)).not.toContain("9012 ");
+    expect(ready.envelope).toBe(legacy); // exact stored text, for the snapshot delete
+    await markCompleted(db, "legacy", { valid: true, issues: [] });
+    const after = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", ["legacy"]);
+    expect(after!.envelope).not.toContain("1234 5678 9012");
+    expect(JSON.parse(after!.envelope).data.Id10073).toBe("XXXXXXXXX012");
   });
 
   it("clears legacy hash-mismatch markers without changing completed answers", async () => {

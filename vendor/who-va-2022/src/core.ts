@@ -7,6 +7,7 @@ export {
   validateAnswer,
   validateSubmission
 } from "./engine/validation.js";
+export { NATIONAL_ID_FIELD, reduceNationalId, reduceNationalIdAnswer, reduceNationalIdData } from "./national-id.js";
 export { createWhoVaSession } from "./engine/session.js";
 export { ENGINE_VERSION, WHO_VA_FORM_VERSION } from "./version.js";
 export { compileInstrumentDefinition } from "./engine/instrument-model.js";

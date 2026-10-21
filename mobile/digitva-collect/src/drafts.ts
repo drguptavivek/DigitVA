@@ -9,7 +9,7 @@
  * (src/cases.ts) never strands it. The device keeps in-flight interviews
  * only: a row is deleted once the server acknowledges it (push and purge).
  */
-import type { ValidationIssue, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
+import { reduceNationalIdData, type SubmissionData, type ValidationIssue, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
 
@@ -361,7 +361,10 @@ export function createDraftStore(
   const guard = createProjectStoreGuard(db, host.projectId);
   const openedAt = localDateTimeWithOffset();
   return {
-    async save(draft) {
+    async save(rawDraft) {
+      // The full national ID never persists on the device (the form already
+      // reduces it; this covers a host that hands over an unreduced draft).
+      const draft = { ...rawDraft, data: reduceNationalIdData(rawDraft.data) };
       return guard.runWrite(async () => {
         guard.assertCurrent();
         const existing = await db.getFirstAsync<{ project_id: string | null; envelope: string }>(
@@ -488,6 +491,8 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
   );
   if (!current) return;
   const draft = JSON.parse(current.envelope) as Record<string, unknown>;
+  // A draft saved before the reduction existed still holds the full number.
+  if (draft.data && typeof draft.data === "object") draft.data = reduceNationalIdData(draft.data as SubmissionData);
   const envelope = JSON.stringify({ ...draft, completedAt: localDateTimeWithOffset() });
   const result = await db.runAsync(`UPDATE drafts SET
     envelope = ?, completed = 1, completion = ?,
@@ -535,6 +540,12 @@ export interface CompletedDraft {
   envelope: string;
 }
 
+function reduceLegacyNationalId(draft: DeviceTimedDraft): DeviceTimedDraft {
+  if (!draft.data || typeof draft.data !== "object") return draft;
+  const data = reduceNationalIdData(draft.data);
+  return data === draft.data ? draft : { ...draft, data };
+}
+
 /** Completed drafts with their envelopes and verdicts, oldest first, for upload. */
 export async function completedDrafts(db: Db, projectId?: string): Promise<CompletedDraft[]> {
   const rows = await db.getAllAsync<{
@@ -558,7 +569,9 @@ export async function completedDrafts(db: Db, projectId?: string): Promise<Compl
     org_unit_id: row.org_unit_id,
     death_id: row.death_id,
     client_death_id: row.client_death_id,
-    draft: JSON.parse(row.envelope) as DeviceTimedDraft,
+    // Reduced here so a pre-update completed draft never uploads (or hashes)
+    // the full number; `envelope` stays the stored text for the exact-match delete.
+    draft: reduceLegacyNationalId(JSON.parse(row.envelope) as DeviceTimedDraft),
     completion: row.completion ? (JSON.parse(row.completion) as Completion) : null,
     envelope: row.envelope
   }));

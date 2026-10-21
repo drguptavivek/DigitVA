@@ -1,0 +1,150 @@
+[
+ {
+  "input": "123456789012",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": "1234 5678 9012",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": "1234-5678-9012",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": " 1234 5678 9012 ",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": "1234567890123456",
+  "expected": "XXXXXXXXX456"
+ },
+ {
+  "input": "XXXXXXXXX123",
+  "expected": "XXXXXXXXX123"
+ },
+ {
+  "input": "XXXXXXXXXXXX",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "12",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "1",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "",
+  "expected": null
+ },
+ {
+  "input": "-",
+  "expected": null
+ },
+ {
+  "input": "  ",
+  "expected": null
+ },
+ {
+  "input": "NA",
+  "expected": null
+ },
+ {
+  "input": "n/a",
+  "expected": null
+ },
+ {
+  "input": "None",
+  "expected": null
+ },
+ {
+  "input": "null",
+  "expected": null
+ },
+ {
+  "input": "abc",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "abc 12 de 3",
+  "expected": "XXXXXXXXX123"
+ },
+ {
+  "input": "12345",
+  "expected": "XXXXXXXXX345"
+ },
+ {
+  "input": "०१२३४५६७८९१२३",
+  "expected": "XXXXXXXXX123"
+ },
+ {
+  "input": "１２３４５６７８９０１２",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": "١٢٣٤٥٦٧٨٩٠١٢٣",
+  "expected": "XXXXXXXXX123"
+ },
+ {
+  "input": "XX1",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "XXXXXXXXXX12",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "xxxxxxxxx123",
+  "expected": "XXXXXXXXX123"
+ },
+ {
+  "input": "AB 12345 CD",
+  "expected": "XXXXXXXXX345"
+ },
+ {
+  "input": "\u001cNA\u001f",
+  "expected": null
+ },
+ {
+  "input": "n/a",
+  "expected": null
+ },
+ {
+  "input": "﻿NA",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "NA﻿",
+  "expected": "XXXXXXXXXXXX"
+ },
+ {
+  "input": "\u001d\u001e",
+  "expected": null
+ },
+ {
+  "input": "﻿",
+  "expected": null
+ },
+ {
+  "input": " None　",
+  "expected": null
+ },
+ {
+  "input": "﻿123456789012",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": "𐒠𐒡𐒢𐒣𐒤𐒥𐒦𐒧𐒨𐒩𐒡𐒢",
+  "expected": "XXXXXXXXX912"
+ },
+ {
+  "input": "\u001c1234 5678 9012\u001f",
+  "expected": "XXXXXXXXX012"
+ },
+ {
+  "input": "\u000b\f123456789012",
+  "expected": "XXXXXXXXX012"
+ }
+]

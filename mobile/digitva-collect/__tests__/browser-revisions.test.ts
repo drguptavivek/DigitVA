@@ -135,6 +135,19 @@ describe("browser submitted interview revisions", () => {
     expect(snapshot.draft.completedAt).toMatch(/T.*[+-]\d{2}:\d{2}$/);
   });
 
+  it("reduces the national ID before freezing and hashing", async () => {
+    const snapshot = await createRevisionSnapshot({
+      vaSid: "va-1", reasonCode: "interviewer_correction",
+      data: { Id10007: "a", Id10073: "1234 5678 9012" } as SubmissionData,
+      completion: { valid: true, issues: [] },
+      draft: { instrumentVersion: "served-2" },
+      generation: 1,
+    });
+    expect(snapshot.answersJson).toBe('{"Id10007":"a","Id10073":"XXXXXXXXX012"}');
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(snapshot.answersJson));
+    expect(snapshot.answersSha256).toBe(Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join(""));
+  });
+
   it.each([true, false])("accepts complete matching acknowledgements when changed=%s", async (changed) => {
     const snapshot = await createRevisionSnapshot({
       vaSid: "va-1", reasonCode: "interviewer_correction", data: { Id10007: "x" } as SubmissionData,

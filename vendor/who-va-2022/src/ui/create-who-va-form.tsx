@@ -33,6 +33,7 @@ import { createRichText } from "./rich-text-view.js";
 import { createSectionNavigation, type SectionNavItem } from "./section-navigation.js";
 import {
   createWhoVaQuestionControls,
+  flushPendingAnswers,
   questionControlStyles,
   type WhoVaPlatformServices
 } from "./question-controls.js";
@@ -862,6 +863,7 @@ export function createWhoVaForm(
 
     const switchSection = (sectionName: string) => {
       setDrawerOpen(false);
+      flushPendingAnswers();
       if (sectionName === snapshot.currentSection.name) return;
       const moved = session.goToSection(sectionName);
       if (!moved) return;
@@ -879,6 +881,7 @@ export function createWhoVaForm(
     }, []);
 
     const saveDraft = useCallback(async () => {
+      flushPendingAnswers();
       const store = draftStore ?? primitives.draftStore;
       if (!store) return;
       // Every save path -- autosave-on-change, the autosave interval, a
@@ -1012,6 +1015,7 @@ export function createWhoVaForm(
     };
 
     const advance = () => {
+      flushPendingAnswers();
       const incompleteDates = snapshot.questions
         .map((question) => draftIssues[question.name])
         .filter((issue): issue is ValidationIssue => issue != null);
@@ -1169,6 +1173,7 @@ export function createWhoVaForm(
         messages={messages}
         narrow={compact}
         onBack={() => {
+          flushPendingAnswers();
           void saveDraft().then(() => {
             session.previous();
           });

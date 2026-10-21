@@ -1031,6 +1031,36 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(again.get_json()["draft"], body["draft"])
         self.assertEqual(len(self._rows(death_id)), 1)
 
+    def test_sync_stores_the_national_id_reduced_and_keeps_the_client_hash_as_sent(self):
+        """PII stage 1c: a client that reduces hashes the reduced text (nothing
+        changes on the server); a draft saved before the update uploads the
+        full number once, which the server reduces while keeping the hash the
+        client sent (an upload identity, never recomputed from stored content)."""
+        reduced = {"Id10013": "yes", "Id10073": "XXXXXXXXX012"}
+        death_id, cid = self._case(), uuid.uuid4()
+        response = self._sync(death_id, reduced, cid=cid)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        (draft,) = self._rows(death_id)
+        self.assertEqual(self._answers(draft), reduced)
+        sent = hashlib.sha256(json.dumps(reduced, separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual(draft.answers_sha256, sent)
+
+        legacy = {"Id10013": "yes", "Id10073": "1234 5678 9012"}
+        other_death, other_cid = self._case(), uuid.uuid4()
+        response = self._sync(other_death, legacy, cid=other_cid)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        (draft,) = self._rows(other_death)
+        stored = self._answers(draft)
+        self.assertEqual(stored["Id10073"], "XXXXXXXXX012")
+        self.assertNotIn("1234", json.dumps(stored))
+        sent = hashlib.sha256(json.dumps(legacy, separators=(",", ":")).encode()).hexdigest()
+        self.assertEqual(draft.answers_sha256, sent)
+        self.assertEqual(response.get_json()["answers_sha256"], sent)
+        # A resend of the same upload is still recognised by that hash.
+        again = self._sync(other_death, legacy, cid=other_cid)
+        self.assertEqual(again.status_code, 200)
+        self.assertEqual(len(self._rows(other_death)), 1)
+
     def test_the_definition_slice_identity_persists_through_sync_and_is_echoed(self):
         death_id = self._case()
         sha = "ab" * 32

@@ -11,6 +11,7 @@ between the two sources.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import logging
@@ -27,6 +28,8 @@ from app import db
 from app.models import (
     MapCaseContactAttempt,
     MapCaseTransition,
+    MapDeathIdentifier,
+    MasDeathIdentifierType,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -52,6 +55,7 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import case_transition_service as cases
+from app.services import death_identifier_service as death_identifiers
 from app.services import (
     notification_service,
     org_grant_service,
@@ -74,10 +78,11 @@ from app.services.coding_release_service import (
 from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
-    canonical_payload_fingerprint,
     ensure_active_payload_version,
     get_active_payload_version,
     get_latest_pending_upstream_payload_version,
+    opened_payload,
+    payload_matches,
     reject_pending_upstream_payload_version,
 )
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
@@ -120,6 +125,7 @@ from app.services.workflow.upstream_changes import (
     get_open_revision_request,
     resolve_pending_upstream_change,
 )
+from app.utils.national_id import redact_national_id_digits, redact_payload_national_ids
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +149,6 @@ __all__ = [
     "log_contact_attempt",
     "pause_interview",
     "PAUSE_REASONS",
-    "mask_phone",
     "list_worklist",
     "start_draft",
     "list_drafts",
@@ -665,15 +670,6 @@ def _clean_phone(raw: object, *, what: str) -> str | None:
     return match.group(1)
 
 
-def mask_phone(phone: str | None) -> str | None:
-    """``******1234``: the last four digits only, for lists. Tolerates the free
-    text older rows may hold."""
-    if not phone:
-        return None
-    digits = re.sub(r"\D", "", phone)
-    return "******" + (digits[-4:] if len(digits) >= 4 else "")
-
-
 #: The register form's fields (``VaDeathRegister`` columns ``_clean_death_fields`` fills).
 REGISTER_FIELDS = (
     "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth", "date_of_birth_partial",
@@ -779,7 +775,7 @@ def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset
         "date_of_birth_partial": date_of_birth_partial,
         "age_years": age_years,
         "date_of_death": date_of_death,
-        "place_of_death": _clean(fields.get("place_of_death"), what="Place of death"),
+        "place_of_death": redact_national_id_digits(_clean(fields.get("place_of_death"), what="Place of death"))[0],
         "address": _clean(fields.get("address"), what="Address"),
         "address_house_street": _clean(fields.get("address_house_street"), what="House or street", max_len=200),
         "address_village_ward": _clean(fields.get("address_village_ward"), what="Village or ward", max_len=200),
@@ -791,13 +787,19 @@ def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset
         else _clean_phone(fields.get("informant_phone"), what="Informant phone"),
         "informant_phone_2": fields.get("informant_phone_2") if "informant_phone_2" in keep_phones
         else _clean_phone(fields.get("informant_phone_2"), what="Second phone"),
-        "remarks": _clean(fields.get("remarks"), what="Remarks"),
+        # Free text: a national-ID-like digit run is masked (PII slice 1a).
+        "remarks": redact_national_id_digits(_clean(fields.get("remarks"), what="Remarks"))[0],
         **_clean_location(fields),
     }
 
 
 def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None,
-                   client_death_id: uuid.UUID | None = None, **fields) -> VaDeathRegister:
+                   client_death_id: uuid.UUID | None = None, identifiers: dict | None = None,
+                   warnings: list | None = None, **fields) -> VaDeathRegister:
+    """Register a death. *identifiers* (``{type code: text}``) are validated
+    and stored with it (``death_identifier_service.set_identifiers``), always
+    checked for the project's ``required_at_report`` types; any
+    ``identifier_in_use`` warnings are appended to *warnings*."""
     mode = get_web_intake_mode(project_id)
     if not _mode_allows(mode, death_register=True):
         raise WebIntakeError("This project does not use the death register.", 403)
@@ -820,6 +822,10 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         client_death_id=client_death_id,
     )
     cases.open_case(death, actor=user)
+    _, found = death_identifiers.set_identifiers(
+        death, user, identifiers or {}, reason_context="registration", enforce_required=True)
+    if warnings is not None:
+        warnings.extend(found)
     log.info("web intake death registered | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, unique_id, user.user_id)
     return death
 
@@ -908,6 +914,127 @@ def interviewer_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
     ))
 
 
+# ---------------------------------------------------------------------------
+# Registration-number write access (digitva-kzyp; policy
+# death-registration-identifiers.md decisions 11 and 12, "Authorization")
+# ---------------------------------------------------------------------------
+
+#: A case in one of these states is closed: cancelled, or a confirmed duplicate.
+IDENTIFIER_CLOSED_STATES = ("cancelled", DUPLICATE_CASE_STATUS)
+#: The supervising roles that may still write numbers on a closed case.
+#: ``data_manager`` supervises but is read-only there, so it is left out.
+_CLOSED_WRITER_ROLES = (VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi, VaAccessRoles.project_pi)
+CASE_CLOSED_MESSAGE = "This case is closed; only a supervisor can change its registration numbers."
+IDENTIFIER_FORBIDDEN_MESSAGE = "You may not change this case's registration numbers."
+
+
+def identifier_field_scopes(user: VaUsers) -> tuple:
+    """``(interviewer, reporter)``: the SQL reach of *user*'s ASSIGNED
+    interviewer grants and of the death_reporter grants (own registrations
+    only), each None without any. The coder's implied self-coding interviewer
+    grant is not one of them, so it neither shows values nor writes numbers."""
+    interviewer = _worklist_scope(user, assigned_only=True)
+    reporter = _worklist_scope(user, None, _DEATH_REPORTER, assigned_only=True)
+    if reporter is not None:
+        reporter = sa.and_(reporter, VaDeathRegister.registered_by == user.user_id)
+    return interviewer, reporter
+
+
+def _interviewed_condition(user: VaUsers):
+    """The cases *user* registered, started or has an interview of (a draft
+    that is not discarded): not every case of their unit subtree. The
+    registrant clause lets an interviewer who registered a death correct its
+    numbers before the first interview, as the death_reporter can."""
+    return sa.or_(
+        VaDeathRegister.registered_by == user.user_id,
+        VaDeathRegister.started_by_user_id == user.user_id,
+        sa.exists().where(
+            VaWebIntakeDraft.death_id == VaDeathRegister.death_id,
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status != "discarded",
+        ),
+    )
+
+
+def identifier_write_parts(user: VaUsers, scopes: tuple | None = None) -> tuple:
+    """``(open_ok, closed_ok)``: SQL conditions on ``VaDeathRegister`` for the
+    cases *user* may change registration numbers of, ignoring closed cases
+    (``open_ok``) and including them (``closed_ok``).
+
+    Admin: every case. A supervisor, In-charge, project PI or data manager
+    (``supervised_case_condition``; browser only, it is false under a device
+    credential) and the death_reporter on a death they reported, and the
+    interviewer on a case they registered, started or interviewed, write open cases; only
+    a supervisor, In-charge, project PI or admin write closed ones. *scopes*:
+    ``identifier_field_scopes(user)``, when the caller already has it.
+    """
+    if resolve_grants(user).is_admin:
+        return sa.true(), sa.true()
+    interviewer, reporter = scopes if scopes is not None else identifier_field_scopes(user)
+    ways = [supervision.supervised_case_condition(user)]
+    if reporter is not None:
+        ways.append(reporter)
+    if interviewer is not None:
+        ways.append(sa.and_(interviewer, _interviewed_condition(user)))
+    return sa.or_(*ways), supervision.supervised_case_condition(user, _CLOSED_WRITER_ROLES)
+
+
+def identifier_edit_condition(user: VaUsers, scopes: tuple | None = None):
+    """SQL on ``VaDeathRegister``: *user* may change this case's numbers now
+    (``can_edit_identifiers``): ``closed_ok`` or an open case and ``open_ok``."""
+    open_ok, closed_ok = identifier_write_parts(user, scopes)
+    return sa.or_(closed_ok, sa.and_(VaDeathRegister.status.not_in(IDENTIFIER_CLOSED_STATES), open_ok))
+
+
+def identifier_write_flags(user: VaUsers, deaths) -> dict:
+    """``{death_id: (open_ok, closed_ok)}`` for *deaths* (anything with
+    ``death_id``), one query however many."""
+    ids = [d.death_id for d in deaths]
+    if not ids:
+        return {}
+    open_ok, closed_ok = identifier_write_parts(user)
+    rows = db.session.execute(
+        sa.select(VaDeathRegister.death_id, open_ok.label("open_ok"), closed_ok.label("closed_ok"))
+        .where(VaDeathRegister.death_id.in_(ids))
+    ).all()
+    return {row.death_id: (bool(row.open_ok), bool(row.closed_ok)) for row in rows}
+
+
+def can_edit_identifiers(user: VaUsers, deaths) -> dict:
+    """``{death_id: bool}``: whether *user* may change each case's numbers now
+    (the ``can_edit_identifiers`` of a detail or a list row). One query."""
+    deaths = list(deaths)
+    flags = identifier_write_flags(user, deaths)
+    out = {}
+    for death in deaths:
+        open_ok, closed_ok = flags.get(death.death_id, (False, False))
+        out[death.death_id] = closed_ok or (open_ok and death.status not in IDENTIFIER_CLOSED_STATES)
+    return out
+
+
+def identifier_write_status(user: VaUsers, death: VaDeathRegister) -> str:
+    """``"ok"`` when *user* may change *death*'s numbers now, ``"closed"``
+    when only the case being closed stops them, else ``"denied"``."""
+    open_ok, closed_ok = identifier_write_flags(user, [death]).get(death.death_id, (False, False))
+    if closed_ok or (open_ok and death.status not in IDENTIFIER_CLOSED_STATES):
+        return "ok"
+    return "closed" if open_ok else "denied"
+
+
+def require_identifier_write(user: VaUsers, death: VaDeathRegister) -> None:
+    """Return when *user* may change *death*'s numbers now
+    (``identifier_write_status``, the rule of ``can_edit_identifiers`` and of
+    ``PUT /cases/<id>/identifiers``); else 409 ``case_closed`` when only the
+    case being cancelled or a confirmed duplicate stops them (decision 12),
+    else 403. The id is a claim: reaching a case to correct its details is
+    not permission to change its numbers (decisions 11 and 12)."""
+    status = identifier_write_status(user, death)
+    if status == "closed":
+        raise WebIntakeError(CASE_CLOSED_MESSAGE, 409, "case_closed")
+    if status != "ok":
+        raise WebIntakeError(IDENTIFIER_FORBIDDEN_MESSAGE, 403)
+
+
 #: Page size of a reporter's list, as the worklist's.
 REPORTED_PAGE_DEFAULT = 50
 REPORTED_PAGE_MAX = 200
@@ -922,8 +1049,9 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     *args* is the query string: ``project_id`` and ``site_id`` (optional
     narrowing; one the caller has no reach in is 403), ``limit`` (clamped to
     1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400).
-    Rows are ``serialize_death`` without the submission id: a reporter has no
-    business with the interview. Each row is the caller's own registration,
+    Rows are ``serialize_death`` without the submission id (a reporter has no
+    business with the interview) plus ``identifiers``
+    (``death_identifier_service.identifier_payloads``, one query for the page). Each row is the caller's own registration,
     so each carries its GPS fix (``shows_gps``).
     """
     try:
@@ -950,7 +1078,12 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     next_cursor = _encode_cursor(page[-1].updated_at, page[-1].death_id) if len(rows) > limit else None
     # Every row is the caller's own registration, so it keeps its GPS fix
     # (``shows_gps``): the edit form shows the location its reporter captured.
-    return {"deaths": [dict(serialize_death(d, show_gps=True), va_sid=None) for d in page],
+    # The registration numbers ride along for the edit form's prefill.
+    identifiers = death_identifiers.identifier_payloads(user, page)
+    editable = can_edit_identifiers(user, page)
+    return {"deaths": [dict(serialize_death(d, show_gps=True), va_sid=None, identifiers=identifiers[d.death_id],
+                            can_edit_identifiers=editable[d.death_id])
+                       for d in page],
             "next_cursor": next_cursor}
 
 
@@ -994,7 +1127,8 @@ def _interview_completed(death: VaDeathRegister) -> bool:
     ))))
 
 
-def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_at: object | None = None) -> VaDeathRegister:
+def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_at: object | None = None,
+                 identifiers: dict | None = None, warnings: list | None = None) -> VaDeathRegister:
     """Correct the register fields of a case, until an interview of it is completed.
 
     *changes* holds only the fields to change, named as ``register_death``'s
@@ -1010,6 +1144,18 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     the names exceed the cap) and keeps each one's old and new value in
     ``changes``; values are personal data and never go in the reason or a log. A stored value that no longer validates must be corrected in
     the same edit (400, naming the field).
+
+    *identifiers* (``{type code: text | None}``) change only the listed
+    registration numbers (``death_identifier_service.set_identifiers``; None
+    clears); they may be the only change. Their
+    ``identifier_in_use`` warnings are appended to *warnings*. On a cancelled
+    or confirmed-duplicate case they are a supervisor's only: any other caller
+    gets 409 ``case_closed`` for the whole request; the register fields of a
+    closed case are edited as before. The numbers need the write permission of
+    ``PUT /cases/<id>/identifiers`` (``require_identifier_write``): anyone else
+    who may correct the details gets 403 for the whole request. After an
+    interview is completed the numbers go through
+    ``death_identifier_write.put_identifiers`` instead.
     """
     try:
         death = get_death(user, death_id)
@@ -1021,7 +1167,7 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
         if death is None or not (cases.is_interview_supervisor_for(user, death) or _reporter_reaches(user, death)):
             raise
     death = cases.lock_case(death)
-    if not changes:
+    if not changes and not identifiers:
         raise WebIntakeError("Nothing to change.")
     unknown = set(changes) - set(REGISTER_FIELDS)
     if unknown:
@@ -1030,8 +1176,26 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
         raise WebIntakeError("Record the details in the interview first.", 409, "details_pending")
     if _interview_completed(death):
         raise WebIntakeError("An interview of this case is completed; its answers are the case details.", 409, "case_completed")
+    if identifiers:
+        # Register-field edits of a closed case are unchanged; the numbers
+        # have the any-time write's own gate.
+        require_identifier_write(user, death)
     if if_updated_at is not None and draft_is_stale(death, if_updated_at):
         raise WebIntakeError("This death was changed since you opened it; reload it.", 409, "death_stale")
+    if changes:
+        _correct_register_fields(user, death, changes)
+    if identifiers:
+        _, found = death_identifiers.set_identifiers(
+            death, user, identifiers, reason_context="correction", enforce_required=False)
+        if warnings is not None:
+            warnings.extend(found)
+    db.session.flush()
+    return death
+
+
+def _correct_register_fields(user: VaUsers, death: VaDeathRegister, changes: dict) -> None:
+    """The register-field half of ``update_death``: validate the case as it
+    would stand and audit the changed fields (nothing when none changed)."""
     current = {name: getattr(death, name) for name in REGISTER_FIELDS}
     # A phone is validated only when this edit changes it.
     keep_phones = frozenset(n for n in _PHONE_FIELDS if changes.get(n, current[n]) == current[n])
@@ -1051,7 +1215,7 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     _require_age_info(cleaned, current)
     changed = [name for name in changes if cleaned[name] != current[name]]
     if not changed:
-        return death
+        return
     for name in changed:
         setattr(death, name, cleaned[name])
     if any(name in LOCATION_FIELDS for name in changed):
@@ -1059,7 +1223,6 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     _audit_details_change(death, user, DETAILS_EDITED,
                           {name: current[name] for name in changed}, {name: cleaned[name] for name in changed})
     db.session.flush()
-    return death
 
 
 # ---------------------------------------------------------------------------
@@ -1366,7 +1529,9 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
             if value:
                 answers[name] = value
                 locked.add(name)
-    prefill["answers"] = answers
+    # Free-text answers built from the register (Id10055/Id10057) carry no
+    # national-ID digit run (PII slice 1a).
+    prefill["answers"] = redact_payload_national_ids(answers)[0]
     prefill["lockedQuestionNames"] = sorted(locked)
     return prefill
 
@@ -1747,6 +1912,16 @@ def scrub_attachment_names(answers: dict) -> dict:
     }
 
 
+def stored_answers(answers: dict) -> dict:
+    """*answers* as every draft row stores them: attachment file names
+    dropped (``scrub_attachment_names``) and national IDs reduced
+    (``redact_payload_national_ids``: ``Id10073`` to its last 3 digits, digit
+    runs in free text masked; PII slice 1a, docs/kb/pii-slice-1a.md). The
+    server applies it whatever the client sent; the client's
+    ``answers_sha256`` is kept as sent, an upload identity only."""
+    return redact_payload_national_ids(scrub_attachment_names(answers))[0]
+
+
 def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None) -> int:
     """Upsert the given sections' answers; returns the number of sections written.
 
@@ -1777,7 +1952,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         if name != DEVICE_SECTION:
             browser_keys.update(answers)
         row = existing.get(name)
-        answers = scrub_attachment_names(_enforce_locked(answers, locked, row.data if row is not None else None))
+        answers = stored_answers(_enforce_locked(answers, locked, row.data if row is not None else None))
         if row is None:
             row = VaWebIntakeDraftSection(draft_id=draft.draft_id, section_name=name, data=answers)
             db.session.add(row)
@@ -1901,6 +2076,9 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     ``AttachmentsExpected``. A file uploaded for such a slot stays in
     ``va_web_intake_attachments``, unlinked.
     """
+    # Server authoritative whatever the client sent (PII slice 1a); the
+    # payload version service reduces again before storing.
+    data = redact_payload_national_ids(data or {})[0]
     payload: dict = {}
     references: dict = {}
     wanted = {key: attachments.reference_id(value) for key, value in (data or {}).items() if _is_attachment_reference(value)}
@@ -2074,9 +2252,11 @@ def _visit_note(data: dict) -> dict:
         remarks = _clean(data.get("visit_remarks"), what="Visit remarks", max_len=2000)
     except WebIntakeError as exc:
         raise WebIntakeError(f"A refusal with no identity needs a visit note: {exc}", 422) from exc
-    note = {"visit_address": address, "visit_date": visited.isoformat()}
+    # Also kept in the draft's meta: free text, so digit runs are masked here
+    # as in the payload (PII slice 1a).
+    note = {"visit_address": redact_national_id_digits(address)[0], "visit_date": visited.isoformat()}
     if remarks:
-        note["visit_remarks"] = remarks
+        note["visit_remarks"] = redact_national_id_digits(remarks)[0]
     return note
 
 
@@ -2092,7 +2272,7 @@ def _set_final_section(draft: VaWebIntakeDraft, data: dict) -> None:
     """Store *data* as the draft's ``final`` section: the exact final raw
     answers, locked answers included, before irrelevant ones are stripped. A
     browser section saved under that name is overwritten, not duplicated."""
-    data = scrub_attachment_names(data)
+    data = stored_answers(data)
     for row in draft.sections:
         if row.section_name == FINAL_SECTION:
             row.data = data
@@ -2469,7 +2649,9 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked")
 
     active = get_active_payload_version(va_sid)
-    prior = (active.payload_data if active is not None else None) or {}
+    # The opened prior (sealed fields joined back with the payload split on):
+    # it is the revision's carry, so ABHA and the identity answers survive.
+    prior = opened_payload(active)
     previous = (draft.meta or {}).get("interviewOutcome") or prior.get("interview_outcome")
     now = _utcnow()
     completed_at = _completion_time(envelope, now)
@@ -2547,11 +2729,11 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         draft, user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
         intake_source=prior.get("intake_source") or "web", meta=meta, carry=prior if active is not None else None,
     )
-    fingerprint = canonical_payload_fingerprint(payload)
     # Recomputed from the stored payload, as ensure_active_payload_version and
-    # ODK sync decide "same payload": a stored column from an older
-    # normalisation must not turn a no-op into a release.
-    if active is not None and canonical_payload_fingerprint(prior) == fingerprint:
+    # ODK sync decide "same payload" (payload_matches, both sides one rule):
+    # a stored column from an older normalisation must not turn a no-op into
+    # a release.
+    if active is not None and payload_matches(active, payload):
         if answers_sha256 != draft.answers_sha256:
             _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=active.payload_version_id)
         reply = _revision_reply(draft, active, False, outcome)
@@ -2818,7 +3000,7 @@ def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object
     active = get_active_payload_version(va_sid)
     if active is None:
         raise WebIntakeError("This submission has no payload to replace.", 409, "wrong_state")
-    prior = active.payload_data or {}
+    prior = opened_payload(active)  # the carry: sealed fields joined back
 
     chosen_user = db.session.get(VaUsers, candidate.user_id)
     now = _utcnow()
@@ -2998,7 +3180,7 @@ def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draf
         submitted_at=now,
         client_valid=completion.get("valid") is True,
     )
-    draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=scrub_attachment_names(data)))
+    draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=stored_answers(data)))
     db.session.add(draft)
     db.session.flush()
     log.info("device interview kept as superseded copy | unique_id=%s | case_status=%s | by=%s", death.unique_id, death.status, user.user_id)
@@ -3247,7 +3429,7 @@ def _keep_history(draft: VaWebIntakeDraft, answers: dict, *, sha256: str | None,
         meta={"replacedDraftId": str(draft.draft_id), **meta}, prefill={},
         status="replaced", answers_sha256=sha256,
     )
-    row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=scrub_attachment_names(answers)))
+    row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=stored_answers(answers)))
     db.session.add(row)
 
 
@@ -3546,7 +3728,14 @@ def _after_worklist_cursor(raw: str):
     )
 
 
-def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: frozenset = _INTERVIEWER):
+def _assigned_only(resolved):
+    """*resolved* without the grants a coder's self-coding project implies
+    (``source == "self_coding"``): the grant rows someone actually assigned."""
+    return dataclasses.replace(resolved, grants=tuple(g for g in resolved.grants if g.source == "assigned"))
+
+
+def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: frozenset = _INTERVIEWER,
+                    *, assigned_only: bool = False):
     """SQL condition for the cases this interviewer's grants reach, or None.
 
     Per project-site of ``interviewer_context`` (*context* when the caller
@@ -3557,11 +3746,16 @@ def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: fro
     (docs/policy/web-intake.md, "Who sees which cases"). The subtrees stay
     sub-selects, so the grants cost one memoised lookup however many
     project-sites there are. *roles* as ``interviewer_context`` (*context*
-    must then be built from the same roles).
+    must then be built from the same roles). *assigned_only* leaves out the
+    interviewer grant a self-coding coder is implied (``source ==
+    "self_coding"``): the reach that confers registration-number rights, which
+    a coding role never does (policy decisions 11 and 14).
     """
     wide: set[tuple[str, str | None]] = set()
     unit_grants: dict[str, set[uuid.UUID]] = {}
     resolved = resolve_grants(user)
+    if assigned_only:
+        resolved = _assigned_only(resolved)
     for grant in resolved.of(roles, virtual=False):
         if grant.is_wide:
             wide.add((grant.project_id, grant.site_id))  # site_id None: project grant
@@ -3780,8 +3974,10 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     notion ``_require_scope`` uses), and there only where the case detail
     would show the household address: a caller with personal-data access
     (``should_redact_pii``), or the death's own reporter. A sites-mode
-    project's rows never carry them (owner, 2026-10-20). *project_id* and
-    *context* as ``list_worklist``.
+    project's rows never carry them (owner, 2026-10-20). Each row carries
+    ``identifiers`` (``death_identifier_service.identifier_payloads``, loaded
+    once for the page) and ``can_edit_identifiers`` (``can_edit_identifiers``,
+    one query for the page). *project_id* and *context* as ``list_worklist``.
     """
     mine = (args.get("mine") or "").lower()
     if mine not in _TRUE + _FALSE:
@@ -3808,9 +4004,13 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
     redact = should_redact_pii(user)
     org_projects = org_grant_service.projects_with_org_tree(
         {row[0].project_id for row in result["cases"]}) if result["cases"] else set()
+    identifiers = death_identifiers.identifier_payloads(user, [row[0] for row in result["cases"]])
+    editable = can_edit_identifiers(user, [row[0] for row in result["cases"]])
     rows = []
     for row in result["cases"]:
         serialized = serialize_worklist_row(user, *row)
+        serialized["identifiers"] = identifiers[row[0].death_id]
+        serialized["can_edit_identifiers"] = editable[row[0].death_id]
         if row[0].project_id in org_projects and (not redact or serialized["registered_by_me"]):
             serialized["latitude"] = row[0].latitude
             serialized["longitude"] = row[0].longitude
@@ -3921,7 +4121,11 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
     ``DUPLICATE_NAME_SIMILARITY``, and a neighbouring unit: the same unit, its
     parent, a child, or a sibling (same parent), or either case has no unit.
     Two top-level units are not neighbours. Subjects without a name or date of
-    death, already closed, or with a flag waiting for a supervisor get none. At most *per_case* candidates per
+    death get no name match; a closed subject, or one with a flag waiting for a
+    supervisor, gets none. A case holding the same registration number (blind
+    index of a project-scoped type, ``death_identifier_service``) as the
+    subject is also a candidate, score 1, whatever its name, date or unit says
+    (still inside *scope*, still open). At most *per_case* candidates per
     subject, most similar first. Rows: ``subject_id``, ``death_id``,
     ``unique_id``, ``status``, ``unit_name``, ``score``, and the candidate's
     ``deceased_name``, ``date_of_death``, ``deceased_sex``, ``age_years``,
@@ -3942,8 +4146,10 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
     score = sa.func.similarity(
         _normalised_name(subject.deceased_name), _normalised_name(VaDeathRegister.deceased_name)
     )
-    ranked = (
-        sa.select(
+
+    def columns(score_column):
+        """The columns both match rules select: the subject and the candidate."""
+        return (
             subject.death_id.label("subject_id"),
             VaDeathRegister.death_id,
             VaDeathRegister.unique_id,
@@ -3957,11 +4163,11 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
             VaDeathRegister.address_village_ward,
             interviewer.name.label("interviewer_name"),
             registrant.name.label("registrant_name"),
-            score.label("score"),
-            sa.func.row_number()
-            .over(partition_by=subject.death_id, order_by=(score.desc(), VaDeathRegister.death_id))
-            .label("rank"),
+            score_column.label("score"),
         )
+
+    by_name = (
+        sa.select(*columns(score))
         .select_from(subject)
         .join(
             VaDeathRegister,
@@ -3977,10 +4183,7 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
         )
         .outerjoin(subject_unit, subject_unit.org_unit_id == subject.org_unit_id)
         .outerjoin(unit, unit.org_unit_id == VaDeathRegister.org_unit_id)
-        .outerjoin(
-            interviewer,
-            interviewer.user_id == VaDeathRegister.started_by_user_id,
-        )
+        .outerjoin(interviewer, interviewer.user_id == VaDeathRegister.started_by_user_id)
         .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
         .where(
             subject.death_id.in_(subject_ids),
@@ -4006,8 +4209,65 @@ def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: i
             score >= DUPLICATE_NAME_SIMILARITY,
             scope,
         )
+    )
+    # The same registration number (blind index, one project-scoped type) is a
+    # strong candidate whatever the names, dates or units say: score 1. It
+    # keeps the same subject and candidate gates and the caller's scope, so it
+    # names nothing outside the reach; the index lookup is
+    # ix_map_death_identifier_type_bidx.
+    mine = aliased(MapDeathIdentifier)
+    theirs = aliased(MapDeathIdentifier)
+    by_number = (
+        sa.select(*columns(sa.literal(1.0, sa.Float)))
+        .select_from(subject)
+        .join(mine, mine.death_id == subject.death_id)
+        .join(
+            MasDeathIdentifierType,
+            sa.and_(
+                MasDeathIdentifierType.identifier_type_id == mine.identifier_type_id,
+                MasDeathIdentifierType.uniqueness_scope == "project",
+            ),
+        )
+        .join(
+            theirs,
+            sa.and_(
+                theirs.identifier_type_id == mine.identifier_type_id,
+                theirs.value_blind_index == mine.value_blind_index,
+                theirs.death_id != mine.death_id,
+            ),
+        )
+        .join(
+            VaDeathRegister,
+            sa.and_(
+                VaDeathRegister.death_id == theirs.death_id,
+                VaDeathRegister.project_id == subject.project_id,
+                VaDeathRegister.status.not_in(closed),
+            ),
+        )
+        .outerjoin(unit, unit.org_unit_id == VaDeathRegister.org_unit_id)
+        .outerjoin(interviewer, interviewer.user_id == VaDeathRegister.started_by_user_id)
+        .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
+        .where(
+            subject.death_id.in_(subject_ids),
+            subject.status.not_in(closed),
+            subject.pending_flag.is_(None),
+            scope,
+        )
+    )
+    # One row per (subject, candidate): the number match outranks the name score.
+    both = sa.union_all(by_name, by_number).subquery()
+    best = (
+        sa.select(both)
+        .distinct(both.c.subject_id, both.c.death_id)
+        .order_by(both.c.subject_id, both.c.death_id, both.c.score.desc())
         .subquery()
     )
+    ranked = sa.select(
+        best,
+        sa.func.row_number()
+        .over(partition_by=best.c.subject_id, order_by=(best.c.score.desc(), best.c.death_id))
+        .label("rank"),
+    ).subquery()
     return db.session.execute(
         sa.select(ranked).where(ranked.c.rank <= per_case).order_by(ranked.c.subject_id, ranked.c.rank)
     ).all()
@@ -4283,8 +4543,8 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
                            my_submission: bool = False, other_complete_interview: bool = False,
                            ready_for_coding: bool | None = False) -> dict:
     """One worklist row (browser and device lists). No informant name or
-    address, and phones masked (``******1234``): the list shows who died, not
-    how to reach the family. ``va_sid`` only for the interviewer whose draft
+    address, and no phone digits (only ``has_informant_phone`` booleans): the
+    list shows who died, not how to reach the family. ``va_sid`` only for the interviewer whose draft
     became the submission (*my_submission*): the interview form is its
     interviewer's own. ``other_draft_active`` / ``other_draft_started_at``
     warn that another interviewer holds an open draft, never who;
@@ -4309,8 +4569,8 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "pending_flag": death.pending_flag,
         "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
         "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
-        "informant_phone_masked": mask_phone(death.informant_phone),
-        "informant_phone_2_masked": mask_phone(death.informant_phone_2),
+        "has_informant_phone": bool(death.informant_phone),
+        "has_informant_phone_2": bool(death.informant_phone_2),
         "registered_by_me": death.registered_by == user.user_id,
         "started_by_me": death.started_by_user_id == user.user_id,
         # Someone started the case (no name: who holds it is supervisor-only).
@@ -4399,7 +4659,7 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     contact families. ``other_complete_interview``: a candidate to choose
     exists (``choose_interview``)."""
     row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview)
-    for key in ("my_draft_id", "informant_phone_masked", "informant_phone_2_masked",
+    for key in ("my_draft_id", "has_informant_phone", "has_informant_phone_2",
                 "other_draft_active", "other_draft_started_at", "code_now"):
         row.pop(key)
     # Supervisors oversee every interview in scope, so they keep every va_sid

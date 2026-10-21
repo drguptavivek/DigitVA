@@ -493,10 +493,20 @@ class DeathReporterTests(BaseTestCase):
         self.assertNotIn("next_cursor", body)
 
     def test_the_reporters_list_query_is_index_backed(self):
-        db.session.execute(sa.text("SET LOCAL enable_seqscan = off"))
-        plan = "\n".join(db.session.execute(sa.text(
-            "EXPLAIN SELECT * FROM va_death_register WHERE registered_by = :u "
-            "ORDER BY updated_at DESC, death_id DESC LIMIT 51"), {"u": self.reporter.user_id}).scalars().all())
+        # On a near-empty table the planner may prefer the unfiltered ordered
+        # index (updated_at, death_id) and filter by registered_by, which says
+        # nothing about the reporter index. Take that competitor out inside a
+        # savepoint (DDL is transactional; rolled back below) so the plan
+        # shows whether the registered_by index serves the query by itself.
+        savepoint = db.session.begin_nested()
+        try:
+            db.session.execute(sa.text("DROP INDEX ix_va_death_register_updated"))
+            db.session.execute(sa.text("SET LOCAL enable_seqscan = off"))
+            plan = "\n".join(db.session.execute(sa.text(
+                "EXPLAIN SELECT * FROM va_death_register WHERE registered_by = :u "
+                "ORDER BY updated_at DESC, death_id DESC LIMIT 51"), {"u": self.reporter.user_id}).scalars().all())
+        finally:
+            savepoint.rollback()
         self.assertIn("ix_va_death_register_registered_by", plan)
         # Rows come out of the index in order: no Sort node.
         self.assertNotIn("Sort", plan)

@@ -93,6 +93,9 @@ EXEMPT = {
     "services/case_list_service.py::_counts_statement": (
         "case list is a register view (death registrations, not coding pools): a confirmed duplicate is shown by its register status, only in the supervision preset or when filtered for, and the combined status reads register status first so its workflow state never surfaces; it is excluded from every coding pool"
     ),
+    "services/case_list_service.py::export_summary": (
+        "counts the rows the case list would page through, for the export's audit row: a register view, the same scope and filters as _page_statement (a duplicate is listed by its register status), not a coding pool"
+    ),
     "routes/admin.py::_project_has_in_progress_coding": (
         "safety guard on COD-mode changes: a duplicate's coding resumes on reopen, so it must "
         "still block"

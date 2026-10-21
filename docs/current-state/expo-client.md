@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Expo Client Hosting And Access
@@ -113,7 +113,7 @@ Start interview, Edit, View); Start, Resume and View need `can_interview`.
 Case cards. Both tabs render one card, `CaseCard` in `src/web/DeathsList.tsx`.
 Line 1: the name (the ID when there is no name), age (`51 y`), sex and the
 status badges (text, never colour alone). Line 2: `Died:` date and `Area:`.
-Line 3: `Phone:` (masked), `Last contact:`, `Next visit:` and, on My
+Line 3: `Last contact:`, `Next visit:` and, on My
 interviews, sections saved, updated time and project. Line 4: the actions,
 the map pin when the row has a GPS fix, and the case ID right-aligned in
 monospace (shown only when the title is the name). Empty items are omitted;
@@ -121,7 +121,7 @@ on a phone items wrap in the same order. Facts are plain text, not chips:
 14 px in `foreground` (at least 7:1 on the card in both modes, the
 `ui-token-contrast` test), no fixed heights. Each line is a `role="list"` of
 `listitem`s; bare values carry an accessible name ("Age 51 years", "Sex
-Male", "Date of death 2026-09-22", "Phone ending 3210", "Case ID ..."). Card
+Male", "Date of death 2026-09-22", "Case ID ..."). Card
 buttons are at least 44 px high (Code now keeps the shared 40 px desktop
 height). The map pin (`MapsPinButton`, `src/web/LocationCapture.tsx`, 44 px,
 "Open in Maps") opens Google Maps directions in a new tab on the web
@@ -193,3 +193,54 @@ correction is checked against. Only the export is in the server image (see
 The loader reads a file again only when its mtime changes, so a rebuilt export
 is seen without a restart. A locale is served through `GET /api/v1/ui-strings/<locale>`;
 the policy and the admin page are in `docs/policy/ui-strings.md`.
+
+## Registration numbers (digitva-kzyp, stage 3)
+
+Policy: [Death Registration Identifiers](../policy/death-registration-identifiers.md).
+
+- `src/identifiers.ts`: types, the client pre-checks (`checkIdentifier`: length, character
+  type, then pattern as `^(?:pattern)$` on the capitalised value; a pattern that does not compile
+  is skipped; advice, the server decides), payload helpers (`identifiersToSend` for a
+  registration, `identifierChanges` for a correction: changed codes only, `null` clears),
+  `getIdentifierTypes` / `loadIdentifierTypes` (in-memory cache per project) and
+  `putCaseIdentifiers`. Re-exported by `src/client/api.ts`.
+- `src/IdentifierFields.tsx`: the shared entry component, one row per active type (label above,
+  monospaced input, `autoCapitalize="characters"`, autocorrect and spellcheck off, example hint,
+  required marker, rule or server message, duplicate warning with Continue and Edit). Typing
+  upper-cases and strips leading space only (length preserving), trimming happens on send; the
+  selection is controlled so the caret stays put.
+- `src/web/CaseIdentifiers.tsx`: `IdentifierFacts` (cards: label first and the number in
+  monospace, nothing when missing; detail: "Not yet issued"; badge-only viewers: "recorded" or
+  "missing" per type) and `AddIdentifierAction` (shown only when the row or detail carries
+  `can_edit_identifiers: true`; opens the fields in a panel and saves through
+  `putCaseIdentifiers` with `if_updated_at`; `death_stale` reloads, `case_closed` explains,
+  400 fields show under the field, warnings keep the panel open). Used by `CaseCard` lists
+  (`DeathsList`), `CaseSummary` / the supervision detail and the case detail.
+- Registration form (`DeathRegistrationScreen`): the section appears when the project has active
+  types; a new registration sends `identifiers` only when any is set, an edit prefills from the
+  case's `identifiers` values and sends only changed codes. A badge-only viewer gets no input
+  unless the case says `can_edit_identifiers`. A saved registration that carries a duplicate
+  warning pauses on it: Continue goes on as after any save, Edit reopens the new case in the edit
+  form.
+- Native (`src/nativeRoutes/register.tsx`): the same fields. Types are cached per project in the
+  encrypted store under the meta key `identifierTypes` (`getMeta` / `setMeta`, project scoped),
+  refreshed by `refreshCases` through `refreshIdentifierTypes` (best effort, a 403 keeps the old
+  copy). `RegistrationFields.identifiers` is stored in the queued registration's JSON and
+  spread into the `POST /intake/deaths` body, so `client_death_id` idempotency covers it; a 422
+  reopens the item (`needs_edit`); a refused `identifiers.<code>` message is stored under the
+  meta key `registrationRefusal:<client_death_id>` (`setRegistrationRefusal`, cleared on
+  re-save or acknowledgement) and shown under the field when the item reopens. Native shows no duplicate warning (the offline POST is
+  answered later); the any-time write and Add action are web only.
+- Type configuration lives in the Flask admin Project Setup page (Data collection section,
+  `app/templates/admin/panels/identifier_types.html`; also served alone at
+  `/admin/panels/identifier-types?project_id=` for admin, project_pi and data_manager of that
+  project, and as the page `/admin/registration-numbers` with a project chooser, linked from
+  the Manage menu for admin, project_pi and data_manager), not in the Expo client.
+- Web behaviours: `loadIdentifierTypes` rejects when the types cannot be loaded (nothing is
+  cached); the registration form then shows `idTypesLoadFailed` and `AddIdentifierAction` loads
+  the types up front and stays hidden (error text instead of the button) when they fail or the
+  project has none. Edits send changes for active types only; a value of a deactivated type
+  shows read-only. `isBadgeOnly` is true only when no entry has a `value` key, so one entry the
+  server could not decrypt does not hide the others. `cleanIdentifier` applies NFKC first, as
+  the server does; `typedCaret` places the caret from the pre-keystroke selection and the
+  length change of the typing transform.

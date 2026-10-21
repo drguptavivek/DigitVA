@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Field Data Collection Policy
@@ -194,7 +194,7 @@ pending registrations are part of the outstanding-work report.
 Attachments are not built yet.
 
 **Offline contact details** (owner, 2026-10-03, `digitva-p6fs.24`). This
-replaces the earlier "phones stay masked on the device". An authorized native
+replaces the earlier "phones stay hidden on the device". An authorized native
 worker may download the full contact details of an **active** case in their
 scope (waiting for a visit, refused, or in progress; the app decides from the
 case's `state`) into their encrypted per-interviewer store: the informant's
@@ -205,7 +205,7 @@ drafts: deleted when the case leaves the active states, on logout, and on
 `session_revoked` (device or administrative revoke, withdrawn grant). ABHA
 number and address and the father's and mother's names are never in the
 detail's own fields (the case prefill keeps what it already carried). Cases
-in other states may be listed online with masked phones; the app does not
+in other states may be listed online without phone digits; the app does not
 keep their contact details, so the device still holds no history of past
 cases.
 

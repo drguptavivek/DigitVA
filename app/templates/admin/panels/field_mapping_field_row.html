@@ -4,6 +4,7 @@
 
   Context required:
     form_type_code, field, categories, cat_name_map, subcat_name_map, subcats_by_cat
+  Optional: pii_rerun_notice (true right after an is_pii change).
 #}
 <tr id="fm-field-row-{{ field.field_id }}">
   <td class="small font-monospace">{{ field.field_id }}</td>
@@ -75,7 +76,14 @@
   <td class="small text-center">{% if field.flip_color %}<i class="fa-solid fa-rotate text-primary"></i>{% endif %}</td>
   <td class="small text-center">{% if field.is_info %}<i class="fa-solid fa-circle-info text-info"></i>{% endif %}</td>
   <td class="small text-center">{% if field.summary_include %}<i class="fa-solid fa-list-check text-success"></i>{% endif %}</td>
-  <td class="small text-center">{% if field.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}</td>
+  <td class="small text-center">
+    {% if field.is_pii %}<i class="fa-solid fa-shield-halved text-warning"></i>{% endif %}
+    {% if pii_rerun_notice %}
+    <div class="text-danger" role="alert" data-pii-rerun-notice>
+      PII flag changed: run <code>flask pii split-payloads --apply</code> (sync paused) so this form's stored payloads follow it.
+    </div>
+    {% endif %}
+  </td>
   <td class="small text-end">
     <button class="btn btn-outline-secondary btn-sm py-0 px-1"
             hx-get="/admin/panels/field-mapping/field/{{ form_type_code }}/{{ field.field_id }}"

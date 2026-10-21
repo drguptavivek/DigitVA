@@ -17,6 +17,7 @@ import {
   appliedAdvancedChips, CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, withinLastDays,
   type AdvancedFilters,
 } from "./caseFilters";
+import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { MapsPinButton } from "./LocationCapture";
 import { rememberCasePreviews } from "./newCasePreview";
 
@@ -112,11 +113,6 @@ export function useCaseCardStyles() {
 type CaseFact = { key: string; text: string; a11y?: string };
 export type CaseBadge = { label: string; tone?: "neutral" | "accent" | "warning" };
 
-/** The last digits of a masked phone (``******3210``), so it is announced "Phone ending 3210". */
-function phoneEnding(masked: string): string | undefined {
-  return /(\d+)\s*$/.exec(masked)?.[1];
-}
-
 /** A row of facts as a list (role list / listitem), so a screen reader hears each as one named item. */
 function FactList({ facts, style }: { facts: CaseFact[]; style?: object }) {
   const c = useCaseCardStyles();
@@ -132,13 +128,13 @@ function FactList({ facts, style }: { facts: CaseFact[]; style?: object }) {
 
 /**
  * The one case card of both case lists (docs/current-state/expo-client.md, "Case cards"). Line 1: name,
- * age, sex and the status badges; line 2: date of death, area; line 3: phone, last contact, next visit
+ * age, sex and the status badges; line 2: date of death, area; line 3: last contact, next visit
  * and *extra* facts; then *children* (notices); line 4: *actions* with the map pin, and the case ID on
  * the right. Empty items are omitted; on a narrow screen items wrap in the same order. The map pin shows
  * only when the row carries a GPS fix (the server sends one only to callers who may see it).
  */
 export function CaseCard({
-  title, titleTestID, caseId, ageYears, sex, dateOfDeath, area, phoneMasked, lastContactAt, nextVisitAt,
+  title, titleTestID, caseId, ageYears, sex, dateOfDeath, area, lastContactAt, nextVisitAt,
   extra = [], badges, actions, latitude, longitude, testID, children,
 }: {
   title: string;
@@ -148,7 +144,6 @@ export function CaseCard({
   sex?: string | null;
   dateOfDeath?: string | null;
   area?: string;
-  phoneMasked?: string | null;
   lastContactAt?: string | null;
   nextVisitAt?: string | null;
   extra?: CaseFact[];
@@ -162,7 +157,6 @@ export function CaseCard({
   const styles = useUiStyles();
   const c = useCaseCardStyles();
   const sexText = sexLabel(sex);
-  const ending = phoneMasked ? phoneEnding(phoneMasked) : undefined;
   const identity: CaseFact[] = [
     ...(ageYears != null ? [{ key: "age", text: t("metaAgeYears", { value: ageYears }), a11y: t("metaAgeA11y", { value: ageYears }) }] : []),
     ...(sexText ? [{ key: "sex", text: sexText, a11y: t("metaSexA11y", { value: sexText }) }] : []),
@@ -172,7 +166,6 @@ export function CaseCard({
     ...(area ? [{ key: "area", text: t("metaArea", { value: area }) }] : []),
   ];
   const contact: CaseFact[] = [
-    ...(phoneMasked && ending ? [{ key: "phone", text: t("metaPhone", { value: phoneMasked }), a11y: t("metaPhoneA11y", { value: ending }) }] : []),
     ...(lastContactAt ? [{ key: "lastContact", text: t("metaLastContact", { value: formatDisplayTimestamp(lastContactAt) }) }] : []),
     ...(nextVisitAt ? [{ key: "nextVisit", text: t("actionVisit", { date: formatDisplayTimestamp(nextVisitAt) }) }] : []),
     ...extra,
@@ -375,7 +368,7 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
       if (!query) return true;
       const info = (row.org_unit_id ? orgLookup.byId.get(row.org_unit_id) : undefined) ?? orgLookup.byName.get(rowUnit);
       return [row.deceased_name, row.unique_id, row.unit_name, row.org_unit_name, info?.breadcrumb, info?.code,
-        row.site_name, row.informant_phone_masked, row.date_of_death]
+        row.site_name, row.date_of_death]
         .filter(Boolean).join(" ").toLowerCase().includes(query);
     });
   }, [advanced, last30, list.cases, mine, orgLookup, search, status, unit, unitMatches]);
@@ -469,7 +462,6 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
             sex={row.deceased_sex}
             dateOfDeath={row.date_of_death}
             area={unitLabel}
-            phoneMasked={row.informant_phone_masked}
             lastContactAt={row.last_contact_at}
             nextVisitAt={row.next_visit_at}
             latitude={row.latitude}
@@ -498,8 +490,10 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
               {interviewable ? (
                 <Button size="sm" style={c.actionButton} kind={kind("view")} label={t("viewDetails")} onPress={() => router.push({ pathname: "/case", params: { deathId: row.death_id } })} />
               ) : null}
+              <AddIdentifierAction row={row} onChanged={() => void list.refresh()} />
             </>}
           >
+            <IdentifierFacts identifiers={row.identifiers} variant="card" />
             {row.other_draft_active === true ? (
               <View style={[c.noticeBanner, c.noticeBannerDanger]}>
                 <Text style={c.noticeText} accessibilityRole="alert">{otherDraftNotice(row.other_draft_started_at)}</Text>

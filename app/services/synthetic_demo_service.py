@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import os
 import uuid
@@ -43,6 +41,7 @@ from app.models import (
     VaUsers,
 )
 from app.services.db_backup_service import create_db_backup
+from app.services.submission_payload_version_service import write_payload_version
 
 log = logging.getLogger(__name__)
 DEMO_PROJECT_ID = "DEMO01"
@@ -59,6 +58,7 @@ DELETE_TABLES = (
     "va_web_intake_drafts",
     "map_case_contact_attempts",
     "map_case_transitions",
+    "map_death_identifier",
     "va_death_register",
     "va_final_cod_authority",
     "va_submission_notifications",
@@ -85,6 +85,7 @@ DELETE_TABLES = (
     "va_submissions_auditlog",
     "va_smartva_form_runs",
     "va_daily_kpi_aggregates",
+    "map_payload_version_pii",
     "va_submission_payload_versions",
     "va_submissions",
 )
@@ -591,14 +592,13 @@ def _seed_cases(session):
         }
         version = VaSubmissionPayloadVersion(
             va_sid=sid,
-            payload_data=payload,
             version_status="active",
-            payload_fingerprint=hashlib.sha256(
-                json.dumps(payload, sort_keys=True).encode()
-            ).hexdigest(),
             created_by=interviewer.user_id,
             created_by_role="interviewer",
         )
+        # The one payload writer: the sealed Id10018 goes to the side row
+        # with the split on, and the fingerprint follows the shared rule.
+        write_payload_version(version, payload, new=True, session=session)
         session.add(version)
         session.flush()
         submission.active_payload_version_id = version.payload_version_id

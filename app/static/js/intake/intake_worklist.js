@@ -539,7 +539,6 @@
       row.age_years != null ? row.age_years + ' y' : 'age —',
       'died ' + (row.date_of_death || '—')
     ].join(' · ')));
-    if (row.informant_phone_masked) deceased.appendChild(el('div', 'text-muted', 'phone ' + row.informant_phone_masked));
     tr.appendChild(deceased);
 
     var status = cell();

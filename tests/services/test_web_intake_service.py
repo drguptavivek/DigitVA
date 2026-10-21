@@ -2015,6 +2015,40 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(response.status_code, 404)
 
 
+    # -- national IDs (PII slice 1a, docs/kb/pii-slice-1a.md) -------------------
+
+    def test_a_national_id_is_reduced_in_draft_saves_and_the_payload(self):
+        death = self._register_death()
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_id=death.death_id,
+        )
+        sent = {"Id10073": "2345 6789 0123", "Id10476": "Card 234567890123 seen", "Id10070": "111122223333"}
+        intake_svc.save_draft_sections(draft, sections={"identity": dict(sent)})
+        saved = next(row.data for row in draft.sections if row.section_name == "identity")
+        self.assertEqual(saved["Id10073"], "XXXXXXXXX123")
+        self.assertEqual(saved["Id10476"], "Card XXXXXXXXX123 seen")
+        self.assertEqual(saved["Id10070"], "111122223333")  # flag only
+
+        submission = intake_svc.submit_draft(draft, self.interviewer, completion=self._completion(data=sent))
+
+        # Id10073 is irrelevant without its gate answers, so the payload drops
+        # it; the narrative is kept and masked. (Id10073 in a stored payload:
+        # tests/services/test_national_id_sync_rerun.py.)
+        version = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id)
+        self.assertIn("Id10476", version.payload_data)
+        self.assertEqual(version.payload_data["Id10476"], "Card XXXXXXXXX123 seen")
+        self.assertNotIn("6789", repr(version.payload_data))
+        final = next(row.data for row in draft.sections if row.section_name == intake_svc.FINAL_SECTION)
+        self.assertEqual(final["Id10073"], "XXXXXXXXX123")
+        for row in draft.sections:
+            self.assertNotIn("6789", repr(row.data))
+
+    def test_register_free_text_masks_a_national_id_run(self):
+        death = self._register_death(remarks="Aadhaar 2345 6789 0123 shown", place_of_death="Ward 7")
+        self.assertEqual(death.remarks, "Aadhaar XXXXXXXXX123 shown")
+        self.assertEqual(death.place_of_death, "Ward 7")
+
+
 class WebFormTypeFromProjectSettingTests(BaseTestCase):
     """The web ``va_forms`` row carries the project's configured form type.
 

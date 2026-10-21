@@ -373,7 +373,7 @@ describe("CollectionScreen refresh", () => {
           status: "registered",
           state: "registered",
           unit_name: "Ward North",
-          informant_phone_masked: "***4321",
+          has_informant_phone: true,
           next_visit_at: "2026-10-20",
         },
         {
@@ -416,7 +416,8 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain("metaAgeA11y:62");
     expect(rendered).toContain('"female"');
     expect(rendered).toContain("metaDied:2026-10-01");
-    expect(rendered).toContain("metaPhone:***4321");
+    expect(rendered).not.toContain("metaPhone");
+    expect(rendered).not.toContain("4321");
     expect(rendered).toContain("actionVisit:2026-10-20");
     expect(rendered).toContain("metaArea:Ward North");
     expect(rendered).not.toContain("Age:");
@@ -766,7 +767,7 @@ describe("CollectionScreen tabs and filters", () => {
 });
 
 describe("reported death card strings", () => {
-  it.each(["metaAgeYears", "metaAgeA11y", "metaDied", "metaPhone", "metaLastContact"])("has en and hi key %s", (key) => {
+  it.each(["metaAgeYears", "metaAgeA11y", "metaDied", "metaLastContact"])("has en and hi key %s", (key) => {
     expect(require("../src/strings/en.json")[key]).toContain("{value}");
     expect(require("../src/strings/hi.json")[key]).toContain("{value}");
   });

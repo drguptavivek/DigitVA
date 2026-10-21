@@ -70,6 +70,7 @@
         <li><a class="dropdown-item" href="{{ url_for('translation_suggestions_page.page') }}"><i class="fa-solid fa-language me-2"></i>Translations</a></li>
       {% endif %}
       {% if can_admin %}<li><a class="dropdown-item" href="{{ url_for('admin.admin_index') }}"><i class="fa-solid fa-gear me-2"></i>Admin</a></li>{% endif %}
+      {% if u.is_admin() or u.is_project_pi() or is_dm %}<li><a class="dropdown-item" href="{{ url_for('admin.registration_numbers_page') }}"><i class="fa-solid fa-hashtag me-2"></i>Registration numbers</a></li>{% endif %}
     </ul>
   </li>
 {% endif %}

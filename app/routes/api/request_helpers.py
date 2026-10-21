@@ -4,9 +4,10 @@ Both answer ``{"error", "code"}``; both name the interviewer's project in the
 request, never taken from the device's enrolment.
 """
 
-from flask import jsonify, request
+from flask import current_app, jsonify, request
 from flask_login import current_user
 
+from app import _rate_limit_key, limiter
 from app.models import VaAccessRoles
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
@@ -113,6 +114,21 @@ def project_filter_arg() -> str | None:
     if project_id and len(project_id) > _MAX_PROJECT_ID:
         raise BadQuery("project_id is too long.")
     return project_id
+
+
+def identifier_rate_limit(carries, *, search=False):
+    """A route decorator: the per-user budget of registration-number requests.
+    Writes (``IDENTIFIER_RATE_LIMIT``, 30 an hour) share one bucket across
+    every route that carries numbers; a number SEARCH (*search*) has its own
+    (``IDENTIFIER_SEARCH_RATE_LIMIT``, 120 an hour). A request for which
+    *carries()* is false is not counted and the app's default limits still
+    apply. Takes effect before the route runs, so a refused request reads and
+    writes nothing."""
+    setting = "IDENTIFIER_SEARCH_RATE_LIMIT" if search else "IDENTIFIER_RATE_LIMIT"
+    return limiter.shared_limit(
+        lambda: current_app.config[setting], scope="identifier-search" if search else "identifier-numbers",
+        key_func=_rate_limit_key, exempt_when=lambda: not carries(), override_defaults=False,
+    )
 
 
 def intake_error(exc: intake_svc.WebIntakeError):

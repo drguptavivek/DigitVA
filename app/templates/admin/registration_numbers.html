@@ -1,0 +1,30 @@
+{% extends "va_frontpages/va_base.html" %}
+
+{% block title %}Registration numbers — DigitVA{% endblock %}
+
+{#
+  Registration identifier types for the projects a project PI or a project-wide data manager
+  configures (and for admins). A small page of its own: Project Setup stays admin only. The panel
+  needs window._adminCsrf, which the admin console sets after its bootstrap fetch.
+#}
+{% block content %}
+<div class="container py-3" style="max-width: 960px;">
+  <h5 class="mb-3"><i class="fa-solid fa-hashtag me-2 text-secondary"></i>Registration numbers</h5>
+  {% if projects|length > 1 %}
+    <form method="get" class="d-flex align-items-center gap-2 mb-3">
+      <label for="rn-project" class="form-label small text-muted mb-0">Project:</label>
+      <select id="rn-project" name="project_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+        {% if not project_id %}<option value="" selected>Choose a project</option>{% endif %}
+        {% for p in projects %}<option value="{{ p }}"{{ ' selected' if p == project_id }}>{{ p }}</option>{% endfor %}
+      </select>
+      <noscript><button class="btn btn-sm btn-primary" type="submit">Open</button></noscript>
+    </form>
+  {% endif %}
+  {% if project_id %}
+    <script>window._adminCsrf = {{ csrf_token()|tojson }};</script>
+    {% include "admin/panels/identifier_types.html" %}
+  {% else %}
+    <p class="text-muted">Choose a project to see its registration number types.</p>
+  {% endif %}
+</div>
+{% endblock %}

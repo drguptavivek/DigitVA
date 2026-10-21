@@ -31,6 +31,7 @@ from app.services.category_rendering_service import (
     get_visible_category_codes,
 )
 from app.services.data_management_service import CSV_EXPORT_OMIT_PAYLOAD_FIELDS
+from app.services import payload_pii_accessor
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import (
     get_active_recode_episode,
@@ -114,7 +115,10 @@ def invalidate_section_data_cache(va_sid: str) -> None:
     """Drop every cached category entry of the submission's current payload.
 
     Every role and PII variant: the keys differ by both, and the workflow
-    panels are not among the visible data categories.
+    panels are not among the visible data categories. Only the redacted
+    variant is ever stored now (``get_section_data``); the non-redacted key
+    is still deleted so an entry written before that change cannot outlive
+    an edit.
     """
     sub = db.session.get(VaSubmissions, va_sid)
     if not sub:
@@ -122,6 +126,10 @@ def invalidate_section_data_cache(va_sid: str) -> None:
     version = get_active_payload_version(va_sid)
     version_id = version.payload_version_id if version else None
     payload = version.payload_data if version else None
+    if version is not None and payload_pii_accessor.split_enabled():
+        # Visibility may hang on a sealed answer: decide it on the joined
+        # payload, or a category shown only because of one keeps its entry.
+        payload = payload_pii_accessor.get_full_payload(version)
     service = get_category_rendering_service()
     partials = set(get_visible_category_codes(payload, sub.va_form_id))
     for items in service.WORKFLOW_NAV_ITEMS.values():
@@ -132,6 +140,31 @@ def invalidate_section_data_cache(va_sid: str) -> None:
                 flask_cache.delete(
                     section_data_cache_key(va_sid, version_id, role, partial, redacted=redacted)
                 )
+
+
+def flush_section_data_cache() -> int:
+    """Delete every cached category entry (``form_data3:*``), every
+    submission, role and variant; returns the number of keys deleted.
+
+    Run after a strip, backfill or sweep rewrites stored payloads (``flask pii
+    flush-cache``), so no entry rendered from the old content is served for
+    the rest of its ``SECTION_CACHE_TIMEOUT``. SCAN, never KEYS, in batches,
+    so Redis is not blocked. 0 without a Redis cache (tests, SimpleCache).
+    """
+    client = getattr(getattr(flask_cache, "cache", None), "_write_client", None)
+    if client is None:
+        return 0
+    prefix = current_app.config.get("CACHE_KEY_PREFIX", "")
+    deleted = 0
+    batch: list = []
+    for key in client.scan_iter(match=f"{prefix}form_data3:*", count=500):
+        batch.append(key)
+        if len(batch) >= 500:
+            deleted += client.delete(*batch)
+            batch = []
+    if batch:
+        deleted += client.delete(*batch)
+    return deleted
 
 
 def get_active_smartva(va_sid: str):
@@ -180,7 +213,10 @@ def get_section_data(
     the ``cod_attachments_*`` and ``cod_health_history_*`` of the workflow
     panel and ``smartva`` (cached with the section, as the web always did).
 
-    A no-PII viewer is served the redacted variant. An unconfirmed PII set
+    A no-PII viewer is served the redacted variant, the only one ever
+    cached: a viewer allowed PII gets a fresh render every time, so no
+    rendered personal data sits in Redis (PII policy OD6,
+    docs/policy/pii-encryption-at-rest.md). An unconfirmed PII set
     means nobody has said which of this form type's fields are personal data,
     so the whole payload is withheld rather than redacted by an answer that
     was never given (docs/policy/access-control-model.md, "The PII set must
@@ -199,7 +235,7 @@ def get_section_data(
         va_partial,
         redacted=redact_pii,
     )
-    cached = flask_cache.get(cache_key)
+    cached = flask_cache.get(cache_key) if redact_pii else None
     if cached is not None:
         return cached
 
@@ -237,7 +273,8 @@ def get_section_data(
             form_type_code, "vahealthhistorydetails"
         )
     data["smartva"] = get_active_smartva(va_sid)
-    flask_cache.set(cache_key, data, timeout=SECTION_CACHE_TIMEOUT)
+    if redact_pii:
+        flask_cache.set(cache_key, data, timeout=SECTION_CACHE_TIMEOUT)
     return data
 
 

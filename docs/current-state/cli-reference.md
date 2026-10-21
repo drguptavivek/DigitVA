@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # CLI Reference
@@ -432,7 +432,7 @@ Removing the quarantined files after the retention window is a deliberate
 manual step — see
 [the cutover runbook](runtime-and-operations.md#attachment-delivery).
 
-## `smartva` — SmartVA run archive
+## `smartva` — SmartVA run archive and scrub
 
 Thin wrappers over
 [`app/services/smartva_run_archive_service.py`](../../app/services/smartva_run_archive_service.py).
@@ -444,12 +444,15 @@ VM. Both commands do nothing on `ATTACHMENT_STORE=local`.
 | Command | Description |
 |---------|-------------|
 | `smartva archive-runs [--form-id X] [--dry-run] [--limit N] [--delete-local]` | Archive every run directory not yet verified in the bucket, plus any archived run whose local copy is still waiting out `SMARTVA_RUNS_KEEP_LOCAL_DAYS`. Uploads with a content type per extension, verifies the whole prefix with one listing, and — with `--delete-local`, off by default — removes the directory and NULLs `disk_path` once verified and once the keep-days window has elapsed. Keyset-paginated, idempotent and resumable; exits non-zero if any run failed. Never deletes on any failure. |
+| `smartva scrub-runs [--apply --confirm-backup KEY_OR_SHA256 [--allow-old-backup]] [--s3 [--versioning-noted]]` | Blank personal-data cells in existing run CSVs (PII slice 1a): the sealed WHO fields in `smartva_input.csv`, SmartVA's renamed copies (`gen_6_7`, `gen_5_0`, `gen_5_0a`, `gen_2_3a`) in the intermediates and `national_id`, `name*`, `surname*`, `geography1-5` in `*-predictions.csv` and `individual-cause-of-death.csv`. Headers and every other cell stay. Dry run by default: counts per file kind, never a path or value. `--apply` needs the sha256 of a verified archive of the run files; local runs only under `APP_SMARTVA_RUNS`, never through a symlink. `--s3` scrubs the `smartva_runs/` archive (download, blank, re-upload to the same key, size verified) and with `--apply` also needs `--versioning-noted`: earlier object versions are never deleted here and must be expired by the bucket's lifecycle. Idempotent; exits non-zero on any file error. `--apply` takes the recorded backup gate (`confirm_db_backup`, as `pii sweep-national-id`). Local first: `--s3 --apply` refuses while a local run file still has a cell to blank (the archive sweep would re-upload it). |
 | `smartva archive-status [--form-id X]` | Print run counts by `archive_state`, the number of run directories and bytes still on this VM, the configured key prefix and keep-days, and the most recent failure category. Counts only — no paths, keys or submission identifiers. |
 
 ```
 docker compose exec minerva_app_service uv run flask smartva archive-status
 docker compose exec minerva_app_service uv run flask smartva archive-runs --dry-run
 docker compose exec minerva_app_service uv run flask smartva archive-runs --delete-local
+docker compose exec minerva_app_service uv run flask smartva scrub-runs
+docker compose exec minerva_app_service uv run flask smartva scrub-runs --s3
 ```
 
 The admin equivalent is *Archive pending runs* in the Attachment Management
@@ -509,3 +512,30 @@ Deliberately not compared: table/column/index presence and types (already
 covered by `flask db check`), row data, and celery's or Flask-Session's own
 tables. See [Migration Chaining Policy](../policy/migration-chaining.md#8-a-valid-boot-tested-chain-can-still-be-wrong-on-the-database-you-run)
 for why the two checks answer different questions and when to run this one.
+
+## `pii` — Personal-data maintenance
+
+| Command | Description |
+| --- | --- |
+| `pii rewrap [--batch-size N]` | Re-wraps every `map_death_identifier` and `map_payload_version_pii` data key (one per record for the side table) not on the current KEM key id onto the current public key (unwrap with the old private key, wrap with the new public key); `value_ciphertext` is untouched. Keyset batches by primary key, one commit per batch, idempotent and resumable. The per-row update is conditional on the wrapped key still being the one read, so a row edited during the run is counted as `skipped` (the next run picks it up). Logs counts and failed row ids only; prints `rewrapped= failed= skipped=` (totals over both tables; the log names the table); exits non-zero if any row could not be unwrapped. Needs the old private key (`PII_KEM_PREVIOUS_PRIVATE_KEY_FILES`) in this process. |
+
+| `pii sweep-national-id [--apply --confirm-backup KEY_OR_SHA256] [--table T ...] [--batch-size N]` | PII slice 1a. Finds national IDs stored before ingest reduced them, in every payload version (every `version_status`), upstream-change copies, draft sections, draft prefill and meta, and register `remarks`/`place_of_death`: `Id10073` to `XXXXXXXXX` plus its last 3 digits, 12/16-digit runs in free text masked, `Id10070` flagged only. Dry run by default; prints counts by `table.column.field`, never a value or row id. `--apply` needs the object key or sha256 of a successful `flask backups db-dump` (checked against `va_db_backups`), rewrites in keyset batches with one commit each, only where the stored value is still the one read (else `skipped`), recomputes `payload_fingerprint`, and logs one audit line with counts and the backup key. Idempotent and resumable. Run `pii flush-cache` after. |
+| `pii split-payloads [--apply \| --verify \| --restore \| --recompute-digests [--apply]] [--confirm-backup KEY_OR_SHA256 [--allow-old-backup]] [--sample N] [--batch-size N]` | PII slice 1b part II-A. Moves the form type's sealed set of every payload version (every `version_status`) out of `payload_data` into `map_payload_version_pii` and recomputes every `payload_fingerprint` under the new rule (also for versions with no sealed field). Dry run by default: counts per status (`versions`, `with_sealed_fields`, `side_rows`, `to_strip`, `to_recompute`, `already_split`), never a value. `--apply` needs a verified dump (as `sweep-national-id`), runs keyset batches by `payload_version_id` with the rows locked, one commit per batch, checks every written version right after its batch commit (joined payload equals the reduced pre-split payload; fingerprint rule), stops on a mismatch, flushes the section cache and logs one audit line (backup key, counts). Idempotent and resumable: a split version is skipped without a decrypt. `--verify`: counts over every version (no side row, sealed key left, fingerprint mismatch) and an opened sample; exits non-zero on any problem. `--restore` (backup gate too; refused with `PAYLOAD_PII_SPLIT_ENABLED` on): joins the sealed fields back into `payload_data` as **plaintext**, writes the old-rule fingerprint, deletes the side rows. Run only in the sync-paused release window ([pii-slice-1b.md](../kb/pii-slice-1b.md), "Release procedure"). `--recompute-digests` (blind-key rotation): dry run, or with `--apply` recomputes `pii_digest`, both ABHA indexes, `blind_key_id` and `payload_fingerprint` of every side row not on the current blind key, from the opened fields, without a re-seal. `--verify` also counts `sealed_set_changed` and `blind_key_stale`. Every write needs a dump at most `PII_BACKUP_MAX_AGE_HOURS` old or `--allow-old-backup`. |
+| `pii strip-upstream-copies [--apply --confirm-backup KEY_OR_SHA256 [--allow-old-backup]] [--batch-size N]` | PII slice 1b. Strips the sealed set and reduces national IDs in `va_submission_upstream_changes.previous_va_data` and `incoming_va_data` written before the split, whatever `PAYLOAD_PII_SPLIT_ENABLED` says. Lossless (the referenced versions hold the sealed fields). Dry run by default (`scanned`, `changed`, `written`, `skipped`), keyset batches, compare-and-set, idempotent. |
+| `pii flush-cache` | Delete every cached rendered case section (`form_data3:*`, SCAN in batches); prints the count. Run after a sweep, backfill or strip. |
+
+```
+docker compose exec minerva_app_service uv run flask pii rewrap
+docker compose exec minerva_app_service uv run flask pii sweep-national-id
+docker compose exec minerva_app_service uv run flask backups db-dump --no-prune
+docker compose exec minerva_app_service uv run flask pii sweep-national-id --apply --confirm-backup <key or sha256>
+docker compose exec minerva_app_service uv run flask pii flush-cache
+docker compose exec minerva_app_service uv run flask pii split-payloads
+docker compose exec minerva_app_service uv run flask pii split-payloads --apply --confirm-backup <key or sha256>
+docker compose exec minerva_app_service uv run flask pii split-payloads --verify
+docker compose exec minerva_app_service uv run flask pii strip-upstream-copies
+docker compose exec minerva_app_service uv run flask pii split-payloads --recompute-digests
+```
+
+Key generation is `scripts/generate_pii_keys.py` (no Flask app needed; see
+[Runtime and Operations](runtime-and-operations.md#registration-identifier-keys)).

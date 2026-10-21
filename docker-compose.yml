@@ -32,11 +32,20 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
       - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
+      - PII_KEM_PUBLIC_KEY=${PII_KEM_PUBLIC_KEY:-}
+      - PII_KEM_KEY_ID=${PII_KEM_KEY_ID:-}
+      - PII_BLIND_INDEX_KEY=${PII_BLIND_INDEX_KEY:-}
+      - PII_KEM_PRIVATE_KEY_FILE=/run/secrets/pii_kem_private_key
+      - PII_KEM_PREVIOUS_PRIVATE_KEY_FILES=${PII_KEM_PREVIOUS_PRIVATE_KEY_FILES:-}
+      # PII slice 1b part II-A; keep false (docs/kb/pii-slice-1b.md, "Release procedure").
+      - PAYLOAD_PII_SPLIT_ENABLED=${PAYLOAD_PII_SPLIT_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - ICD11_API_BASE_URL=http://icd_api_service
+    secrets:
+      - pii_kem_private_key
     depends_on:
       - minerva_db_service
       - minerva_redis_service
@@ -59,9 +68,10 @@ services:
     build: .
     command: ./boot-public-doris.sh
     entrypoint: []
-    volumes:
-      - .:/app
-      - minerva_venv:/app/.venv
+    # No bind mount of the checkout: the internet-facing training service runs
+    # the image's own copy (built without .env and private/, .dockerignore), so
+    # it can read neither the PII private key nor PII_BLIND_INDEX_KEY. Code
+    # changes reach it with `make prod-build` (every deploy rebuilds).
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
@@ -114,10 +124,19 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
       - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
+      - PII_KEM_PUBLIC_KEY=${PII_KEM_PUBLIC_KEY:-}
+      - PII_KEM_KEY_ID=${PII_KEM_KEY_ID:-}
+      - PII_BLIND_INDEX_KEY=${PII_BLIND_INDEX_KEY:-}
+      - PII_KEM_PRIVATE_KEY_FILE=/run/secrets/pii_kem_private_key
+      - PII_KEM_PREVIOUS_PRIVATE_KEY_FILES=${PII_KEM_PREVIOUS_PRIVATE_KEY_FILES:-}
+      # PII slice 1b part II-A; keep false (docs/kb/pii-slice-1b.md, "Release procedure").
+      - PAYLOAD_PII_SPLIT_ENABLED=${PAYLOAD_PII_SPLIT_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
+    secrets:
+      - pii_kem_private_key
     depends_on:
       minerva_app_service:
         condition: service_healthy
@@ -141,10 +160,20 @@ services:
     volumes:
       - .:/app
       - minerva_venv:/app/.venv
+    # Beat never holds the PII private key (owner decision 13): no secret, and
+    # the checkout's private/ (the development key) is masked by an empty
+    # tmpfs. pii_crypto.init_app refuses to start in production if a key file
+    # is still readable here. Beat does hold PII_BLIND_INDEX_KEY: every
+    # process that boots the app needs it, and .env reaches it via load_dotenv.
+    tmpfs:
+      - /app/private:size=1m,mode=0700
     environment:
       - SECRET_KEY=${SECRET_KEY}
       - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
       - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
+      - PII_KEM_PUBLIC_KEY=${PII_KEM_PUBLIC_KEY:-}
+      - PII_KEM_KEY_ID=${PII_KEM_KEY_ID:-}
+      - PII_BLIND_INDEX_KEY=${PII_BLIND_INDEX_KEY:-}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
@@ -160,7 +189,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 192m
+          memory: 384m
 
   minerva_redis_service:
     image: redis:7
@@ -216,6 +245,18 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+# The KEM private key (app/utils/pii_crypto.py): mounted into the app and the
+# worker only, never beat or DORIS. The default below is the DEVELOPMENT key
+# in the git-ignored private/ of the checkout (`make ensure-secrets`). The
+# prod make targets pass PII_KEM_PRIVATE_KEY_PATH outside the checkout
+# (default /data/digitva-secrets/pii_kem_private_key, mode 0600, deploy user;
+# `make ensure-secrets-prod` refuses a path under the checkout), because the
+# checkout is bind-mounted into every app container. Back it up apart from
+# the database.
+secrets:
+  pii_kem_private_key:
+    file: ${PII_KEM_PRIVATE_KEY_PATH:-./private/pii_kem_private_key}
 
 volumes:
   pgdata_minerva:

@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Policy Docs
@@ -52,6 +52,11 @@ Current policy docs:
 - [VA Form Project Configuration Policy](va-form-project-configuration.md) — extensions a project enables, narration languages vs display translations, geography codes
 - [Web Intake Policy](web-intake.md) — WHO VA 2022 questionnaire filled in DigitVA, death register, interviewer role
 - [Death Registration Identifiers Policy](death-registration-identifiers.md) — proposed: per-project identifier types (CRS, MCCD, certificate numbers) with safe validation patterns, late entry by supervisors, audit and PII rules
+- [Offline API Contract v1](offline-api-contract.md) — proposed: the contract with the offline PHC app, HTTPS and bundle paths, consent, station roster, station supervisor corrections, purge
+- [Offline PHC App, Bundle Format and Transfer](offline-bundle-and-transfer.md) — proposed: `.dvb` bundle bytes, signing, server ingest, signed station config
+- [Respondent Consent Notice, Draft Text](respondent-consent-notice-draft.md) — proposed: DPDP notice text, contact variables, consent at registration
+- [Personal Data Encryption at Rest Policy](pii-encryption-at-rest.md) — proposed: sealed personal data, Aadhaar last 3 digits, key custody
+- [PII Envelope Format Specification](pii-envelope-format.md) — proposed: sealed value and wrapped data key byte layout, test vectors
 - [Area Dashboard Policy](area-dashboard.md) — every granted user sees collection and coding progress for their subtree
 - [Case List Views Policy](case-list-views.md) — proposed: Deaths, VA Interview, VA Code and Supervision as presets of one scoped case list, navigation, filters, field visibility
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)

@@ -10,14 +10,20 @@ same fields unredacted.
 import sqlalchemy as sa
 
 from app import db
-from app.models import MasFieldDisplayConfig, MasFormTypes
+from app.models import MasFieldDisplayConfig, MasFormTypes, VaDeathRegister
 from app.services.data_management_service import _filter_export_payload
 from app.services.field_mapping_service import PiiSetStatus, get_mapping_service
 from app.services.form_type_service import get_form_type_service
 from app.services.odk_schema_sync_service import get_sync_service
-from app.services.pii_field_registry import PII_FIELDS, apply_pii_field_registry
+from app.services.pii_field_registry import (
+    NEVER_SEALED_FIELDS,
+    PII_COLUMNS,
+    PII_FIELDS,
+    all_sealed_field_ids,
+    apply_pii_field_registry,
+    sealed_field_ids,
+)
 from tests.base import BaseTestCase
-
 
 FORM_TYPE_CODE = "WHO_2022_VA"
 
@@ -266,6 +272,33 @@ class PiiFieldRegistryTests(BaseTestCase):
         row = self._config_for("Id10057")
         self.assertTrue(row.is_pii)
         self.assertFalse(row.is_active, "applying the registry reactivated a deactivated row")
+
+    def test_an_admin_flagged_date_of_death_is_redacted_but_never_sealed(self):
+        """Owner decision A (2026-10-21): the date of death stays plain for
+        coding and records even when an admin flags it is_pii; the flag still
+        drives viewer redaction and export omission."""
+        apply_pii_field_registry(FORM_TYPE_CODE)
+        for field_id in ("Id10023", "Id10476"):
+            db.session.add(MasFieldDisplayConfig(
+                form_type_id=self.form_type.form_type_id, field_id=field_id, is_pii=True, pii_type="date",
+            ))
+        db.session.flush()
+        get_mapping_service().clear_cache()
+
+        self.assertIn("Id10023", get_mapping_service().get_pii_field_ids(FORM_TYPE_CODE))
+        for sealed in (sealed_field_ids(FORM_TYPE_CODE), all_sealed_field_ids()):
+            self.assertIn("Id10476", sealed)
+            self.assertIn("Id10073", sealed)
+            self.assertNotIn("Id10023", sealed)
+
+    def test_never_sealed_fields_are_not_in_the_global_pii_list(self):
+        self.assertIn("Id10023", NEVER_SEALED_FIELDS)
+        self.assertEqual(NEVER_SEALED_FIELDS & set(PII_FIELDS), set())
+
+    def test_register_date_of_death_stays_a_plain_column(self):
+        column = VaDeathRegister.__table__.c.date_of_death
+        self.assertIsInstance(column.type, sa.Date)
+        self.assertFalse([key for key in PII_COLUMNS if key.startswith("va_death_register.")])
 
 
 class ExportRedactionTests(BaseTestCase):

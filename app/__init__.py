@@ -51,6 +51,10 @@ migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()
 sess_manager = Session()
+#: API paths whose responses are never stored by a browser or proxy.
+_NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases")
+
+
 def _rate_limit_key():
     """Per-user bucket for authenticated sessions; per-IP for anonymous."""
     if current_user and current_user.is_authenticated:
@@ -152,6 +156,12 @@ def create_app(config_class=None):
                 "urlsafe-base64 string encoding 32 random bytes, e.g. from "
                 "`openssl rand -base64 32 | tr '+/' '-_'`."
             ) from exc
+
+    # Registration identifier keys: production refuses to start without them
+    # (docs/policy/death-registration-identifiers.md, "Keys and configuration");
+    # development and test fall back to throwaway keys.
+    from app.utils import pii_crypto
+    pii_crypto.init_app(app)
 
     # /api/v1/ takes a session cookie or a device bearer token. Runs before
     # every other hook (the logger, the limiter's key functions and the
@@ -390,6 +400,9 @@ def create_app(config_class=None):
     from app.commands.xlsform import init_app as init_xlsform_commands
     init_xlsform_commands(app)
 
+    from app.commands.pii import init_app as init_pii_commands
+    init_pii_commands(app)
+
     # The coding screens' ICD classification switch
     # (va_form_partials/_icd_classification_switch.html).
     from app.services.icd_coding_value import (
@@ -605,9 +618,12 @@ def create_app(config_class=None):
 
     @app.after_request
     def apply_static_cache_headers(response):
-        # Browser intake carries identifiers and questionnaire answers. This
-        # applies to errors and redirects as well as successful JSON responses.
-        if request.path.startswith("/api/v1/me/"):
+        # Browser intake carries identifiers and questionnaire answers, and the
+        # case list and intake replies carry registration numbers. This
+        # applies to errors and redirects as well as successful JSON responses
+        # (also set by those blueprints; this covers a request refused before
+        # it reaches one, such as a CSRF or terms refusal).
+        if request.path.startswith(_NO_STORE_API_PREFIXES):
             response.headers["Cache-Control"] = "no-store"
         if request.path.startswith("/static/") and response.status_code == 200:
             response.cache_control.public = True

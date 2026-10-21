@@ -146,7 +146,7 @@ PII_FIELDS: dict[str, str] = {
     "Id10057": PII_TYPE_LOCATION,  # where the death occurred, free text to village
     "Id10070": PII_TYPE_IDENTIFIER,  # death registration number
     "Id10071": PII_TYPE_DATE,  # date of death registration
-    "Id10072": PII_TYPE_IDENTIFIER,  # death certificate identifier
+    "Id10072": PII_TYPE_IDENTIFIER,  # place of registration (an office plus a date narrows a death)
     # --- Missing until now ---
     "Id10010c": PII_TYPE_IDENTIFIER,  # ID of VA interviewer
     "Id10073": PII_TYPE_IDENTIFIER,  # national identification number of deceased
@@ -160,6 +160,74 @@ PII_FIELDS: dict[str, str] = {
     "abha_number": PII_TYPE_IDENTIFIER,
     "abha_address": PII_TYPE_IDENTIFIER,
 }
+
+
+# Table columns (not payload fields) that hold personal data, by the same
+# vocabulary. Registration identifiers are the identifier class: each number
+# links a case to a named civil record. The value column holds only AES-GCM
+# ciphertext (app/utils/pii_crypto.py); the blind index leaks equality within
+# a type and is listed too so no export or log adds it by accident.
+# docs/policy/death-registration-identifiers.md, "Personal data and logging".
+PII_COLUMNS: dict[str, str] = {
+    "map_death_identifier.value_ciphertext": PII_TYPE_IDENTIFIER,
+    "map_death_identifier.dek_wrapped": PII_TYPE_IDENTIFIER,
+    "map_death_identifier.value_blind_index": PII_TYPE_IDENTIFIER,
+    # Payload sealed set (docs/policy/pii-encryption-at-rest.md, "Payload design").
+    "map_payload_version_pii.sealed": PII_TYPE_IDENTIFIER,
+    "map_payload_version_pii.dek_wrapped": PII_TYPE_IDENTIFIER,
+    "map_payload_version_pii.pii_digest": PII_TYPE_IDENTIFIER,
+    "map_payload_version_pii.abha_number_bidx": PII_TYPE_IDENTIFIER,
+    "map_payload_version_pii.abha_address_bidx": PII_TYPE_IDENTIFIER,
+}
+
+
+# Never sealed: fields coding and the case record need in plain form for every
+# staff member, until coding is complete and afterwards for internal records
+# (owner decision A, 2026-10-21). An admin may still flag one ``is_pii``: that
+# keeps driving viewer redaction and export omission as before, but the field
+# is never encrypted out of ``payload_data``, never dropped from the SmartVA
+# input and never blanked by the SmartVA run scrub. Exact date of birth
+# (Id10021) is deliberately absent: coding needs the age, not the birth date,
+# and sealing it is an open policy question (pii-encryption-at-rest.md, Q1).
+NEVER_SEALED_FIELDS: frozenset[str] = frozenset({
+    # Date of death: doris_prefill._death_date reads Id10022, then Id10023 /
+    # Id10023_a / Id10023_b, then Id10024; the register's date_of_death and
+    # the SmartVA input (kept at HEAD) carry it.
+    "Id10022", "Id10023", "Id10023_a", "Id10023_b", "Id10024",
+    # Sex: scored by SmartVA (gen_5_2 -> sex); DORIS prefill, the submission
+    # projection and the ODK case identity read it.
+    "Id10019",
+    # Age: SmartVA routing and the ICD age rules (who_age_normalization,
+    # doris_prefill, coder_cod_service).
+    "ageInYears", "ageInMonths", "ageInDays", "ageInMonthsByYear", "finalAgeInYears",
+    "isNeonatal", "isChild", "isAdult", "age_group",
+})
+
+
+def sealed_field_ids(form_type_code: str | None) -> frozenset[str]:
+    """The sealed set of a form type: ``PII_FIELDS`` plus the form type's
+    admin-flagged ``is_pii`` fields (PII policy OD9,
+    docs/policy/pii-encryption-at-rest.md), minus ``NEVER_SEALED_FIELDS``.
+    The global list applies even when the form type's own set is
+    unconfirmed or unknown."""
+    ids = set(PII_FIELDS)
+    if form_type_code:
+        from app.services.field_mapping_service import get_mapping_service
+
+        ids |= get_mapping_service().get_pii_field_ids(form_type_code)
+    return frozenset(ids - NEVER_SEALED_FIELDS)
+
+
+def all_sealed_field_ids() -> frozenset[str]:
+    """``PII_FIELDS`` plus every field flagged ``is_pii`` on any form type,
+    minus ``NEVER_SEALED_FIELDS``: the conservative set for files whose form
+    type is not at hand (the SmartVA run scrub). One query."""
+    flagged = db.session.scalars(
+        sa.select(MasFieldDisplayConfig.field_id)
+        .where(MasFieldDisplayConfig.is_pii == True)  # noqa: E712
+        .distinct()
+    ).all()
+    return (frozenset(PII_FIELDS) | frozenset(flagged)) - NEVER_SEALED_FIELDS
 
 
 def apply_pii_field_registry(form_type_code: str | None = None) -> dict[str, int]:

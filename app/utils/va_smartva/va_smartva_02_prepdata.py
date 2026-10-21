@@ -7,6 +7,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaSubmissionPayloadVersion, VaSubmissions
+from app.services.pii_field_registry import PII_FIELDS, sealed_field_ids
 
 log = logging.getLogger(__name__)
 
@@ -175,8 +176,13 @@ def _prepared_payload_rows(va_form, pending_sids=None) -> list[tuple[str, dict]]
     return list(db.session.execute(stmt).all())
 
 
-def _clean_payload_for_smartva(payload_data: dict, *, va_sid: str) -> dict:
-    row = dict(payload_data or {})
+def _clean_payload_for_smartva(payload_data: dict, *, va_sid: str,
+                               sealed: frozenset[str] = frozenset(PII_FIELDS)) -> dict:
+    """One SmartVA input row. *sealed* fields (personal data: names, places,
+    the national ID, registration details) are dropped: SmartVA scores none
+    of them, it only copies Id10017/Id10018/Id10057/Id10073 into its output
+    files (docs/kb/smart-va/demographic-general.md; PII policy OD7)."""
+    row = {key: value for key, value in (payload_data or {}).items() if key not in sealed}
 
     for column_name in _NAN_CHECK_COLUMNS:
         if column_name in row and _is_blank(row[column_name]):
@@ -225,6 +231,10 @@ def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
     """
     smartva_input_path = os.path.join(workspace_dir, "smartva_input.csv")
     payload_rows = _prepared_payload_rows(va_form, pending_sids=pending_sids)
+    # Imported here, as in _derive_smartva_run_options: it reaches the service layer.
+    from app.utils.va_form.va_form_02_formtyperesolution import va_get_form_type_code_from_form
+
+    sealed = sealed_field_ids(va_get_form_type_code_from_form(va_form))
 
     prepared_rows: list[dict] = []
     skipped = 0
@@ -233,7 +243,7 @@ def va_smartva_prepdata(va_form, workspace_dir: str, pending_sids=None):
             skipped += 1
             continue
         prepared_rows.append(
-            _clean_payload_for_smartva(payload_data or {}, va_sid=va_sid)
+            _clean_payload_for_smartva(payload_data or {}, va_sid=va_sid, sealed=sealed)
         )
 
     if pending_sids is not None:

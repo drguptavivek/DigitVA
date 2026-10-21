@@ -38,9 +38,18 @@ defaults for the policy's open cells are in docs/policy/case-list-views.md.
 ``source = 'register'`` (row field ``reported_at``, omitted otherwise); for
 ``direct`` and ``odk`` it is the interview start or the sync.
 
-Hook for digitva-kzyp (registration numbers): add the ``has_identifier`` filter
-as an EXISTS next to ``_filter_conditions`` and the per-row values in
-``_serialize``; neither exists yet.
+Registration numbers (digitva-kzyp, docs/policy/death-registration-identifiers.md):
+each row carries ``identifiers`` (``death_identifier_service.identifier_payloads``,
+one query per page): ``{code, label, value}`` where the caller may see values
+(``can_identifiers``, the row-level half of ``IDENTIFIER_VALUE_ROLES``: field
+reach, supervision, admin, data manager, In-charge, project PI or
+collaborator_pii; a row reached by coding or as a plain collaborator is
+badge-only), else ``{code, label, present}``; ``can_edit_identifiers`` is
+True where the caller may change that case's numbers now
+(``web_intake_service.identifier_edit_condition``, a column of the same
+statement). Filters: ``identifier=has|missing`` (+ ``identifier_type``), an
+EXISTS on ``map_death_identifier`` for everyone who sees the badge, and
+``identifier_number`` (exact, by blind index, only where the caller sees values).
 """
 from __future__ import annotations
 
@@ -55,6 +64,8 @@ from sqlalchemy.orm import aliased
 
 from app import db
 from app.models import (
+    MapDeathIdentifier,
+    MasDeathIdentifierType,
     MasOrgUnit,
     VaAccessRoles,
     VaAllocations,
@@ -79,6 +90,12 @@ from app.services.authz import (
 )
 from app.services.authz.actions import SUPERVISING_ROLES
 from app.services.authz.supervision import supervised_case_condition
+from app.services.death_identifier_rules import normalise as normalise_identifier
+from app.services.death_identifier_service import (
+    MAX_RAW_LENGTH,
+    identifier_payloads,
+    identifier_values_visible,
+)
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.visit_note import has_visit_note_condition
 from app.services.web_intake_service import (
@@ -88,6 +105,8 @@ from app.services.web_intake_service import (
     WebIntakeError,
     _has_candidate,
     _worklist_scope,
+    identifier_edit_condition,
+    identifier_field_scopes,
     supervision_attention_conditions,
     supervision_tiles,
 )
@@ -103,6 +122,7 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
 )
+from app.utils import pii_crypto
 
 PRESETS = ("deaths", "interview", "coding", "supervision")
 COMBINED_STATUSES = (
@@ -121,6 +141,12 @@ _STATUS_DEFAULTS = {
 }
 _PRESET_SORT = {"deaths": "reported", "interview": "updated", "coding": "updated", "supervision": "oldest"}
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$", re.ASCII)
+IDENTIFIER_FILTERS = ("has", "missing")
+#: An identifier type code (identifier_type_service): lower-case, 2..32.
+_TYPE_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{1,31}$", re.ASCII)
+#: Active identifier types read per page by a number search; the search walks
+#: every page (keyset on the type id), so no type is ever left out.
+_NUMBER_TYPES_CHUNK = 1000
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 _NOT_CODEABLE = (WORKFLOW_NOT_CODEABLE_BY_CODER, WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER)
@@ -171,6 +197,11 @@ class CaseFilters:
     attention: str | None = None
     visit_note: bool = False
     sort: str | None = None
+    #: ``has`` / ``missing``: a registration number of any active type (or of
+    #: ``identifier_type``); ``identifier_number``: the raw search text, exact.
+    identifier: str | None = None
+    identifier_type: str | None = None
+    identifier_number: str | None = None
 
 
 def _one(args, name: str) -> str | None:
@@ -250,6 +281,15 @@ def parse_query(args) -> dict:
     sort = _one(args, "sort")
     if sort is not None and sort not in SORTS:
         raise WebIntakeError("sort must be one of " + ", ".join(SORTS) + ".")
+    identifier = _one(args, "identifier")
+    if identifier is not None and identifier not in IDENTIFIER_FILTERS:
+        raise WebIntakeError("identifier must be has or missing.")
+    identifier_type = _one(args, "identifier_type")
+    if identifier_type is not None and (identifier is None or not _TYPE_CODE_RE.match(identifier_type)):
+        raise WebIntakeError("identifier_type is not valid.")
+    identifier_number = _one(args, "identifier_number")
+    if identifier_number is not None and len(identifier_number) > MAX_RAW_LENGTH:
+        raise WebIntakeError("identifier_number is not valid.")
     limit_raw = _one(args, "limit")
     try:
         limit = int(limit_raw) if limit_raw is not None else WORKLIST_PAGE_DEFAULT
@@ -264,6 +304,7 @@ def parse_query(args) -> dict:
         sex=sex, age_min=_age(args, "age_min"), age_max=_age(args, "age_max"),
         attention=attention,
         visit_note=_boolean(args, "visit_note"), sort=sort,
+        identifier=identifier, identifier_type=identifier_type, identifier_number=identifier_number,
     )
     for low, high, what in ((filters.dod_from, filters.dod_to, "dod"), (filters.reported_from, filters.reported_to, "reported"),
                             (filters.age_min, filters.age_max, "age")):
@@ -289,6 +330,8 @@ class _Reach:
     can_name: object
     can_unit: object
     can_staff: object
+    can_identifiers: object
+    can_edit_identifiers: object
 
 
 def _on_submission(condition):
@@ -321,25 +364,98 @@ def _reach(user: VaUsers) -> _Reach:
         lens_filter(user, lens) for lens in (Lens.DM, Lens.VIEWER, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
     )))
     collaborator_pii = _on_submission(lens_filter(user, Lens.VIEWER, roles={VaAccessRoles.collaborator_pii}))
+    # Registration-number values (decision 14): ASSIGNED field reach (the
+    # interviewer grant a self-coding coder is implied confers none),
+    # supervision, the PII lenses (data manager / In-charge / project PI) and
+    # collaborator_pii; never a row reached by coding or a plain collaborator
+    # alone.
+    field_scopes = identifier_field_scopes(user)
+    value_field = sa.or_(*(c for c in field_scopes if c is not None)) if any(
+        c is not None for c in field_scopes) else sa.false()
+    pi_lenses = _on_submission(sa.or_(*(
+        lens_filter(user, lens) for lens in (Lens.DM, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
+    )))
     return _Reach(
         scope=sa.or_(via_field, supervised, via_submission),
         supervised=supervised,
         via_field=via_field,
         # Names: field roles on their reach and collaborator_pii as always;
         # supervising roles and admin only with personal-data access
-        # (owner, 2026-10-20: no PII bypass for admin). A coder, reviewer,
+        # (owner, 2026-10-21: admin is a PII holder, with no scope bypass). A coder, reviewer,
         # plain collaborator, PI or data manager (through the submissions
         # scope alone) gets none.
         can_name=sa.or_(via_field, collaborator_pii, sa.and_(pii, sa.or_(admin, supervised))),
         # Everything but a row reached by coding alone.
         can_unit=sa.or_(admin, via_field, supervised, other_lenses),
         can_staff=sa.and_(pii, sa.or_(admin, supervised, dm_lens)),
+        can_identifiers=sa.or_(admin, value_field, supervised, collaborator_pii, pi_lenses),
+        can_edit_identifiers=identifier_edit_condition(user, field_scopes),
     )
 
 
 # ---------------------------------------------------------------------------
 # Filters, order and keyset cursors
 # ---------------------------------------------------------------------------
+
+
+def _identifier_presence(f: CaseFilters):
+    """``identifier=has|missing``: the case holds a number of an active type of
+    its project (of the type ``identifier_type`` names), or holds none. A
+    case of a project with no such active type is neither (its badge shows
+    nothing). EXISTS on ``map_death_identifier``; no value is read."""
+    active = [MasDeathIdentifierType.is_active.is_(True), MasDeathIdentifierType.project_id == VaDeathRegister.project_id]
+    if f.identifier_type:
+        active.append(MasDeathIdentifierType.code == f.identifier_type)
+    holds = sa.exists(
+        sa.select(1).select_from(MapDeathIdentifier)
+        .join(MasDeathIdentifierType, MasDeathIdentifierType.identifier_type_id == MapDeathIdentifier.identifier_type_id)
+        .where(MapDeathIdentifier.death_id == VaDeathRegister.death_id, *active)
+    )
+    if f.identifier == "has":
+        return holds
+    return sa.and_(sa.exists(sa.select(1).select_from(MasDeathIdentifierType).where(*active)), ~holds)
+
+
+def _identifier_number_match(user: VaUsers, reach: _Reach, f: CaseFilters):
+    """``identifier_number``: cases holding exactly this number (normalised as
+    on a write), found by blind index (``ix_map_death_identifier_type_bidx``)
+    per active type, narrowed by ``project_id`` and ``identifier_type``. Only
+    projects where the caller sees values count, and only rows where they see
+    the value (``can_identifiers``); anywhere else the search matches nothing,
+    never an error that says why. The number is never logged."""
+    number = normalise_identifier(f.identifier_number)
+    if number is None:
+        return sa.false()
+    active = [MasDeathIdentifierType.is_active.is_(True)]
+    if f.project_id:
+        active.append(MasDeathIdentifierType.project_id == f.project_id)
+    if f.identifier_type:
+        active.append(MasDeathIdentifierType.code == f.identifier_type)
+    projects = set(db.session.scalars(sa.select(MasDeathIdentifierType.project_id).where(*active).distinct()))
+    visible = identifier_values_visible(user, projects)
+    if not visible:
+        return sa.false()
+    # Every active type of a visible project, a keyset page at a time: the
+    # chunks are OR-ed, so a large deployment misses no type.
+    matches, last = [], None
+    while True:
+        query = (sa.select(MasDeathIdentifierType.identifier_type_id)
+                 .where(*active, MasDeathIdentifierType.project_id.in_(visible))
+                 .order_by(MasDeathIdentifierType.identifier_type_id).limit(_NUMBER_TYPES_CHUNK))
+        if last is not None:
+            query = query.where(MasDeathIdentifierType.identifier_type_id > last)
+        type_ids = db.session.scalars(query).all()
+        if not type_ids:
+            break
+        last = type_ids[-1]
+        pairs = [(type_id, pii_crypto.blind_index(type_id.bytes, number)) for type_id in type_ids]
+        matches.append(sa.exists().where(
+            MapDeathIdentifier.death_id == VaDeathRegister.death_id,
+            sa.tuple_(MapDeathIdentifier.identifier_type_id, MapDeathIdentifier.value_blind_index).in_(pairs),
+        ))
+    if not matches:
+        return sa.false()
+    return sa.and_(reach.can_identifiers, sa.or_(*matches))
 
 
 def _filter_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters) -> list:
@@ -372,6 +488,10 @@ def _filter_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters
         conditions.append(VaDeathRegister.age_years >= f.age_min)
     if f.age_max is not None:
         conditions.append(VaDeathRegister.age_years <= f.age_max)
+    if f.identifier:
+        conditions.append(_identifier_presence(f))
+    if f.identifier_number:
+        conditions.append(_identifier_number_match(user, reach, f))
     if f.visit_note:
         conditions.append(sa.and_(reach.supervised, sa.exists().where(
             VaSubmissions.va_sid == VaDeathRegister.va_sid, has_visit_note_condition(),
@@ -433,15 +553,22 @@ def _base_scope(preset: str, reach: _Reach):
     return reach.supervised if preset == "supervision" else reach.scope
 
 
-def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | None, limit: int):
-    reach = _reach(user)
-    status = combined_status_case()
-    sort = f.sort or _PRESET_SORT[preset]
+def _row_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters, status) -> list:
+    """Scope and every filter of a listing, the one list the page and the
+    export (``export_summary``) both apply."""
     conditions = [_base_scope(preset, reach), *_filter_conditions(user, reach, preset, f),
                   *_status_conditions(preset, f, status)]
     attention = _attention_condition(preset, f)
     if attention is not None:
         conditions.append(attention)
+    return conditions
+
+
+def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | None, limit: int):
+    reach = _reach(user)
+    status = combined_status_case()
+    sort = f.sort or _PRESET_SORT[preset]
+    conditions = _row_conditions(user, reach, preset, f, status)
     if cursor:
         conditions.append(_after_cursor(sort, cursor))
 
@@ -470,6 +597,8 @@ def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | No
         latest_coder.label("coder_id"),
         reach.can_name.label("can_name"), reach.can_unit.label("can_unit"),
         reach.can_staff.label("can_staff"), reach.via_field.label("via_field"),
+        reach.can_identifiers.label("can_identifiers"),
+        reach.can_edit_identifiers.label("can_edit_identifiers"),
     ]
     if preset == "supervision":
         attention_sql = supervision_attention_conditions()
@@ -523,7 +652,7 @@ def _iso(value) -> str | None:
     return value.isoformat() if value else None
 
 
-def _serialize(user: VaUsers, row, preset: str, show_location: bool) -> dict:
+def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers: list) -> dict:
     mine_reported = row.registered_by == user.user_id
     mine_started = row.started_by_user_id == user.user_id
     out = {
@@ -541,6 +670,8 @@ def _serialize(user: VaUsers, row, preset: str, show_location: bool) -> dict:
         "updated_at": row.updated_at.isoformat(),
         "registered_by_me": mine_reported,
         "started_by_me": mine_started,
+        "identifiers": identifiers,
+        "can_edit_identifiers": bool(row.can_edit_identifiers),
     }
     # created_at is the report time only for a register case (module docstring).
     if row.source == "register":
@@ -580,8 +711,32 @@ def _no_scope(user: VaUsers) -> bool:
     return not grants.is_admin and not grants.grants
 
 
+def identifier_value_death_ids(user: VaUsers, death_ids) -> set[uuid.UUID]:
+    """The subset of *death_ids* whose registration-number VALUES *user* sees:
+    ``can_identifiers``, the list's own row rule, for callers that build a
+    single case or another list (``identifier_payloads``). One query."""
+    ids = list(death_ids)
+    if not ids:
+        return set()
+    return set(db.session.scalars(
+        sa.select(VaDeathRegister.death_id).where(
+            VaDeathRegister.death_id.in_(ids), _reach(user).can_identifiers)
+    ))
+
+
+def case_in_scope(user: VaUsers, death_id: uuid.UUID) -> bool:
+    """Whether the shared case list would list this case for *user* (their
+    scope, not a field: the 404-or-403 test of a case-level action)."""
+    if _no_scope(user):
+        return False
+    return bool(db.session.scalar(
+        sa.select(sa.exists().where(VaDeathRegister.death_id == death_id, _reach(user).scope))
+    ))
+
+
 def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str | None = None,
-               limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
+               limit: int = WORKLIST_PAGE_DEFAULT, with_identifiers: bool = True,
+               identifier_projects: set | None = None) -> dict:
     """``{"cases": [row, ...], "next_cursor": str | None}``: one page of the
     caller's cases for *preset*, hidden fields omitted per row. *limit* is
     clamped to ``WORKLIST_PAGE_MAX``. Empty scope is an empty page.
@@ -590,7 +745,10 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     ``worklist_page``: an organization project, and the caller has personal
     data access (``should_redact_pii``) or registered the case; and only on
     a row the caller's interviewer or reporter reach opens (coders hold PII
-    grants but code masked). Never on the supervision preset.
+    grants but code masked). Never on the supervision preset. *with_identifiers*
+    False skips the registration numbers (no query, no decryption);
+    *identifier_projects* limits the decrypted values to rows of those projects
+    (the export's audited set), the others stay badges.
     """
     if preset not in PRESETS:
         raise WebIntakeError("Unknown preset.")
@@ -605,11 +763,16 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     if preset != "supervision" and any(r.via_field and r.latitude is not None for r in page):
         org_projects = org_grant_service.projects_with_org_tree({r.project_id for r in page})
         redact = should_redact_pii(user)
+    # The export without number columns asks for none: nothing is decrypted.
+    identifiers = identifier_payloads(
+        user, page, values_for={r.death_id for r in page if r.can_identifiers
+                    and (identifier_projects is None or r.project_id in identifier_projects)}
+    ) if with_identifiers else {r.death_id: [] for r in page}
     cases = [
         _serialize(user, row, preset, show_location=(
             row.via_field and row.latitude is not None and row.project_id in org_projects
             and (not redact or row.registered_by == user.user_id)
-        ))
+        ), identifiers=identifiers[row.death_id])
         for row in page
     ]
     return {"cases": cases, "next_cursor": _encode_cursor(sort, page[-1]) if len(rows) > limit else None}
@@ -623,12 +786,37 @@ def case_list_counts(user: VaUsers, *, preset: str, filters: CaseFilters) -> dic
     zero = {name: 0 for name in (*COMBINED_STATUSES, "total")}
     if _no_scope(user):
         return {"counts": zero}
+    # JIT compilation is most of these two seq scans' cost (704 -> 247 ms and
+    # 304 -> 70 ms at 200k rows, docs/kb/case-list-query-plans.md): off for
+    # them only. SET LOCAL lasts to the end of the transaction, so the
+    # caller's value is put back; an error rolls the transaction back, which
+    # drops the setting too.
+    previous = db.session.scalar(sa.text("SELECT current_setting('jit')"))
+    db.session.execute(sa.text("SET LOCAL jit = off"))
     counts = dict(db.session.execute(_counts_statement(user, preset, filters)).one()._mapping)
     result = {"counts": counts}
     supervised = _reach(user).supervised
     if not isinstance(supervised, sa.sql.elements.False_):
         result["tiles"] = supervision_tiles(supervised)
+    db.session.execute(sa.text("SELECT set_config('jit', :previous, true)"), {"previous": previous})
     return result
+
+
+def export_summary(user: VaUsers, *, preset: str, filters: CaseFilters) -> tuple[int, set[str]]:
+    """``(row count, project ids)`` of the cases ``list_cases`` would page
+    through for these arguments: one aggregate over the same scope and
+    filters. The export's audit row and its header need both before the
+    first byte is written."""
+    if _no_scope(user):
+        return 0, set()
+    reach = _reach(user)
+    count, projects = db.session.execute(
+        sa.select(sa.func.count(), sa.func.array_agg(sa.distinct(VaDeathRegister.project_id)))
+        .select_from(VaDeathRegister)
+        .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
+        .where(*_row_conditions(user, reach, preset, filters, combined_status_case()))
+    ).one()
+    return count, set(projects or ())
 
 
 def case_list_page(user: VaUsers, args) -> dict:

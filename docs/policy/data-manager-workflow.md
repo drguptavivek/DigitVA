@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-21
 ---
 
 # Data Manager Workflow Policy
@@ -123,6 +123,13 @@ Export policy:
 - exports must omit payload fields marked as PII in field mapping
 - exports must omit direct local identifiers that should not appear in bulk
   operational extracts
+- **Named exception: registration numbers** (owner, 2026-10-20,
+  `death-registration-identifiers.md` decision 9). The case list CSV export
+  (`GET /api/v1/cases/export.csv`) carries one column per active identifier
+  type, only for exporters with PII access in that project, audited
+  (`map_identifier_audit`, `export_with_identifiers`). No other direct
+  identifier is added, and the stored data management CSV exports (which are
+  cached in the export store) never carry registration numbers.
 - exports may retain non-PII narrative text needed for operational review
 - SmartVA-specific exports must not include the full raw VA payload when a
   narrower SmartVA-specific shape is sufficient

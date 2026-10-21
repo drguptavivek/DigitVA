@@ -1,14 +1,23 @@
 """Production answers only its public host (digitva-5jp)."""
 
+import os
 import unittest
+from unittest import mock
 
 from app import create_app
+from app.utils import pii_crypto
 from config import TestConfig, trusted_hosts_for
+
+# Production start needs a well-formed PII public key, key id and blind key.
+_PII_PUBLIC, _ = pii_crypto.generate_keyset()
 
 
 class _ProductionLikeConfig(TestConfig):
     TESTING = False
     DEBUG = False
+    PII_KEM_PUBLIC_KEY = _PII_PUBLIC.to_config()
+    PII_KEM_KEY_ID = _PII_PUBLIC.key_id
+    PII_BLIND_INDEX_KEY = os.urandom(32).hex()
     PUBLIC_BASE_URL = "https://digitva.example.org"
     CAPTCHA_HMAC_KEY = "production-captcha-hmac-key-do-not-use-in-tests"
 
@@ -39,7 +48,11 @@ class TrustedHostsTests(unittest.TestCase):
                 trusted_hosts_for(value)
 
     def test_production_refuses_other_hosts(self):
-        app = create_app(_ProductionLikeConfig)
+        # A production-like app built in the dev container would otherwise see
+        # the dev PII key under /app/private and refuse to start (the stray-key
+        # guard, owner decision 13, has its own tests in tests/test_pii_crypto.py).
+        with mock.patch("app.utils.pii_crypto.stray_private_key_files", return_value=[]):
+            app = create_app(_ProductionLikeConfig)
         self.assertEqual(
             app.config["TRUSTED_HOSTS"],
             ["digitva.example.org", "localhost", "127.0.0.1"],

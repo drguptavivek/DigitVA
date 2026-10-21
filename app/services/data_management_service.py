@@ -74,6 +74,8 @@ from app.services.submission_payload_version_service import (
     get_payload_version,
     normalize_payload_for_fingerprint,
     promote_pending_upstream_payload_version,
+    payload_copy,
+    version_pii_digest,
 )
 from app.services.authz import (
     Action,
@@ -2771,15 +2773,22 @@ def dm_upstream_change_details(user, va_sid: str) -> dict:
         raise ValueError("Submission has no pending upstream change record.")
 
     form_type_code = va_get_form_type_code_for_form(submission.va_form_id)
+    # Both copies through payload_copy: with the split live a row opened
+    # before the flip still holds a plaintext previous copy beside a stripped
+    # incoming one, which would list each sealed value as "changed to empty".
+    # Stripped, a sealed change shows only as the digest row below.
     (
         changed_fields,
         formatting_only_changed_fields,
         non_substantive_changed_fields,
     ) = _build_upstream_changed_fields(
         form_type_code,
-        pending_change.previous_va_data,
-        pending_change.incoming_va_data,
+        payload_copy(va_sid, pending_change.previous_va_data),
+        payload_copy(va_sid, pending_change.incoming_va_data),
     )
+    pii_changed = _upstream_pii_changed(pending_change)
+    if pii_changed:
+        changed_fields.insert(0, dict(SEALED_PII_CHANGE_ROW))
 
     return {
         "va_sid": submission.va_sid,
@@ -2798,7 +2807,39 @@ def dm_upstream_change_details(user, va_sid: str) -> dict:
         "formatting_only_changed_fields": formatting_only_changed_fields,
         "non_substantive_change_count": len(non_substantive_changed_fields),
         "non_substantive_changed_fields": non_substantive_changed_fields,
+        "pii_changed": pii_changed,
     }
+
+
+# The one row a sealed change shows (PII slice 1b): the copies hold no sealed
+# field, and one keyed digest per version names no field, so the review says
+# "personal data changed" and never which field or which value.
+SEALED_PII_CHANGE_ROW = {
+    "field_id": "sealed_personal_data",
+    "field_label": "Personal data (sealed; values not shown)",
+    "category_code": None,
+    "subcategory_code": None,
+    "previous_value": None,
+    "current_value": None,
+    "previous_value_display": "",
+    "current_value_display": "changed",
+}
+
+
+def _upstream_pii_changed(pending_change) -> bool:
+    """Whether the sealed fields differ between the change's previous and
+    incoming versions, by their keyed digests only (no decrypt). False with
+    ``PAYLOAD_PII_SPLIT_ENABLED`` off: the copies still carry the fields, and
+    the field diff shows them as before."""
+    from app.services.payload_pii_accessor import split_enabled
+
+    if not split_enabled():
+        return False
+    previous = get_payload_version(pending_change.previous_payload_version_id)
+    incoming = get_payload_version(pending_change.incoming_payload_version_id)
+    if previous is None or incoming is None:
+        return False
+    return version_pii_digest(previous) != version_pii_digest(incoming)
 
 
 def dm_screening_pass(user, va_sid: str) -> None:

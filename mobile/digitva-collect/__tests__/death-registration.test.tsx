@@ -75,6 +75,8 @@ jest.mock("../src/client/api", () => ({
 import DeathRegistrationScreen from "../src/web/DeathRegistrationScreen";
 import { getCases, registerDeath, startDraft } from "../src/client/api";
 import * as sharedApi from "../src/api";
+import * as identifiersApi from "../src/identifiers";
+import { TextInput } from "react-native";
 
 const mockRegisterDeath = registerDeath as jest.Mock;
 const mockStartDraft = startDraft as jest.Mock;
@@ -1066,5 +1068,193 @@ describe("DeathRegistrationScreen", () => {
     await settle();
     expect(tree!.root.findAll((node) => node.props["data-label"] === "registerSaveStart")).toHaveLength(canRegister ? 1 : 0);
     await act(async () => tree!.unmount());
+  });
+
+  describe("registration numbers", () => {
+    const TYPES = [
+      { code: "mccd", label: "MCCD number", min_length: 5, max_length: 20, char_type: "letters_digits_hyphen_slash", pattern: null, example: "MCCD/2026/1", required_at_report: false, sort_order: 1 },
+    ];
+    const input = (tree: ReturnType<typeof create>) => tree.root.findByProps({ testID: "identifier-input-mccd" }) as unknown as { props: { value: string; onChangeText: (v: string) => void } };
+    const fillCore = async (tree: ReturnType<typeof create>) => {
+      const field = (name: string) => tree.root.findByProps({ "data-field": name });
+      await act(async () => {
+        field("deceased_name").props.onClick("Asha");
+        field("date_of_death").props.onClick("2026-09-30");
+        field("date_of_birth").props.onClick("1987-04-12");
+      });
+      await act(async () => tree.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+    };
+
+    it("upper-cases as typed and sends identifiers only when set", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await fillCore(tree!);
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath.mock.calls[0][1]).not.toHaveProperty("identifiers");
+      mockRegisterDeath.mockClear();
+      await act(async () => input(tree!).props.onChangeText(" mccd/2026/1"));
+      expect(input(tree!).props.value).toBe("MCCD/2026/1");
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath.mock.calls[0][1]).toMatchObject({ identifiers: { mccd: "MCCD/2026/1" } });
+      await act(async () => tree!.unmount());
+    });
+
+    it("does not send a number its own rules refuse", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await fillCore(tree!);
+      await act(async () => input(tree!).props.onChangeText("ab"));
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath).not.toHaveBeenCalled();
+      expect(JSON.stringify(tree!.toJSON())).toContain("idErrLength");
+      await act(async () => tree!.unmount());
+    });
+
+    it("pauses on a duplicate warning: Continue goes on, nothing was blocked", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      mockRegisterDeath.mockResolvedValue({
+        case: { death_id: "d1", links: { start_interview: "/s" } },
+        warnings: [{ code: "identifier_in_use", field: "identifiers.mccd", message: "In use on another case." }],
+      });
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await fillCore(tree!);
+      await act(async () => input(tree!).props.onChangeText("mccd/2026/1"));
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(JSON.stringify(tree!.toJSON())).toContain("In use on another case.");
+      expect(mockStartDraft).not.toHaveBeenCalled();
+      await act(async () => tree!.root.findByProps({ "data-label": "idWarnContinue" }).props.onClick());
+      await settle();
+      expect(mockStartDraft).toHaveBeenCalledTimes(1);
+      await act(async () => tree!.unmount());
+    });
+
+    it("Edit on a duplicate warning reopens the saved case in the edit form", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      mockRegisterDeath.mockResolvedValue({
+        case: { death_id: "d1", links: {} },
+        warnings: [{ code: "identifier_in_use", field: "identifiers.mccd", message: "In use." }],
+      });
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await fillCore(tree!);
+      await act(async () => input(tree!).props.onChangeText("mccd/2026/1"));
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      await act(async () => tree!.root.findByProps({ "data-label": "idWarnEdit" }).props.onClick());
+      expect(mockReplace).toHaveBeenCalledWith({ pathname: "/death-registration", params: { deathId: "d1" } });
+      await act(async () => tree!.unmount());
+    });
+
+    it("prefills an edit from the stored numbers and PATCHes only the changed code", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue([
+        ...TYPES, { ...TYPES[0], code: "cert", label: "Certificate", sort_order: 2 },
+      ] as never);
+      mockParams = { deathId: "d1" };
+      const detail = {
+        death_id: "d1", project_id: "P1", site_id: "S1", org_unit_id: null, state: "registered",
+        updated_at: "2026-10-06T12:00:00+00:00", details_pending: false, other_complete_interview: false,
+        deceased: { name: "Asha", sex: "female", date_of_death: "2026-09-30", date_of_birth: "1987-04-12", age_years: 39 },
+        household_address: { address: "A" }, informant: {}, remarks: null, links: {},
+        identifiers: [{ code: "mccd", label: "MCCD number", value: "MCCD/2026/1" }],
+      };
+      jest.spyOn(sharedApi, "getCaseDetail").mockResolvedValue({ case: detail } as never);
+      const patch = jest.spyOn(sharedApi, "requestClientJson").mockResolvedValue({ case: { ...detail, updated_at: "2026-10-06T12:05:00+00:00" } } as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      expect(input(tree!).props.value).toBe("MCCD/2026/1");
+      const cert = tree!.root.findByProps({ testID: "identifier-input-cert" }) as unknown as { props: { onChangeText: (v: string) => void } };
+      await act(async () => cert.props.onChangeText("c-77/ab"));
+      await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
+      await settle();
+      expect(patch).toHaveBeenCalledWith("/api/v1/intake/deaths/d1", {
+        method: "PATCH",
+        json: { identifiers: { cert: "C-77/AB" }, if_updated_at: "2026-10-06T12:00:00+00:00" },
+        csrf: mockBootstrap.csrf,
+      });
+      await act(async () => tree!.unmount());
+    });
+
+    it("never sends a change for a deactivated type and shows its value read-only", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      mockParams = { deathId: "d1" };
+      const detail = {
+        death_id: "d1", project_id: "P1", site_id: "S1", org_unit_id: null, state: "registered",
+        updated_at: "2026-10-06T12:00:00+00:00", details_pending: false, other_complete_interview: false,
+        deceased: { name: "Asha", sex: "female", date_of_death: "2026-09-30", date_of_birth: "1987-04-12", age_years: 39 },
+        household_address: { address: "A" }, informant: {}, remarks: null, links: {},
+        identifiers: [
+          { code: "mccd", label: "MCCD number", value: "MCCD/2026/1" },
+          { code: "old", label: "Old certificate", value: "OLD-77" },
+        ],
+      };
+      jest.spyOn(sharedApi, "getCaseDetail").mockResolvedValue({ case: detail } as never);
+      const patch = jest.spyOn(sharedApi, "requestClientJson").mockResolvedValue({ case: { ...detail, updated_at: "2026-10-06T12:05:00+00:00" } } as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      expect(tree!.root.findAllByProps({ testID: "identifier-input-old" })).toHaveLength(0);
+      expect(tree!.root.findAllByProps({ testID: "identifier-inactive" }).length).toBeGreaterThan(0);
+      expect(JSON.stringify(tree!.toJSON())).toContain("OLD-77");
+      await act(async () => tree!.root.findByProps({ "data-field": "deceased_name" }).props.onClick("Asha K"));
+      await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
+      await settle();
+      expect(patch).toHaveBeenCalledTimes(1);
+      const body = (patch.mock.calls[0][1] as { json: Record<string, unknown> }).json;
+      expect(body).toMatchObject({ deceased_name: "Asha K" });
+      expect(body).not.toHaveProperty("identifiers");
+      await act(async () => tree!.unmount());
+    });
+
+    it("says so when the types cannot be loaded instead of hiding the section silently", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockRejectedValue(new Error("offline"));
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      expect(tree!.root.findAllByProps({ testID: "identifier-types-error" }).length).toBeGreaterThan(0);
+      expect(JSON.stringify(tree!.toJSON())).toContain("idTypesLoadFailed");
+      await act(async () => tree!.unmount());
+    });
+
+    it("shows a server refusal under the field it names", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      mockRegisterDeath.mockRejectedValue(new sharedApi.ApiError(422, "invalid_registration", undefined, undefined, { error: "MCCD number must look like MCCD/2026/1", fields: ["identifiers.mccd"] }));
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      await fillCore(tree!);
+      await act(async () => input(tree!).props.onChangeText("zzzzz"));
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(JSON.stringify(tree!.toJSON())).toContain("MCCD number must look like MCCD/2026/1");
+      await act(async () => tree!.unmount());
+    });
+
+    it("gives a badge-only viewer no input unless the case says they may write", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue(TYPES as never);
+      mockParams = { deathId: "d1" };
+      const detail = {
+        death_id: "d1", project_id: "P1", site_id: "S1", state: "registered", updated_at: "t", details_pending: false,
+        deceased: { name: "Asha", sex: "female", date_of_death: "2026-09-30", date_of_birth: "1987-04-12", age_years: 39 },
+        household_address: {}, informant: {}, links: {}, identifiers: [{ code: "mccd", label: "MCCD number", present: true }],
+      };
+      jest.spyOn(sharedApi, "getCaseDetail").mockResolvedValue({ case: detail } as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      expect(tree!.root.findAllByType(TextInput)).toHaveLength(0);
+      await act(async () => tree!.unmount());
+    });
   });
 });

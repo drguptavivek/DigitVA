@@ -1,0 +1,305 @@
+{#
+  Registration identifier types panel (digitva-kzyp stage 3).
+  Which registration numbers (MCCD number, hospital number, ...) a project collects and how
+  each is validated. Calls GET/POST /api/v1/projects/<id>/identifier-types and
+  PUT .../<type id> with X-CSRFToken (window._adminCsrf); the API decides who may configure
+  (admin, or a live project_pi / data_manager grant on the project). No delete: deactivate.
+  Policy: docs/policy/death-registration-identifiers.md.
+
+  locked_project_id (set when the Project Setup home includes this panel) or project_id (the
+  standalone route) names the project. Ids are prefixed idt- (no id may repeat on the setup page).
+#}
+{% set idt_project = locked_project_id|default(project_id|default('')) %}
+<div id="panel-identifier-types" data-locked-project="{{ idt_project }}">
+  <div class="card mb-3"><div class="card-body small">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <h6 class="card-title mb-0">Registration identifier types</h6>
+      <button type="button" class="btn btn-sm btn-primary" id="idt-add-btn">
+        <i class="fa-solid fa-plus me-1"></i>Add type</button>
+    </div>
+    <p class="text-muted mb-2">The registration numbers this project records for a death. Types are never
+      deleted: deactivate one to stop collecting it (stored numbers are kept).</p>
+    <div id="idt-error" class="alert alert-danger py-2 d-none" role="alert"></div>
+    <div id="idt-list"><div class="text-muted py-1">Loading…</div></div>
+  </div></div>
+
+  <div class="card mb-3 d-none" id="idt-form-card"><div class="card-body small">
+    <h6 class="card-title" id="idt-form-title">Add type</h6>
+    <form id="idt-form" autocomplete="off" novalidate>
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label mb-1" for="idt-code">Code</label>
+          <input class="form-control form-control-sm font-monospace" id="idt-code" maxlength="32" spellcheck="false">
+          <div class="form-text">Lower case letters, digits and underscore. Cannot change once numbers are stored.</div>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label mb-1" for="idt-label">Label</label>
+          <input class="form-control form-control-sm" id="idt-label" maxlength="80">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1" for="idt-min">Min length</label>
+          <input class="form-control form-control-sm" id="idt-min" type="number" min="1" max="64" value="1">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label mb-1" for="idt-max">Max length</label>
+          <input class="form-control form-control-sm" id="idt-max" type="number" min="1" max="64" value="32">
+        </div>
+        <div class="col-md-5">
+          <label class="form-label mb-1" for="idt-chartype">Character type</label>
+          <select class="form-select form-select-sm" id="idt-chartype">
+            <option value="digits">Digits only</option>
+            <option value="letters">Letters only</option>
+            <option value="letters_digits">Letters and digits</option>
+            <option value="letters_digits_hyphen_slash">Letters, digits, hyphen and slash</option>
+            <option value="" selected>No restriction</option>
+          </select>
+        </div>
+        <div class="col-md-7">
+          <label class="form-label mb-1" for="idt-pattern">Pattern (optional)</label>
+          <input class="form-control form-control-sm font-monospace" id="idt-pattern" maxlength="200" spellcheck="false" autocapitalize="off">
+          <div class="form-text">A regular expression the whole value must match, tested against the
+            CAPITALISED value, so no ^ or $ is needed. Safe subset only: no lookaround, no backreferences,
+            no nested or many repeats, at most 3 variable-length parts.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label mb-1" for="idt-example">Example</label>
+          <input class="form-control form-control-sm font-monospace" id="idt-example" maxlength="64" spellcheck="false">
+          <div class="form-text text-warning-emphasis">Use an illustrative format, never a real number. The
+            example must satisfy every rule above.</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-1" for="idt-unique">Unique within project</label>
+          <select class="form-select form-select-sm" id="idt-unique">
+            <option value="none">No (duplicates allowed)</option>
+            <option value="project">Yes (warn on a duplicate)</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label mb-1" for="idt-sort">Sort order</label>
+          <input class="form-control form-control-sm" id="idt-sort" type="number" value="0">
+        </div>
+        <div class="col-12 d-flex flex-wrap gap-4">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="idt-required">
+            <label class="form-check-label" for="idt-required">Required at report (a registration without it is refused)</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="idt-active" checked>
+            <label class="form-check-label" for="idt-active">Active</label>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label mb-1" for="idt-sample">Test a sample value</label>
+          <input class="form-control form-control-sm font-monospace" id="idt-sample" maxlength="64" spellcheck="false">
+          <div class="form-text" id="idt-sample-result" role="status" aria-live="polite"></div>
+        </div>
+      </div>
+      <div id="idt-form-error" class="alert alert-danger py-2 mt-3 mb-0 d-none" role="alert"></div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-sm btn-primary" id="idt-save-btn">Save</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="idt-cancel-btn">Cancel</button>
+      </div>
+    </form>
+  </div></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var root = document.getElementById('panel-identifier-types');
+  var projectId = root.getAttribute('data-locked-project') || '';
+  var base = '/api/v1/projects/' + encodeURIComponent(projectId) + '/identifier-types';
+  var types = [];
+  var editing = null;   // the type being edited, null when adding
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function headers() { return { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' }; }
+
+  // ── the same rules the server applies (advice only; the server decides) ────
+
+  var CHAR_RE = {
+    digits: /^[0-9]+$/, letters: /^[A-Z]+$/, letters_digits: /^[A-Z0-9]+$/,
+    letters_digits_hyphen_slash: /^[A-Z0-9\/-]+$/
+  };
+  var CHAR_LABEL = {
+    digits: 'Digits only', letters: 'Letters only', letters_digits: 'Letters and digits',
+    letters_digits_hyphen_slash: 'Letters, digits, hyphen and slash'
+  };
+
+  function formValues() {
+    var min = parseInt($('idt-min').value, 10), max = parseInt($('idt-max').value, 10);
+    return {
+      code: $('idt-code').value.trim(),
+      label: $('idt-label').value.trim(),
+      min_length: isNaN(min) ? null : min,
+      max_length: isNaN(max) ? null : max,
+      char_type: $('idt-chartype').value || null,
+      pattern: $('idt-pattern').value.trim() || null,
+      example: $('idt-example').value.trim() || null,
+      required_at_report: $('idt-required').checked,
+      uniqueness_scope: $('idt-unique').value,
+      sort_order: parseInt($('idt-sort').value, 10) || 0,
+      is_active: $('idt-active').checked
+    };
+  }
+
+  // The first rule a value breaks, as text, or '' when it passes all.
+  function ruleProblem(v, raw) {
+    var value = String(raw || '').slice(0, 64).trim().replace(/\s+/g, ' ').toUpperCase();
+    if (!value) return 'Type a value to test.';
+    if (v.min_length != null && value.length < v.min_length) return 'Too short: at least ' + v.min_length + ' characters.';
+    if (v.max_length != null && value.length > v.max_length) return 'Too long: at most ' + v.max_length + ' characters.';
+    if (v.char_type && CHAR_RE[v.char_type] && !CHAR_RE[v.char_type].test(value)) return 'Character type: ' + CHAR_LABEL[v.char_type] + '.';
+    if (v.pattern) {
+      var re = null;
+      // A pattern the browser cannot compile or run is left to the server; the sample is capped at 64
+      // characters so a backtracking-heavy pattern cannot hold the page for long.
+      try {
+        re = new RegExp('^(?:' + v.pattern.slice(0, 200) + ')$');
+        if (!re.test(value)) return 'Does not match the pattern.';
+      } catch (e) { return ''; }
+    }
+    return '';
+  }
+
+  function showSample() {
+    var out = $('idt-sample-result');
+    var raw = $('idt-sample').value;
+    if (!raw.trim()) { out.className = 'form-text'; out.textContent = ''; return; }
+    var problem = ruleProblem(formValues(), raw);
+    out.className = 'form-text ' + (problem ? 'text-danger' : 'text-success');
+    out.textContent = problem || 'Passes every rule.';
+  }
+
+  // ── list ──────────────────────────────────────────────────────────────────
+
+  function showError(box, message) {
+    box.textContent = message || '';
+    box.classList.toggle('d-none', !message);
+  }
+
+  function errorText(res, fallback) {
+    return (res.data && res.data.error) || fallback + ' (HTTP ' + res.status + ').';
+  }
+
+  function request(method, url, body) {
+    return fetch(url, { method: method, headers: headers(), credentials: 'same-origin', body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; },
+                             function () { return { ok: r.ok, status: r.status, data: null }; });
+      });
+  }
+
+  function render() {
+    var list = $('idt-list');
+    if (!types.length) { list.innerHTML = '<div class="text-muted py-1">No registration numbers are set up for this project.</div>'; return; }
+    var rows = types.map(function (t, i) {
+      var rule = [t.min_length + '–' + t.max_length + ' chars'];
+      if (t.char_type) rule.push(CHAR_LABEL[t.char_type] || t.char_type);
+      if (t.pattern) rule.push('pattern');
+      return '<tr' + (t.is_active ? '' : ' class="text-muted"') + '>' +
+        '<td><code>' + esc(t.code) + '</code></td><td>' + esc(t.label) + '</td>' +
+        '<td>' + esc(rule.join(', ')) + '</td>' +
+        '<td class="font-monospace">' + esc(t.example) + '</td>' +
+        '<td>' + (t.required_at_report ? 'Required' : 'Optional') + (t.uniqueness_scope === 'project' ? ', unique' : '') + '</td>' +
+        '<td>' + (t.is_active ? '<span class="badge text-bg-success">Active</span>' : '<span class="badge text-bg-secondary">Inactive</span>') + '</td>' +
+        '<td class="text-nowrap">' +
+          '<button type="button" class="btn btn-sm btn-outline-primary me-1" data-idt-edit="' + i + '">Edit</button>' +
+          '<button type="button" class="btn btn-sm btn-outline-' + (t.is_active ? 'danger' : 'success') + '" data-idt-toggle="' + i + '">' +
+            (t.is_active ? 'Deactivate' : 'Activate') + '</button></td></tr>';
+    }).join('');
+    list.innerHTML = '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr>' +
+      '<th>Code</th><th>Label</th><th>Rules</th><th>Example</th><th>Use</th><th>Status</th><th></th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>';
+  }
+
+  function load() {
+    request('GET', base).then(function (res) {
+      if (!res.ok) { showError($('idt-error'), errorText(res, 'Could not load the types')); $('idt-list').innerHTML = ''; return; }
+      showError($('idt-error'), '');
+      types = (res.data && res.data.identifier_types) || [];
+      render();
+    }).catch(function () { showError($('idt-error'), 'Network error.'); $('idt-list').innerHTML = ''; });
+  }
+
+  // ── form ──────────────────────────────────────────────────────────────────
+
+  function openForm(type) {
+    editing = type || null;
+    $('idt-form-title').textContent = editing ? 'Edit ' + editing.label : 'Add type';
+    $('idt-code').value = editing ? editing.code : '';
+    $('idt-code').disabled = !!editing;
+    $('idt-label').value = editing ? editing.label : '';
+    $('idt-min').value = editing ? editing.min_length : 1;
+    $('idt-max').value = editing ? editing.max_length : 32;
+    $('idt-chartype').value = editing && editing.char_type ? editing.char_type : '';
+    $('idt-pattern').value = editing && editing.pattern ? editing.pattern : '';
+    $('idt-example').value = editing && editing.example ? editing.example : '';
+    $('idt-unique').value = editing ? editing.uniqueness_scope : 'none';
+    $('idt-sort').value = editing ? editing.sort_order : 0;
+    $('idt-required').checked = editing ? !!editing.required_at_report : false;
+    $('idt-active').checked = editing ? !!editing.is_active : true;
+    $('idt-sample').value = '';
+    showSample();
+    showError($('idt-form-error'), '');
+    $('idt-form-card').classList.remove('d-none');
+    $('idt-label').focus();
+  }
+
+  function closeForm() { $('idt-form-card').classList.add('d-none'); editing = null; }
+
+  $('idt-add-btn').addEventListener('click', function () { openForm(null); });
+  $('idt-cancel-btn').addEventListener('click', closeForm);
+  ['idt-min', 'idt-max', 'idt-chartype', 'idt-pattern', 'idt-sample'].forEach(function (id) {
+    $(id).addEventListener('input', showSample);
+    $(id).addEventListener('change', showSample);
+  });
+
+  $('idt-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var body = formValues();
+    var errBox = $('idt-form-error');
+    // Advice only: the server's message below is the authority.
+    if (!body.label) { showError(errBox, 'Label is required.'); return; }
+    if (!editing && !body.code) { showError(errBox, 'Code is required.'); return; }
+    if (body.min_length == null || body.max_length == null) { showError(errBox, 'Min and max length are required.'); return; }
+    if (body.min_length > body.max_length) { showError(errBox, 'Min length cannot exceed max length.'); return; }
+    if (body.example) {
+      var problem = ruleProblem(body, body.example);
+      if (problem) { showError(errBox, 'The example breaks a rule: ' + problem); return; }
+    }
+    var btn = $('idt-save-btn');
+    btn.disabled = true;
+    var call = editing
+      ? (delete body.code, request('PUT', base + '/' + encodeURIComponent(editing.identifier_type_id), body))
+      : request('POST', base, body);
+    call.then(function (res) {
+      btn.disabled = false;
+      // Show the server's rule message verbatim (400 names the failing rule; 409 code_locked / duplicate_code).
+      if (!res.ok) { showError(errBox, errorText(res, 'Could not save the type')); return; }
+      closeForm();
+      load();
+    }).catch(function () { btn.disabled = false; showError(errBox, 'Network error.'); });
+  });
+
+  $('idt-list').addEventListener('click', function (event) {
+    var edit = event.target.closest('[data-idt-edit]');
+    if (edit) { openForm(types[parseInt(edit.getAttribute('data-idt-edit'), 10)]); return; }
+    var toggle = event.target.closest('[data-idt-toggle]');
+    if (!toggle) return;
+    var type = types[parseInt(toggle.getAttribute('data-idt-toggle'), 10)];
+    toggle.disabled = true;
+    request('PUT', base + '/' + encodeURIComponent(type.identifier_type_id), { is_active: !type.is_active }).then(function (res) {
+      if (!res.ok) { toggle.disabled = false; showError($('idt-error'), errorText(res, 'Could not change the type')); return; }
+      showError($('idt-error'), '');
+      load();
+    }).catch(function () { toggle.disabled = false; showError($('idt-error'), 'Network error.'); });
+  });
+
+  if (projectId) load(); else $('idt-list').innerHTML = '<div class="text-muted py-1">Choose a project.</div>';
+}());
+</script>
+</div>

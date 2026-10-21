@@ -12,8 +12,9 @@
  */
 import type { SubmissionData, WhoVaHostPrefill } from "@drguptavivek/who-2022-va";
 
-import { getDraftPrefill, getDraftRow, type Db, type DraftBinding, purgeProjectData } from "./drafts";
+import { getDraftPrefill, getDraftRow, getMeta, setMeta, type Db, type DraftBinding, purgeProjectData } from "./drafts";
 import type { StringKey } from "./i18n";
+import { identifiersToSend } from "./identifiers";
 import { normalisePhone } from "./phoneFormat";
 
 /** What the server's prefill builder returns (web_intake_service._prefill_from_death). */
@@ -52,8 +53,8 @@ export interface CaseRow {
   updated_at: string;
   next_visit_at: string | null;
   last_contact_at: string | null;
-  informant_phone_masked: string | null;
-  informant_phone_2_masked: string | null;
+  has_informant_phone: boolean;
+  has_informant_phone_2: boolean;
   possible_duplicates?: Array<{ death_id: string; unique_id: string }>;
 }
 
@@ -64,8 +65,8 @@ export interface CaseDetail
     | "deceased_sex"
     | "age_years"
     | "date_of_death"
-    | "informant_phone_masked"
-    | "informant_phone_2_masked"
+    | "has_informant_phone"
+    | "has_informant_phone_2"
     | "possible_duplicates"
   > {
   deceased: {
@@ -111,6 +112,8 @@ export interface RegistrationFields {
   father_name?: string;
   mother_name?: string;
   remarks?: string;
+  /** Registration numbers by type code; travels inside the queued registration (covered by client_death_id). */
+  identifiers?: Record<string, string>;
 }
 
 /** pending: waiting to send; needs_edit: the server refused it (or it can no longer apply) and the interviewer must edit or discard it. */
@@ -297,6 +300,7 @@ export async function saveRegistration(
      ON CONFLICT(client_death_id) DO UPDATE SET fields = excluded.fields, state = 'pending'`,
     [reg.client_death_id, reg.project_id, reg.site_id, reg.org_unit_id ?? null, JSON.stringify(reg.fields), new Date().toISOString()]
   );
+  await db.runAsync("DELETE FROM meta WHERE key = ?", [refusalKey(reg.client_death_id)]);
 }
 
 export async function listRegistrations(db: Db): Promise<Registration[]> {
@@ -313,6 +317,17 @@ export async function getRegistration(db: Db, clientDeathId: string): Promise<Re
 
 export async function setRegistrationState(db: Db, clientDeathId: string, state: QueueState): Promise<void> {
   await db.runAsync("UPDATE registrations SET state = ? WHERE client_death_id = ?", [state, clientDeathId]);
+}
+
+const refusalKey = (clientDeathId: string) => `registrationRefusal:${clientDeathId}`;
+
+/** The registration numbers the server refused (message per type code), kept so the reopened registration can show them. */
+export async function setRegistrationRefusal(db: Db, clientDeathId: string, fields: Record<string, string>): Promise<void> {
+  await setMeta(db, refusalKey(clientDeathId), fields);
+}
+
+export async function getRegistrationRefusal(db: Db, clientDeathId: string): Promise<Record<string, string>> {
+  return (await getMeta<Record<string, string>>(db, refusalKey(clientDeathId))) ?? {};
 }
 
 /**
@@ -337,6 +352,7 @@ export async function acknowledgeRegistration(db: Db, clientDeathId: string, row
     clientDeathId
   ]);
   await db.runAsync("DELETE FROM registrations WHERE client_death_id = ?", [clientDeathId]);
+  await db.runAsync("DELETE FROM meta WHERE key = ?", [refusalKey(clientDeathId)]);
   if (isActiveCaseState(row.state)) await upsertCase(db, row);
   else await deleteCase(db, row.project_id, row.death_id);
 }
@@ -490,7 +506,7 @@ export function validateRegistration(
   today: string
 ): Partial<Record<keyof RegistrationFields, StringKey>> {
   const errors: Partial<Record<keyof RegistrationFields, StringKey>> = {};
-  const value = (key: keyof RegistrationFields) => (fields[key] ?? "").trim();
+  const value = (key: Exclude<keyof RegistrationFields, "identifiers">) => (fields[key] ?? "").trim();
   if (!value("deceased_name")) errors.deceased_name = "errRequired";
   if (!(SEX_VALUES as readonly string[]).includes(value("deceased_sex"))) errors.deceased_sex = "errRequired";
   for (const key of ["date_of_death", "date_of_birth"] as const) {
@@ -551,8 +567,13 @@ export function registrationAgeInfoIssue(fields: AgeInfoFields, stored?: AgeInfo
 
 /** Trimmed fields with blanks dropped: what is stored and sent. */
 export function cleanRegistration(fields: RegistrationFields): RegistrationFields {
-  const clean: Record<string, string> = {};
+  const clean: Record<string, string | Record<string, string>> = {};
   for (const [key, raw] of Object.entries(fields)) {
+    if (key === "identifiers") {
+      const numbers = identifiersToSend(raw as Record<string, string>);
+      if (numbers) clean.identifiers = numbers;
+      continue;
+    }
     const v = typeof raw === "string" ? raw.trim() : "";
     if (v) clean[key] = key === "informant_phone" || key === "informant_phone_2" ? normalisePhone(v) ?? v : v;
   }

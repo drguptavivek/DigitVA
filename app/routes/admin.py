@@ -2954,6 +2954,66 @@ def admin_panel_project_forms():
     )
 
 
+@admin.get("/panels/identifier-types")
+@role_required("admin", "project_pi", "data_manager")
+def admin_panel_identifier_types():
+    """Registration identifier types of one project (digitva-kzyp stage 3).
+
+    The same rule as the type API: admin, or a live project_pi / data_manager
+    grant on ``project_id``; an unknown or ungranted project is 404, a grant
+    without a configuring role 403. The panel's calls are the API's.
+    """
+    from app.services import identifier_type_service as types_service
+
+    project_id = types_service.normalise_project_id(request.args.get("project_id"))
+    if not project_id:
+        abort(404)
+    try:
+        types_service.configuring_role(current_user, project_id)
+    except types_service.IdentifierTypeError as exc:
+        abort(exc.status)
+    return render_template("admin/panels/identifier_types.html", project_id=project_id)
+
+
+@admin.get("/registration-numbers", strict_slashes=False)
+@role_required("admin", "project_pi", "data_manager")
+def registration_numbers_page():
+    """Registration identifier types as a page of their own (digitva-kzyp).
+
+    Project Setup is admin only, but a project PI and a project-wide data
+    manager also configure these. The page lists the projects the caller may
+    configure (the type API's rule, ``configuring_role``, per project) and hosts
+    the same panel for the chosen one. A caller who configures none gets 403;
+    a ``project_id`` outside that list is 404, like the panel route.
+    """
+    from app.services import identifier_type_service as types_service
+    from app.services.authz import resolve_grants
+
+    resolved = resolve_grants(current_user)
+    if resolved.is_admin:
+        candidates = set(db.session.scalars(
+            sa.select(VaProjectMaster.project_id).where(VaProjectMaster.project_status == VaStatuses.active)
+        ))
+    else:
+        candidates = {g.project_id for g in resolved.grants if g.project_id and not g.virtual}
+    projects = []
+    for candidate in sorted(candidates):
+        try:
+            types_service.configuring_role(current_user, candidate)
+        except types_service.IdentifierTypeError:
+            continue
+        projects.append(candidate)
+    if not projects:
+        abort(403)
+    requested = types_service.normalise_project_id(request.args.get("project_id"))
+    if requested and requested not in projects:
+        abort(404)
+    project_id = requested or (projects[0] if len(projects) == 1 else "")
+    return render_template(
+        "admin/registration_numbers.html", projects=projects, project_id=project_id,
+    )
+
+
 @admin.get("/panels/projects")
 @role_required("admin")
 def admin_panel_projects():
@@ -4131,6 +4191,7 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         field.flip_color = request.form.get("flip_color") == "on"
         field.is_info = request.form.get("is_info") == "on"
         field.summary_include = request.form.get("summary_include") == "on"
+        was_pii = bool(field.is_pii)
         field.is_pii = request.form.get("is_pii") == "on"
         field.pii_type = request.form.get("pii_type") or None
         for choice in choices:
@@ -4157,6 +4218,14 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
         subcats_by_cat_row = {}
         for s in all_subcats_row:
             subcats_by_cat_row.setdefault(s.category_code, []).append(s)
+        # The sealed set (PII policy OD9) moved: payloads already split keep
+        # their own set until `flask pii split-payloads --apply` reruns.
+        pii_rerun_notice = was_pii != bool(field.is_pii)
+        if pii_rerun_notice:
+            current_app.logger.warning(
+                "admin field mapping | is_pii changed | form_type=%s field=%s | rerun split-payloads --apply",
+                form_type_code, field.field_id,
+            )
         return render_template(
             "admin/panels/field_mapping_field_row.html",
             form_type_code=form_type_code,
@@ -4165,6 +4234,7 @@ def admin_panel_field_mapping_field_edit(form_type_code, field_id):
             cat_name_map=cat_name_map_row,
             subcat_name_map=subcat_name_map_row,
             subcats_by_cat=subcats_by_cat_row,
+            pii_rerun_notice=pii_rerun_notice,
         )
 
     return render_template(

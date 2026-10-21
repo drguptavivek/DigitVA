@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Web Intake Policy
@@ -879,7 +879,7 @@ section, so the phone's old value is not removed).
     `data_manager` grant; navbar link "Supervision"): tabs **Flags to
     resolve** and **All cases** (state filter), rows showing who registered
     and who started each case, no informant phone or address (the
-    supervision list API drops the masked phones too). Actions: confirm or
+    supervision list API drops the phone flags too). Actions: confirm or
     reject a flag, mark duplicate, cancel and reopen, each with a reason
     under the warning "no names, phone numbers or addresses".
   - **Direct duplicate mark** `POST /api/v1/intake/supervision/cases/<id>/duplicate`
@@ -1384,10 +1384,9 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   (`field-data-collection.md`, "Phone numbers"): 10 digits, any first digit,
   with an optional `+91`, `91` or `0` in front; spaces, hyphens and
   parentheses are ignored. Stored as the 10 digits. Checked on register, and
-  on an edit only when the edit changes that phone. Worklist rows carry only `informant_phone_masked` /
-  `informant_phone_2_masked` (`******1234`); `serialize_death` (the register
-  response) keeps the full numbers. Older free-text phones are masked to their
-  last four digits.
+  on an edit only when the edit changes that phone. Worklist rows carry only the booleans `has_informant_phone` /
+  `has_informant_phone_2` (no digits, PII stage 0); `serialize_death` (the register
+  response) keeps the full numbers.
 - **Visit dates** are ISO date-times with a timezone (the page sends the
   browser's local time as UTC), from yesterday to a year ahead.
 - **Set visit** (`POST /api/v1/intake/cases/<death_id>/visit`, body
@@ -1425,7 +1424,7 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
   (`next_visit_at`, `updated_at`, `death_id`), index
   `ix_va_death_register_next_visit`. The cursor format changed; an old cursor
   is refused (400). **Mine** also counts cases the user logged an attempt on.
-- **Page:** rows show the next visit, last contact and the masked phone.
+- **Page:** rows show the next visit, last contact and a phone-on-file flag only (no digits).
   **Log attempt** is the primary action on a not-reachable case (Start stays
   beside it); **Set visit** and **Log attempt** show on every case waiting for
   a visit; **Pause** on an interview in progress; a paused case's start reads
@@ -1524,6 +1523,20 @@ its name and date of death.
   personal data; the new column `map_case_transitions.changes` holds
   `{field: {"old": ..., "new": ...}}` (dates as ISO strings). That column is
   personal data: no API or page returns it, and values are never logged.
+- Registration numbers (`identifiers`, digitva-kzyp stage 2) ride the same
+  gates (reach, `details_pending`, `case_completed`, `death_stale`) but are
+  not register fields: they are stored encrypted, validated per project type,
+  and audited as `identifiers_set` with masked traces
+  ([Death Registration Identifiers](death-registration-identifiers.md)). The
+  registration and worklist rows, the case detail, the reported deaths and the
+  supervision rows carry them (values for the roles allowed to see them, else
+  a has-number badge). The any-time write after completion is
+  `PUT /api/v1/intake/cases/<id>/identifiers` (stage 3 backend): admin, a
+  supervisor, In-charge, project PI or data manager of the case, the reporter
+  of their own deaths and the interviewer of a case they interviewed; a
+  cancelled or confirmed-duplicate case only by a supervisor, In-charge,
+  project PI or admin (409 `case_closed` for the rest). Rows and details
+  carry `can_edit_identifiers` for the "Add registration number" action.
 - When an interview is completed (submit, revision, choice of another
   interview), its name, sex, date of death, **date of birth and age** become
   the case's, and the death list (`serialize_death`, the worklist's

@@ -25,18 +25,23 @@ from app.decorators import role_required
 from app.models import AuthDevice, VaSubmissionPayloadVersion, VaSubmissions
 from app.routes.api.request_helpers import (
     error,
+    identifier_rate_limit,
     intake_error,
     interviewer_context,
     parse_body,
     request_project_id,
     require_project,
 )
-from app.services import case_transition_service as case_svc
-from app.services import device_auth_service as devices
 from app.services import attachment_service
+from app.services import case_transition_service as case_svc
+from app.services import death_identifier_service as identifiers_svc
+from app.services import death_identifier_write as identifier_write_svc
+from app.services import device_auth_service as devices
+from app.services import identifier_type_service as identifier_types_svc
 from app.services import interview_send_back_service as send_back_svc
 from app.services import web_intake_attachment_service as attachments_svc
 from app.services import web_intake_service as intake_svc
+from app.services.authz import resolve_grants
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.visit_note import visit_note_for_viewer, visit_notes_for
@@ -100,7 +105,8 @@ def _too_large(_exc):
 @bp.errorhandler(devices.DeviceAuthError)
 def _project_or_client_error(exc):
     db.session.rollback()
-    return error(str(exc), exc.code, exc.status_code)
+    fields = getattr(exc, "fields", None)
+    return error(str(exc), exc.code, exc.status_code, **({"fields": fields} if fields else {}))
 
 
 @bp.errorhandler(intake_svc.WebIntakeError)
@@ -131,7 +137,33 @@ def _content_refusals(code):
     except intake_svc.WebIntakeError as exc:
         if exc.status_code != 400:
             raise
-        raise devices.DeviceAuthError(str(exc), code, 422) from None
+        refusal = devices.DeviceAuthError(str(exc), code, 422)
+        refusal.fields = exc.fields  # the questions to fix, e.g. identifiers.<code>
+        raise refusal from None
+
+
+def _identifiers_arg(p: dict) -> dict | None:
+    """The body's ``identifiers`` object (``{type code: text}``), None when
+    absent or null. Its own parser: the register fields refuse objects, this
+    key is one. Checked here for shape, at most 50 codes and no raw value
+    over 256 characters (before any normalisation); the type rules are the
+    service's."""
+    value = p.get("identifiers")
+    if value is not None:
+        identifiers_svc.check_limits(value)
+    return value
+
+
+def _carries_identifiers() -> bool:
+    """Whether this request's body names registration numbers: the test that
+    counts it against the per-user budget. Reads the body within the route's
+    size cap (the limiter runs before the blueprint's own size check); an
+    oversize or unreadable body is not counted here and is refused later."""
+    limit = _body_limit()
+    if limit is not None and request.content_length is not None and request.content_length > limit:
+        return False
+    body = request.get_json(silent=True)
+    return isinstance(body, dict) and bool(body.get("identifiers"))
 
 
 def _site_id(p: dict) -> str:
@@ -139,6 +171,37 @@ def _site_id(p: dict) -> str:
     if not isinstance(site_id, str) or not site_id.strip():
         raise devices.DeviceAuthError("site_id is required.", "invalid_request", 400)
     return site_id.strip()
+
+
+# ---------------------------------------------------------------------------
+# Registration identifier types
+# ---------------------------------------------------------------------------
+
+
+@bp.get("/identifier-types")
+@role_required("admin", "interviewer", "interview_supervisor", "data_manager", "death_reporter")
+@limiter.limit("120 per minute")
+def identifier_types():
+    """The active registration identifier types of one project, for the entry
+    fields and the offline cache. Query: ``project_id`` (required). Allowed
+    where the caller may register a death (``register_death_context``) or
+    supervise (an In-charge and a tree project's PI pass the supervisor gate
+    through their effective roles), and for an admin in any project; anything
+    else is 403 ``project_forbidden``, alike whether the project exists or
+    not. Either credential."""
+    project_id = identifier_types_svc.normalise_project_id(request.args.get("project_id"))
+    if not project_id:
+        raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
+    if not (resolve_grants(current_user).is_admin
+            or identifier_types_svc.supervises_project(current_user, project_id)):
+        require_project(project_id, DEATH_REGISTERING_ROLES)
+    return jsonify({
+        "project_id": project_id,
+        "identifier_types": [
+            identifier_types_svc.serialize_type(t, identifier_types_svc.INTAKE_FIELDS)
+            for t in identifier_types_svc.active_types(project_id)
+        ],
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +251,9 @@ def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_su
         current_user, death, unit_name, my_draft_id, other_draft_started_at, my_submission,
         other_complete_interview, ready_for_coding,
     )
+    # Registration numbers: values for a viewer who may see them, else a badge.
+    body["identifiers"] = identifiers_svc.identifier_payloads(current_user, [death])[death.death_id]
+    body["can_edit_identifiers"] = intake_svc.can_edit_identifiers(current_user, [death])[death.death_id]
     if _reporter_view(death):
         # A death_reporter registers and corrects; the interview, the contact
         # attempts and the visit are not theirs, so no prefill, no link to a
@@ -212,9 +278,28 @@ def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_su
     return body
 
 
-def _case_reply(death, status=200):
-    """The one reply of every single-case action: ``{"case": <detail>}``."""
-    return jsonify({"case": _case_body(*intake_svc.case_row(current_user, death))}), status
+def _case_reply(death, status=200, warnings=None):
+    """The one reply of every single-case action: ``{"case": <detail>}``, plus
+    ``warnings`` (identifier duplicate warnings) when there are any."""
+    body = {"case": _case_body(*intake_svc.case_row(current_user, death))}
+    if warnings:
+        body["warnings"] = warnings
+    return jsonify(body), status
+
+
+def _identifier_reply(death, warnings):
+    """The reply of a registration-number write. A caller whose interviewer or
+    reporter reach opens the case keeps ``_case_reply``'s detail; one who
+    reaches it only by supervision (a supervisor, In-charge, project PI, data
+    manager) or as admin gets the supervisor row (``_supervisor_reply``: no
+    informant name, phones or address, no links, no prefill) with its
+    ``identifiers``, ``can_edit_identifiers`` and ``updated_at``."""
+    if intake_svc.interviewer_reaches(current_user, death) or intake_svc._reporter_reaches(current_user, death):
+        return _case_reply(death, warnings=warnings)
+    body = {"case": _supervised_body(*intake_svc.supervised_case_row(death))}
+    if warnings:
+        body["warnings"] = warnings
+    return jsonify(body), 200
 
 
 @bp.get("/cases/<death_id>")
@@ -341,18 +426,27 @@ def list_deaths():
         return error("project_id and site_id are required.", "invalid_request", 400)
     deaths = intake_svc.list_deaths(current_user, project_id=project_id, site_id=site_id, status=status)
     visible = intake_svc.gps_projects(current_user, {project_id}) if deaths else set()
+    identifiers = identifiers_svc.identifier_payloads(current_user, deaths)
+    editable = intake_svc.can_edit_identifiers(current_user, deaths)
     return jsonify({"deaths": [
-        intake_svc.serialize_death(d, show_gps=intake_svc.shows_gps(current_user, d, visible)) for d in deaths
+        dict(intake_svc.serialize_death(d, show_gps=intake_svc.shows_gps(current_user, d, visible)),
+             identifiers=identifiers[d.death_id], can_edit_identifiers=editable[d.death_id])
+        for d in deaths
     ]})
 
 
 @bp.post("/deaths")
 @role_required("interviewer", "death_reporter")
+@identifier_rate_limit(_carries_identifiers)
 def register_death():
     """Register a death (an interviewer or a death_reporter). Body: ``project_id``, ``site_id``, ``org_unit_id`` and
-    the register form's fields, optional ``client_death_id`` (UUID): an offline
-    registration is idempotent on it, a resend returns the same case with 200.
-    Replies ``{"case": <detail>}``, as ``GET /cases/<id>``."""
+    the register form's fields, optional ``identifiers`` (``{type code: text}``,
+    the project's registration numbers; ``required_at_report`` types are
+    enforced here), optional ``client_death_id`` (UUID): an offline
+    registration is idempotent on it, a resend returns the same case with 200
+    (the numbers are stored once and not warned about again). Replies
+    ``{"case": <detail>, "warnings": [...]}`` as ``GET /cases/<id>``;
+    ``warnings`` only when a number is already on another case."""
     p = parse_body()
     client_death_id = _client_id(p, "client_death_id")
     site_id = _site_id(p)
@@ -362,6 +456,7 @@ def register_death():
         existing = intake_svc.find_device_registration(current_user, project_id, client_death_id)
         if existing is not None:
             return _case_reply(existing)
+    warnings = []
     try:
         with _content_refusals("invalid_registration"):
             if any(isinstance(p.get(k), (dict, list)) for k in _REGISTER_FIELDS):
@@ -372,6 +467,8 @@ def register_death():
                 site_id=site_id,
                 org_unit_id=p.get("org_unit_id") or None,
                 client_death_id=client_death_id,
+                identifiers=_identifiers_arg(p),
+                warnings=warnings,
                 **{k: p.get(k) for k in _REGISTER_FIELDS},
             )
         db.session.commit()
@@ -385,26 +482,75 @@ def register_death():
         if existing is None:
             raise
         return _case_reply(existing)
-    return _case_reply(death, 201)
+    return _case_reply(death, 201, warnings)
 
 
 @bp.patch("/deaths/<death_id>")
 @role_required("interviewer", "interview_supervisor", "data_manager", "death_reporter")
+@identifier_rate_limit(_carries_identifiers)
 def update_death(death_id):
     """Correct a registered death until an interview of it is completed. Body:
     only the register form's fields to change (an unknown key is 422), optional ``if_updated_at`` (the
-    ``updated_at`` of the last reply seen; a newer one is 409 ``death_stale``).
-    Replies ``{"case": <detail>}``. 404 out of reach; 409 ``case_completed`` /
-    ``details_pending``; 422 ``invalid_death``."""
+    ``updated_at`` of the last reply seen; a newer one is 409 ``death_stale``),
+    optional ``identifiers`` (``{type code: text | null}``: only the listed
+    numbers change, null or empty clears; may be the only key; without
+    ``if_updated_at`` the last write wins). Replies
+    ``{"case": <detail>, "warnings": [...]}`` (``warnings`` only when a number
+    is already on another case). 404 out of reach; 409 ``case_completed`` /
+    ``details_pending``; 409 ``case_closed`` when ``identifiers`` is sent for a
+    cancelled or confirmed-duplicate case by anyone but a supervisor (register
+    fields of a closed case are unchanged); 422 ``invalid_death`` (a bad
+    number names ``identifiers.<code>`` in ``fields``); 429 past the budget
+    of requests that carry numbers."""
     p = parse_body()
     # Every other key goes on: the service refuses an unknown field by name.
-    changes = {k: v for k, v in p.items() if k != "if_updated_at"}
+    changes = {k: v for k, v in p.items() if k not in ("if_updated_at", "identifiers")}
+    warnings = []
     with _content_refusals("invalid_death"):
         if any(isinstance(v, (dict, list)) for v in changes.values()):
             raise intake_svc.WebIntakeError("Fields must be text or numbers.")
-        death = intake_svc.update_death(current_user, death_id, changes, if_updated_at=p.get("if_updated_at"))
+        death = intake_svc.update_death(
+            current_user, death_id, changes, if_updated_at=p.get("if_updated_at"),
+            identifiers=_identifiers_arg(p), warnings=warnings,
+        )
     db.session.commit()
-    return _case_reply(death)
+    # ponytail: the full detail (incl. informant contact) is kept for a
+    # supervisor, as before; trimming it here is a separate change.
+    return _case_reply(death, warnings=warnings)
+
+
+@bp.put("/cases/<death_id>/identifiers")
+@role_required("interviewer", "death_reporter", "interview_supervisor", "data_manager", "admin")
+@identifier_rate_limit(_carries_identifiers)
+def put_identifiers(death_id):
+    """Add, change or clear a case's registration numbers at any time, also
+    after its interview is complete (policy decisions 11 and 12). Body:
+    ``identifiers`` (``{type code: text | null}``; only the listed codes
+    change, null or empty clears; 1..50 codes, each value at most 256
+    characters), optional ``if_updated_at`` (the ``updated_at`` of the last
+    reply seen). Replies 200 ``{"case": <detail>, "warnings": [...]}``
+    (``warnings`` only when a number is already on another case; the detail is
+    the trimmed supervisor row for a caller who reaches the case only by
+    supervision or as admin, ``_identifier_reply``); the case
+    state does not change. Who: admin; a supervisor, In-charge, project PI or
+    data manager of the case (browser only); the death_reporter on a death
+    they reported; the interviewer on a case they registered or interviewed. Cancelled and
+    confirmed-duplicate cases: supervisor, In-charge, project PI and admin
+    only. 400 ``invalid_request`` (``fields``: ``identifiers.<code>``);
+    403 ``forbidden``; 404 out of reach; 409 ``case_closed`` / ``death_stale``;
+    429 past the budget of requests that carry numbers."""
+    p = parse_body()
+    if set(p) - {"identifiers", "if_updated_at"}:
+        return error("Only identifiers and if_updated_at are accepted.", "invalid_request", 400)
+    values = _identifiers_arg(p)
+    if not values:
+        return error("identifiers must name at least one identifier type.", "invalid_request", 400,
+                     fields=["identifiers"])
+    warnings = []
+    death = identifier_write_svc.put_identifiers(
+        current_user, death_id, values, if_updated_at=p.get("if_updated_at"), warnings=warnings)
+    db.session.commit()
+    return _identifier_reply(death, warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -889,12 +1035,29 @@ def _reason(p):
     return p.get("reason") if isinstance(p.get("reason"), str) else None
 
 
+def _supervised_body(*row) -> dict:
+    """A supervisor row with its ``identifiers`` (one case: ``identifier_payloads``)."""
+    body = intake_svc.serialize_supervised_row(current_user, *row)
+    body["identifiers"] = identifiers_svc.identifier_payloads(current_user, [row[0]])[row[0].death_id]
+    body["can_edit_identifiers"] = intake_svc.can_edit_identifiers(current_user, [row[0]])[row[0].death_id]
+    return body
+
+
 def _supervisor_reply(death):
     """What a supervisor action returns: ``{"case": <supervisor row>}``, the
     shape of ``GET /supervision/cases`` (no informant contact details, no
     prefill): a supervisor need not hold an interviewer grant, so the
     interviewer's case detail is not theirs to read."""
-    return jsonify({"case": intake_svc.serialize_supervised_row(current_user, *intake_svc.supervised_case_row(death))})
+    return jsonify({"case": _supervised_body(*intake_svc.supervised_case_row(death))})
+
+
+def _supervised_rows(rows) -> list[dict]:
+    """The supervision list's rows, the page's ``identifiers`` loaded once."""
+    identifiers = identifiers_svc.identifier_payloads(current_user, [row[0] for row in rows])
+    editable = intake_svc.can_edit_identifiers(current_user, [row[0] for row in rows])
+    return [dict(intake_svc.serialize_supervised_row(current_user, *row), identifiers=identifiers[row[0].death_id],
+                 can_edit_identifiers=editable[row[0].death_id])
+            for row in rows]
 
 
 @bp.get("/supervision/cases")
@@ -942,7 +1105,7 @@ def supervised_cases():
     )
     return jsonify(
         {
-            "cases": [intake_svc.serialize_supervised_row(current_user, *row) for row in result["cases"]],
+            "cases": _supervised_rows(result["cases"]),
             "counts": result["counts"],
             "tiles": result["tiles"],
             "next_cursor": result["next_cursor"],
@@ -961,7 +1124,7 @@ def supervised_case_detail(death_id):
     death = intake_svc.get_supervised_case(current_user, death_id)
     note = visit_notes_for([death.va_sid] if death.va_sid else []).get(death.va_sid)
     return jsonify({
-        "case": intake_svc.serialize_supervised_row(current_user, *intake_svc.supervised_case_row(death)),
+        "case": _supervised_body(*intake_svc.supervised_case_row(death)),
         "candidates": intake_svc.list_candidates(death),
         "visit_note": visit_note_for_viewer(note, redact_pii=should_redact_pii(current_user)),
     })

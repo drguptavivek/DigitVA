@@ -549,7 +549,7 @@ class InterviewSupervisorTests(BaseTestCase):
         body = response.get_json()["case"]
         self.assertEqual(body["unique_id"], case.unique_id)
         self.assertIn("registered_by_name", body)  # the supervisor list's row, not the interviewer's detail
-        for key in ("informant", "informant_phone", "informant_phone_masked", "address", "abha_number", "prefill", "links"):
+        for key in ("informant", "informant_phone", "has_informant_phone", "address", "abha_number", "prefill", "links"):
             self.assertNotIn(key, body)
 
     # ── audit grant and cadre, supervision page (digitva-vzk.8) ────────────
@@ -670,7 +670,7 @@ class InterviewSupervisorTests(BaseTestCase):
         self._login(str(self.sam.user_id))
         row = self.client.get("/api/v1/intake/supervision/cases").get_json()["cases"][0]
         self.assertIn("registered_by_name", row)
-        for key in ("informant_phone_masked", "informant_phone_2_masked", "informant_phone", "address"):
+        for key in ("has_informant_phone", "has_informant_phone_2", "informant_phone", "address"):
             self.assertNotIn(key, row)
 
     def test_supervisor_duplicates_hold_the_in_reach_match_and_never_the_outside_one(self):

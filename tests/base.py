@@ -503,6 +503,11 @@ class BaseTestCase(unittest.TestCase):
 
         if hasattr(g, "_login_user"):
             del g._login_user
+        # The payload split's per-app-context cache (sealed sets, side-row
+        # presence) would otherwise leak rolled-back state into the next test.
+        from app.services.submission_payload_version_service import clear_payload_pii_request_cache
+
+        clear_payload_pii_request_cache()
         self.client = self.app.test_client()
 
     def tearDown(self):

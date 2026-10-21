@@ -109,6 +109,22 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
         )
         self.assertEqual(field.short_label, "Updated Label Test")
 
+    def test_08c_is_pii_change_warns_to_rerun_the_payload_split(self):
+        """An is_pii toggle moves the sealed set: the row says to rerun the split (message only)."""
+        self._login(self.base_admin_id)
+        url = "/admin/panels/field-mapping/field/WHO_2022_VA/Id10019"
+        headers = {**self._csrf_headers(), "HX-Request": "true"}
+        data = {"short_label": "Sex", "is_pii": "on", "pii_type": "other"}
+
+        flagged = self.client.post(url, data=data, headers=headers)
+        unchanged = self.client.post(url, data=data, headers=headers)
+
+        self.assertEqual(flagged.status_code, 200)
+        self.assertIn(b"data-pii-rerun-notice", flagged.data)
+        self.assertIn(b"flask pii split-payloads --apply", flagged.data)
+        self.assertEqual(unchanged.status_code, 200)
+        self.assertNotIn(b"data-pii-rerun-notice", unchanged.data)
+
     def test_08b_field_edit_post_updates_choice_labels(self):
         """POST to field edit updates DigitVA choice labels for the field."""
         self._login(self.base_admin_id)

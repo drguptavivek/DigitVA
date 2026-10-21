@@ -194,6 +194,82 @@ class ProjectSetupPanelTests(BaseTestCase):
             body,
         )
 
+    # -- registration identifier types (digitva-kzyp stage 3) -------------------
+
+    def test_data_collection_hosts_the_identifier_types_panel_locked(self):
+        body = self._setup_body()
+        self.assertEqual(body.count('id="panel-identifier-types"'), 1)
+        self.assertIn(
+            f'id="panel-identifier-types" data-locked-project="{self.BASE_PROJECT_ID}"', body
+        )
+        # The sample is capped so a heavy pattern cannot hold the page.
+        self.assertIn('id="idt-sample" maxlength="64"', body)
+        # The form states its rules in plain language and warns about real numbers.
+        for text in (
+            "Digits only", "Letters and digits", "Letters, digits, hyphen and slash", "No restriction",
+            "never a real number", "Test a sample value", "CAPITALISED",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, body)
+
+    def test_the_standalone_identifier_types_panel_follows_the_type_api_gate(self):
+        url = "/admin/panels/identifier-types?project_id="
+        self._login(self.base_admin_id)
+        response = self.client.get(url + self.BASE_PROJECT_ID.lower())
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(
+            f'data-locked-project="{self.BASE_PROJECT_ID}"', response.get_data(as_text=True)
+        )
+        self.assertEqual(self.client.get(url + "NOPE99").status_code, 404)
+        self.assertEqual(self.client.get("/admin/panels/identifier-types").status_code, 404)
+        self._login(self.base_project_pi_id)
+        self.assertEqual(self.client.get(url + self.BASE_PROJECT_ID).status_code, 200)
+        # A project PI of another project sees nothing of this one.
+        self.assertEqual(self.client.get(url + self.OTHER_PROJECT).status_code, 404)
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.get(url + self.BASE_PROJECT_ID).status_code, 403)
+
+    def _user_with_grant(self, email, role, scope_type=VaAccessScopeTypes.project):
+        user = self._make_user(email, "Pw-123456!")
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=role, scope_type=scope_type, project_id=self.OTHER_PROJECT,
+            notes="registration numbers page", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        return str(user.user_id)
+
+    def test_registration_numbers_page_is_open_to_admin_project_pi_and_project_wide_data_manager(self):
+        page = "/admin/registration-numbers"
+        dm_id = self._user_with_grant("rn.dm@example.org", VaAccessRoles.data_manager)
+        for who, user_id, project in (
+            ("admin", self.base_admin_id, self.OTHER_PROJECT),
+            ("project_pi", self.base_project_pi_id, self.BASE_PROJECT_ID),
+            ("data_manager", dm_id, self.OTHER_PROJECT),
+        ):
+            with self.subTest(who=who):
+                self._login(user_id)
+                response = self.client.get(f"{page}?project_id={project}")
+                self.assertEqual(response.status_code, 200)
+                body = response.get_data(as_text=True)
+                self.assertIn(f'data-locked-project="{project}"', body)
+                self.assertIn('href="/admin/registration-numbers"', body)  # the menu entry
+        # A data manager with a single project lands on it without choosing.
+        self._login(dm_id)
+        self.assertIn(
+            f'data-locked-project="{self.OTHER_PROJECT}"', self.client.get(page).get_data(as_text=True)
+        )
+
+    def test_registration_numbers_page_stays_inside_the_callers_projects(self):
+        page = "/admin/registration-numbers"
+        self._login(self.base_project_pi_id)
+        self.assertEqual(self.client.get(f"{page}?project_id={self.OTHER_PROJECT}").status_code, 404)
+
+    def test_registration_numbers_page_and_menu_entry_are_hidden_from_other_roles(self):
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.get("/admin/registration-numbers").status_code, 403)
+        home = self.client.get("/", follow_redirects=True).get_data(as_text=True)
+        self.assertNotIn("/admin/registration-numbers", home)
+
     def test_standalone_data_and_people_panels_are_not_locked(self):
         self._login(self.base_admin_id)
         for url, root in (

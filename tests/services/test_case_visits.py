@@ -162,17 +162,12 @@ class CaseVisitTests(BaseTestCase):
             self._register(address_landmark="x" * 201)
 
         row = intake_svc.serialize_worklist_row(self.alice, case, None, None)
-        self.assertEqual(row["informant_phone_masked"], "******3210")
-        self.assertEqual(row["informant_phone_2_masked"], "******5678")
+        self.assertEqual((row["has_informant_phone"], row["has_informant_phone_2"]), (True, True))
         self.assertNotIn("informant_phone", row)
+        self.assertFalse([k for k in row if k.endswith("_masked")])
         self.assertNotIn("9876543210", repr(row))
+        self.assertEqual(sorted(k for k in row if "phone" in k), ["has_informant_phone", "has_informant_phone_2"])
         self.assertNotIn("address_house_street", row)
-
-    def test_mask_phone_tolerates_legacy_text(self):
-        self.assertIsNone(intake_svc.mask_phone(None))
-        self.assertIsNone(intake_svc.mask_phone(""))
-        self.assertEqual(intake_svc.mask_phone("+91 98765 43210"), "******3210")
-        self.assertEqual(intake_svc.mask_phone("12"), "******")
 
     # ── visits ─────────────────────────────────────────────────────────────
 
@@ -395,7 +390,8 @@ class CaseVisitTests(BaseTestCase):
 
         rows = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases?limit=200").get_json()["cases"]}
         self.assertIn(death["death_id"], rows)
-        self.assertEqual(rows[death["death_id"]]["informant_phone_masked"], "******3210")
+        self.assertIs(rows[death["death_id"]]["has_informant_phone"], True)
+        self.assertFalse([k for k in rows[death["death_id"]] if k.endswith("_masked")])
         self.assertNotIn("informant_phone", rows[death["death_id"]])
 
     def test_api_register_refuses_a_case_with_no_date_of_birth_and_no_age(self):

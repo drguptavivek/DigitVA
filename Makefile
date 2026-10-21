@@ -7,13 +7,19 @@ COMPOSE_PROD = docker compose --env-file .env --env-file $(PROD_DB_ENV) -f docke
 else
 COMPOSE_PROD = docker compose -f docker-compose.yml
 endif
+# Production keeps the PII KEM private key OUTSIDE the checkout (owner
+# decision 13): the checkout is bind-mounted into every app container. .env
+# or the shell may name another absolute path outside the checkout.
+PROD_PII_KEM_PRIVATE_KEY_PATH ?= /data/digitva-secrets/pii_kem_private_key
+PROD_PII_KEY_PATH = $(or $(PII_KEM_PRIVATE_KEY_PATH),$(shell sed -n 's/^PII_KEM_PRIVATE_KEY_PATH=//p' .env 2>/dev/null | tail -n1),$(PROD_PII_KEM_PRIVATE_KEY_PATH))
+COMPOSE_PROD := PII_KEM_PRIVATE_KEY_PATH=$(PROD_PII_KEY_PATH) $(COMPOSE_PROD)
 APP_SERVICE  = minerva_app_service
 
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
         prod prod-build prod-rebuild prod-down \
         logs logs-app ps shell \
         migrate db-head test test-parallel test-projects \
-        restart-celery backup-db ensure-secrets help
+        restart-celery backup-db ensure-secrets ensure-secrets-prod help
 
 .DEFAULT_GOAL := help
 
@@ -48,7 +54,8 @@ help:
 	@echo "  make test-parallel   Full suite on 4 xdist workers (TEST_DATABASE_URL=... to pick the DB)"
 	@echo "  make restart-celery  Restart celery worker and beat"
 	@echo ""
-	@echo "  make ensure-secrets  Add missing CAPTCHA/TOTP keys to .env (run by dev/prod targets)"
+	@echo "  make ensure-secrets  Add missing CAPTCHA/TOTP/PII keys to .env; DEVELOPMENT key in private/ (dev targets)"
+	@echo "  make ensure-secrets-prod  The same for production; private key outside the checkout (prod targets)"
 	@echo ""
 	@echo "Test data (dev/staging only)"
 	@echo "  make test-projects   Seed test projects and accounts, print who sees what"
@@ -59,10 +66,24 @@ help:
 # ---------------------------------------------------------------------------
 # Secrets: append missing login-factor keys to .env; never overwrite existing
 # ones. AUTH_FACTOR_ENCRYPTION_KEY encrypts TOTP secrets: back it up with
-# .env, since a new key makes every enrolled TOTP unreadable.
+# .env, since a new key makes every enrolled TOTP unreadable. The PII_* keys
+# encrypt personal data: back up .env and the private key file apart from
+# the database; losing the private key loses the values.
+#
+# ensure-secrets (dev targets): the private key is the DEVELOPMENT one, in
+# the checkout's git-ignored private/ (every container bind-mounts the
+# checkout; beat masks private/). ensure-secrets-prod (prod targets): the key
+# lives at PROD_PII_KEY_PATH, an absolute path outside the checkout, owned by
+# the deploy user, mode 0600; it refuses a path under the checkout and a key
+# file still in private/.
 # ---------------------------------------------------------------------------
 
-ensure-secrets:
+ensure-secrets: PII_KEY_MODE := dev
+ensure-secrets: PII_KEY_FILE := private/pii_kem_private_key
+ensure-secrets-prod: PII_KEY_MODE := prod
+ensure-secrets-prod: PII_KEY_FILE := $(PROD_PII_KEY_PATH)
+
+ensure-secrets ensure-secrets-prod:
 	@test -f .env || { echo "ensure-secrets: .env not found; copy .env.example first" >&2; exit 1; }
 	@[ -z "$$(tail -c1 .env)" ] || echo >> .env
 	@grep -q '^CAPTCHA_HMAC_KEY=.' .env || { \
@@ -71,6 +92,32 @@ ensure-secrets:
 	@grep -q '^AUTH_FACTOR_ENCRYPTION_KEY=.' .env || { \
 		echo "AUTH_FACTOR_ENCRYPTION_KEY=$$(openssl rand -base64 32 | tr '+/' '-_')" >> .env; \
 		echo "ensure-secrets: generated AUTH_FACTOR_ENCRYPTION_KEY in .env -- back up .env"; }
+	@if [ "$(PII_KEY_MODE)" = prod ]; then \
+		case "$(PII_KEY_FILE)" in */../*|*/./*|*//*) echo "ensure-secrets-prod: PII_KEM_PRIVATE_KEY_PATH must be a normalised path (no . or .. parts)" >&2; exit 1;; /*) ;; *) echo "ensure-secrets-prod: PII_KEM_PRIVATE_KEY_PATH must be an absolute path outside the checkout" >&2; exit 1;; esac; \
+		case "$(PII_KEY_FILE)" in "$(CURDIR)"/*) echo "ensure-secrets-prod: $(PII_KEY_FILE) is inside the checkout, which every container mounts; keep the key outside it" >&2; exit 1;; esac; \
+		test ! -e private/pii_kem_private_key || { echo "ensure-secrets-prod: private/pii_kem_private_key is still in the checkout; move it to $(PII_KEY_FILE) (mode 0600) and delete the copy" >&2; exit 1; }; \
+	else \
+		key_path="$${PII_KEM_PRIVATE_KEY_PATH:-$$(sed -n 's/^PII_KEM_PRIVATE_KEY_PATH=//p' .env | tail -n1)}"; \
+		echo "ensure-secrets: DEVELOPMENT key file $${key_path:-$(PII_KEY_FILE)} (production uses make ensure-secrets-prod, key outside the checkout)"; \
+	fi
+	@key_file="$(PII_KEY_FILE)"; \
+	if [ "$(PII_KEY_MODE)" = dev ]; then key_file="$${PII_KEM_PRIVATE_KEY_PATH:-$$(sed -n 's/^PII_KEM_PRIVATE_KEY_PATH=//p' .env | tail -n1)}"; key_file="$${key_file:-$(PII_KEY_FILE)}"; fi; \
+	if grep -q '^PII_KEM_PUBLIC_KEY=.' .env; then \
+		test -f "$$key_file" || { echo "ensure-secrets: PII_KEM_PUBLIC_KEY is set in .env but the private key file $$key_file is missing; restore it (a key pair is never regenerated)" >&2; exit 1; }; \
+		grep -q '^PII_BLIND_INDEX_KEY=.' .env || { \
+			echo "PII_BLIND_INDEX_KEY=$$(openssl rand -hex 32)" >> .env; \
+			echo "ensure-secrets: generated PII_BLIND_INDEX_KEY in .env -- back up .env"; }; \
+	elif [ "$(PII_KEY_MODE)" = prod ]; then \
+		test ! -e "$$key_file" || { echo "ensure-secrets-prod: $$key_file exists but .env has no PII_KEM_PUBLIC_KEY; restore .env or remove the file" >&2; exit 1; }; \
+		key_dir="$$(dirname "$$key_file")"; mkdir -p "$$key_dir" && chmod 700 "$$key_dir" && \
+		PII_KEM_PRIVATE_KEY_PATH=./Makefile $(COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" \
+			-v "$$key_dir:/pii-secret" --entrypoint python minerva_app_service \
+			scripts/generate_pii_keys.py --private-file "/pii-secret/$$(basename "$$key_file")" --env-file .env; \
+	else \
+		test ! -e private/pii_kem_private_key || { echo "ensure-secrets: private/pii_kem_private_key exists but .env has no PII_KEM_PUBLIC_KEY; restore .env or remove the file" >&2; exit 1; }; \
+		mkdir -p private && PII_KEM_PRIVATE_KEY_PATH=./Makefile $(COMPOSE) run --rm --no-deps --entrypoint python minerva_app_service \
+			scripts/generate_pii_keys.py --private-file private/pii_kem_private_key --env-file .env; \
+	fi
 
 # ---------------------------------------------------------------------------
 # Dev (uses docker-compose.yml + docker-compose.override.yml)
@@ -95,13 +142,13 @@ dev-restart:
 # Prod (docker-compose.yml, no dev override; + external-db overlay on split hosts)
 # ---------------------------------------------------------------------------
 
-prod: ensure-secrets
+prod: ensure-secrets-prod
 	$(COMPOSE_PROD) up -d
 
-prod-build: ensure-secrets
+prod-build: ensure-secrets-prod
 	$(COMPOSE_PROD) build && $(COMPOSE_PROD) up -d
 
-prod-rebuild: ensure-secrets
+prod-rebuild: ensure-secrets-prod
 	$(COMPOSE_PROD) build --no-cache && $(COMPOSE_PROD) up -d
 
 prod-down:

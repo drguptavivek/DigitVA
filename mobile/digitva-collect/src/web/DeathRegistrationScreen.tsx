@@ -18,6 +18,12 @@ import { convertPrecision, type Precision } from "../workspace/doris/dateFieldSh
 import { LocationCapture, type GpsFix } from "./LocationCapture";
 import { RegistrationFieldControl, type RegistrationDateAppearance } from "./registrationControls";
 import { PhoneNumbers } from "../PhoneInput";
+import { IdentifierFields, identifierIssueText } from "../IdentifierFields";
+import { IdentifierFacts } from "./CaseIdentifiers";
+import {
+  identifierChanges, identifierFieldErrors, identifierIssues, identifiersToSend, identifierValues, identifierWarnings,
+  isBadgeOnly, loadIdentifierTypes, type CaseIdentifier, type IdentifierType,
+} from "../identifiers";
 
 const FIELD_DEFINITIONS: Array<{ key: keyof RegistrationInput; label: StringKey; help?: StringKey }> = [
   { key: "deceased_name", label: "fieldDeceasedName" },
@@ -30,7 +36,7 @@ const FIELD_DEFINITIONS: Array<{ key: keyof RegistrationInput; label: StringKey;
 
 type DraftIssue = { code?: StringKey; message: string };
 
-const REGISTRATION_FIELDS: Array<keyof RegistrationInput> = [
+const REGISTRATION_FIELDS: Array<Exclude<keyof RegistrationInput, "identifiers">> = [
   "deceased_name", "deceased_sex", "date_of_death", "date_of_birth", "date_of_birth_partial",
   "age_years", "abha_number", "abha_address", "place_of_death", "address", "address_house_street",
   "address_village_ward", "address_landmark", "informant_name", "father_name", "mother_name",
@@ -167,6 +173,18 @@ export default function DeathRegistrationScreen() {
   const viewParam = Array.isArray(params.view) ? params.view[0] : params.view;
   const [listMode, setListMode] = useState(viewParam === "mine");
   const [notice, setNotice] = useState("");
+  // Registration numbers: the project's types, the typed values, the stored ones (edit), server refusals and duplicate warnings.
+  const [idTypes, setIdTypes] = useState<IdentifierType[]>([]);
+  const [idValues, setIdValues] = useState<Record<string, string>>({});
+  const [idErrors, setIdErrors] = useState<Record<string, string>>({});
+  const [idWarnings, setIdWarnings] = useState<Record<string, string>>({});
+  const [idEditable, setIdEditable] = useState(true);
+  const [idTypesFailed, setIdTypesFailed] = useState(false);
+  // The stored entries of the case being edited; those of a deactivated type show read-only.
+  const [idStored, setIdStored] = useState<CaseIdentifier[]>([]);
+  const idBase = useRef<Record<string, string>>({});
+  // What Continue and Edit do once a saved registration's duplicate warning is shown (a warning never blocks, it pauses).
+  const idHeld = useRef<{ onContinue: () => void; onEdit: () => void } | undefined>(undefined);
   // The shared deaths list (docs/policy/case-list-views.md) for anyone who interviews or reports deaths.
   const hasOwnDeaths = Boolean(bootstrap?.capabilities.intake || bootstrap?.capabilities.registeredDeaths);
   // Supervisors (SUPERVISION_ROLES) get the "Needs my attention" panel here (docs/policy/case-list-views.md, "Supervision preset").
@@ -232,6 +250,8 @@ export default function DeathRegistrationScreen() {
     setNotice("");
     setValidationIssues({});
     setDraftIssues({});
+    setIdTypes([]);
+    clearIdentifiers();
     setPrivateBootstrap(bootstrap);
     if (!bootstrap) return () => { active = false; };
     const contexts = intakeContextFromAccess(bootstrap.access, "register_death")
@@ -314,6 +334,7 @@ export default function DeathRegistrationScreen() {
       registrationSourceCursor.current = undefined;
       setEditingDeathId(deathId);
       setEditingReadOnly(detail.details_pending === true || detail.other_complete_interview === true || ["draft_identity", "completed", "submitted"].includes(typeof detail.state === "string" ? detail.state : ""));
+      loadIdentifiersFrom(detail);
       setFields(values);
       setSex(String(values.deceased_sex ?? ""));
       setBirthMode(birthModeFor(values));
@@ -329,6 +350,20 @@ export default function DeathRegistrationScreen() {
     return () => { active = false; };
   }, [bootstrap, params.deathId, params.registered]);
 
+  useEffect(() => {
+    setIdTypesFailed(false);
+    if (!bootstrap || !projectId) {
+      setIdTypes([]);
+      return undefined;
+    }
+    let active = true;
+    loadIdentifierTypes(projectId, bootstrap.csrf).then(
+      (types) => { if (active) setIdTypes(types); },
+      () => { if (active) { setIdTypes([]); setIdTypesFailed(true); } },
+    );
+    return () => { active = false; };
+  }, [bootstrap, projectId]);
+
   // Browser back/forward between the form and the list moves the URL first;
   // only a change follows it, so the mount keeps the deep-link redirect's choice.
   const syncedView = useRef(viewParam);
@@ -341,6 +376,7 @@ export default function DeathRegistrationScreen() {
   /** Switch between the form and the deaths list; the URL carries it so the navigation highlights the right entry. */
   function showList(on: boolean) {
     setListMode(on);
+    if (on) clearIdentifiers();
     router.setParams({ view: on ? "mine" : undefined });
   }
 
@@ -379,6 +415,28 @@ export default function DeathRegistrationScreen() {
     });
   }
 
+  /** Prefill the number fields from a stored case; a badge-only viewer gets empty inputs, and only if the case says they may write. */
+  function loadIdentifiersFrom(source: CaseDetail | CaseRow) {
+    const values = isBadgeOnly(source.identifiers) ? {} : identifierValues(source.identifiers);
+    idBase.current = values;
+    setIdStored(source.identifiers ?? []);
+    setIdValues(values);
+    setIdErrors({});
+    setIdWarnings({});
+    idHeld.current = undefined;
+    setIdEditable(!isBadgeOnly(source.identifiers) || source.can_edit_identifiers === true);
+  }
+
+  function clearIdentifiers() {
+    idBase.current = {};
+    idHeld.current = undefined;
+    setIdStored([]);
+    setIdValues({});
+    setIdErrors({});
+    setIdWarnings({});
+    setIdEditable(true);
+  }
+
   function beginEdit(death: CaseDetail | CaseRow) {
     let values: Partial<RegistrationInput>;
     try {
@@ -398,6 +456,7 @@ export default function DeathRegistrationScreen() {
       : undefined;
     setEditingDeathId(death.death_id);
     setEditingReadOnly(death.details_pending === true || death.other_complete_interview === true || ["draft_identity", "completed", "submitted"].includes(state));
+    loadIdentifiersFrom(death);
     setFields(values);
     setSex(String(values.deceased_sex ?? ""));
     setBirthMode(birthModeFor(values));
@@ -434,6 +493,7 @@ export default function DeathRegistrationScreen() {
     if (registrationSource.current === "mine" && registeredDeathCursors.current.owner === currentBootstrap) {
       registeredDeathCursors.current.byDeath[deathId] = registrationSourceCursor.current;
     }
+    loadIdentifiersFrom(fresh);
     setFields(values);
     setSex(String(values.deceased_sex ?? ""));
     setBirthMode(birthModeFor(values));
@@ -517,12 +577,17 @@ export default function DeathRegistrationScreen() {
     </View>
   );
 
+  const idShown = idTypes.length > 0 && (!editingDeathId || idEditable);
+  const idHold = Object.keys(idWarnings).length > 0;
+  const idInactive = editingDeathId && idTypes.length ? idStored.filter((entry) => entry.value && !idTypes.some((type) => type.code === entry.code)) : [];
+
   async function submit(confirmAge = false, saveOnly = false) {
     const editing = Boolean(editingDeathId);
     if (!bootstrap || (!editing && (!intake || !context)) || editingReadOnly) return;
     pendingSaveOnly.current = saveOnly;
     setMessage("");
     setNotice("");
+    const typed = Object.fromEntries(idTypes.map((type) => [type.code, idValues[type.code]]));
     const validationFields = {
       ...fields,
       deceased_name: fields.deceased_name ?? "",
@@ -537,7 +602,10 @@ export default function DeathRegistrationScreen() {
     }
     Object.assign(nextIssues, missingAgeInfoIssue(validationFields));
     setValidationIssues(nextIssues);
-    if (Object.values(nextIssues).some(Boolean) || Object.values(draftIssues).some(Boolean)) {
+    // Advice from the type's own rules; a number the rules refuse would only come back as a 422.
+    const idIssues = idShown ? identifierIssues(idTypes, typed, !editing) : {};
+    setIdErrors(Object.fromEntries(idTypes.filter((type) => idIssues[type.code]).map((type) => [type.code, identifierIssueText(type, idIssues[type.code])])));
+    if (Object.values(nextIssues).some(Boolean) || Object.values(draftIssues).some(Boolean) || Object.keys(idIssues).length) {
       setAgeConfirmationPending(false);
       setMessage(t("registerFixErrors"));
       return;
@@ -566,14 +634,16 @@ export default function DeathRegistrationScreen() {
         const locationChanges = sameFix(location, locationBase.current)
           ? {}
           : { latitude: location?.latitude ?? null, longitude: location?.longitude ?? null, accuracy_m: location?.accuracy_m ?? null };
-        if (!Object.keys(changes).length && !Object.keys(locationChanges).length) {
+        // Only active codes: the server refuses a change to a deactivated type (a stored value of one stays as it is).
+        const idChanges = idShown ? identifierChanges(Object.fromEntries(idTypes.map((type) => [type.code, idBase.current[type.code]])), typed) : {};
+        if (!Object.keys(changes).length && !Object.keys(locationChanges).length && !Object.keys(idChanges).length) {
           if (bootstrap.capabilities.registeredDeaths) showList(true);
           else router.replace("/collection");
           return;
         }
         const result = await requestClientJson<unknown>(`${INTAKE_API}/deaths/${encodeURIComponent(editingDeathId)}`, {
           method: "PATCH",
-          json: { ...changes, ...locationChanges, ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
+          json: { ...changes, ...locationChanges, ...(Object.keys(idChanges).length ? { identifiers: idChanges } : {}), ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
           csrf: bootstrap.csrf
         });
         if (!current()) return;
@@ -581,15 +651,28 @@ export default function DeathRegistrationScreen() {
           throw new ApiError(200, "malformed_response");
         }
         registrationUpdatedAt.current = result.case.updated_at;
-        if (bootstrap.capabilities.registeredDeaths) {
-          setEditingDeathId(undefined);
-          setFields({}); setLocation(null);
-          setSex("");
-          showList(true);
-          setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
-        } else {
-          router.replace({ pathname: "/collection", params: { saved: "1" } });
+        const finishEdit = () => {
+          if (bootstrap.capabilities.registeredDeaths) {
+            setEditingDeathId(undefined);
+            setFields({}); setLocation(null);
+            setSex("");
+            showList(true);
+            setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
+          } else {
+            router.replace({ pathname: "/collection", params: { saved: "1" } });
+          }
+        };
+        const duplicates = identifierWarnings(result);
+        if (Object.keys(duplicates).length) {
+          // Saved: pause on the warning. Edit stays in the form against what is now stored.
+          registrationBase.current = { ...registrationBase.current, ...fields, deceased_sex: sex };
+          locationBase.current = location;
+          idBase.current = Object.fromEntries(Object.entries(typed).filter(([, v]) => v)) as Record<string, string>;
+          idHeld.current = { onContinue: finishEdit, onEdit: () => undefined };
+          setIdWarnings(duplicates);
+          return;
         }
+        finishEdit();
         return;
       }
       const deathsLink = `${INTAKE_API}/deaths`;
@@ -608,11 +691,13 @@ export default function DeathRegistrationScreen() {
                 !["deceased_name", "date_of_death"].includes(key) && !(key === "age_years" && birthMode !== "unknown") && typeof value === "string" && value.trim() !== ""
             )
           ),
-          ...(location ? { latitude: location.latitude, longitude: location.longitude, accuracy_m: location.accuracy_m } : {})
+          ...(location ? { latitude: location.latitude, longitude: location.longitude, accuracy_m: location.accuracy_m } : {}),
+          ...(idShown && identifiersToSend(typed) ? { identifiers: identifiersToSend(typed) } : {})
         } as RegistrationInput,
         bootstrap.csrf
       );
       if (!current()) return;
+      const finishCreate = async () => {
       const mayStartInterview = !saveOnly && bootstrap.capabilities.intake &&
         hasInterviewRegistrationAccess(bootstrap.access, projectId, siteId, orgUnitId || undefined) &&
         typeof registration.case.links?.start_interview === "string";
@@ -642,6 +727,21 @@ export default function DeathRegistrationScreen() {
       );
       if (!current()) return;
       router.replace({ pathname: "/interview", params: { draftId: draft.draft.draft_id } });
+      };
+      const duplicates = identifierWarnings(registration);
+      if (Object.keys(duplicates).length) {
+        // Saved: pause on the warning. Continue goes on as after any save; Edit reopens the new case in the edit form.
+        idHeld.current = {
+          onContinue: () => void finishCreate().catch((caught: unknown) => { if (current()) setMessage(browserErrorText(caught)); }),
+          onEdit: () => router.replace({
+            pathname: "/death-registration",
+            params: { deathId: registration.case.death_id, ...(bootstrap.capabilities.intake ? {} : { registered: "mine" }) },
+          }),
+        };
+        setIdWarnings(duplicates);
+        return;
+      }
+      await finishCreate();
     } catch (error) {
       if (!current()) return;
       if (editingDeathId && error instanceof ApiError && error.status === 409 && error.code === "death_stale") {
@@ -654,6 +754,8 @@ export default function DeathRegistrationScreen() {
         setEditingReadOnly(true);
         setMessage(t("serverValidation"));
       } else {
+        const refused = identifierFieldErrors(error);
+        if (Object.keys(refused).length) setIdErrors(refused);
         setMessage(error instanceof ApiError && error.status === 422 ? t("serverValidation") : browserErrorText(error));
       }
     } finally {
@@ -854,6 +956,43 @@ export default function DeathRegistrationScreen() {
               <LocationCapture value={location} onChange={setLocation} />
             </View>
           ) : renderField(field))}
+          {idShown ? (
+            <IdentifierFields
+              types={idTypes}
+              values={idValues}
+              errors={idErrors}
+              warnings={idWarnings}
+              disabled={busy}
+              onChange={(code, value) => {
+                setIdValues((previous) => ({ ...previous, [code]: value }));
+                setIdErrors((previous) => (previous[code] ? { ...previous, [code]: "" } : previous));
+                setAgeConfirmationPending(false);
+              }}
+              onContinue={(code) => {
+                const rest = { ...idWarnings };
+                delete rest[code];
+                setIdWarnings(rest);
+                if (!Object.keys(rest).length) {
+                  const held = idHeld.current;
+                  idHeld.current = undefined;
+                  held?.onContinue();
+                }
+              }}
+              onEdit={() => {
+                const held = idHeld.current;
+                idHeld.current = undefined;
+                setIdWarnings({});
+                held?.onEdit();
+              }}
+            />
+          ) : null}
+          {idTypesFailed ? <Text style={styles.error} accessibilityRole="alert" testID="identifier-types-error">{t("idTypesLoadFailed")}</Text> : null}
+          {idInactive.length ? (
+            <View style={{ gap: 4 }} testID="identifier-inactive">
+              <IdentifierFacts identifiers={idInactive} variant="detail" />
+              <Text style={styles.muted}>{t("idInactiveNote")}</Text>
+            </View>
+          ) : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           {ageConfirmationPending ? (
             <View style={styles.card} accessibilityRole="alert">
@@ -864,9 +1003,9 @@ export default function DeathRegistrationScreen() {
               </View>
             </View>
           ) : null}
-          <Button loading={busy} disabled={busy || ageConfirmationPending} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
+          <Button loading={busy} disabled={busy || ageConfirmationPending || idHold} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
           {!editingDeathId && bootstrap?.capabilities.intake ? (
-            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending} label={t("save")} onPress={() => void submit(false, true)} />
+            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold} label={t("save")} onPress={() => void submit(false, true)} />
           ) : null}
           <Button kind="secondary" label={t("cancel")} onPress={() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {

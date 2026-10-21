@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Runtime And Operations
@@ -241,6 +241,99 @@ Operational implication:
 - admin access created through the CLI still writes the same explicit global grant row used by runtime authorization
 - targeted operational repairs are also exposed through Flask CLI commands, including
   historical Step 1 reactivation after the old final-COD deactivation behavior
+
+## Registration identifier keys
+
+Registration numbers (`map_death_identifier`, digitva-kzyp) are encrypted per
+value by `app/utils/pii_crypto.py`: AES-256-GCM under a random data key per value,
+the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
+[Death Registration Identifiers](../policy/death-registration-identifiers.md),
+"Encryption at rest".
+
+| Setting | Where | Secret? |
+| --- | --- | --- |
+| `PII_KEM_PUBLIC_KEY`, `PII_KEM_KEY_ID` | app, worker, beat (`.env`) | no |
+| `PII_BLIND_INDEX_KEY` (64 hex chars) | app, worker and beat: `docker-compose.yml` passes it, and `config.py` `load_dotenv()` reads the bind-mounted `/app/.env` in every container that mounts the checkout; production start requires it in every process that boots the app. Not in DORIS (no checkout mount, image built without `.env`) | yes |
+| `PII_KEM_PRIVATE_KEY_FILE` | app and worker only: `/run/secrets/pii_kem_private_key` | file is secret |
+| `PII_KEM_PREVIOUS_PRIVATE_KEY_FILES` | rotation only; retired keys are read, never used to wrap | file is secret |
+| `PII_KEM_PRIVATE_KEY_PATH` | compose host path of the secret. The compose default `./private/pii_kem_private_key` is the DEVELOPMENT key inside the checkout; the prod make targets pass `/data/digitva-secrets/pii_kem_private_key` (or the absolute path in `.env`), outside the checkout | - |
+| `PII_BACKUP_MAX_AGE_HOURS` | app (`.env`, optional, default 24): max age of the dump `--confirm-backup` names for `flask pii ... --apply` and `flask smartva scrub-runs --apply`; older needs `--allow-old-backup` (logged) | no |
+| `PAYLOAD_PII_SPLIT_ENABLED` | app and worker are passed it by `docker-compose.yml`, but a value in `.env` reaches every container that mounts the checkout (beat too) through `load_dotenv`; beat writes no payload. Optional, default `false`; `TestConfig` forces false. A process with it off refuses to read or write a payload version that has a side row (`PayloadSplitStateError`): payload writes store the sealed set in `map_payload_version_pii` and compare by `version_fingerprint` (PII slice 1b part II-A). **Keep false**: it is set true only in the release window right after `flask pii split-payloads --apply`, once the readers are switched (part II-B); see [pii-slice-1b.md](../kb/pii-slice-1b.md), "Release procedure" | no |
+| `IDENTIFIER_RATE_LIMIT` | app (`.env`, optional): per-user budget of requests that carry registration numbers (register, correct, write); a limiter string, default `30 per hour` | no |
+| `IDENTIFIER_SEARCH_RATE_LIMIT` | app (`.env`, optional): per-user budget of registration-number searches (`identifier_number`); a limiter string, default `120 per hour` | no |
+
+- **Request size.** There is no global `MAX_CONTENT_LENGTH` (ODK attachment and
+  interview uploads need megabytes). The intake blueprint caps each route's body
+  itself (`app/routes/api/intake.py`, `_body_limit`): 16 KB for every call that
+  carries registration numbers (413 `payload_too_large`, checked from
+  `Content-Length` and again while reading), and the reverse proxy caps the
+  rest (`client_max_body_size 55m` in `deploy/ingress-routes.conf`). The same
+  file gives `/api/v1/cases/export.csv` `proxy_buffering off` and
+  `proxy_max_temp_file_size 0`, so the plaintext CSV stream is never buffered or
+  spooled to ingress disk; `EXPORT_MAX_ROWS` (default 200000) caps its rows. A write
+  names at most 50 identifier codes and no raw value over 256 characters.
+- Production (`not debug and not testing`) refuses to start without a
+  well-formed public key, key id and blind index key, and any process with
+  `PII_KEM_PRIVATE_KEY_FILE` set refuses without a readable private key that
+  matches the public key. `minerva_celery_beat` is never given the private key:
+  no secret mount, and the checkout's `private/` is masked by an empty tmpfs
+  (`docker-compose.yml`), since every app container bind-mounts the checkout
+  as root. A process without `PII_KEM_PRIVATE_KEY_FILE` refuses to start in
+  production when it can read a key file at a default path
+  (`/run/secrets/pii_kem_private_key`, `/data/digitva-secrets/pii_kem_private_key`,
+  `<checkout>/private/pii_kem_private_key`; `pii_crypto._refuse_stray_private_key`;
+  a warning in debug). `doris_public_service` (internet-facing) mounts no
+  checkout: it runs the image's code, built without `.env` and `private/`, so
+  it holds neither key; it does not boot the main app.
+  Development and test with no public key configured use throwaway keys per
+  process, but only when every `PII_*` setting is empty: an empty public key
+  beside any other `PII_*` setting refuses to start, naming the setting.
+  `TestConfig` forces all of them empty whatever `.env` holds.
+- **Generate** (once per environment, before the first deploy): `make ensure-secrets`
+  does it for development only (private key `private/pii_kem_private_key`,
+  0600, git-ignored, inside the checkout; public settings and blind key
+  appended to `.env`). `make ensure-secrets-prod` (run by `make prod`,
+  `prod-build`, `prod-rebuild`) writes the key to `PROD_PII_KEY_PATH`
+  (default `/data/digitva-secrets/pii_kem_private_key`, directory 0700, file
+  0600, owned by the deploy user) and refuses a relative path, a path under
+  the checkout, and a key file still in `private/`. With the public
+  key already in `.env`, it adds only a missing blind key and refuses if the
+  private key file is missing; it never regenerates a key pair. Anywhere else:
+  `python scripts/generate_pii_keys.py --private-file <path> --env-file <env>`
+  (prints no key material, refuses to overwrite). Install the private key in
+  the secret store and mount it as `PII_KEM_PRIVATE_KEY_PATH`.
+- **Back up** the private key file and `PII_BLIND_INDEX_KEY` apart from the
+  database, and keep every private key that wrapped rows in a retained database
+  backup until those backups expire. **Loss of the private key is loss of the
+  numbers**: the rows (type, has number, audit) remain, the values must be
+  re-entered. A backup alone discloses no number. A restore into another
+  environment with different keys leaves values unreadable there, by design.
+- **Rotate**: generate a new pair (new key id), move the old private key into
+  `PII_KEM_PREVIOUS_PRIVATE_KEY_FILES`, set the new public key and key id, restart
+  app, worker and beat, then run `flask pii rewrap` in the app container (keyset
+  batches, idempotent, logs counts and row ids only; the data ciphertext is not
+  touched). When it reports zero failures and no rows on the old key id, drop the
+  old private key after the backup retention. Rotating `PII_BLIND_INDEX_KEY`
+  is a separate job that recomputes every index with writes paused (not built).
+- **Record sealing** (PII slice 1b; part II-A wires the payload writers
+  behind `PAYLOAD_PII_SPLIT_ENABLED`, off by default;
+  [pii-slice-1b.md](../kb/pii-slice-1b.md)): `seal_record` / `open_record`
+  seal all fields of one record (a payload version, later a register row)
+  under one data key, with the same stored formats, so `rewrap_dek` re-wraps a
+  record unchanged. Sealing needs only the public key; with the flag on a
+  payload writer also opens records (the revision carry, the enrichment
+  write, the section-cache invalidation), so the app and the worker need the
+  private key (decision 10), never beat. Unwrapped data keys
+  are cached on `flask.g` (one request or job app context, at most
+  `DEK_CACHE_MAX` = 256, `clear_dek_cache()` between batches, never
+  persisted); the private key objects are built once per process.
+- **Blind-index classes**: `subkey(class)` = HKDF-SHA256 of
+  `PII_BLIND_INDEX_KEY` with info `digitva-pii-bidx/v1/<class>` (64 bytes);
+  `class_index(class, value)` = HMAC-SHA-512 under it. Classes: `phone`,
+  `abha_number`, `abha_address`, `payload-fp` (the payload fingerprint
+  digest). No Aadhaar class. Registration numbers keep `blind_index` (raw key
+  plus type-id context). Rotating the blind key changes every class index and
+  every `pii_digest`, so they are recomputed with it.
 
 ## Attachment Delivery
 

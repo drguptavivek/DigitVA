@@ -3,7 +3,7 @@ title: Split Production Deploy Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-21
 ---
 
 # Split Production Deploy Runbook
@@ -45,6 +45,12 @@ Proxy host:
 - `sudo nginx -T | grep -E "client_max_body_size|proxy_pass|proxy_ssl_name|proxy_ssl_verify"`
   shows `client_max_body_size 55m` (or more), `proxy_pass https://<APP_PRIVATE_IP>:8000`,
   `proxy_ssl_name <BACKEND_TLS_NAME>`, `proxy_ssl_verify on`.
+- The case list CSV export (`GET /api/v1/cases/export.csv`) streams registration
+  numbers in plaintext. A proxy location for it must not buffer or spool to disk:
+  `proxy_buffering off;` and `proxy_max_temp_file_size 0;` (the app also sends
+  `X-Accel-Buffering: no`, which nginx honours, but the directives do not depend
+  on the header). `deploy/ingress-routes.conf` already has them for the ingress.
+  Check with `sudo nginx -T | grep -E "proxy_buffering|proxy_max_temp_file_size"`.
 - `sudo certbot certificates` shows the public certificate valid.
 
 Database host:
@@ -68,11 +74,26 @@ Configuration:
 ```bash
 stat -c '%a %n' /data/digitva-db.env                     # 600
 grep -E '^FLASK_(ENV|DEBUG)=' .env                        # prints nothing
-for k in PUBLIC_BASE_URL APP_BIND_IP STATIC_ASSET_VERSION ATTACHMENT_STORE S3_SERVER S3_BUCKET S3_PREFIX S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY SECRET_KEY CAPTCHA_HMAC_KEY AUTH_FACTOR_ENCRYPTION_KEY; do
+for k in PUBLIC_BASE_URL APP_BIND_IP STATIC_ASSET_VERSION ATTACHMENT_STORE S3_SERVER S3_BUCKET S3_PREFIX S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY SECRET_KEY CAPTCHA_HMAC_KEY AUTH_FACTOR_ENCRYPTION_KEY PII_KEM_PUBLIC_KEY PII_KEM_KEY_ID PII_BLIND_INDEX_KEY; do
   grep -q "^$k=." .env && echo "ok   $k" || echo "MISSING $k"
 done
 grep -q '^MAIL_BASE_URL=' .env && echo "rename MAIL_BASE_URL to PUBLIC_BASE_URL"
+# PII KEM private key: outside the checkout, deploy user, 0600 (`make prod*`
+# refuse otherwise; the checkout is bind-mounted into every app container).
+key=$(sed -n 's/^PII_KEM_PRIVATE_KEY_PATH=//p' .env | tail -n1); key=${key:-/data/digitva-secrets/pii_kem_private_key}
+stat -c '%a %U %n' "$key"                                  # 600 <deploy user>
+case "$key" in "$PWD"/*|/*/../*|[!/]*) echo "MOVE the key outside the checkout";; esac
+test ! -e private/pii_kem_private_key || echo "MOVE private/pii_kem_private_key to $key and delete the copy"
 ```
+
+**First deploy after the key move (2026-10-21 fix batch).** Hosts that kept
+the key at the old default `./private/pii_kem_private_key` must move it before
+`make prod-build`, or `make ensure-secrets-prod` stops the deploy:
+`sudo install -d -m 700 -o <deploy user> /data/digitva-secrets && mv
+private/pii_kem_private_key /data/digitva-secrets/ && chmod 600
+/data/digitva-secrets/pii_kem_private_key` (back it up apart first). Beat then
+starts with `private/` masked; DORIS runs the image's code (rebuilt by
+`make prod-build`).
 
 Certificates (expiry dates; renew first if either is within 30 days):
 

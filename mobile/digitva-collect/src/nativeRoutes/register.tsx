@@ -30,6 +30,7 @@ import { ApiError, hasInterviewRegistrationAccess, intakeContextFromAccess, type
 import {
   cleanRegistration,
   getRegistration,
+  getRegistrationRefusal,
   localToday,
   MAX_REGISTRATION_AGE,
   registrationAgeInfoIssue,
@@ -45,8 +46,15 @@ import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { platformServices } from "../platform";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
+import { IdentifierFields, identifierIssueText } from "../IdentifierFields";
 import {
+  identifierChanges, identifierFieldErrors, identifierIssues, identifierValues, isBadgeOnly,
+  type CaseIdentifier, type IdentifierType,
+} from "../identifiers";
+import {
+  getCachedIdentifierTypes,
   getCachedReferenceData,
+  refreshIdentifierTypes,
   registersDeaths,
   targetsFrom,
   type ProjectSettings,
@@ -58,7 +66,7 @@ import { MultilineInput } from "../MultilineInput";
 import { PhoneNumbers } from "../PhoneInput";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 
-type Field = keyof RegistrationFields;
+type Field = Exclude<keyof RegistrationFields, "identifiers">;
 type BirthMode = "exact" | "month-year" | "year" | "unknown";
 
 const REGISTRATION_FIELDS: Field[] = [
@@ -103,6 +111,7 @@ function registrationFieldsFromCase(value: RegistrationCase | CaseRow): Registra
     father_name: text(value.father_name),
     mother_name: text(value.mother_name),
     remarks: text(value.remarks),
+    identifiers: identifierValues(source.identifiers as CaseIdentifier[] | undefined),
   };
 }
 
@@ -333,6 +342,10 @@ export default function Register() {
   const [birthMode, setBirthMode] = useState<BirthMode>("exact");
   const [errors, setErrors] = useState<Partial<Record<Field, StringKey>>>({});
   const [message, setMessage] = useState("");
+  // Registration numbers: the project's cached types and, per code, the server's refusal of a value.
+  const [idTypes, setIdTypes] = useState<IdentifierType[]>([]);
+  const [idErrors, setIdErrors] = useState<Record<string, string>>({});
+  const [idEditable, setIdEditable] = useState(true);
   const [ageConfirmationPending, setAgeConfirmationPending] = useState(false);
   const [ageConfirmationStartAfter, setAgeConfirmationStartAfter] =
     useState(false);
@@ -441,6 +454,7 @@ export default function Register() {
           const pending = serverSource.details_pending === true || serverState === "draft_identity";
           const completed = serverSource.other_complete_interview === true || ["completed", "submitted"].includes(serverState);
           setServerReadOnly(pending || completed);
+          setIdEditable(!isBadgeOnly(serverSource.identifiers as CaseIdentifier[] | undefined) || serverSource.can_edit_identifiers === true);
           if (pending || completed) setMessage(t("registerSaveFailed"));
           setFields(serverFields);
           setBirthMode(birthModeFor(serverFields));
@@ -467,6 +481,14 @@ export default function Register() {
             projectId: serverProjectId,
           });
         } else if (existing) {
+          if (existing.state === "needs_edit") {
+            // The server refused a number: show its message under the field again.
+            const refused = await getRegistrationRefusal(handle, existing.client_death_id);
+            if (Object.keys(refused).length) {
+              setIdErrors(refused);
+              setMessage(t("serverValidation"));
+            }
+          }
           setFields(existing.fields);
           setBirthMode(birthModeFor(existing.fields));
           setTarget(
@@ -498,6 +520,26 @@ export default function Register() {
     };
   }, [account, editing, registrationOnly, serverDeathId, ownRegistrationSource, params.registrationCursor, lockVersion]);
 
+  // The project's types come from the encrypted cache filled with the case list; an empty cache asks once.
+  useEffect(() => {
+    if (!db || !account || !projectId) {
+      setIdTypes([]);
+      return undefined;
+    }
+    let active = true;
+    void (async () => {
+      let types: IdentifierType[] = [];
+      try {
+        types = await getCachedIdentifierTypes(db, projectId);
+        if (!types.length) types = (await refreshIdentifierTypes(account.user_id, db, projectId)) ?? [];
+      } catch {
+        types = [];
+      }
+      if (active) setIdTypes(types);
+    })();
+    return () => { active = false; };
+  }, [db, account?.user_id, projectId]);
+
   if (!account) return <Redirect href="/" />;
   if (registrationOnly && editing) return <Redirect href="/worklist" />;
   if (!isUnlocked(account.user_id)) {
@@ -513,6 +555,14 @@ export default function Register() {
     setAgeConfirmationPending(false);
     setAgeConfirmationStartAfter(false);
   };
+
+  const setIdentifier = (code: string, value: string) => {
+    setFields((current) => ({ ...current, identifiers: { ...current.identifiers, [code]: value } }));
+    setIdErrors((current) => (current[code] ? { ...current, [code]: "" } : current));
+    setAgeConfirmationPending(false);
+    setAgeConfirmationStartAfter(false);
+  };
+  const idShown = idTypes.length > 0 && (!serverDeathId || idEditable);
 
   const setFieldIssue = (field: Field, issue?: StringKey) => {
     setErrors((current) =>
@@ -626,7 +676,10 @@ export default function Register() {
       else nextErrors[birthMode === "exact" ? "date_of_birth" : "date_of_birth_partial"] = "errBirthOrAge";
     }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) {
+    // Advice from the type's own rules (the server checks again); a refused number would only queue as needs_edit.
+    const idIssues = idShown ? identifierIssues(idTypes, fields.identifiers ?? {}, !serverDeathId) : {};
+    setIdErrors(Object.fromEntries(idTypes.filter((type) => idIssues[type.code]).map((type) => [type.code, identifierIssueText(type, idIssues[type.code])])));
+    if (Object.keys(nextErrors).length > 0 || Object.keys(idIssues).length > 0) {
       setAgeConfirmationPending(false);
       setAgeConfirmationStartAfter(false);
       setMessage(t("registerFixErrors"));
@@ -653,6 +706,8 @@ export default function Register() {
           const nextValue = fields[field] ?? "";
           if (nextValue !== (serverBase.current[field] ?? "")) changes[field] = nextValue.trim();
         }
+        const idChanges = idShown ? identifierChanges(serverBase.current.identifiers, fields.identifiers) : {};
+        if (Object.keys(idChanges).length) changes.identifiers = idChanges;
         if (!Object.keys(changes).length) {
           router.back();
           return;
@@ -717,6 +772,8 @@ export default function Register() {
         setServerReadOnly(true);
         setMessage(t("registerSaveFailed"));
       } else {
+        const refused = identifierFieldErrors(error);
+        if (Object.keys(refused).length) setIdErrors(refused);
         setMessage(error instanceof ApiError && error.status === 422 ? t("serverValidation") : t("registerSaveFailed"));
       }
     } finally {
@@ -857,6 +914,15 @@ export default function Register() {
       </Row>
       {errorFor("deceased_sex")}
       {TEXT_FIELDS.slice(2).map(renderTextField)}
+      {idShown ? (
+        <IdentifierFields
+          types={idTypes}
+          values={fields.identifiers ?? {}}
+          errors={idErrors}
+          disabled={serverReadOnly}
+          onChange={setIdentifier}
+        />
+      ) : null}
       {message ? (
         <Text style={styles.error} accessibilityRole="alert">
           {message}

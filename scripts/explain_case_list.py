@@ -41,7 +41,9 @@ def explain(label, run):
         run()
     finally:
         sa.event.remove(db.engine, "before_cursor_execute", capture)
-    statement, parameters = captured[-1]
+    # The list also runs small lookups (identifier types, org projects); the
+    # case statement is the longest one that reads the register.
+    statement, parameters = max((c for c in captured if "va_death_register" in c[0]), key=lambda c: len(c[0]))
     print(f"\n=== {label} ===")
     connection = db.session.connection()
     for (line,) in connection.exec_driver_sql("EXPLAIN (ANALYZE, BUFFERS) " + statement, parameters):
@@ -64,11 +66,24 @@ def main():
         help="insert this many copies of an in-scope case first, ANALYZE, explain, then ROLLBACK (the dev "
              "dataset is too small to show a plan's shape; nothing is kept)",
     )
+    parser.add_argument(
+        "--outside-rows", type=int, default=0,
+        help="with --synthetic-rows: also copy a case of --outside-project this many times, interleaved in time, "
+             "so the user's scope is a minority of the table (a narrow-scope check)",
+    )
+    parser.add_argument("--outside-project", default="DEMO01", help="a project the user has no grant in")
+    parser.add_argument("--try-sql", help="run this DDL inside the rolled-back transaction before explaining "
+                                          "(try an index without keeping it)")
+    parser.add_argument("--jit-off", action="store_true",
+                        help="SET LOCAL jit = off: the aggregate's cost is high enough to trigger JIT, "
+                             "whose compile time (~250 ms here) can exceed the scan itself")
     args = parser.parse_args()
     with app.app_context():
         user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == args.email))
         if user is None:
             sys.exit("No such user.")
+        if args.jit_off:
+            db.session.execute(sa.text("SET LOCAL jit = off"))
         print("va_death_register rows:", db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister)))
         filters = case_list.CaseFilters()
         if args.synthetic_rows:
@@ -76,6 +91,15 @@ def main():
             if not scoped:
                 sys.exit("No case in scope to copy.")
             db.session.execute(sa.text(SYNTHETIC), {"n": args.synthetic_rows, "src": scoped[0]["death_id"]})
+            if args.outside_rows:
+                outside = db.session.scalar(sa.select(VaDeathRegister.death_id).where(
+                    VaDeathRegister.project_id == args.outside_project).limit(1))
+                if outside is None:
+                    sys.exit("No case in the outside project to copy.")
+                db.session.execute(sa.text(SYNTHETIC.replace("'SYN-'", "'SYO-'").replace("900000000", "950000000")),
+                                   {"n": args.outside_rows, "src": str(outside)})
+            if args.try_sql:
+                db.session.execute(sa.text(args.try_sql))
             db.session.execute(sa.text("ANALYZE va_death_register"))
             print("synthetic rows added (rolled back at the end):", args.synthetic_rows)
         explain("page", lambda: case_list.list_cases(user, preset=args.preset, filters=filters, limit=args.limit))

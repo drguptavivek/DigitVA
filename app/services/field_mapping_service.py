@@ -66,10 +66,14 @@ class FieldMappingService:
 
     def __init__(self):
         self._cache: dict = {}
+        # Bumped by clear_cache: per-request caches built from this service
+        # (the payload split's sealed sets) compare it to drop stale entries.
+        self.generation = 0
 
     def clear_cache(self):
         """Clear the in-process cache. Call after admin updates mapping data."""
         self._cache.clear()
+        self.generation += 1
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #

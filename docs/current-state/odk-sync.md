@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-21
 ---
 
 # ODK Sync And Attachments
@@ -241,6 +241,57 @@ Current enrichment sources:
 NaN-like values are normalized to missing before persistence so downstream
 consumers such as SmartVA do not receive stored `NaN` payload values.
 
+### National IDs reduced at ingest (PII slice 1a)
+
+Every incoming ODK record is passed through
+`_reduce_incoming_national_ids` (`va_data_sync_01_odkcentral.py`) before it is
+compared, fingerprinted, copied into an upstream-change row or stored: at the
+top of `_upsert_form_submissions` (every caller passes
+`enrich_payloads=False`) and inside `_enrich_submission_payload_for_storage`
+(the finalize pass and the enrichment backfill). `Id10073` keeps only its last
+3 digits as `XXXXXXXXX123`; a 12-digit (Aadhaar) or 16-digit (VID) run in any
+other string answer is masked the same way, except `Id10070`, which is only
+flagged (`app/utils/national_id.py`). Review flags are logged as field ids
+only; there is no stored flag column yet (slice 1b). The payload version
+service reduces again before every write, as a backstop.
+
+Change detection is unaffected: `normalize_payload_for_fingerprint` reduces
+national IDs on both sides, so a stored version holding the full number (from
+before slice 1a) or the reduced form compares equal to the full incoming ODK
+record. A rerun of unchanged ODK data creates no version, no upstream-change
+row and releases no coding (`tests/services/test_national_id_sync_rerun.py`).
+Only a change in the kept digits, or in any other answer, is a change. An
+"unchanged" pass that writes the version in place (the finalize pass) stores
+the reduced form in the same version. Status, commands and dev counts:
+[docs/kb/pii-slice-1a.md](../kb/pii-slice-1a.md).
+
+### Payload PII split (PII slice 1b part II-A, behind a flag)
+
+`PAYLOAD_PII_SPLIT_ENABLED` (default **false**; see
+[runtime-and-operations.md](runtime-and-operations.md)). Off, sync behaves
+exactly as above, except that a version which already has a side row in
+`map_payload_version_pii` is refused (`PayloadSplitStateError`): that form's
+sync fails, is rolled back and logged, and the other forms continue (a
+mis-set process never rewrites a split version by the old rule). On (only after `flask pii split-payloads --apply`, in the
+release window of [docs/kb/pii-slice-1b.md](../kb/pii-slice-1b.md)):
+
+- Every "same payload?" decision of the sync goes through
+  `submission_payload_version_service.payload_matches`: the incoming record is
+  split on the form type's sealed set and its `version_fingerprint` compared
+  with the stored stripped payload plus the side row's `pii_digest` (no
+  decrypt). That is `_upsert_form_submissions` (the release decision for an
+  unprotected case and the protected-case branch) and
+  `_finalize_enriched_submissions_for_form`.
+- Every write goes through `write_payload_version`: `payload_data` without
+  the sealed set, the sealed fields in `map_payload_version_pii`, new and
+  "unchanged" branches alike, so a no-op rerun never writes plaintext back.
+- Upstream-change rows store stripped copies (`payload_copy`); the data
+  manager's diff reports a sealed-field change as one row,
+  `sealed_personal_data`, decided by comparing the two versions' digests
+  (`pii_changed` in the details reply), never naming a field or a value.
+- Accepted limitation (OD1): a changed national ID with the same last 3
+  digits is not a change.
+
 ## Delta Check (Phase 1)
 
 Before fetching any submission data, the sync runs a lightweight OData count:
@@ -335,6 +386,7 @@ ODK sync no longer rebuilds a flat CSV for SmartVA. Instead:
 - sync writes normalized submission content into `va_submissions`
 - each submission also carries an active `VaSubmissionPayloadVersion`
 - SmartVA prep reads from `VaSubmissionPayloadVersion.payload_data` for the pending `va_sid` set
+- the sealed set (`PII_FIELDS` plus the form type's admin-flagged `is_pii` fields, `pii_field_registry.sealed_field_ids`) is dropped from the SmartVA input: SmartVA scores none of it
 
 This means incremental syncs do not need a form-wide CSV rebuild step. SmartVA input is derived directly from the active payload-version records for the submissions being processed.
 

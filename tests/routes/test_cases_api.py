@@ -310,8 +310,8 @@ class CaseListTests(BaseTestCase):
                 self.assertNotIn(field, row, who.email)
         self.assertEqual(self._ids(self.dana)[str(self.f.death_id)]["coder_name"], self.cody.name)
 
-    def test_supervising_roles_and_admin_need_pii_access_for_names(self):
-        # Owner, 2026-10-20: no PII bypass for admin; names are omitted, rows stay.
+    def test_supervising_roles_and_admin_see_names_as_pii_holders(self):
+        # Owner, 2026-10-21: admin is a PII holder (names shown), with no scope bypass.
         a, e, f = (str(c.death_id) for c in (self.a, self.e, self.f))
         for who, case in ((self.sue, a), (self.pip, a), (self.dana, f), (self.admin, e)):
             row = self._ids(who).get(case)

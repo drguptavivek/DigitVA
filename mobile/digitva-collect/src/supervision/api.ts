@@ -1,5 +1,6 @@
 /** Supervisor calls over the browser session. Every request goes through the shared JSON requester, which sends X-CSRFToken on mutations. */
 import type { JsonRequester } from "../workspace/api";
+import type { CaseIdentifier } from "../identifiers";
 
 const SUPERVISION_API = "/api/v1/intake/supervision";
 
@@ -27,6 +28,8 @@ export interface SupervisedCase {
   created_at: string | null;
   updated_at: string | null;
   other_complete_interview: boolean;
+  identifiers?: CaseIdentifier[];
+  can_edit_identifiers?: boolean;
 }
 
 /** The attention tiles: whole-scope counts, filters ignored (same predicates as the `needs_decision` / `overdue` / `stuck` filters). */

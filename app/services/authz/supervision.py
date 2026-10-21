@@ -150,8 +150,10 @@ def _covering_grants(
     return selects
 
 
-def supervised_case_condition(user):
-    """SQL condition on ``VaDeathRegister``: the cases *user* supervises."""
+def supervised_case_condition(user, roles: tuple[VaAccessRoles, ...] = _SUPERVISING_ROLES):
+    """SQL condition on ``VaDeathRegister``: the cases *user* supervises
+    through grants of *roles* (default: every supervising role; a narrower set
+    asks "supervises as ..." for a rule that excludes the data manager)."""
     if has_request_context() and g.get("bearer_auth"):
         # Native credentials do not carry the browser-only supervisor or
         # data-manager roles, even when the account also has collection work.
@@ -159,7 +161,7 @@ def supervised_case_condition(user):
     return sa.or_(*(
         select.exists()
         for select in _covering_grants(
-            user.user_id, _SUPERVISING_ROLES,
+            user.user_id, roles,
             VaDeathRegister.project_id, VaDeathRegister.site_id, VaDeathRegister.org_unit_id,
         )
     ))

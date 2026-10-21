@@ -46,10 +46,10 @@ from app.services.workflow.transitions import (
 )
 from app.services.workflow.upstream_changes import record_protected_upstream_change
 from app.services.submission_payload_version_service import (
-    canonical_payload_fingerprint,
     create_or_update_pending_upstream_payload_version,
     ensure_active_payload_version,
     get_active_payload_version,
+    payload_matches,
 )
 from app.models import (
     VaSubmissions,
@@ -66,6 +66,7 @@ from app.utils import (
     va_preprocess_summcatenotification,
     va_preprocess_categoriestodisplay,
 )
+from app.utils.national_id import redact_payload_national_ids
 from app.utils.va_form.va_form_02_formtyperesolution import (
     va_get_form_type_code_from_form,
 )
@@ -466,14 +467,32 @@ def _sanitize_payload_value(value):
     return value
 
 
+def _reduce_incoming_national_ids(va_submission: dict) -> dict:
+    """The incoming ODK record with national IDs reduced (PII slice 1a).
+
+    The one call every sync path makes on a record before it is compared,
+    fingerprinted, copied into an upstream-change row or stored
+    (``_upsert_form_submissions``, ``_finalize_enriched_submissions_for_form``
+    and the enrichment backfill through ``_enrich_submission_payload_for_storage``).
+    Idempotent. Review flags are logged as field ids only, never values.
+    """
+    reduced, flagged = redact_payload_national_ids(va_submission)
+    if flagged:
+        log.info(
+            "DataSync [%s]: national-ID review flag on field(s) %s",
+            va_submission.get("sid"), ",".join(sorted(set(flagged))),
+        )
+    return reduced
+
+
 def _enrich_submission_payload_for_storage(va_form, va_submission: dict, *, client=None) -> dict:
     """Return canonical OData-first payload plus required persisted metadata."""
     if client is None:
-        return _sanitize_payload_value(va_submission)
+        return _reduce_incoming_national_ids(_sanitize_payload_value(va_submission))
 
     instance_id = va_submission.get("KEY")
     if not instance_id:
-        return va_submission
+        return _reduce_incoming_national_ids(va_submission)
 
     enriched = dict(va_submission)
     xml_data = _fetch_submission_xml_enrichment(va_form, instance_id, client=client)
@@ -493,7 +512,7 @@ def _enrich_submission_payload_for_storage(va_form, va_submission: dict, *, clie
     enriched["AttachmentsExpected"] = attachment_data.get("AttachmentsExpected")
     enriched["AttachmentsPresent"] = attachment_data.get("AttachmentsPresent")
     enriched["audit"] = attachment_data.get("audit")
-    return _sanitize_payload_value(enriched)
+    return _reduce_incoming_national_ids(_sanitize_payload_value(enriched))
 
 
 def _submission_projection_fields(va_form, va_submission: dict) -> dict:
@@ -731,6 +750,8 @@ def _upsert_form_submissions(
                 va_submission,
                 client=client,
             )
+        else:
+            va_submission = _reduce_incoming_national_ids(va_submission)
         va_submission_amended = False
         created_submission = None
 
@@ -739,7 +760,6 @@ def _upsert_form_submissions(
         va_submission_formid = fields["va_form_id"]
         va_submission_updatedat = fields["va_odk_updatedat"]
         va_submission_consent = fields["va_consent"]
-        incoming_payload_fingerprint = canonical_payload_fingerprint(va_submission)
 
         existing = db.session.scalar(
             sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_submission_sid)
@@ -748,10 +768,10 @@ def _upsert_form_submissions(
         if existing:
             active_payload_version = get_active_payload_version(va_submission_sid)
             if active_payload_version is not None:
-                active_payload_changed = (
-                    canonical_payload_fingerprint(active_payload_version.payload_data or {})
-                    != incoming_payload_fingerprint
-                )
+                # Both sides through the one rule (flag on: version_fingerprint
+                # on the split incoming record vs the stored stripped payload
+                # plus its side-row digest), or every rerun is a change.
+                active_payload_changed = not payload_matches(active_payload_version, va_submission)
             else:
                 active_payload_changed = True
         else:
@@ -929,13 +949,9 @@ def _finalize_enriched_submissions_for_form(
         if existing is None:
             continue
 
-        incoming_payload_fingerprint = canonical_payload_fingerprint(enriched_submission)
         active_payload_version = get_active_payload_version(va_sid)
         if active_payload_version is not None:
-            active_payload_changed = (
-                canonical_payload_fingerprint(active_payload_version.payload_data or {})
-                != incoming_payload_fingerprint
-            )
+            active_payload_changed = not payload_matches(active_payload_version, enriched_submission)
         else:
             active_payload_changed = True
         current_state = get_submission_workflow_state(va_sid)

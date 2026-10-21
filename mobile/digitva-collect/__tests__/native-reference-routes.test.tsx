@@ -274,8 +274,8 @@ jest.mock("../src/sync", () => ({
           updated_at: "",
           next_visit_at: null,
           last_contact_at: null,
-          informant_phone_masked: null,
-          informant_phone_2_masked: null,
+          has_informant_phone: false,
+          has_informant_phone_2: false,
         },
       ],
       next_cursor: options.cursor ? null : "next",
@@ -990,8 +990,8 @@ describe("native project-aware routes", () => {
       updated_at: "",
       next_visit_at: null,
       last_contact_at: null,
-      informant_phone_masked: null,
-      informant_phone_2_masked: null,
+      has_informant_phone: false,
+      has_informant_phone_2: false,
     };
     (fetchCaseDetail as jest.Mock).mockResolvedValueOnce(detail);
     let tree: ReturnType<typeof create>;

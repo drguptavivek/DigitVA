@@ -444,6 +444,39 @@ class Config:
     # audit compatibility. They are not a live sign-in requirement.
     AUTH_FACTOR_ENCRYPTION_KEY = os.environ.get("AUTH_FACTOR_ENCRYPTION_KEY", "")
 
+    # --- Registration identifier encryption (app/utils/pii_crypto.py) ------
+    # Public KEM key + key id + blind index key: not secret except the blind
+    # key, present in every process that writes. The private key is read from
+    # a mounted secret file, only by processes that read values (app, worker).
+    # docs/current-state/runtime-and-operations.md, "Registration identifier keys".
+    PII_KEM_PUBLIC_KEY = os.environ.get("PII_KEM_PUBLIC_KEY", "")
+    PII_KEM_KEY_ID = os.environ.get("PII_KEM_KEY_ID", "")
+    PII_KEM_PRIVATE_KEY_FILE = os.environ.get("PII_KEM_PRIVATE_KEY_FILE", "")
+    PII_KEM_PREVIOUS_PRIVATE_KEY_FILES = os.environ.get("PII_KEM_PREVIOUS_PRIVATE_KEY_FILES", "")
+    PII_BLIND_INDEX_KEY = os.environ.get("PII_BLIND_INDEX_KEY", "")
+    # PII slice 1b part II-A (docs/kb/pii-slice-1b.md): payload writes store
+    # the sealed set in map_payload_version_pii and compare by
+    # version_fingerprint. Off until the readers are switched (part II-B);
+    # flipped only in the release window, right after `flask pii
+    # split-payloads --apply`, never on its own.
+    PAYLOAD_PII_SPLIT_ENABLED = os.environ.get(
+        "PAYLOAD_PII_SPLIT_ENABLED", "false"
+    ).lower() in ("true", "1", "yes")
+    # The backup gate of every bulk personal-data rewrite (`flask pii
+    # sweep-national-id/split-payloads/strip-upstream-copies --apply`, `flask
+    # smartva scrub-runs --apply`): the named dump must be at most this old
+    # unless --allow-old-backup is passed (logged).
+    PII_BACKUP_MAX_AGE_HOURS = int(os.environ.get("PII_BACKUP_MAX_AGE_HOURS", "24"))
+    # Per-user budget of requests that carry registration numbers (register,
+    # correct, any-time write): one bucket, a limiter string. Number SEARCH
+    # (GET /api/v1/cases identifier_number) has its own, wider bucket: a lookup
+    # is read-only and a desk searches many numbers an hour.
+    IDENTIFIER_RATE_LIMIT = os.environ.get("IDENTIFIER_RATE_LIMIT", "30 per hour")
+    IDENTIFIER_SEARCH_RATE_LIMIT = os.environ.get("IDENTIFIER_SEARCH_RATE_LIMIT", "120 per hour")
+
+    # Rows past which GET /api/v1/cases/export.csv answers 413 export_too_large.
+    EXPORT_MAX_ROWS = int(os.environ.get("EXPORT_MAX_ROWS", "200000"))
+
     REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
 
     # docs/policy/access-control-model.md, "Every access goes through authz".
@@ -493,6 +526,15 @@ class TestConfig(Config):
     REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False
     ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
+    # Off whatever .env holds; the split tests turn it on per test.
+    PAYLOAD_PII_SPLIT_ENABLED = False
+    # Throwaway in-process keys (app/utils/pii_crypto.py), whatever the
+    # developer's .env holds: tests must read what they write.
+    PII_KEM_PUBLIC_KEY = ""
+    PII_KEM_KEY_ID = ""
+    PII_KEM_PRIVATE_KEY_FILE = ""
+    PII_KEM_PREVIOUS_PRIVATE_KEY_FILES = ""
+    PII_BLIND_INDEX_KEY = ""
     # Use in-memory storage for the rate limiter during tests.
     RATELIMIT_STORAGE_URI = "memory://"
     # Keep test sessions out of SQLAlchemy metadata/schema lifecycle.

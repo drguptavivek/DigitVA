@@ -33,7 +33,9 @@ from app.models.va_selectives import VaStatuses
 from app.models.va_smartva_results import VaSmartvaResults
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 from app.services.open_submission_repair_service import repair_submission_current_payload
-from app.services.submission_payload_version_service import _derive_payload_metadata
+from app.services.payload_pii_accessor import get_pii, split_enabled
+from app.services.payload_pii_split import join_payload
+from app.services.submission_payload_version_service import _derive_payload_metadata, write_payload_version
 
 log = logging.getLogger(__name__)
 
@@ -1033,7 +1035,23 @@ def _flush_single_update(
     has_required_metadata: bool,
     attachments_expected: int,
 ) -> None:
-    """Write one enriched payload update in its own transaction."""
+    """Write one enriched payload update in its own transaction.
+
+    With ``PAYLOAD_PII_SPLIT_ENABLED`` the write goes through
+    ``write_payload_version`` like every other payload write. *payload_data*
+    was enriched from the stored (stripped) payload, so the opened sealed
+    fields are joined back first; enrichment adds metadata keys only, and
+    ``put_pii`` replaces the whole side row, so a stripped write would drop
+    them. Flag off: the direct update, as before."""
+    if split_enabled():
+        version = db.session.get(VaSubmissionPayloadVersion, pv_id)
+        if version is None:
+            return
+        write_payload_version(version, join_payload(payload_data, get_pii(version)))
+        version.has_required_metadata = has_required_metadata
+        version.attachments_expected = attachments_expected
+        db.session.commit()
+        return
     db.session.execute(
         sa.update(VaSubmissionPayloadVersion)
         .where(VaSubmissionPayloadVersion.payload_version_id == pv_id)

@@ -30,7 +30,7 @@ import type { AccessSummary } from "../src/api";
 import { canUseBundledFallbackForProject, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
-import { getCase, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
+import { getCase, getRegistration, getRegistrationRefusal, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -137,8 +137,8 @@ const summary = (deathId: string, projectId = PROJECT): CaseRow => ({
   updated_at: "2026-09-30T00:00:00Z",
   next_visit_at: null,
   last_contact_at: null,
-  informant_phone_masked: null,
-  informant_phone_2_masked: null
+  has_informant_phone: false,
+  has_informant_phone_2: false
 });
 
 const reference = (projects: ProjectSettings[] = [project()]): ReferenceData => ({
@@ -635,6 +635,24 @@ describe("registered phone draft sync", () => {
     expect(calls.some(({ url }) => url.endsWith("/drafts/sync"))).toBe(false);
     expect(calls.some(({ url }) => url.endsWith("/submissions"))).toBe(false);
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+  });
+
+  it("keeps the refused registration number's message with the needs_edit registration, and clears it on re-save", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const fields = { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29", identifiers: { mccd: "BAD" } };
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: REG, site_id: SITE, fields });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/deaths")) return json(422, { code: "invalid_registration", error: "MCCD number must look like MCCD123", fields: ["identifiers.mccd"] });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    await syncInterviewer(USER, db);
+    expect(await getRegistration(db, REG)).toMatchObject({ state: "needs_edit" });
+    expect(await getRegistrationRefusal(db, REG)).toEqual({ mccd: "MCCD number must look like MCCD123" });
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: REG, site_id: SITE, fields });
+    expect(await getRegistrationRefusal(db, REG)).toEqual({});
   });
 
   it("blocks a closed unfinished draft but still submits its later completed copy", async () => {

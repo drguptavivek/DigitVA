@@ -20,6 +20,7 @@ import { t, type StringKey } from "../i18n";
 import { stateLabel, Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
+import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { MapsLink } from "./LocationCapture";
 import { RegistrationFieldControl } from "./registrationControls";
 import { CodeNowButton } from "../workspace/CodeNowButton";
@@ -366,6 +367,8 @@ export default function NewCaseDetailScreen() {
             {row.other_complete_interview === true ? (
               <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
             ) : null}
+            <IdentifierFacts identifiers={row.identifiers} variant="detail" />
+            <AddIdentifierAction row={row} onChanged={() => void load()} />
             {[
               detailLine(
                 t("fieldSex").replace(/\s*\*\s*$/, ""),

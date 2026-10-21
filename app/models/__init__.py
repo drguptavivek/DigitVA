@@ -11,10 +11,16 @@ from app.models.auth_factors import (
     AuthWebauthnCredential,
 )
 from app.models.cod_search_telemetry import CodSearchTelemetry
+from app.models.map_death_identifier import (
+    MapDeathIdentifier,
+    MapIdentifierAudit,
+    MasDeathIdentifierType,
+)
 from app.models.map_icd10_legacy_reporting_alias import MapIcd10LegacyReportingAlias
 from app.models.map_instrument_translation_suggestions import (
     MapInstrumentTranslationSuggestions,
 )
+from app.models.map_payload_version_pii import MapPayloadVersionPii
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_user_notifications import MapUserNotification
@@ -121,6 +127,10 @@ from app.models.va_web_intake import (
 )
 
 __all__ = [
+    "MapDeathIdentifier",
+    "MapIdentifierAudit",
+    "MapPayloadVersionPii",
+    "MasDeathIdentifierType",
     "AuthDevice",
     "AuthDeviceEnrolmentCode",
     "AuthDeviceSession",

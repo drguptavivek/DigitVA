@@ -3,12 +3,21 @@ title: Death Registration Identifiers Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Death Registration Identifiers Policy
 
-Bead `digitva-kzyp`. Proposed baseline; nothing here is built.
+Bead `digitva-kzyp`. Proposed baseline. Status: stage 1 implemented
+(encryption helper, keys and configuration, tables and models, normalisation and
+validation rules, type configuration API with audit); stage 2 implemented
+(value writes at registration and correction, duplicate warning and
+possible-duplicate match, value reads in the case detail and every list);
+**stage 3 backend implemented** (the any-time write `PUT
+/api/v1/intake/cases/<id>/identifiers`, `can_edit_identifiers` on every case
+payload, the has / missing filter and exact number search on the case list,
+the per-user rate limit, request caps and `no-store`); the "Add registration
+number" screens, native entry (stage 4) not built; **stage 5 implemented** (the CSV export `GET /api/v1/cases/export.csv`, "CSV export" below).
 
 ## Purpose
 
@@ -68,7 +77,8 @@ numbers are often issued later.
     death reporter, interviewer and data manager are read-only on closed
     cases.
 13. **Who may configure types:** admin, `project_pi` and `data_manager`, each
-    within their project. Every change is audited. Patterns are still
+    within their project; a `data_manager` only with a **project-wide** grant,
+    not a site- or unit-scoped one (owner, 2026-10-21). Every change is audited. Patterns are still
     validated at save time (safe subset, ReDoS guard).
 14. **Who sees values:** roles with PII access in the project, and
     `collaborator_pii`. Everyone else (coders, reviewers, coding testers,
@@ -148,7 +158,7 @@ Constraints and indexes:
 - The `death_id` lookup is covered by the unique constraint's leading column;
   no extra index.
 
-Clearing a value deletes its row (the audit keeps a masked trace, below);
+Clearing a value deletes its row (the audit keeps a blind-index trace, below);
 there is no empty-string row. "Has number" is the existence of a row; there
 is no plaintext column to test.
 
@@ -180,7 +190,7 @@ decision 15). Each identifier write adds one row:
 
 - `action = 'identifiers_set'`, `from_state = to_state =` the case's current
   state (the state does not change);
-- `changes` keyed `identifier:<code>`, with `old` and `new` each a **masked
+- `changes` keyed `identifier:<code>`, with `old` and `new` each a **blind-index
   trace, never the plaintext** (see "Audit content");
 - `reason` lists only the changed type codes, never a value;
 - for a supervisor or In-charge write, the authorizing grant and cadre as for
@@ -211,14 +221,16 @@ it and normalises again.
 ## Pattern safety
 
 Patterns are entered by configurers (decision 13) and run on every write.
-`pyproject.toml` has no `re2` binding and Python's `re` has no timeout, so
-safety comes from what a pattern may contain, checked when it is saved.
+Python's `re` has no timeout, so there are two guards: what a pattern may
+contain, checked when it is saved (the safe subset), and `google-re2` (linear
+time, no backtracking), which does the matching. A gap in the subset checker
+therefore cannot become a denial of service.
 
-- **Anchored by the server.** Values are tested with `re.fullmatch`; the
+- **Anchored by the server.** Values are tested with `re2.fullmatch`; the
   configurer does not write `^` and `$` (leading `^` or trailing `$` are
-  stripped on save so both forms behave the same). Compiled with `re.ASCII`,
-  as the XForm `regex()` evaluator does
-  (`app/services/xform_expression_evaluator.py`).
+  stripped on save so both forms behave the same). ASCII semantics: re2's
+  `\d \w \s` are ASCII, matching Python `re.ASCII` as the XForm `regex()`
+  evaluator uses (`app/services/xform_expression_evaluator.py`).
 - **Length caps.** Pattern at most 200 characters; value length within the
   type's `min_length`..`max_length` (64 at most), checked **before** the
   character type and the pattern run.
@@ -231,8 +243,32 @@ safety comes from what a pattern may contain, checked when it is saved.
   greater than 64. Allowed: literals, escapes `\d \w \s` and escaped
   punctuation, character classes and ranges, `.`, groups, alternation
   between fixed alternatives, and `? * + {n} {m,n}` on a single atom.
-- **One dialect for server and app.** The subset is also valid JavaScript
-  `RegExp` syntax with the same meaning, so the Expo client can show the hint
+- **Variable-length parts are capped and kept apart.** The whole pattern
+  (groups and alternatives included) may hold at most 3 variable-length
+  parts: `*`, `+`, `?`, `{m,n}` with m different from n, and each
+  alternation. A fixed `{n}` is not variable. Two variable parts in the same
+  sequence, with only optional parts between them, may not be able to match
+  a common character (literals, classes, ranges, `\d \w \s` and `.` are
+  compared as character sets; when unsure they count as overlapping). So
+  `[A-Z]{2}\d{6}`, `MCCD/\d{4}/\d{4,6}` and `[A-Z0-9]+-[A-Z0-9]+` (the
+  literal separator breaks the run) are accepted, while `a?` repeated 30
+  times before `a`, `\d*\d*` and `\d*-?\d*` are refused. This bounds
+  backtracking on a 64-character value to a few thousand steps. The example
+  probe runs only after the pattern passes this check.
+- **A pattern must compile under both engines.** On save the pattern is
+  compiled by Python `re` (`re.ASCII`, for the subset checker) and by re2;
+  failing either is a 400 that names the reason and never echoes the pattern.
+  The stored pattern is matched with re2 only. `{,n}` is refused because
+  Python reads it as a repeat and re2 as literal text.
+- **One dialect for server and app.** Checked empirically
+  (`tests/test_death_identifier_rules.py`, Python `re` against re2, and once
+  against Node's `RegExp`) over literals, escapes, `\d \w \s`, escaped
+  punctuation, classes, `.`, groups, alternation and the repeats: results are
+  identical, including Arabic-Indic and full-width digits (not matched by
+  `\d \w`), non-ASCII letters, and `.` not matching a newline. The one
+  difference is `\s` on a vertical tab (Python ASCII and JavaScript match it,
+  re2 does not); `normalise` turns every whitespace character into a plain
+  space first, so it cannot occur. The Expo client can therefore show the hint
   and pre-check as the user types. The server is authoritative; the client
   check is advice only.
 - **Example must satisfy every rule.** Saving a type with an `example` that
@@ -249,8 +285,7 @@ safety comes from what a pattern may contain, checked when it is saved.
   as is and must be corrected in the same edit that next touches that type
   (the rule `update_death` already applies to stored register fields).
 
-**Q:** add `google-re2` (linear time) as a second guard, or is the safe
-subset enough? A dependency change needs the image rebuild in `AGENTS.md`.
+**Decided (2026-10-21):** `google-re2` added as the second guard.
 
 ## Validation and error shape
 
@@ -336,7 +371,7 @@ existing predicates; a `death_id` in a request is a claim, not permission.
 | project_pi | yes, own project | no | yes, as a supervisor of the project (`_SUPERVISING_ROLES` includes `project_pi`) | yes | yes |
 | site_pi (In-charge) | no | no | yes, any case in scope | yes | yes |
 | interview_supervisor | no | no | yes, any case in scope (`supervised_case_condition`) | yes | yes, in scope |
-| data_manager | yes, own project | no | yes, any case in project scope | **read-only** | yes |
+| data_manager | yes, own project, project-wide grant only | no | yes, any case in project scope | **read-only** | yes |
 | interviewer | no | yes, on registrations they create | yes, on cases they interviewed | **read-only** | yes, on cases in reach |
 | death_reporter | no | yes, on registrations they create | yes, on deaths they reported (`_reporter_reaches`) | **read-only** | yes, on cases they registered |
 | collaborator_pii | no | no | no | no | **yes** |
@@ -347,8 +382,14 @@ existing predicates; a `death_id` in a request is a claim, not permission.
 `should_redact_pii`: a user sees a value when they reach the case through a
 role in the "yes" rows **in that case's project**. Coding and review reach
 never shows a value, even when the same user also holds a PII-lifting grant
-in another project. Badge-only viewers get `{code, label, present: true}`
-per type, the value omitted from the payload (not blanked in the client).
+in another project. The test is per case, not per project: a user with a
+value-granting assigned grant in one unit sees values on the cases that grant
+(or supervision) reaches, and a badge on a case of the same project reached
+only by coding or by the self-coding implied interviewer grant
+(`case_list_service.identifier_value_death_ids`). A viewer who sees values
+gets `{code, label, value}` for every active type, `value: null` where none is
+stored; badge-only viewers get `{code, label, present: bool}` per type, the
+value omitted from the payload (not blanked in the client).
 
 Notes grounded in the code:
 
@@ -374,6 +415,31 @@ Notes grounded in the code:
   (and admin). `data_manager` is in `SUPERVISING_ROLES`
   (`app/services/authz/actions.py`), so the closed-case check must exclude it
   explicitly.
+- **Implemented as (stage 3 backend).** The write path is
+  `death_identifier_write.put_identifiers`; the rules are
+  `web_intake_service.identifier_write_parts` (SQL, shared by the case list
+  column and the batch flag) and `identifier_write_status`. Values and writes
+  come from ASSIGNED grants only: the interviewer grant a self-coding project
+  implies for a coder (`source = "self_coding"`) shows no value and writes
+  nothing. The interviewer "interviewed" test is `registered_by` (they
+  registered it), `started_by_user_id` or a draft of theirs that is not
+  discarded, on top of their (assigned) interviewer reach, so the `PUT` flag and
+  `PATCH` agree for a registering interviewer before the first interview.
+  `PATCH` with `identifiers` has the `PUT`'s own gate
+  (`web_intake_service.require_identifier_write`, `identifier_write_status`):
+  403 for a caller who may not change the numbers (a teammate in reach, a
+  self-coding coder), 409 `case_closed` on a closed case for everyone but a
+  supervisor, In-charge, project PI or admin; reaching a case to correct its
+  register fields is not permission to change its numbers. The register fields
+  of a closed case keep their earlier behaviour. The reply of the `PUT` (and of
+  a `PATCH`) is the interviewer detail for a caller whose interviewer or
+  reporter reach opens the case, else the trimmed supervisor row with
+  `identifiers`, `can_edit_identifiers` and `updated_at`. An
+  idempotent resend (`client_death_id`) with a different `identifiers` payload
+  returns the stored case and ignores the new numbers; a `PATCH` that carries
+  only `identifiers` without `if_updated_at` is last-write-wins; an offline
+  registration older than a newly required type is refused 422 naming
+  `identifiers.<code>`, so the client can ask for the number.
 - Supervisor reach is `supervised_case_condition` / `supervising_grant`
   (`app/services/authz/supervision.py`), which already returns nothing under
   device (bearer) credentials. Supervisor, In-charge and data manager writes
@@ -403,8 +469,11 @@ later without copying code. This replaces the earlier single symmetric
 - **DEK wrapping: hybrid PQC KEM, ML-KEM-768 (FIPS 203) combined with
   X25519.** Wrapping a DEK encapsulates to both the ML-KEM-768 public key and
   the X25519 public key; the two shared secrets are joined by a KEM combiner
-  (HKDF-SHA256 over both shared secrets, with both KEM ciphertexts / the
-  ephemeral X25519 public key and the key id in the `info`), giving a
+  (HKDF-SHA256 over both shared secrets, with the algorithm id, the key id,
+  both KEM ciphertexts / the ephemeral X25519 public key and the recipient's
+  ML-KEM and X25519 public keys in the `info`, X-Wing style, so the key
+  encryption key is bound to the recipient key pair; changed before any value
+  was written, so the `v1` prefix stands), giving a
   key-encryption key that wraps the DEK with AES-256-GCM (AAD = key id and
   algorithm id). The value stays protected while either component holds.
   **ML-KEM-1024** is the stricter option, selectable by algorithm id without a
@@ -470,32 +539,21 @@ Out of scope here.
 
 ### Library
 
-Verified on 2026-10-20 in `minerva_app_service`: the installed
-`cryptography` is **46.0.5** (`uv.lock`; `pyproject.toml` pins
-`cryptography>=42.0.0`), built against **OpenSSL 3.5.5**. Importing
-`cryptography.hazmat.primitives.asymmetric.mlkem` fails
-(`ModuleNotFoundError`); `x25519` imports. So **ML-KEM is not available in
-the installed version.**
+Verified on 2026-10-20 in `minerva_app_service`: `cryptography` was raised
+from 46.0.5 to **50.0.2** (`pyproject.toml` pins `cryptography>=48`;
+`pyopenssl` moved to 26.4.0 with it), and the wheel is built against
+**OpenSSL 4.0.3** (>= 3.5). ML-KEM first shipped in 47.0.0 for AWS-LC and
+BoringSSL builds and in 48.0.0 for OpenSSL 3.5+ (the published wheels).
+`cryptography.hazmat.primitives.asymmetric.mlkem` provides
+`MLKEM768PrivateKey` and `MLKEM768PublicKey`, and `x25519` works. The ODK
+credential, TOTP, passkey and TLS health tests pass. The 47 to 50 breaking
+changes do not touch our usage. API, sizes and a working snippet are in
+[docs/kb/cryptography-46-to-50-upgrade.md](../kb/cryptography-46-to-50-upgrade.md).
 
-Not verified by this document's author, relayed from the coordinator's
-reading of the pyca/cryptography CHANGELOG and PyPI: 48.0.0 (2026-05-04) added
-ML-KEM and ML-DSA when built with OpenSSL 3.5.0 or later, including in the
-published wheels; the latest release is 50.0.2 (2026-09-30).
-
-Decision (owner, relayed): raise the pin to `cryptography>=48` (target
-50.0.2) when this feature is built. `liboqs-python` is **not** needed and no
-extra native library goes into the images. The ML-KEM and ML-DSA calls are
-the ones documented under `hazmat/primitives/asymmetric/mlkem` and `mldsa`;
-their exact signatures must be confirmed against the installed version when
-implementing. The combiner and AES-GCM use `HKDF` and `AESGCM`, already used
-by `totp_service.py`.
-
-The upgrade from 46 to 50 needs a review of the 47 to 50 breaking changes
-(48 dropped Python 3.8, irrelevant on 3.13; the 47 to 50 notes are not yet
-read), because `cryptography` already backs the ODK credential encryption
-(`app/utils/credential_crypto.py`, Fernet and PBKDF2) and TOTP
-(`app/services/totp_service.py`, AES-GCM and HKDF). Their existing tests must
-pass on the new version.
+Decision (owner): `cryptography>=48` (landed at 50.0.2). `liboqs-python` is
+**not** needed and no extra native library goes into the images. The
+combiner and AES-GCM use `HKDF` and `AESGCM`, already used by
+`totp_service.py`.
 
 ### Where plaintext exists
 
@@ -513,10 +571,10 @@ pass on the new version.
 ### Audit content
 
 `map_case_transitions.changes` for `identifier:<code>` stores, for `old` and
-`new`, a masked trace only: `{"mask": "****0123", "bidx": "<first 16 hex of
-the blind index>"}`. The mask shows the last 4 characters only when the value
-is at least 8 characters long; shorter values are fully masked (`"****"`).
-`null` stands for "no value".
+`new`, a blind-index trace only: `{"bidx": "<first 16 hex of the blind
+index>"}`. `null` stands for "no value". No partial digits (decision 3 of
+[pii-encryption-at-rest.md](pii-encryption-at-rest.md), shipped in PII stage
+0); rows written earlier may still hold a legacy `mask` member.
 
 ### Performance
 
@@ -554,7 +612,13 @@ is at least 8 characters long; shorter values are fully masked (`"****"`).
 Moving to ML-KEM-1024 or a later algorithm is the same procedure with a new
 algorithm id. Rotating `PII_BLIND_INDEX_KEY` is a separate, rarer job that
 recomputes every `value_blind_index` (unwrap, decrypt, re-HMAC) while writes
-are paused, because old and new indexes do not compare.
+are paused, because old and new indexes do not compare. Once the proposed
+register and payload classes exist, the same job also recomputes their
+indexes, `pii_digest` and `payload_fingerprint` with sync paused; the
+Aadhaar class cannot be recomputed (the full number is not kept) and is
+re-indexed only through an ODK resync
+([pii-encryption-at-rest.md](pii-encryption-at-rest.md), "Keys and blind
+indexes", OD2).
 
 ### Backup and restore
 
@@ -654,8 +718,9 @@ with `X-CSRFToken` for browser calls.
   data manager writes are browser only.
 - **Reads**: the case detail and the list rows (worklist, reported deaths,
   supervision, the shared case list in `case-list-views.md`) carry
-  `identifiers: [{code, label, value}]` in `sort_order` for viewers allowed
-  to see values, and `[{code, label, present}]` for badge-only viewers;
+  `identifiers: [{code, label, value}]` in `sort_order` (one per active type,
+  `value: null` when none is stored) for viewers allowed to see values on that
+  case, and `[{code, label, present}]` for badge-only viewers;
   loaded in the same query as the row (one aggregated join, no per-row
   lookup), decrypted only for the rows on the page.
 - **Configuration**:
@@ -675,7 +740,24 @@ with `X-CSRFToken` for browser calls.
 
 ## CSV export
 
-Decision 9.
+Decision 9. **Implemented (stage 5):** the export is the case list export only;
+the stored data management CSVs (`/data-management/submissions/export.csv`
+and the others) are cached in the export store as files, so they never carry
+numbers. A multi-project export writes one audit row per qualifying project
+(`map_identifier_audit.project_id` is not null), the header note is the
+response header `X-Identifier-Columns: full|partial`, and the gate is
+`data_manager` or `admin` through `effective_roles` (project PI and
+In-charge hold the data manager gate). Details: `docs/current-state/api-v1.md`.
+Status (2026-10-21): the columns follow `export_roles` only (admin, or a live
+assigned `data_manager`, `project_pi` or `site_pi` grant in that project), not
+the wider "See values" set (supervisor, interviewer, death reporter,
+`collaborator_pii` see values on screen but do not export). Admin sees
+identifier values (admin is a PII holder, owner decision 2026-10-21; admin has
+no scope bypass). The audited projects and type codes are pinned for the whole
+stream; an unreadable number refuses the export (owner decision 2026-10-21,
+"Decrypt path" below; no new audit event); over
+`EXPORT_MAX_ROWS` the reply is 413 `export_too_large`; one running export per
+user; the response is not buffered by the proxy.
 
 - The case list export (`GET /api/v1/cases/export.csv`, `case-list-views.md`)
   adds one column per active identifier type of the project, in
@@ -689,11 +771,19 @@ Decision 9.
 - Decrypt path: the export streams in keyset batches; each batch loads its
   ciphertext in the same query as the rows and decrypts in memory; nothing is
   written to a temp file in plaintext.
+- **Unreadable numbers refuse the export** (owner, 2026-10-21). Before the
+  audit row and the first byte, a validation pass runs the same keyset
+  batches and decrypts every audited identifier cell in memory (no output, no
+  value logged, memory bounded by one batch). If any cell cannot be
+  decrypted the reply is 500 `export_unreadable`: no audit row, no body, no
+  file. Rejected: streaming and aborting midway, which leaves an audit row
+  saying "exported" and a truncated download. Cost: two decrypts per audited
+  number per export.
 - Audit: one `map_identifier_audit` row per export with `event =
   'export_with_identifiers'`, the exporter and role, the filter set, the row
   count and the type codes included, written before the response streams.
   No value is recorded. An export without identifier columns writes no row.
-- CSV injection: cells beginning with `=`, `+`, `-` or `@` are prefixed with
+- CSV injection: cells beginning with `=`, `+`, `-`, `@`, a newline or whitespace then one of these are prefixed with
   `'`, as for every exported text cell.
 
 ## UI
@@ -790,7 +880,7 @@ Decision 9.
 - Device credentials are refused for supervisor, In-charge and data manager
   writes.
 - Audit: one `identifiers_set` row per write with the grant; `changes` holds
-  only the mask and blind index prefix; values absent from `reason`,
+  only the blind index prefix; values absent from `reason`,
   `changes` and captured logs.
 - Export: identifier columns present for a data manager with PII access
   (assert present), absent for an exporter without it; one audit row per
@@ -815,8 +905,7 @@ Decision 9.
 
 - `data-manager-workflow.md` "Export policy" says exports omit direct local
   identifiers from bulk extracts. Decision 9 is a deliberate exception for
-  registration numbers; that policy should name it when this baseline is
-  accepted.
+  registration numbers; resolved: that policy names it (stage 5).
 - `web-intake.md` ("Death register") says register personal data follows
   "admin-only exports". Registration numbers are exported to data managers
   (and project_pi, site_pi) with PII access in the project, audited; that
@@ -829,10 +918,9 @@ Decision 9.
 
 ## Open questions
 
-1. Add `google-re2` as a second pattern guard, or rely on the safe subset?
-2. Should other PII columns (informant phones, ABHA number and address,
-   address fields) move to the same `app/utils/pii_crypto.py` helper later?
-   Each would need its own blind index decision (phones are searched by
-   suffix today, which a blind index does not support) and a staged
-   backfill of existing plaintext, re-encrypted under the same PQC
-   envelope.
+1. ~~Add `google-re2` as a second pattern guard~~ Resolved 2026-10-21: added.
+2. ~~Should other PII columns move to the same helper later?~~ Decided
+   2026-10-21: yes, register columns and payload PII fields, with Aadhaar
+   never stored in full and exact-match blind indexes only (no suffix
+   search). Baseline:
+   [pii-encryption-at-rest.md](pii-encryption-at-rest.md).

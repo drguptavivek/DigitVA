@@ -23,6 +23,7 @@ jest.mock("expo-secure-store", () => ({
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
 import {
+  cleanRegistration,
   getCase,
   isCaseDetail,
   getRegistration,
@@ -45,7 +46,7 @@ import {
   type RegistrationFields
 } from "../src/cases";
 import { createDraftStore, getDraftRow, markCompleted, migrate, type Db } from "../src/drafts";
-import { refreshCases, registersDeaths, syncInterviewer } from "../src/sync";
+import { getCachedIdentifierTypes, refreshCases, refreshIdentifierTypes, registersDeaths, syncInterviewer } from "../src/sync";
 
 const SERVER = "http://10.0.2.2:8051";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -80,7 +81,7 @@ const envelope = (id: string, data: Record<string, unknown> = { Id10013: "yes" }
   data: data as WhoVaDraft["data"]
 });
 
-type TestDetail = CaseDetail & Pick<CaseRow, "deceased_name" | "deceased_sex" | "age_years" | "date_of_death" | "informant_phone_masked" | "informant_phone_2_masked">;
+type TestDetail = CaseDetail & Pick<CaseRow, "deceased_name" | "deceased_sex" | "age_years" | "date_of_death" | "has_informant_phone" | "has_informant_phone_2">;
 
 const caseRow = (deathId: string, extra: Partial<TestDetail> = {}): TestDetail => ({
   death_id: deathId,
@@ -96,8 +97,8 @@ const caseRow = (deathId: string, extra: Partial<TestDetail> = {}): TestDetail =
   date_of_death: "2026-09-28",
   next_visit_at: null,
   last_contact_at: null,
-  informant_phone_masked: "******3210",
-  informant_phone_2_masked: null,
+  has_informant_phone: true,
+  has_informant_phone_2: false,
   source: "registration",
   details_pending: false,
   pending_flag: false,
@@ -287,6 +288,32 @@ describe("sync queue", () => {
     expect((await getRegistration(db, `${REG}-year`))?.fields.date_of_birth_partial).toBe("1987");
   });
 
+  it("keeps a registration's numbers in the queue and sends them in the POST (covered by client_death_id)", async () => {
+    const db = await freshDb();
+    await saveRegistration(db, {
+      project_id: PROJECT, client_death_id: REG, site_id: "S1",
+      fields: cleanRegistration({ ...fields, identifiers: { mccd: " mccd/2026/1 ", empty: "  " } })
+    });
+    expect((await getRegistration(db, REG))?.fields.identifiers).toEqual({ mccd: "MCCD/2026/1" });
+    mockServer(accepting());
+    await syncInterviewer(USER, db);
+    expect(calls.find((c) => path(c).endsWith("/deaths"))?.body).toMatchObject({
+      client_death_id: REG, identifiers: { mccd: "MCCD/2026/1" }
+    });
+  });
+
+  it("caches a project's identifier types in the encrypted store and reads them back; a refusal keeps the old copy", async () => {
+    const db = await freshDb();
+    const types = [{ code: "mccd", label: "MCCD number", min_length: 3, max_length: 20, char_type: null, pattern: null, example: "MCCD/1", required_at_report: false, sort_order: 1 }];
+    mockServer((call) => path(call).endsWith("/identifier-types") ? json(200, { project_id: PROJECT, identifier_types: types }) : json(204, null));
+    expect(await refreshIdentifierTypes(USER, db, PROJECT)).toEqual(types);
+    expect(await getCachedIdentifierTypes(db, PROJECT)).toEqual(types);
+    mockServer((call) => path(call).endsWith("/identifier-types") ? json(403, { error: "no", code: "project_forbidden" }) : json(204, null));
+    expect(await refreshIdentifierTypes(USER, db, PROJECT)).toBeUndefined();
+    expect(await getCachedIdentifierTypes(db, PROJECT)).toEqual(types);
+    expect(await getCachedIdentifierTypes(db, "OTHER")).toEqual([]);
+  });
+
   it("sends registrations, then attempts, then interviews, then the report and the case download, and purges each", async () => {
     const db = await freshDb();
     await offlineVisit(db);
@@ -310,7 +337,8 @@ describe("sync queue", () => {
       "/api/v1/intake/submissions",
       "/api/v1/intake/outstanding",
       "/api/v1/intake/cases",
-      `/api/v1/intake/cases/${DEATH}`
+      `/api/v1/intake/cases/${DEATH}`,
+      "/api/v1/intake/identifier-types"
     ]);
     expect(calls.find((c) => path(c).endsWith("/deaths"))?.body).toMatchObject({ client_death_id: REG, site_id: "S1", org_unit_id: "u1", ...fields });
     expect(calls.find((c) => path(c).endsWith("/attempts"))?.body).toEqual({ client_attempt_id: ATTEMPT, outcome: "reached" });

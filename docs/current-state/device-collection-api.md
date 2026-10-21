@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-21
 ---
 
 # Device Collection API (Path B server side)
@@ -285,7 +285,7 @@ behaviour.
   `site_id`, `org_unit_id`, `unit_name`, `source`, `state`,
   `details_pending`, `deceased_name`, `deceased_sex`, `age_years`,
   `date_of_death`, `pending_flag`, `next_visit_at`, `last_contact_at`,
-  `informant_phone_masked`, `informant_phone_2_masked`, `registered_by_me`,
+  `has_informant_phone`, `has_informant_phone_2` (booleans), `registered_by_me`,
   `started_by_me`, `my_draft_id`, `other_draft_active`,
   `other_draft_started_at`, `va_sid`, `other_complete_interview`, `code_now`,
   `created_at`, `updated_at`)
@@ -295,7 +295,7 @@ behaviour.
   active download with `state=`. Order: next visit soonest first (undated
   last), then `updated_at` newest first, then `death_id`; keyset-paged on
   those three, looking one row ahead (a last page of exactly `limit` rows
-  already has `next_cursor` null). Phones masked (`******1234`), no
+  already has `next_cursor` null). No phone digits (only the `has_informant_phone` booleans), no
   informant name, address or prefill. `Cache-Control: no-store`.
 - **`va_sid`** (the submission id) in a list row and in the detail only
   to the interviewer whose draft became the submission, else null: interview

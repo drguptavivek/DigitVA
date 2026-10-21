@@ -24,6 +24,7 @@ export const INTAKE_API = "/api/v1/intake";
 import type { SubmissionData, WhoVaDraft } from "@drguptavivek/who-2022-va";
 import { Platform } from "react-native";
 import type { Translations } from "./translations";
+import type { CaseIdentifier, IdentifierWarning } from "./identifiers";
 
 export interface AccessUnit {
   org_unit_id: string;
@@ -307,8 +308,8 @@ export interface CaseRow {
   org_unit_id?: string | null;
   org_unit_name?: string | null;
   unit_name?: string | null;
-  informant_phone_masked?: string | null;
-  informant_phone_2_masked?: string | null;
+  has_informant_phone?: boolean;
+  has_informant_phone_2?: boolean;
   /** Death-site GPS fix: on the register list, and on GET /intake/cases rows only for a caller who may see it (else absent). */
   latitude?: number | null;
   longitude?: number | null;
@@ -326,6 +327,10 @@ export interface CaseRow {
   can_interview?: boolean;
   created_at?: string;
   updated_at?: string;
+  /** Registration numbers: `value` for viewers who may see it, `present` for badge-only viewers. */
+  identifiers?: CaseIdentifier[];
+  /** The server's verdict on the any-time number write for this caller and case; absent means no. */
+  can_edit_identifiers?: boolean;
   [key: string]: unknown;
 }
 
@@ -361,7 +366,7 @@ export function parseRegisteredDeathPage(value: unknown): RegisteredDeathPage {
         typeof death.unique_id !== "string" || !death.unique_id.trim() || deathIds.has(death.death_id) ||
         !["status", "state", "project_id", "site_id"]
           .every((key) => optionalString(death, key)) ||
-        !["deceased_name", "deceased_sex", "date_of_death", "site_name", "unit_name", "org_unit_name", "org_unit_id", "informant_phone_masked", "informant_phone_2_masked", "last_contact_at", "next_visit_at", "updated_at"]
+        !["deceased_name", "deceased_sex", "date_of_death", "site_name", "unit_name", "org_unit_name", "org_unit_id", "last_contact_at", "next_visit_at", "updated_at"]
           .every((key) => optionalNullableString(death, key)) ||
         !(death.age_years === undefined || death.age_years === null ||
           (typeof death.age_years === "number" && Number.isFinite(death.age_years)))) {
@@ -480,6 +485,8 @@ export interface RegistrationInput {
   informant_phone?: string;
   informant_phone_2?: string;
   remarks?: string;
+  /** {type code: text}; on a correction null clears one. */
+  identifiers?: Record<string, string | null>;
 }
 
 export interface ClientRequestOptions {
@@ -912,7 +919,7 @@ export function registerDeath(
   link: string,
   input: RegistrationInput,
   csrf: ClientCsrf,
-): Promise<{ case: CaseDetail }> {
+): Promise<{ case: CaseDetail; warnings?: IdentifierWarning[] }> {
   return requestClientJson(link, { method: "POST", json: input, csrf });
 }
 

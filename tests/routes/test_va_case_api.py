@@ -971,14 +971,16 @@ class VaCaseApiTests(BaseTestCase):
         user_specific = self._get(sid, "categories/vanarrationanddocuments")
         self.assertEqual(user_specific.headers["Cache-Control"], "private, no-store, max-age=0")
 
-    def test_the_coder_path_uses_the_unredacted_coder_cache_variant(self):
+    def test_the_coder_path_renders_unredacted_and_caches_nothing(self):
+        # Only the redacted variant is ever cached (PII policy OD6): the
+        # coder's render holds PII, so it is computed fresh and not stored.
         sid = self._coding_case(payload={"FldZ": "z-val", "FldPii": "Jane Realname"})
         version = get_active_payload_version(sid).payload_version_id
         body = self._get(sid, "categories/cat1").get_json()
         values = {i["value"] for sub in body["subcategories"] for i in sub["items"]}
         self.assertEqual(values, {"z-val", "Jane Realname"})
         plain = case_content.section_data_cache_key(sid, version, "coder", "cat1")
-        self.assertIsNotNone(flask_cache.get(plain))
+        self.assertIsNone(flask_cache.get(plain))
         self.assertIsNone(flask_cache.get(f"{plain}:nopii"))
         # A redacting viewer gets the other variant and not the PII value.
         with patch("app.services.case_content_service.should_redact_pii", return_value=True):
@@ -996,12 +998,15 @@ class VaCaseApiTests(BaseTestCase):
         labels = [item["label"] for sub in body["subcategories"] for item in sub["items"]]
         self.assertEqual(labels[:3], ["Zulu", "Alpha", "Mike"])
         self.assertEqual(response.headers["Cache-Control"], "private, no-store, max-age=0")
-        # The reviewer's bucket is its own cache entry, not the coder's.
+        # The reviewer's bucket is its own cache entry, not the coder's (the
+        # redacted variant: the only one cached).
         version = get_active_payload_version(sid).payload_version_id
+        with patch("app.services.case_content_service.should_redact_pii", return_value=True):
+            self._get(sid, "categories/cat1", mode="reviewing", user=self.reviewer_id)
         self.assertIsNotNone(flask_cache.get(
-            case_content.section_data_cache_key(sid, version, "reviewer", "cat1")))
+            case_content.section_data_cache_key(sid, version, "reviewer", "cat1", redacted=True)))
         self.assertIsNone(flask_cache.get(
-            case_content.section_data_cache_key(sid, version, "coder", "cat1")))
+            case_content.section_data_cache_key(sid, version, "coder", "cat1", redacted=True)))
         nav = self._workspace(sid, mode="reviewing", user=self.reviewer_id)["categories"]
         self.assertNotIn("catc", [c["code"] for c in nav])
 
@@ -1043,10 +1048,15 @@ class VaCaseApiTests(BaseTestCase):
                 visible_category_codes=visible, user=self.base_coder_user,
             )
 
-        with self.app.test_request_context():
+        # The redacted variant, the only one cached; FldZ is not PII.
+        with self.app.test_request_context(), patch(
+            "app.services.case_content_service.should_redact_pii", return_value=True
+        ):
             coder = section("vacode")
             self.assertIn("sub1", coder["va_processedcategorydata"])
-            coder_key = case_content.section_data_cache_key(sid, version.payload_version_id, "coder", "cat1")
+            coder_key = case_content.section_data_cache_key(
+                sid, version.payload_version_id, "coder", "cat1", redacted=True
+            )
             cached = flask_cache.get(coder_key)
             self.assertIsNotNone(cached)
             # Poison the coder entry: only the coder bucket may see it.
@@ -1057,14 +1067,18 @@ class VaCaseApiTests(BaseTestCase):
             self.assertNotIn("POISON", data_manager["va_processedcategorydata"]["sub1"])
             self.assertIn("Zulu", data_manager["va_processedcategorydata"]["sub1"])
             self.assertIsNotNone(flask_cache.get(
-                case_content.section_data_cache_key(sid, version.payload_version_id, "data_manager", "cat1")
+                case_content.section_data_cache_key(
+                    sid, version.payload_version_id, "data_manager", "cat1", redacted=True
+                )
             ))
 
     def test_a_new_active_payload_version_is_not_served_the_old_cached_section(self):
         sid = self._coding_case(payload={"FldZ": "first-answer"})
 
         def zulu():
-            body = self._get(sid, "categories/cat1").get_json()
+            # Redacted: the only variant cached. FldZ is not PII.
+            with patch("app.services.case_content_service.should_redact_pii", return_value=True):
+                body = self._get(sid, "categories/cat1").get_json()
             return [i["value"] for sub in body["subcategories"] for i in sub["items"]]
 
         self.assertEqual(zulu(), ["first-answer"])
@@ -1078,12 +1092,50 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(zulu(), ["revised-answer"])
         # Dropping the entries removes every variant of the current version.
         key = case_content.section_data_cache_key(
-            sid, get_active_payload_version(sid).payload_version_id, "coder", "cat1"
+            sid, get_active_payload_version(sid).payload_version_id, "coder", "cat1", redacted=True
         )
         self.assertIsNotNone(flask_cache.get(key))
         case_content.invalidate_section_data_cache(sid)
         self.assertIsNone(flask_cache.get(key))
 
+
+    def test_a_non_redacted_render_is_never_stored_and_a_redacted_one_is(self):
+        sid = self._coding_case(payload={"FldZ": "z-val", "FldPii": "Jane Realname"})
+
+        def section_sets(spy):
+            return [c.args[0] for c in spy.call_args_list if str(c.args[0]).startswith("form_data3:")]
+
+        with patch.object(case_content.flask_cache, "set", wraps=case_content.flask_cache.set) as spy:
+            body = self._get(sid, "categories/cat1").get_json()
+            values = {i["value"] for sub in body["subcategories"] for i in sub["items"]}
+            self.assertIn("Jane Realname", values)
+            self.assertEqual(section_sets(spy), [])
+            with patch("app.services.case_content_service.should_redact_pii", return_value=True):
+                self._get(sid, "categories/cat1")
+            stored = section_sets(spy)
+        self.assertTrue(stored)
+        self.assertTrue(all(key.endswith(":nopii") for key in stored), stored)
+
+    def test_flush_deletes_every_section_key_and_nothing_else(self):
+        prefix = self.app.config.get("CACHE_KEY_PREFIX", "")
+
+        class FakeRedis:
+            def __init__(self):
+                self.keys = {f"{prefix}form_data3:a:1:coder:cat1:nopii", f"{prefix}form_data3:b:2:viewer:cat2",
+                             f"{prefix}analytics:1:kpi"}
+
+            def scan_iter(self, match, count):
+                stem = match.rstrip("*")
+                return [k for k in list(self.keys) if k.startswith(stem)]
+
+            def delete(self, *keys):
+                self.keys -= set(keys)
+                return len(keys)
+
+        fake = FakeRedis()
+        with patch.object(case_content.flask_cache.cache, "_write_client", fake, create=True):
+            self.assertEqual(case_content.flush_section_data_cache(), 2)
+        self.assertEqual(fake.keys, {f"{prefix}analytics:1:kpi"})
 
     # -- private note ---------------------------------------------------------------
 

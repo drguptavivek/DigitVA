@@ -64,6 +64,7 @@ import CollectionScreen from "../src/web/CollectionScreen";
 import DeathRegistrationScreen from "../src/web/DeathRegistrationScreen";
 import { DeathsList, DeathsListPanel } from "../src/web/DeathsList";
 import { withinLastDays } from "../src/web/caseFilters";
+import * as identifiersApi from "../src/identifiers";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
 import { getSubmittedRevisions } from "../src/client/revisions";
 
@@ -195,6 +196,21 @@ describe("DeathsList filter bar", () => {
 });
 
 describe("DeathsList cards", () => {
+  it("shows registration numbers on a card and the Add action only when the row says the caller may write", async () => {
+    mockGetCases.mockResolvedValue({ cases: [
+      { ...rows[0], identifiers: [{ code: "mccd", label: "MCCD number", value: "MCCD123" }], can_edit_identifiers: true },
+      { ...rows[1], identifiers: [{ code: "mccd", label: "MCCD number", present: false }] },
+    ], counts: {}, next_cursor: null });
+    jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue([
+      { code: "mccd", label: "MCCD number", min_length: 5, max_length: 12, char_type: null, pattern: null, example: null, required_at_report: false, sort_order: 1 },
+    ]);
+    const tree = await render(<DeathsListPanel />);
+    expect(text(tree)).toContain("MCCD123");
+    expect(text(tree)).toContain("idBadgeMissing:");
+    expect(tree.root.findAll((n) => n.props["data-label"] === "idAddAction")).toHaveLength(1);
+    await act(async () => tree.unmount());
+  });
+
   it("shows the ID once, a status badge on every card and exactly one primary action", async () => {
     const tree = await render(<DeathsListPanel />);
     const rendered = text(tree);
@@ -214,7 +230,7 @@ describe("DeathsList cards", () => {
   it("lays facts out as named list items in plain >= 14px high-contrast text, not chips", async () => {
     mockGetCases.mockResolvedValue({ cases: [{
       ...rows[0], age_years: 51, deceased_sex: "male", date_of_death: "2026-09-22", unit_name: "Taluka Hospital",
-      informant_phone_masked: "******3210", last_contact_at: "2026-10-01", next_visit_at: "2026-10-25",
+      has_informant_phone: true, last_contact_at: "2026-10-01", next_visit_at: "2026-10-25",
     }], next_cursor: null });
     const tree = await render(<DeathsListPanel />);
     const items = tree.root.findAll((n) => typeof n.type === "string" && n.props.role === "listitem");
@@ -224,13 +240,12 @@ describe("DeathsList cards", () => {
       "case-fact-sex": "metaSexA11y:male",
       "case-fact-died": "metaDiedA11y:2026-09-22",
       "case-fact-area": undefined,
-      "case-fact-phone": "metaPhoneA11y:3210",
       "case-fact-lastContact": undefined,
       "case-fact-nextVisit": undefined,
       "case-fact-caseId": "metaCaseIdA11y:UID-1",
     });
-    // The masked phone is never the accessible name (no "star star star").
-    expect(items.every((n) => !String(n.props.accessibilityLabel ?? "").includes("*"))).toBe(true);
+    // The card carries no phone fact at all, not even partial digits.
+    expect(items.some((n) => String(n.props.testID).includes("phone"))).toBe(false);
     const { ui } = jest.requireActual("../src/theme") as typeof import("../src/theme");
     for (const item of items) {
       const style = StyleSheet.flatten(item.props.style);
@@ -247,7 +262,7 @@ describe("DeathsList cards", () => {
     }
     // Order is kept: identity, then death, then contact, then the case ID.
     expect(items.map((n) => n.props.testID)).toEqual([
-      "case-fact-age", "case-fact-sex", "case-fact-died", "case-fact-area", "case-fact-phone",
+      "case-fact-age", "case-fact-sex", "case-fact-died", "case-fact-area",
       "case-fact-lastContact", "case-fact-nextVisit", "case-fact-caseId",
     ]);
     // Card buttons keep a 44px target.

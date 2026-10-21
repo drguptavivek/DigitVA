@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-21
 ---
 
 # Admin And Setup Model
@@ -158,6 +158,14 @@ Current grant roles include:
 Current scope rules include:
 
 - `data_manager` may be granted at `project` or `project_site`
+
+## Registration numbers page (digitva-kzyp)
+
+`/admin/registration-numbers` (roles admin, project_pi, data_manager) hosts the identifier-types
+panel outside Project Setup, which stays admin only. It lists the projects the caller may configure
+(`configuring_role` per project: admin, a project_pi grant, or a project-wide data_manager grant),
+preselects a single one, answers 404 for a `project_id` outside the list and 403 when the caller
+configures none. The Manage menu shows the entry to admin, project_pi and data_manager.
 
 ## Project Master
 

@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-21
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -884,7 +884,7 @@ JSON:
   device unlock (PIN, biometric) is local and is not a password.
 - Never assume `email` is non-null (`user.email` in token responses,
   `email` in `/api/v1/profile/`, user lists). Display the name; a mobile
-  number, when shown at all, is masked (`******3210`).
+  number is never shown partially: full to a viewer who may see it, else absent.
 - Never build a native code-redeem, forgot-password, reset or verify
   screen that calls these endpoints directly. `/vaauth/valogin/code` and
   the link pages are HTML forms with CSRF and CAPTCHA; open the server page

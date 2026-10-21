@@ -17,6 +17,7 @@ import { t, type StringKey } from "../i18n";
 import type { JsonRequester } from "../workspace/api";
 import { choiceQuestion } from "../workspace/QualityPanels";
 import { Button, stateLabel, useUiStyles } from "../ui";
+import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { SupervisionActions, supervisionErrorText } from "./SupervisionActions";
 
 /** Reason labels, keyed by the API's reason codes. */
@@ -36,7 +37,7 @@ function whenText(iso: string | null | undefined): string {
 }
 
 /** The list row's fields (parity with the Flask supervision page). */
-export function CaseSummary({ row }: { row: SupervisedCase }) {
+export function CaseSummary({ row, variant = "card" }: { row: SupervisedCase; variant?: "card" | "detail" }) {
   const styles = useUiStyles();
   const name = row.details_pending ? t("supervisionDetailsPending") : row.deceased_name ?? t("emptyDash");
   const facts = [
@@ -54,6 +55,7 @@ export function CaseSummary({ row }: { row: SupervisedCase }) {
         <Text style={styles.muted}>{stateLabel(row.state)}</Text>
       </View>
       <Text style={styles.muted}>{facts}</Text>
+      <IdentifierFacts identifiers={row.identifiers} variant={variant} />
       <Text style={styles.muted}>
         {t("supervisionByline", {
           registered: row.registered_by_name ?? t("emptyDash"),
@@ -89,6 +91,7 @@ export function SupervisionCaseDetail({
   const [revisionReason, setRevisionReason] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [reloads, setReloads] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -105,7 +108,7 @@ export function SupervisionCaseDetail({
     return () => {
       active = false;
     };
-  }, [request, deathId]);
+  }, [request, deathId, reloads]);
 
   if (!detail) {
     return (
@@ -148,8 +151,9 @@ export function SupervisionCaseDetail({
       <Button kind="secondary" label={t("supervisionBack")} onPress={onBack} />
       <Text style={styles.headline}>{t("supervisionCaseDetail")}</Text>
       <View style={styles.card}>
-        <CaseSummary row={row} />
+        <CaseSummary row={row} variant="detail" />
         <SupervisionActions request={request} row={row} onDone={onDone} />
+        <AddIdentifierAction row={row} onChanged={() => setReloads((count) => count + 1)} />
       </View>
 
       <View style={styles.card}>

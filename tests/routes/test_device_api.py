@@ -1386,7 +1386,8 @@ class DeviceApiTests(BaseTestCase):
 
         row = rows[str(waiting.death_id)]
         self.assertEqual(row["state"], "registered")
-        self.assertEqual(row["informant_phone_masked"], "******3210")
+        self.assertIs(row["has_informant_phone"], True)
+        self.assertNotIn("informant_phone_masked", row)
         self.assertIn("possible_duplicates", row)
         self.assertNotIn("prefill", row)
         self.assertNotIn("9876543210", response.get_data(as_text=True))

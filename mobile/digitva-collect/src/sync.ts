@@ -26,6 +26,7 @@ import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
 import { authedRawRequest, authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
+import { identifierFieldErrors, type IdentifierType } from "./identifiers";
 import {
   acknowledgeRegistration,
   ACTIVE_CASE_STATES,
@@ -38,6 +39,7 @@ import {
   listRegistrations,
   replaceCases,
   setActionState,
+  setRegistrationRefusal,
   setRegistrationState,
   upsertCase,
   type CaseDetail,
@@ -219,7 +221,11 @@ export async function syncInterviewer(
     } catch (error) {
       const refused = refusal(error);
       console.warn(`registration refused id=${reg.client_death_id} status=${refused.status} code=${refused.code ?? "-"}`);
-      if (refused.status === 422) await setRegistrationState(db, reg.client_death_id, "needs_edit");
+      if (refused.status === 422) {
+        const numbers = identifierFieldErrors(refused);
+        if (Object.keys(numbers).length) await setRegistrationRefusal(db, reg.client_death_id, numbers);
+        await setRegistrationState(db, reg.client_death_id, "needs_edit");
+      }
       failed += 1;
     }
   }
@@ -547,8 +553,37 @@ export async function refreshCases(
     }
     await replaceCases(db, project.project_id, details);
     all.push(...details);
+    await refreshIdentifierTypes(userId, db, project.project_id);
   }
   return all;
+}
+
+const IDENTIFIER_TYPES_META_KEY = "identifierTypes";
+
+/**
+ * Cache the project's active registration-number types in the encrypted store, with the case list, for
+ * offline registration (docs/policy/death-registration-identifiers.md, "Offline"). Best effort: the
+ * server answers 403 where the user neither registers nor supervises, and a failure keeps the old copy.
+ * Session errors still propagate.
+ */
+export async function refreshIdentifierTypes(userId: string, db: Db, projectId: string): Promise<IdentifierType[] | undefined> {
+  try {
+    const { body } = await authedRequest<{ identifier_types?: IdentifierType[] }>(
+      userId,
+      `${INTAKE_API}/identifier-types?project_id=${encodeURIComponent(projectId)}`
+    );
+    if (!body || !Array.isArray(body.identifier_types)) return undefined;
+    await setMeta(db, IDENTIFIER_TYPES_META_KEY, body.identifier_types, projectId);
+    return body.identifier_types;
+  } catch (error) {
+    if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
+    return undefined;
+  }
+}
+
+/** The cached types of a project ([] before the first refresh). */
+export async function getCachedIdentifierTypes(db: Db, projectId: string): Promise<IdentifierType[]> {
+  return (await getMeta<IdentifierType[]>(db, IDENTIFIER_TYPES_META_KEY, projectId)) ?? [];
 }
 
 /** The complete, validated settings pack retained for offline form use. */

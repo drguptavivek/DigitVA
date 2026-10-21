@@ -9,6 +9,7 @@ import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { Button, stateLabel, useUiStyles } from "../ui";
 import { browserErrorText } from "./common";
+import { AddIdentifierAction } from "./CaseIdentifiers";
 import { CaseSummary, SupervisionCaseDetail } from "./SupervisionCase";
 import { SupervisionActions } from "./SupervisionActions";
 
@@ -167,6 +168,7 @@ export function SupervisionPanel() {
           <CaseSummary row={row} />
           {request ? <SupervisionActions request={request} row={row} onDone={finish} /> : null}
           <Button size="sm" kind="secondary" label={t("viewDetails")} onPress={() => setSelected(row.death_id)} />
+          <AddIdentifierAction row={row} onChanged={() => setReloads((count) => count + 1)} />
         </View>
       ))}
       {nextCursor ? <Button size="sm" kind="secondary" loading={busy} label={t("loadMore")} onPress={() => void loadMore()} /> : null}

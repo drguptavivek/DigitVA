@@ -16,7 +16,7 @@ from app.models import (
     VaSubmissionWorkflowEvent,
     VaStatuses,
 )
-from app.services.submission_payload_version_service import get_payload_version
+from app.services.submission_payload_version_service import get_payload_version, payload_copy
 from app.services.workflow.definition import WORKFLOW_FINALIZED_UPSTREAM_CHANGED
 from app.services.workflow.transitions import REVISION_REQUEST_REASONS
 
@@ -77,7 +77,17 @@ def record_protected_upstream_change(
     previous_payload_version_id=None,
     incoming_payload_version_id=None,
 ):
-    """Create or update the durable record for a protected upstream ODK change."""
+    """Create or update the durable record for a protected upstream ODK change.
+
+    Both payload copies are stored with national IDs reduced (PII slice 1a):
+    the previous version may still hold a full number from before the
+    reduction, and no new row may copy it. With ``PAYLOAD_PII_SPLIT_ENABLED``
+    both copies are also stripped of the sealed set (``payload_copy``): the
+    sealed fields stay in each version's side row, and the data-manager diff
+    reports a sealed change by digest only.
+    """
+    va_sid = existing_submission.va_sid
+    incoming_va_data = payload_copy(va_sid, incoming_va_data)
     authoritative_final_id = _get_coder_final_assessment_id(existing_submission.va_sid)
     authoritative_reviewer_final_id = _get_reviewer_final_assessment_id(existing_submission.va_sid)
     pending = get_latest_pending_upstream_change(existing_submission.va_sid)
@@ -91,7 +101,9 @@ def record_protected_upstream_change(
             previous_reviewer_final_assessment_id=authoritative_reviewer_final_id,
             previous_payload_version_id=previous_payload_version_id,
             incoming_payload_version_id=incoming_payload_version_id,
-            previous_va_data=previous_version.payload_data if previous_version else {},
+            previous_va_data=(
+                payload_copy(va_sid, previous_version.payload_data) if previous_version else {}
+            ),
             incoming_va_data=incoming_va_data,
             detected_odk_updatedat=detected_odk_updatedat,
             resolution_status=UPSTREAM_CHANGE_STATUS_PENDING,
@@ -109,6 +121,10 @@ def record_protected_upstream_change(
         if incoming_payload_version_id is not None:
             pending.incoming_payload_version_id = incoming_payload_version_id
         pending.incoming_va_data = incoming_va_data
+        # A row opened before the split holds a plaintext previous copy;
+        # stripping it with the incoming one keeps the two copies in one form
+        # (lossless: the previous version holds the sealed fields).
+        pending.previous_va_data = payload_copy(va_sid, pending.previous_va_data)
         pending.detected_odk_updatedat = detected_odk_updatedat
 
     _ensure_notifications(pending)

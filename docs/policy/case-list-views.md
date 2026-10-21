@@ -3,7 +3,7 @@ title: Case List Views Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Case List Views Policy
@@ -137,7 +137,7 @@ on its own screen.
   find and reopen them; the other presets leave them out unless filtered for.
 - **Privacy** as in web-intake.md "Privacy rule (item 14)": supervisors see
   identifiers in case-administration views; coding screens keep their
-  redaction. Masked phones stay masked in the list.
+  redaction. The list carries no phone digits (a `has_informant_phone` flag only).
 - **Entry:** the Deaths tab shows these tiles and segments only to a user
   with supervision scope; `/supervision` redirects to the Deaths tab with this
   preset applied; there is no Supervision menu item. A data manager keeps
@@ -193,6 +193,16 @@ or one type).
 - **Search by registration number** is exact match only, through the blind
   index (`death-registration-identifiers.md`, "Blind index"), and only for
   users allowed to see values.
+- **As built (digitva-kzyp stage 3 backend).** `identifier=has|missing` with
+  optional `identifier_type=<code>` (the existence rule above, counts included;
+  tiles ignore every filter, as for the other filters) and
+  `identifier_number=<text>` (normalised as on a write, at most 256
+  characters, matched by blind index per active type, only on rows whose values
+  the caller sees; anything else matches nothing without saying why; counted
+  against its own per-user `IDENTIFIER_SEARCH_RATE_LIMIT`, default 120 an hour,
+  apart from the 30 an hour of the register / correct / write requests that
+  carry numbers; the search reads every active type, none is left out). Each row carries
+  `can_edit_identifiers`, which drives the **Add registration number** action.
 
 - Every option list (projects, sites, units) is limited to the user's
   granted scope, resolved server-side. An id outside scope narrows the list
@@ -277,7 +287,9 @@ Rules that are decided:
   export includes one column per active identifier type **only when the
   exporter has PII access in that project**; the columns are omitted, not
   blanked, for any other exporter. Values are decrypted in memory per
-  streamed batch. Each export that includes them writes one audit row
+  streamed batch, after a validation pass over the same batches: an unreadable
+  number refuses the export (500 `export_unreadable`, no audit row, no body;
+  owner, 2026-10-21). Each export that includes them writes one audit row
   (`map_identifier_audit`, `export_with_identifiers`: exporter, role, filter
   set, row count, type codes; never a value).
 
@@ -296,7 +308,8 @@ Proposed; names follow `api-v1.md` conventions.
 - `GET /api/v1/cases` with query: `preset`
   (`deaths|interview|coding|supervision`), `project_id`, `site_id`,
   `org_unit_id`, `status` (repeatable), `dod_from`, `dod_to`,
-  `reported_from`, `reported_to`, `has_identifier`, `cursor`, `limit`. Returns
+  `reported_from`, `reported_to`, `identifier` (`has`|`missing`),
+  `identifier_type`, `identifier_number`, `cursor`, `limit`. Returns
   `{cases, counts, next_cursor}` with `counts` per combined status (and the
   Supervision tiles) ignoring the status filter, as `list_supervised_cases`
   does, computed with the same `CASE` in one aggregate query.
@@ -352,16 +365,19 @@ Proposed; names follow `api-v1.md` conventions.
 Status stays `proposed` until the owner answers the open questions. The shared
 service (`app/services/case_list_service.py`) and `GET /api/v1/cases` and
 `/cases/filter-options` exist (`docs/current-state/api-v1.md`, "Case list").
-Not built: the Expo `CaseListScreen`, the CSV export, `has_identifier` and the
-registration-number fields (digitva-kzyp). Defaults applied, **owner-pending unless marked decided**:
+Not built: the Expo `CaseListScreen` (digitva-kzyp stage 4). **Stage 5 implemented:** `GET /api/v1/cases/export.csv` (`docs/current-state/api-v1.md`, "Case list"), with the registration-number exception above.
+The registration-number row fields and filters are built (stages 2 and 3 backend):
+`identifiers` on every row, values per the per-row `can_identifiers` test, `can_edit_identifiers`,
+the has / missing filter and the exact number search. Defaults applied, **owner-pending unless marked decided**:
 
 1. Names (**decided, owner, 2026-10-20**): the deceased name and the
    reporter, interviewer and coder names are shown to admin, anyone supervising
    the case (interview_supervisor, data_manager, In-charge, project_pi through
    `supervised_case_condition`) and a data manager's submissions reach **only
    when the caller has PII access** (`should_redact_pii` false, decided once
-   per caller as `gps_projects` does). Admin has no PII bypass and no scope
-   bypass. Without PII access those fields are omitted (not blanked); the rows
+   per caller as `gps_projects` does). Admin is a PII holder (owner, 2026-10-21: names, staff names, GPS
+   and identifier values are shown) with no scope bypass: it sees only the cases
+   the scope rules give it. Without PII access those fields are omitted (not blanked); the rows
    the scope allows are still listed. The interviewer and death_reporter on
    their reach and `collaborator_pii` keep names as before (a field role gets
    only its own staff part). Omitted for project_pi, site_pi, plain

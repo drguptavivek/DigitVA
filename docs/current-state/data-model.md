@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-21
 ---
 
 # Current Data Model
@@ -605,7 +605,9 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
   (older rows may hold free text). `address_house_street`,
   `address_village_ward`, `address_landmark` (Text, 200 characters by the
   service) beside the free-text `address`. All PII; they stay on the case and
-  are not copied into the submission payload.
+  are not copied into the submission payload. Plaintext today; encryption at
+  rest of these and the payload PII fields is proposed in
+  [PII Encryption at Rest](../policy/pii-encryption-at-rest.md).
 - `father_name`, `mother_name` (Text, nullable, 200 characters by the
   service; migration `c5e2b7a9d4f6`, `digitva-vzk.1`): optional register-form
   fields, PII. They reach the payload only as the editable prefill of WHO
@@ -695,6 +697,87 @@ access. `last_signed_in_at` (timezone-aware) is set by
 opening. The `web_sign_in` event in `auth_security_events` now also carries
 the client IP in `detail.ip` (no schema change; stored only when it parses as an address; the daily
 `wipe_sign_in_ips_task` removes it from events older than 210 days).
+
+## Death Registration Identifiers
+
+Migration `c7e3a9d1f5b2` (digitva-kzyp stage 1; policy
+[Death Registration Identifiers](../policy/death-registration-identifiers.md);
+models in `app/models/map_death_identifier.py`). Three additive tables, no
+change to `va_death_register`, no backfill; the downgrade drops them.
+
+### `mas_death_identifier_type`
+
+Per-project types of official number (CRS, MCCD, certificate): `identifier_type_id`
+(UUID PK), `project_id` (FK `va_project_master`, indexed), `code`
+(`String(32)`, unique with `project_id`), `label`, `min_length` (default 1),
+`max_length` (default 64), `char_type` (nullable; `digits`, `letters`,
+`letters_digits`, `letters_digits_hyphen_slash`), `pattern` (`String(200)`,
+nullable, safe subset and re2 compile checked on save), `example` (plaintext hint),
+`required_at_report`, `uniqueness_scope` (`none` or `project`), `sort_order`,
+`is_active`, timestamps. CHECK constraints on the scope, the length range
+(`1 <= min <= max <= 64`) and `char_type`. Never deleted, only deactivated.
+
+### `map_death_identifier`
+
+One encrypted value per type per death: `death_identifier_id` (PK), `death_id`
+(FK `va_death_register`), `identifier_type_id` (FK), `value_ciphertext`
+(`v1:aes256gcm:...`), `dek_wrapped` (`v1:aes256gcm+mlkem768x25519:<key_id>:...`),
+`value_blind_index` (hex HMAC-SHA-512, `String(128)`), `key_id`, `entered_by`,
+`entered_at`, `updated_by`, `updated_at`. `unique(death_id, identifier_type_id)`;
+non-unique `ix_map_death_identifier_type_bidx (identifier_type_id,
+value_blind_index)` (a duplicate number is a warning); `ix_map_death_identifier_key
+(key_id)` for the re-wrap job. No plaintext column exists. Written by `death_identifier_service.set_identifiers` (stage 2): the AAD is `death_id.bytes || identifier_type_id.bytes`, built by `death_identifier_service.aad` for both write and read; a cleared value deletes the row.
+
+### `map_identifier_audit`
+
+Append-only configuration and export events: `audit_id`, `project_id`, `event`
+(`type_created`, `type_updated`, `export_with_identifiers`), `actor_user_id`,
+`actor_role`, `identifier_type_id` (nullable), `details` (JSONB: changed rule
+fields `{field: {old, new}}`; never a value), `created_at`;
+`ix_map_identifier_audit_project_created (project_id, created_at)`. Stage 1
+writes the two type events. Value writes use `map_case_transitions`
+(`action = identifiers_set`, `changes` keyed `identifier:<code>` with blind-index
+traces only; legacy rows may still hold a `mask` member), not this table.
+
+## Payload Version PII
+
+### `map_payload_version_pii`
+
+Migration `d4f1b8c2a6e9` (PII slice 1b part I; policy
+[Personal Data Encryption at Rest](../policy/pii-encryption-at-rest.md),
+"Payload design"; model `app/models/map_payload_version_pii.py`; status
+[pii-slice-1b.md](../kb/pii-slice-1b.md)). Additive. **Empty until the
+release**: the writers are wired (part II-A) but write it only with
+`PAYLOAD_PII_SPLIT_ENABLED` on, which stays off until the readers are switched
+(part II-B); `flask pii split-payloads --apply` fills it for every existing
+version in the release window, and `--restore` joins it back. While it is
+empty `payload_data` holds every field. The downgrade drops it.
+
+With the flag on, `va_submission_payload_versions.payload_data` holds no
+field of the form type's sealed set (`pii_field_registry.sealed_field_ids`,
+OD9), `payload_fingerprint` is `payload_pii_split.version_fingerprint` (the
+stripped payload plus this row's `pii_digest`; flag off it stays
+`canonical_payload_fingerprint`), and
+`va_submission_upstream_changes.previous_va_data` / `incoming_va_data` are
+stripped copies. The only writer of both together is
+`submission_payload_version_service.write_payload_version`.
+
+One row per payload version: `payload_version_id` (PK, FK
+`va_submission_payload_versions`), `va_sid` (FK `va_submissions`, indexed),
+`sealed` (JSONB `{field_id: "v1:aes256gcm:..."}`, each value the JSON text of
+the answer, all under one data key per row; AAD `map_payload_version_pii ||
+0x00 || field_id || 0x00 || payload_version_id bytes`), `dek_wrapped`,
+`key_id` (`ix_map_payload_version_pii_key`, for the re-wrap job), `pii_digest`
+(keyed digest the version fingerprint is built from, so comparisons never
+decrypt), `sealed_ids` (JSONB sorted list: the sealed set the digest was
+computed under; every comparison against the row splits both sides on it, so
+an admin `is_pii` toggle never reads as a change before `split-payloads
+--apply` reruns), `abha_number_bidx` and `abha_address_bidx` (`String(128)`,
+nullable, partial indexes on not null), `blind_key_id` (first 8 hex of
+SHA-256 of the blind key), `review_flags` (JSONB list of field ids the
+national-ID sweep flagged; ids only), `created_at`, `updated_at`. Read and
+written only by `app/services/payload_pii_accessor.py`. Deleted with its
+version by the synthetic demo reset (`DELETE_TABLES`).
 
 ## ICD Reference Master Table
 

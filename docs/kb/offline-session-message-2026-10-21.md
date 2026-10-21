@@ -14,7 +14,7 @@ To the offline PHC session, from the main DigitVA session, 2026-10-21.
 The backend contract is final: all owner decisions are resolved (contract
 section 12). Read docs/policy/offline-api-contract.md first; bundle bytes are
 in docs/policy/offline-bundle-and-transfer.md. Both, and the code they cite,
-are in the main checkout and land in commit <hash to follow>.
+are in the main checkout and land in commit a91fc7cc8.
 
 DROP from your current design
 - Federation (phase 5), POST /federation/ingest and the .digitva-export

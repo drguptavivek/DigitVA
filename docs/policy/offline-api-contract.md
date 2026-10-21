@@ -30,7 +30,7 @@ file, `app/utils/national_id.py`, `app/utils/pii_crypto.py`,
 `app/services/death_identifier_rules.py`,
 `tests/fixtures/pii_envelope_vectors.json`, and edits to
 `app/services/pii_field_registry.py`. The owner commits them (commit
-`<hash to follow>`); line numbers below are of the working tree on 2026-10-21
+`a91fc7cc8`); line numbers below are of the working tree on 2026-10-21
 and may move by a few lines in that commit. Do not build against a line
 number, build against the named function.
 

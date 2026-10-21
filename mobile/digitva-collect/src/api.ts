@@ -553,6 +553,12 @@ export function abortClientRequests(): void {
   cookieRequests.clear();
 }
 
+/** Read the in-memory per-launch bearer token injected by the local station shell, if present. */
+export function getLocalStationLaunchToken(): string | undefined {
+  const candidate = (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: unknown }).__DIGITVA_LAUNCH_TOKEN__;
+  return typeof candidate === "string" && candidate.trim() !== "" ? candidate.trim() : undefined;
+}
+
 export async function requestJson<T>(
   server: string,
   path: string,
@@ -562,7 +568,11 @@ export async function requestJson<T>(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (json !== undefined) headers["Content-Type"] = "application/json";
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
-  else if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+  else {
+    if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+    const launchToken = !server ? getLocalStationLaunchToken() : undefined;
+    if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
+  }
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 30_000;
   const abortFromCaller = () => controller.abort(options.signal?.reason);
@@ -686,7 +696,11 @@ export async function requestRaw(
 ): Promise<RawApiResponse> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
-  else if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+  else {
+    if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+    const launchToken = !server ? getLocalStationLaunchToken() : undefined;
+    if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
+  }
   if (options.ifNoneMatch !== undefined) {
     if (!/^"[0-9a-f]{64}"$/.test(options.ifNoneMatch)) throw new ApiError(400, "invalid_request");
     headers["If-None-Match"] = options.ifNoneMatch;

@@ -2,54 +2,52 @@
 title: Offline PHC Desktop Edition Policy
 doc_type: policy
 status: active
-owner: engineering
-last_updated: 2026-10-20
+owner: Vivek Gupta
+last_updated: 2026-10-21
 ---
 
 # Offline PHC Desktop Edition Policy
 
 ## Purpose
 
-The **DigitVA Field / PHC Edition** enables a Medical Officer (MO) at a remote Primary Health Centre (PHC) to operate completely offline on a desktop workstation (Windows, macOS, Linux) and synchronize completed verbal autopsy (VA) cases with a central DigitVA server either via an encrypted offline export package (`.digitva-export`) or via direct HTTPS push when connectivity is available.
+The **DigitVA Field / PHC Edition** enables health workers and Medical Officers (MOs) at a remote Primary Health Centre (PHC) station to operate offline on a desktop or tablet workstation (Windows, macOS, Linux, Android) using **pure Rust and compiled JavaScript only** (zero Python runtime, zero Docker runtime, zero C/Fortran extensions), and synchronize records with a central DigitVA server either via direct HTTPS (`/api/v1/*` with a device bearer token) or via a signed, hybrid-KEM-sealed `.dvb` bundle ([offline-api-contract.md](../from-server/2026-10-21/policy/offline-api-contract.md), [offline-bundle-and-transfer.md](../from-server/2026-10-21/policy/offline-bundle-and-transfer.md)).
 
 ## Scope Boundaries
 
-### Included in the Standalone Desktop Edition
+### Included in the Offline PHC Station Edition
 
-1. **Station Provisioning**:
-   - Offline file import of a signed `.digitva-config` provisioning package issued by the central server (`Ed25519` signature verification).
-   - Online one-time enrollment code exchange against the central server when initial connectivity is available.
-2. **Standardized Forms & Data Collection**:
-   - Death registration (intake) and standardized `WHO_2022_VA` + enabled project extensions (`@drguptavivek/who-2022-va`) rendered via the shared React/Expo client (`mobile/digitva-collect`).
-3. **Offline SmartVA Automated Scoring**:
-   - In-process execution of `vendor/smartva-analyze` + DigitVA transformation (`app/utils/va_smartva`) embedded into the Rust runtime via `PyO3`, with `TariffPrep` validation matrices cached in memory and zero C/Fortran extension dependencies.
-4. **Offline ICD-10 / ICD-11 / DORIS / CoDEdit Coding**:
-   - Local FTS5 reference catalogs (`mas_icd10_2019_2`, `mas_icd11_mms`, `mas_icd_search_terms`, `mas_va_cause_definitions`, `map_icd_cod_buckets`) stored in SQLite.
-   - Managed local sidecar running the official WHO ICD-11 API `2.6.0` (`ICD-API.dll` + `DorisRuleEngine.dll`) against pre-staged offline `2026-01_en` and `DORIS_v2.1_1.2.0` bundles on `127.0.0.1:0` with zero outbound network requests.
-5. **Local Results, WHO MCCD PDF Export & Federated Sync**:
-   - **WHO Standard Medical Certificate of Cause of Death (MCCD) PDF Export**: Deterministic offline A4 PDF generation (`GET /api/v1/cases/<va_sid>/certificate.pdf`) following the official WHO International Form of Medical Certificate of Cause of Death layout:
-     - **Administrative & Identification Header**:
-       - **Unique IDs**: Death Registration ID (`death_id`), VA Submission / Case UID (`va_sid` / `instance_id`), and Station ID (`station_id`).
-       - **Site & Project**: Project Name & Code (`project_id`), PHC / Facility Site Name & Code (`site_code`, `site_name`).
-       - **Deceased Details**: Deceased Name, Sex, Date of Birth, Date of Death, Age at Death, and Place of Death.
-     - **Frame A — Medical Data**: Part 1 (Lines `a`, `b`, `c`, `d` causal sequence with condition text, ICD-10/ICD-11 codes, and human-readable time interval from onset to death) and Part 2 (Other significant conditions contributing to death).
-     - **Frame B — Other Medical Data**: Surgery within 4 weeks, Autopsy requested/findings used, Manner of death, External cause date/description/place of occurrence, Fetal or infant death details, and Pregnancy/maternal death details (respecting V1–V6 applicability rules in `docs/policy/doris-certificate-rules.md`).
-     - **Underlying Cause of Death (UCOD) & Certification Footer**:
-       - DORIS-computed UCOD (when applicable) and MO-confirmed Final Underlying Cause of Death (Code + Title + VA Cause Group).
-       - **Coded By**: Medical Officer Name, Coder ID / Email, and PHC Site.
-       - **Date Coded**: Certification date and timezone-aware timestamp, plus physical Signature/Stamp block and cryptographic certificate verification digest.
-   - Local summary table and CSV export of registered deaths, interview status, SmartVA top causes, and physician-assigned underlying causes of death (UCOD).
-   - Federated outbox producing AEAD-encrypted (`X25519` + `ChaCha20-Poly1305`) and station-signed (`Ed25519`) `.digitva-export` bundles for offline transfer or direct HTTPS push to `POST /api/v1/federation/ingest`.
+1. **Station Onboarding, Custodian, and Signed Station Config (`digitva-bundle` & `digitva-db`)**:
+   - Real fieldwork is ingestable only from an **onboarded** station with a verified **custodian** (`{name, designation, phone, email, onboarded_on, verified_by_user_id}`) and an admin-signed two-line `.station-config` file (`b"digitva-station-config-v1\x00" || line1`).
+   - An unprovisioned standalone installation operates strictly as a **local sandbox** (`project_id = 1`, `PHC-STANDALONE`): sandbox data is local-only, never exported as a `.dvb` bundle, and never remapped into a server project.
+   - Station roster (`death_reporter`, `interviewer`, `station_supervisor`, `coder`): editable in the standalone sandbox, read-only on a provisioned station (using integer server `user_id`s). A `station_supervisor` role is a roster-level role (never in `/api/v1/me/access`) issued by the server only to a user holding an `interview_supervisor` grant at that site. Every record carries `actor_user_id` and `acting_role`.
+
+2. **Registration-Time DPDP Consent, Identifiers, and Aadhaar Reduction (`digitva-text`, `digitva-db`, `mobile/digitva-collect`)**:
+   - **DPDP Consent at Registration**: Respondent consent is captured at death registration (`client_draft_id: null`) before any informant personal data (`informant_name`, `informant_phone`, `informant_phone_2`, `address*`) is saved. The interview reuses the case's granted registration consent and re-asks only when the informant is a different person (`client_draft_id` set). Provisioned projects never fall back to hardcoded notices, purposes, or contacts.
+   - **Web-Only Consent Withdrawal & Purge**: Consent withdrawal is recorded on the central web application only. The station receives sorted UUIDs to erase via the `purge` list in the signed station config and in `.dvb` bundle receipts.
+   - **Registration Identifiers & Phones**: Validated with NFKC + uppercase + collapsed-whitespace normalisation and anchored full-match regexes (`^(?:...)$`); `letters_digits_hyphen_slash` excludes spaces. Case replies return `identifiers` as a sorted list (`[{code, label, value}]` for value viewers, `[{code, label, present}]` for `coder`) and `warnings: [{code: "identifier_in_use", field, message}]` without other cases' IDs. Indian mobile numbers normalise to 10 ASCII digits (dropping leading `+91`, `91`, or `0` when 10 digits remain) with no partial phone digits anywhere.
+   - **Aadhaar / National ID (`Id10073`)**: Reduced at capture to `XXXXXXXXX` + last 3 ASCII digits (`XXXXXXXXX123`) or `XXXXXXXXXXXX` (`< 3` digits), with `answers_sha256` computed over the reduced text and no Aadhaar hash or full number ever stored.
+
+3. **Station Supervisor Corrections (`death_correction` & `identifiers_set`)**:
+   - On a provisioned station, a roster user acting as `station_supervisor` may correct death registration details (`death_correction` / `PATCH /api/v1/intake/deaths/<id>`) **only until the interview is completed** (`409 case_completed` thereafter), and may set registration identifiers (`identifiers_set` / `PUT /api/v1/intake/cases/<id>/identifiers`) both before and after interview completion.
+   - Closed cases (`cancelled`, `duplicate`) cannot be modified on the station (`409 case_closed`) and require the web.
+
+4. **Offline SmartVA Scoring & Sealed-Field Exclusion (`digitva-smartva`)**:
+   - Pure-Rust in-memory execution of the WHO 2022 -> PHMRC transformation and SmartVA Tariff 2.0 scoring engine (`desktop/crates/digitva-smartva`).
+   - Coder views, SmartVA inputs, and station CSV exports strip the union of the 19-field `PII_FIELDS_FLOOR` (`Id10007`, `Id10010`, `Id10010a`, `Id10010b`, `Id10010c`, `Id10017`, `Id10018`, `Id10055`, `Id10057`, `Id10061`, `Id10062`, `Id10070`, `Id10071`, `Id10072`, `Id10073`, `visit_address`, `visit_remarks`, `abha_number`, `abha_address`) and the project's `sealed_field_ids` from the signed station config.
+
+5. **Offline ICD-10 / ICD-11 / DORIS Coding & Unwatermarked MCCD PDF (`digitva-icd11` & `digitva-pdf`)**:
+   - Local FTS5 reference catalogs (`mas_icd10_2019_2`, `mas_icd11_mms`, `mas_icd_search_terms`, `mas_va_cause_definitions`, `map_icd_cod_buckets`) and in-process WHO ICD-11 `2.6.0` / DORIS engine (`desktop/crates/digitva-icd11`).
+   - Deterministic A4 WHO Medical Certificate of Cause of Death (MCCD) PDF generation (`desktop/crates/digitva-pdf`) printed normally **without** a provisional watermark.
+
+6. **Data Protection, SQLCipher Per-User Stores & Sealed `.dvb` Bundles (`digitva-pii`, `digitva-bundle`, `digitva-db`, `digitva-server`)**:
+   - **SQLCipher (`bundled-sqlcipher`)**: Local database encrypted at rest using a 256-bit key derived via `HKDF-SHA256` from the OS keystore secret + roster user ID + user PIN (6–16 ASCII digits). Enforces inactivity auto-lock and wipes the user's local store after 5 consecutive wrong PIN attempts (`403 store_wiped_max_pin_attempts`).
+   - **PII Envelope (`digitva-pii`)**: Implements [pii-envelope-format.md](../from-server/2026-10-21/policy/pii-envelope-format.md) (`v1:aes256gcm+mlkem768x25519:` DEK wrapping to the server's public key only, `v1:aes256gcm:` value sealing with `record_aad`, and HKDF/HMAC blind indexing).
+   - **`.dvb` Bundle Transfer (`digitva-bundle`)**: Writes line-oriented `.dvb` files (JCS manifest line, Ed25519 `b"digitva-bundle-v1\x00"` signature line, and AEAD-sealed record lines in canonical order) and verifies signed server receipts (`b"digitva-receipt-v1\x00"`), deleting local records only upon matching receipt acknowledgement (`received_sha256` verified for interviews).
+   - **Loopback Server (`digitva-server`)**: Binds `127.0.0.1` only, requires a constant-time per-launch 256-bit bearer token on every `/api/v1/*` route (GETs included), validates `Host` and `Origin` against DNS rebinding, sends `Cache-Control: no-store` on every reply, and emits zero CORS headers.
 
 ### Excluded (Central Server Responsibilities Only)
 
-- Organization hierarchy management (`mas_org_level`, `mas_org_unit`, `ltree`), cadres, and mentoring institutes.
-- Multi-user administration, role/grant management, and supervision/reconciliation queues.
-- ODK Central synchronization (`pyodk`) and Celery/Redis background workers.
-- UI translation dictionary authoring.
-
-## Data Protection & Idempotency Rules
-
-1. **No Raw Sensitive Payloads in Logs**: Local desktop logs and federation logs must never emit raw VA answers, narratives, or tokens.
-2. **Cryptographic Envelope**: Every `.digitva-export` package is encrypted to the central server's `X25519` public key from the station's `.digitva-config` and signed by the station's local `Ed25519` key.
-3. **Idempotent Central Ingestion**: Every record in a federated export carries a deterministic `(station_id, instance_id, revision_hash)` key so repeated imports or HTTPS retries never duplicate or overwrite newer records on the central server.
+- Unpacking or ingesting `.dvb` bundles, holding server private KEM keys, or sealing at rest with server private keys.
+- Authoritative cross-case duplicate matching, workflow routing, or recording consent withdrawals.
+- Closed-case corrections and server-level supervision (`supervised_case_condition`).
+- Peer-to-peer station federation.

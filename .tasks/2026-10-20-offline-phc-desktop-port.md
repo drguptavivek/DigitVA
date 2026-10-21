@@ -1,21 +1,20 @@
 # Task: Offline PHC Desktop Port (`digitva-ke83`)
 
-- **Status**: in_progress
+- **Status**: completed
 - **Priority**: P1
 - **Created**: 2026-10-20
-- **Goal**: Build the standalone offline desktop edition of DigitVA ("DigitVA Field / PHC Edition") using Rust + Tauri v2 + PyO3 (in-process SmartVA) + bundled WHO ICD-11 2.6.0 / DORIS sidecar + SQLite + React/Expo UI (`mobile/digitva-collect`).
-- **Context**: Medical Officers (MOs) in remote Primary Health Centres (PHCs) need to register deaths, conduct standardized WHO 2022 VA interviews, run automated SmartVA scoring, assign ICD-10 / ICD-11 causes of death with full DORIS & CoDEdit checks, view local results, and export encrypted `.digitva-export` bundles or push over HTTPS when connectivity is available—without requiring central server multi-tenant administration, ODK Central sync, PostgreSQL, or Redis/Celery.
+- **Completed**: 2026-10-21
+- **Goal**: Build the offline PHC station edition of DigitVA ("DigitVA Field / PHC Edition") in pure Rust and compiled TypeScript/React Native (`digitva-pii`, `digitva-bundle`, `digitva-text`, `digitva-smartva`, `digitva-icd11` + `vendor/who-icd11-api`, `digitva-pdf`, `digitva-db`, `digitva-server`, and `mobile/digitva-collect`), aligned to the finalised 2026-10-21 Offline API Contract v1 (`offline-api/1`, commits `a91fc7cc8` / `8af8d0710`).
 - **References**:
+  - `docs/from-server/2026-10-21/kb/offline-session-message-2026-10-21.md`
+  - `docs/from-server/2026-10-21/policy/offline-api-contract.md`
+  - `docs/from-server/2026-10-21/policy/offline-bundle-and-transfer.md`
+  - `docs/from-server/2026-10-21/policy/pii-envelope-format.md`
   - `docs/policy/offline-phc-desktop-edition.md`
-  - `app/services/smartva_service.py`
-  - `app/utils/va_smartva/`
-  - `vendor/smartva-analyze/src/smartva/`
-  - `app/services/who_icd_api.py`
-  - `app/services/doris_processing.py`
-  - `mobile/digitva-collect/`
-- **Expected Scope**:
-  - **Phase 1 (`digitva-ke83.1`)**: Pure-Python in-memory SmartVA runner (zero C extensions, cached `TariffPrep.process_training_data()`) + Rust `PyO3` crate (`desktop/crates/digitva-smartva`) with golden parity tests.
-  - **Phase 2 (`digitva-ke83.2`)**: Offline WHO ICD-11 2.6.0 / DORIS sidecar manager & Rust client crate (`desktop/crates/digitva-icd11`).
-  - **Phase 3 (`digitva-ke83.3`)**: Local SQLite schema, migrations, and FTS5 reference catalog seeder (`desktop/crates/digitva-db`).
-  - **Phase 4 (`digitva-ke83.4`)**: Rust Axum `/api/v1/*` local server + WHO Standard MCCD PDF generator (`GET /api/v1/cases/<va_sid>/certificate.pdf` via `desktop/crates/digitva-pdf`) + station provisioning (`.digitva-config` + online enrollment code) + federated export/push (`.digitva-export`) (`desktop/crates/digitva-server`, `desktop/crates/digitva-crypto`, `desktop/src-tauri`).
-  - **Phase 5 (`digitva-ke83.5`)**: Central Server Flask federation endpoints (`app/routes/api_v1/federation_routes.py`, `app/services/federation_service.py`).
+- **Completed Scope**:
+  - **Phase 1 (`digitva-ke83.1`)**: Pure-Rust in-memory SmartVA runner (`desktop/crates/digitva-smartva`, 8,273/8,273 corpus parity) and unwatermarked WHO Standard MCCD A4 PDF generator (`desktop/crates/digitva-pdf`).
+  - **Phase 2 (`digitva-ke83.2`)**: Offline WHO ICD-11 2.6.0 / DORIS pure-Rust engine (`vendor/who-icd11-api` & `desktop/crates/digitva-icd11`).
+  - **Phase 3 (`digitva-ke83.3`)**: SQLCipher (`bundled-sqlcipher`) local store with HKDF-SHA256 per-user PIN key derivation, auto-lock, and 5-attempt store wipe; station roster (`death_reporter`, `interviewer`, `station_supervisor`, `coder`) & custodian onboarding; registration-time DPDP consent gate; anchored identifier validation & phone normalisation; supervisor correction rules (`death_correction` before interview completion, `identifiers_set` before/after, closed cases refused); and FTS5 reference catalogs (`desktop/crates/digitva-db`, `desktop/crates/digitva-text`).
+  - **Phase 4 (`digitva-ke83.4`)**: Loopback-only Rust Axum `/api/v1/*` server (`desktop/crates/digitva-server`) with per-launch 256-bit bearer token, `Host`/`Origin` validation, `Cache-Control: no-store`, zero CORS headers, and frontend alignment in `mobile/digitva-collect` (`consent.ts`, `identifiers.ts`, `roster.ts`, `StationRosterScreen.tsx`, `DeathRegistrationScreen.tsx`, `SettingsScreen.tsx`).
+  - **Phase 5 (`digitva-ke83.5`)**: Dropped per server contract 2026-10-21 (central server bundle ingest is owned by server bead `digitva-gb8w.2`).
+  - **Phase 6 (`digitva-ke83.6`)**: Hybrid `ML-KEM-768 + X25519` PII envelope crate (`desktop/crates/digitva-pii`, passing all 48 committed vectors + `check_pii_blob.py` both ways) and `.dvb` bundle writer / receipt & station-config verifier crate (`desktop/crates/digitva-bundle`).

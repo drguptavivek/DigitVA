@@ -5,6 +5,7 @@
  * requester, which sends X-CSRFToken on every mutation.
  */
 import { ApiError, INTAKE_API, requestClientJson, type ClientCsrf } from "./api";
+import { formatPhone, normalisePhone as normalisePhoneStrict } from "./phoneFormat";
 
 export type IdentifierCharType = "digits" | "letters" | "letters_digits" | "letters_digits_hyphen_slash";
 
@@ -227,3 +228,89 @@ export function loadIdentifierTypes(projectId: string, csrf?: ClientCsrf): Promi
 export function clearIdentifierTypeCache(): void {
   typeCache.clear();
 }
+
+// ---------------------------------------------------------------------------
+// Offline contract helpers reusing central identifier & phone primitives
+// ---------------------------------------------------------------------------
+
+export type IdentifierTypeSpec = IdentifierType & {
+  id?: number;
+  project_id?: number | string;
+  description?: string;
+  required_at_registration?: boolean;
+  active?: boolean;
+};
+
+export type CaseIdentifierValueItem = CaseIdentifier;
+
+export interface IdentifierInUseWarning extends IdentifierWarning {
+  code: "identifier_in_use";
+}
+
+export function normaliseIdentifier(raw: string | null | undefined): string | null {
+  const cleaned = cleanIdentifier(raw);
+  return cleaned || null;
+}
+
+export function validateIdentifier(
+  raw: string | null | undefined,
+  rule: IdentifierTypeSpec,
+): { valid: true; value: string | null } | { valid: false; error: string } {
+  const norm = normaliseIdentifier(raw);
+  const isRequired = Boolean(rule.required_at_report ?? rule.required_at_registration);
+  if (norm === null) {
+    if (isRequired) return { valid: false, error: `${rule.label} is required.` };
+    return { valid: true, value: null };
+  }
+  const broken = checkIdentifier(rule, norm);
+  if (broken === "length") {
+    return { valid: false, error: `${rule.label} must be between ${rule.min_length} and ${rule.max_length} characters.` };
+  }
+  if (broken === "char_type") {
+    return { valid: false, error: `${rule.label} contains characters not permitted for type '${rule.char_type}'.` };
+  }
+  if (broken === "pattern") {
+    const example = typeof rule.example === "string" ? rule.example.trim() : "";
+    return {
+      valid: false,
+      error: example ? `${rule.label} must look like ${example}.` : `${rule.label} does not match the required format.`,
+    };
+  }
+  return { valid: true, value: norm };
+}
+
+export function normalisePhone(raw: string | null | undefined): string | null {
+  return typeof raw === "string" ? normalisePhoneStrict(raw) : null;
+}
+
+export function formatPhone334(digits10: string | null | undefined): string {
+  const norm = normalisePhone(digits10);
+  return norm ? formatPhone(norm) : "";
+}
+
+/**
+ * The 19 sealed PII field IDs from Contract Section 6.6 (`PII_FIELDS`).
+ */
+export const PII_FIELDS_FLOOR = [
+  "Id10007",
+  "Id10010",
+  "Id10010a",
+  "Id10010b",
+  "Id10010c",
+  "Id10017",
+  "Id10018",
+  "Id10055",
+  "Id10057",
+  "Id10061",
+  "Id10062",
+  "Id10070",
+  "Id10071",
+  "Id10072",
+  "Id10073",
+  "visit_address",
+  "visit_remarks",
+  "abha_number",
+  "abha_address",
+] as const;
+
+export type SealedPiiFieldId = (typeof PII_FIELDS_FLOOR)[number];

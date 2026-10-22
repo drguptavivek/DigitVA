@@ -77,6 +77,7 @@
   "termsRequired": "Please accept the terms before continuing.",
   "errNoGrant": "This account has no access to any project.",
   "codingReviewPending": "This account has no active coding or review access.",
+  "codingOnWeb": "Coding and review are done in the DigitVA web app, not on this phone. Open the web app in a browser and sign in there.",
   "caseIdRequired": "Open a case from an authorized queue or worklist.",
   "viewCase": "View a case",
   "caseIdentifier": "Case identifier",

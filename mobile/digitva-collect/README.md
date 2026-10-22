@@ -27,8 +27,15 @@ The browser build is hosted by the Flask server at `/app/`. It uses the
 existing secure server sign-in flow, then loads the authorized collection
 worklist from the server. A field worker can register a death, start or resume
 a WHO VA interview, save sections to a server draft, change the questionnaire
-language, and submit after validation. Coding and review navigation will appear
-when those workspaces are implemented in Expo.
+language, and submit after validation. Coders and reviewers use the coding and
+review workspaces in the browser build.
+
+The Android app is **collection only** (owner, 2026-10-22): enrolment,
+sign-in, PIN, consent, death registration, interviews, drafts, attachments,
+sync and settings. The native `/coding`, `/reviewing` and `/workspace` routes
+show "Coding and review are done in the DigitVA web app"
+(`src/nativeRouteScreens.native.tsx`), and a coder-only account sees the same
+message after sign-in. The browser build keeps coding and review.
 
 The reported-deaths list opens case details for follow-up, visit scheduling,
 and starting or resuming an interview. Both clients fetch authorized details by
@@ -259,7 +266,9 @@ ANDROID_HOME=~/Library/Android/sdk ./gradlew assembleDebug -PreactNativeArchitec
 ```
 
 `android/` is generated and not committed. The Android package id
-(`org.digitva.collect`, owner decision pending) lives only in `app.json`.
+`com.causeofdeathindia.digitvacollect` (owner, 2026-10-22) lives only in
+`app.json`; a future coding app will be `com.causeofdeathindia.digitvacoder`.
+Signed per-ABI release APKs: `docs/current-state/android-release-builds.md`.
 
 ## Checks
 

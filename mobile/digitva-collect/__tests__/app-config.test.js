@@ -63,9 +63,9 @@ describe("Expo release configuration", () => {
   it("rejects version codes above the Android limit", () => {
     process.env.DIGITVA_ANDROID_RELEASE_BUILD = "1";
     process.env.EXPO_PUBLIC_API_BASE_URL = "https://digitvav3.causeofdeathindia.com";
-    process.env.DIGITVA_ANDROID_VERSION_CODE = "2100000001";
+    process.env.DIGITVA_ANDROID_VERSION_CODE = "210000000";
     expect(() => appConfig({ config: require("../app.json").expo })).toThrow(
-      "between 1 and 2100000000"
+      "between 1 and 209999999"
     );
   });
 });

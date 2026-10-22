@@ -107,6 +107,37 @@ if not os.path.isfile(os.path.join(target, "index.html")):
 os.remove(path)
 PY
 
+# ---- Android APK: one asset of a CI-published DigitVA release, or nothing ----
+FROM python:3.13-slim AS android_apk
+ARG ANDROID_APK_TAG
+ARG ANDROID_APK_ASSET
+ARG ANDROID_APK_SHA256
+RUN TAG="$ANDROID_APK_TAG" ASSET="$ANDROID_APK_ASSET" SHA="$ANDROID_APK_SHA256" python - <<'PY'
+import hashlib, os, re, sys, urllib.request
+
+tag, asset, sha = (os.environ.get(k, "") for k in ("TAG", "ASSET", "SHA"))
+target = "/opt/digitva/android"
+os.makedirs(target)
+if not (tag or asset or sha):
+    print("No Android APK pinned: /download/android answers 404.")
+    sys.exit(0)
+if not (tag and sha and re.fullmatch(r"[A-Za-z0-9._-]+\.apk", asset)):
+    sys.exit("ERROR: ANDROID_APK_TAG, ANDROID_APK_ASSET (*.apk) and ANDROID_APK_SHA256 go together")
+url = f"https://github.com/drguptavivek/DigitVA/releases/download/{tag}/{asset}"
+path = os.path.join(target, asset)
+for attempt in range(3):
+    try:
+        urllib.request.urlretrieve(url, path)
+        break
+    except OSError:
+        if attempt == 2:
+            raise
+digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+if digest != sha:
+    sys.exit(f"ERROR: {asset} SHA-256 {digest} does not match the pin {sha}")
+print(f"{asset}: OK")
+PY
+
 # ---- Runtime: minimal image ----
 FROM python:3.13-slim AS runtime
 
@@ -130,6 +161,8 @@ COPY --from=builder /app/.venv /app/.venv
 COPY --from=smartva_rs /usr/local/bin/smartva-rs /usr/local/bin/smartva-rs
 # The Expo web export, also outside /app; EXPO_CLIENT_DIST points here.
 COPY --from=expo_web /opt/digitva/expo-client /opt/digitva/expo-client
+# The pinned Android APK (or an empty folder), served at /download/android.
+COPY --from=android_apk /opt/digitva/android /opt/digitva/android
 
 # Copy application code
 COPY . .

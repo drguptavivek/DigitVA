@@ -70,7 +70,7 @@ from app.services.va_code_mapping_public_service import (
     icd11_state_csv_row,
     public_origin_display,
 )
-from app.services.worker_enrolment_service import valid_android_apk_url
+from app.services.worker_enrolment_service import hosted_android_apk, valid_android_apk_url
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
 log = logging.getLogger(__name__)
@@ -414,6 +414,7 @@ def page(slug):
     page_context = {}
     if slug == "mobile-app":
         page_context["mobile_app_url"] = valid_android_apk_url()
+        page_context["hosted_apk"] = hosted_android_apk()
     return render_template(
         "help/help_base.html",
         page_slug=slug,
@@ -424,6 +425,19 @@ def page(slug):
         **page_context,
         **_base_ctx(),
     )
+
+
+@help_bp.get("/download/android")
+@limiter.limit("30 per minute")
+def download_android():
+    """The APK this server hosts (the pinned CI release asset), public like
+    the mobile-app help page; 404 when the image pinned none."""
+    name = hosted_android_apk()
+    if name is None:
+        abort(404)
+    folder = current_app.config["DIGITVA_ANDROID_APK_DIR"]
+    return send_file(os.path.join(folder, name), mimetype="application/vnd.android.package-archive",
+                     as_attachment=True, download_name=name, max_age=300)
 
 
 @help_bp.route("/help/icd-codes/search-demo")

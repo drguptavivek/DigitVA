@@ -1,7 +1,5 @@
 import { View } from "react-native";
 
-import { CodingScreen, ReviewingScreen, WorkspaceScreen } from "./nativeRoutes/workspaceScreens";
-
 /** Browser fallback for legacy native-only routes. */
 function BrowserNativeRoute() {
   return <View />;
@@ -17,6 +15,6 @@ export const SignIn = BrowserNativeRoute;
 export const Unlock = BrowserNativeRoute;
 export const Worklist = BrowserNativeRoute;
 export const Revision = BrowserNativeRoute;
-export const Coding = CodingScreen;
-export const Reviewing = ReviewingScreen;
-export { WorkspaceScreen as Workspace };
+export const Coding = BrowserNativeRoute;
+export const Reviewing = BrowserNativeRoute;
+export const Workspace = BrowserNativeRoute;

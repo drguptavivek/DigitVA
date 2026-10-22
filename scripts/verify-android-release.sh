@@ -70,7 +70,7 @@ badging=$("$aapt" dump badging "$apk")
 package_name=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
 version_code=$(sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
 app_label=$(sed -n "s/^application-label:'\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
-[[ "$package_name" == org.digitva.collect ]] || {
+[[ "$package_name" == com.causeofdeathindia.digitvacollect ]] || {
   echo "unexpected Android package: ${package_name:-missing}" >&2
   exit 1
 }
@@ -96,13 +96,10 @@ grep -Fq "$expected_api" "$bundle_file" || {
   echo "embedded JavaScript does not contain the configured HTTPS API origin" >&2
   exit 1
 }
-# Metro may retain development-only strings used by the debug QR flow. Inspect
-# the allowlist's local bundle context instead of rejecting unrelated RN text.
-expected_offset=$(grep -abo -F "$expected_api" "$bundle_file" | head -n 1 | cut -d: -f1)
-context_start=$((expected_offset > 2048 ? expected_offset - 2048 : 0))
-allowlist_context=$(dd if="$bundle_file" bs=1 skip="$context_start" count=4096 2>/dev/null)
+# src/enrolment.ts keeps its debug origins behind __DEV__, so a release bundle
+# must not contain them anywhere (Hermes packs strings without code context).
 for dev_origin in 'http://localhost:8051' 'http://10.0.2.2:8051'; do
-  if grep -Fq "$dev_origin" <<<"$allowlist_context"; then
+  if grep -Fq "$dev_origin" "$bundle_file"; then
     echo "embedded JavaScript contains a development API origin: $dev_origin" >&2
     exit 1
   fi

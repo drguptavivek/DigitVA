@@ -14,8 +14,12 @@
 export const ENROLMENT_DOMAIN = "causeofdeathindia.com";
 /** Production origin; the release build's documented default API origin. */
 export const DEFAULT_RELEASE_SERVER = `https://digitva.${ENROLMENT_DOMAIN}`;
-/** Debug builds may also reach a dev server from the emulator or over adb reverse. */
-const DEBUG_SERVERS = ["http://10.0.2.2:8051", "http://localhost:8051"];
+/**
+ * Debug builds may also reach a dev server from the emulator or over adb
+ * reverse. Empty in release (`__DEV__` is false there), so the strings never
+ * enter a release bundle and scripts/verify-android-release.sh can reject them.
+ */
+const DEBUG_SERVERS = __DEV__ ? ["http://10.0.2.2:8051", "http://localhost:8051"] : [];
 /** One DNS label: ASCII letters, digits and inner hyphens. Punycoded (xn--) labels stay ASCII. */
 const LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 

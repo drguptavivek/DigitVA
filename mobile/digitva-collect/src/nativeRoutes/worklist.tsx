@@ -12,7 +12,7 @@ import {
   useLocalSearchParams,
   useRouter,
 } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -51,9 +51,6 @@ import {
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import RegisteredDeaths from "./RegisteredDeaths";
-import { CodeNowButton } from "../workspace/CodeNowButton";
-import { createWorkspaceApi } from "../workspace/api";
-import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 
 function displayDate(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
@@ -123,10 +120,6 @@ function InterviewWorklist() {
   }>();
   const { accounts, reload, lockNow, lockVersion, syncAccount } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
-  const workspaceApi = useMemo(
-    () => account ? createWorkspaceApi(createNativeWorkspaceTransport(account.user_id)) : undefined,
-    [account?.user_id],
-  );
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [revisions, setRevisions] = useState<RevisionRow[]>([]);
@@ -819,8 +812,6 @@ function InterviewWorklist() {
     <Screen title={t("worklistTitle")}>
       <ContextualHelpBanner screen="collection" />
       <Text style={styles.muted}>{account.name}</Text>
-      {account.coding_access ? <Button label={t("navCoding")} onPress={() => router.push({ pathname: "/coding", params: { userId: account.user_id } })} /> : null}
-      {account.reviewing_access ? <Button label={t("navReview")} onPress={() => router.push({ pathname: "/reviewing", params: { userId: account.user_id } })} /> : null}
       {account.registered_deaths_access ? (
         <Button
           kind="secondary"
@@ -934,17 +925,8 @@ function InterviewWorklist() {
             <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
           ) : null}
           {row.code_now === true ? (
-            <Text style={styles.muted}>{t("readyForCode")}</Text>
+            <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
           ) : null}
-          {account?.coding_access === true && row.code_now === true && typeof row.va_sid === "string" && workspaceApi ? <CodeNowButton
-            api={workspaceApi}
-            vaSid={row.va_sid}
-            onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { userId: account.user_id, vaSid, mode: "coding" } })}
-            onAccessLost={() => {
-              void reload();
-              router.replace({ pathname: "/workspace", params: { userId: account.user_id } });
-            }}
-          /> : null}
           {(() => {
             const metaSummary = [
               fieldValue(

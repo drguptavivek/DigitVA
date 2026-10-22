@@ -9,7 +9,7 @@ on:
         default: false
         type: boolean
       tag:
-        description: Release tag (required when publish is true, for example android-v0.1.0)
+        description: Release tag (required when publish is true, for example android-v0.2.0)
         required: false
         type: string
 
@@ -19,9 +19,8 @@ permissions:
   contents: read
 
 env:
-  EXPO_PUBLIC_API_BASE_URL: https://digitvav3.causeofdeathindia.com
+  EXPO_PUBLIC_API_BASE_URL: https://digitva.causeofdeathindia.com
   DIGITVA_ANDROID_RELEASE_BUILD: "1"
-  DIGITVA_ANDROID_VERSION_CODE: ${{ github.run_number }}
 
 jobs:
   build:
@@ -112,25 +111,37 @@ jobs:
             exit 1
           }
           printf 'version=%s\n' "$app_version" >> "$GITHUB_OUTPUT"
+          # Base versionCode from the version (0.2.0 -> 200); each ABI APK
+          # gets base * 10 + ABI digit (plugins/with-android-abi-splits.js).
+          IFS=. read -r major minor patch <<<"$app_version"
+          (( minor < 100 && patch < 100 )) || { echo "minor and patch must be below 100" >&2; exit 1; }
+          printf 'DIGITVA_ANDROID_VERSION_CODE=%s\n' "$((major * 10000 + minor * 100 + patch))" >> "$GITHUB_ENV"
 
       - name: Generate the native Android project
         working-directory: mobile/digitva-collect
         run: npx expo prebuild --platform android --clean --non-interactive
 
-      - name: Build the signed release APK
+      - name: Build the signed per-ABI release APKs
         working-directory: mobile/digitva-collect/android
         run: ./gradlew --no-daemon clean assembleRelease
 
-      - name: Verify and checksum the APK
+      - name: Verify and checksum the APKs
         id: verify
+        env:
+          APP_VERSION: ${{ steps.app_version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          apk="$(find mobile/digitva-collect/android/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
-          test -n "$apk"
-          scripts/verify-android-release.sh "$apk" "$ANDROID_RELEASE_CERT_SHA256" "$EXPO_PUBLIC_API_BASE_URL" "$DIGITVA_ANDROID_VERSION_CODE"
-          cp "$apk" "$RUNNER_TEMP/digitva-collect.apk"
-          (cd "$RUNNER_TEMP" && sha256sum digitva-collect.apk > digitva-collect.apk.sha256)
+          apk_dir=mobile/digitva-collect/android/app/build/outputs/apk/release
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          for abi_digit in armeabi-v7a:1 arm64-v8a:2; do
+            abi="${abi_digit%%:*}"
+            apk="$apk_dir/app-${abi}-release.apk"
+            scripts/verify-android-release.sh "$apk" "$ANDROID_RELEASE_CERT_SHA256" "$EXPO_PUBLIC_API_BASE_URL" "$((DIGITVA_ANDROID_VERSION_CODE * 10 + ${abi_digit##*:}))"
+            name="digitva-collect-${APP_VERSION}-${abi}.apk"
+            cp "$apk" "$RUNNER_TEMP/release-assets/$name"
+            (cd "$RUNNER_TEMP/release-assets" && sha256sum "$name" > "$name.sha256")
+          done
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -138,9 +149,7 @@ jobs:
           name: digitva-collect-android-${{ github.sha }}
           if-no-files-found: error
           retention-days: 14
-          path: |
-            ${{ runner.temp }}/digitva-collect.apk
-            ${{ runner.temp }}/digitva-collect.apk.sha256
+          path: ${{ runner.temp }}/release-assets/
 
       - name: Remove signing material
         if: always()
@@ -174,12 +183,14 @@ jobs:
             echo "Release tag must exactly match Expo version: $expected_tag" >&2
             exit 1
           fi
-          test -s release-assets/digitva-collect.apk
-          test -s release-assets/digitva-collect.apk.sha256
+          for abi in armeabi-v7a arm64-v8a; do
+            test -s "release-assets/digitva-collect-${APP_VERSION}-${abi}.apk"
+            test -s "release-assets/digitva-collect-${APP_VERSION}-${abi}.apk.sha256"
+          done
           gh release create "$release_tag" \
-            release-assets/digitva-collect.apk \
-            release-assets/digitva-collect.apk.sha256 \
+            release-assets/digitva-collect-"${APP_VERSION}"-*.apk \
+            release-assets/digitva-collect-"${APP_VERSION}"-*.apk.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "DigitVA ${APP_VERSION}" \
-            --notes "Signed DigitVA Android APK for $release_tag."
+            --notes "Signed DigitVA Collect Android APKs for $release_tag: arm64-v8a for most phones, armeabi-v7a for older 32-bit phones."

@@ -8,22 +8,18 @@ jest.mock("../src/nativeRoutes/sign-in", () => ({ __esModule: true, default: () 
 jest.mock("../src/nativeRoutes/unlock", () => ({ __esModule: true, default: () => null }));
 jest.mock("../src/nativeRoutes/worklist", () => ({ __esModule: true, default: () => null }));
 jest.mock("../src/nativeRoutes/revision", () => ({ __esModule: true, default: () => null }));
-jest.mock("../src/nativeRoutes/workspaceScreens", () => ({
-  CodingScreen: () => null,
-  ReviewingScreen: () => null,
-  WorkspaceScreen: () => null,
-}));
 
 import CodingRoute from "../app/coding";
 import ReviewingRoute from "../app/reviewing";
 import WorkspaceRoute from "../app/workspace";
 import * as NativeScreens from "../src/nativeRouteScreens.native";
 
-test("native router exposes coding, reviewing, and workspace screens", () => {
-  expect(NativeScreens.Coding).toBeDefined();
-  expect(NativeScreens.Reviewing).toBeDefined();
-  expect(NativeScreens.Workspace).toBeDefined();
-  expect(CodingRoute).toBe(NativeScreens.Coding);
-  expect(ReviewingRoute).toBe(NativeScreens.Reviewing);
+test("native coding, reviewing and workspace routes all explain that coding is on the web", () => {
+  expect(NativeScreens.CodingOnWeb).toBeDefined();
+  expect(NativeScreens.Coding).toBe(NativeScreens.CodingOnWeb);
+  expect(NativeScreens.Reviewing).toBe(NativeScreens.CodingOnWeb);
+  expect(NativeScreens.Workspace).toBe(NativeScreens.CodingOnWeb);
+  expect(CodingRoute).toBe(NativeScreens.CodingOnWeb);
+  expect(ReviewingRoute).toBe(NativeScreens.CodingOnWeb);
   expect(typeof WorkspaceRoute).toBe("function");
 });

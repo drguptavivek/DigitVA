@@ -91,6 +91,7 @@ PUBLIC_ENDPOINTS = {
                                  "static text, lists no users or cases.",
     "help.index": "Public help index; pages filtered per user in the body.",
     "help.page": "Public help page; role-restricted pages abort 403 in the body.",
+    "help.download_android": "The pinned Android APK; installed before an account exists.",
     "help.docs_index": "Index of the curated, published engineering docs.",
     "help.doc_page": "One curated published doc; slug must be a registry key.",
     "help.va_code_mappings": "Published ICD-to-VA-cause reference data.",

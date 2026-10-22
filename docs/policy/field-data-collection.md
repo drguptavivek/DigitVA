@@ -269,6 +269,19 @@ those web routes. A device refresh token lasts up to 30 days (90 at most),
 longer than a 30-minute web session; a lost phone is handled by revoking the
 device.
 
+**The Android app collects data only** (owner, 2026-10-22, `digitva-cpx5`).
+DigitVA Collect (package `com.causeofdeathindia.digitvacollect`) offers
+enrolment, sign-in, PIN, consent, death registration, interviews, drafts,
+attachments, sync and settings. Coding and review are not reachable on the
+phone: the coding, reviewing and workspace routes and every Code now or queue
+entry are removed from the native build, and an account that only codes or
+reviews sees "Coding and review are done in the DigitVA web app" after
+sign-in. The same Expo project builds the web app, where coding and review are
+unchanged. The server still admits a coder-only device session under the rule
+above; whether it should refuse one for this app is an open owner question. A
+separate coding app, if built, will use package
+`com.causeofdeathindia.digitvacoder`.
+
 **Multi-project devices** (owner, 2026-10-03; no older apps in the field,
 so no compatibility path, 2026-10-04). A native device may hold data for
 every project the signed-in worker is an interviewer in (the intake

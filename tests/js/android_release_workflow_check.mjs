@@ -49,8 +49,13 @@ assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
 assert.match(workflow, /environment: android-release/);
 assert.match(workflow, /npm run typecheck/);
 assert.match(workflow, /npm test -- --runInBand/);
-assert.match(workflow, /DIGITVA_ANDROID_VERSION_CODE: \$\{\{ github\.run_number \}\}/);
-assert.match(workflow, /verify-android-release\.sh .*\$DIGITVA_ANDROID_VERSION_CODE/);
+assert.match(workflow, /DIGITVA_ANDROID_VERSION_CODE=%s.*major \* 10000 \+ minor \* 100 \+ patch.*GITHUB_ENV/,
+  "the base versionCode follows the app version so per-ABI codes keep increasing");
+assert.match(workflow, /verify-android-release\.sh .*\$\(\(DIGITVA_ANDROID_VERSION_CODE \* 10 \+ /);
+for (const abi of ["armeabi-v7a", "arm64-v8a"]) {
+  assert.match(workflow, new RegExp(`${abi}`), `${abi} APK is verified and published`);
+}
+assert.match(workflow, /EXPO_PUBLIC_API_BASE_URL: https:\/\/digitva\.causeofdeathindia\.com\n/);
 assert.match(workflow, /needs\.build\.result == 'success' && github\.ref == 'refs\/heads\/main' && inputs\.publish == true/);
 assert.match(workflow, /expected_tag="android-v\$\{APP_VERSION\}"/);
 assert.match(workflow, /--title "DigitVA \$\{APP_VERSION\}"/);
@@ -59,7 +64,7 @@ for (const check of [
   "apksigner",
   "Android Debug",
   "certificate SHA-256 digest",
-  "org.digitva.collect",
+  "com.causeofdeathindia.digitvacollect",
   "application-label:'\\([^']*\\)'",
   "DigitVA",
   "index\\.android\\.bundle",

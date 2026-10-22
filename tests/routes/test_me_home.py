@@ -74,6 +74,28 @@ class MeHomeTests(AuthzFixtureMixin, BaseTestCase):
         with patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_URL": "http://insecure.example/app.apk"}):
             self.assertIsNone(self._home(self.users["nobody"])["android_apk_url"])
 
+    def test_hosted_apk_download_and_both_links_on_the_help_page(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_DIR": folder,
+                                              "DIGITVA_ANDROID_APK_URL": ""}):
+                self.assertEqual(self.client.get("/download/android").status_code, 404)
+                self.assertIn("has not been published", self.client.get("/help/mobile-app").get_data(as_text=True))
+            with open(f"{folder}/digitva-collect-0.2.0-arm64-v8a.apk", "wb") as apk:
+                apk.write(b"PK-test")
+            url = "https://github.com/drguptavivek/DigitVA/releases/latest"
+            with patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_DIR": folder, "DIGITVA_ANDROID_APK_URL": url}):
+                res = self.client.get("/download/android")  # signed out
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(res.mimetype, "application/vnd.android.package-archive")
+                self.assertIn("digitva-collect-0.2.0-arm64-v8a.apk", res.headers["Content-Disposition"])
+                self.assertEqual(res.get_data(), b"PK-test")
+                res.close()
+                page = self.client.get("/help/mobile-app").get_data(as_text=True)
+                self.assertIn('href="/download/android"', page)
+                self.assertIn(f'href="{url}"', page)
+
     def test_footer_links_the_public_mobile_app_help_page(self):
         page = self.client.get("/vaauth/valogin").get_data(as_text=True)
         self.assertIn("Open Expo web app", page)

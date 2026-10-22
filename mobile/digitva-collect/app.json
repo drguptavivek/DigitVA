@@ -2,7 +2,7 @@
   "expo": {
     "name": "DigitVA",
     "slug": "digitva-collect",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "portrait",
     "platforms": [
       "android",
@@ -16,6 +16,7 @@
       "expo-secure-store",
       "./plugins/with-android-dev-support",
       "./plugins/with-android-release-signing",
+      "./plugins/with-android-abi-splits",
       [
         "expo-sqlite",
         {
@@ -43,7 +44,7 @@
       "baseUrl": "/app"
     },
     "android": {
-      "package": "org.digitva.collect",
+      "package": "com.causeofdeathindia.digitvacollect",
       "versionCode": 1,
       "permissions": [
         "CAMERA"
@@ -57,7 +58,7 @@
       "allowBackup": false
     },
     "ios": {
-      "bundleIdentifier": "org.digitva.collect",
+      "bundleIdentifier": "com.causeofdeathindia.digitvacollect",
       "infoPlist": {
         "NSFaceIDUsageDescription": "DigitVA uses Face ID to unlock your encrypted interview data."
       }

@@ -7,6 +7,7 @@ synchronously after the caller's commit, never through Celery.
 """
 
 import logging
+import os
 from urllib.parse import urlparse
 
 from flask import current_app
@@ -33,6 +34,18 @@ def valid_android_apk_url() -> str | None:
     if parsed.username or parsed.password:
         return None
     return value
+
+
+def hosted_android_apk() -> str | None:
+    """File name of the APK this server hosts (the image's pinned release
+    asset in ``DIGITVA_ANDROID_APK_DIR``), or None. One is expected; with
+    several the last by name wins."""
+    folder = current_app.config.get("DIGITVA_ANDROID_APK_DIR") or ""
+    try:
+        names = sorted(n for n in os.listdir(folder) if n.endswith(".apk"))
+    except OSError:
+        return None
+    return names[-1] if names else None
 
 
 def newly_collecting_user_ids(changed_grants) -> list:

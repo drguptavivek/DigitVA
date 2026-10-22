@@ -2,7 +2,9 @@ const appJson = require("./app.json");
 
 const DEFAULT_RELEASE_SERVER = "https://digitva.causeofdeathindia.com";
 const DEFAULT_ANDROID_VERSION_CODE = 1;
-const MAX_ANDROID_VERSION_CODE = 2_100_000_000;
+// Base code: release APKs use base * 10 + ABI digit (plugins/with-android-abi-splits.js),
+// which must stay within Android's 2,100,000,000 limit.
+const MAX_ANDROID_VERSION_CODE = 209_999_999;
 
 function normalizeHttpsOrigin(raw) {
   try {

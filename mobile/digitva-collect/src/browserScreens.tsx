@@ -10,4 +10,5 @@ export const DeathRegistrationScreen = NativeWebRoute;
 export const InterviewScreen = NativeWebRoute;
 export const SettingsScreen = NativeWebRoute;
 export const OrganizationScreen = NativeWebRoute;
-export { WorkspaceScreen } from "./nativeRoutes/workspaceScreens";
+// The Android app is collection only: /workspace explains that coding is on the web.
+export { Workspace as WorkspaceScreen } from "./nativeRouteScreens";

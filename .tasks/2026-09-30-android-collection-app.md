@@ -172,7 +172,8 @@ sessions.
 - C1 refresh lifetime (30 days sliding proposed above).
 - C4 signing-key custody and distribution (Play internal track vs MDM vs
   direct APK). Until decided: debug builds, non-production server only.
-- Android package id (proposed `org.digitva.collect`) and app name.
+- Android package id: decided 2026-10-22, `com.causeofdeathindia.digitvacollect`
+  (collection only; coding stays on the web, `digitva-cpx5`).
 - Who may create enrolment codes: admin only, or also project PIs.
 - PIN length and wipe threshold (6 digits and 5 attempts proposed).
 

@@ -360,6 +360,9 @@ class Config:
     DIGITVA_ALLOW_TEST_SEED = os.environ.get("DIGITVA_ALLOW_TEST_SEED", "") == "1"
     # Credential-free HTTPS URL for the published Android APK, when one exists.
     DIGITVA_ANDROID_APK_URL = os.environ.get("DIGITVA_ANDROID_APK_URL", "").strip()
+    # Folder holding the pinned APK the image downloaded (Dockerfile android_apk),
+    # served at /download/android; empty or missing means none.
+    DIGITVA_ANDROID_APK_DIR = os.environ.get("DIGITVA_ANDROID_APK_DIR", "/opt/digitva/android")
     MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() in (
         "true",
         "1",

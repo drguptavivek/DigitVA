@@ -106,13 +106,16 @@ it("keeps mixed-role native collection routes available", async () => {
   await act(async () => tree.unmount());
 });
 
-it("does not let a workspace route select another device account", async () => {
-  mockPathname = "/workspace";
-  mockParams = { userId: "other-user", mode: "view" };
+it("tells a coder-only account on the phone to code in the web app", async () => {
+  mockPathname = "/worklist";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: true }];
   let tree!: ReturnType<typeof create>;
-  await act(async () => { tree = create(<NativeCollectionGate>private case data</NativeCollectionGate>); });
-  expect(JSON.stringify(tree.toJSON())).toContain("redirect");
-  expect(JSON.stringify(tree.toJSON())).not.toContain("private case data");
+  await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+  const output = JSON.stringify(tree.toJSON());
+  expect(output).toContain("codingOnWeb");
+  expect(output).not.toContain("worklist");
+  expect(tree.root.findAllByProps({ label: "navCoding" })).toHaveLength(0);
+  expect(tree.root.findAllByProps({ label: "navReview" })).toHaveLength(0);
   await act(async () => tree.unmount());
 });
 

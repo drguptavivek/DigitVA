@@ -175,6 +175,23 @@ then `npm run export:web` in `mobile/digitva-collect`), tar the `dist`
 contents, `gh release create` with the tarball and its `.sha256`, bump the two
 pins, rebuild the images.
 
+### Android APK download
+
+The signed APK is built and published by the GitHub CI workflow
+(`.github/workflows/android-release.yml`, tag `android-v<version>`). Users get
+it two ways, both from the public help page `/help/mobile-app` (linked from
+every server page's footer and the help home):
+
+- **GitHub releases page:** `DIGITVA_ANDROID_APK_URL`, normally
+  `https://github.com/drguptavivek/DigitVA/releases/latest` (Android releases
+  are marked Latest; web-export releases are published with `--latest=false`).
+- **This server:** `/download/android` serves one release asset pinned in
+  `x-release-pins` (`ANDROID_APK_TAG`, `ANDROID_APK_ASSET`,
+  `ANDROID_APK_SHA256`), which the Dockerfile `android_apk` stage downloads and
+  checks into `/opt/digitva/android` (`DIGITVA_ANDROID_APK_DIR`). Empty pins
+  build an empty folder and the route answers 404; a partial pin fails the
+  build. Bumping is an edit to the pins and an image rebuild.
+
 ### WHO ICD-11 service
 
 `icd_api_service` is WHO's own `whoicd/icd-api:2.6.0` container, pinned by

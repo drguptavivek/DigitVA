@@ -7,7 +7,13 @@
 # The Expo web export is the same: a pinned DigitVA release (expo-web-v<date>)
 # downloaded and verified into /opt/digitva/expo-client (EXPO_CLIENT_DIST), so
 # hosts never run Node; dev serves its own local build instead (override file).
+# The Android APK likewise: one asset of a CI-published DigitVA release
+# (android-v<version>), downloaded and verified into /opt/digitva/android and
+# served at /download/android beside the GitHub releases link. Empty = none.
 x-release-pins: &release-pins
+  ANDROID_APK_TAG: ""
+  ANDROID_APK_ASSET: ""
+  ANDROID_APK_SHA256: ""
   EXPO_WEB_TAG: "expo-web-v2026.10.22.4"
   EXPO_WEB_SHA256: "41b5ce413b5b5ee52dd56d9971d370079a89bae35adc95eb9ac79e48d9c81549"
   SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}

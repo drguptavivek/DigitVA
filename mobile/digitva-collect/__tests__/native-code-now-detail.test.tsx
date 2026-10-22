@@ -33,8 +33,6 @@ jest.mock("../src/sync", () => ({
   getCachedReferenceData: async () => undefined,
 }));
 jest.mock("../src/draftSync", () => ({ reconcileCaseDraft: async () => ({ draft: null, conflict: false }) }));
-jest.mock("../src/workspace/api", () => ({ createWorkspaceApi: () => mockWorkspaceApi }));
-jest.mock("../src/workspace/transport.native", () => ({ createNativeWorkspaceTransport: () => jest.fn() }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/deathWorkflow", () => ({ canFollowUpDeath: () => false, canStartDeathInterview: () => false, deathPhoneUrl: () => undefined }));
 jest.mock("../src/ui", () => {
@@ -66,14 +64,12 @@ async function settle() {
   });
 }
 
-test("native case detail opens Code now into the account-bound coding workspace", async () => {
+test("native case detail offers no Code now: coding is on the web", async () => {
   let renderer!: ReturnType<typeof create>;
   await act(async () => { renderer = create(<Case />); });
   await settle();
-  expect(button(renderer.root, "codeNow")).toBeDefined();
-  await act(async () => { button(renderer.root, "codeNow")?.props.onPress(); });
-  await settle();
-  expect(mockWorkspaceApi.codeOwnSubmission).toHaveBeenCalledWith("sid");
-  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/workspace", params: { userId: "coder-user", vaSid: "sid", mode: "coding" } });
+  expect(JSON.stringify(renderer.toJSON())).toContain("readyForCodeOnWeb");
+  expect(button(renderer.root, "codeNow")).toBeUndefined();
+  expect(mockWorkspaceApi.codeOwnSubmission).not.toHaveBeenCalled();
   await act(async () => { renderer.unmount(); });
 });

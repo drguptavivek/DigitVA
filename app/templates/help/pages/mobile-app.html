@@ -1,11 +1,14 @@
 <p class="lead">Install DigitVA Collect on an Android device when an APK has been published for this environment.</p>
 
-{% if mobile_app_url %}
+{% if mobile_app_url or hosted_apk %}
   <div class="alert alert-success" role="status">
-    <strong>Android app available.</strong> Download the current APK from the
-    published release location.
+    <strong>Android app available.</strong> Download it from this server or from
+    the GitHub releases page, where the signed APK is built and published.
   </div>
-  <p><a class="btn btn-primary" href="{{ mobile_app_url }}" rel="noopener">Download the DigitVA Android app</a></p>
+  <p class="d-flex flex-wrap gap-2">
+    {% if hosted_apk %}<a class="btn btn-primary" href="{{ url_for('help.download_android') }}">Download from this server ({{ hosted_apk }})</a>{% endif %}
+    {% if mobile_app_url %}<a class="btn btn-outline-primary" href="{{ mobile_app_url }}" rel="noopener">GitHub releases page</a>{% endif %}
+  </p>
 {% else %}
   <div class="alert alert-info" role="status">
     The Android APK has not been published for this environment yet. Ask your

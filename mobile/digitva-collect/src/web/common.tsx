@@ -1,6 +1,6 @@
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useId, useRef, useState } from "react";
-import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewProps } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewProps } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ClientApiError } from "../client/api";
@@ -152,7 +152,7 @@ type NavigationItem = {
 /** Sidebar glyphs per navEntries key; decorative, every link carries its label. */
 const NAV_ICONS: Record<string, string> = {
   "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/area/": "▦",
-  "/organization": "⚲", "/settings": "⚙", website: "↗", "/data-management/": "▤", "/mentoring": "🏛", "/admin/": "◆",
+  "/organization": "⚲", "/users": "☺", "/settings": "⚙", website: "↗", "/data-management/": "▤", "/mentoring": "🏛", "/admin/": "◆",
 };
 
 function NavigationLink({
@@ -343,11 +343,11 @@ function NavigationMenu() {
     <>
       {wide ? (
         <View {...navigationLandmarkProps} style={[navigationStyles.sidebar, { backgroundColor: theme.colors.surface, borderRightColor: theme.colors.border }]}>
-          {menuBody}
+          <ScrollView style={navigationStyles.scroll} contentContainerStyle={navigationStyles.sidebarContent}>{menuBody}</ScrollView>
         </View>
       ) : (
         <View {...navigationLandmarkProps} style={[navigationStyles.rail, { backgroundColor: theme.colors.surface, borderRightColor: theme.colors.border }]}>
-          {railBody}
+          <ScrollView style={navigationStyles.scroll} contentContainerStyle={navigationStyles.railContent}>{railBody}</ScrollView>
         </View>
       )}
       {!wide && drawerOpen ? (
@@ -360,7 +360,7 @@ function NavigationMenu() {
                 <Text style={[navigationStyles.closeIcon, { color: theme.colors.text }]}>×</Text>
               </Pressable>
             </View>
-            {menuBody}
+            <ScrollView style={navigationStyles.scroll} contentContainerStyle={navigationStyles.drawerContent}>{menuBody}</ScrollView>
           </View>
         </View>
       ) : null}
@@ -401,22 +401,12 @@ export function WebShell({
 }
 
 const navigationStyles = StyleSheet.create({
-  sidebar: {
-    width: SIDEBAR_WIDTH,
-    flexShrink: 0,
-    padding: 16,
-    borderRightWidth: 1,
-    gap: 8
-  },
-  rail: {
-    width: RAIL_WIDTH,
-    flexShrink: 0,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    borderRightWidth: 1,
-    gap: 8
-  },
+  // The menus scroll inside themselves: on a short window (1080p at 150%) the entries outgrow the viewport.
+  sidebar: { width: SIDEBAR_WIDTH, flexShrink: 0, borderRightWidth: 1 },
+  sidebarContent: { padding: 16, gap: 8 },
+  rail: { width: RAIL_WIDTH, flexShrink: 0, borderRightWidth: 1 },
+  railContent: { paddingVertical: 8, paddingHorizontal: 4, alignItems: "center", gap: 8 },
+  scroll: { flex: 1 },
   brand: { minHeight: 68, justifyContent: "center", paddingBottom: 8 },
   brandLogo: { width: 208, height: 68 },
   user: { fontSize: 14, lineHeight: 20, paddingBottom: 8 },
@@ -431,6 +421,7 @@ const navigationStyles = StyleSheet.create({
   drawerLayer: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, zIndex: 10, flexDirection: "row" },
   scrim: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" },
   drawer: { width: 280, maxWidth: "85%", height: "100%", padding: 16, borderRightWidth: 1, gap: 8, zIndex: 11 },
+  drawerContent: { gap: 8 },
   drawerHeader: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   drawerTitle: { fontSize: 18, fontWeight: "700", flexShrink: 1 },
   closeButton: { width: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },

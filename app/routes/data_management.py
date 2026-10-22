@@ -845,7 +845,6 @@ def manage_create_user():
     try:
         new_user = accounts.create_invited_user(
             fields, via="data_manager", actor_user_id=current_user.user_id,
-            other={"created_by_user_id": str(current_user.user_id)},
         )
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)

@@ -242,6 +242,25 @@ class TestAdminFieldMappingRoutes(BaseTestCase):
         )
         self.assertEqual(subcategory.render_mode, "media_gallery")
 
+    def test_12b_subcategory_create_stores_render_mode(self):
+        """Subcategory create reads render_mode (it used to raise NameError)."""
+        self._login(self.base_admin_id)
+        resp = self.client.post(
+            "/admin/api/form-types/WHO_2022_VA/categories/vanarrationanddocuments/subcategories",
+            json={"subcategory_code": "extra_documents", "render_mode": "media_gallery"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(resp.status_code, 201, resp.get_data(as_text=True))
+        self.assertEqual(resp.get_json()["subcategory"]["render_mode"], "media_gallery")
+
+        resp = self.client.post(
+            "/admin/api/form-types/WHO_2022_VA/categories/vanarrationanddocuments/subcategories",
+            json={"subcategory_code": "plain_documents"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(resp.status_code, 201, resp.get_data(as_text=True))
+        self.assertEqual(resp.get_json()["subcategory"]["render_mode"], "default")
+
     def test_13_category_update_syncs_runtime_display_order(self):
         """Category edits from the Categories panel update runtime nav order too."""
         self._login(self.base_admin_id)

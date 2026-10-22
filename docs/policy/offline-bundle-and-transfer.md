@@ -501,7 +501,18 @@ coding results move on there) and `GET .../receipt` the signed receipt.
    `station_config_id` issued to this device (`station_not_onboarded`; owner
    decision 2, contract 4.1).
 3. Signature (`signature_invalid`), then `body_sha256` over the streamed body
-   (`body_hash_invalid`).
+   (`body_hash_invalid`), then the named station config **not expired**: the
+   signed manifest `created_at` is compared with that config's `expires_at`
+   as issued (6.4), and a bundle with `created_at` strictly after it is
+   refused 422 `station_config_expired` (owner decision 2026-10-22). No clock
+   allowance: the station writer refuses by the same rule on the same clock
+   (section 7), and the +1 day of 3.3 bounds only the future window. A
+   superseded config that has not expired is still accepted. Checked after
+   the signature so only a signed `created_at` decides, and before step 4, so
+   a bundle both too old and under an expired config reports
+   `station_config_expired`. The operator asks the admin for a renewed
+   config (issued for the station, 6.4), imports it and exports again; the
+   records are still on the station, so nothing is lost.
 4. `bundle_id` replay (3.3), `created_at` window, `kem_key_id` in keyring.
 5. Unwrap the DEK once (`unwrap_dek`; failure `bundle_key_unknown`).
 
@@ -808,7 +819,8 @@ print plaintext, answers, names, numbers or keys (logs name `bundle_id`,
    intermediate: plaintext bytes, AAD bytes, `ct`, `dek_wrapped`,
    `body_sha256`, signed message bytes, signature.
 4. The expected server report for that bundle, and for its tampered,
-   replayed, expired, unknown-key and consent-missing variants.
+   replayed, expired (`station_config_expired`), unknown-key and
+   consent-missing variants.
 
 **Conformance**: the crate reproduces vectors 2 and 3 byte for byte (with the
 test hook), and bundles it writes with random DEKs and nonces are accepted by

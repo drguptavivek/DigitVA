@@ -80,6 +80,7 @@ class UserCliTestCase(BaseTestCase):
         self.assertIsNotNone(user)
         self.assertEqual(user.user_status, VaStatuses.active)
         self.assertFalse(user.pw_reset_t_and_c)
+        self.assertEqual(user.other, {"created_by_user_id": None, "created_via": "cli"})
         invite.assert_called_once()
         self.assertIn("emailed when the user verifies", result.output)
 

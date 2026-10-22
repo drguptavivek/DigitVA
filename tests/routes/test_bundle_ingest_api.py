@@ -21,6 +21,7 @@ from app import db, limiter
 from app.models import (
     AuthDevice,
     AuthSecurityEvent,
+    AuthStationConfig,
     MapBundleRecord,
     MapCaseTransition,
     MapDeathIdentifier,
@@ -546,6 +547,30 @@ class BundleIngestApiTests(BaseTestCase):
         retired, _private = pii_crypto.generate_keyset("retired")
         response = self._post(self._bundle([self._registration()], public_key=retired))
         self.assertEqual(response.get_json()["code"], "bundle_key_unknown")
+
+    def test_an_expired_station_config_is_refused_and_a_superseded_unexpired_one_accepted(self):
+        key = Ed25519PrivateKey.generate()
+        station = self._onboard_paste_station(key)
+        first = station_config_service.latest_config(station.device_id)
+        station_config_service.issue_config(self.base_admin_user, PROJECT, station.device_id)
+        self.assertNotEqual(station_config_service.latest_config(station.device_id).config_id, first.config_id)
+        expires = datetime.now(UTC).replace(microsecond=0) - timedelta(hours=1)  # created_at has whole seconds
+        first.expires_at = expires
+        db.session.commit()
+
+        def bundle(created_at):
+            return self._bundle([self._registration()], key=key, device=station, config_id=first.config_id,
+                                created_at=created_at)
+
+        late = bundle(expires + timedelta(seconds=1))
+        for path in (f"{URL}/validate", URL):
+            response = self._post(late, path=path)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (422, "station_config_expired"))
+        self.assertIsNone(db.session.scalar(sa.select(VaBundleIngest).where(VaBundleIngest.device_id == station.device_id)))
+        # Superseded but not yet expired when made: accepted, up to and including expires_at.
+        for created_at in (expires - timedelta(seconds=1), expires):
+            response = self._post(bundle(created_at))
+            self.assertEqual(response.status_code, 201, response.get_json())
 
     # ── onboarding, sandbox, project ───────────────────────────────────────
 
@@ -1235,6 +1260,9 @@ class BundleIngestApiTests(BaseTestCase):
         elif token == "superseded_config":
             station_config_service.issue_config(self.base_admin_user, PROJECT, kit.device.device_id)
             self.assertNotEqual(station_config_service.latest_config(kit.device.device_id).config_id, kit.config_id)
+        elif token == "expired_config":
+            db.session.get(AuthStationConfig, kit.config_id).expires_at = datetime.now(UTC) - timedelta(days=1)
+            db.session.commit()
         elif token.startswith("project_mode:"):
             self._project_mode(token.split(":", 1)[1])
         elif token == "ready":

@@ -682,6 +682,8 @@ class ImportAndMentorTests(AuthzFixtureMixin, OnboardingTestBase):
         db.session.flush()
         made = db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == fresh))
         self.assertIsNone(made.email)
+        self.assertEqual(made.other, {"created_by_user_id": str(admin.user_id),
+                                      "created_via": "import"})
         self.assertEqual(len(codes), 1)
         self.assertEqual(codes[0]["mobile"], "******" + fresh[-4:])
         self.assertIsNotNone(mobile.redeem_code(fresh, codes[0]["sign_in_code"]))

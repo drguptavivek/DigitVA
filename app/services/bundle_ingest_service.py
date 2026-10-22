@@ -504,6 +504,11 @@ def _verify(container: _Container, received_at: datetime) -> _Verified:
         raise BundleRefusal("The bundle signature does not verify.", "signature_invalid")
     if not hmac.compare_digest(container.body_sha256, manifest["body_sha256"]):
         raise BundleRefusal("The bundle body does not match its manifest.", "body_hash_invalid")
+    # After the signature, so the signed created_at decides. Strict, as the
+    # station writer's own check (now > expires_at); no skew allowance.
+    if container.created_at > config.expires_at:
+        raise BundleRefusal("The station configuration had expired when this bundle was made; import a "
+                            "renewed station configuration and export again.", "station_config_expired")
     return _Verified(
         container=container, device=device, config=config, custodian=custodian,
         project_id=device.project_id, received_at=received_at,

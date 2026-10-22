@@ -391,4 +391,9 @@ class BulkApiTests(BulkTestBase):
                 headers=self._csrf_headers())
         self.assertEqual(response.status_code, 201, response.get_json())
         created = db.session.get(VaUsers, response.get_json()["user"]["user_id"])
-        self.assertEqual(created.other, {"created_by_user_id": str(self.admin.user_id)})
+        self.assertEqual(created.other["created_by_user_id"], str(self.admin.user_id))
+        self.assertEqual(created.other["created_via"], "admin")
+        # ...and the training picker's "accounts I created" filter finds it.
+        mine = {u["user_id"] for u in svc.training_candidates(
+            "S001", self.admin, created_by="me", tz_name="UTC")["users"]}
+        self.assertIn(str(created.user_id), mine)

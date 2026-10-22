@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -102,6 +102,13 @@ False` (terms not accepted), and holds a random unknown placeholder password
 (`secrets.token_urlsafe(32)`) until a generated one replaces it.
 
 ## 2. Onboarding per account type
+
+Creator record: every `VaUsers` row is built with `other=creation_other(via,
+actor_user_id, extra)` (`app/services/user_account_service.py`), which sets
+`created_by_user_id` (text, or null with no human actor) and `created_via`.
+`create_invited_user` applies it for the admin, data-manager and
+mentor-institute paths; the project import, `flask users create` (`cli`),
+`flask seed` (`seed`) and the synthetic demo seed (`system`) call it directly.
 
 ### 2.1 Email account
 

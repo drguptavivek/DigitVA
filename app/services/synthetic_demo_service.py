@@ -42,6 +42,7 @@ from app.models import (
 )
 from app.services.db_backup_service import create_db_backup
 from app.services import register_pii_accessor
+from app.services.user_account_service import creation_other
 from app.services.submission_payload_version_service import write_payload_version
 
 log = logging.getLogger(__name__)
@@ -496,7 +497,8 @@ def seed_organization_demo() -> dict:
                 year_of_birth=1985,
                 sex="undetermined",
                 job_title="Synthetic demo " + role,
-                other={"synthetic_demo_project": DEMO_PROJECT_ID},
+                other=creation_other(
+                    "system", extra={"synthetic_demo_project": DEMO_PROJECT_ID}),
             )
             user.set_password(password)
             db.session.add(user)

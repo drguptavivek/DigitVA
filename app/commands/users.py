@@ -241,6 +241,7 @@ def create_user(
         email_verified=email_verified if normalized_email else False,
         timezone=timezone.strip(),
         user_status=VaStatuses.active,
+        other=accounts.creation_other("cli"),
     )
     try:
         assign_phone(user, phone)

@@ -749,7 +749,9 @@ Bundle whole-file refusals (bundle spec 5.2, 3.3, 3.4): `payload_too_large`,
 `body_hash_invalid`, `bundle_id_reused`, `bundle_too_old`,
 `bundle_from_future`, `bundle_key_unknown`, `station_not_onboarded` (no
 custodian recorded, or the manifest's `station_config_id` was not issued to
-this device). Per-record outcomes `accepted`, `duplicate`, `superseded`,
+this device), `station_config_expired` (the bundle's `created_at` is after
+the `expires_at` of the station config it names; import a renewed config and
+export again). Per-record outcomes `accepted`, `duplicate`, `superseded`,
 `pending`, `rejected`, `not_processed`, with reasons `record_invalid`,
 `conflict`, `depends_on_rejected`, `actor_unknown_on_device`, `forbidden`,
 `consent_required`, `consent_invalid`, `consent_conflict`,
@@ -1035,3 +1037,8 @@ private key, or decide anything section 1 gives the central server.
   codes only interviews it uploaded (`not_available`); station config
   `projects[]` gain `coding_mode` (`icd11_doris`, `icd10` or null), format
   version unchanged (additive) (1, 4, 4.3, 8).
+- 2026-10-22: the server refuses a bundle made under an expired station config
+  (`digitva-xo2n`, owner decision): new whole-bundle code
+  `station_config_expired` (422) when `created_at` is after the named
+  config's `expires_at` (bundle spec 5.2); a superseded, unexpired config is
+  still accepted (8).

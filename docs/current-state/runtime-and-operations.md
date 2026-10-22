@@ -1003,7 +1003,8 @@ database inspection.
 
 ### Training & demo project (TRN01)
 
-`DIGITVA_TRAINING_PROJECT_ID=TRN01` (empty by default) enables `flask
+`DIGITVA_TRAINING_PROJECT_ID` defaults to `TRN01` (owner 2026-10-22; set it
+empty to turn training off) and enables `flask
 training-demo`, the Training sessions panel and the sign-in onboarding
 redirect. Nothing is scheduled and nothing is reset or deleted: sessions and
 their cases are retained. Enabling needs `flask training-demo setup` once, and

@@ -106,6 +106,7 @@ class SeedTestProjectTests(BaseTestCase):
                 sa.select(VaUsers).where(VaUsers.email == f"{local}@digitva.com")
             )
             self.assertIsNotNone(user)
+            self.assertEqual(user.other, {"created_by_user_id": None, "created_via": "seed"})
             worker = db.session.scalar(
                 sa.select(MasOrgUnitWorker).where(MasOrgUnitWorker.user_id == user.user_id)
             )

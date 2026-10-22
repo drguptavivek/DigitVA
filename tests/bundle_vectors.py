@@ -18,7 +18,7 @@ section 9). One scenario table, two users:
 
 A step is ``(setup, build, expect)``. *setup* is a tuple of tokens the ingest
 test applies before building (the fixed kit ignores them): ``fresh_station``,
-``revoked_station``, ``superseded_config``, ``project_mode:<mode>``,
+``revoked_station``, ``superseded_config``, ``expired_config``, ``project_mode:<mode>``,
 ``ready``. *build* takes a kit and returns bundle bytes. *expect* is
 ``{"status", "code", "records": [[record_type, outcome, code], ...]}`` in
 report order (spec 2.4 type order), ``code`` the whole-bundle refusal.
@@ -240,8 +240,10 @@ def _scenarios():
           ((), lambda k: k.bundle([k.registration("r")], bundle_seq=2), _ok([("death_registration", "duplicate", None)]))]),
         ("superseded_station_config", "A bundle naming an earlier config of the station, a newer one since issued: still issued to it, accepted.",
          _container(), [(("superseded_config",), valid, _ok(ALL_ACCEPTED))]),
-        ("unissued_station_config", "A bundle naming a config this server never issued to the station (sandbox build or forged id). The server has no config-expiry check; the Rust writer refuses an expired config before writing.",
+        ("unissued_station_config", "A bundle naming a config this server never issued to the station (sandbox build or forged id).",
          _container(), [(("unissued_config",), valid, _refused("station_not_onboarded"))]),
+        ("expired_station_config", "A bundle made after the expires_at of the config it names (issued to the station, not superseded); the Rust writer refuses the same before writing.",
+         _container(), [(("expired_config",), valid, _refused("station_config_expired"))]),
         ("consent_missing_informant", "Informant data with no consent: the record is rejected, the bundle is processed.",
          _container(types=one), [((), lambda k: _one(k, informant_name="Sita Devi"),
                                   _ok([("death_registration", "rejected", "consent_required")]))]),

@@ -360,7 +360,6 @@ def create_staff(institute: MasMentorInstitute, fields: dict, *, actor_user_id) 
         via="mentor_institute",
         actor_user_id=actor_user_id,
         other={
-            "created_by_user_id": str(actor_user_id),
             "created_by_mentor_institute": institute.institute_code,
         },
     )

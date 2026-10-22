@@ -38,6 +38,7 @@ from app.services.tabular_import_service import TabularImportError, parse_table
 from app.services.user_account_service import (
     PHONE_CANONICAL,
     canonical_mobile,
+    creation_other,
     mask_mobile,
     record_account_created,
 )
@@ -545,7 +546,7 @@ def apply(project_id, plan, *, actor_user_id):
                            mobile_login=item["mobile"],
                            user_status=VaStatuses.active, vacode_language=item["languages"],
                            permission={}, landing_page="coder", pw_reset_t_and_c=False,
-                           email_verified=False, other={"created_by_user_id": str(actor_user_id)})
+                           email_verified=False, other=creation_other("import", actor_user_id))
             user.set_password(secrets.token_urlsafe(32))
             db.session.add(user)
             db.session.flush()

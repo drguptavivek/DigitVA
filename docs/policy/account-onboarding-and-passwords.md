@@ -3,7 +3,7 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-22
 ---
 
 # Account Onboarding and Password Policy
@@ -47,6 +47,15 @@ first grant they may write (dm-user-grant-management.md, `can_grant`), on
 the web page, the project user import, or the CLI. Nobody self-registers.
 Creating an account records name, job title (digitva-04u4), email and/or
 mobile, cadre and unit where the grant needs them.
+
+Every account records who made it (owner 2026-10-22), whatever the path:
+`other.created_by_user_id` is the signed-in creator, or null when no person
+made it, and `other.created_via` names the path (`admin`, `data_manager`,
+`mentor_institute`, `import`, `cli`, `seed`, `system`, and `self_signup` or
+`sso` should those ever exist). The creator is never overwritten later and
+is read only by admin-side features (the training "accounts I created"
+picker, a data manager's edit right over an unverified account they made);
+no non-admin response carries it.
 
 ## 4. The generated password
 

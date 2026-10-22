@@ -11,6 +11,7 @@ import uuid
 import click
 import sqlalchemy as sa
 from app import db
+from app.services.user_account_service import creation_other
 
 
 @click.group("seed")
@@ -95,6 +96,7 @@ def _seed_admin():
         landing_page="admin",
         pw_reset_t_and_c=True,
         email_verified=True,
+        other=creation_other("seed"),
     )
     user.set_password("Admin@123")
     db.session.add(user)
@@ -280,6 +282,7 @@ def _seed_test_users():
             landing_page="coder",
             pw_reset_t_and_c=True,
             email_verified=True,
+            other=creation_other("seed"),
         )
         user.set_password("Aiims@123")
         db.session.add(user)
@@ -506,6 +509,7 @@ def _build_test_project(org, user_import) -> dict:
             timezone="Asia/Kolkata",
             pw_reset_t_and_c=True,
             email_verified=True,
+            other=creation_other("seed"),
         )
         user.set_password(TEST_PROJECT_PASSWORD)
         db.session.add(user)

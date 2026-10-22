@@ -160,6 +160,9 @@ class SyntheticDemoTests(BaseTestCase):
 
     def test_seed_has_real_stages_and_rerun_preserves_identity(self):
         before = self._snapshot()
+        demo = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == svc.DEMO_ACCOUNTS[0][1]))
+        self.assertEqual(demo.other["created_via"], "system")
+        self.assertIsNone(demo.other["created_by_user_id"])
         self.assertEqual(
             db.session.scalar(
                 sa.select(sa.func.count())

@@ -216,6 +216,35 @@
    }
   ]
  },
+ "expired_station_config": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A bundle made after the expires_at of the config it names (issued to the station, not superseded); the Rust writer refuses the same before writing.",
+  "files": [
+   "expired_station_config.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "station_config_expired",
+     "records": [],
+     "status": 422
+    },
+    "setup": [
+     "expired_config"
+    ]
+   }
+  ]
+ },
  "oversize_record_line": {
   "container": null,
   "description": "A record line over the line limit (generated at test time, never stored).",
@@ -630,7 +659,7 @@
     "signature_ok": true
    }
   ],
-  "description": "A bundle naming a config this server never issued to the station (sandbox build or forged id). The server has no config-expiry check; the Rust writer refuses an expired config before writing.",
+  "description": "A bundle naming a config this server never issued to the station (sandbox build or forged id).",
   "files": [
    "unissued_station_config.dvb"
   ],

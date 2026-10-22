@@ -317,6 +317,8 @@ class DmManageTests(BaseTestCase):
         )
         self.assertIsNotNone(new_user)
         self.assertEqual(new_user.name, "New DM User")
+        self.assertEqual(new_user.other["created_via"], "data_manager")
+        self.assertEqual(new_user.other["created_by_user_id"], str(self.project_dm_id))
 
     def test_dm_create_user_validates_fields(self):
         self._login(self.project_dm_id)

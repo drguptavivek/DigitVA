@@ -273,7 +273,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
                 "heading": "Blinded Quality Assurance",
                 "items": [
                     "During your review, the original coder's ICD selection is hidden so your clinical judgment remains completely independent.",
-                    "You cannot review a case that you personally coded in Stage 3.",
+                    "If you also hold a reviewer role, you may review a case you coded yourself.",
                 ],
             },
         ],

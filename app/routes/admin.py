@@ -2269,7 +2269,6 @@ def admin_create_user():
         fields = accounts.validate_new_user_payload(payload, allow_mobile_only=True)
         new_user = accounts.create_invited_user(
             fields, via="admin", actor_user_id=current_user.user_id,
-            other={"created_by_user_id": str(current_user.user_id)},
         )
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
@@ -3653,6 +3652,7 @@ def admin_subcategory_create(form_type_code, category_code):
     code = (data.get("subcategory_code") or "").strip()
     name = (data.get("subcategory_name") or "").strip() or None
     order = data.get("display_order")
+    render_mode = (data.get("render_mode") or "default").strip() or "default"
 
     if not code:
         return _json_error("subcategory_code is required.", 400)

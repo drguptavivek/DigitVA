@@ -208,6 +208,22 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
     }
 
 
+def creation_other(via: str, actor_user_id=None, extra: dict | None = None) -> dict:
+    """The ``VaUsers.other`` stamp every new account carries: who made it.
+
+    ``created_by_user_id`` is the signed-in actor's id as text, or None when
+    no human did (cli, seed, system, self_signup, sso); ``created_via`` says
+    which path (cli, seed, system, self_signup, sso, admin, data_manager,
+    mentor_institute, import). Pass this as ``other=`` when constructing a
+    VaUsers. The creator is read for admin-only scoping (training bulk
+    picker, data-manager edit rights) and is never sent to other users.
+    """
+    stamp = dict(extra or {})
+    stamp["created_by_user_id"] = str(actor_user_id) if actor_user_id else None
+    stamp["created_via"] = via
+    return stamp
+
+
 def create_invited_user(
     fields: dict, *, via: str, actor_user_id=None, other: dict | None = None
 ) -> VaUsers:
@@ -219,6 +235,7 @@ def create_invited_user(
     redeeming a sign-in code (mobile_sign_in_service.issue_code). The random
     placeholder set here is never known to anyone. *via* names the creating
     path in the audit event (``admin``, ``data_manager``, ``mentor_institute``).
+    *other* holds extra ``other`` keys; the creator stamp is added here.
     Raises UserAccountError if a concurrent writer took the email or number.
     """
     from sqlalchemy.exc import IntegrityError
@@ -237,7 +254,7 @@ def create_invited_user(
         landing_page="coder",
         pw_reset_t_and_c=False,
         email_verified=False,
-        other=other,
+        other=creation_other(via, actor_user_id, other),
     )
     # Unknown placeholder until verification or a code generates the real one.
     user.set_password(secrets.token_urlsafe(32))

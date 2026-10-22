@@ -224,8 +224,9 @@ fn the_writer_refuses_informant_data_without_consent() {
     assert!(open(&write(&config(), DEVICE_ID, on_21_oct(), &clean).unwrap()).signature_ok);
 }
 
-/// The server has no config-expiry check (the vector `unissued_station_config`
-/// is its refusal for a config it never issued); the writer is the expiry gate.
+/// The writer refuses an expired config before writing, by the rule the
+/// server applies to `created_at` (vector `expired_station_config`,
+/// `station_config_expired`).
 #[test]
 fn the_writer_refuses_an_expired_or_foreign_station_config() {
     let records = [registration(&[("deceased_name", json!("Ram Lal"))])];

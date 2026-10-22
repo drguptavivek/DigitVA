@@ -30,7 +30,9 @@ reset and accounts are unchanged.
   Coding intake is `pick_and_choose`.
 - It is not a `demo_training_enabled` project and is never reset: the demo
   virtual coder/reviewer grants do not apply to it, and nothing deletes its
-  data. Setup requires `DIGITVA_TRAINING_PROJECT_ID` to equal `TRN01`.
+  data. Training is on by default: `DIGITVA_TRAINING_PROJECT_ID` defaults to
+  `TRN01` (owner 2026-10-22); an empty value turns it off. Setup requires the
+  value `TRN01`.
 
 ## No generated accounts
 
@@ -129,8 +131,9 @@ Participant roles: `death_reporter`, `interview_supervisor`, `interviewer`,
   access rules refuse) nothing is written; an empty list is refused. Holding
   coder and reviewer_data_manager together is allowed, and in training a
   trainee may review a case they coded (owner decision 2026-10-22: "its
-  training - let them"). The reviewing rules have no self-review guard today
-  in any project; that app-wide gap is tracked separately.
+  training - let them"). The same holds in every project: a coder who also
+  holds a reviewer role may review a case they coded (owner decision
+  2026-10-22, digitva-54in); there is no self-review guard by design.
 - A coder gets the next free coder slot (the slot stays theirs for the life of
   the session, even when removed) and a unit-scoped coder grant on that slot's
   unit, so they see exactly their 10 cases. A 21st coder is refused. A coder

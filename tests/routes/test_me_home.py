@@ -6,6 +6,8 @@ authz fixture.
 """
 from datetime import UTC, datetime
 
+from unittest.mock import patch
+
 import sqlalchemy as sa
 
 from app import db, limiter
@@ -63,7 +65,22 @@ class MeHomeTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(response.get_json()["code"], "unauthorized")
 
     def test_no_grants_is_no_blocks(self):
-        self.assertEqual(self._home(self.users["nobody"]), {"roles": [], "blocks": {}})
+        self.assertEqual(self._home(self.users["nobody"]), {"roles": [], "blocks": {}, "android_apk_url": None})
+
+    def test_android_apk_link_only_when_a_clean_https_url_is_set(self):
+        url = "https://github.com/drguptavivek/DigitVA/releases/download/android-v0.2.0/app.apk"
+        with patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_URL": url}):
+            self.assertEqual(self._home(self.users["nobody"])["android_apk_url"], url)
+        with patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_URL": "http://insecure.example/app.apk"}):
+            self.assertIsNone(self._home(self.users["nobody"])["android_apk_url"])
+
+    def test_footer_links_the_public_mobile_app_help_page(self):
+        page = self.client.get("/vaauth/valogin").get_data(as_text=True)
+        self.assertIn("Open Expo web app", page)
+        self.assertIn('href="/help/mobile-app"', page)
+        self.assertEqual(self.client.get("/help/mobile-app").status_code, 200)  # signed out
+        index = self.client.get("/help").get_data(as_text=True)  # signed out
+        self.assertIn('class="btn btn-primary btn-sm" href="/help/mobile-app"', index)
 
     def test_a_coder_gets_only_the_coder_block(self):
         body = self._home(self.users["coder_p1"])

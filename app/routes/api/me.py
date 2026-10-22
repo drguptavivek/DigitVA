@@ -48,8 +48,12 @@ def activity():
 def home():
     """The Home page's one block per role the caller holds, counts only, each
     within that role's own scope (docs/current-state/api-v1.md). JSON 401
-    when signed out."""
-    return jsonify(user_home_service.get_home_blocks(current_user._get_current_object()))
+    when signed out. ``android_apk_url``: the Android app download link, or
+    null when ``DIGITVA_ANDROID_APK_URL`` is unset or not a clean https URL."""
+    from app.services.worker_enrolment_service import valid_android_apk_url
+
+    body = user_home_service.get_home_blocks(current_user._get_current_object())
+    return jsonify({**body, "android_apk_url": valid_android_apk_url()})
 
 
 @bp.get("/kpis")

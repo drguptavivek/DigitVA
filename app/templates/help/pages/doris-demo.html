@@ -78,25 +78,29 @@
     <section id="doris-fetal-section" class="card mb-3" aria-labelledby="doris-fetal-heading">
       <div class="card-body">
         <h3 class="h5" id="doris-fetal-heading">Fetal or infant details</h3>
+        <div class="alert alert-warning py-2 px-3 mb-0 small doris-na-note" role="note" data-doris-na="fetal" hidden></div>
+        <div data-doris-rule="fetal">
         <p class="small text-muted">Leave unknown measurements blank. A blank value is omitted.</p>
         <div class="row g-3">
           <div class="col-sm-4"><label class="form-label" for="doris-stillborn">Stillborn</label><select id="doris-stillborn" class="form-select" data-certificate-input><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
           <div class="col-sm-4"><label class="form-label" for="doris-multiple">Multiple pregnancy</label><select id="doris-multiple" class="form-select" data-certificate-input><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-          <div class="col-sm-4"><label class="form-label" for="doris-within24">If death within 24 h, hours survived</label><input id="doris-within24" type="number" min="0" max="24" class="form-control" data-certificate-input></div>
+          <div class="col-sm-4" data-doris-rule="within24"><label class="form-label" for="doris-within24">If death within 24 h, hours survived</label><input id="doris-within24" type="number" min="0" max="24" class="form-control" data-certificate-input></div>
           <div class="col-sm-4"><label class="form-label" for="doris-birth-weight">Birth weight (g)</label><input id="doris-birth-weight" type="number" min="1" max="9999" class="form-control" data-certificate-input></div>
           <div class="col-sm-4"><label class="form-label" for="doris-pregnancy-weeks">Pregnancy (weeks)</label><input id="doris-pregnancy-weeks" type="number" min="1" max="50" class="form-control" data-certificate-input></div>
           <div class="col-sm-4"><label class="form-label" for="doris-mother-age">Mother's age (years)</label><input id="doris-mother-age" type="number" min="10" max="80" class="form-control" data-certificate-input></div>
           <div class="col-12"><label class="form-label" for="doris-perinatal-description">Maternal condition affecting the fetus or infant</label><textarea id="doris-perinatal-description" class="form-control" rows="2" maxlength="500" data-certificate-input></textarea></div>
         </div>
+        </div>
       </div>
     </section>
 
-    <section id="doris-maternal-section" class="card mb-3" aria-labelledby="doris-maternal-heading" hidden>
+    <section id="doris-maternal-section" class="card mb-3" aria-labelledby="doris-maternal-heading">
       <div class="card-body">
         <h3 class="h5" id="doris-maternal-heading">Pregnancy context</h3>
-        <div class="row g-3">
+        <div class="alert alert-warning py-2 px-3 mb-0 small doris-na-note" role="note" data-doris-na="maternal" hidden></div>
+        <div class="row g-3" data-doris-rule="maternal" hidden>
           <div class="col-sm-4"><label class="form-label" for="doris-pregnant">Pregnant at death</label><select id="doris-pregnant" class="form-select" data-certificate-input><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
-          <div id="doris-maternal-followups" class="col-sm-8" hidden><div class="row g-3">
+          <div id="doris-maternal-followups" class="col-sm-8" data-doris-rule="pregnancyFollowup" hidden><div class="row g-3">
             <div class="col-md-6"><label class="form-label" for="doris-pregnancy-time">Time from pregnancy</label><select id="doris-pregnancy-time" class="form-select" data-certificate-input><option value="">Not stated</option><option value="0">At death</option><option value="1">Within 42 days</option><option value="2">43 days to 1 year</option><option value="3">1 year or more</option><option value="9">Unknown</option></select></div>
             <div class="col-md-6"><label class="form-label" for="doris-pregnancy-contribute">Pregnancy contributed</label><select id="doris-pregnancy-contribute" class="form-select" data-certificate-input><option value="">Not stated</option><option value="1">Yes</option><option value="0">No</option><option value="9">Unknown</option></select></div>
           </div></div>
@@ -170,4 +174,4 @@
 
 <script src="{{ url_for('static', filename='vendor/icd11ect/1.8/icd11ect-1.8.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/mermaid/mermaid.min.js') }}"></script>
-<script type="module" src="{{ url_for('static', filename='js/doris_demo.js') }}?v=7"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_demo.js') }}?v=8"></script>

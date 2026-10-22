@@ -1,6 +1,7 @@
 import { createIcd11Picker } from './digitva_icd11_picker.js';
 import { mount as mountInterval } from './doris_interval.js?v=4';
 import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
+import * as Rules from './doris_rules.js?v=4';
 
 (function () {
   'use strict';
@@ -367,16 +368,18 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
     document.getElementById('doris-final-line').appendChild(finalLine);
   }
 
+  // Same V1-V6 rules as the coding editor (doris_rules.js): hidden fields are
+  // dropped from the certificate, and a hidden card shows its N/A note.
   function updateConditionalSections(notify) {
-    var sex = document.getElementById('doris-sex').value;
-    var maternal = document.getElementById('doris-maternal-section');
-    maternal.hidden = sex !== '2';
-    var pregnant = document.getElementById('doris-pregnant').value;
-    var followups = document.getElementById('doris-maternal-followups');
-    followups.hidden = pregnant === '' || pregnant === '9';
-    if (notify) {
-      if (sex !== '2') announce('Pregnancy fields are inapplicable and will be omitted.');
-    }
+    var raw = rawCertificate();
+    var shown = Rules.visibility(raw);
+    form.querySelectorAll('[data-doris-rule]').forEach(function (node) { node.hidden = !shown[node.dataset.dorisRule]; });
+    var sex = (raw.AdministrativeData || {}).Sex;
+    form.querySelectorAll('[data-doris-na]').forEach(function (note) {
+      var key = note.dataset.dorisNa; note.hidden = shown[key];
+      note.textContent = key === 'maternal' ? (sex === 1 ? Rules.NOT_APPLICABLE.maternalMale : Rules.NOT_APPLICABLE.maternal) : Rules.NOT_APPLICABLE[key];
+    });
+    if (notify && !shown.maternal) announce('Pregnancy fields are inapplicable and will be omitted.');
   }
 
   var ageControl;
@@ -406,7 +409,8 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
       return result;
     })};
   }
-  function serializeCertificate() {
+  function serializeCertificate() { return Rules.dropHidden(rawCertificate()); }
+  function rawCertificate() {
     var certificate = {ICDVersion: 'ICD11', ICDMinorVersion: release};
     var admin = {};
     var sex = intOrNull(document.getElementById('doris-sex'));
@@ -424,17 +428,13 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
     var description = cleanText(document.getElementById('doris-perinatal-description').value);
     if (description) fetal.PerinatalDescription = description;
     if (Object.keys(fetal).length) certificate.FetalOrInfantDeath = fetal;
-    if (document.getElementById('doris-sex').value === '2') {
-      var pregnant = intOrNull(document.getElementById('doris-pregnant'));
-      if (pregnant !== null) {
-        certificate.MaternalDeath = {WasPregnant: pregnant};
-        if (pregnant !== 9) {
-          var timing = intOrNull(document.getElementById('doris-pregnancy-time'));
-          var contributed = intOrNull(document.getElementById('doris-pregnancy-contribute'));
-          if (timing !== null) certificate.MaternalDeath.TimeFromPregnancy = timing;
-          if (contributed !== null) certificate.MaternalDeath.PregnancyContribute = contributed;
-        }
-      }
+    var pregnant = intOrNull(document.getElementById('doris-pregnant'));
+    if (pregnant !== null) {
+      certificate.MaternalDeath = {WasPregnant: pregnant};
+      var timing = intOrNull(document.getElementById('doris-pregnancy-time'));
+      var contributed = intOrNull(document.getElementById('doris-pregnancy-contribute'));
+      if (timing !== null) certificate.MaternalDeath.TimeFromPregnancy = timing;
+      if (contributed !== null) certificate.MaternalDeath.PregnancyContribute = contributed;
     }
     return certificate;
   }
@@ -635,7 +635,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
     updateConditionalSections(event.target.id === 'doris-sex'); changed();
   });
   form.addEventListener('change', function (event) {
-    if (event.target.id === 'doris-pregnant') updateConditionalSections(false);
+    if (event.target.matches('[data-certificate-input]')) updateConditionalSections(false);
   });
 
   if (window.mermaid && window.mermaid.initialize) window.mermaid.initialize({startOnLoad: false, securityLevel: 'strict', theme: 'neutral'});

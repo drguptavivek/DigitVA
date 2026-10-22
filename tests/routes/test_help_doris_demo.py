@@ -140,6 +140,19 @@ class DorisDemoStaticContractTests(BaseTestCase):
         self.assertNotIn("dataset.selectionUrl", script)
         self.assertIn("function handleSelect(choice, line)", script)
 
+    def test_demo_shows_and_sends_sections_by_the_coding_editor_rules(self):
+        script = self._script()
+        body = (Path(__file__).resolve().parents[2] / "app/templates/help/pages/doris-demo.html").read_text(encoding="utf-8")
+
+        self.assertIn("import * as Rules from './doris_rules.js", script)
+        self.assertIn("Rules.visibility(raw)", script)
+        self.assertIn("return Rules.dropHidden(rawCertificate());", script)
+        for rule in ("fetal", "within24", "maternal", "pregnancyFollowup"):
+            self.assertIn(f'data-doris-rule="{rule}"', body)
+        self.assertIn('data-doris-na="fetal"', body)
+        self.assertIn('data-doris-na="maternal"', body)
+        self.assertNotIn("pregnant !== 9", script)
+
 
 class Icd11PickerModuleContractTests(BaseTestCase):
     @staticmethod

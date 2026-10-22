@@ -58,6 +58,9 @@ The main session plans, decides, reviews results and commits. It delegates:
   `<db>_gw0`..`<db>_gw3`; `make test-parallel`).
 - Migrations chain onto committed revisions only, checked in `git log`. Run
   `flask db heads` before and after adding one.
+- Expo app or `vendor/who-va-2022` changes: `make check-web` builds the web
+  export (Jest mocks native-only modules and cannot see a broken web bundle).
+  The local pre-commit hook (`.beads/hooks/pre-commit`) runs it for such commits.
 
 ## Engineering rules
 

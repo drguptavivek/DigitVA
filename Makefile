@@ -57,6 +57,7 @@ help:
 	@echo "  make db-head         Show current and head migration revision"
 	@echo "  make test            Run pytest"
 	@echo "  make test-parallel   Full suite on 4 xdist workers (TEST_DATABASE_URL=... to pick the DB)"
+	@echo "  make check-web       Build the Expo web export into a temp dir (fails if the web bundle breaks)"
 	@echo "  make restart-celery  Restart celery worker and beat"
 	@echo ""
 	@echo "  make ensure-secrets  Add missing CAPTCHA/TOTP/PII keys to .env; DEVELOPMENT key in private/ (dev targets)"
@@ -204,6 +205,15 @@ test:
 test-parallel:
 	$(COMPOSE) exec -T $(if $(TEST_DATABASE_URL),-e TEST_DATABASE_URL=$(TEST_DATABASE_URL)) $(APP_SERVICE) \
 		uv run --no-sync python -m pytest tests -q -p no:cacheprovider -n 4
+
+# Jest mocks native-only modules, so only a real export proves the web bundle
+# still builds (a phone-only import once broke it). Writes to a temp dir, never
+# to dist/, which dev serves. The pre-commit hook runs it for mobile/vendor changes.
+.PHONY: check-web
+check-web:
+	@out=$$(mktemp -d); cd mobile/digitva-collect && npx expo export --platform web --output-dir "$$out" >"$$out.log" 2>&1; \
+	status=$$?; if [ $$status -ne 0 ]; then grep -E "rror|Unable to resolve" "$$out.log" | head -20; fi; \
+	rm -rf "$$out" "$$out.log"; exit $$status
 
 # Seeds TST001 (organization, pick-and-choose) and its accounts, then lists the
 # classical (sites) projects already in the DB. Idempotent. The seed itself

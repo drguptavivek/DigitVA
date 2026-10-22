@@ -32,6 +32,14 @@ checks via `aws ssm send-command` (the DB is external: query through
    `npm run export:web`, tarball of `dist/` + `.sha256`, tag `expo-web-v<date>[.n]`
    on DigitVA), then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `x-release-pins`.
    Current: `expo-web-v2026.10.22.4` (built from `79801869b`).
+   Publish web exports with `gh release create … --latest=false`: the Android
+   release must stay Latest, since `DIGITVA_ANDROID_APK_URL` is `…/releases/latest`.
+   Android: CI workflow `android-release.yml` (manual run, publish=true,
+   tag `android-v<version>`, environment approval) builds and publishes the
+   signed per-ABI APKs; then pin the arm64 asset in `x-release-pins`
+   (`ANDROID_APK_*`) for `/download/android`. Current: `android-v0.2.0`.
+   Signing key: `private/android/` (owner backs it up); its fingerprint is the
+   `android-release` environment variable `ANDROID_RELEASE_CERT_SHA256`.
 2. `digitva-k4jt` digitva-collect: the QR may name any https server under
    `causeofdeathindia.com` (owner decision; today a release build accepts only
    `digitva.`, so staging cannot enrol); Settings shows the server read-only,

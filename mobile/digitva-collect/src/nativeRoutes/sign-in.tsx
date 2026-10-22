@@ -6,6 +6,8 @@ import { Linking, Text, TextInput, View } from "react-native";
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
 import { forgetDevice, loadDevice, signIn } from "../auth";
+import { normalizeUsername } from "../demoRules";
+import { isDemoServer } from "../enrolment";
 import { t } from "../i18n";
 import {
   mobileDigitsFromInput,
@@ -20,7 +22,9 @@ export default function SignIn() {
   const router = useRouter();
   // "Sign in again" names the account it came from; signIn never wipes a store.
   const { userId } = useLocalSearchParams<{ userId?: string }>();
-  const { reload, accounts } = useAppState();
+  const { reload, accounts, device } = useAppState();
+  // The public demo signs in by username and has no code or password-reset links.
+  const demo = isDemoServer(device?.server, __DEV__, process.env.EXPO_PUBLIC_DEMO_SERVER);
   const returning = accounts.find((account) => account.user_id === userId);
   const [mode, setMode] = useState<"email" | "mobile">("email");
   const [identifier, setIdentifier] = useState("");
@@ -39,7 +43,9 @@ export default function SignIn() {
   }
 
   async function submit() {
-    const submittedIdentifier = mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
+    const submittedIdentifier = demo
+      ? normalizeUsername(identifier)
+      : mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
     if (!submittedIdentifier) {
       setError(t("errMobile"));
       return;
@@ -65,8 +71,8 @@ export default function SignIn() {
   return (
     <Screen title={t("signInTitle")}>
       {returning ? <Text style={styles.text}>{t("signInAgainAs", { name: returning.name })}</Text> : null}
-      <Text style={styles.muted}>{t("signInIdentifierType")}</Text>
-      <Row>
+      {demo ? null : <Text style={styles.muted}>{t("signInIdentifierType")}</Text>}
+      {demo ? null : <Row>
         <Button
           kind={mode === "email" ? "primary" : "secondary"}
           label={t("email")}
@@ -87,9 +93,19 @@ export default function SignIn() {
             setError("");
           }}
         />
-      </Row>
-      <Text style={styles.muted}>{mode === "mobile" ? t("mobile") : t("email")}</Text>
-      {mode === "mobile" ? (
+      </Row>}
+      <Text style={styles.muted}>{demo ? t("demoSignInUsername") : mode === "mobile" ? t("mobile") : t("email")}</Text>
+      {demo ? (
+        <TextInput
+          style={styles.input}
+          accessibilityLabel={t("demoSignInUsername")}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="username"
+          value={identifier}
+          onChangeText={setIdentifier}
+        />
+      ) : mode === "mobile" ? (
         <View style={styles.phoneInputRow}>
           <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>
             +91
@@ -121,10 +137,10 @@ export default function SignIn() {
       <Button
         label={t("signIn")}
         loading={busy}
-        disabled={busy || !identifier.trim() || !password || (mode === "mobile" && !normalizeMobileIdentifier(identifier))}
+        disabled={busy || !identifier.trim() || !password || (!demo && mode === "mobile" && !normalizeMobileIdentifier(identifier))}
         onPress={() => void submit()}
       />
-      <View style={styles.authLinks}>
+      {demo ? null : <View style={styles.authLinks}>
         <Button
           kind="secondary"
           label={t("redeemCode")}
@@ -137,7 +153,7 @@ export default function SignIn() {
           disabled={busy}
           onPress={() => void openServerPage(NATIVE_AUTH_PATHS.forgotPassword)}
         />
-      </View>
+      </View>}
       <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
     </Screen>
   );

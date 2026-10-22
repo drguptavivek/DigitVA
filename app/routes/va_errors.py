@@ -2,6 +2,7 @@ from flask import flash, jsonify, redirect, render_template, request, url_for
 from flask_wtf.csrf import CSRFError
 from flask_limiter.errors import RateLimitExceeded
 from app import db
+from app.services.authz.grant_cache import PublicDemoGrantRefused
 
 def register_error_handlers(app):
     @app.errorhandler(CSRFError)
@@ -28,6 +29,15 @@ def register_error_handlers(app):
         if request.path.startswith("/api/v1/"):
             return jsonify({"error": "Internal server error.", "code": "server_error"}), 500
         return render_template("va_errors/va_500.html"), 500
+
+    @app.errorhandler(PublicDemoGrantRefused)
+    def public_demo_grant_refused(error):
+        # The grant guard fires at flush, whichever route writes the grant
+        # (docs/policy/public-demo.md section 3): nothing was written.
+        db.session.rollback()
+        if request.path.startswith(("/api/", "/admin/api/", "/data-management/api/")):
+            return jsonify({"error": str(error), "code": "forbidden"}), 403
+        return render_template("va_errors/va_403.html"), 403
 
     @app.errorhandler(RateLimitExceeded)
     @app.errorhandler(429)

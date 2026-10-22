@@ -123,6 +123,27 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | `POST /auth/sessions` | Body `device_id`, `device_secret`, `email` (an email or a mobile number), `password`. 201 `{access_token, access_expires_at, refresh_token, refresh_expires_at, user {user_id, name, email}, terms_required, access}`. `access` is the `GET /me/access` body for that user, shown even while terms are pending (it is display only; the terms gate is on requests). Refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` (no interviewer, coder, coding_tester or reviewer access in any active project; code kept for the app). Limits: 10/min per IP, 10/min per device, 20/hour per account. |
 | `POST /auth/sessions/refresh` | Body `refresh_token`, `device_id`, `device_secret` (else 401 `device_invalid`, nothing revoked); optional outstanding-work report `count`, `unique_ids`, `client_draft_ids`, `client_death_ids` (not recorded while terms are pending). 200, the same body as sign-in, `access` included. 401 `refresh_reused` / 409 `refresh_retry_race` (reuse; session revoked); 401 `session_revoked` (device or admin revoke, no active project left, signed out); 401 `session_ended` (account changed; keeps data); 401 `session_expired` and `refresh_invalid` revoke nothing. 30/min per IP. |
 | `DELETE /auth/sessions/current` | Bearer only (a cookie: 401 `unauthorized`). 204. `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out; open while terms are pending. |
+| `GET /auth/demo-signup/challenge` | Public demo only (`PUBLIC_DEMO_ENABLED`; else 404). No body. 200 `{salt, difficulty, expires, signature}`: a proof-of-work challenge valid 5 minutes, spent by one successful verification. 30/min per IP. |
+| `POST /auth/demo-signup` | Public demo only (else 404). Body `{username, password, captcha {salt, difficulty, expires, signature, solution}}`. 201 `{user_id, username}`, no session (the app then calls `POST /auth/sessions`). 400 `captcha_failed` / `invalid_username` / `invalid_password` / `breached_password` (with `fields`); 409 `username_taken`; 429 `rate_limited`; 503 `cap_reached`, `breach_check_unavailable`, `project_missing`, `wrong_database`, `maintenance`. 10/min per IP (IPv6 per /64) plus `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT`. Audited `account_created`, `terms_accepted`. |
+| `POST /auth/demo-enroll` | Public demo only (else 404). Body `{username, password, device_name (<= 64), platform: "android", app_version?}`. 201 as `/auth/enroll`, `{device_id, device_secret, project, server_time}`, with no enrolment code. 401 `invalid_credentials` (also for a non-demo account); 400 `invalid_request`; 503 `wrong_database`, `project_missing`. At `PUBLIC_DEMO_DEVICES_PER_ACCOUNT` (3) live devices the least recently used one is revoked (audited `device_revoked`, reason `demo_device_replaced`) and the new one enrolled. 10/min per IP, 20/hour per username. |
+
+## Public demo (`/api/v1/public-demo`, `app/routes/public_demo.py`; `PUBLIC_DEMO_ENABLED` only)
+
+Every call answers 404 with the flag off. Policy:
+[public-demo.md](../policy/public-demo.md) sections 5 to 7; behaviour:
+[Public Demo Reports, Downloads And Dashboard](public-demo.md). All GET, so no
+CSRF surface.
+
+| Call | Notes |
+|---|---|
+| `GET /public-demo/my-responses.csv` | Cookie session of a public-demo account (any other account, bearer or not: 404; anonymous: redirect or 401). The caller's own submissions as CSV (UTF-8 with BOM; columns `va_sid, submitted_at, state, smartva_cause, smartva_likelihood, coder_icd11_code, coder_icd11_title, reviewer_icd11_code, reviewer_icd11_title, answers_json`; formula-looking cells get a leading apostrophe), `Content-Disposition: attachment`. `Cache-Control: no-store`. 10/hour per user, shared with the JSON download (429 `rate_limited`); one at a time per user (429 `export_in_progress`). Audited `public_demo_download` (format and case count only). |
+| `GET /public-demo/my-responses.json` | Same rules. 200 `{cases: [{va_sid, submitted_at, state, smartva {cause, likelihood, causes[]}, coder {code, title}, reviewer {code, title}, answers}], count, generated_at}`. |
+| `GET /public-demo/dashboard.json` | No sign-in. 200 `{generated_at, totals {accounts, submissions, coded, reviewed}, smartva {total, causes[], other}, coder {total, causes[], other}, age_bands[], sex[]}`: aggregates over the demo project only, no ids, usernames or free text. Cached server-side (`PUBLIC_DEMO_DASHBOARD_CACHE_SECONDS`, default 300) and `Cache-Control: public, max-age=60`. 60/min per IP. |
+
+The pages beside them (not JSON): `/public-demo/cases`, `/public-demo/cases/<va_sid>/report`
+(submitter only, a case that is not the caller's is 404) and `/public-demo/dashboard`
+(`private, no-store` for a signed-in viewer because of the personal navbar,
+`public, max-age=60` otherwise).
 
 ## Me and reference
 

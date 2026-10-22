@@ -44,7 +44,6 @@ log = logging.getLogger(__name__)
 #: One file and one ``.amr`` file, in bytes: the caps the ODK sync shares.
 MAX_BYTES = attachment_service.MAX_BYTES
 AMR_MAX_BYTES = attachment_service.AMR_MAX_BYTES
-_TOO_LARGE_MESSAGE = f"The file is larger than {MAX_BYTES // (1024 * 1024)} MB."
 _AMR_TOO_LARGE_MESSAGE = f"An AMR recording may be at most {AMR_MAX_BYTES // (1024 * 1024)} MB."
 #: Files one draft may hold: the form has about 37 attachment slots; the cap
 #: only bounds a runaway client.
@@ -172,18 +171,28 @@ def store_upload(
 
     The draft row is locked only for the final count and insert, so the
     per-draft cap holds under parallel uploads without holding a lock across
-    a body over ``MAX_BYTES``.
+    a body over ``MAX_BYTES``. On the public demo project both caps are the
+    demo's (``public_demo_service.attachment_limits``, policy section 8).
     """
+    # Lazy: public_demo_service imports case_transition_service, which this
+    # module imports too, so a top-level import is a cycle.
+    from app.services import public_demo_service
+
+    max_bytes, max_files = MAX_BYTES, MAX_PER_DRAFT
+    demo = public_demo_service.attachment_limits(draft.project_id)
+    if demo is not None:
+        max_bytes, max_files = min(MAX_BYTES, demo[0]), min(MAX_PER_DRAFT, demo[1])
+    too_large = f"The file is larger than {max_bytes // (1024 * 1024)} MB."
     existing = get_upload(draft.draft_id, client_attachment_id)
     if existing is not None:
         _refuse_changed_upload(existing, content_length, client_sha256)
         return existing, False
     if content_length <= 0:
         raise WebIntakeError("The file is empty.", 422, "empty_attachment")
-    if content_length > MAX_BYTES:
-        raise WebIntakeError(_TOO_LARGE_MESSAGE, 413, "payload_too_large")
+    if content_length > max_bytes:
+        raise WebIntakeError(too_large, 413, "payload_too_large")
     # A fast refusal before the body is read; the authoritative count is below.
-    if _held_count(draft.draft_id) >= MAX_PER_DRAFT:
+    if _held_count(draft.draft_id) >= max_files:
         raise WebIntakeError("This interview already holds the most files it may.", 422, "attachment_limit")
 
     head = _read_head(stream)
@@ -209,8 +218,8 @@ def store_upload(
                 if not chunk:
                     break
                 total += len(chunk)
-                if total > MAX_BYTES:
-                    raise WebIntakeError(_TOO_LARGE_MESSAGE, 413, "payload_too_large")
+                if total > max_bytes:
+                    raise WebIntakeError(too_large, 413, "payload_too_large")
                 digest.update(chunk)
                 handle.write(chunk)
         if total != content_length:
@@ -245,7 +254,7 @@ def store_upload(
     if locked.status != "draft":
         _discard_blob(ingested.local_path, draft.form_id, ingested.storage_name)
         raise WebIntakeError("This draft is no longer editable.", 409)
-    if _held_count(draft.draft_id) >= MAX_PER_DRAFT:
+    if _held_count(draft.draft_id) >= max_files:
         _discard_blob(ingested.local_path, draft.form_id, ingested.storage_name)
         raise WebIntakeError("This interview already holds the most files it may.", 422, "attachment_limit")
 

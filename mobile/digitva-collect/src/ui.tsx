@@ -279,6 +279,8 @@ export function errorText(error: unknown): string {
     if (error.code === "no_interviewer_grant") return t("errNoGrant");
     if (error.code === "no_collection_access") return t("noCollectionAccess");
     if (error.code === "device_revoked") return t("errDeviceRevoked");
+    if (error.code === "demo_limit") return t("demoLimit");
+    if (error.code === "cap_reached") return t("demoFull");
     if (error.status === 429) return t("errRateLimited");
     if (error.status === 401) return t("errSignIn");
     return t("errGeneric");

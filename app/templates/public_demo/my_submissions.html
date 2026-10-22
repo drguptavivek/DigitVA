@@ -1,0 +1,50 @@
+{% extends 'va_frontpages/va_base.html' %}
+{# The signed-in public-demo user's own submissions (public-demo.md section 5). #}
+{% block title %}My reports | DigitVA{% endblock %}
+{% block content %}
+<div class="content-section mb-4">
+  <h1 class="h3">My reports</h1>
+  <p class="text-muted">Public demo &mdash; not a medical certificate. Only you can see these.</p>
+
+  {% if cases %}
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <caption class="visually-hidden">Your submitted interviews, newest first</caption>
+      <thead>
+        <tr>
+          <th scope="col">Submitted</th>
+          <th scope="col">Age</th>
+          <th scope="col">Sex</th>
+          <th scope="col">Where it is</th>
+          <th scope="col"><span class="visually-hidden">Report</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for case in cases %}
+        <tr>
+          <td>{{ case.submitted_at | user_timezone('%Y-%m-%d %H:%M') }}</td>
+          <td>{{ case.age }}</td>
+          <td>{{ case.sex }}</td>
+          <td>{{ case.pipeline.label }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-primary" href="{{ url_for('public_demo.case_report', va_sid=case.va_sid) }}">Open report</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="mt-3">
+    Download your responses:
+    <a href="{{ url_for('public_demo.download_csv') }}">CSV</a> &middot;
+    <a href="{{ url_for('public_demo.download_json') }}">JSON</a>
+    <span class="text-muted">(a few times an hour)</span>
+  </p>
+  {% else %}
+  <div class="alert alert-info" role="note">
+    You have not submitted an interview yet. Open VA Interview, complete one, and its report will appear here.
+  </div>
+  {% endif %}
+  <p class="mt-3"><a href="{{ url_for('public_demo.dashboard_page') }}">See the demo dashboard</a></p>
+</div>
+{% endblock %}

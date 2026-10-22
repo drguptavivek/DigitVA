@@ -15,6 +15,12 @@ export const ENROLMENT_DOMAIN = "causeofdeathindia.com";
 /** Production origin; the release build's documented default API origin. */
 export const DEFAULT_RELEASE_SERVER = `https://digitva.${ENROLMENT_DOMAIN}`;
 /**
+ * The public demo's origin (docs/policy/public-demo.md section 10), compiled
+ * in: "Try the demo" enrols only here, so a release build never sends a demo
+ * username or password anywhere else.
+ */
+export const DEMO_SERVER = `https://demo.${ENROLMENT_DOMAIN}`;
+/**
  * Debug builds may also reach a dev server from the emulator or over adb
  * reverse. Empty in release (`__DEV__` is false there), so the strings never
  * enter a release bundle and scripts/verify-android-release.sh can reject them.
@@ -77,6 +83,21 @@ export function acceptedServerOrigin(raw: string, isDev: boolean): string | null
   if (isDev && DEBUG_SERVERS.includes(origin)) return origin;
   if (origin === compiledServer || isDomainOrigin(url)) return origin;
   return null;
+}
+
+/**
+ * The origin "Try the demo" talks to: DEMO_SERVER, except that a debug build
+ * (`isDev`) may name a local dev server in `override` (EXPO_PUBLIC_DEMO_SERVER),
+ * which must pass acceptedServerOrigin. A release build ignores `override`.
+ */
+export function demoServerOrigin(isDev: boolean, override?: string): string {
+  const origin = isDev && override ? acceptedServerOrigin(override, true) : null;
+  return origin ?? DEMO_SERVER;
+}
+
+/** Whether `server` (an enrolled device's origin) is the demo server this build uses. */
+export function isDemoServer(server: string | undefined, isDev: boolean, override?: string): boolean {
+  return !!server && server.toLowerCase() === demoServerOrigin(isDev, override);
 }
 
 export interface EnrolmentPayload {

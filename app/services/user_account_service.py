@@ -68,6 +68,81 @@ def canonical_mobile(value) -> str | None:
     return digits if len(digits) == 10 else None
 
 
+#: A public-demo username (docs/policy/public-demo.md section 2): 3-30
+#: characters, lower-case letters, digits, dot, underscore and hyphen, starting
+#: with a letter. ``clean_username`` also refuses one that canonicalises to a
+#: mobile number, so the sign-in identifier branch never reads it as one.
+USERNAME_RE = re.compile(r"^[a-z][a-z0-9._-]{2,29}$")
+USERNAME_RULE_MESSAGE = (
+    "A username is 3 to 30 characters: lower-case letters, digits, dot, "
+    "underscore or hyphen, starting with a letter."
+)
+USERNAME_IN_USE_MESSAGE = "That username is already taken."
+#: Names that could pass for staff or the service (policy section 8). Compared
+#: after dropping ``.``, ``_`` and ``-``, so ``a.d_min`` is ``admin``: an exact
+#: match here, or any name starting with ``RESERVED_USERNAME_PREFIXES``.
+RESERVED_USERNAMES = frozenset({
+    "admin", "administrator", "root", "support", "help", "system", "digitva", "staff",
+    "moderator", "owner", "security", "test", "null", "demo", "official", "who",
+})
+RESERVED_USERNAME_PREFIXES = ("support", "root", "security", "who", "official", "admin", "digitva")
+_USERNAME_SEPARATORS = str.maketrans("", "", "._-")
+USERNAME_RESERVED_MESSAGE = "That username is not available."
+
+
+def clean_username(value) -> str:
+    """The lower-cased username, or UserAccountError (message safe to show):
+    refused when it breaks the pattern, reads as a mobile number or is
+    reserved."""
+    name = (value or "").strip().lower() if isinstance(value, str) else ""
+    if not USERNAME_RE.fullmatch(name) or canonical_mobile(name) is not None:
+        raise UserAccountError(USERNAME_RULE_MESSAGE)
+    squashed = name.translate(_USERNAME_SEPARATORS)
+    if squashed in RESERVED_USERNAMES or squashed.startswith(RESERVED_USERNAME_PREFIXES):
+        raise UserAccountError(USERNAME_RESERVED_MESSAGE)
+    return name
+
+
+def sign_in_identifier(value) -> tuple[str, str]:
+    """How a typed sign-in identifier is read: ``("email", lower-cased)`` when
+    it has ``@``; ``("mobile", canonical)`` when it canonicalises to a mobile
+    number; ``("username", lower-cased)`` when it matches the username rule and
+    the public demo is on; otherwise ``("mobile", "")``, which matches no
+    account. Never looks anything up, so the caller's answer cannot depend on
+    whether the account exists (authentication-factors.md section 1). The one
+    reading of an identifier for the web login and device sign-in."""
+    from flask import current_app
+
+    typed = (value or "").strip() if isinstance(value, str) else ""
+    if "@" in typed:
+        return "email", typed.lower()
+    mobile = canonical_mobile(typed)
+    if mobile is not None:
+        return "mobile", mobile
+    if current_app.config.get("PUBLIC_DEMO_ENABLED") and USERNAME_RE.fullmatch(typed.lower()):
+        return "username", typed.lower()
+    return "mobile", ""
+
+
+def find_sign_in_user(kind: str, value: str) -> VaUsers | None:
+    """The account a ``sign_in_identifier`` result names, or None. A mobile
+    number matches only a unique sign-in number (``mobile_login``); a username
+    only while the public demo is on."""
+    from flask import current_app
+
+    if not value:
+        return None
+    if kind == "email":
+        column = VaUsers.email
+    elif kind == "mobile":
+        column = VaUsers.mobile_login
+    elif kind == "username" and current_app.config.get("PUBLIC_DEMO_ENABLED"):
+        column = VaUsers.username
+    else:
+        return None
+    return db.session.scalar(sa.select(VaUsers).where(column == value))
+
+
 def mask_mobile(mobile: str | None) -> str | None:
     """``******3210`` for display where an identifier is needed; never the
     whole number (it is personal data, mobile-sign-in.md section 4)."""
@@ -117,6 +192,8 @@ def translate_integrity_error(exc) -> UserAccountError | None:
     text = str(getattr(exc, "orig", exc))
     if "va_users_mobile_login_key" in text:
         return UserAccountError(MOBILE_IN_USE_MESSAGE)
+    if "uq_va_users_username" in text:
+        return UserAccountError(USERNAME_IN_USE_MESSAGE)
     if "va_users_email_key" in text or "ix_va_users_email" in text:
         return EmailInUseError("Email already in use.")
     return None
@@ -233,10 +310,13 @@ def create_invited_user(
     1): an email account gets a generated one by email when it verifies the
     address; a mobile-only account (``fields["email"]`` None) gets one by
     redeeming a sign-in code (mobile_sign_in_service.issue_code). The random
-    placeholder set here is never known to anyone. *via* names the creating
-    path in the audit event (``admin``, ``data_manager``, ``mentor_institute``).
-    *other* holds extra ``other`` keys; the creator stamp is added here.
-    Raises UserAccountError if a concurrent writer took the email or number.
+    placeholder set here is never known to anyone; the one exception, a
+    public-demo sign-up (``fields["username"]`` and ``fields["is_public_demo"]``,
+    public_demo_service), replaces it with the password the person chose.
+    *via* names the creating path in the audit event (``admin``,
+    ``data_manager``, ``mentor_institute``, ``self_signup``). *other* holds
+    extra ``other`` keys; the creator stamp is added here. Raises
+    UserAccountError if a concurrent writer took the email, number or username.
     """
     from sqlalchemy.exc import IntegrityError
 
@@ -248,6 +328,8 @@ def create_invited_user(
         sex=fields.get("sex"),
         phone=fields["phone"] or None,
         mobile_login=fields.get("mobile"),
+        username=fields.get("username"),
+        is_public_demo=bool(fields.get("is_public_demo")),
         user_status=VaStatuses.active,
         vacode_language=fields["languages"],
         permission={},

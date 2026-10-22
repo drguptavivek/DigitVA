@@ -1,6 +1,7 @@
 from app.forms.va_login_form import (
     EmailStepForm,
     PasswordStepForm,
+    PublicDemoSignUpForm,
     RedeemCodeForm,
 )
 from app.forms.va_coderreview_form import VaCoderReviewForm
@@ -15,6 +16,7 @@ from app.forms.password_reset_form import ConfirmLinkForm, ForgotPasswordForm
 __all__ = [
     "EmailStepForm",
     "PasswordStepForm",
+    "PublicDemoSignUpForm",
     "RedeemCodeForm",
     "VaInitialAssessmentForm",
     "VaCoderReviewForm",

@@ -1,0 +1,81 @@
+{% extends 'va_frontpages/va_base.html' %}
+{# Public aggregate dashboard (public-demo.md section 7): no sign-in, aggregates only. #}
+{% block title %}Demo dashboard | DigitVA{% endblock %}
+{% block content %}
+{% macro bars(title, rows, other, label_col) %}
+  <h2 class="h5 mt-4">{{ title }}</h2>
+  {% if rows or other.count %}
+  <table class="table table-sm align-middle">
+    <caption class="visually-hidden">{{ title }}</caption>
+    <thead><tr><th scope="col">{{ label_col }}</th><th scope="col" style="width:45%">Share</th><th scope="col" class="text-end">Cases</th><th scope="col" class="text-end">%</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.label }}</td>
+        <td><progress class="w-100" max="100" value="{{ r.percent }}" aria-label="{{ r.label }}: {{ r.percent }} percent">{{ r.percent }}%</progress></td>
+        <td class="text-end">{{ r.count }}</td><td class="text-end">{{ r.percent }}</td>
+      </tr>
+      {% endfor %}
+      {% if other.count %}
+      <tr>
+        <td>All other causes</td>
+        <td><progress class="w-100" max="100" value="{{ other.percent }}" aria-label="All other causes: {{ other.percent }} percent">{{ other.percent }}%</progress></td>
+        <td class="text-end">{{ other.count }}</td><td class="text-end">{{ other.percent }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="text-muted">No cases yet.</p>
+  {% endif %}
+{% endmacro %}
+{% macro counts(title, rows, key) %}
+  <h2 class="h5 mt-4">{{ title }}</h2>
+  {% set top = (rows | map(attribute='count') | max) or 1 %}
+  <table class="table table-sm align-middle">
+    <caption class="visually-hidden">{{ title }}</caption>
+    <thead><tr><th scope="col">Group</th><th scope="col" style="width:45%">Share of the largest</th><th scope="col" class="text-end">Cases</th></tr></thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r[key] }}</td>
+        <td><progress class="w-100" max="{{ top }}" value="{{ r.count }}" aria-label="{{ r[key] }}: {{ r.count }}">{{ r.count }}</progress></td>
+        <td class="text-end">{{ r.count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endmacro %}
+
+<div class="content-section mb-4">
+  <h1 class="h3">Demo dashboard</h1>
+  <p class="text-muted">
+    Totals for the public demo only. Entries are practice data, not real deaths. No individual record,
+    name or free text is shown. Updated {{ data.generated_at | user_timezone('%Y-%m-%d %H:%M') }}.
+  </p>
+
+  <div class="row g-3 text-center">
+    {% for label, value in [('Accounts', data.totals.accounts), ('Submissions', data.totals.submissions), ('Coded', data.totals.coded), ('Reviewed', data.totals.reviewed)] %}
+    <div class="col-6 col-md-3">
+      <div class="card h-100"><div class="card-body">
+        <p class="display-6 mb-0">{{ value }}</p>
+        <p class="text-muted mb-0">{{ label }}</p>
+      </div></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% set smartva_rows = [] %}
+  {% for c in data.smartva.causes %}{% set _ = smartva_rows.append({'label': c.cause, 'count': c.count, 'percent': c.percent}) %}{% endfor %}
+  {{ bars('SmartVA cause of death', smartva_rows, data.smartva.other, 'Cause') }}
+
+  {% set coder_rows = [] %}
+  {% for c in data.coder.causes %}{% set _ = coder_rows.append({'label': c.code ~ (' ' ~ c.title if c.title else ''), 'count': c.count, 'percent': c.percent}) %}{% endfor %}
+  {{ bars("Coders' ICD-11 underlying cause", coder_rows, data.coder.other, 'ICD-11 cause') }}
+
+  {{ counts('Age', data.age_bands, 'band') }}
+  {{ counts('Sex', data.sex, 'sex') }}
+
+  <p class="mt-4"><a href="{{ url_for('public_demo.dashboard_json') }}">These figures as JSON</a></p>
+</div>
+{% endblock %}

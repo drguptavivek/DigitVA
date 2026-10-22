@@ -217,18 +217,33 @@ function isGlobalAccessGate(code: string | undefined): code is "maintenance" {
   return code === "maintenance";
 }
 
-/** POST /enroll and keep the device record. The secret is stored apart and sent only to /sessions. */
+interface EnrolReply {
+  device_id: string;
+  device_secret: string;
+  project: { project_id: string; name: string };
+}
+
+/** Keep the device record the server returned; the secret is stored apart and sent only to /sessions. */
+async function storeEnrolment(server: string, body: EnrolReply): Promise<Device> {
+  const device: Device = {
+    device_id: body.device_id,
+    server,
+    project_id: body.project.project_id,
+    project_name: body.project.name,
+  };
+  await SecureStore.setItemAsync(DEVICE_SECRET_KEY, body.device_secret, OPTIONS);
+  await writeJson(DEVICE_KEY, device);
+  return device;
+}
+
+/** POST /enroll and keep the device record. */
 export async function enrolDevice(
   server: string,
   code: string,
   deviceName: string,
   appVersion: string,
 ): Promise<Device> {
-  const { body } = await requestJson<{
-    device_id: string;
-    device_secret: string;
-    project: { project_id: string; name: string };
-  }>(server, `${AUTH_API}/enroll`, {
+  const { body } = await requestJson<EnrolReply>(server, `${AUTH_API}/enroll`, {
     method: "POST",
     body: {
       code,
@@ -237,19 +252,33 @@ export async function enrolDevice(
       app_version: appVersion,
     },
   });
-  const device: Device = {
-    device_id: body.device_id,
-    server,
-    project_id: body.project.project_id,
-    project_name: body.project.name,
-  };
-  await SecureStore.setItemAsync(
-    DEVICE_SECRET_KEY,
-    body.device_secret,
-    OPTIONS,
-  );
-  await writeJson(DEVICE_KEY, device);
-  return device;
+  return storeEnrolment(server, body);
+}
+
+/**
+ * POST /demo-enroll (public demo, no QR code): the demo account's username and
+ * password enrol this phone on the demo server, which is then kept as the
+ * enrolled server exactly as a QR enrolment keeps its server. The caller
+ * passes a server the build's demo rule accepts (src/enrolment.ts).
+ */
+export async function enrolDemoDevice(
+  server: string,
+  username: string,
+  password: string,
+  deviceName: string,
+  appVersion: string,
+): Promise<Device> {
+  const { body } = await requestJson<EnrolReply>(server, `${AUTH_API}/demo-enroll`, {
+    method: "POST",
+    body: {
+      username,
+      password,
+      device_name: deviceName,
+      platform: Platform.OS === "ios" ? "ios" : "android",
+      app_version: appVersion,
+    },
+  });
+  return storeEnrolment(server, body);
 }
 
 /** Drop the enrolment (used when the server says the device is revoked). Interviewer stores are untouched. */

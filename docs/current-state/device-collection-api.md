@@ -58,7 +58,7 @@ and the API contract the app is built against:
 
 | Table | Holds |
 |---|---|
-| `auth_device_enrolment_codes` | project, `code_hash` (unique), `expires_at`, `max_uses`, `use_count`, `created_by`, `revoked_at` |
+| `auth_device_enrolment_codes` | project, `code_hash` (unique), `expires_at`, `max_uses`, `use_count`, `created_by`, `revoked_at`; on a public-demo deployment also one hidden, revoked row per demo account that its `POST /auth/demo-enroll` devices name in `enrolled_via` (the device cap and the purge use it; [authentication](authentication-and-onboarding.md) section 6.8) |
 | `auth_devices` | `device_id`, project, name, platform, app version, `secret_hash`, `enrolled_at`, `enrolled_via` (code id), `revoked_at`, `revoked_by`, `last_seen_at`; migration `b9e4f2a7c1d3` adds `revoked_compromised`, `signing_public_key`, `signing_key_id`, `signing_key_set_at` (below) |
 | `auth_device_signing_keys` | every Ed25519 bundle-signing key a device has held (migration `b9e4f2a7c1d3`): `signing_public_key` (raw 32 bytes), `signing_key_id`, `set_at`, `retired_at` (NULL for the current key); unique `(device_id, signing_key_id)` |
 | `auth_device_sessions` | one per (device, interviewer) sign-in: `access_hash` / `refresh_hash` (unique) and expiries, `previous_refresh_hash` (reuse detection), `user_session_version`, `last_seen_at`, `revoked_at` + `revoked_reason`, `outstanding_count`, `outstanding_unique_ids` (JSONB), `outstanding_reported_at` |

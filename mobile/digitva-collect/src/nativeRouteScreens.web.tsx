@@ -1,5 +1,6 @@
 export {
   Case,
+  Demo,
   Enrol,
   Form,
   Home,

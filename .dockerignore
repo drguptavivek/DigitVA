@@ -38,3 +38,5 @@ mobile/**
 # ...but the web export ships expo-router's icons under assets/node_modules.
 !mobile/digitva-collect/dist/assets/node_modules
 !mobile/digitva-collect/dist/assets/node_modules/**
+.env.*
+!.env.demo.example

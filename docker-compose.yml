@@ -28,6 +28,11 @@ services:
   icd_api_service:
     image: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
     profiles: [icd11]
+    # digitva_icd is the only network the public demo joins (docker-compose.demo.yml).
+    networks:
+      default: {}
+      digitva_icd:
+        aliases: [icd_api_service]
     environment:
       acceptLicense: "true"
       saveAnalytics: "false"
@@ -347,6 +352,10 @@ secrets:
   # public key at first import; losing it means re-pinning every station.
   bundle_server_signing_key:
     file: ${BUNDLE_SERVER_SIGNING_KEY_PATH:-./private/bundle_server_signing_key}
+
+networks:
+  digitva_icd:
+    name: digitva_icd
 
 volumes:
   pgdata_minerva:

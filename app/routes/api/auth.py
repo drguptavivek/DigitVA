@@ -16,7 +16,8 @@ included. Terms and maintenance gates are the app-level ones in app/__init__.py.
 
 from datetime import UTC, datetime
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, abort, g, jsonify, request
+from flask_limiter.util import get_remote_address
 from flask_login import login_required
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -26,7 +27,10 @@ from app.routes.api.request_helpers import error as _error
 from app.routes.api.request_helpers import parse_body
 from app.services import device_auth_service as devices
 from app.services import device_signing_service as signing
+from app.services import public_demo_service
+from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.access_summary_service import build_access_summary
+from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
 from app.services.user_account_service import canonical_mobile
 
 bp = Blueprint("auth_api", __name__)
@@ -146,7 +150,9 @@ def enroll():
 def open_session():
     """Worker sign-in on an enrolled device (interviewer, coder, coding tester or
     reviewer, ``has_device_access``); the ``email`` field takes an
-    email or a mobile number (docs/policy/mobile-sign-in.md). Rate limits match the web
+    email or a mobile number (docs/policy/mobile-sign-in.md), and on a
+    ``PUBLIC_DEMO_ENABLED`` deployment a public-demo username
+    (``user_account_service.sign_in_identifier``). Rate limits match the web
     password step (docs/policy/authentication-factors.md section 1), per IP,
     per device and per account; the device credential replaces the CAPTCHA."""
     p = _body()
@@ -157,6 +163,97 @@ def open_session():
     devices.record_app_version(issued.session, p.get("app_version"))
     db.session.commit()
     return jsonify(_session_body(issued, user)), 201
+
+
+@bp.post("/demo-enroll")
+@limiter.limit("10 per minute", key_func=public_demo_service.signup_remote_key)
+@limiter.limit("20 per hour", key_func=_body_key("username"))
+def demo_enroll():
+    """Enrol the app on the public demo without a QR code (docs/policy/
+    public-demo.md section 10): ``{username, password, device_name, platform,
+    app_version?}``. The credentials are checked as ``POST /sessions`` checks
+    them, with its uniform answer: 401 ``invalid_credentials`` for an unknown
+    name, a wrong password or an account that is not a public-demo account.
+    Then a device is enrolled on the demo project and the reply is
+    ``/enroll``'s: 201 ``{device_id, device_secret, project, server_time}``
+    (the secret is shown once). At most ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT``
+    live devices per account: 429 ``demo_limit``. 404 unless
+    ``PUBLIC_DEMO_ENABLED``; 503 ``wrong_database`` on a database that holds
+    another project. The app then signs in through ``POST /sessions``."""
+    if not public_demo_service.enabled():
+        abort(404)
+    p = _body()
+    try:
+        public_demo_service.require_demo_database()
+    except public_demo_service.PublicDemoError as exc:
+        return _error(exc.message, exc.code, exc.status_code)
+    device, secret = devices.enrol_demo_device(
+        username=p.get("username"), password=p.get("password"), device_name=p.get("device_name"),
+        platform=p.get("platform"), app_version=p.get("app_version"),
+    )
+    project = db.session.get(VaProjectMaster, device.project_id)
+    db.session.commit()
+    return jsonify({
+        "device_id": str(device.device_id),
+        "device_secret": secret,
+        "project": {"project_id": project.project_id, "name": project.project_name},
+        "server_time": datetime.now(UTC).isoformat(),
+    }), 201
+
+
+@bp.get("/demo-signup/challenge")
+@limiter.limit("30 per minute", key_func=public_demo_service.signup_remote_key)
+def demo_signup_challenge():
+    """A fresh proof-of-work challenge for ``POST /demo-signup``
+    (``pow_captcha_service.issue_challenge``, the web form's challenge): 200
+    ``{salt, difficulty, expires, signature}``. Stateless and signed, valid
+    for five minutes, spent by one successful verification. 404 unless
+    ``PUBLIC_DEMO_ENABLED``."""
+    if not public_demo_service.enabled():
+        abort(404)
+    return jsonify(issue_challenge()), 200
+
+
+@bp.post("/demo-signup")
+@limiter.limit("10 per minute", key_func=public_demo_service.signup_remote_key)
+def demo_signup():
+    """Public-demo sign-up for the Android app (docs/policy/public-demo.md
+    sections 2 and 10): ``{username, password, captcha}``, where ``captcha``
+    is a challenge from ``GET /demo-signup/challenge`` plus its ``solution``
+    (``{salt, difficulty, expires, signature, solution}``), checked by
+    ``pow_captcha_service.verify_challenge`` exactly as the web form's; a
+    missing or wrong one is 400 ``captcha_failed``. 404 unless
+    ``PUBLIC_DEMO_ENABLED``. The per-client (IPv6 per /64) and demo-wide
+    quotas are spent atomically on success before the commit
+    (``hit_signup_quota``; a spent quota answers the limiter's 429), and the
+    global account cap bounds it. 201 ``{user_id, username}`` and no session;
+    the app then signs in through ``POST /sessions``. Refusals are
+    ``{error, code, fields}`` with ``public_demo_service.create_account``'s
+    codes."""
+    if not public_demo_service.enabled():
+        abort(404)
+    p = _body()
+    if should_block_non_admin_after_cutoff():
+        return _error("Site is under maintenance.", "maintenance", 503)
+    captcha = p.get("captcha")
+    if not isinstance(captcha, dict) or not verify_challenge(
+        salt=captcha.get("salt"), difficulty=captcha.get("difficulty"),
+        expires=captcha.get("expires"), signature=captcha.get("signature"),
+        solution=captcha.get("solution"),
+    ):
+        return _error("We couldn't verify that request. Please try again.", "captcha_failed", 400,
+                      fields=["captcha"])
+    try:
+        user = public_demo_service.create_account(p.get("username"), p.get("password"), via="api")
+    except public_demo_service.PublicDemoError as exc:
+        db.session.rollback()
+        extra = {"fields": [exc.field]} if exc.field else {}
+        return _error(exc.message, exc.code, exc.status_code, **extra)
+    if not public_demo_service.hit_signup_quota(get_remote_address()):
+        db.session.rollback()
+        abort(429)
+    db.session.commit()
+    return jsonify({"user_id": str(user.user_id), "username": user.username}), 201
 
 
 @bp.post("/sessions/refresh")

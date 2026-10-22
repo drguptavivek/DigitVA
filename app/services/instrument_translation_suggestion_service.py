@@ -243,6 +243,10 @@ def suggest(user, project_id: str, locale: str, body: dict) -> dict:
     read here, never taken from the client. 409 when the user already has a
     pending suggestion for the string."""
     standing = project_standing(user, project_id)
+    # A public-demo account may read the translations but not feed the
+    # administrators' review queue (docs/policy/public-demo.md section 3).
+    if getattr(user, "is_public_demo", False):
+        raise SuggestionError("Suggestions are not open to demo accounts.", 403, "forbidden")
     locale = (locale or "").strip()
     if locale not in standing.locales:
         raise SuggestionError("Language not found.", 404, "not_found")

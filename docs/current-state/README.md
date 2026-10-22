@@ -47,6 +47,12 @@ Read these documents in this order:
 22. [Native Passkey Status](native-passkeys.md)
 23. [DORIS Editor UI Tokens](doris-ui-tokens.md)
 
+The public demo (flag `PUBLIC_DEMO_ENABLED`, off by default): accounts, sign-up, confinement and limits are in [Authentication, Login and Onboarding](authentication-and-onboarding.md#25-public-demo-account-only-with-public_demo_enabled) (policy: [public-demo.md](../policy/public-demo.md)).
+
+The public demo's report page, own-response downloads and public dashboard are in [Public Demo Reports, Downloads And Dashboard](public-demo.md).
+
+The public demo's deployment (separate compose project `docker-compose.demo.yml`, own Redis and database, shared ICD container, demo ingress, backups) is in [Public Demo Deployment Runbook](public-demo-deployment.md).
+
 The Training & demo project's tables, CLI and panel are in the [data model](data-model.md#training-sessions), [CLI reference](cli-reference.md) and [admin panels](admin-and-setup.md#training-sessions-panel) (policy: [training-demo-project.md](../policy/training-demo-project.md)).
 
 Related planning:

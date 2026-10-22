@@ -214,8 +214,12 @@ def resolve_area_scope(
 
     No grant of any role (``authz.effective_roles`` empty) is no area
     anywhere, decided before the project is even looked up.
+
+    A public-demo account has no area either: its project-wide staff names
+    and aggregates are other demo users' data (docs/policy/public-demo.md
+    section 3). Every area endpoint and the home KPIs resolve through here.
     """
-    if not authz.effective_roles(user):
+    if not authz.effective_roles(user) or getattr(user, "is_public_demo", False):
         return None
     if project_name is None:
         project_name = db.session.scalar(

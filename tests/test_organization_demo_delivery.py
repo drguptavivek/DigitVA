@@ -94,7 +94,7 @@ class MobileAppGuideTests(BaseTestCase):
         body = self.client.get("/help/mobile-app").get_data(as_text=True)
 
         self.assertIn(self.app.config["DIGITVA_ANDROID_APK_URL"], body)
-        self.assertIn("Download the DigitVA Android app", body)
+        self.assertIn("Android app available.", body)
 
     def test_mobile_page_rejects_non_https_or_credentialed_url(self):
         for value in ("http://example.com/app.apk", "javascript:alert(1)", "https://u:p@example.com/app.apk"):

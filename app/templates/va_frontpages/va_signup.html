@@ -1,0 +1,91 @@
+{% extends "va_frontpages/va_base.html" %}
+{# Public-demo sign-up (docs/policy/public-demo.md section 2). Flash messages
+   render inline on this page; va_base skips its toasts. #}
+{% set flashes_inline = true %}
+{% block title %}DigitVA | Create a demo account{% endblock %}
+{% block content %}
+  <div class="container mt-5 pt-5">
+    {% with messages = get_flashed_messages(with_categories = true) %}
+    {% if messages %}
+      <div class="container mt-4">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% endwith %}
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+        <div class="card shadow">
+          <div class="card-header bg-primary text-white text-center">
+            <h3>
+              <i class="fas fa-user-plus"></i>
+              Create a demo account
+            </h3>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-warning" role="note">
+              <strong>Notice.</strong> {{ notice }}
+            </div>
+            <p class="text-muted small">
+              There is no password reset: if you forget your password, create a new account.
+            </p>
+            <noscript>
+              <div class="alert alert-warning" role="alert">
+                JavaScript is required. Please enable it and reload this page.
+              </div>
+            </noscript>
+            {# id reused so app/static/js/pow_captcha.js drives the CAPTCHA here too #}
+            <form id="login-email-form" action="{{ url_for('va_auth.va_signup') }}" method="post" autocomplete="off"
+                  data-captcha-challenge-url="{{ url_for('va_auth.va_login_captcha_challenge') }}"
+                  data-captcha-worker-url="{{ url_for('static', filename='js/pow_captcha_worker.js') }}">
+              {{ form.hidden_tag() }}
+              <div class="mb-3">
+                {{ form.username.label(class="form-label") }}
+                {{ form.username(class="form-control", autocomplete="username", autofocus=True, autocapitalize="none", spellcheck="false") }}
+                <div class="form-text">3 to 30 characters: lower-case letters, digits, dot, underscore or hyphen, starting with a letter.</div>
+                {% for error in form.username.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
+              <div class="mb-3">
+                {{ form.password.label(class="form-label") }}
+                {{ form.password(class="form-control", autocomplete="new-password") }}
+                {% for error in form.password.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
+              <div class="mb-3">
+                {{ form.confirm.label(class="form-label") }}
+                {{ form.confirm(class="form-control", autocomplete="new-password") }}
+                {% for error in form.confirm.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
+              {% include "va_form_partials/_terms_of_use.html" %}
+              <div class="form-check mb-3">
+                {{ form.accept_notice(class="form-check-input") }}
+                {{ form.accept_notice.label(class="form-check-label") }}
+                {% for error in form.accept_notice.errors %}
+                  <div class="text-danger small">{{ error }}</div>
+                {% endfor %}
+              </div>
+              <div id="captcha-status" class="form-text mb-3" role="status"></div>
+              <div class="d-grid">
+                {{ form.submit(class="btn btn-primary btn-lg", disabled=True) }}
+              </div>
+            </form>
+          </div>
+          <div class="card-footer text-center text-muted">
+            <small><a href="{{ url_for('va_auth.va_login') }}">Already have a demo account? Sign in</a></small>
+            <small class="d-block mt-1"><a href="{{ url_for('public_demo.dashboard_page') }}">See the demo dashboard</a></small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="{{ url_for('static', filename='js/pow_captcha.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+{% endblock %}

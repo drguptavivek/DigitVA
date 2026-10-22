@@ -5,6 +5,7 @@ import { t } from "./i18n";
 import { Button, Screen, useUiStyles } from "./ui";
 
 export { default as Case } from "./nativeRoutes/case";
+export { default as Demo } from "./nativeRoutes/demo";
 export { default as Enrol } from "./nativeRoutes/enrol";
 export { default as Form } from "./nativeRoutes/form";
 export { default as Home } from "./nativeRoutes/index";

@@ -183,7 +183,9 @@ def _duplicate_warnings(death: VaDeathRegister, writer: VaUsers, marks: list[tup
     """One ``identifier_in_use`` warning per type whose number (blind index)
     is already on another open case of the project. One query; reporter name
     and cadre ride along. Detail only for a case the writer supervises or an
-    admin (reporter identity, decision 10)."""
+    admin (reporter identity, decision 10). A public-demo writer is matched
+    against its own registrations only: another demo user's numbers are not
+    even confirmed to exist (docs/policy/public-demo.md section 3)."""
     if not marks:
         return []
     pairs = [(t.identifier_type_id, bidx) for t, bidx in marks if t.uniqueness_scope == "project"]
@@ -208,6 +210,7 @@ def _duplicate_warnings(death: VaDeathRegister, writer: VaUsers, marks: list[tup
             VaDeathRegister.project_id == death.project_id,
             VaDeathRegister.death_id != death.death_id,
             VaDeathRegister.status.not_in(_CLOSED_STATES),
+            *([VaDeathRegister.registered_by == writer.user_id] if writer.is_public_demo else []),
         )
         # First (earliest entered) match per type.
         .distinct(MapDeathIdentifier.identifier_type_id)

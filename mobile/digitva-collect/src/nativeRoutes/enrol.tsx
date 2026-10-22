@@ -2,7 +2,8 @@
  * Enrol: scan the one-time QR from the project's Devices page, validate its
  * server against the compiled rule (src/enrolment.ts), show that server's host
  * and wait for the user to confirm, then POST /enroll. Pasting the JSON is a
- * debug-build convenience for the emulator.
+ * debug-build convenience for the emulator. "Try the demo" (src/nativeRoutes/demo.tsx)
+ * enrols on the public demo server without a code.
  */
 import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -97,6 +98,12 @@ export default function Enrol() {
           <Button label={t("enrolSubmit")} disabled={busy || !pasted.trim()} onPress={() => review(pasted)} />
         </View>
       ) : null}
+      {pending ? null : (
+        <View style={{ gap: 8 }}>
+          <Text style={styles.muted}>{t("demoTryHint")}</Text>
+          <Button kind="secondary" label={t("demoTryTitle")} disabled={busy} onPress={() => router.push("/demo")} />
+        </View>
+      )}
       {busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </Screen>

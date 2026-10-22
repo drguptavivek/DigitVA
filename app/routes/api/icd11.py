@@ -16,11 +16,11 @@ from urllib.parse import parse_qsl, urlencode
 from flask import Blueprint, Response, jsonify, request
 from flask_login import current_user
 
-from app import csrf
+from app import csrf, limiter
 from app.decorators.role_required import role_required
 from app.routes.api.icd10 import _require_coding_or_reviewing_access
 from app.routes.api.request_helpers import error as api_error
-from app.services import coding_search_telemetry_service
+from app.services import coding_search_telemetry_service, public_demo_service
 from app.services.coding_search_explain import explained_payload
 from app.services.icd11_mms_service import (
     build_icd11_provenance,
@@ -38,6 +38,17 @@ from app.services.who_icd_api import (
 )
 
 bp = Blueprint("icd11_api", __name__)
+# The demo's ICD-11 / DORIS lookups (policy section 8): one bucket per
+# account, and one shared by every demo account, both before any WHO call.
+limiter.shared_limit(
+    public_demo_service.icd_rate_limit, scope="public_demo_icd",
+    exempt_when=public_demo_service.not_demo_user,
+)(bp)
+limiter.shared_limit(
+    public_demo_service.icd_global_rate_limit, scope="public_demo_icd_all",
+    key_func=public_demo_service.icd_global_key,
+    exempt_when=public_demo_service.not_demo_user,
+)(bp)
 
 _WHO_PROXY_MAX_QUERY_LENGTH = 4096
 _WHO_PROXY_MAX_BODY_LENGTH = 128 * 1024

@@ -55,7 +55,9 @@ submission enters the workflow. Plan:
 - **Death register** (`va_death_register`): deceased name, sex, ABHA number
   and ABHA address, date of birth or age, date of death, place, address,
   informant, remarks, unit. Name, phone and ABHA identifiers are personal
-  data and follow the PII rules (never logged, admin-only exports).
+  data and follow the PII rules (never logged, admin-only exports). Exception:
+  a public-demo account may download its own submissions
+  ([public-demo.md](public-demo.md)).
 - **Birth-date precision**: exact birth dates use `date_of_birth` (YYYY-MM-DD).
   Month/year and year-only values use optional `date_of_birth_partial`
   (YYYY-MM or YYYY), mutually exclusive with the exact date (both is

@@ -485,6 +485,11 @@ def people_roles(viewer, project_id: str, args: Mapping[str, str], *, paged: boo
     # unreachable project answers 404 before any parameter is looked at.
     reachable = reachable_unit_ids(viewer, project_id, ROLES_ALLOWING_ORG_UNIT)
     resolved = resolve_grants(viewer)
+    # A public-demo account holds interviewer, coder and reviewer on a project
+    # whose roster is every other demo user: it has no people page
+    # (docs/policy/public-demo.md section 3).
+    if getattr(viewer, "is_public_demo", False):
+        raise _not_found()
     projects = _load_projects({project_id})
     scope = ResolvedGrants(user_id=viewer.user_id, is_admin=False, grants=(), projects=projects)
     facts = _viewer_facts(viewer, resolved, scope, project_id)

@@ -42,6 +42,15 @@ keeps the schedule disabled. See [organization-demo.md](../policy/organization-d
 
 ---
 
+## `public-demo` — Public demo project
+
+Refuses unless `PUBLIC_DEMO_ENABLED`. `--by` is an existing admin account (the
+consent audit's actor). Policy: [public-demo.md](../policy/public-demo.md).
+
+| Command | What it does |
+| --- | --- |
+| `public-demo setup --by EMAIL` | Create the public demo project (`PUBLIC_DEMO_PROJECT_ID`, default `PUB01`: organization, web intake `both`, self-coding, ICD-11/DORIS, English and Hindi narrations, recode window 5 minutes, medical records and death summary on), its site and web form, the template levels, the one unit `PUBDEMO`, and required consent with the seeded en and hi notice approved; or reset an existing one's policy settings. Idempotent; prints counts. |
+
 ## `training-demo` — Training & demo project (TRN01)
 
 Needs `DIGITVA_TRAINING_PROJECT_ID=TRN01`; works in production once set. Output is

@@ -147,6 +147,9 @@ function refusal(error: unknown): ApiError {
   return error;
 }
 
+/** The public demo's per-account limits (docs/policy/public-demo.md section 8): 429 `demo_limit`. */
+export const isDemoLimit = (error: ApiError) => error.status === 429 && error.code === "demo_limit";
+
 const PAUSED_META_PREFIX = "paused:";
 
 /** A project with unsent work on the phone that is no longer in this worker's access. */
@@ -301,6 +304,9 @@ export async function uploadQueuedWork(
       const refused = refusal(error);
       console.warn(`registration refused id=${reg.client_death_id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, reg.project_id, refused);
+      // The public demo's limit (429 demo_limit) is final: shown as needing the
+      // interviewer, never resent by the next sync.
+      if (isDemoLimit(refused)) await setRegistrationState(db, reg.client_death_id, "needs_edit");
       if (refused.status === 422) {
         const numbers = identifierFieldErrors(refused);
         if (Object.keys(numbers).length) await setRegistrationRefusal(db, reg.client_death_id, numbers);
@@ -437,6 +443,8 @@ export async function uploadQueuedWork(
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, item.project_id, refused);
       if (refused.status === 422 && refused.code !== "answers_hash_invalid") await reopenDraft(db, item.id);
+      // Final until the interviewer asks again (retryDemoLimitDraft): sync skips it.
+      if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
       failed += 1;
     }
   }
@@ -488,6 +496,7 @@ export async function syncInterviewer(
         } catch (error) {
           const refused = refusal(error);
           console.warn(`draft sync refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
+          if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
           failed += 1;
         }
       }

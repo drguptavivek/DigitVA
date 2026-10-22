@@ -395,6 +395,13 @@ class VaWebIntakeDraft(db.Model):
         sa.Index("ix_va_web_intake_drafts_death", "death_id"),
         # The submitter's revision finds its draft by submission id.
         sa.Index("ix_va_web_intake_drafts_va_sid", "va_sid", postgresql_where=sa.text("va_sid IS NOT NULL")),
+        # A public-demo user's own submissions (authz.predicates own-case filter).
+        sa.Index(
+            "ix_va_web_intake_drafts_user_submitted",
+            "user_id",
+            "va_sid",
+            postgresql_where=sa.text("status = 'submitted'"),
+        ),
         sa.Index(
             "uq_va_web_intake_drafts_client_draft_id",
             "client_draft_id",

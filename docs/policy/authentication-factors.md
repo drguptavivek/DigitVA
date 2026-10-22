@@ -3,7 +3,7 @@ title: Login Passwords and Passkeys
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-22
 ---
 
 # Login Passwords and Passkeys
@@ -21,7 +21,8 @@ CSRF protections continue to apply.
 
 ## 1. Web login
 
-1. The user enters an email or mobile number. The browser completes the local
+1. The user enters an email or mobile number (or, on a public-demo
+   deployment, a demo username; see [public-demo.md](public-demo.md)). The browser completes the local
    proof-of-work challenge, and the server stores a five-minute pre-auth state
    without creating a login session.
 2. The second page is indistinguishable for known and unknown identifiers. It

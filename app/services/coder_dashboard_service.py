@@ -103,7 +103,10 @@ def bust_coder_dashboard_cache(user_id) -> int:
     deleted = 0
     try:
         redis_client = cache.cache._write_client  # type: ignore[attr-defined]
-        keys = redis_client.keys(f"*{key_prefix}{user_id}:*")
+        # The leading wildcard would reach another deployment's keys on a
+        # shared Redis, so the public demo's own cache prefix replaces it.
+        lead = current_app.config["CACHE_KEY_PREFIX"] if current_app.config.get("PUBLIC_DEMO_ENABLED") else "*"
+        keys = redis_client.keys(f"{lead}{key_prefix}{user_id}:*")
         if keys:
             deleted = redis_client.delete(*keys)
     except Exception:

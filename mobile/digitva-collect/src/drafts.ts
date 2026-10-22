@@ -54,7 +54,7 @@ export interface DraftRow {
   /** An offline registration not yet acknowledged; the draft waits for it. */
   client_death_id: string | null;
   /** A persistent upload refusal that needs interviewer attention. */
-  upload_issue?: "answers_hash_invalid" | "invalid_definition_pin" | null;
+  upload_issue?: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | null;
   upload_issue_unique_id?: string | null;
   /** Server draft identity is separate from the stable local submission id. */
   server_draft_id?: string | null;
@@ -512,11 +512,23 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
 export async function setDraftUploadIssue(
   db: Db,
   id: string,
-  issue: "answers_hash_invalid" | "invalid_definition_pin",
+  issue: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit",
 ): Promise<void> {
   await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
     completed = CASE WHEN ? = 'answers_hash_invalid' THEN 0 ELSE completed END
     WHERE id = ?`, [issue, null, issue, id]);
+}
+
+/**
+ * The interviewer asks for a draft refused at the public demo's limit to be
+ * sent again. The only way out of `demo_limit`: sync never clears it, so a
+ * limit is never retried on its own.
+ */
+export async function retryDemoLimitDraft(db: Db, id: string): Promise<void> {
+  await db.runAsync(
+    "UPDATE drafts SET upload_issue = NULL, upload_issue_unique_id = NULL WHERE id = ? AND upload_issue = 'demo_limit'",
+    [id],
+  );
 }
 
 /**

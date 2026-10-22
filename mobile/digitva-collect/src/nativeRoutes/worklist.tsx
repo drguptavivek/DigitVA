@@ -26,7 +26,7 @@ import {
   type CaseDetail,
   type Registration,
 } from "../cases";
-import { listDrafts, type Db, type DraftRow } from "../drafts";
+import { listDrafts, retryDemoLimitDraft, type Db, type DraftRow } from "../drafts";
 import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import { t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -1069,8 +1069,8 @@ function InterviewWorklist() {
         <Text style={styles.muted}>{t("noDrafts")}</Text>
       ) : null}
       {visibleDrafts.map((draft) => (
+        <View key={draft.id} style={{ gap: 8 }}>
         <Pressable
-          key={draft.id}
           accessibilityRole="button"
           disabled={draft.completed === 1}
           style={styles.card}
@@ -1097,7 +1097,21 @@ function InterviewWorklist() {
           {draft.upload_issue === "answers_hash_invalid" ? (
             <Text style={styles.error}>{t("draftHashInvalidAttention")}</Text>
           ) : null}
+          {draft.upload_issue === "demo_limit" ? (
+            <Text style={styles.error}>{t("demoDraftLimit")}</Text>
+          ) : null}
         </Pressable>
+        {draft.upload_issue === "demo_limit" ? (
+          <Button
+            kind="secondary"
+            label={t("demoDraftRetry")}
+            onPress={() => {
+              const handle = dbRef.current;
+              if (handle) void retryDemoLimitDraft(handle, draft.id).then(() => loadLocal(handle));
+            }}
+          />
+        ) : null}
+        </View>
       ))}
       {pausedProjects.map((paused) => {
         const count =

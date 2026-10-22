@@ -6,6 +6,7 @@ from app.forms import (
     ConfirmLinkForm,
     EmailStepForm,
     PasswordStepForm,
+    PublicDemoSignUpForm,
     RedeemCodeForm,
     ForgotPasswordForm,
 )
@@ -14,6 +15,7 @@ import sqlalchemy as sa
 import uuid
 from flask import (
     Blueprint,
+    abort,
     current_app,
     flash,
     jsonify,
@@ -24,11 +26,12 @@ from flask import (
     session,
     url_for,
 )
+from flask_limiter.util import get_remote_address
 from flask_login import login_user, logout_user, current_user
 from urllib.parse import urlparse
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.services import mobile_sign_in_service
+from app.services import mobile_sign_in_service, public_demo_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services import user_account_service as accounts
@@ -72,32 +75,39 @@ PASSWORD_EMAILED_MESSAGE = "Your password has been emailed to you."
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-timing-equaliser")
 
 def _preauth_email_key_func():
-    """Per-account limiter key for the password step: the pre-auth email or
-    mobile number, not a form field an attacker controls."""
+    """Per-account limiter key for the password step: the pre-auth email,
+    mobile number or username, not a form field an attacker controls."""
     state = _preauth_state() or {}
     if state.get("email"):
         return state["email"]
+    if state.get("username"):
+        return f"username:{state['username']}"
     return f"mobile:{state.get('mobile') or ''}"
 
 
 def _login_identifier_key_func(field: str = "email"):
-    """Per-identifier limiter key for a posted email or mobile number: a
-    mobile number keys on its canonical form, so spacing or a ``+91`` prefix
-    does not buy a fresh bucket."""
+    """Per-identifier limiter key for a posted email, mobile number or
+    username, as ``sign_in_identifier`` reads it: a mobile number keys on its
+    canonical form, so spacing or a ``+91`` prefix does not buy a fresh
+    bucket."""
     value = (request.form.get(field) or "").strip()
-    if "@" in value:
-        return value.lower()
-    return f"mobile:{canonical_mobile(value) or value}"
+    kind, identifier = accounts.sign_in_identifier(value)
+    if kind == "email":
+        return identifier
+    if kind == "username":
+        return f"username:{identifier}"
+    return f"mobile:{identifier or value}"
 
 
 def _preauth_state() -> dict | None:
     """The current pre-auth state if present and not expired, else None.
-    Names either an ``email`` or a ``mobile`` (canonical, or "" for a value
-    that is not a 10-digit number, which then matches no account)."""
+    Names an ``email``, a ``username`` (public demo) or a ``mobile``
+    (canonical, or "" for a value that is not a 10-digit number, which then
+    matches no account)."""
     state = session.get("preauth")
     if not isinstance(state, dict) or not state.get("issued_at"):
         return None
-    if not state.get("email") and "mobile" not in state:
+    if not state.get("email") and not state.get("username") and "mobile" not in state:
         return None
     try:
         issued_at = datetime.fromisoformat(state["issued_at"])
@@ -109,40 +119,42 @@ def _preauth_state() -> dict | None:
 
 
 def _set_preauth(identifier: str, next_url: str | None) -> None:
-    """Start pre-auth for a typed email or mobile number, without looking
-    the account up (the email step never branches on existence)."""
+    """Start pre-auth for a typed email, mobile number or username, read by
+    ``sign_in_identifier``, without looking the account up (the email step
+    never branches on existence)."""
     state = {"issued_at": datetime.now(timezone.utc).isoformat(), "next": next_url}
-    identifier = (identifier or "").strip()
-    if "@" in identifier:
-        state["email"] = identifier.lower()
-    else:
-        state["mobile"] = canonical_mobile(identifier) or ""
+    kind, value = accounts.sign_in_identifier(identifier)
+    state[kind] = value
     session["preauth"] = state
 
 
+def _preauth_kind(preauth: dict) -> tuple[str, str]:
+    for kind in ("email", "username"):
+        if preauth.get(kind):
+            return kind, preauth[kind]
+    return "mobile", preauth.get("mobile") or ""
+
+
 def _preauth_user(preauth: dict):
-    """The account the pre-auth state names, or None. A mobile number
-    matches only a unique sign-in number (``mobile_login``); shared or
-    malformed numbers are never set there, so they match no one."""
-    if preauth.get("email"):
-        return db.session.scalar(sa.select(VaUsers).where(VaUsers.email == preauth["email"]))
-    if preauth.get("mobile"):
-        return db.session.scalar(
-            sa.select(VaUsers).where(VaUsers.mobile_login == preauth["mobile"])
-        )
-    return None
+    """The account the pre-auth state names, or None (``find_sign_in_user``:
+    a mobile number matches only a unique sign-in number, so a shared or
+    malformed one matches no one; a username only while the demo is on)."""
+    return accounts.find_sign_in_user(*_preauth_kind(preauth))
 
 
 def _preauth_names(user, preauth: dict) -> bool:
-    """Whether the pre-auth state still names *user* (same email or number)."""
-    if preauth.get("email"):
-        return user.email == preauth["email"]
-    return bool(preauth.get("mobile")) and user.mobile_login == preauth["mobile"]
+    """Whether the pre-auth state still names *user* (same identifier)."""
+    kind, value = _preauth_kind(preauth)
+    column = {"email": "email", "username": "username", "mobile": "mobile_login"}[kind]
+    return bool(value) and getattr(user, column) == value
 
 
 def _preauth_display(preauth: dict) -> str:
     """What the person typed, for "Signing in as" on their own page."""
-    return preauth.get("email") or preauth.get("mobile") or "your mobile number"
+    return (
+        preauth.get("email") or preauth.get("username") or preauth.get("mobile")
+        or "your mobile number"
+    )
 
 
 def _clear_preauth() -> None:
@@ -219,9 +231,11 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: 
 @limiter.limit("10 per minute", methods=["POST"])
 @limiter.limit("20 per hour", methods=["POST"], key_func=_login_identifier_key_func)
 def va_login():
-    """Step 1: email or mobile number plus the proof-of-work CAPTCHA. A value
-    with ``@`` is an email, anything else a mobile number (docs/policy/
-    mobile-sign-in.md section 2). Never looks the user up
+    """Step 1: email, mobile number or (public demo) username plus the
+    proof-of-work CAPTCHA. A value with ``@`` is an email, a 10-digit number a
+    mobile number (docs/policy/mobile-sign-in.md section 2), and, only while
+    ``PUBLIC_DEMO_ENABLED``, a name matching the username rule a username
+    (``user_account_service.sign_in_identifier``). Never looks the user up
     or branches on whether the account exists -- see docs/policy/
     authentication-factors.md section 1.
     """
@@ -473,6 +487,59 @@ def va_login_passkey_verify():
     db.session.commit()
 
     return jsonify({"redirect": next_url or current_user.landing_url()})
+
+
+@va_auth.route("/signup", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"], key_func=public_demo_service.signup_remote_key)
+def va_signup():
+    """Public-demo sign-up (docs/policy/public-demo.md section 2): a username
+    and a chosen password, the notice accepted, behind the proof-of-work
+    CAPTCHA. 404 unless ``PUBLIC_DEMO_ENABLED``. A new account is signed in
+    through ``_complete_login``, as a password sign-in is, and lands on the
+    app. Rules and the account cap are ``public_demo_service.create_account``'s.
+    The per-IP hourly and daily quota is spent atomically on success, before
+    the commit (``hit_signup_quota``); a spent quota answers the limiter's 429.
+    """
+    if not public_demo_service.enabled():
+        abort(404)
+    if current_user.is_authenticated:
+        return redirect(current_user.landing_url())
+    template = "va_frontpages/va_signup.html"
+    form = PublicDemoSignUpForm()
+    if not form.validate_on_submit():
+        return render_template(template, form=form, notice=public_demo_service.NOTICE)
+
+    def refused(message: str, category: str = "primary"):
+        flash(message, category)
+        return render_template(
+            template, form=PublicDemoSignUpForm(username=form.username.data),
+            notice=public_demo_service.NOTICE,
+        )
+
+    solved = verify_challenge(
+        salt=form.captcha_salt.data,
+        difficulty=form.captcha_difficulty.data,
+        expires=form.captcha_expires.data,
+        signature=form.captcha_signature.data,
+        solution=form.captcha_solution.data,
+    )
+    if not solved:
+        return refused("We couldn't verify that request. Please try again.")
+    if should_block_non_admin_after_cutoff():
+        return refused("Site is under maintenance. Please try again later.", "warning")
+    try:
+        user = public_demo_service.create_account(
+            form.username.data, form.password.data, confirm=form.confirm.data, via="web"
+        )
+    except public_demo_service.PublicDemoError as exc:
+        db.session.rollback()
+        return refused(exc.message, "warning" if exc.status_code >= 500 else "primary")
+    if not public_demo_service.hit_signup_quota(get_remote_address()):
+        db.session.rollback()
+        abort(429)
+    _complete_login(user, remember=False, nudge_if_no_passkey=False, method="self_signup")
+    db.session.commit()
+    return redirect(current_user.landing_url())
 
 
 @va_auth.route("/valogout", methods=["POST"])

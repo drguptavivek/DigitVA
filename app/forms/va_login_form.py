@@ -70,3 +70,33 @@ class RedeemCodeForm(FlaskForm):
     captcha_signature = HiddenField(validators=[DataRequired()])
     captcha_solution = HiddenField(validators=[DataRequired()])
     submit = SubmitField("Get my password")
+
+
+class PublicDemoSignUpForm(FlaskForm):
+    """Public-demo sign-up (docs/policy/public-demo.md section 2): a username
+    and a chosen password, the notice and terms accepted, plus the same
+    proof-of-work CAPTCHA as the email step. The username and password rules
+    are ``public_demo_service.create_account``'s, checked on the server."""
+
+    username = StringField(
+        "Username:",
+        validators=[DataRequired(message="Username is required."), Length(max=64)],
+    )
+    password = PasswordField(
+        "Password (at least 12 characters):",
+        validators=[DataRequired(message="Password is required."), Length(max=256)],
+    )
+    confirm = PasswordField(
+        "Password again:",
+        validators=[DataRequired(message="Please type the password again."), Length(max=256)],
+    )
+    accept_notice = BooleanField(
+        "I have read the notice and accept the terms of use.",
+        validators=[DataRequired(message="Please accept the notice and the terms of use.")],
+    )
+    captcha_salt = HiddenField(validators=[DataRequired()])
+    captcha_difficulty = HiddenField(validators=[DataRequired()])
+    captcha_expires = HiddenField(validators=[DataRequired()])
+    captcha_signature = HiddenField(validators=[DataRequired()])
+    captcha_solution = HiddenField(validators=[DataRequired()])
+    submit = SubmitField("Create my demo account")

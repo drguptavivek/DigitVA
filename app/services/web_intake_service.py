@@ -57,6 +57,7 @@ from app.services import death_identifier_service as death_identifiers
 from app.services import (
     notification_service,
     org_grant_service,
+    public_demo_service,
     register_duplicate_service,
     register_pii_accessor,
     served_form_service,
@@ -803,8 +804,10 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
     mode = get_web_intake_mode(project_id)
     if not _mode_allows(mode, death_register=True):
         raise WebIntakeError("This project does not use the death register.", 403)
+    org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
     # An interviewer or a death_reporter (register_death_context's predicate).
     _require_scope(user, project_id, site_id, org_unit_id, DEATH_REGISTERING_ROLES)
+    public_demo_service.check_new_registration(user, project_id)
     cleaned = _clean_death_fields(fields)
     _require_age_info(cleaned)
     unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
@@ -879,6 +882,10 @@ def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
         if exc.status_code == 403:
             raise WebIntakeError("Death entry not found.", 404) from None
         raise
+    # A public-demo account reaches only the deaths it registered (a direct
+    # start registers its own): docs/policy/public-demo.md section 3.
+    if user.is_public_demo and death.registered_by != user.user_id:
+        raise WebIntakeError("Death entry not found.", 404)
     # "Details pending" is its starter's (and supervisors') only (owner,
     # 2026-09-30, item 11); for anyone else it does not exist.
     if (
@@ -1673,7 +1680,11 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         org_unit_id = death.org_unit_id
     elif not _mode_allows(mode, death_register=False):
         raise WebIntakeError("This project requires a death register entry before the questionnaire.", 403)
+    else:
+        org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
     _require_scope(user, project_id, site_id, org_unit_id)
+    # Only a new draft counts against the public demo's open-draft limit.
+    public_demo_service.check_new_draft(user, project_id)
     form = ensure_web_runtime_form(project_id, site_id)
     resolved_org_unit_id = uuid.UUID(str(org_unit_id)) if org_unit_id else None
     prefill = _prefill_from_death(death, user, resolved_org_unit_id)
@@ -2392,6 +2403,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         raise WebIntakeError("This draft has already been submitted.", 409)
     if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
         raise WebIntakeError("completion.data is required.")
+    # Web and device submits both pass here (public-demo.md section 8).
+    public_demo_service.check_new_submission(user, draft.project_id)
     outcome = _interview_outcome(completion["data"], completion)
     # Locked answers (interviewer identity, area presets, ABHA, registered age) are
     # overwritten with the draft's server-computed prefill, added when the
@@ -3873,6 +3886,9 @@ def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: fro
             VaDeathRegister.status != "draft_identity",
             VaDeathRegister.started_by_user_id == user.user_id,
         ),
+        # A public-demo account sees only the deaths it registered
+        # (docs/policy/public-demo.md section 3), as get_death.
+        *([VaDeathRegister.registered_by == user.user_id] if user.is_public_demo else []),
     )
 
 

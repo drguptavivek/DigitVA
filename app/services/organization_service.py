@@ -2722,6 +2722,11 @@ def my_organization(user) -> dict:
                   "my_units": [], "above": [], "my_level": [], "below": []}
         )
         block["has_tree"] = has_tree
+        if getattr(user, "is_public_demo", False):
+            for unit in (*block["above"], *block["my_level"]):
+                unit["people"] = []
+            for unit in block["below"]:
+                unit["people_count"] = 0
         block["my_positions"] = _my_positions(pid, grants_by_project[pid], site_names)
         projects.append(block)
     return {"projects": projects}
@@ -2737,6 +2742,9 @@ def unit_people(user, org_unit_id: object) -> dict | None:
     """
     # Decided first, so a bad id also consults authz (the reach is the same).
     granted = _granted_project_ids(user)
+    # A public-demo account sees no roster (docs/policy/public-demo.md section 3).
+    if getattr(user, "is_public_demo", False):
+        return None
     try:
         unit_uuid = _uuid(org_unit_id, what="Unit")
     except OrganizationError:

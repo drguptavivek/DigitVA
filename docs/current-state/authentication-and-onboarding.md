@@ -250,6 +250,153 @@ sequenceDiagram
     end
 ```
 
+### 2.5 Public-demo account (only with `PUBLIC_DEMO_ENABLED`)
+
+Policy: [public-demo.md](../policy/public-demo.md). The only self sign-up.
+With the flag off (every deployment but the demo one) the sign-up routes
+answer 404 and a username never resolves at sign-in.
+
+- `va_users.username` (lower-case, unique `uq_va_users_username`) and
+  `va_users.is_public_demo` (partial index `ix_va_users_public_demo_status`);
+  `ck_va_users_email_or_mobile` accepts an email, a sign-in mobile number or
+  a username (migration `b4d6f8a2c9e1`).
+- Username rule (`user_account_service.clean_username`): 3-30 characters,
+  `^[a-z][a-z0-9._-]{2,29}$`, typed case ignored, and never one that
+  canonicalises to a mobile number. Password: at least 12 characters, not the
+  username, breach-checked (an unreachable check is a retryable refusal).
+- `public_demo_service.create_account`, in one transaction under an advisory
+  lock: active demo accounts below `PUBLIC_DEMO_MAX_ACCOUNTS` (default 500),
+  `create_invited_user` with `username`, `is_public_demo`, languages english
+  and hindi and `created_via = self_signup`, the chosen password, `accept_terms`,
+  and project-scope `interviewer`, `coder` and `reviewer` grants on
+  `PUBLIC_DEMO_PROJECT_ID` (default `PUB01`). Audits `account_created`
+  (`self_signup`) and `terms_accepted` (`web` or `api`). The whole demo
+  refuses (`PublicDemoError` `wrong_database`, 503, one logged error) when
+  `va_project_master` holds a project other than `PUBLIC_DEMO_PROJECT_ID`, the
+  sign of a demo pointed at the main database (`foreign_projects_exist`; the
+  same guard stops setup, the beat allowlist, the purge and the eviction).
+- **At the cap** (`PUBLIC_DEMO_MAX_ACCOUNTS`, 500), with
+  `PUBLIC_DEMO_PURGE_ENABLED`, the same transaction first deletes the active
+  account idle longest, if it has been idle `PUBLIC_DEMO_EVICT_IDLE_DAYS` (7)
+  or more (`public_demo_purge_service.evict_one`: the account and everything
+  it created, as the purge does, each try in a savepoint (up to 25 candidates,
+  so refused accounts do not block it; a failed try never queues its stored
+  files), audited as a
+  `public_demo_evict` security event with row counts only). Its stored files
+  go after the sign-up commits; a rolled-back sign-up deletes nothing. When
+  nobody qualifies, or the purge is off, sign-up is refused: JSON 503
+  `{"code": "cap_reached", "error": "The demo is full; try again later."}`,
+  the same text flashed on the web form.
+- `sign_in_verified` is true for a username account (nothing to verify);
+  `is_mobile_only` now means no email **and** a sign-in number, so it is
+  false for a username account and unchanged for every other one. A sign-in
+  code cannot be issued for a username account (`issue_code` raises; the
+  admin route answers 400). No password reset (no email).
+- Confinement (policy section 3): a `before_flush` guard
+  (`authz.grant_cache._guard_public_demo_grants`) raises
+  `PublicDemoGrantRefused` for any new, reactivated or reshaped active grant
+  of a demo account other than those three; routes answer 403 `forbidden`.
+  Demo accounts get no demo-training virtual grants (`authz.grants._resolve`).
+  Every submission predicate (`scope_filter`, `lens_filter`, `reaches`,
+  `codes_as_tester`, so `can` too) is ANDed with the account's own submitted
+  drafts (`ix_va_web_intake_drafts_user_submitted`); `get_death` and the
+  worklist scope reach only deaths the account registered.
+- Limits at the point of write (`public_demo_service`, 429 `demo_limit`):
+  open drafts (`start_draft`), submissions per rolling day and in total
+  (`submit_draft`, which web and device submits share); on the demo project
+  `store_upload` uses `PUBLIC_DEMO_ATTACHMENT_MAX_BYTES` and
+  `PUBLIC_DEMO_ATTACHMENTS_PER_DRAFT`. A demo draft or registration without a
+  unit uses the project's one unit `PUBDEMO`. Death registrations
+  (`register_death`) are limited by `PUBLIC_DEMO_REGISTRATIONS_PER_DAY` (5) and
+  `PUBLIC_DEMO_REGISTRATIONS_TOTAL` (25). Every per-account check first takes
+  `pg_advisory_xact_lock` on the account (`public_demo_service._lock_account`),
+  held until the caller commits, so parallel requests cannot pass a count
+  together. Drafts are limited to `PUBLIC_DEMO_OPEN_DRAFTS` (3) open and
+  `PUBLIC_DEMO_DRAFTS_PER_DAY` (10) / `PUBLIC_DEMO_DRAFTS_TOTAL` (30) started
+  whatever their status (`check_new_draft`, one query), and submissions to
+  `PUBLIC_DEMO_SUBMISSIONS_PER_DAY` (5) / `PUBLIC_DEMO_SUBMISSIONS_TOTAL` (10).
+  Sign-ups are limited per client address (`PUBLIC_DEMO_SIGNUP_RATE_LIMIT`,
+  default 30/hour and 200/day, keyed per IPv4 address or per IPv6 /64 prefix by
+  `signup_client_key`, also the key of the two sign-up routes' own 10/min
+  limit) and across the whole demo (`PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT`,
+  100/hour, one shared key). Both are spent by one atomic limiter hit each
+  (`hit_signup_quota`, client windows first) after the account is flushed and
+  before the commit, one set of buckets for the web and JSON paths; a spent
+  quota rolls back and answers the app's 429. ICD-11 and DORIS calls
+  (`icd11_api`, `doris_clinical_api`, including the WHO proxy) share one
+  per-account bucket, `PUBLIC_DEMO_ICD_RATE_LIMIT` (300 per hour), and one
+  bucket for all demo accounts, `PUBLIC_DEMO_ICD_GLOBAL_RATE_LIMIT` (2000 per
+  hour), both for demo accounts only and both before any WHO call.
+- Reserved usernames (`user_account_service.RESERVED_USERNAMES`, and any name
+  starting `support`, `root`, `security`, `who`, `official`, `admin` or
+  `digitva`) are refused by `clean_username`, compared after dropping `.`, `_`
+  and `-` (so `a.d_min` is `admin`).
+- A demo account's refusal for a case it did not submit is always `NOT_FOUND`
+  (`predicates._can_submission`), so a guessed `va_sid` cannot be told apart
+  from an unknown one; `my_organization` reports `people_count: 0` for the
+  units below it.
+- Redis and Celery namespace (policy section 8a): `create_app` applies
+  `_namespace_public_demo` before any extension reads its configuration, with
+  the flag on only: `CACHE_KEY_PREFIX` `digitva_demo:`, `RATELIMIT_KEY_PREFIX`
+  `demo`, `AUTHZ_GRANT_CACHE_PREFIX` `digitva_demo_authz:`,
+  `NOTIFICATION_CACHE_PREFIX` `digitva_demo_msg:last:`, `SWEEP_LOCK_KEY_PREFIX`
+  `demo:` (the SmartVA, bundle and attachment sweep locks), Celery
+  `task_default_queue` `demo` and `global_keyprefix` `demo:` in
+  `broker_transport_options` and `result_backend_transport_options`. The
+  worker, started without `-Q`, consumes the default queue; no task names a
+  queue. The beat schedule is `app/tasks/beat_schedule.py` (see async-tasks.md).
+- Nothing shows a demo account another demo user's identity or project-wide
+  counts. Refused for a demo account: people and roles (JSON and CSV, 404),
+  the area dashboard and Home KPIs (`resolve_area_scope` returns no scope),
+  the organization roster (`unit_people`, `my_organization` people lists) and
+  suggesting translations. Scoped to its own rows: the case list and its
+  facets, coding and review queues, stats and history, the intake worklist,
+  possible-duplicate hints and the register's identifier-in-use warning
+  (`death_identifier_service._duplicate_warnings`).
+- **Retention** (policy section 9): the daily beat task
+  `app.tasks.public_demo_tasks.purge_public_demo_task` and
+  `flask public-demo purge --dry-run|--apply` run
+  `public_demo_purge_service.purge_run`. It takes demo accounts idle
+  `PUBLIC_DEMO_PURGE_IDLE_DAYS` (30; at most `PUBLIC_DEMO_PURGE_BATCH`, 100,
+  per run, oldest first; accounts the guards refuse stay idle and are
+  reselected nightly, so the run looks past them, up to `PURGE_SCAN_LIMIT`
+  1000 candidates, until it has deleted the batch) and deletes each in its own transaction, in the
+  explicit order of `PLAN`: the account's notifications, payload versions and
+  every table keyed by its `va_sid`, death registrations (sealed PII,
+  identifiers, consent records, transitions, contact attempts), drafts and
+  uploads, submissions, devices only it used, audit rows it wrote, grants, then
+  the user; `auth_security_events` stay (user columns go NULL), and so do
+  config and admin tables (`RETAINED_TABLES`; a test walks the foreign keys so
+  a new table must be added to one list or the other). Last activity is the
+  latest of `last_signed_in_at` (web and device sign-in, and a remember-me
+  return at most once a day: `public_demo_service.stamp_remembered_sign_in` on
+  Flask-Login's `user_loaded_from_cookie`, connected in `create_app`), creation,
+  the newest `auth_device_sessions` row and the newest `va_web_intake_drafts`
+  `updated_at`/`created_at`. Per account, under a `FOR UPDATE SKIP LOCKED` row lock, it refuses
+  (counted, nothing deleted) unless every draft, death registration,
+  submission, grant and device is on the demo project, no other account
+  shares a case and the account is still idle. Applying needs
+  `PUBLIC_DEMO_ENABLED`, `PUBLIC_DEMO_PURGE_ENABLED` (default off until the
+  nightly backup is verified) and the main-database guard; `--dry-run` runs the
+  deletes and rolls them back. Stored files are removed after the commit
+  (`session.info` queue, dropped by a rollback). One `public_demo_purge`
+  security event per run carries counts only. The same run ages out the demo
+  project's SmartVA run folders (`purge_smartva_runs`, up to 200 per run):
+  every `va_smartva_form_runs` row of the demo project started more than the
+  idle period ago loses its folder on disk (`disk_path`, only a folder named for
+  the run id) and its objects under `smartva_runs/<project>/<form>/<run>/` in
+  the S3 store; the row is deleted, or, when a `va_smartva_runs` row still
+  references it (an account in use has older submissions), kept with
+  `disk_path` and `archive_key_prefix` cleared and `archive_state` `absent`.
+  A failure keeps the row for the next day. `va_sessions` rows (browser
+  session blobs, no user column) lapse by their own expiry.
+- `flask public-demo setup --by <admin email>` builds or resets the project
+  (policy section 4), its site, web form, levels, the `PUBDEMO` unit and
+  required consent with the seeded en and hi notice approved by that admin.
+  `CODING_SWEEP_INTERVAL_MINUTES` (unset: the hourly beat row is left as it
+  is) sets how often the reviewer-eligible sweep runs; the demo deployment
+  sets a few minutes, which repoints and renames the existing beat row.
+
 ## 3. Web login
 
 All pages are server-rendered Flask-WTF forms posting `csrf_token` (section
@@ -273,8 +420,10 @@ All pages are server-rendered Flask-WTF forms posting `csrf_token` (section
   try again."
 - On success the server stores the pre-auth state in the server-side
   session (`session["preauth"]`: the lower-cased email, or the canonical
-  mobile, or `""` for a non-number; `issued_at`; safe `next`) **without
-  looking the account up**, and redirects to `/vaauth/valogin/password`
+  mobile, or with `PUBLIC_DEMO_ENABLED` a lower-cased username, or `""` for
+  anything else; `issued_at`; safe `next`) **without looking the account
+  up**. Web login and device sign-in read the identifier through one
+  resolver, `user_account_service.sign_in_identifier` / `find_sign_in_user`, and redirects to `/vaauth/valogin/password`
   (keeping `?next=`). Pre-auth expires 5 minutes after this step.
 - A value with `@` must be a valid email (form error); a value without `@`
   is never refused here.
@@ -708,6 +857,83 @@ data call: the app must handle `terms_required`.
   a bearer is ignored. The sign-in endpoints (`/auth/enroll`, `/auth/sessions`,
   `/auth/sessions/refresh`) ignore a stale token.
 
+### 6.7 Demo sign-up with proof of work (`PUBLIC_DEMO_ENABLED` only)
+
+The app's sign-up is behind the same proof-of-work CAPTCHA as the web form
+(`pow_captcha_service`: stdlib only; docs/policy/authentication-factors.md
+section 5). Flag off: both calls are 404.
+
+1. `GET /api/v1/auth/demo-signup/challenge` returns
+   `{"salt": "<32 hex>", "difficulty": 18, "expires": <unix seconds>, "signature": "<64 hex>"}`.
+   Valid for 5 minutes, spent by one successful verification, signed over
+   `salt.difficulty.expires` so none of the three can be changed.
+2. The client finds a non-negative integer `solution`, counting up from 0
+   as the web worker does (`app/static/js/pow_captcha_worker.js`), such that
+   `SHA-256(utf8(salt + decimal string of solution))`, read as a big-endian
+   integer, has at least `difficulty` leading zero bits. Send it as a string
+   or a number; at most 32 characters.
+3. `POST /api/v1/auth/demo-signup` with
+   `{"username": "...", "password": "...", "captcha": {"salt", "difficulty", "expires", "signature", "solution"}}`,
+   the first four echoed unchanged from step 1.
+
+A missing, malformed, expired, mis-signed, wrongly solved or already spent
+`captcha` is 400 `{"error": "We couldn't verify that request. Please try again.", "code": "captcha_failed", "fields": ["captcha"]}`
+and nothing else is checked or written; the client fetches a new challenge and
+solves it again. A solution is checked before the username and password, and
+a later refusal (`invalid_username`, `username_taken`, ...) has spent the
+challenge, so every retry needs a new one. Success is 201
+`{"user_id", "username"}` with no session; the app then signs in through
+`POST /sessions`. The expected work is 2^difficulty hashes (`CAPTCHA_DIFFICULTY`,
+default 14); the client reads `difficulty` from the response and never assumes it.
+
+Further refusals of `POST /demo-signup`: 503 `cap_reached` ("The demo is full;
+try again later.") when the account cap holds and nobody has been idle long
+enough to evict (section 2.5), and 503 `wrong_database` on a database that
+holds a project other than the demo's. Both leave the challenge spent.
+
+### 6.8 Demo enrolment without a QR code (`PUBLIC_DEMO_ENABLED` only)
+
+`POST /api/v1/auth/demo-enroll` `{"username", "password", "device_name" (<= 64),
+"platform": "android", "app_version"?}` enrols a device on
+`PUBLIC_DEMO_PROJECT_ID` for a public-demo account, with no enrolment code
+(policy [public-demo.md](../policy/public-demo.md) section 10). Flag off: 404.
+The credentials go through the device sign-in's own resolver and check
+(`device_auth_service._check_credentials`, so username, email or mobile are read
+alike and an unknown name costs a hash check too); an unknown name, a wrong
+password, an inactive account and an account that is **not** a public-demo
+account all get 401 `invalid_credentials` ("Invalid username or password."),
+audited as `demo_device_enrol_failed` (reason only). Then, under the account's
+advisory lock, at most `PUBLIC_DEMO_DEVICES_PER_ACCOUNT` (default 3) live
+(unrevoked) devices per account: at the cap the least recently used live device
+(newest session activity, else its enrolment time) and its sessions are revoked
+to make room, audited `device_revoked` with `reason: "demo_device_replaced"`;
+the new device is then enrolled (no 429). Success is 201 with
+`/enroll`'s body, `{device_id, device_secret, project, server_time}`, the secret
+shown once; the app then signs in through `POST /sessions` (section 6.2:
+`has_device_access` holds for the account's `interviewer` grant on the demo
+project). 503 `wrong_database` on a database holding another project, 503
+`project_missing` before `flask public-demo setup`. Limits: 10 per minute per
+client (IPv6 per /64, as sign-up) and 20 per hour per username. CSRF-exempt like
+the rest of `/api/v1/auth/*`; on `PUBLIC_ENDPOINTS`; audited `device_enrolled`.
+
+Devices carry no user column, so each demo account owns one hidden
+`auth_device_enrolment_codes` row: `created_by` the account, `code_hash` the
+digest of `public_demo:<user_id>` (one per account, unique), already revoked
+and expired so it can never be redeemed at `/enroll`. Its devices name it in
+`enrolled_via`; the cap counts them, and the purge
+(`public_demo_purge_service._collect`) finds the account's devices through it
+even if one never signed in. No migration.
+
+The Android app (`mobile/digitva-collect`, "Try the demo" on the enrolment
+screen) is the client: section 6.7's sign-up with the proof of work solved in
+JavaScript (`src/pow.ts`), then this call, then `POST /sessions`, against the
+compiled `https://demo.causeofdeathindia.com` (`src/enrolment.ts` `DEMO_SERVER`;
+a debug build may name a local dev server). The demo server is stored as the
+enrolled server like a QR enrolment's. `429 demo_limit` and any other 429 are
+shown and never retried automatically; an upload refused with `demo_limit`
+stays on the phone marked `upload_issue = demo_limit` until the interviewer
+asks to send it again.
+
 ## 7. Browser client access: `GET /api/v1/me/access`
 
 Expo web has no bootstrap route (`/api/v1/client/bootstrap` was removed,
@@ -765,6 +991,7 @@ the server's gate refuses. Every workflow API still checks scope.
 | POST `/vaauth/valogout` | form or `X-CSRFToken` | 302 `/` | default | n/a | none |
 | GET `/vaauth/site-maintenance-status` | none | 200 `{"maintenance": {...} or null}` | default | n/a | none |
 | GET/POST `/vaauth/valogin/code` | form: `mobile` (email or mobile), `code`, `accept_terms` (required), `captcha_*`, `csrf_token` | 200 password page (`no-store`, `Pragma: no-cache`); 200 form with flash | POST 10/min per IP; 10/hour per identifier | unknown identifier, inactive, no code, wrong code: one message; password generated before lookup | `mobile_code_redeemed`, `password_generated` (`sign_in_code`), `terms_accepted` (`sign_in_code`), `mobile_code_voided` (`too_many_attempts`) |
+| GET/POST `/vaauth/signup` | flag on only (else 404); form: `username`, `password`, `confirm`, `accept_notice`, `captcha_*`, `csrf_token` | 302 `landing_url()` signed in; refusal: 200 form with flash | POST 10/min per IP (IPv6 per /64); `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` (default 30/hour, 200/day) per IP and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT` (100/hour) demo-wide, counted on completed sign-ups | n/a (a taken username is said) | `account_created` (`self_signup`), `terms_accepted` (`web`), `web_sign_in` (`method: self_signup`) |
 | GET/POST `/vaauth/forgot-password` | form: `email` (email or mobile) | 302 back with flash | POST 3/hour per IP | one message per identifier kind | none |
 | GET/POST `/vaauth/reset-password/<token>` | form: `csrf_token` | GET page; POST 302 login; invalid: 200 page `token_valid=False`; CSRF fail: 400 | POST 5/min per IP | n/a | `password_generated` (`password_reset`) |
 | GET/POST `/vaauth/verify-email/<token>` | form: `csrf_token` | GET page; POST 302 login with flash | POST 5/min per IP | n/a | `email_verified`, `password_generated` (`email_verification`) when a first password is sent |
@@ -802,7 +1029,10 @@ signed-in user id.
 | Method, path | Auth | Request | Response | Limits | Audit |
 | --- | --- | --- | --- | --- | --- |
 | POST `/auth/enroll` | none | `{code, device_name, platform: "android", app_version?}` | 201 `{device_id, device_secret, project, server_time}`; 400 `invalid_request`; 404 `enrolment_invalid` | 10/min per IP | `device_enrolled` |
-| POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email or mobile), password}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed` |
+| POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email, mobile or, on the demo, username), password}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed` |
+| GET `/auth/demo-signup/challenge` | none; flag on only (else 404) | none | 200 `{salt, difficulty, expires, signature}` (section 6.7) | 30/min per IP | none |
+| POST `/auth/demo-signup` | none; flag on only (else 404) | `{username, password, captcha}` (section 6.7) | 201 `{user_id, username}`, no session; 400 `captcha_failed` / `invalid_username` / `invalid_password` / `breached_password` with `fields`; 409 `username_taken`; 429 `rate_limited`; 503 `cap_reached`, `breach_check_unavailable`, `project_missing`, `maintenance` | 10/min per IP (IPv6 per /64); `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` per IP and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT` demo-wide, on successes | `account_created` (`self_signup`), `terms_accepted` (`api`) |
+| POST `/auth/demo-enroll` | demo username and password; flag on only (else 404) | `{username, password, device_name, platform, app_version?}` (section 6.8) | 201 as `/auth/enroll` (at the device cap the least recently used device is revoked first); 401 `invalid_credentials` (also for a non-demo account); 503 `wrong_database`, `project_missing` | 10/min per IP (IPv6 per /64); 20/hour per username | `device_enrolled`, `demo_device_enrol_failed`, `device_revoked` (`demo_device_replaced`) |
 | POST `/auth/sessions/refresh` | device id + secret + refresh token | `{refresh_token, device_id, device_secret, count?, unique_ids?, client_draft_ids?, client_death_ids?}` | 200 token response; refusals in 6.4 | 30/min per IP | `device_session_revoked` |
 | DELETE `/auth/sessions/current` | Bearer | none | 204 | default | `device_session_revoked` (`signed_out`) |
 

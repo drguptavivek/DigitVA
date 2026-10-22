@@ -33,6 +33,7 @@ from app.models import (
     VaProjectSites,
     VaStatuses,
     VaUserAccessGrants,
+    VaUsers,
 )
 from app.services.authz.actions import DEMO_VIRTUAL_ROLES
 from app.services.org_grant_service import (
@@ -214,7 +215,10 @@ class ResolvedGrants:
 # Resolution
 # ---------------------------------------------------------------------------
 
-def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
+def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant], bool]:
+    """``(is_admin, grants, public_demo)``: the user's live grants, and on the
+    same rows whether the account is a public-demo one (False when it has no
+    grant rows, when it could not be demo-training eligible anyway)."""
     grant = VaUserAccessGrants
     site = sa.orm.aliased(VaProjectSites, name="authz_grant_site")
     unit = sa.orm.aliased(MasOrgUnit, name="authz_grant_unit")
@@ -245,8 +249,10 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
             sa.cast(unit.path, sa.Text).label("unit_path"),
             any_form.label("any_form"),
             form_on_active_pair.label("form_on_active_pair"),
+            VaUsers.is_public_demo.label("public_demo"),
         )
         .select_from(grant)
+        .join(VaUsers, VaUsers.user_id == grant.user_id)
         .outerjoin(site, sa.and_(
             site.project_site_id == grant.project_site_id,
             site.project_site_status == VaStatuses.active,
@@ -268,6 +274,7 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
     ).all()
     is_admin = False
     grants = []
+    public_demo = bool(rows) and bool(rows[0].public_demo)
     for row in rows:
         if row.scope_type == VaAccessScopeTypes.global_scope:
             is_admin = is_admin or row.role == VaAccessRoles.admin
@@ -283,7 +290,7 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant]]:
             unit_path=row.unit_path,
             opens_gate=_opens_gate(row),
         ))
-    return is_admin, grants
+    return is_admin, grants, public_demo
 
 
 def _opens_gate(row) -> bool:
@@ -380,12 +387,16 @@ def _implied_interviewer_grants(
 
 
 def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
-    is_admin, grants = _load_grants(user_id)
+    is_admin, grants, public_demo = _load_grants(user_id)
     projects = _load_projects({g.project_id for g in grants})
     # Demo coding and reviewing only for people who code or review somewhere
     # (owner 2026-10-03): an interviewer, ASHA or viewer never sees coding.
     grants.extend(_implied_interviewer_grants(user_id, grants, projects))
-    demo_eligible = is_admin or any(g.role in DEMO_VIRTUAL_ROLES for g in grants)
+    # A public-demo account never gets the demo-training grants: they would
+    # widen it past its own project (docs/policy/public-demo.md section 3).
+    demo_eligible = not public_demo and (
+        is_admin or any(g.role in DEMO_VIRTUAL_ROLES for g in grants)
+    )
     for settings in projects.values():
         if not settings.demo_training or not demo_eligible:
             continue

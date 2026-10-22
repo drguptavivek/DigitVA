@@ -101,6 +101,26 @@ birthday. The backend must enforce the same upper age limit.
   (device with `adb reverse tcp:8051 tcp:8051`). The screen then shows the
   server host and project and enrols only after **Enrol on this server**.
   Policy: docs/policy/mobile-sign-in.md section 7.
+- **Try the demo** (`src/nativeRoutes/demo.tsx`, `src/demo.ts`): on the enrol
+  screen, without a QR code. Create a demo account (username, password of at
+  least 12 characters, the policy notice accepted with a checkbox; the proof of
+  work is fetched from `GET /api/v1/auth/demo-signup/challenge` and solved in
+  JavaScript by `src/pow.ts` in short slices that yield to the UI, with a
+  progress line) or use an existing one, then `POST /api/v1/auth/demo-enroll`
+  and the normal `POST /sessions`. The server is the compiled
+  `DEMO_SERVER` (`https://demo.causeofdeathindia.com`, `src/enrolment.ts`); a
+  debug build may set `EXPO_PUBLIC_DEMO_SERVER` to a local dev server; a release
+  build ignores it. It is stored as the enrolled server like a QR enrolment's
+  (Settings shows it read-only; a change is by re-enrolling). A phone enrolled
+  there shows a "Public demo" badge on the accounts screen with links to the
+  demo dashboard and to My reports (both open in the system browser; My reports
+  needs a web sign-in), and its sign-in takes a username and has no code or
+  password-reset links. A `429 demo_limit` is final: an upload refused with it is
+  kept on the phone marked `upload_issue = demo_limit`, skipped by every sync,
+  and sent again only when the interviewer taps "Try sending again" in the
+  worklist; a failed proof of work gets a new challenge only when the user taps
+  Try again. Server side: `docs/current-state/authentication-and-onboarding.md`
+  section 6.8.
 - **Change server**: Settings shows the enrolled server. **Change server /
   re-enrol** is refused while any interviewer has unsent work or a locked
   store; otherwise it signs every interviewer out, forgets the enrolment and

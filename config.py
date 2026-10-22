@@ -357,6 +357,71 @@ class Config:
     DIGITVA_TRAINING_PROJECT_ID = os.environ.get(
         "DIGITVA_TRAINING_PROJECT_ID", "TRN01"
     ).strip()
+    # Public demo (docs/policy/public-demo.md). Off everywhere but the demo
+    # deployment: with it off the sign-up routes answer 404, a username never
+    # resolves at sign-in and `flask public-demo` refuses. The limits are the
+    # policy's section 8 defaults.
+    PUBLIC_DEMO_ENABLED = os.environ.get("PUBLIC_DEMO_ENABLED", "false").lower() in (
+        "true", "1", "yes",
+    )
+    PUBLIC_DEMO_PROJECT_ID = os.environ.get("PUBLIC_DEMO_PROJECT_ID", "PUB01").strip()
+    # Sign-up limiter strings, counted on successful sign-ups only: per client
+    # address (IPv6 per /64; a loose backstop, many people share a carrier NAT
+    # or a training room) and across the whole demo.
+    PUBLIC_DEMO_SIGNUP_RATE_LIMIT = os.environ.get(
+        "PUBLIC_DEMO_SIGNUP_RATE_LIMIT", "30 per hour;200 per day"
+    )
+    PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT = os.environ.get(
+        "PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT", "100 per hour"
+    )
+    PUBLIC_DEMO_MAX_ACCOUNTS = int(os.environ.get("PUBLIC_DEMO_MAX_ACCOUNTS", "500"))
+    # Retention (policy sections 8 and 9). The purge and the eviction at the
+    # account cap delete accounts and everything they created, so they stay off
+    # until the nightly backup of the demo database is verified. Idle days count
+    # from the last sign-in (creation if never signed in): 30 for the daily
+    # purge, 7 for the account the cap evicts. BATCH bounds accounts per run.
+    PUBLIC_DEMO_PURGE_ENABLED = os.environ.get("PUBLIC_DEMO_PURGE_ENABLED", "false").lower() in (
+        "true", "1", "yes",
+    )
+    PUBLIC_DEMO_PURGE_IDLE_DAYS = int(os.environ.get("PUBLIC_DEMO_PURGE_IDLE_DAYS", "30"))
+    PUBLIC_DEMO_EVICT_IDLE_DAYS = int(os.environ.get("PUBLIC_DEMO_EVICT_IDLE_DAYS", "7"))
+    PUBLIC_DEMO_PURGE_BATCH = int(os.environ.get("PUBLIC_DEMO_PURGE_BATCH", "100"))
+    PUBLIC_DEMO_SUBMISSIONS_PER_DAY = int(os.environ.get("PUBLIC_DEMO_SUBMISSIONS_PER_DAY", "5"))
+    PUBLIC_DEMO_SUBMISSIONS_TOTAL = int(os.environ.get("PUBLIC_DEMO_SUBMISSIONS_TOTAL", "10"))
+    PUBLIC_DEMO_REGISTRATIONS_PER_DAY = int(os.environ.get("PUBLIC_DEMO_REGISTRATIONS_PER_DAY", "5"))
+    PUBLIC_DEMO_REGISTRATIONS_TOTAL = int(os.environ.get("PUBLIC_DEMO_REGISTRATIONS_TOTAL", "25"))
+    # Live devices a demo account may enrol through POST /auth/demo-enroll.
+    PUBLIC_DEMO_DEVICES_PER_ACCOUNT = int(os.environ.get("PUBLIC_DEMO_DEVICES_PER_ACCOUNT", "3"))
+    PUBLIC_DEMO_OPEN_DRAFTS = int(os.environ.get("PUBLIC_DEMO_OPEN_DRAFTS", "3"))
+    # Drafts started, whatever their status, so start-and-discard cannot loop.
+    PUBLIC_DEMO_DRAFTS_PER_DAY = int(os.environ.get("PUBLIC_DEMO_DRAFTS_PER_DAY", "10"))
+    PUBLIC_DEMO_DRAFTS_TOTAL = int(os.environ.get("PUBLIC_DEMO_DRAFTS_TOTAL", "30"))
+    PUBLIC_DEMO_ATTACHMENT_MAX_BYTES = int(
+        os.environ.get("PUBLIC_DEMO_ATTACHMENT_MAX_BYTES", str(10 * 1024 * 1024))
+    )
+    PUBLIC_DEMO_ATTACHMENTS_PER_DRAFT = int(
+        os.environ.get("PUBLIC_DEMO_ATTACHMENTS_PER_DRAFT", "6")
+    )
+    # ICD-11 / DORIS lookups per demo account (the WHO API proxy, ECT search and
+    # the DORIS clinical calls share one bucket), and one more bucket shared by
+    # every demo account, which keeps them from starving the main deployment's
+    # coders on the shared WHO container.
+    PUBLIC_DEMO_ICD_RATE_LIMIT = os.environ.get("PUBLIC_DEMO_ICD_RATE_LIMIT", "300 per hour")
+    PUBLIC_DEMO_ICD_GLOBAL_RATE_LIMIT = os.environ.get(
+        "PUBLIC_DEMO_ICD_GLOBAL_RATE_LIMIT", "2000 per hour"
+    )
+    PUBLIC_DEMO_DOWNLOAD_RATE_LIMIT = os.environ.get(
+        "PUBLIC_DEMO_DOWNLOAD_RATE_LIMIT", "10 per hour"
+    )
+    # How often the stale-allocation release and reviewer-eligible sweep runs
+    # (release_stale_coding_allocations_task). None (unset) keeps the hourly
+    # beat row as it is; the demo deployment sets a few minutes so a coded
+    # case reaches review soon, which repoints the row.
+    CODING_SWEEP_INTERVAL_MINUTES = (
+        int(os.environ["CODING_SWEEP_INTERVAL_MINUTES"])
+        if os.environ.get("CODING_SWEEP_INTERVAL_MINUTES", "").strip()
+        else None
+    )
     DIGITVA_ALLOW_TEST_SEED = os.environ.get("DIGITVA_ALLOW_TEST_SEED", "") == "1"
     # Credential-free HTTPS URL for the published Android APK, when one exists.
     DIGITVA_ANDROID_APK_URL = os.environ.get("DIGITVA_ANDROID_APK_URL", "").strip()

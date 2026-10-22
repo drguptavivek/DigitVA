@@ -6,6 +6,7 @@ function BrowserNativeRoute() {
 }
 
 export const Case = BrowserNativeRoute;
+export const Demo = BrowserNativeRoute;
 export const Enrol = BrowserNativeRoute;
 export const Form = BrowserNativeRoute;
 export const Home = BrowserNativeRoute;

@@ -3,7 +3,7 @@ title: Password Breach Check Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-03
+last_updated: 2026-10-22
 ---
 
 # Password Breach Check Policy
@@ -26,6 +26,9 @@ Login verification itself is unchanged. Since 2026-10-03 passwords are
 server-generated
 ([account-onboarding-and-passwords.md](account-onboarding-and-passwords.md));
 every generated password is checked the same way and regenerated on a hit.
+The one exception is a public-demo account, whose user chooses the password
+at sign-up ([public-demo.md](public-demo.md)); it is breach-checked the same
+way and refused on a hit.
 
 ## Baseline Rules
 

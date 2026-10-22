@@ -90,30 +90,38 @@ with flask_app.app_context():
     from app.tasks.tls_health_tasks import ensure_tls_health_scheduled
 
     cleanup_stale_runs()
-    ensure_sync_scheduled()
-    ensure_smartva_sweep_scheduled()
-    ensure_coding_timeout_cleanup_scheduled()
-    ensure_demo_cleanup_scheduled()
-    ensure_submission_analytics_mv_refresh_scheduled()
-    ensure_db_backup_scheduled()
-    ensure_weekly_demo_reset_scheduled()
-    ensure_tls_health_scheduled()
-    ensure_attachment_s3_upload_scheduled()
 
-    from app.tasks.coding_search_telemetry_tasks import (
-        ensure_coding_search_telemetry_prune_scheduled,
-    )
+    if flask_app.config.get("PUBLIC_DEMO_ENABLED"):
+        # The demo schedules only the tasks it needs and disables the rest
+        # (docs/policy/public-demo.md section 8a); everything else is main-only.
+        from app.tasks.beat_schedule import seed_demo_beat_schedule
 
-    ensure_coding_search_telemetry_prune_scheduled()
+        seed_demo_beat_schedule()
+    else:
+        ensure_sync_scheduled()
+        ensure_smartva_sweep_scheduled()
+        ensure_coding_timeout_cleanup_scheduled()
+        ensure_demo_cleanup_scheduled()
+        ensure_submission_analytics_mv_refresh_scheduled()
+        ensure_db_backup_scheduled()
+        ensure_weekly_demo_reset_scheduled()
+        ensure_tls_health_scheduled()
+        ensure_attachment_s3_upload_scheduled()
 
-    from app.tasks.notification_tasks import ensure_notification_purge_scheduled
+        from app.tasks.coding_search_telemetry_tasks import (
+            ensure_coding_search_telemetry_prune_scheduled,
+        )
 
-    ensure_notification_purge_scheduled()
+        ensure_coding_search_telemetry_prune_scheduled()
 
-    from app.tasks.security_event_tasks import ensure_sign_in_ip_wipe_scheduled
+        from app.tasks.notification_tasks import ensure_notification_purge_scheduled
 
-    ensure_sign_in_ip_wipe_scheduled()
+        ensure_notification_purge_scheduled()
 
-    from app.tasks.web_intake_upload_tasks import ensure_web_intake_upload_purge_scheduled
+        from app.tasks.security_event_tasks import ensure_sign_in_ip_wipe_scheduled
 
-    ensure_web_intake_upload_purge_scheduled()
+        ensure_sign_in_ip_wipe_scheduled()
+
+        from app.tasks.web_intake_upload_tasks import ensure_web_intake_upload_purge_scheduled
+
+        ensure_web_intake_upload_purge_scheduled()

@@ -10,9 +10,10 @@ import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
-from app import db
+from app import db, limiter
 from app.decorators.role_required import role_required
 from app.models import VaAllocation, VaAllocations, VaStatuses, VaSubmissions
+from app.services import public_demo_service
 from app.services.authz import Action, can
 from app.services.coding_service import get_project_for_submission
 from app.services.doris_certificate import DorisCertificateError, expected_expression_uri
@@ -45,6 +46,17 @@ from app.services.who_icd_api import (
 )
 
 bp = Blueprint("doris_clinical_api", __name__)
+# The demo's ICD-11 / DORIS lookups (policy section 8): one bucket per
+# account, and one shared by every demo account, both before any WHO call.
+limiter.shared_limit(
+    public_demo_service.icd_rate_limit, scope="public_demo_icd",
+    exempt_when=public_demo_service.not_demo_user,
+)(bp)
+limiter.shared_limit(
+    public_demo_service.icd_global_rate_limit, scope="public_demo_icd_all",
+    key_func=public_demo_service.icd_global_key,
+    exempt_when=public_demo_service.not_demo_user,
+)(bp)
 _TAG_RE = re.compile(r"<[^>]+>")
 
 

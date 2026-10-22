@@ -56,12 +56,16 @@
                   data-captcha-worker-url="{{ url_for('static', filename='js/pow_captcha_worker.js') }}">
               {{ form.hidden_tag() }}
               <div class="mb-3">
-                {{ form.email.label(class="form-label") }}
+                {% if config.PUBLIC_DEMO_ENABLED %}
+                  {{ form.email.label("Username, email or mobile number:", class="form-label") }}
+                {% else %}
+                  {{ form.email.label(class="form-label") }}
+                {% endif %}
                 <div class="input-group">
                   <span class="input-group-text">
                     <i class="fas fa-user"></i>
                   </span>
-                  {{ form.email(size=32, class="form-control", placeholder="Email or 10-digit mobile number", autofocus=True, autocomplete="username") }}
+                  {{ form.email(size=32, class="form-control", placeholder=("Demo username, email or mobile number" if config.PUBLIC_DEMO_ENABLED else "Email or 10-digit mobile number"), autofocus=True, autocomplete="username") }}
                 </div>
                 {% for error in form.email.errors %}
                   <div class="text-danger small">{{ error }}</div>
@@ -79,6 +83,11 @@
                 <span class="text-muted small mx-1">&middot;</span>
                 <a href="{{ url_for('va_auth.va_login_redeem_code') }}" class="text-muted small">I have a code</a>
               </div>
+              {% if config.PUBLIC_DEMO_ENABLED %}
+                <div class="text-center mt-2">
+                  <a href="{{ url_for('va_auth.va_signup') }}" class="small">New to the demo? Create a demo account</a>
+                </div>
+              {% endif %}
             </form>
           </div>
           <div class="card-footer text-center text-muted">

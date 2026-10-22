@@ -155,7 +155,11 @@ def issue_code(user: VaUsers, *, actor_user_id) -> str:
     mobile number), voiding any live one, and return it in clear -- shown to
     the issuer once, never stored. Caller authorizes (``may_issue_code``:
     a verified-email account gets codes from an admin only) and commits.
+    Raises ValueError for an account with neither an email nor a sign-in
+    number (a public-demo username account): no code could ever be redeemed.
     """
+    if user.email is None and user.mobile_login is None:
+        raise ValueError("This account has no email or mobile number to redeem a code with.")
     now = datetime.now(UTC)
     # Serialise issuers for this person so two cannot each leave a live code
     # (the partial unique index on auth_mobile_codes is the backstop).

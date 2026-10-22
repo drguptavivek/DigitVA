@@ -14,8 +14,8 @@ Owners may edit accounts and translations: reread live state.
 
 ## State (2026-10-22, night)
 
-`main` = `origin/main`. Migration head: `c8e4a2f6b1d3 → d4a7c9e2f5b1` (consent
-notice approval) `→ f6b2d8a4c1e7` (training coder slots); dev is at the head.
+Migration head: `a3c5e7f9b2d4 → b4d6f8a2c9e1` (public demo accounts:
+`va_users.username`, `is_public_demo`); dev is at the head.
 Hosts never compile: `smartva-rs` and the Expo web export are pinned GitHub
 releases downloaded and SHA-checked in Docker stages (pins in `x-release-pins`,
 `docker-compose.yml`). Dev serves the working tree's export
@@ -28,6 +28,25 @@ checks via `aws ssm send-command` (the DB is external: query through
 
 ## Ranked next steps
 
+0. **Public demo** (epic `digitva-77v5`; policy `docs/policy/public-demo.md`,
+   design `.tasks/2026-10-22-public-demo.md`, runbook
+   `docs/current-state/public-demo-deployment.md`). All built behind
+   `PUBLIC_DEMO_ENABLED` (off by default): username sign-up with proof of
+   work (web `/vaauth/signup`, app `/api/v1/auth/demo-signup`), phone
+   enrolment without QR (`/api/v1/auth/demo-enroll`, 3 phones, a 4th replaces
+   the oldest), `flask public-demo setup|purge`, grant guard, own-case
+   isolation, limits (500 accounts with eviction of the least-recent idle 7+
+   days, 10 submissions per account), CoD report + own download
+   (`/public-demo/cases`), public dashboard (`/public-demo/dashboard`),
+   30-day purge (off until `PUBLIC_DEMO_PURGE_ENABLED`, after a verified
+   backup restore), Redis/Celery namespacing, demo beat allowlist, separate
+   compose project `docker-compose.demo.yml` on network `digitva_icd`.
+   Next: owner reviews the Hindi strings in `mobile/digitva-collect/src/strings/hi.json`;
+   new digitva-collect APK (bump version, CI `android-release.yml`); deploy per
+   the runbook (DNS, DMZ block, S3 `demo/` prefix, DB, keys) once staging
+   load tests end; `digitva-77v5.9` (seed without the default admin).
+   Open: WHO ICD-11 API terms for anonymous public use (owner).
+   The full suite at `-n 4` OOM-killed the dev DB once; use `-n 2` (~13 min).
 1. Each web change ships as a new Expo web release (`npm run vendor:build`,
    `npm run export:web`, tarball of `dist/` + `.sha256`, tag `expo-web-v<date>[.n]`
    on DigitVA), then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `x-release-pins`.
@@ -40,18 +59,13 @@ checks via `aws ssm send-command` (the DB is external: query through
    (`ANDROID_APK_*`) for `/download/android`. Current: `android-v0.2.0`.
    Signing key: `private/android/` (owner backs it up); its fingerprint is the
    `android-release` environment variable `ANDROID_RELEASE_CERT_SHA256`.
-2. `digitva-k4jt` digitva-collect: the QR may name any https server under
-   `causeofdeathindia.com` (owner decision; today a release build accepts only
-   `digitva.`, so staging cannot enrol); Settings shows the server read-only,
-   change = re-enrol, refused while anything is unsynced. Staging's
-   `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
+2. Staging's `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked;
+   `k4jt` is closed, release builds accept any `*.causeofdeathindia.com`).
 3. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
    Users page.
 4. digitva-collect queue: `0vgh` phone consent (always required, like the
-   station), `cpx5` collection-only build, release key, per-ABI APK, GitHub
-   release link (the 19 Oct `android-v0.1.0` APK is stale), `zkgx`
-   questionnaire languages from the server (UI English + Hindi only), `jkvl`
-   audio/photo on the phone, `jish`, `wh4w`.
+   station), `zkgx` questionnaire languages from the server (UI English +
+   Hindi only), `jkvl` audio/photo on the phone, `jish`, `wh4w`.
 5. Staging after deploy: Project Setup → HP0001 → Respondent consent → "Seed
    from draft", approve when legal review is done, then switch "Require
    respondent consent" on. `flask training-demo setup` if TRN01 is missing.

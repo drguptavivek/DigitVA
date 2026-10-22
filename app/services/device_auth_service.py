@@ -63,7 +63,7 @@ from app.models import (
 from app.services.authz import resolve_grants
 from app.services.security_event_service import record_security_event
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
-from app.services.user_account_service import canonical_mobile
+from app.services.user_account_service import find_sign_in_user, sign_in_identifier
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +71,7 @@ API_V1_PREFIX = "/api/v1/"
 #: Sign-in endpoints (full endpoint names) that create a session, so carry no valid bearer token.
 UNAUTHENTICATED_ENDPOINTS = frozenset({
     "api_v1.auth_api.enroll", "api_v1.auth_api.open_session", "api_v1.auth_api.refresh_session",
+    "api_v1.auth_api.demo_enroll",
 })
 ACCESS_TTL = timedelta(minutes=15)
 DEFAULT_REFRESH_TTL_DAYS = 30
@@ -297,14 +298,46 @@ def record_app_version(session, app_version) -> None:
         device.app_version = version
 
 
-def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevice, str]:
-    """Consume one use of an enrolment code and register a device. Returns
-    (device, plaintext device secret). An unknown, expired, revoked or used-up
-    code is one answer, 404 ``enrolment_invalid``. Caller commits."""
+def _device_fields(device_name, platform, app_version) -> tuple[str, str | None]:
+    """Validated (name, app version) for a new device; raises 400
+    ``invalid_request``."""
     name = _clean_text(device_name, limit=_DEVICE_NAME_MAX, name="device_name", required=True)
     version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
     if platform not in _PLATFORMS:
         raise DeviceAuthError("platform must be android, ios or desktop.", "invalid_request", 400)
+    return name, version
+
+
+def _add_device(project_id: str, name: str, platform: str, version: str | None, via) -> tuple[AuthDevice, str]:
+    """Insert a device enrolled through the code row *via*; returns (device,
+    plaintext secret). Caller commits."""
+    secret = _new_secret()
+    device = AuthDevice(
+        # The enrolment code's project: the device's admin home (listed and
+        # revoked there, ended when it closes). It does not limit which
+        # projects the device serves; every request names its project.
+        project_id=project_id,
+        name=name,
+        platform=platform,
+        app_version=version,
+        secret_hash=hash_token(secret),
+        enrolled_via=via,
+    )
+    db.session.add(device)
+    db.session.flush()
+    record_security_event(
+        user_id=None, event_type="device_enrolled",
+        detail={"device_id": str(device.device_id), "project_id": device.project_id},
+    )
+    log.info("device enrolled | device=%s | project=%s", device.device_id, device.project_id)
+    return device, secret
+
+
+def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevice, str]:
+    """Consume one use of an enrolment code and register a device. Returns
+    (device, plaintext device secret). An unknown, expired, revoked or used-up
+    code is one answer, 404 ``enrolment_invalid``. Caller commits."""
+    name, version = _device_fields(device_name, platform, app_version)
     if not isinstance(code, str) or not code.strip():
         raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
 
@@ -323,34 +356,83 @@ def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevic
     ).first()
     if consumed is None or not _project_active(consumed.project_id):
         raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
+    return _add_device(consumed.project_id, name, platform, version, consumed.id)
 
-    secret = _new_secret()
-    device = AuthDevice(
-        # The enrolment code's project: the device's admin home (listed and
-        # revoked there, ended when it closes). It does not limit which
-        # projects the device serves; every request names its project.
-        project_id=consumed.project_id,
-        name=name,
-        platform=platform,
-        app_version=version,
-        secret_hash=hash_token(secret),
-        enrolled_via=consumed.id,
+
+def _demo_code_hash(user: VaUsers) -> str:
+    return hash_token(f"public_demo:{user.user_id}")
+
+
+def enrol_demo_device(*, username, password, device_name, platform, app_version) -> tuple[AuthDevice, str]:
+    """Enrol a device on the public demo project for a public-demo account,
+    without an enrolment code (docs/policy/public-demo.md section 10). The
+    username and password are checked exactly as device sign-in checks them
+    (same resolver, same uniform ``invalid_credentials`` answer), and an
+    account that is not a public-demo account gets that same answer. The
+    caller has checked ``PUBLIC_DEMO_ENABLED`` and the main-database guard.
+
+    Devices carry no user column, so each demo account owns one hidden,
+    already-revoked ``auth_device_enrolment_codes`` row (``created_by`` the
+    account, a hash no one can present) that its devices name in
+    ``enrolled_via``: the cap (``PUBLIC_DEMO_DEVICES_PER_ACCOUNT``) counts the
+    live devices on it, under the account lock, and the purge finds them
+    through it. At the cap the least recently used live device (newest
+    session activity, else its enrolment) and its sessions are revoked
+    (audited ``device_revoked``, reason ``demo_device_replaced``) to make room.
+    Raises DeviceAuthError; a refused credential is audited and committed.
+    Caller commits a success."""
+    from app.services import public_demo_service as demo
+
+    name, version = _device_fields(device_name, platform, app_version)
+    identifier = username.strip() if isinstance(username, str) else ""
+    user, valid = _check_credentials(identifier, password)
+    if not valid or not user.is_public_demo:
+        record_security_event(
+            user_id=user.user_id if user and user.is_active else None,
+            event_type="demo_device_enrol_failed", detail={"reason": "invalid_credentials"},
+        )
+        db.session.commit()
+        raise DeviceAuthError("Invalid username or password.", "invalid_credentials", 401)
+    project_id = demo.demo_project_id()
+    if not _project_active(project_id):
+        raise DeviceAuthError(demo.WRONG_DATABASE_MESSAGE, "project_missing", 503)
+    demo._lock_account(user)
+    digest = _demo_code_hash(user)
+    code_id = db.session.scalar(
+        sa.select(AuthDeviceEnrolmentCode.id).where(AuthDeviceEnrolmentCode.code_hash == digest)
     )
-    db.session.add(device)
-    db.session.flush()
-    record_security_event(
-        user_id=None, event_type="device_enrolled",
-        detail={"device_id": str(device.device_id), "project_id": device.project_id},
+    if code_id is None:
+        now = _now()
+        row = AuthDeviceEnrolmentCode(
+            project_id=project_id, code_hash=digest, expires_at=now, max_uses=1, use_count=1,
+            created_by=user.user_id, revoked_at=now,
+        )
+        db.session.add(row)
+        db.session.flush()
+        code_id = row.id
+    cap = max(1, int(current_app.config.get("PUBLIC_DEMO_DEVICES_PER_ACCOUNT", 3)))
+    last_session = (
+        sa.select(sa.func.max(sa.func.greatest(
+            AuthDeviceSession.created_at, AuthDeviceSession.last_seen_at, AuthDeviceSession.refreshed_at)))
+        .where(AuthDeviceSession.device_id == AuthDevice.device_id)
+        .correlate(AuthDevice).scalar_subquery()
     )
-    log.info("device enrolled | device=%s | project=%s", device.device_id, device.project_id)
-    return device, secret
+    live = db.session.scalars(
+        sa.select(AuthDevice)
+        .where(AuthDevice.enrolled_via == code_id, AuthDevice.revoked_at.is_(None))
+        .order_by(sa.func.greatest(last_session, AuthDevice.last_seen_at, AuthDevice.enrolled_at), AuthDevice.device_id)
+    ).all()
+    for device in live[: max(0, len(live) - cap + 1)]:
+        revoke_device(device, actor=user, reason="demo_device_replaced")
+    return _add_device(project_id, name, platform, version, code_id)
 
 
-def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = False) -> int:
+def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = False, reason: str | None = None) -> int:
     """Revoke a device and every session on it. Returns the number of sessions
     ended. Idempotent. *compromised* (lost or stolen) refuses every bundle the
     device signed, not only those created after the revoke; a later revoke
-    may raise it on an already revoked device, never clear it. Caller commits."""
+    may raise it on an already revoked device, never clear it. *reason* is a
+    fixed code put in the audit detail. Caller commits."""
     now = _now()
     if device.revoked_at is None:
         device.revoked_at = now
@@ -365,7 +447,7 @@ def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = Fal
     record_security_event(
         user_id=None, actor_user_id=actor.user_id, event_type="device_revoked",
         detail={"device_id": str(device.device_id), "sessions_ended": ended,
-                "compromised": bool(device.revoked_compromised)},
+                "compromised": bool(device.revoked_compromised), **({"reason": reason} if reason else {})},
     )
     return ended
 
@@ -431,16 +513,26 @@ def _issue(session: AuthDeviceSession) -> IssuedTokens:
 
 
 def _sign_in_user(identifier: str) -> VaUsers | None:
-    """The account an email (contains ``@``) or mobile number names, as the
-    web login reads it (docs/policy/mobile-sign-in.md section 2): a number
-    matches only a unique sign-in number, so a shared, unknown or malformed
-    one matches no one."""
-    if "@" in identifier:
-        return db.session.scalar(sa.select(VaUsers).where(VaUsers.email == identifier.lower()))
-    mobile = canonical_mobile(identifier)
-    if mobile is None:
-        return None
-    return db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == mobile))
+    """The account an email, mobile number or (public demo) username names,
+    read exactly as the web login reads it (``sign_in_identifier``,
+    docs/policy/mobile-sign-in.md section 2): a number matches only a unique
+    sign-in number, so a shared, unknown or malformed one matches no one."""
+    return find_sign_in_user(*sign_in_identifier(identifier))
+
+
+def _check_credentials(identifier: str, password) -> tuple[VaUsers | None, bool]:
+    """The account *identifier* names and whether *password* signs it in:
+    ``(user or None, valid)``. An unknown identifier spends a hash check
+    anyway so it takes as long. A mobile-only account that never redeemed a
+    code has no password of its own: refused exactly like a wrong password,
+    as on the web."""
+    password = password if isinstance(password, str) else ""
+    user = _sign_in_user(identifier) if identifier else None
+    if user is None:
+        check_password_hash(_DUMMY_PASSWORD_HASH, password)
+        return None, False
+    unredeemed = user.is_mobile_only and not user.sign_in_verified
+    return user, user.check_password(password) and user.is_active and not unredeemed
 
 
 def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, VaUsers]:
@@ -472,20 +564,14 @@ def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedT
 def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTokens, VaUsers]:
     """Sign an interviewer in on an enrolled device (the web login's checks,
     with the device credential in place of the CAPTCHA). *email* is the
-    contract's field name; it holds an email or a mobile number. Raises
+    contract's field name; it holds an email, a mobile number or a
+    public-demo username. Raises
     DeviceAuthError; a refused attempt is audited and committed. Caller
     commits a success."""
     device = _authenticate_device(device_id, device_secret)
     identifier = email.strip() if isinstance(email, str) else ""
-    password = password if isinstance(password, str) else ""
-    user = _sign_in_user(identifier) if identifier else None
-    if user is None:
-        # Spend a hash check anyway so unknown identifiers take as long.
-        check_password_hash(_DUMMY_PASSWORD_HASH, password)
-    # A mobile-only account that never redeemed a code has no password of
-    # its own: refused exactly like a wrong password, as on the web.
-    unredeemed = user is not None and user.is_mobile_only and not user.sign_in_verified
-    if user is None or not user.check_password(password) or not user.is_active or unredeemed:
+    user, valid = _check_credentials(identifier, password)
+    if not valid:
         _sign_in_failed(device, user if user and user.is_active else None, "invalid_credentials")
         raise DeviceAuthError("Invalid email or password.", "invalid_credentials", 401)
     if not user.sign_in_verified:

@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import { isUnlocked } from "../interviewerDb";
+import DemoPanel from "../DemoPanel";
 import { Button, Screen, useUiStyles } from "../ui";
 import { WorkspaceScreen } from "../browserScreens";
 
@@ -19,6 +20,7 @@ export default function Home() {
   return (
     <Screen title={t("accountsTitle")}>
       <Text style={styles.muted}>{device.project_name}</Text>
+      <DemoPanel server={device.server} />
       {accounts.length === 0 ? <Text style={styles.text}>{t("accountsEmpty")}</Text> : null}
       {accounts.map((account) => (
         <View key={account.user_id} style={{ gap: 8 }}>

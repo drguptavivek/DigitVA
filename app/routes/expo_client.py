@@ -20,6 +20,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "collection",
         "coding",
         "death-registration",
+        "demo",
         "enrol",
         "form",
         "home",

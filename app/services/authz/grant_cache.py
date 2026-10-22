@@ -36,6 +36,7 @@ import logging
 import secrets
 import uuid
 
+import sqlalchemy as sa
 from flask import current_app, has_app_context
 from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
@@ -48,6 +49,7 @@ from app.models import (
     VaForms,
     VaProjectMaster,
     VaProjectSites,
+    VaStatuses,
     VaUserAccessGrants,
     VaUsers,
 )
@@ -274,6 +276,63 @@ def _changed(obj, columns) -> bool:
     state = inspect(obj)
     names = columns or [attr.key for attr in state.mapper.column_attrs]
     return any(state.attrs[name].history.has_changes() for name in names)
+
+
+class PublicDemoGrantRefused(ValueError):
+    """A grant a public-demo account may not hold (docs/policy/public-demo.md
+    section 3); the message is safe to show."""
+
+
+_GRANT_SHAPE = ("role", "scope_type", "project_id", "project_site_id", "org_unit_id",
+                "grant_status", "user_id")
+
+
+def _public_demo_user_ids(session, user_ids) -> set:
+    """Which of *user_ids* are public-demo accounts: a user pending in this
+    flush (a sign-up) from the session, the rest in one query."""
+    pending = {
+        obj.user_id: bool(obj.is_public_demo)
+        for obj in session.new if isinstance(obj, VaUsers) and obj.user_id in user_ids
+    }
+    found = {uid for uid, demo in pending.items() if demo}
+    rest = set(user_ids) - set(pending)
+    if rest:
+        with session.no_autoflush:
+            found |= set(session.scalars(
+                sa.select(VaUsers.user_id).where(
+                    VaUsers.user_id.in_(rest), VaUsers.is_public_demo.is_(True)
+                )
+            ))
+    return found
+
+
+@event.listens_for(Session, "before_flush")
+def _guard_public_demo_grants(session, _flush_context, _instances):
+    """Refuse any new, reactivated or reshaped active grant of a public-demo
+    account other than interviewer, coder or reviewer at project scope on the
+    demo project, whichever code path writes it (policy section 3). Inert
+    for every other account; runs one indexed query only when a flush holds
+    a grant row. Core statements bypass the ORM and so this guard: no grant
+    writer uses one for inserts or reactivation."""
+    from app.services.public_demo_service import allowed_grant
+
+    rows = [obj for obj in session.new if isinstance(obj, VaUserAccessGrants)]
+    rows += [
+        obj for obj in session.dirty
+        if isinstance(obj, VaUserAccessGrants) and _changed(obj, _GRANT_SHAPE)
+    ]
+    rows = [obj for obj in rows if obj.grant_status in (None, VaStatuses.active)]
+    if not rows or not has_app_context():
+        return
+    demo_users = _public_demo_user_ids(session, {obj.user_id for obj in rows})
+    for obj in rows:
+        if obj.user_id in demo_users and not allowed_grant(obj.role, obj.scope_type, obj.project_id):
+            log.warning("public demo grant refused | user=%s | role=%s", obj.user_id,
+                        getattr(obj.role, "value", obj.role))
+            raise PublicDemoGrantRefused(
+                "A public-demo account may hold only interviewer, coder and reviewer "
+                "on the public demo project."
+            )
 
 
 @event.listens_for(Session, "after_flush")

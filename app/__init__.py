@@ -127,11 +127,35 @@ def _content_security_policy(app):
     }
 
 
+def _namespace_public_demo(app: Flask) -> None:
+    """Give a ``PUBLIC_DEMO_ENABLED`` deployment its own Redis namespace and
+    Celery queue (docs/policy/public-demo.md section 8a), so a demo pointed at
+    the main Redis by mistake can neither read nor consume the main
+    deployment's cache, rate-limit, grant, notification or lock keys, or its
+    Celery tasks. Runs before any extension reads its configuration; the
+    flag off leaves every setting as it is."""
+    app.config.update(
+        CACHE_KEY_PREFIX="digitva_demo:",
+        RATELIMIT_KEY_PREFIX="demo",
+        AUTHZ_GRANT_CACHE_PREFIX="digitva_demo_authz:",
+        NOTIFICATION_CACHE_PREFIX="digitva_demo_msg:last:",
+        SWEEP_LOCK_KEY_PREFIX="demo:",
+    )
+    celery_conf = dict(app.config.get("CELERY", {}))
+    keyprefix = {"global_keyprefix": "demo:"}
+    celery_conf["task_default_queue"] = "demo"
+    for option in ("broker_transport_options", "result_backend_transport_options"):
+        celery_conf[option] = {**celery_conf.get(option, {}), **keyprefix}
+    app.config["CELERY"] = celery_conf
+
+
 def create_app(config_class=None):
     if config_class is None:
         config_class = _default_config_class()
     app = Flask(__name__)
     app.config.from_object(config_class)
+    if app.config.get("PUBLIC_DEMO_ENABLED"):
+        _namespace_public_demo(app)
     if not (app.debug or app.testing):
         app.config["TRUSTED_HOSTS"] = trusted_hosts_for(app.config["PUBLIC_BASE_URL"])
         if not app.config.get("CAPTCHA_HMAC_KEY"):
@@ -285,6 +309,12 @@ def create_app(config_class=None):
     # Increase count if behind multiple proxies
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+    from flask_login import user_loaded_from_cookie
+    from app.services.public_demo_service import stamp_remembered_sign_in
+
+    # Remember-me returns of public-demo accounts keep their idle clock moving.
+    user_loaded_from_cookie.connect(stamp_remembered_sign_in, weak=False)
+
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'
 
@@ -313,6 +343,9 @@ def create_app(config_class=None):
     register_blueprints(app)
     from app.routes.expo_client import expo_client
     app.register_blueprint(expo_client)
+    # Always registered, gated by PUBLIC_DEMO_ENABLED in each view (404 off).
+    from app.routes.public_demo import public_demo
+    app.register_blueprint(public_demo)
     # After every blueprint: wrap each non-exempt view so a request authz
     # never decided is logged, and refused where AUTHZ_ENFORCE_CONSULTED.
     from app.services.authz import consulted as authz_consulted
@@ -341,6 +374,8 @@ def create_app(config_class=None):
 
     from app.commands.training_demo import init_app as init_training_demo_commands
     init_training_demo_commands(app)
+    from app.commands.public_demo import init_app as init_public_demo_commands
+    init_public_demo_commands(app)
 
     from app.commands.analytics import init_app as init_analytics_commands
     init_analytics_commands(app)

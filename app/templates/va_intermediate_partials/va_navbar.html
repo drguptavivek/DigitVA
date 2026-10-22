@@ -43,6 +43,13 @@
   </li>
 {% endif %}
 
+{# Public-demo accounts: their cause-of-death reports (public-demo.md section 5). #}
+{% if u.is_authenticated and u.is_public_demo %}
+  <li class="nav-item">
+    <a class="nav-link" href="{{ url_for('public_demo.my_submissions') }}"><i class="fa-solid fa-file-medical me-1"></i>My reports</a>
+  </li>
+{% endif %}
+
 {% if can_admin %}
   <li class="nav-item">
     <a class="nav-link fw-semibold" href="{{ url_for('admin.admin_index', panel='/admin/panels/projects' if u.is_admin() else '/admin/panels/organization') }}">

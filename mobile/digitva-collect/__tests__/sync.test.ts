@@ -26,7 +26,7 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
 }), { virtual: true });
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
-import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, setMeta, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, retryDemoLimitDraft, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary } from "../src/api";
 import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
@@ -843,6 +843,50 @@ describe("sync upload ordering", () => {
     const firstSubmissionCount = calls.filter(({ url }) => url.endsWith("/submissions")).length;
     await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0, remaining: 1 });
     expect(calls.filter(({ url }) => url.endsWith("/submissions")).length).toBe(firstSubmissionCount);
+  });
+
+  it("treats a public-demo limit (429 demo_limit) as final: kept, marked, never resent until the interviewer asks", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const id = "aaaaaaaa-0000-4000-8000-000000000014";
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(id, { Id10013: "no" }));
+    await markCompleted(db, id, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return json(429, { code: "demo_limit" });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(await getDraftRow(db, id)).toMatchObject({ completed: 1, upload_issue: "demo_limit" });
+    const sends = () => calls.filter(({ url }) => url.endsWith("/submissions")).length;
+    expect(sends()).toBe(1);
+    // The next syncs do not send it again, however often they run.
+    await syncInterviewer(USER, db);
+    await syncInterviewer(USER, db);
+    expect(sends()).toBe(1);
+    await retryDemoLimitDraft(db, id);
+    expect(await getDraftRow(db, id)).toMatchObject({ completed: 1, upload_issue: null });
+    await syncInterviewer(USER, db);
+    expect(sends()).toBe(2);
+  });
+
+  it("does not make an ordinary 429 terminal", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const id = "aaaaaaaa-0000-4000-8000-000000000015";
+    const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
+    await store.save(draft(id, { Id10013: "no" }));
+    await markCompleted(db, id, { valid: true, issues: [] });
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+      if (call.url.endsWith("/submissions")) return json(429, { code: "rate_limited" });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+    await syncInterviewer(USER, db);
+    expect(await getDraftRow(db, id)).toMatchObject({ completed: 1, upload_issue: null });
   });
 
   it("sends the exact Unicode answers JSON and accepts a nullable-case direct acknowledgement", async () => {

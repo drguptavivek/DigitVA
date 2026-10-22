@@ -953,7 +953,7 @@ def manage_resend_verification(target_user_id):
     user = db.session.get(VaUsers, target_user_id)
     if not user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
-    if user.is_mobile_only:
+    if user.email is None:
         return _json_error("This account has no email; issue a sign-in code instead.", 400)
     if user.email_verified:
         return _json_error("User email is already verified.", 400)

@@ -1,0 +1,281 @@
+# Public demo deployment (docs/policy/public-demo.md sections 1 and 8a;
+# runbook: docs/current-state/public-demo-deployment.md).
+#
+# A SEPARATE compose project, not an overlay of docker-compose.yml: an overlay
+# would put the demo in the main project, where `make prod`, `make prod-down`
+# and `--remove-orphans` would act on it. Run it only with its own env file,
+# kept OUTSIDE the checkout (this repo ignores .env but not .env.demo):
+#
+#   DD="docker compose --env-file /data/digitva-demo.env -f docker-compose.demo.yml"
+#   $DD config -q && $DD up -d
+#
+# Every DEMO_* variable below comes from that file (template: .env.demo.example).
+# Nothing is read from the main .env: the project name is fixed here and the
+# services run the image's own code, with no bind mount of the checkout, so
+# config.py's load_dotenv() finds no .env (the main one holds the main
+# SECRET_KEY, PII blind-index key and S3 credentials). doris_public_service
+# does the same.
+#
+# The app, worker and beat run the image the main stack built (no `build:`, so
+# the release pins in docker-compose.yml are not duplicated here): tag it as
+# the runbook says and set DEMO_APP_IMAGE.
+#
+# The demo shares exactly one thing with main, the WHO ICD-11/DORIS container,
+# reached over the external network digitva_icd, which docker-compose.yml
+# creates and attaches only icd_api_service to (start main's icd11 profile
+# first). Only the demo's app and worker join it; the demo is never on main's
+# default network. Its own Redis, database, volumes, secrets and ingress are
+# listed below.
+
+name: digitva-demo
+
+# Environment common to the app, the worker and beat (every process that boots
+# the app needs the same settings; make_celery.py builds the app too).
+x-demo-env: &demo-env
+  PUBLIC_DEMO_ENABLED: "1"
+  # Gates the daily purge and the eviction at the account cap (both delete
+  # accounts and their data). Leave 0 until the nightly backup is verified and
+  # a restore tested (runbook step 7).
+  PUBLIC_DEMO_PURGE_ENABLED: ${DEMO_PURGE_ENABLED:-0}
+  # Minutes between the stale-allocation release and reviewer-eligible sweep,
+  # so a coded case becomes reviewable soon; main keeps its hourly default.
+  CODING_SWEEP_INTERVAL_MINUTES: "5"
+  # The demo's own origin. PUBLIC_BASE_URL is the only trusted Host in
+  # production (config.trusted_hosts_for); WebAuthn and the device URL are
+  # set explicitly, though config derives them from it.
+  PUBLIC_BASE_URL: https://${DEMO_HOST:-demo.causeofdeathindia.com}
+  WEBAUTHN_RP_ID: ${DEMO_HOST:-demo.causeofdeathindia.com}
+  WEBAUTHN_ORIGIN: https://${DEMO_HOST:-demo.causeofdeathindia.com}
+  DEVICE_PUBLIC_URL: https://${DEMO_HOST:-demo.causeofdeathindia.com}
+  # Own keys, never the main ones (.env.demo.example says how to generate).
+  SECRET_KEY: ${DEMO_SECRET_KEY:?DEMO_SECRET_KEY missing, pass --env-file}
+  CAPTCHA_HMAC_KEY: ${DEMO_CAPTCHA_HMAC_KEY:?DEMO_CAPTCHA_HMAC_KEY missing}
+  AUTH_FACTOR_ENCRYPTION_KEY: ${DEMO_AUTH_FACTOR_ENCRYPTION_KEY:?DEMO_AUTH_FACTOR_ENCRYPTION_KEY missing}
+  PII_KEM_PUBLIC_KEY: ${DEMO_PII_KEM_PUBLIC_KEY:?DEMO_PII_KEM_PUBLIC_KEY missing}
+  PII_KEM_KEY_ID: ${DEMO_PII_KEM_KEY_ID:?DEMO_PII_KEM_KEY_ID missing}
+  PII_BLIND_INDEX_KEY: ${DEMO_PII_BLIND_INDEX_KEY:?DEMO_PII_BLIND_INDEX_KEY missing}
+  PAYLOAD_PII_SPLIT_ENABLED: "false"
+  REGISTER_PII_SPLIT_ENABLED: "false"
+  # Own database; the server may be main's or external (DEMO_DATABASE_URL).
+  DATABASE_URL: ${DEMO_DATABASE_URL:?DEMO_DATABASE_URL missing, pass --env-file}
+  # Own Redis: cache, limiter, grant cache, broker and result backend.
+  REDIS_URL: redis://:${DEMO_REDIS_PASSWORD:?DEMO_REDIS_PASSWORD missing}@demo_redis_service:6379/0
+  CELERY_BROKER_URL: redis://:${DEMO_REDIS_PASSWORD}@demo_redis_service:6379/0
+  CELERY_RESULT_BACKEND: redis://:${DEMO_REDIS_PASSWORD}@demo_redis_service:6379/0
+  # The one shared service.
+  ICD11_API_BASE_URL: ${DEMO_ICD11_API_BASE_URL:-http://icd_api_service}
+  # Attachments, SmartVA run archives, exports and the nightly dump all go
+  # under S3_PREFIX of the bucket (db-backups/<db name>/ below it), so a
+  # separate prefix and a prefix-scoped IAM user separate demo from main.
+  ATTACHMENT_STORE: ${DEMO_ATTACHMENT_STORE:-s3}
+  S3_SERVER: ${DEMO_S3_SERVER:-}
+  S3_BUCKET: ${DEMO_S3_BUCKET:-}
+  S3_REGION: ${DEMO_S3_REGION:-}
+  S3_ACCESS_KEY_ID: ${DEMO_S3_ACCESS_KEY_ID:-}
+  S3_SECRET_ACCESS_KEY: ${DEMO_S3_SECRET_ACCESS_KEY:-}
+  S3_PREFIX: ${DEMO_S3_PREFIX:-demo/}
+  # Off the main dump's 01:30 UTC slot, so the two never dump together.
+  DB_BACKUP_DAILY_TIME: ${DEMO_DB_BACKUP_TIME:-02:30}
+  APP_SMARTVA_RUNS: /app/smartva_runs
+  EXPO_CLIENT_DIST: /opt/digitva/expo-client
+  STATIC_ASSET_VERSION: ${DEMO_STATIC_ASSET_VERSION:-1}
+  # The demo is not the training or weekly-reset deployment, and sends no mail.
+  DIGITVA_TRAINING_PROJECT_ID: ""
+  DIGITVA_WEEKLY_DEMO_PROJECT_ID: ""
+  MAIL_SUPPRESS_SEND: "true"
+
+x-demo-service: &demo-service
+  image: ${DEMO_APP_IMAGE:?DEMO_APP_IMAGE missing, tag main's image (runbook step 2)}
+  restart: always
+  security_opt:
+    - no-new-privileges:true
+  # A public service must not fill the host disk with its own logs.
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+x-demo-db-ca: &demo-db-ca ${DEMO_DB_CA_FILE:-/dev/null}:/etc/digitva-db/ca.crt:ro
+
+services:
+  # Gunicorn, as in main (boot.sh runs `flask db upgrade` first, so a new
+  # database is migrated on first start). 1 worker x 6 threads: the work is
+  # waiting (ICD proxy, S3, database), and the app is capped at 1 CPU.
+  demo_app_service:
+    <<: *demo-service
+    environment:
+      <<: *demo-env
+      GUNICORN_WORKERS: "1"
+      GUNICORN_CMD_ARGS: "--threads 6"
+      # Pool at least the thread count: 6 + 2 = 8 connections.
+      DB_POOL_SIZE: "6"
+      DB_MAX_OVERFLOW: "2"
+    secrets:
+      - source: demo_pii_kem_private_key
+        target: pii_kem_private_key
+    volumes:
+      - demo_data:/app/data
+      - demo_smartva_runs:/app/smartva_runs
+      - demo_logs:/app/logs
+      - *demo-db-ca
+    networks: [default, digitva_icd]
+    depends_on:
+      demo_redis_service:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768m
+          cpus: "1.0"
+    # Below main's default weight (1024) when the 2-vCPU host is contended.
+    cpu_shares: 256
+    healthcheck:
+      # X-Forwarded-Proto: Talisman would otherwise redirect this plain-HTTP
+      # probe to HTTPS in production and the check would never pass.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:5000/health', headers={'X-Forwarded-Proto': 'https'}), timeout=5)"]
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 3m
+
+  # No -Q: the app puts its default queue on "demo" when PUBLIC_DEMO_ENABLED,
+  # so this worker consumes only demo tasks. Concurrency 1 as in main
+  # (SmartVA runs one at a time); the report shows "waiting for SmartVA" when
+  # the queue is long (watch it, runbook step 8).
+  demo_celery_worker:
+    <<: *demo-service
+    entrypoint: []
+    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
+    environment:
+      <<: *demo-env
+      DB_POOL_SIZE: "1"
+      DB_MAX_OVERFLOW: "2"
+    secrets:
+      - source: demo_pii_kem_private_key
+        target: pii_kem_private_key
+    volumes:
+      - demo_data:/app/data
+      - demo_smartva_runs:/app/smartva_runs
+      - demo_logs:/app/logs
+      - *demo-db-ca
+    networks: [default, digitva_icd]
+    depends_on:
+      demo_app_service:
+        condition: service_healthy
+      demo_redis_service:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+        reservations:
+          memory: 300m
+    cpu_shares: 256
+
+  # Seeds the demo's allowlisted schedule (make_celery.py). Never given the
+  # PII private key (owner decision 13, as in main), so no secret; the empty
+  # tmpfs masks /app/private in case an image was ever built with a key.
+  demo_celery_beat:
+    <<: *demo-service
+    entrypoint: []
+    command: bash ./scripts/wait-for-celery-beat-db.sh
+    tmpfs:
+      - /app/private:size=1m,mode=0700
+    environment:
+      <<: *demo-env
+      DB_POOL_SIZE: "1"
+      DB_MAX_OVERFLOW: "2"
+    volumes:
+      - demo_logs:/app/logs
+      - *demo-db-ca
+    depends_on:
+      demo_app_service:
+        condition: service_healthy
+      demo_redis_service:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 320m
+          cpus: "0.25"
+
+  # Own Redis. volatile-lru as in main: only keys with a TTL are evicted, so
+  # the broker's queue lists (no TTL) are never dropped; if the broker alone
+  # fills it, writes fail loudly instead. 96 MB is above main's 64 MB because
+  # the ICD search cache (7-day TTL) is the demo's biggest user; the container
+  # limit leaves room for the RDB snapshot fork and client buffers.
+  demo_redis_service:
+    image: redis:7
+    command: redis-server --requirepass ${DEMO_REDIS_PASSWORD:?DEMO_REDIS_PASSWORD missing} --maxmemory 96mb --maxmemory-policy volatile-lru
+    volumes:
+      - demo_redis_data:/data
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 160m
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${DEMO_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # TLS ingress for the DMZ reverse proxy (deploy/ingress-demo.conf), the
+  # demo's counterpart of digitva_ingress on port 8000: the proxy sends
+  # demo.causeofdeathindia.com to https://<APP_PRIVATE_IP>:8001 and verifies
+  # the app certificate as in split production. Same nginx tag as main.
+  demo_ingress:
+    image: nginx:1.29-alpine
+    environment:
+      # The DMZ proxy's address as this container sees it; only that peer's
+      # X-Forwarded-For is believed (deploy/ingress-demo.conf).
+      DEMO_PROXY_FROM: ${DEMO_PROXY_FROM:?DEMO_PROXY_FROM missing, the DMZ proxy IP or CIDR}
+    ports:
+      - "${DEMO_BIND_IP:-127.0.0.1}:${DEMO_INGRESS_PORT:-8001}:443"
+    volumes:
+      - ./deploy/ingress-demo.conf:/etc/nginx/templates/default.conf.template:ro
+      # Certificate and key of the app host, as for digitva_ingress.
+      - ${DEMO_TLS_DIR:-/etc/digitva-app/tls}:/etc/digitva-app/tls:ro
+    depends_on:
+      demo_app_service:
+        condition: service_healthy
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 64m
+          cpus: "0.25"
+    healthcheck:
+      # The plain listener inside the container (not published); the app's
+      # own health is demo_app_service's check.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/nginx-health"]
+      interval: 1m
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  # The WHO ICD-11/DORIS container's own network (runbook step 1.7), created
+  # by docker-compose.yml. The only thing the demo shares with main.
+  digitva_icd:
+    external: true
+    name: digitva_icd
+
+# The demo's own KEM private key (never main's): app and worker only, mounted
+# at /run/secrets/pii_kem_private_key. Mode 0600, outside the checkout.
+secrets:
+  demo_pii_kem_private_key:
+    file: ${DEMO_PII_KEM_PRIVATE_KEY_PATH:?DEMO_PII_KEM_PRIVATE_KEY_PATH missing}
+
+volumes:
+  demo_data:
+  demo_smartva_runs:
+  demo_logs:
+  demo_redis_data:

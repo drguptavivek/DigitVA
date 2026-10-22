@@ -50,6 +50,7 @@ PREDICATE_PATTERN = re.compile(
 
 #: Shared builders that apply the predicate for their callers.
 COVERED_HELPERS = frozenset({
+    "services/public_demo_dashboard_service.py::_in_demo",
     "services/coder_workflow_service.py::_available_submission_filters",
     "services/coder_workflow_service.py::_pick_available_stmt",
     "services/submission_analytics_mv.py::_mv_scope_filter",
@@ -75,6 +76,11 @@ _RESOLVER = (
 )
 
 EXEMPT = {
+    "services/public_demo_report_service.py::own_reports": (
+        "lists the public-demo caller's own submissions with their state, a confirmed "
+        "duplicate included, so the submitter sees what happened to each; never lists "
+        "or counts coding work"
+    ),
     "services/web_intake_service.py::case_submission_view": (
         "reads one case's own workflow state to decide whether its submitter may still "
         "revise it (revise_submission applies the same rule); never lists or counts coding work"

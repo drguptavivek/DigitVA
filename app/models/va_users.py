@@ -16,10 +16,19 @@ USER_SEX_VALUES = ("female", "male", "undetermined")
 class VaUsers(UserMixin, db.Model):
     __tablename__ = "va_users"
     # docs/policy/mobile-sign-in.md section 1: an account has an email, a
-    # sign-in mobile number, or both; never neither.
+    # sign-in mobile number, or both; a public-demo account has a username
+    # instead (docs/policy/public-demo.md section 2). Never none of them.
     __table_args__ = (
         sa.CheckConstraint(
-            "email IS NOT NULL OR mobile_login IS NOT NULL", name="email_or_mobile"
+            "email IS NOT NULL OR mobile_login IS NOT NULL OR username IS NOT NULL",
+            name="email_or_mobile",
+        ),
+        sa.Index("uq_va_users_username", "username", unique=True),
+        # The sign-up cap counts active demo accounts; the purge selects them.
+        sa.Index(
+            "ix_va_users_public_demo_status",
+            "user_status",
+            postgresql_where=sa.text("is_public_demo"),
         ),
     )
     user_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -60,6 +69,15 @@ class VaUsers(UserMixin, db.Model):
     # assign_phone). ``phone`` stays the free text that was typed.
     mobile_login: so.Mapped[str | None] = so.mapped_column(
         sa.String(10), unique=True, nullable=True
+    )
+    # A public-demo sign-in name (docs/policy/public-demo.md section 2): stored
+    # lower-case, ``user_account_service.USERNAME_RE``; null for every other
+    # account.
+    username: so.Mapped[str | None] = so.mapped_column(sa.String(30), nullable=True)
+    # A self-signed-up public-demo account, confined to the demo project
+    # (grant guard in authz.grant_cache, own-case filter in authz.predicates).
+    is_public_demo: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
     )
     # When a mobile-only account first redeemed a sign-in code: its
     # equivalent of email_verified (mobile-sign-in.md section 2).
@@ -115,16 +133,22 @@ class VaUsers(UserMixin, db.Model):
 
     @property
     def is_mobile_only(self) -> bool:
-        """No email: signs in by mobile number with a server-generated
-        password and may never choose one (mobile-sign-in.md section 3)."""
-        return self.email is None
+        """No email but a sign-in number: signs in by mobile number with a
+        server-generated password and may never choose one (mobile-sign-in.md
+        section 3). A username-only public-demo account is not mobile-only."""
+        return self.email is None and self.mobile_login is not None
 
     @property
     def sign_in_verified(self) -> bool:
-        """The login's "verified" check: a verified email, or a redeemed
-        sign-in code. Either is enough, so adding an email to a mobile-only
+        """The login's "verified" check: a verified email, a redeemed sign-in
+        code, or a public-demo username (chosen with its password at sign-up,
+        nothing to verify). Any is enough, so adding an email to a mobile-only
         account that already redeemed a code does not lock its holder out."""
-        return bool(self.email_verified) or self.mobile_verified_at is not None
+        return (
+            bool(self.email_verified)
+            or self.mobile_verified_at is not None
+            or self.username is not None
+        )
 
     def get_id(self) -> str:
         if self.auth_session_version:

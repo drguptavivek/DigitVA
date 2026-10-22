@@ -1623,6 +1623,10 @@ def _sweep_lock(key: str, ttl_seconds: int):
         yield True
         return
 
+    # Empty on the main deployment; the public demo's own namespace.
+    from flask import current_app
+
+    key = current_app.config.get("SWEEP_LOCK_KEY_PREFIX", "") + key
     token = uuid.uuid4().hex
     try:
         acquired = bool(client.set(key, token, nx=True, ex=ttl_seconds))
@@ -2457,10 +2461,12 @@ def ensure_bundle_pending_coding_scheduled():
         log.warning("Could not seed bundle pending coding schedule: %s", e)
 
 
-def ensure_smartva_sweep_scheduled():
+def ensure_smartva_sweep_scheduled(bundle_applier: bool = True):
     """Seed the 30-second SmartVA pending sweep beat entry, and the bundle
-    pending-coding applier that follows it. Idempotent."""
-    ensure_bundle_pending_coding_scheduled()
+    pending-coding applier that follows it (unless *bundle_applier* is False:
+    the public demo has no bundles). Idempotent."""
+    if bundle_applier:
+        ensure_bundle_pending_coding_scheduled()
     try:
         if _ensure_interval_task(SMARTVA_SWEEP_SCHEDULE_NAME, "app.tasks.sync_tasks.sweep_smartva_pending",
                                  SMARTVA_SWEEP_INTERVAL_SECONDS, SMARTVA_SWEEP_EXPIRE_SECONDS):
@@ -2621,34 +2627,69 @@ def release_stale_coding_allocations_task(self):
     }
 
 
+_CODING_SWEEP_TASK = "app.tasks.sync_tasks.release_stale_coding_allocations_task"
+_CODING_SWEEP_NAME = "Release stale coding allocations — every {}"
+
+
+def _coding_sweep_schedule(minutes: int | None) -> tuple[int, str, str]:
+    """``(every, period, beat row name)`` for the sweep interval; hourly (the
+    original row name) when *minutes* is None or 60."""
+    if minutes is None or minutes == 60:
+        return 1, "hours", _CODING_SWEEP_NAME.format("1 hour")
+    return minutes, "minutes", _CODING_SWEEP_NAME.format(
+        "1 minute" if minutes == 1 else f"{minutes} minutes"
+    )
+
+
 def ensure_coding_timeout_cleanup_scheduled():
-    """Seed the stale coding allocation cleanup task (every 1 hour). Idempotent."""
+    """Seed the stale coding allocation cleanup task (hourly), which also runs
+    the reviewer-eligible sweep. Idempotent: the task is found by its task
+    path. An existing row is repointed only when
+    ``CODING_SWEEP_INTERVAL_MINUTES`` is explicitly configured (the public demo
+    deployment sets a few minutes, docs/policy/public-demo.md section 4) and
+    differs from it, and is then renamed to match; unset, an existing row is
+    left as it is."""
     try:
+        from flask import current_app
+
         from app import db
 
+        configured = current_app.config.get("CODING_SWEEP_INTERVAL_MINUTES")
+        every, period, name = _coding_sweep_schedule(
+            None if configured is None else max(1, int(configured))
+        )
         with db.engine.begin() as conn:
+            existing = conn.execute(
+                sa.text(
+                    "SELECT t.id, s.every, s.period FROM public.celery_periodictask t "
+                    "LEFT JOIN public.celery_intervalschedule s ON s.id = t.schedule_id "
+                    "WHERE t.task = :task ORDER BY t.id LIMIT 1"
+                ),
+                {"task": _CODING_SWEEP_TASK},
+            ).first()
+            if existing is not None and (
+                configured is None or (existing.every, existing.period) == (every, period)
+            ):
+                log.info("Coding allocation cleanup beat schedule present.")
+                return
+
             interval_id = conn.execute(
                 sa.text(
                     "SELECT id FROM public.celery_intervalschedule "
-                    "WHERE every = 1 AND period = 'hours' LIMIT 1"
-                )
+                    "WHERE every = :every AND period = :period ORDER BY id LIMIT 1"
+                ),
+                {"every": every, "period": period},
             ).scalar()
             if interval_id is None:
                 interval_id = conn.execute(
                     sa.text(
                         "INSERT INTO public.celery_intervalschedule (every, period) "
-                        "VALUES (1, 'hours') RETURNING id"
-                    )
+                        "VALUES (:every, :period) RETURNING id"
+                    ),
+                    {"every": every, "period": period},
                 ).scalar()
 
-            exists = conn.execute(
-                sa.text(
-                    "SELECT id FROM public.celery_periodictask WHERE name = :name LIMIT 1"
-                ),
-                {"name": "Release stale coding allocations — every 1 hour"},
-            ).scalar()
-
-            if not exists:
+            if existing is None:
                 conn.execute(
                     sa.text(
                         """
@@ -2663,19 +2704,27 @@ def ensure_coding_timeout_cleanup_scheduled():
                         """
                     ),
                     {
-                        "name": "Release stale coding allocations — every 1 hour",
-                        "task": "app.tasks.sync_tasks.release_stale_coding_allocations_task",
+                        "name": name,
+                        "task": _CODING_SWEEP_TASK,
                         "schedule_id": interval_id,
                     },
                 )
+            else:
                 conn.execute(
                     sa.text(
-                        "INSERT INTO public.celery_periodictaskchanged (last_update) "
-                        "VALUES (NOW()) ON CONFLICT DO NOTHING"
-                    )
+                        "UPDATE public.celery_periodictask SET schedule_id = :schedule_id, "
+                        "discriminator = 'intervalschedule', name = :name WHERE id = :id"
+                    ),
+                    {"schedule_id": interval_id, "id": existing.id, "name": name},
                 )
+            conn.execute(
+                sa.text(
+                    "INSERT INTO public.celery_periodictaskchanged (last_update) "
+                    "VALUES (NOW()) ON CONFLICT DO NOTHING"
+                )
+            )
 
-        log.info("Coding allocation cleanup beat schedule seeded: every 1 hour.")
+        log.info("Coding allocation cleanup beat schedule seeded: every %d %s.", every, period)
     except Exception as e:
         log.warning("Could not seed coding allocation cleanup schedule: %s", e)
 

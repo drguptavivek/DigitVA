@@ -3,7 +3,7 @@ title: Asynchronous Background Tasks
 doc_type: current-state
 status: active
 owner: maintainers
-last_updated: 2026-04-19
+last_updated: 2026-10-22
 ---
 
 # Asynchronous Background Tasks
@@ -49,7 +49,41 @@ On worker/beat startup `make_celery.py`:
 6. Calls `ensure_coding_timeout_cleanup_scheduled()` — seeds stale allocation cleanup
 7. Calls `ensure_submission_analytics_mv_refresh_scheduled()` — seeds hourly analytics MV refresh
 
+With `PUBLIC_DEMO_ENABLED` (the demo deployment, docs/policy/public-demo.md
+section 8a) step 5 onward is replaced by `app/tasks/beat_schedule.py`
+(`seed_demo_beat_schedule`): it seeds only the SmartVA pending sweep (not the
+bundle applier), the coding allocation and reviewer-eligible sweep, the web
+intake upload purge, the notification purge, the sign-in IP wipe and the
+coding search telemetry prune, the nightly database backup (the demo
+database is backed up, owner 2026-10-22) and the daily public demo purge, then disables every other enabled
+`celery_periodictask` row (`disable_off_allowlist`, matched by task path;
+rows are kept). ODK sync, KPI and analytics refreshes, TLS checks,
+the organization demo reset, the training demo cleanup and the S3 upload
+sweep are not scheduled. The demo also runs Celery on queue `demo` with
+`global_keyprefix` `demo:` on the broker and result backend. Flag off:
+unchanged. `seed_demo_beat_schedule` and `disable_off_allowlist` do nothing
+(one logged error) when `va_project_master` holds a project other than the
+demo's, so a demo pointed at the main database cannot disable its beat rows.
+
 ## Registered Tasks
+
+### `app.tasks.public_demo_tasks.purge_public_demo_task`
+
+Defined in [`app/tasks/public_demo_tasks.py`](../../app/tasks/public_demo_tasks.py);
+beat row "Public demo purge — daily" (86 400 seconds, seeded by
+`ensure_public_demo_purge_scheduled`, on the demo allowlist only). Calls
+`public_demo_purge_service.purge_run(apply=True)`: deletes public-demo
+accounts idle `PUBLIC_DEMO_PURGE_IDLE_DAYS` (30) and everything they created,
+one account per transaction, at most `PUBLIC_DEMO_PURGE_BATCH` per run
+(docs/current-state/authentication-and-onboarding.md section 2.5), then the
+demo project's SmartVA run folders older than that (disk and object store;
+rows deleted unless a `va_smartva_runs` row references them). Returns
+`{status, accounts, failed}`; `status` is `ok`, or `not_enabled` /
+`purge_disabled` / `main_database` when a guard refused and nothing was
+touched (`PUBLIC_DEMO_PURGE_ENABLED` is off by default). Never raises. Logs
+and the `public_demo_purge` security event carry counts only. The worker
+registers the task because `app/tasks/beat_schedule.py` imports the module at
+demo startup.
 
 ### `app.tasks.sync_tasks.run_odk_sync`
 

@@ -85,6 +85,8 @@ PUBLIC_ENDPOINTS = {
     "va_auth.verify_email": "Verification link; reachable only with a signed token.",
     "va_auth.factor_reset": "Break-glass account recovery link; single-use one-hour "
                             "token after an administrator reset.",
+    "va_auth.va_signup": "Public-demo self sign-up (public-demo.md); 404 unless "
+                         "PUBLIC_DEMO_ENABLED; CAPTCHA, per-IP limits, account cap.",
     "va_main.va_index": "Public landing page; renders no user data.",
     "va_main.who_va_document": "Published WHO VA reference PDFs from a fixed registry.",
     "training_demo.public_page": "Public explainer of the Training & demo project; "
@@ -113,6 +115,21 @@ PUBLIC_ENDPOINTS = {
     "help.icd11_codes_browser_csv": "Published ICD-11 reference browser.",
     "help.icd11_codes_browser_node": "Published ICD-11 reference browser.",
     "help.icd11_codes_browser_search": "Published ICD-11 reference browser.",
+    "api_v1.auth_api.demo_signup": "Public-demo self sign-up for the app (public-demo.md); "
+                                   "404 unless PUBLIC_DEMO_ENABLED; proof of work, per-IP and "
+                                   "demo-wide limits, account cap.",
+    "api_v1.auth_api.demo_signup_challenge": "Proof-of-work challenge for the app's demo "
+                                             "sign-up; 404 unless PUBLIC_DEMO_ENABLED; no "
+                                             "user or session data, rate-limited.",
+    "api_v1.auth_api.demo_enroll": "Device enrol for the public demo (public-demo.md section 10); "
+                                   "404 unless PUBLIC_DEMO_ENABLED; authenticates (demo "
+                                   "username and password), enrols only on the demo project, "
+                                   "device cap per account, rate-limited.",
+    "public_demo.dashboard_page": "Public demo dashboard (public-demo.md section 7); 404 unless "
+                                  "PUBLIC_DEMO_ENABLED; demo-project aggregates only, no case "
+                                  "rows, ids, usernames or free text; cached, rate-limited.",
+    "public_demo.dashboard_json": "Public demo dashboard figures (public-demo.md section 7); same "
+                                  "aggregates as the page, nothing per case or person.",
     "api_v1.auth_api.enroll": "Device enrol: authenticates (one-time hashed enrolment "
                             "code), does not authorize; rate-limited.",
     "api_v1.auth_api.open_session": "Device sign-in: authenticates (device secret, "

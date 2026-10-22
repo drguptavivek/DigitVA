@@ -2459,7 +2459,7 @@ def admin_resend_verification(target_user_id):
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
         return _json_error("User not found.", 404)
-    if target_user.is_mobile_only:
+    if target_user.email is None:
         return _json_error("This account has no email; issue a sign-in code instead.", 400)
     if target_user.email_verified:
         return _json_error("User email is already verified.", 400)

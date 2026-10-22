@@ -32,6 +32,7 @@ from app.models import (
     VaProjectSites,
     VaStatuses,
     VaSubmissions,
+    VaWebIntakeDraft,
 )
 from app.services.authz.actions import (
     ADMIN_BYPASS,
@@ -114,6 +115,26 @@ def _subtree_select(unit_ids):
 
 def _routed_into(unit_ids):
     return VaSubmissions.org_unit_id.in_(_subtree_select(unit_ids))
+
+
+def _own_cases(user):
+    """For a public-demo account, the submissions it submitted itself (its
+    ``submitted`` web intake drafts; device uploads write the same rows),
+    ANDed onto every submission predicate: such a user sees, codes and reviews
+    nothing else (docs/policy/public-demo.md section 3, "Isolation"). None
+    for every other account. Uncorrelated, read through
+    ``ix_va_web_intake_drafts_user_submitted``."""
+    if not getattr(user, "is_public_demo", False):
+        return None
+    return VaSubmissions.va_sid.in_(
+        sa.select(VaWebIntakeDraft.va_sid)
+        .where(
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status == "submitted",
+            VaWebIntakeDraft.va_sid.is_not(None),
+        )
+        .correlate(None)
+    )
 
 
 # The form's project has an active org level (a tree project; design 0.2).
@@ -334,8 +355,9 @@ def reaches(user, lens: Lens, va_sid, *, _grants: ResolvedGrants | None = None) 
     clauses = _lens_predicate(g, lens)
     if not clauses:
         return False
+    own = _own_cases(user)
     return bool(db.session.scalar(sa.select(sa.exists().where(
-        VaSubmissions.va_sid == va_sid, sa.or_(*clauses),
+        VaSubmissions.va_sid == va_sid, sa.or_(*clauses), *([own] if own is not None else []),
     ))))
 
 
@@ -362,8 +384,9 @@ def codes_as_tester(user, va_sid, *, _grants: ResolvedGrants | None = None) -> b
         ]
         if not clauses:
             return False
+        own = _own_cases(user)
         return bool(db.session.scalar(sa.select(sa.exists().where(
-            VaSubmissions.va_sid == va_sid, sa.or_(*clauses),
+            VaSubmissions.va_sid == va_sid, sa.or_(*clauses), *([own] if own is not None else []),
         ))))
 
     return reached([tester]) and not reached([coder, virtual])
@@ -408,7 +431,9 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
     """SQL predicate on ``VaSubmissions``: the submissions *user* may *action*.
 
     ``sa.true()`` for an admin on a bypassed action, ``sa.false()`` when no
-    lens applies. ``_grants`` is a test seam: a hand-built ``ResolvedGrants``.
+    lens applies; a public-demo account's own submissions only
+    (``_own_cases``). ``_grants`` is a test seam: a hand-built
+    ``ResolvedGrants``.
     """
     mark_consulted()
     if action not in RULES:
@@ -419,16 +444,19 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
         # included: the bypass lifts the project limit, never the queue's
         # own shape. A site project's case is unrouted by construction and
         # has nowhere to be routed to.
-        return sa.and_(
+        predicate = sa.and_(
             VaSubmissions.org_unit_id.is_(None),
             VaSubmissions.va_form_id.in_(
                 _form_ids(_HAS_TREE, active_form=False, active_pair=False)
             ),
         )
-    if g.is_admin and action in ADMIN_BYPASS:
-        return sa.true()
-    clauses = [c for lens in RULES[action] for c in _lens_predicate(g, lens)]
-    return sa.or_(*clauses) if clauses else sa.false()
+    elif g.is_admin and action in ADMIN_BYPASS:
+        predicate = sa.true()
+    else:
+        clauses = [c for lens in RULES[action] for c in _lens_predicate(g, lens)]
+        predicate = sa.or_(*clauses) if clauses else sa.false()
+    own = _own_cases(user)
+    return predicate if own is None else sa.and_(predicate, own)
 
 
 def lens_filter(user, lens: Lens, *, roles=None, _grants: ResolvedGrants | None = None):
@@ -443,7 +471,10 @@ def lens_filter(user, lens: Lens, *, roles=None, _grants: ResolvedGrants | None 
         roles = frozenset(roles)
         g = replace(g, grants=tuple(x for x in g.grants if x.role in roles))
     clauses = _lens_predicate(g, lens)
-    return sa.or_(*clauses) if clauses else sa.false()
+    if not clauses:
+        return sa.false()
+    own = _own_cases(user)
+    return sa.or_(*clauses) if own is None else sa.and_(sa.or_(*clauses), own)
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +519,10 @@ def _can_submission(user, g: ResolvedGrants, action: Action, va_sid) -> Decision
     predicate = scope_filter(user, action, _grants=g)
     if db.session.scalar(sa.select(sa.exists().where(VaSubmissions.va_sid == va_sid, predicate))):
         return _ALLOWED
+    if getattr(user, "is_public_demo", False):
+        # One answer whether the case exists (another demo user's) or not, so
+        # a guessed id cannot be told apart by 403 versus 404.
+        return _deny(Reason.NOT_FOUND)
     row = db.session.execute(
         sa.select(
             VaForms.project_id,

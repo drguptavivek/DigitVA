@@ -85,11 +85,19 @@ confirmation. Partial dates retain an age range rather than an invented exact
 birthday. The backend must enforce the same upper age limit.
 
 - **Enrol**: scan the one-time QR from the project's Setup home, Devices
-  (or paste its JSON in a debug build). The server must be on the allowlist
-  compiled into `src/enrolment.ts`: release builds accept
-  `https://digitva.causeofdeathindia.com` only; debug builds also accept
+  (or paste its JSON in a debug build). The QR's server must pass the rule
+  in `src/enrolment.ts` (`acceptedServerOrigin`): any `https` host under
+  `causeofdeathindia.com` on the default port with no path (production
+  `digitva.`, staging `digitvav3.`, the apex), plus the build's
+  `EXPO_PUBLIC_API_BASE_URL` origin; debug builds also accept
   `http://10.0.2.2:8051` (emulator to host) and `http://localhost:8051`
-  (device with `adb reverse tcp:8051 tcp:8051`).
+  (device with `adb reverse tcp:8051 tcp:8051`). The screen then shows the
+  server host and project and enrols only after **Enrol on this server**.
+  Policy: docs/policy/mobile-sign-in.md section 7.
+- **Change server**: Settings shows the enrolled server. **Change server /
+  re-enrol** is refused while any interviewer has unsent work or a locked
+  store; otherwise it signs every interviewer out, forgets the enrolment and
+  opens the enrol screen (`src/reEnrolConfirm.ts`).
 - **Interviewers**: several may sign in on one phone. The home screen shows
   display names only. Tokens live in SecureStore per interviewer; the access
   token refreshes with rotation (the refresh also carries the device id and

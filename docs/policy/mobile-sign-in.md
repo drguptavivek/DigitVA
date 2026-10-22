@@ -187,4 +187,36 @@ them. Coders and other roles get no such email.
   needs the person's password. An admin can revoke any device on the
   Devices page, which ends its sessions.
 
+## 7. Enrolment server (digitva-k4jt)
+
+Owner decision 2026-10-22. The enrolment QR names the server; the Android app
+checks it against a rule compiled into the build (`src/enrolment.ts`,
+`acceptedServerOrigin`), so a forged QR cannot point the phone at a server
+that would collect an interviewer's password.
+
+- **Release builds** accept an `https` origin whose host is exactly
+  `causeofdeathindia.com` or ends with `.causeofdeathindia.com`, matched by
+  whole DNS labels after lower-casing: production
+  (`digitva.causeofdeathindia.com`), staging
+  (`digitvav3.causeofdeathindia.com`) and any other host the organisation
+  puts under its domain. Refused: `http`, a non-default port, user
+  information, a path, query or fragment, look-alikes such as
+  `evilcauseofdeathindia.com` or `causeofdeathindia.com.evil.io`, a trailing
+  dot or empty label, and Unicode look-alike hosts (they parse to `xn--`
+  labels that do not match). The build's `EXPO_PUBLIC_API_BASE_URL`, when
+  set, is one more exact origin accepted.
+- **Debug builds** also accept exactly `http://10.0.2.2:8051` and
+  `http://localhost:8051`.
+- **Before redeeming**, the enrol screen shows the server host and project
+  and waits for the user to confirm.
+- The server pages the app opens (code redemption, forgotten password) use
+  the same rule.
+- **Changing server is re-enrolling.** Settings shows the enrolled server
+  read-only. **Change server / re-enrol** is refused while any interviewer on
+  the phone has unsent work (drafts, registrations, queued case actions,
+  revisions) or a locked store whose contents cannot be counted; the refusal
+  names each interviewer and says to unlock and sync. When nothing is unsent
+  it asks once, signs every interviewer out (the ordinary sign-out wipe) and
+  drops the enrolment, then opens the enrol screen for the new server's QR.
+
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

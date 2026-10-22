@@ -139,9 +139,11 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
 
 - **Enrolment by one-time QR.** An admin creates an enrolment code for one
   project (default single use, one hour); the QR holds only the server URL,
-  the project id and that code. The app accepts a server host only from an
-  allowlist compiled into the build (release: the production host), so a
-  forged QR cannot send an interviewer's password elsewhere. The device
+  the project id and that code. The app accepts only a server that passes
+  the rule compiled into the build (an https host under
+  `causeofdeathindia.com`; mobile-sign-in.md section 7) and shows that host
+  before redeeming the code, so a forged QR cannot send an interviewer's
+  password elsewhere. The device
   secret it receives is used only to open interviewer sessions.
 - **Interviewer sign-in** takes the account's email or mobile number
   (unique, from a redeemed code or verified email; mobile-sign-in.md) and its

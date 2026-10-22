@@ -818,5 +818,16 @@
   "usersCodeOnce": "Shown once. Scan it from the app's enrolment screen. Valid until {when} for {uses} device(s).",
   "usersCodeQr": "Enrolment QR code",
   "usersCodeEmailed": "The enrolment email has been sent.",
-  "usersCodeClose": "Close"
+  "usersCodeClose": "Close",
+  "enrolledServer": "Server",
+  "reEnrol": "Change server / re-enrol",
+  "reEnrolBlocked": "This phone cannot change server yet. Re-enrolling signs every interviewer out and deletes what is on the phone. Send all work first: unlock each interviewer and sync.",
+  "reEnrolUnsentName": "{name}: {count} items not sent",
+  "reEnrolLockedName": "{name}: locked, unlock to check for unsent work",
+  "reEnrolConfirm": "Every interviewer will be signed out of this phone. You will then scan the enrolment QR code for the new server. Continue?",
+  "reEnrolClose": "Close",
+  "enrolConfirmServer": "Server: {host}",
+  "enrolConfirmProject": "Project: {project}",
+  "enrolConfirmHint": "Enrol only if this is your organisation's DigitVA server.",
+  "enrolConfirm": "Enrol on this server"
 }

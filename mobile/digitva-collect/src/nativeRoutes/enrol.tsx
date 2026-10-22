@@ -1,6 +1,7 @@
 /**
- * Enrol: scan the one-time QR from the project's Devices page, validate it
- * against the compiled server allowlist, POST /enroll. Pasting the JSON is a
+ * Enrol: scan the one-time QR from the project's Devices page, validate its
+ * server against the compiled rule (src/enrolment.ts), show that server's host
+ * and wait for the user to confirm, then POST /enroll. Pasting the JSON is a
  * debug-build convenience for the emulator.
  */
 import Constants from "expo-constants";
@@ -11,7 +12,7 @@ import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { enrolDevice } from "../auth";
-import { EnrolmentError, parseEnrolmentQr } from "../enrolment";
+import { EnrolmentError, parseEnrolmentQr, type EnrolmentPayload } from "../enrolment";
 import { t } from "../i18n";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 
@@ -25,20 +26,32 @@ export default function Enrol() {
   const [pasted, setPasted] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<EnrolmentPayload>();
   const busyRef = useRef(false);
 
-  async function submit(raw: string) {
+  /** Validate a scanned or pasted QR; nothing is redeemed until the user confirms its server. */
+  function review(raw: string) {
+    if (busyRef.current) return;
+    try {
+      setPending(parseEnrolmentQr(raw, __DEV__));
+      setError("");
+    } catch (caught) {
+      setError(caught instanceof EnrolmentError ? t(caught.key) : errorText(caught));
+    }
+  }
+
+  async function submit(payload: EnrolmentPayload) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError("");
     try {
-      const payload = parseEnrolmentQr(raw, __DEV__);
       await enrolDevice(payload.server, payload.code, Constants.deviceName ?? "Android", APP_VERSION);
       await reload();
       router.replace("/");
     } catch (caught) {
-      setError(caught instanceof EnrolmentError ? t(caught.key) : errorText(caught));
+      setPending(undefined);
+      setError(errorText(caught));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -48,19 +61,29 @@ export default function Enrol() {
   return (
     <Screen title={t("enrolTitle")}>
       <Text style={styles.text}>{t("enrolHint")}</Text>
-      {permission?.granted ? (
+      {pending ? (
+        <View style={{ gap: 8 }}>
+          <Text style={[styles.text, { fontSize: 20, fontWeight: "700" }]} selectable>
+            {t("enrolConfirmServer", { host: new URL(pending.server).host })}
+          </Text>
+          <Text style={styles.text}>{t("enrolConfirmProject", { project: pending.project })}</Text>
+          <Text style={styles.muted}>{t("enrolConfirmHint")}</Text>
+          <Button label={t("enrolConfirm")} loading={busy} disabled={busy} onPress={() => void submit(pending)} />
+          <Button kind="secondary" label={t("cancel")} disabled={busy} onPress={() => setPending(undefined)} />
+        </View>
+      ) : permission?.granted ? (
         <View style={{ height: 280, borderRadius: 8, overflow: "hidden" }}>
           <CameraView
             style={{ flex: 1 }}
             facing="back"
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-            onBarcodeScanned={busy ? undefined : ({ data }) => void submit(data)}
+            onBarcodeScanned={({ data }) => review(data)}
           />
         </View>
       ) : (
         <Button label={t("enrolAllowCamera")} onPress={() => void requestPermission()} />
       )}
-      {__DEV__ ? (
+      {__DEV__ && !pending ? (
         <View style={{ gap: 8 }}>
           <Text style={styles.muted}>{t("enrolPaste")}</Text>
           <TextInput
@@ -71,7 +94,7 @@ export default function Enrol() {
             value={pasted}
             onChangeText={setPasted}
           />
-          <Button label={t("enrolSubmit")} disabled={busy || !pasted.trim()} onPress={() => void submit(pasted)} />
+          <Button label={t("enrolSubmit")} disabled={busy || !pasted.trim()} onPress={() => review(pasted)} />
         </View>
       ) : null}
       {busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null}

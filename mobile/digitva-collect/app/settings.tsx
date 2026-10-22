@@ -1,10 +1,15 @@
-/** App language picker. The questionnaire's own language is chosen on the form. */
+/**
+ * App language picker (the questionnaire's own language is chosen on the form),
+ * biometric unlock, and the enrolled server: shown read-only, changed only by
+ * re-enrolling (src/reEnrolConfirm.ts).
+ */
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { canUseBiometricAuthentication } from "expo-secure-store";
 import { Platform, Text } from "react-native";
 
 import { useAppState } from "../src/AppState";
+import { confirmReEnrol, reEnrolDevice } from "../src/reEnrolConfirm";
 import { t, UI_LOCALES } from "../src/i18n";
 import { Button, Screen, useUiStyles } from "../src/ui";
 import { biometricEnabled } from "../src/vault";
@@ -16,7 +21,7 @@ export default function Settings() {
 
 function NativeSettings() {
   const router = useRouter();
-  const { accounts, uiLocale, chooseUiLocale, lockNow } = useAppState();
+  const { device, accounts, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
   const styles = useUiStyles();
   const [biometricUsers, setBiometricUsers] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
@@ -52,6 +57,24 @@ function NativeSettings() {
       setBusy(false);
     }
   }
+  async function reEnrol() {
+    setBusy(true);
+    setError("");
+    try {
+      await reEnrolDevice(accounts);
+      await reload();
+      // Settings sits above Home, so Home's redirect to /enrol would not run.
+      router.replace("/enrol");
+    } catch (caught) {
+      setError(caught instanceof Error && caught.message === "unsent_work" ? t("reEnrolBlocked") : t("errGeneric"));
+    } finally {
+      setBusy(false);
+    }
+  }
+  function requestReEnrol() {
+    setError("");
+    confirmReEnrol(accounts, () => void reEnrol()).catch(() => setError(t("errGeneric")));
+  }
   return (
     <Screen title={t("appLanguage")}>
       {UI_LOCALES.map((locale) => (
@@ -72,6 +95,13 @@ function NativeSettings() {
           onPress={() => void requestBiometric(account.user_id)}
         />
       ))}
+      {device ? (
+        <>
+          <Text style={styles.muted}>{t("enrolledServer")}</Text>
+          <Text style={styles.text} selectable>{device.server}</Text>
+          <Button kind="danger" label={t("reEnrol")} loading={busy} disabled={busy} onPress={requestReEnrol} />
+        </>
+      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button kind="secondary" label={t("home")} onPress={() => router.back()} />
     </Screen>

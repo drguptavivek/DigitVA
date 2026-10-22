@@ -20,7 +20,13 @@ describe("native sign-in identifier and server links", () => {
     expect(normalizeMobileIdentifier("98765432101")).toBeUndefined();
   });
 
-  it("only builds handoff links for the enrolled server allowlist", () => {
+  it("only builds handoff links for servers the enrolment rule accepts", () => {
+    expect(nativeAuthUrl("https://digitvav3.causeofdeathindia.com", NATIVE_AUTH_PATHS.signIn, false)).toBe(
+      "https://digitvav3.causeofdeathindia.com/vaauth/valogin"
+    );
+    for (const server of ["https://evilcauseofdeathindia.com", "https://causeofdeathindia.com.evil.io", "http://digitva.causeofdeathindia.com"]) {
+      expect(() => nativeAuthUrl(server, NATIVE_AUTH_PATHS.signIn, false)).toThrow("server_not_allowed");
+    }
     expect(nativeAuthUrl(`${releaseOrigin}/`, NATIVE_AUTH_PATHS.redeemCode, false)).toBe(
       `${releaseOrigin}/vaauth/valogin/code`
     );

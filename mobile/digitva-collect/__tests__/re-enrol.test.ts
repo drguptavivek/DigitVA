@@ -1,0 +1,64 @@
+/** Re-enrolling wipes every interviewer: refused while anything is or may be unsent, and the device record goes last. */
+import { Alert } from "react-native";
+
+const mockUnsentCount = jest.fn<Promise<number | undefined>, [string]>();
+const mockCalls: string[] = [];
+jest.mock("../src/interviewerDb", () => ({ unsentWorkCount: (userId: string) => mockUnsentCount(userId) }));
+jest.mock("../src/auth", () => ({
+  signOut: async (userId: string) => void mockCalls.push(`signOut:${userId}`),
+  forgetDevice: async () => void mockCalls.push("forgetDevice"),
+}));
+jest.mock("../src/i18n", () => ({
+  t: (key: string, vars?: Record<string, unknown>) => (vars ? `${key}:${JSON.stringify(vars)}` : key),
+}));
+
+import { confirmReEnrol, reEnrolDevice } from "../src/reEnrolConfirm";
+
+type Buttons = Array<{ text: string; onPress?: () => void }>;
+const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+const accounts = [
+  { user_id: "a", name: "Asha" },
+  { user_id: "b", name: "Bina" },
+];
+const counts = (byUser: Record<string, number | undefined>) =>
+  mockUnsentCount.mockImplementation(async (userId) => byUser[userId]);
+
+beforeEach(() => {
+  alert.mockClear();
+  mockCalls.length = 0;
+});
+
+it("refuses while an interviewer has unsent work or a locked store, naming each", async () => {
+  counts({ a: 2, b: undefined });
+  const onConfirmed = jest.fn();
+  await confirmReEnrol(accounts, onConfirmed);
+
+  expect(alert).toHaveBeenCalledTimes(1);
+  const [, message, buttons] = alert.mock.calls[0];
+  expect(message).toContain("reEnrolBlocked");
+  expect(message).toContain('reEnrolUnsentName:{"name":"Asha","count":2}');
+  expect(message).toContain('reEnrolLockedName:{"name":"Bina"}');
+  expect((buttons as Buttons).map((button) => button.text)).toEqual(["reEnrolClose"]);
+  expect(onConfirmed).not.toHaveBeenCalled();
+  await expect(reEnrolDevice(accounts)).rejects.toThrow("unsent_work");
+  expect(mockCalls).toEqual([]);
+});
+
+it("asks once when nothing is unsent, then signs everyone out before forgetting the device", async () => {
+  counts({ a: 0, b: 0 });
+  const onConfirmed = jest.fn();
+  await confirmReEnrol(accounts, onConfirmed);
+
+  expect(alert.mock.calls[0][1]).toBe("reEnrolConfirm");
+  (alert.mock.calls[0][2] as Buttons).find((button) => button.text === "reEnrol")?.onPress?.();
+  expect(onConfirmed).toHaveBeenCalledTimes(1);
+  await reEnrolDevice(accounts);
+  expect(mockCalls).toEqual(["signOut:a", "signOut:b", "forgetDevice"]);
+});
+
+it("re-enrols a phone with no interviewers", async () => {
+  await confirmReEnrol([], jest.fn());
+  expect(alert.mock.calls[0][1]).toBe("reEnrolConfirm");
+  await reEnrolDevice([]);
+  expect(mockCalls).toEqual(["forgetDevice"]);
+});

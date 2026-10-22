@@ -1,4 +1,4 @@
-import { allowedServers } from "./enrolment";
+import { acceptedServerOrigin } from "./enrolment";
 
 export const NATIVE_AUTH_PATHS = {
   signIn: "/vaauth/valogin",
@@ -9,13 +9,14 @@ export const NATIVE_AUTH_PATHS = {
 export type NativeAuthPath = (typeof NATIVE_AUTH_PATHS)[keyof typeof NATIVE_AUTH_PATHS];
 
 /**
- * Build a server handoff URL only for the server already accepted at enrolment.
+ * Build a server handoff URL only for a server the enrolment rule accepts
+ * (src/enrolment.ts acceptedServerOrigin).
  * No credentials, tokens, or account identifiers are placed in the URL.
  */
 export function nativeAuthUrl(server: string, path: NativeAuthPath, isDev: boolean): string {
-  const normalized = server.trim().replace(/\/+$/, "").toLowerCase();
-  if (!allowedServers(isDev).includes(normalized)) throw new Error("server_not_allowed");
-  return `${normalized}${path}`;
+  const origin = acceptedServerOrigin(server, isDev);
+  if (!origin) throw new Error("server_not_allowed");
+  return `${origin}${path}`;
 }
 
 /**

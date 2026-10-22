@@ -159,56 +159,39 @@ Current health checks:
 - `icd_api_service`: `icd11-healthcheck` posts a one-line certificate to DORIS and needs `"stemCode":"BA41.Z"` back, so it is green only with the engine loaded
 - `doris_public_service`: its own `/health` and the same DORIS call through `ICD11_API_BASE_URL`, so it turns unhealthy when the ICD service is down (`digitva-cfb1`; the container it replaced was OOM-killed with no restart policy while this check stayed green)
 
+### Expo web export
+
+Hosts never build the Expo web export (no Node on the host). It is published
+as a release asset of DigitVA (`expo-web-v<date>`, a tarball of
+`mobile/digitva-collect/dist` with `ui-strings`) with its SHA-256, pinned in
+`deploy/expo-web-release.env`. `scripts/install-expo-web-release.sh` downloads
+it, verifies the SHA-256 and swaps `mobile/digitva-collect/dist`, keeping the
+previous export as `dist.prev` for rollback; then rebuild the app image (the
+export is copied into it). To publish a new export: build it on a developer
+machine (`vendor/who-va-2022` `npm run build`, then `npm run export:web` in
+`mobile/digitva-collect`), tar the `dist` contents, `gh release create` with the
+tarball and its `.sha256`, and bump the pin file.
+
 ### WHO ICD-11 service
 
-Since 2026-10-22 (owner decision) `icd_api_service` is not the `whoicd/icd-api`
-container. It is `digitva-icd11-server` (`desktop/crates/digitva-icd11`), a Rust
-binary that loads the unmodified WHO ICD-API 2.6.0 and DORIS 1.2.0 assemblies
-through `libhostfxr` and starts WHO's own ASP.NET host in-process
-(`vendor/who-icd11-api`), so every endpoint, status code and body is WHO's.
-Service name, port 80, host binding `127.0.0.1:8382` and `ICD11_API_BASE_URL`
-are unchanged.
+`icd_api_service` is WHO's own `whoicd/icd-api:2.6.0` container, pinned by
+digest (owner decision 2026-10-22: licensing for the Rust ICD host is
+unresolved, so staging and production keep WHO's container). Port 80, host
+binding `127.0.0.1:8382`, `ICD11_API_BASE_URL` unchanged; `saveAnalytics` is
+off.
 
-- Image: [`docker/icd11/Dockerfile`](../../docker/icd11/Dockerfile), a pinned
-  Rust build stage (`cargo build --locked`) and the pinned
-  `mcr.microsoft.com/dotnet/aspnet:10.0.13` runtime (`Microsoft.NETCore.App` and
-  `Microsoft.AspNetCore.App`; WHO's own image ships 10.0.3). It contains only the
-  binary and the healthcheck script, and runs as the image's `app` user. The
-  build needs the whole `desktop` workspace to resolve, so a member manifest
-  edited without `Cargo.lock` breaks it.
-- WHO files: not in the image. On first start the binary downloads the
-  `/usr/share/icdapi` layer of `whoicd/icd-api:2.6.0` from Docker Hub and the
-  three WHO CDN archives (MMS 2026-01 English, its search index, DORIS 1.2.0)
-  into the `icd11_runtime` volume (`/var/lib/icd11`, about 560 MB), verifying
-  the image index, manifest and layer digests and the SHA-256 of all 79
-  assemblies and the data files. Every later start re-verifies the pins and
-  needs no network; the service then makes no outbound connections (checked on
-  an `--internal` Docker network). One process per volume: WHO extracts its
-  index into the data directory at start. If verification fails (for example
-  a first start killed mid-download) the server wipes `icdapi/` and `data/` and
-  downloads once more before giving up. A host without egress to Docker Hub
-  and the WHO CDNs needs the volume pre-seeded: start the image once on a host
-  with egress, then copy the volume contents across (`tar` in a throwaway
-  container).
-- Times on the dev host (Apple silicon, 2026-10-22): first start with the
-  download 23 s, warm start about 6.5 s.
-- Memory: about 540-680 MB idle, 1.1 GB peak after 1,200 distinct searches
-  (WHO caches searches for an hour); the WHO container measured 270-490 MB idle
-  and 0.9 GB peak on the same load, so the host uses more, not less. The 2 GB
-  cap stays (the container was OOM-killed at it once). Workstation GC
-  (`DOTNET_gcServer=0`) cut idle to 0.5 GB and the peak to 0.87 GB at 2-3x the
-  latency under concurrent load; `DOTNET_GCHeapCount=2` saved nothing. Neither
-  is enabled.
-- Rollback: the WHO container remains as `icd_api_container_service` under the
-  `icd11-container` profile with the network alias `icd_api_service`:
-  `docker compose stop icd_api_service`, then
-  `docker compose --profile icd11-container up -d icd_api_container_service`.
-  Do not run both: they share the hostname and host port.
-- `digitva-ke83.12`: the pinned amd64 layer's `ICD-API.dll`
-  (`8a901c52...`) differs from the arm64 build pinned first (`0ab8e927...`);
-  WHO compiles it per architecture. Both digests are accepted. The server
-  rewrites the embedded bridge DLL on every start, so a stale bridge no longer
-  fails its pin.
+- `restart: always` and a 2 GB memory cap (the container was OOM-killed once
+  and stayed down, `digitva-cfb1`).
+- The healthcheck posts a one-condition DORIS certificate with the image's
+  busybox `wget` and passes only when DORIS returns `BA41.Z`, so it is green
+  only when the engine answers, not when the port is merely open.
+  `doris_public_service` runs the same DORIS check through
+  `ICD11_API_BASE_URL`.
+- The Rust host `digitva-icd11-server` (`desktop/crates/digitva-icd11`,
+  `docker/icd11/Dockerfile`, compiled from source) is opt-in only as
+  `icd_api_rust_service` under the `icd11-rust` profile. It is not for staging
+  or production until licensing is resolved, and it takes the same hostname and
+  port, so never run both.
 
 ## Boot And Startup
 
@@ -632,6 +615,15 @@ SmartVA runs on the pure-Rust `smartva-rs` engine (owner decision
 2026-10-22), a drop-in for the Python `smartva` command line: same flags,
 same input CSV, same four-folder CSV output tree, so prep and result parsing
 are unchanged. Python SmartVA stays installed as the rollback.
+
+Hosts never compile it. The app image downloads the pinned release asset of
+[drguptavivek/SmartVA-Analyze-rust](https://github.com/drguptavivek/SmartVA-Analyze-rust)
+(`v3.0.1`, `smartva-rs-linux-arm64.tar.gz` or `-linux-x86_64.tar.gz` by build
+architecture) and verifies its SHA-256; an unset or wrong pin fails the build.
+The pins are `x-smartva-rs` in `docker-compose.yml`, the one place to bump.
+`SMARTVA_RS_SOURCE=source` in `.env` compiles `vendor/smartva-analyze/rust`
+instead, for developers only (it made the staging host unresponsive).
+`smartva-rs --version` in the image reports `SmartVA-Analyze 3.0.1-rust`.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

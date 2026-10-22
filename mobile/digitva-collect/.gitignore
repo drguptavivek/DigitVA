@@ -1,0 +1,10 @@
+node_modules/
+.expo/
+dist/
+dist.prev/
+dist-native/
+android/
+ios/
+.screens/
+expo-env.d.ts
+*.apk

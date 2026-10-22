@@ -79,6 +79,14 @@ EXEMPT = {
         "writes fresh synthetic workflow rows for the opted-in demo baseline; "
         "does not list or count existing coding work"
     ),
+    "services/training_demo_service.py::create_training_session": (
+        "writes fresh workflow rows for a new training session's copies and reads the "
+        "source cases' final causes as the answer key; does not list or count coding work"
+    ),
+    "services/training_report_service.py::training_session_report": (
+        "counts coding of TRN01 training copies, which have no death-register rows and so "
+        "can never be confirmed duplicates; not a coding pool"
+    ),
     "routes/api/va_case.py::_may_see_cod_reference": (
         "single-submission gate on an already-authorized case view (one case's own state), "
         "not a list or count of coding work"

@@ -1,0 +1,59 @@
+{% extends 'va_frontpages/va_base.html' %}
+{# Public page: static explanation, no user data. #}
+{% block title %}Training and demo | DigitVA{% endblock %}
+{% block content %}
+<div class="content-section mb-4">
+  <h1 class="h3">Training and demo project</h1>
+  <p class="lead">
+    A permanent practice project where new staff learn every DigitVA role on realistic cases before they
+    work on real ones.
+  </p>
+
+  <div class="alert alert-info" role="note">
+    <strong>Your own account.</strong> There are no shared or generated logins. You sign in with the
+    account you already have, and your trainer adds you to a training session with a role. If you cannot
+    see the training project after signing in, ask your trainer to add you.
+  </div>
+
+  <h2 class="h5 mt-4">The cases</h2>
+  <p>
+    The 200 cases in a training session come from verbal autopsy interviews whose participants gave
+    their consent. Before they are copied, names, addresses and phone numbers in the text answers are
+    replaced with made-up ones, consistently through each case. Everything else in the interview, such
+    as symptoms, dates and ages, is kept so that coding is realistic. Coders see only their own 10
+    cases; the other roles see all the cases of their training session.
+  </p>
+  <div class="alert alert-warning" role="note">
+    <strong>Photos, documents and audio are not changed.</strong> They are the original consented
+    material and may show real details. Do not copy, photograph or share them.
+  </div>
+
+  <h2 class="h5 mt-4">The roles</h2>
+  <div class="row g-3">
+    {% for item in guide %}
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <h3 class="h6 card-title">{{ item.title }}</h3>
+          <p class="card-text mb-0">{{ item.what }}</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2 class="h5 mt-4">After the training</h2>
+  <p>
+    Your trainer then gives your account access to your real project. Training work stays in the
+    training project and never mixes with real cases.
+  </p>
+
+  <p class="mt-4">
+    {% if current_user.is_authenticated %}
+      <a class="btn btn-primary" href="{{ url_for('training_demo.welcome') }}">Open my training checklist</a>
+    {% else %}
+      <a class="btn btn-primary" href="{{ sign_in_url }}">Sign in</a>
+    {% endif %}
+  </p>
+</div>
+{% endblock %}

@@ -1,0 +1,321 @@
+{#
+  Training sessions panel (Training & demo project, TRN01).
+  Lists, creates and manages training sessions. Every write is a JSON POST with
+  X-CSRFToken. All text from the server is inserted with textContent.
+  Policy: docs/policy/training-demo-project.md.
+#}
+<div id="training-panel">
+  <h2 class="h4">Training sessions</h2>
+  <p class="text-muted">
+    Each session is one training: 20 coder slots holding 10 pseudonymised cases each (200 in all).
+    Trainees sign in with their own accounts; add existing users below. Closing a session
+    deactivates its participants' training access and deletes nothing.
+  </p>
+  {% if not configured %}
+  <div class="alert alert-warning" role="status">
+    The training project is not enabled here. Set <code>DIGITVA_TRAINING_PROJECT_ID=TRN01</code> and run
+    <code>flask training-demo setup</code>.
+  </div>
+  {% endif %}
+  <div id="training-message" role="status" class="alert d-none"></div>
+
+  <form id="training-create" class="row g-2 mb-4">
+    <div class="col-md-8">
+      <label class="form-label" for="training-name">New session name</label>
+      <input id="training-name" name="name" class="form-control" maxlength="200" required
+             placeholder="e.g. Kalpet PHC, November 2026">
+    </div>
+    <div class="col-md-4 align-self-end">
+      <button class="btn btn-primary" id="training-create-btn">Create session (200 cases)</button>
+    </div>
+  </form>
+
+  <div class="table-responsive mb-4">
+    <table class="table table-sm align-middle" id="training-table">
+      <caption class="visually-hidden">Training sessions</caption>
+      <thead>
+        <tr>
+          <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Created</th>
+          <th scope="col">Status</th><th scope="col">Participants</th>
+          <th scope="col">Coder slots</th><th scope="col">Cases coded</th><th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody id="training-rows"></tbody>
+    </table>
+  </div>
+
+  <section id="training-detail" hidden>
+    <h3 class="h5" id="training-heading"></h3>
+    <p class="small text-muted" id="training-summary"></p>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <button type="button" class="btn btn-outline-danger btn-sm" id="training-close">Close session</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" id="training-reopen">Reopen session</button>
+    </div>
+
+    <form id="training-add" class="row g-2 mb-3">
+      <div class="col-md-5">
+        <label class="form-label" for="training-email">Existing user's email</label>
+        <input id="training-email" name="email" type="email" class="form-control" maxlength="254" required>
+      </div>
+      <fieldset class="col-md-4" id="training-roles">
+        <legend class="form-label fs-6">Roles in this session (at least one)</legend>
+        {% for role in roles %}
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="roles" value="{{ role }}" id="training-role-{{ role }}">
+          <label class="form-check-label" for="training-role-{{ role }}">{{ role|replace('_', ' ')|capitalize }}</label>
+        </div>
+        {% endfor %}
+      </fieldset>
+      <div class="col-md-3 align-self-end"><button class="btn btn-outline-primary">Add participant</button></div>
+    </form>
+
+    <p class="small mb-3"><a id="training-report-link" href="#">Open the trainer report</a>
+      (progress and agreement with the source cause; it shows the answer key).</p>
+
+    <details class="mb-3" id="training-bulk">
+      <summary class="fw-semibold">Add several users at once</summary>
+      <div class="row g-2 my-2">
+        <div class="col-md-3">
+          <label class="form-label" for="training-since">Created since</label>
+          <input id="training-since" type="date" class="form-control" value="{{ current_user_today|default('', true) }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="training-search">Name or email contains</label>
+          <input id="training-search" class="form-control" maxlength="100">
+        </div>
+        <div class="col-md-3 align-self-end">
+          <div class="form-check">
+            <input id="training-mine" class="form-check-input" type="checkbox" checked>
+            <label class="form-check-label" for="training-mine">Accounts I created</label>
+          </div>
+        </div>
+        <div class="col-md-2 align-self-end">
+          <button type="button" class="btn btn-outline-primary" id="training-find">Find users</button>
+        </div>
+      </div>
+      <p class="small text-muted" id="training-found"></p>
+      <div class="table-responsive mb-2">
+        <table class="table table-sm align-middle">
+          <caption class="visually-hidden">Users found</caption>
+          <thead><tr>
+            <th scope="col"><input type="checkbox" id="training-all" aria-label="Select all users"></th>
+            <th scope="col">Name</th><th scope="col">Email</th>
+          </tr></thead>
+          <tbody id="training-candidates"></tbody>
+        </table>
+      </div>
+      <div class="row g-2 mb-2">
+        <fieldset class="col-md-4" id="training-bulk-roles">
+          <legend class="form-label fs-6">Roles for all selected (at least one)</legend>
+          {% for role in roles %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="{{ role }}" id="training-bulk-role-{{ role }}">
+            <label class="form-check-label" for="training-bulk-role-{{ role }}">{{ role|replace('_', ' ')|capitalize }}</label>
+          </div>
+          {% endfor %}
+        </fieldset>
+        <div class="col-md-8 align-self-end d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary" id="training-preview">Preview</button>
+          <button type="button" class="btn btn-primary" id="training-apply" disabled>Apply</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle" id="training-plan-table" hidden>
+          <caption class="visually-hidden">Preview of the additions</caption>
+          <thead><tr>
+            <th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th>
+            <th scope="col">Slot or scope</th><th scope="col">Action</th><th scope="col">Reason</th>
+          </tr></thead>
+          <tbody id="training-plan"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <div class="mb-3 border rounded p-2" id="training-graduation">
+      <div class="fw-semibold mb-1">Graduation</div>
+      <p class="small text-muted mb-2">
+        Download the active participants as a users CSV, then load it in the main project's
+        <a href="#" hx-get="/admin/panels/organization" hx-target="#admin-panel" hx-swap="innerHTML">Organization panel</a>
+        (project users import: preview, then apply). Role, unit and cadre are filled as given;
+        a reviewer and data manager gets two rows.
+      </p>
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label" for="training-grad-role">Only role</label>
+          <select id="training-grad-role" class="form-select">
+            <option value="">All roles</option>
+            {% for role in roles %}
+            <option value="{{ role }}">{{ role|replace('_', ' ')|capitalize }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="training-grad-unit">Unit code (optional)</label>
+          <input id="training-grad-unit" class="form-control" maxlength="32">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label" for="training-grad-cadre">Cadre code (optional)</label>
+          <input id="training-grad-cadre" class="form-control" maxlength="32">
+        </div>
+        <div class="col-md-3 align-self-end">
+          <a class="btn btn-outline-secondary" id="training-grad-link" href="#">Download graduation CSV</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle">
+        <caption class="visually-hidden">Participants</caption>
+        <thead><tr>
+          <th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th>
+          <th scope="col">Slot</th><th scope="col">Onboarded</th><th scope="col">Status</th><th scope="col"></th>
+        </tr></thead>
+        <tbody id="training-participants"></tbody>
+      </table>
+    </div>
+
+    <div class="alert alert-light border small">
+      After the training, give the trainee access to their real project through the ordinary screens:
+      <a href="#" hx-get="/admin/panels/access-grants" hx-target="#admin-panel" hx-swap="innerHTML">Access grants</a>
+      or <a href="{{ url_for('people_roles_page.page') }}">People &amp; roles</a>.
+    </div>
+  </section>
+
+  <dialog id="training-confirm">
+    <form method="dialog">
+      <p id="training-confirm-text"></p>
+      <button value="cancel" class="btn btn-outline-secondary">Cancel</button>
+      <button value="ok" class="btn btn-danger">Confirm</button>
+    </form>
+  </dialog>
+</div>
+<script>
+(function () {
+  'use strict';
+  const root = document.getElementById('training-panel');
+  const el = id => root.querySelector('#training-' + id);
+  const api = '/admin/api/training/sessions';
+  let current = null, busy = false;
+
+  function message(text, failed) { const box = el('message'); box.textContent = text; box.className = 'alert ' + (failed ? 'alert-danger' : 'alert-info'); }
+  async function call(path, body) {
+    const options = body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf}, body: JSON.stringify(body)};
+    const response = await fetch(api + path, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) { const error = new Error(data.error || 'Request failed. Refresh and retry.'); error.data = data; throw error; }
+    return data;
+  }
+  function cell(row, text) { const td = row.insertCell(); td.textContent = text == null ? '' : text; return td; }
+  function ask(text) { return new Promise(resolve => { el('confirm-text').textContent = text; const d = el('confirm'); d.addEventListener('close', () => resolve(d.returnValue === 'ok'), {once: true}); d.showModal(); }); }
+  function guard(fn) { return async (...args) => { if (busy) return; busy = true; try { await fn(...args); } catch (e) { message(e.message, true); } finally { busy = false; } }; }
+  const roleName = r => r.replace(/_/g, ' ');
+
+  async function list() {
+    const data = await call('');
+    const body = el('rows'); body.replaceChildren();
+    data.sessions.forEach(s => {
+      const row = body.insertRow();
+      cell(row, s.session_code); cell(row, s.name);
+      cell(row, new Date(s.created_at).toLocaleDateString()); cell(row, s.status);
+      cell(row, Object.entries(s.participants_by_role).map(([r, n]) => roleName(r) + ' ' + n).join(', '));
+      cell(row, s.coder_slots_used + ' / ' + s.coder_slots_total);
+      cell(row, s.cases_coded + ' / ' + s.cases_total);
+      const open = document.createElement('button'); open.type = 'button'; open.className = 'btn btn-sm btn-outline-primary'; open.textContent = 'Manage';
+      open.onclick = guard(() => detail(s.session_code)); row.insertCell().append(open);
+    });
+  }
+  async function detail(code) {
+    current = await call('/' + encodeURIComponent(code));
+    el('detail').hidden = false;
+    el('heading').textContent = current.session_code + ' — ' + current.name;
+    el('summary').textContent = 'Status: ' + current.status + '. Coder slots used ' + current.coder_slots_used + ' of ' + current.coder_slots_total + '. Cases coded ' + current.cases_coded + ' of ' + current.cases_total + '.';
+    el('report-link').href = '/data-management/training/' + encodeURIComponent(current.session_code);
+    el('plan').replaceChildren(); el('plan-table').hidden = true; el('apply').disabled = true;
+    el('candidates').replaceChildren(); el('found').textContent = ''; el('all').checked = false;
+    gradLink();
+    el('close').disabled = current.status !== 'active';
+    el('reopen').disabled = current.status === 'active';
+    el('add').querySelectorAll('input, select, button').forEach(c => { c.disabled = current.status !== 'active'; });
+    const body = el('participants'); body.replaceChildren();
+    current.participants.forEach(p => {
+      const row = body.insertRow();
+      cell(row, p.name); cell(row, p.email); cell(row, roleName(p.role)); cell(row, p.coder_slot);
+      cell(row, p.onboarded_at ? new Date(p.onboarded_at).toLocaleDateString() : 'Not yet'); cell(row, p.status);
+      const td = row.insertCell();
+      if (p.status === 'active') {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-sm btn-outline-secondary'; b.textContent = 'Remove';
+        b.onclick = guard(async () => { if (!await ask('Remove this participant? Their training access is deactivated; you can add them again later.')) return; await call('/' + encodeURIComponent(current.session_code) + '/participants/remove', {user_id: p.user_id, role: p.role}); message('Participant removed.'); await detail(current.session_code); await list(); });
+        td.append(b);
+      }
+    });
+  }
+  el('create').onsubmit = e => { e.preventDefault(); guard(async () => {
+    const button = el('create-btn'); button.disabled = true; message('Creating the session; copying 200 cases takes a few seconds.');
+    try { const s = await call('', {name: el('name').value}); el('name').value = ''; await list(); await detail(s.session_code); message('Session ' + s.session_code + ' created.'); } finally { button.disabled = false; }
+  })(); };
+  const pickedRoles = id => Array.from(el(id).querySelectorAll('input[type=checkbox]:checked')).map(c => c.value);
+  el('add').onsubmit = e => { e.preventDefault(); guard(async () => {
+    const roles = pickedRoles('roles');
+    if (!roles.length) { message('Select at least one role.', true); return; }
+    await call('/' + encodeURIComponent(current.session_code) + '/participants', {email: el('email').value, roles: roles});
+    el('email').value = ''; message('Participant added.'); await detail(current.session_code); await list();
+  })(); };
+  el('close').onclick = guard(async () => { if (!await ask('Close this session? All its participants lose their training access until you reopen it. Nothing is deleted.')) return; await call('/' + encodeURIComponent(current.session_code) + '/close', {}); message('Session closed.'); await detail(current.session_code); await list(); });
+  el('reopen').onclick = guard(async () => { await call('/' + encodeURIComponent(current.session_code) + '/reopen', {}); message('Session reopened.'); await detail(current.session_code); await list(); });
+  function gradLink() {
+    if (!current) return;
+    const q = new URLSearchParams({role: el('grad-role').value, org_unit_code: el('grad-unit').value.trim(), cadre_code: el('grad-cadre').value.trim()});
+    el('grad-link').href = api + '/' + encodeURIComponent(current.session_code) + '/graduation.csv?' + q;
+  }
+  ['grad-role', 'grad-unit', 'grad-cadre'].forEach(id => el(id).addEventListener('input', gradLink));
+
+  const checks = () => Array.from(el('candidates').querySelectorAll('input[type=checkbox]'));
+  const selectedIds = () => checks().filter(c => c.checked).map(c => c.value);
+  function resetPlan() { el('apply').disabled = true; el('plan-table').hidden = true; el('plan').replaceChildren(); }
+  function showPlan(rows) {
+    const body = el('plan'); body.replaceChildren();
+    rows.forEach(r => { const row = body.insertRow(); cell(row, r.name); cell(row, r.email); cell(row, roleName(r.role)); cell(row, r.slot_or_scope); cell(row, r.action); cell(row, r.reason); });
+    el('plan-table').hidden = false;
+  }
+  el('find').onclick = guard(async () => {
+    const q = new URLSearchParams({created_by: el('mine').checked ? 'me' : 'any', limit: '200'});
+    if (el('since').value) q.set('created_since', el('since').value);
+    if (el('search').value.trim()) q.set('query', el('search').value.trim());
+    const data = await call('/' + encodeURIComponent(current.session_code) + '/candidates?' + q);
+    const body = el('candidates'); body.replaceChildren(); resetPlan(); el('all').checked = false;
+    data.users.forEach(u => {
+      const row = body.insertRow(); const box = document.createElement('input');
+      box.type = 'checkbox'; box.value = u.user_id; box.setAttribute('aria-label', 'Select ' + u.name); box.onchange = resetPlan;
+      row.insertCell().append(box); cell(row, u.name); cell(row, u.email);
+    });
+    el('found').textContent = data.users.length + ' user(s) found' + (data.truncated ? '; more exist, narrow the filters.' : '.');
+  });
+  el('all').onchange = () => { checks().forEach(c => { c.checked = el('all').checked; }); resetPlan(); };
+  el('bulk-roles').onchange = resetPlan;
+  async function bulk(dryRun) {
+    const ids = selectedIds();
+    if (!ids.length) { message('Select at least one user.', true); return; }
+    const roles = pickedRoles('bulk-roles');
+    if (!roles.length) { message('Select at least one role.', true); return; }
+    try {
+      const data = await call('/' + encodeURIComponent(current.session_code) + '/participants/bulk', {user_ids: ids, roles: roles, dry_run: dryRun});
+      showPlan(data.rows);
+      if (dryRun) {
+        const refused = data.rows.filter(r => r.action === 'refuse').length;
+        const doable = data.rows.filter(r => r.action === 'add' || r.action === 'reactivate').length;
+        el('apply').disabled = refused > 0 || doable === 0;
+        message(refused ? refused + ' user(s) cannot be added; unselect them and preview again.' : 'Preview ready: ' + doable + ' to add or reactivate.', refused > 0);
+      } else {
+        message('Added ' + data.added + ', reactivated ' + data.reactivated + ', already in ' + data.already + '.');
+        await detail(current.session_code); await list();
+      }
+    } catch (e) {
+      if (e.data && e.data.rows) showPlan(e.data.rows);
+      throw e;
+    }
+  }
+  el('preview').onclick = guard(() => bulk(true));
+  el('apply').onclick = guard(async () => { if (!await ask('Add the previewed users to this session? Nothing is added unless every row is accepted.')) return; await bulk(false); });
+  guard(list)();
+}());
+</script>

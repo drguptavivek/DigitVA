@@ -87,6 +87,9 @@ DELETE_TABLES = (
     "va_submission_attachments",
     "va_submission_workflow_events",
     "va_submission_workflow",
+    # Training sessions (TRN01) reference submissions; DEMO01 owns none, so
+    # this deletes nothing, but the dependency check must know the table.
+    "map_training_cases",
     "va_submissions_auditlog",
     "va_smartva_form_runs",
     "va_daily_kpi_aggregates",

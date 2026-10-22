@@ -339,6 +339,9 @@ def create_app(config_class=None):
     from app.commands.organization_demo import init_app as init_organization_demo_commands
     init_organization_demo_commands(app)
 
+    from app.commands.training_demo import init_app as init_training_demo_commands
+    init_training_demo_commands(app)
+
     from app.commands.analytics import init_app as init_analytics_commands
     init_analytics_commands(app)
 
@@ -618,6 +621,43 @@ def create_app(config_class=None):
 
             response.headers["X-CSRFToken"] = generate_csrf()
             return response
+
+    @app.before_request
+    def training_demo_onboarding():
+        """Send a trainee with a pending training session to its welcome page, once.
+
+        Browser page loads only: never the API, htmx fragments, static files,
+        auth pages or the welcome flow itself. Cheap: nothing runs unless the
+        feature is configured, and the answer is cached in the login session.
+        docs/policy/training-demo-project.md.
+        """
+        if not app.config.get("DIGITVA_TRAINING_PROJECT_ID"):
+            return None
+        if (
+            request.method != "GET"
+            or request.headers.get("HX-Request")
+            or request.is_json
+            or request.path.startswith(
+                ("/static", "/api/", "/admin/api/", "/demo", "/vaauth", "/profile", "/health", "/help")
+            )
+            or not request.endpoint
+            # The Expo shell is a role home (login lands there); its assets are not pages.
+            or request.endpoint == "expo_client.expo_asset"
+        ):
+            return None
+        user_id = session.get("_user_id")
+        if not user_id or g.get("bearer_auth"):
+            return None
+        from app.services import training_demo_service
+
+        raw_uid = user_id.rpartition(":")[0] or user_id
+        try:
+            uid = uuid.UUID(raw_uid)
+        except (TypeError, ValueError):
+            return None
+        if training_demo_service.should_redirect_to_welcome(uid):
+            return redirect(url_for("training_demo.welcome"))
+        return None
 
     @app.after_request
     def apply_static_cache_headers(response):

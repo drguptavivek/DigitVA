@@ -351,6 +351,11 @@ class Config:
         "DIGITVA_WEEKLY_DEMO_PROJECT_ID", ""
     ).strip()
     DIGITVA_DEMO_PASSWORD = os.environ.get("DIGITVA_DEMO_PASSWORD", "")
+    # Training & demo project (docs/policy/training-demo-project.md). Setup and
+    # every training-session operation require this to equal "TRN01".
+    DIGITVA_TRAINING_PROJECT_ID = os.environ.get(
+        "DIGITVA_TRAINING_PROJECT_ID", ""
+    ).strip()
     DIGITVA_ALLOW_TEST_SEED = os.environ.get("DIGITVA_ALLOW_TEST_SEED", "") == "1"
     # Credential-free HTTPS URL for the published Android APK, when one exists.
     DIGITVA_ANDROID_APK_URL = os.environ.get("DIGITVA_ANDROID_APK_URL", "").strip()

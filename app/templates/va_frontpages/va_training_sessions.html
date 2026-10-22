@@ -1,0 +1,39 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}Training reports | DigitVA{% endblock %}
+{% block content %}
+<div class="content-section mb-4">
+  <h1 class="h3">Training reports</h1>
+  <p class="text-muted">
+    Progress and agreement of the training sessions you manage. The reports show the answer key:
+    do not share them with trainees.
+  </p>
+  {% if not sessions %}
+  <p>No training session is assigned to you.</p>
+  {% else %}
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <caption class="visually-hidden">Training sessions</caption>
+      <thead>
+        <tr>
+          <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Status</th>
+          <th scope="col">Created</th><th scope="col">Cases coded</th><th scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td>{{ s.session_code }}</td>
+          <td>{{ s.name }}</td>
+          <td>{{ s.status }}</td>
+          <td>{{ s.created_at | user_timezone('%Y-%m-%d') }}</td>
+          <td>{{ s.cases_coded }} / {{ s.cases_total }}</td>
+          <td><a class="btn btn-sm btn-outline-primary"
+                 href="{{ url_for('data_management.training_report', ref=s.session_code) }}">Open report</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -936,6 +936,53 @@ text hash and purpose codes): `audit_id`, `project_id`, `event`,
 `actor_user_id`, `actor_role`, `notice_version_id` (nullable), `details`,
 `created_at`; `ix_map_consent_audit_project_created`.
 
+## Training Sessions
+
+The Training & demo project (TRN01, `docs/policy/training-demo-project.md`)
+keeps its trainings in three tables. They are additive (migration
+`e3b7d1a9c4f2`); no existing table changed. A session's cases are ordinary
+`va_submissions` rows under the TRN01 web form, so every case screen, query and
+export treats them like any other case.
+
+### `mas_training_sessions`
+
+One training. `training_session_id` (PK), `project_id` (FK
+`va_project_master`), `session_code` (`S001`, `S002`, ... per project; unique
+with `project_id`), `name`, `created_at` (timezone-aware), `created_by` (FK
+`va_users`), `org_unit_id` (FK `mas_org_unit`, unique: the session root unit,
+PHC level) and `status` (`active` or `closed`). Index
+`(project_id, created_at)`.
+
+### `map_training_cases`
+
+One row per case copy. `va_sid` (PK and FK `va_submissions`, `trn-<code>-<n>`),
+`training_session_id` (FK), `case_number` (1 to 200, unique per session),
+`coder_slot` (1 to 20), `source_va_sid` (plain text: the source case belongs to
+another project) and `source_final_cod` (the source case's authoritative final
+cause, the trainer's answer key; read only by admin-only code, never rendered
+on a coder screen). Index `(training_session_id, coder_slot)`.
+
+### `map_training_participants`
+
+An existing user added to a session in one role (`death_reporter`,
+`interview_supervisor`, `interviewer`, `coder`, `reviewer_data_manager`).
+`participant_id` (PK), `training_session_id` and `user_id` (FKs), `role`,
+`coder_slot` (1 to 20; set exactly for coders), `grant_ids` (uuid array: the
+`va_user_access_grants` written for the role, two for
+`reviewer_data_manager`), `added_at`, `added_by`, `onboarded_at` (null until
+the user pressed Start on the welcome page) and `status` (`active` or
+`removed`). Unique `(training_session_id, user_id, role)`; unique
+`(training_session_id, coder_slot)` where the slot is set; index
+`(training_session_id, role)`; a partial index on `user_id` where
+`status = 'active' AND onboarded_at IS NULL` serves the sign-in onboarding
+check.
+
+Removing a participant or closing a session changes only the status of the
+listed grants; nothing here is deleted. The tables are not in the DEMO01 reset
+scope, but `map_training_cases` is named in its dependency list
+(`synthetic_demo_service.DELETE_TABLES`) because it references
+`va_submissions`.
+
 ## ICD Reference Master Table
 
 ### `mas_icd10_2019_2`

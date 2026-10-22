@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Admin And Setup Model
@@ -134,6 +134,7 @@ The following panels are restricted to application-level admins:
 - ICD-10 Browser
 - ICD-11 Browser
 - COD Search Vocabulary
+- Training sessions (see below)
 
 ### Project-PI-Accessible Panels
 
@@ -314,6 +315,50 @@ code, path and cadre.
   so unit grants are created here. This holds for admins too.
 - Rules: `app/services/org_grant_service.py`; policy:
   `docs/policy/organization-model.md`.
+
+## Training Sessions Panel
+
+Admin only (`/admin/panels/training-sessions`, source
+`app/templates/admin/panels/training_sessions.html`, routes
+`app/routes/admin_training.py`). It manages the sessions of the Training & demo
+project (`docs/policy/training-demo-project.md`) and is a thin client of
+`app/services/training_demo_service.py`.
+
+- List: code, name, created, status, participants by role, coder slots used out
+  of 20, cases coded out of 200.
+- Create: a name; the server copies and pseudonymises 200 cases (a few seconds;
+  limited to 10 creations an hour).
+- Session detail: add an existing user by email and one or more roles, ticked as checkboxes
+  (all or nothing; unknown or inactive users are refused, no user is created), participants with role, slot,
+  onboarded date and status with Remove, Close and Reopen behind a confirm
+  dialog, and links to the Access grants panel and People & roles for granting
+  the trainee their real project afterwards.
+
+- Bulk add: filter users by creation date (default today), "accounts I
+  created" and a search, tick them, tick the roles, Preview and then Apply (only
+  enabled when no row is refused). Rows are written with `textContent`.
+- Graduation: "Download graduation CSV" (optional training role, unit code and
+  cadre code) produces a file for the main project's users import in the
+  Organization panel.
+- A link opens the trainer report (below).
+
+JSON API under `/admin/api/training/sessions` (`GET` list and detail, `POST`
+create, `/<code>/participants` (`roles: [...]`, or the legacy `role`),
+`/<code>/participants/remove`,
+`/<code>/participants/bulk`, `GET /<code>/candidates`,
+`GET /<code>/graduation.csv`, `/<code>/close`, `/<code>/reopen`). Every write
+carries `X-CSRFToken`; a non-admin gets 403. Accounts created in the Users
+panel now record `other.created_by_user_id`, as the data-manager page and the
+project users import already did, so "accounts I created" finds them.
+
+### Trainer report (data management)
+
+`/data-management/training` lists the sessions the viewer may report on and
+`/data-management/training/<code>` shows one (coders, coded cases, other roles,
+totals), with `coders.csv` and `cases.csv`. Routes: `app/routes/dm_training.py`;
+logic: `app/services/training_report_service.py`; cause mapping:
+`app/services/training_cause_groups.py`. Admin, or the session's active
+reviewer_data_manager (policy: `docs/policy/training-demo-project.md`).
 
 ## ODK Connections Panel
 

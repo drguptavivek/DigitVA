@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-22
 ---
 
 # Current State Index
@@ -46,6 +46,8 @@ Read these documents in this order:
 21. [Coder Workspace Component Inventory](coder-component-inventory.md)
 22. [Native Passkey Status](native-passkeys.md)
 23. [DORIS Editor UI Tokens](doris-ui-tokens.md)
+
+The Training & demo project's tables, CLI and panel are in the [data model](data-model.md#training-sessions), [CLI reference](cli-reference.md) and [admin panels](admin-and-setup.md#training-sessions-panel) (policy: [training-demo-project.md](../policy/training-demo-project.md)).
 
 Related planning:
 

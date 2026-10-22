@@ -78,6 +78,7 @@ from app.models.va_daily_kpi_aggregates import VaDailyKpiAggregates
 from app.models.va_data_manager_review import VaDataManagerReview
 from app.models.va_db_backups import VaDbBackup
 from app.models.va_demo_reset_runs import VaDemoResetRun
+from app.models.mas_training import MapTrainingCase, MapTrainingParticipant, MasTrainingSession
 from app.models.va_field_mapping import (
     MasCategoryDisplayConfig,
     MasCategoryOrder,
@@ -204,6 +205,9 @@ __all__ = [
     "VaSyncRun",
     "VaDbBackup",
     "VaDemoResetRun",
+    "MasTrainingSession",
+    "MapTrainingCase",
+    "MapTrainingParticipant",
     "VaDailyKpiAggregates",
     "VaSubmissionAttachments",
     "VaSubmissionsAuditlog",

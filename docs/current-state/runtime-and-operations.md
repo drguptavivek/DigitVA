@@ -1001,6 +1001,35 @@ Current behavior:
 The panel is intended for operational tracing of coding progress rather than raw
 database inspection.
 
+### Training & demo project (TRN01)
+
+`DIGITVA_TRAINING_PROJECT_ID=TRN01` (empty by default) enables `flask
+training-demo`, the Training sessions panel and the sign-in onboarding
+redirect. Nothing is scheduled and nothing is reset or deleted: sessions and
+their cases are retained. Enabling needs `flask training-demo setup` once, and
+the source ODK form (`UNSW01NC0101`) must exist with at least 200 consented
+cases; creating a session copies 200 payloads, their attachments (same bytes,
+new storage names, in whichever store is selected) and writes them in one
+transaction.
+
+Onboarding adds one hook after the terms check
+(`training_demo_onboarding` in `app/__init__.py`): browser GET page loads only,
+one indexed query per login session, remembered in the session either way.
+Disabled when the setting is empty.
+
+Reporting: DM and admin KPI views are scoped by project like any other project,
+so TRN01 appears where DEMO01 appears. A coder's all-projects output summary
+(`coder_dashboard_service.get_coder_output_summary`) excludes TRN01 unless the
+project is asked for by id.
+
+The trainer report (`/data-management/training/<code>`) is read-only: seven
+aggregate queries per view (cases, participants, four staff counts, and the
+session lookup), no ODK or filesystem work, and the cause mapping reads two
+files under `resource/` once per process. The bulk add reads `va_users` with a
+sequential scan (no created-at or created-by index; the table is small) and is
+bounded to 200 rows per request; a bulk apply runs its grant checks and writes
+per user inside one transaction under the session row lock.
+
 ### ODK operator visibility
 
 The admin console now exposes ODK connection health in multiple places:

@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # CLI Reference
@@ -39,6 +39,26 @@ reports counts. `organization-demo reset` first obtains a verified database
 backup, then resets only synthetic operational data once per scheduled week.
 The registered schedule is Sunday 23:00 Asia/Kolkata. Empty configuration
 keeps the schedule disabled. See [organization-demo.md](../policy/organization-demo.md).
+
+---
+
+## `training-demo` — Training & demo project (TRN01)
+
+Needs `DIGITVA_TRAINING_PROJECT_ID=TRN01`; works in production once set. Output is
+JSON with no case content. `--by` is the email of the administrator acting (the
+grant audit trail's actor). Policy: [training-demo-project.md](../policy/training-demo-project.md).
+
+| Command | Description |
+|---------|-------------|
+| `training-demo setup` | Create TRN01 (organization, web-only, ICD-11/DORIS, English and Hindi narrations), its levels, the Trainee cadre and the fixed district and CHC units, or confirm an existing one. Idempotent. Refuses an existing TRN01 that is not organization/web-only or has ODK mappings. |
+| `training-demo create-session --name "..." --by EMAIL` | Create a session: root unit, 20 coder-slot units and 200 pseudonymised case copies from the ODK form `UNSW01NC0101`. Prints the session summary and replacement counts. |
+| `training-demo check-source [--form-id UNSW01NC0101] [--limit 200]` | Read-only: pseudonymise the source cases in memory and print counts only (cases checked, replacements by type, cases that still hold an original value by kind). Writes nothing; needs no training tables. |
+| `training-demo list-sessions` | Sessions with participants by role, coder slots used and cases coded. |
+| `training-demo add-participant CODE EMAIL [ROLES] [--role ROLE]... --by EMAIL` | Add an existing user (never creates one) in one or more roles, all or nothing: a comma-separated `ROLES` or repeated `--role`. A role is `death_reporter`, `interview_supervisor`, `interviewer`, `coder` or `reviewer_data_manager`. A coder takes the next free slot. |
+| `training-demo remove-participant CODE EMAIL ROLE --by EMAIL` | Deactivate that participation's grants; adding again reactivates them. |
+| `training-demo report CODE --by EMAIL [--csv FILE] [--cases-csv FILE]` | Print the session report's totals as JSON (no case content); optionally write the coder table and the coded-case table as CSV. Holds the answer key: keep the files private. |
+| `training-demo close-session CODE --by EMAIL` | Deactivate every active participant's training grants. Nothing is deleted. |
+| `training-demo reopen-session CODE --by EMAIL` | Reactivate the grants of participants still active. |
 
 ---
 

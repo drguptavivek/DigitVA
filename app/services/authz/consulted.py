@@ -87,6 +87,8 @@ PUBLIC_ENDPOINTS = {
                             "token after an administrator reset.",
     "va_main.va_index": "Public landing page; renders no user data.",
     "va_main.who_va_document": "Published WHO VA reference PDFs from a fixed registry.",
+    "training_demo.public_page": "Public explainer of the Training & demo project; "
+                                 "static text, lists no users or cases.",
     "help.index": "Public help index; pages filtered per user in the body.",
     "help.page": "Public help page; role-restricted pages abort 403 in the body.",
     "help.docs_index": "Index of the curated, published engineering docs.",

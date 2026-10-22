@@ -90,6 +90,7 @@ HELP_PAGES = [
     # ── Getting Started ──────────────────────────────────────────────
     ("getting-started",       "Getting Started",              "fa-rocket",               "Getting Started",  None),
     ("organization-demo",     "Synthetic Organization Demo",  "fa-building-circle-check", "Getting Started", ["authenticated"]),
+    ("training-demo",         "Training & Demo Project",      "fa-graduation-cap",       "Getting Started", ["authenticated"]),
     ("mobile-app",            "Get the Mobile App",           "fa-mobile-screen-button", "Getting Started", None),
     # ── User Onboarding ──────────────────────────────────────────────
     ("authentication",        "Logging In & Authentication",  "fa-right-to-bracket",     "User Onboarding",  None),

@@ -1317,3 +1317,7 @@ def manage_toggle_access_grant(grant_id):
     )
 
     return jsonify({"grant_id": str(grant.grant_id), "status": grant.grant_status.value})
+
+
+# Trainer report of the Training & demo project extends this blueprint (its own module).
+from app.routes import dm_training  # noqa: E402,F401

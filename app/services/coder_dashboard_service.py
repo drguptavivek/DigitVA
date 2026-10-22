@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import hashlib
 
 import sqlalchemy as sa
+from flask import current_app
 
 from app import cache, db
 from app.models import (
@@ -133,6 +134,13 @@ def get_coder_output_summary(user_id, project_id: str | None = None) -> dict[str
         if project_id:
             final_filters.append(VaForms.project_id == project_id)
             review_filters.append(VaForms.project_id == project_id)
+        elif current_app.config.get("DIGITVA_TRAINING_PROJECT_ID"):
+            # Practice coding in the Training & demo project is not output
+            # (docs/policy/training-demo-project.md); asking for that project
+            # by id still counts it.
+            training_project = current_app.config["DIGITVA_TRAINING_PROJECT_ID"]
+            final_filters.append(VaForms.project_id != training_project)
+            review_filters.append(VaForms.project_id != training_project)
 
         completed = db.session.scalar(
             sa.select(sa.func.count(sa.distinct(VaFinalAssessments.va_sid)))

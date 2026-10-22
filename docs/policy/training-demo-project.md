@@ -1,0 +1,250 @@
+---
+title: Training and Demo Project (TRN01)
+doc_type: policy
+status: active
+owner: engineering
+last_updated: 2026-10-22
+---
+
+# Training and demo project (TRN01)
+
+A permanent, signed-in organization project for training new staff in every
+role (death reporter, interviewer, interview supervisor, coder, reviewer and
+data manager) on realistic, consented, pseudonymised cases. It is separate from
+the weekly synthetic demo (`DEMO01`, `docs/policy/organization-demo.md`), whose
+reset and accounts are unchanged.
+
+## What the project is
+
+- Project `TRN01`, "Training & demo (WHO 2022, ICD-11)", organization mode,
+  web-only (`web_intake_mode` `both`, no ODK mapping, no ODK form), questionnaire
+  WHO_2022_VA, English forms only (`web_intake_available_locales` `["en"]`).
+  Narration languages are `["english", "hindi"]`: the source narratives are
+  Hindi (199 of the 200 in `UNSW01NC0101`). `setup` sets this on an existing
+  TRN01 too.
+- ICD-11 coding through DORIS (`icd_classification` `icd11`, `cod_entry_mode`
+  `doris`), `masked_cod_required` off, narrative quality assessment off, social
+  autopsy off for coders and reviewers, no intake welcome note, no ABHA.
+  Enabled form extensions: `digitva_core`, `doris_support_whova_2022`,
+  `narration_language`, `death_summary`, `medical_records`, `geography`.
+  Coding intake is `pick_and_choose`.
+- It is not a `demo_training_enabled` project and is never reset: the demo
+  virtual coder/reviewer grants do not apply to it, and nothing deletes its
+  data. Setup requires `DIGITVA_TRAINING_PROJECT_ID` to equal `TRN01`.
+
+## No generated accounts
+
+There are no generated accounts, no passwords and no account expiry. Trainees
+sign in with their own existing DigitVA accounts. The trainer (an admin)
+creates a training session for each training and adds existing users to it
+with a role. An unknown email is refused; the feature never creates a user.
+After the training the admin grants the trainee access to their real project
+through the ordinary grant screens; that is outside this feature.
+
+## Training sessions
+
+A session is one training. Sessions and everything in them are retained;
+later trainings add more sessions. Sessions are numbered `S001`, `S002`, ... per
+project.
+
+Creating a session builds, in one transaction:
+
+- a session root unit (PHC level, under a fixed training district and CHC) named
+  after the session, and 20 child units at the sub-centre level, "Coder slot
+  01" to "Coder slot 20";
+- a fresh copy of 200 cases taken from the real, consented ODK form
+  `UNSW01NC0101` (project UNSW01, site NC01): the owner's frozen list of 200
+  consented cases chosen at random on 2026-10-22,
+  `app/services/training_corpus/UNSW01NC0101.txt` (one `va_sid` per line, line
+  order is the case number). A listed case must still have an active payload
+  version and valid consent, or the session is refused. A form without a list
+  takes the first 200 eligible cases by `va_sid`. Case `n` goes to slot
+  `((n-1)//10)+1`, so each slot holds 10 cases and the copy's submission unit is
+  that slot unit. Copies have new `va_sid` values (`trn-<session>-<n>`), new
+  unique ids, and workflow state `ready_for_coding`. Source rows are never
+  modified, and the source case's coding is never copied into the copy's
+  assessment tables;
+- `map_training_cases`, one row per copy, with the source case's authoritative
+  final cause (ICD-10) as the answer key. The key is read only by the trainer
+  report; it is never shown on a coder screen.
+
+If fewer than 200 eligible source cases exist the session is refused.
+
+## Pseudonymisation
+
+The copies are de-identified by replacing, not removing, personal data with
+random synthetic values, consistently within a case: the same original value
+becomes the same fake value everywhere in that case, including inside the
+narrative (Id10476) and any other free-text answer where the original string
+occurs (case-insensitive, whole word).
+
+- Names (Id10007, Id10010, Id10017, Id10018, Id10061, Id10062): random common
+  Indian first and last names from a built-in list (Devanagari names get
+  Devanagari fakes). Initials and honorifics are kept as written.
+- Addresses (Id10055, Id10057, visit_address, visit_remarks):
+  "House n, Ward n, Synthetic Village n". In free text each place-name word
+  (four letters or more, not a generic address word such as house, ward,
+  road, village, near, nagar) of these values is replaced by one made-up place
+  name per case.
+- Phones and identifiers (Id10070 to Id10073, Id10010a/b/c, abha_*): random
+  values of the same shape; Id10073 keeps its stored last-three-digits shape.
+- All other answers, dates and ages are kept, so the clinical picture is
+  unchanged.
+- The random generator is seeded per case from the session and case number, so
+  a rerun gives the same fakes. Logs carry counts only, never values.
+- Indian phone numbers in free text (optional +91 or 0, ten digits, spaces or
+  hyphens) are replaced by a random ten-digit number, the same one for the
+  same number within a case.
+- Word boundaries treat Devanagari and other Indic combining marks as part of
+  a word, so Hindi names are found and replaced inside Hindi narratives.
+- The payload's SubmitterID and DeviceID are replaced by fixed synthetic
+  values and `death_register_id` is dropped.
+- Limits of free text: only values that also appear in the structured fields
+  are found. A name, place or number that appears only in a narrative, or in a
+  form the matcher does not recognise (a different spelling or transliteration,
+  an inflected form), stays. `flask training-demo check-source` (read-only,
+  counts only) reports how many source cases still hold an original value
+  after pseudonymisation; run it after changing the pseudonymiser.
+- Attachment decision: attachments (narrative image, audio, medical-record
+  images, death document images) are kept unchanged, because the originals
+  were consented for this use and clinical coding needs them. Each copy gets
+  its own attachment row and stored object holding the same bytes. Only
+  attachments whose bytes DigitVA holds are copied; rows never downloaded from
+  ODK are not, and session creation reports `attachments_copied`,
+  `attachments_skipped` (stored object missing) and `attachments_not_stored`.
+  They may
+  show real details, so trainees are told not to copy, photograph or share
+  them (public page, welcome page, help page).
+
+## Participants and grants
+
+Participant roles: `death_reporter`, `interview_supervisor`, `interviewer`,
+`coder`, `reviewer_data_manager`.
+
+- A user may be given several roles in one call (the panel's role checkboxes,
+  `roles` in the API, a comma-separated list or repeated `--role` in the CLI;
+  a single `role` is still accepted). Each (user, role) stays its own
+  participation. The call is all or nothing in one transaction: if any role is
+  refused (already active, no free slot, missing coder language, a grant the
+  access rules refuse) nothing is written; an empty list is refused. Holding
+  coder and reviewer_data_manager together is allowed, and in training a
+  trainee may review a case they coded (owner decision 2026-10-22: "its
+  training - let them"). The reviewing rules have no self-review guard today
+  in any project; that app-wide gap is tracked separately.
+- A coder gets the next free coder slot (the slot stays theirs for the life of
+  the session, even when removed) and a unit-scoped coder grant on that slot's
+  unit, so they see exactly their 10 cases. A 21st coder is refused. A coder
+  whose coding languages (`vacode_language`) lack a narration language of that
+  slot's cases (for example Hindi) is refused with a message naming the
+  missing language; add it to the user first.
+- A death reporter, interview supervisor or interviewer gets a unit-scoped grant
+  on the session root.
+- A reviewer_data_manager gets both a reviewer and a data_manager unit-scoped
+  grant on the session root and so sees the whole session.
+- Grants are written through the ordinary rules (level by cadre, grants audit
+  log). Training grants use a dedicated "Trainee" cadre defined for the TRN01
+  levels. A user's grants on any other project are never touched.
+- Removing a participant deactivates only their training grants; adding them
+  again reactivates the same grants. Closing a session deactivates every
+  participant's training grants; reopening reactivates those of participants who
+  are still active. Nothing is deleted.
+
+## Onboarding and the public page
+
+`GET /demo` is a public page (no login) describing the training project, the
+roles and what each can try, that trainees use their own accounts and are added
+to a session by the trainer, that cases are consented and their text answers
+pseudonymised, that photos, documents and audio are original and must not be
+copied, photographed or shared, and that coders see only their own 10 cases
+while the other roles see the whole session. It lists no users.
+
+The first time a signed-in user with an active participation that has not been
+onboarded loads a page in a session, they are redirected once to
+`/demo/welcome`: a role-specific checklist with links into the real app, and a
+Start button that records `onboarded_at` and opens the role landing page. The
+page stays reachable from the help menu.
+
+## Trainer management
+
+Admin only: the Training sessions panel and its JSON API (CSRF token on every
+write), and the `flask training-demo` commands, list sessions, create one, add
+and remove participants, close and reopen, and print a session's report.
+
+### Bulk add
+
+The panel finds candidate users and adds many at once in one role.
+
+- Candidates (`GET .../candidates`) are active users created since a date
+  (read as midnight in the admin's time zone against the stored UTC creation
+  time) by the admin (`created_by` `me`, the default: accounts whose
+  `other.created_by_user_id` is the admin, written when an admin or a data
+  manager creates an account or the project users import creates one) or by
+  anyone (`any`), optionally filtered by name or email. Users already active in
+  the session in any role are left out. At most 200 are returned (`truncated`
+  says more matched); only id, name, email and status are returned, and a
+  mobile-only account shows its masked number.
+- Add (`POST .../participants/bulk`, up to 200 user ids and one or more roles, one row per user and role) previews
+  first (`dry_run`, the default): every row is `add`, `reactivate`, `already`
+  or `refuse` with a reason (unknown or inactive user, no free coder slot, a
+  coder lacking a narration language, a grant the access rules refuse). Apply
+  is all or nothing: it writes only when no row is refused, and otherwise
+  writes nothing and answers 409 with the rows. Coder slots go out in the order
+  the ids were sent, a refused row takes none, and the grants are the same as
+  for a single add.
+
+### Graduation
+
+`GET .../graduation.csv` returns the session's active participants in the
+columns of the organization users import (`email`, `name`, `role`,
+`org_unit_code`, `cadre_code`, `language_codes`, `phone`), for loading into the
+participants' real project through the existing import (preview, then apply).
+The training role gives the import role (coder to `coder`, and so on); a
+reviewer_data_manager gives two rows, `reviewer` and `data_manager`. The unit
+and cadre codes are those given in the request, else blank; a mobile-only user
+is identified by phone. This writes no grant: the ordinary import and its rules
+do.
+
+## Trainer report
+
+A session's report is at `/data-management/training/<code>` (the list of
+sessions the viewer may read is `/data-management/training`), with CSV exports
+of the coder table (`coders.csv`) and of the coded cases (`cases.csv`). It holds
+the answer key, so only an administrator and a user with an **active**
+`reviewer_data_manager` participation in that same session may read it; every
+other user, other sessions' managers and all trainees included, is refused
+(403, the same answer for an unknown session so existence is not probed).
+
+- Per coder: name, email, slot, cases coded (an active final assessment) out of
+  10, cases in progress (a coding workflow state without a final), not started,
+  last activity, completed at 10 of 10.
+- Agreement: for each coded case the trainee's final cause is mapped to its
+  WHO 2022 VA cause (`VAs-..`) and so is the source case's ICD-10 cause, from
+  the shipped WHO annex tables in `resource/` (ICD-10: a single code beats a
+  range, two causes at the same specificity are ambiguous; ICD-11: the expanded
+  `WHO_2022_VA_2026` table, a missing code falling back to its stem). The case
+  is a match, a mismatch, or unmappable when either side has no single cause;
+  unmappable cases are counted apart and left out of the percentage.
+- Other roles: per death reporter, interviewer, interview supervisor and
+  reviewer_data_manager, deaths registered, interviews started and submitted,
+  and supervisor actions, counted inside the session's units. Supervisor
+  actions are the case moves that relied on a supervisor grant; other
+  supervision leaves no record and is not counted.
+- Session totals. The report shows trainee names, emails (masked mobile
+  numbers) and cause codes, never the source case's id or any case content.
+  It runs a fixed number of aggregate queries whatever the participant count.
+- The reviewer_data_manager onboarding checklist links to the report list.
+
+## Data protection
+
+The copied narratives are pseudonymised, but the project still holds clinical
+content: it is signed-in only, every grant is explicit, and the trainer report's
+answer key is restricted to admins and the session's reviewer_data_manager. Pseudonymisation must be checked after any
+change to `PII_FIELDS` or to the free-text fields that can repeat a name.
+
+## Cross-project reporting
+
+Training coding is real coding activity in the database. Views scoped by
+project, grant or site (data-manager and admin KPIs, the case grids) show TRN01
+as they show any project. The one all-projects aggregate of a person's own
+work, the coder output summary, excludes TRN01 unless the project is asked for
+by id. Nothing else sums coding across projects.

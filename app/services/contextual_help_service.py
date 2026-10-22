@@ -790,6 +790,28 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
         "help_slug": "/help/dm-grants",
         "help_label": "Access Grants Guide",
     },
+    "admin_training-sessions": {
+        "page_key": "admin_training-sessions",
+        "stage_badge": "Admin · Training",
+        "title": "Training Sessions",
+        "summary": "Run a training on the TRN01 project: each session copies 200 pseudonymised cases into 20 coder slots of 10.",
+        "bullets": [
+            "Trainees use their own accounts: add existing users by email, or several at once from the accounts you created.",
+            "Each coder gets the next free slot of 10 cases; coders need Hindi in their coding languages.",
+            "Sessions are kept: closing one turns off its training access and deletes nothing.",
+        ],
+        "sections": [
+            {
+                "heading": "After the training",
+                "items": [
+                    "Read progress and agreement in the trainer report; it shows the answer key, so do not share it with trainees.",
+                    "Download the graduation CSV and load it in the main project's users import to grant real access.",
+                ],
+            },
+        ],
+        "help_slug": "/help/training-demo",
+        "help_label": "Training & Demo Guide",
+    },
     "admin_project-sites": {
         "page_key": "admin_project-sites",
         "stage_badge": "Admin · Project Sites",

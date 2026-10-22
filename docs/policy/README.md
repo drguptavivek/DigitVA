@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Policy Docs
@@ -33,6 +33,7 @@ Current policy docs:
 - [Not Codeable ODK Central Sync Policy](not-codeable-odk-central-sync.md)
 - [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import
+- [Training and Demo Project](training-demo-project.md) — permanent TRN01 practice project: pseudonymised case copies, training sessions, participants, onboarding
 - [District Reference Model](district-reference-model.md) — proposed district tree, cadres, grid flags and default roles
 - [People and Roles Page](people-and-roles-page.md) — roles matrix and access audit page (active)
 - [ODK Retired Submissions Policy](odk-retired-submissions.md) — submissions missing in ODK are kept, not codeable, not counted by default

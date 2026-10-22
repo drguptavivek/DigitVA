@@ -67,6 +67,15 @@
 
         {# Admin-only items — revealed by JS after bootstrap fetch #}
         <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
+           href="#" title="Training sessions"
+           data-panel="/admin/panels/training-sessions"
+           hx-get="/admin/panels/training-sessions"
+           hx-target="#admin-panel" hx-swap="innerHTML">
+          <i class="fa-solid fa-graduation-cap admin-nav-icon"></i>
+          <span class="admin-nav-label">Training sessions</span>
+        </a>
+
+        <a class="nav-link admin-nav-link admin-only d-none rounded px-2 py-1"
            href="#" title="Mentoring institutes"
            data-panel="/admin/panels/mentor-institutes"
            hx-get="/admin/panels/mentor-institutes"

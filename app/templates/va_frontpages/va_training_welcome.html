@@ -1,0 +1,48 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}Your training | DigitVA{% endblock %}
+{% block content %}
+<div class="content-section mb-4">
+  <h1 class="h3">Your training</h1>
+  {% if not cards %}
+    <p>You have not been added to an active training session. Ask your trainer to add you with your
+    account's email address.</p>
+    <p><a href="{{ url_for('training_demo.public_page') }}">About the training project</a></p>
+  {% else %}
+    <p>
+      Work through the checklist for each of your roles. Everything you see here belongs to the
+      training project; the cases are consented interviews whose text answers have made-up names,
+      addresses and phone numbers.
+    </p>
+    <div class="alert alert-warning" role="note">
+      Photos, documents and audio are the original consented material and may show real details.
+      Do not copy, photograph or share them.
+    </div>
+    {% for card in cards %}
+    <div class="card mb-3">
+      <div class="card-body">
+        <h2 class="h5 card-title">{{ card.title }}
+          <span class="badge text-bg-secondary ms-2">{{ card.session_code }} {{ card.session_name }}</span>
+        </h2>
+        <p class="card-text">{{ card.what }}</p>
+        {% if card.role == 'coder' and card.coder_slot %}
+        <p class="small text-muted">You hold coder slot {{ card.coder_slot }}: ten cases are yours to code.</p>
+        {% endif %}
+        <ol class="mb-0">
+          {% for label, url in card.links %}
+          <li><a href="{{ url }}">{{ label }}</a></li>
+          {% endfor %}
+        </ol>
+      </div>
+    </div>
+    {% endfor %}
+    {% if pending %}
+    <form method="post" action="{{ url_for('training_demo.start') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-primary">Start</button>
+    </form>
+    {% else %}
+    <p class="small text-muted">You have already started. This page stays available from the Help menu.</p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends 'va_frontpages/va_base.html' %}
+{% block title %}Training report {{ report.session.session_code }} | DigitVA{% endblock %}
+{% block content %}
+{% set t = report.totals %}
+{% macro pct(v) %}{% if v is none %}n/a{% else %}{{ v }}%{% endif %}{% endmacro %}
+<div class="content-section mb-4">
+  <p class="small mb-1"><a href="{{ url_for('data_management.training_sessions') }}">All training reports</a></p>
+  <h1 class="h3">Training report: {{ report.session.session_code }} {{ report.session.name }}</h1>
+  <p class="text-muted">
+    Status {{ report.session.status }}. Each coder codes {{ report.target_per_coder }} cases. This report
+    holds the answer key: do not share it with trainees.
+  </p>
+
+  <h2 class="h5 mt-4">Session totals</h2>
+  <ul class="list-unstyled mb-3">
+    <li>Coders: {{ t.coders }} ({{ t.coders_completed }} completed all {{ report.target_per_coder }})</li>
+    <li>Cases coded: {{ t.coded }} of {{ t.cases_total }}; in progress {{ t.in_progress }}</li>
+    <li>Agreement with the source cause: {{ pct(t.agreement_pct) }}
+      ({{ t.matched }} of {{ t.compared }} comparable cases; {{ t.unmappable }} unmappable)</li>
+    <li>Deaths registered {{ t.deaths_registered }}; interviews started {{ t.interviews_started }},
+      submitted {{ t.interviews_submitted }}; supervisor actions {{ t.supervisor_actions }}</li>
+  </ul>
+
+  <h2 class="h5 mt-4 d-flex align-items-center gap-3">Coders
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{{ url_for('data_management.training_coders_csv', ref=report.session.session_code) }}">Download CSV</a>
+  </h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <caption class="visually-hidden">Coders</caption>
+      <thead><tr>
+        <th scope="col">Name</th><th scope="col">Email</th><th scope="col">Slot</th>
+        <th scope="col">Coded</th><th scope="col">In progress</th><th scope="col">Not started</th>
+        <th scope="col">Last activity</th><th scope="col">Agreement</th><th scope="col">Unmappable</th>
+        <th scope="col">Completed</th>
+      </tr></thead>
+      <tbody>
+        {% for c in report.coders %}
+        <tr>
+          <td>{{ c.name }}{% if c.status != 'active' %} <span class="badge text-bg-secondary">{{ c.status }}</span>{% endif %}</td>
+          <td>{{ c.email or "" }}</td><td>{{ c.slot }}</td>
+          <td>{{ c.coded }} / {{ report.target_per_coder }}</td>
+          <td>{{ c.in_progress }}</td><td>{{ c.not_started }}</td>
+          <td>{{ c.last_activity | user_timezone if c.last_activity else '' }}</td>
+          <td>{{ pct(c.agreement_pct) }}{% if c.compared %} ({{ c.matched }}/{{ c.compared }}){% endif %}</td>
+          <td>{{ c.unmappable }}</td>
+          <td>{% if c.completed %}Completed{% else %}No{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-muted">No coder has been added.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h5 mt-4 d-flex align-items-center gap-3">Coded cases
+    <a class="btn btn-sm btn-outline-secondary"
+       href="{{ url_for('data_management.training_cases_csv', ref=report.session.session_code) }}">Download CSV</a>
+  </h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <caption class="visually-hidden">Coded cases</caption>
+      <thead><tr>
+        <th scope="col">Case</th><th scope="col">Coder</th><th scope="col">Trainee cause</th>
+        <th scope="col">Trainee VA cause</th><th scope="col">Reference cause</th>
+        <th scope="col">Reference VA cause</th><th scope="col">Match</th>
+      </tr></thead>
+      <tbody>
+        {% for c in report.cases %}
+        <tr>
+          <td>{{ c.case_number }}</td><td>{{ c.coder_name or '' }}</td>
+          <td>{{ c.trainee_code or '' }} {{ c.trainee_title or '' }}</td>
+          <td>{% if c.trainee_group %}{{ c.trainee_group }} {{ c.trainee_group_title or '' }}{% endif %}</td>
+          <td>{{ c.reference_cause or '' }}</td>
+          <td>{% if c.reference_group %}{{ c.reference_group }} {{ c.reference_group_title or '' }}{% endif %}</td>
+          <td>{{ c.match }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted">No case has been coded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h5 mt-4">Other roles</h2>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <caption class="visually-hidden">Other roles</caption>
+      <thead><tr>
+        <th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th>
+        <th scope="col">Deaths registered</th><th scope="col">Interviews started</th>
+        <th scope="col">Interviews submitted</th><th scope="col">Supervisor actions</th>
+      </tr></thead>
+      <tbody>
+        {% for s in report.staff %}
+        <tr>
+          <td>{{ s.name }}{% if s.status != 'active' %} <span class="badge text-bg-secondary">{{ s.status }}</span>{% endif %}</td>
+          <td>{{ s.email or "" }}</td><td>{{ s.role | replace('_', ' ') }}</td>
+          <td>{{ s.deaths_registered }}</td><td>{{ s.interviews_started }}</td>
+          <td>{{ s.interviews_submitted }}</td><td>{{ s.supervisor_actions }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="text-muted">No other participant has been added.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% for note in report.notes %}<p class="small text-muted mb-1">{{ note }}</p>{% endfor %}
+</div>
+{% endblock %}

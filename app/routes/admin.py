@@ -2268,7 +2268,8 @@ def admin_create_user():
     try:
         fields = accounts.validate_new_user_payload(payload, allow_mobile_only=True)
         new_user = accounts.create_invited_user(
-            fields, via="admin", actor_user_id=current_user.user_id
+            fields, via="admin", actor_user_id=current_user.user_id,
+            other={"created_by_user_id": str(current_user.user_id)},
         )
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
@@ -8177,6 +8178,8 @@ def admin_languages_delete_alias(language_code, alias):
 # Organization master-data routes extend this blueprint (kept in their own module).
 from app.routes import admin_organization  # noqa: E402,F401
 from app.routes import admin_mentor_institute  # noqa: E402,F401
+# Training sessions panel and API (Training & demo project).
+from app.routes import admin_training  # noqa: E402,F401
 # ICD-11 MMS browser routes extend this blueprint (kept in their own module).
 from app.routes import admin_icd11  # noqa: E402,F401
 # ICD search vocabulary panel routes extend this blueprint the same way.

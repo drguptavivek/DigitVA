@@ -1,22 +1,72 @@
+# smartva-rs: pinned release asset of drguptavivek/SmartVA-Analyze-rust, passed
+# as build args to every service built from the app Dockerfile, which
+# downloads it and verifies the SHA-256 (hosts never compile Rust). Bumping is
+# an edit here only; an empty pin fails the build for that architecture.
+# SMARTVA_RS_SOURCE=source in .env compiles vendor/smartva-analyze/rust
+# instead (developers only, never on a host).
+x-smartva-rs: &smartva-rs
+  SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}
+  SMARTVA_RS_VERSION: "v3.0.1"
+  SMARTVA_RS_SHA256_ARM64: "aba6925d9868d43ca78d580ab1b698cb2bdc3bbd62eba32528459a55ec10be54"
+  SMARTVA_RS_SHA256_AMD64: "be77a5cfc01efd4f50422ced1389f59232258f6eef659accbdb4e495efa6fa8c"
+
 services:
-  # WHO ICD-11 API 2.6.0 + DORIS 1.2.0 hosted in-process by the Rust binary
-  # digitva-icd11-server (docker/icd11/Dockerfile). Same name, port and HTTP API
-  # as the whoicd/icd-api container it replaces, so ICD11_API_BASE_URL is
-  # unchanged. First start downloads the unmodified WHO files into the
-  # icd11_runtime volume and verifies their SHA-256 pins; later starts re-verify.
+  # WHO ICD-11 API 2.6.0 + DORIS 1.2.0: WHO's own whoicd/icd-api container
+  # (owner decision 2026-10-22: licensing for the Rust host below is
+  # unresolved, so servers keep the WHO container).
   icd_api_service:
+    image: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
+    profiles: [icd11]
+    environment:
+      acceptLicense: "true"
+      saveAnalytics: "false"
+      enableDoris: "true"
+      include: 2026-01_en
+    ports:
+      - "127.0.0.1:8382:80"
+    restart: always
+    # Measured 270-490 MB idle, 0.9 GB peak after 1,200 distinct searches; it
+    # was OOM-killed at this cap once, so it is not lowered (digitva-cfb1).
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # Runs a real DORIS certificate: green only when the engine answers, not
+      # when the port is merely open (digitva-cfb1). The image has busybox wget.
+      test:
+        - CMD-SHELL
+        - >-
+          wget -q -O - --header 'API-Version: v2' --header 'Accept-Language: en'
+          --header 'Content-Type: application/json'
+          --post-data '{"ICDVersion":"ICD11","AdministrativeData":{"Sex":1,"EstimatedAge":"P62Y"},"Part1":[{"Conditions":[{"Code":"BA41.Z"}]}]}'
+          http://127.0.0.1/icd/release/11/2026-01/doris | grep -q '"stemCode":"BA41.Z"'
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 3m
+
+  # Opt-in only; NOT for staging or production until ICD-11 licensing for it
+  # is resolved. The same WHO API hosted in-process by the Rust binary
+  # digitva-icd11-server (docker/icd11/Dockerfile, compiled from source). It
+  # takes the icd_api_service hostname and host port, so never run both:
+  # `docker compose stop icd_api_service`, then
+  # `docker compose --profile icd11-rust up -d icd_api_rust_service`.
+  icd_api_rust_service:
     build:
       context: .
       dockerfile: docker/icd11/Dockerfile
-    profiles: [icd11]
+    profiles: [icd11-rust]
+    networks:
+      default:
+        aliases: [icd_api_service]
     volumes:
       - icd11_runtime:/var/lib/icd11
     ports:
       - "127.0.0.1:8382:80"
     restart: always
     # Measured 2026-10-22: ~540-680 MB idle, ~1.1 GB peak after 1,200 distinct
-    # searches (WHO caches searches for an hour). .NET caps its heap below the
-    # limit, so the cap leaves headroom for the app and worker on a 4 GB host.
+    # searches (WHO caches searches for an hour).
     deploy:
       resources:
         limits:
@@ -29,35 +79,10 @@ services:
       retries: 3
       start_period: 3m
 
-  # Rollback to the WHO container (digitva-cfb1 era): stop the service above,
-  # then `docker compose --profile icd11-container up -d icd_api_container_service`.
-  # The alias keeps the same hostname (and it takes the same host port).
-  icd_api_container_service:
-    image: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
-    profiles: [icd11-container]
-    networks:
-      default:
-        aliases: [icd_api_service]
-    environment:
-      acceptLicense: "true"
-      saveAnalytics: "false"
-      enableDoris: "true"
-      include: 2026-01_en
-    ports:
-      - "127.0.0.1:8382:80"
-    restart: always
-    deploy:
-      resources:
-        limits:
-          memory: 2g
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--header", "API-Version: v2", "--header", "Accept-Language: en", "http://127.0.0.1/icd/release/11/2026-01/mms/search?q=diabetes"]
-      interval: 2m
-      timeout: 10s
-      retries: 3
-
   minerva_app_service:
-    build: .
+    build:
+      context: .
+      args: *smartva-rs
     container_name: minerva_app
     command: ./boot.sh
     volumes:
@@ -103,7 +128,9 @@ services:
 
   doris_public_service:
     profiles: [icd11]
-    build: .
+    build:
+      context: .
+      args: *smartva-rs
     command: ./boot-public-doris.sh
     entrypoint: []
     # No bind mount of the checkout: the internet-facing training service runs
@@ -153,7 +180,9 @@ services:
     restart: always
 
   minerva_celery_worker:
-    build: .
+    build:
+      context: .
+      args: *smartva-rs
     container_name: minerva_celery_worker
     entrypoint: []
     command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
@@ -194,7 +223,9 @@ services:
           memory: 400m
 
   minerva_celery_beat:
-    build: .
+    build:
+      context: .
+      args: *smartva-rs
     container_name: minerva_celery_beat
     entrypoint: []
     command: bash ./scripts/wait-for-celery-beat-db.sh

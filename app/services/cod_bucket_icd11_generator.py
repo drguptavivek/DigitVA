@@ -23,7 +23,6 @@ from datetime import date
 from pathlib import Path
 
 import sqlalchemy as sa
-from openpyxl import load_workbook
 
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd11Mms
@@ -196,6 +195,8 @@ def _load_crosswalk(path: str, change_list_path: str) -> tuple[dict[str, str], d
                 crosswalk[row[1].strip()] = row[4].strip()
 
     moved_from: dict[str, str] = {}
+    from openpyxl import load_workbook
+
     workbook = load_workbook(change_list_path, read_only=True)
     for row in workbook.active.iter_rows(min_row=2, values_only=True):
         if len(row) > 6 and row[6] == "MovedTo" and row[4] and "->" in row[4]:

@@ -6,9 +6,6 @@ import re
 from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile, ZipFile
 
-from openpyxl import load_workbook
-from openpyxl.utils.exceptions import InvalidFileException
-
 
 class TabularImportError(ValueError):
     """The uploaded table is malformed or contains unsafe values."""
@@ -100,6 +97,9 @@ def parse_table(stream, filename, expected_headers, *, max_bytes, max_rows, requ
     if len(raw) > max_bytes:
         raise TabularImportError(f"The file exceeds the {max_bytes // (1024 * 1024)} MB limit.")
     if filename.lower().endswith(".xlsx"):
+        from openpyxl import load_workbook
+        from openpyxl.utils.exceptions import InvalidFileException
+
         try:
             validate_xlsx(raw, max_rows=max_rows, max_columns=len(expected_headers))
             workbook = load_workbook(io.BytesIO(raw), read_only=True, data_only=False)

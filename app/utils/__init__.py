@@ -1,65 +1,58 @@
-from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
-from app.utils.va_odk.va_odk_03_submissionupdatedate import va_odk_submissionupdatedate
-from app.utils.va_odk.va_odk_05_deltacheck import va_odk_delta_count
-from app.utils.va_odk.va_odk_06_fetchsubmissions import (
-    va_odk_fetch_instance_ids,
-    va_odk_fetch_submissions,
-    va_odk_fetch_submissions_by_ids,
-)
-from app.utils.va_odk.va_odk_07_syncattachments import (
-    va_odk_sync_form_attachments,
-    va_odk_sync_submission_attachments,
-)
+"""Lazy barrel for the helpers in app.utils.
 
-from app.utils.va_preprocess.va_preprocess_01_prepdata import va_preprocess_prepdata
-from app.utils.va_preprocess.va_preprocess_03_categoriestodisplay import va_preprocess_categoriestodisplay
-from app.utils.va_preprocess.va_preprocess_02_summcatenotification import va_preprocess_summcatenotification
+Importing a helper submodule (e.g. app.utils.pii_crypto) must not pull in
+every helper's heavy dependencies (pandas, pyodk) at process startup, so the
+re-exported names below resolve on first access (PEP 562) instead of eagerly.
+"""
 
-from app.utils.va_smartva.va_smartva_01_icdcodes import VA_SMARTVA_ICDS
-from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
-from app.utils.va_smartva.va_smartva_03_runsmartva import va_smartva_runsmartva
-from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries
-from app.utils.va_smartva.va_smartva_04_formatsmartvaresult import va_smartva_formatsmartvaresult
+import importlib
 
-
-from app.utils.va_form.va_form_01_variablevalidators import (
-    validate_form_id,
-    validate_project_id,
-    validate_site_id,
-    validate_boolean_string,
-    validate_odk_form,
-    validate_smartva_country,
-)
-from app.utils.va_form.va_form_02_formtyperesolution import (
-    va_get_form_type_code_for_form,
-)
-
-from app.utils.va_permission.va_permission_01_abortwithflash import va_permission_abortwithflash
-from app.utils.va_permission.va_permission_02_ensureallocation import va_permission_ensureallocation
-from app.utils.va_permission.va_permission_03_ensureanyallocation import va_permission_ensureanyallocation
-from app.utils.va_permission.va_permission_04_ensurenoactiveallocation import va_permission_ensurenoactiveallocation
-from app.utils.va_permission.va_permission_05_validaterecodelimits import va_permission_validaterecodelimits
-from app.utils.va_permission.va_permission_06_ensureviewable import va_permission_ensureviewable
-from app.utils.va_permission.va_permission_07_ensurenotreviewed import va_permission_ensurenotreviewed
-from app.utils.va_permission.va_permission_08_ensurereviewed import va_permission_ensurereviewed
-
-from app.utils.va_render.va_render_01_categoryneighbours import va_render_categoryneighbours
-from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
-from app.utils.va_render.va_render_07_serialisedates import (
-    va_local_date,
-    va_render_serialisedates,
-    va_user_timezone_name,
-)
-
-from app.utils.va_mapping.va_mapping_01_fieldsitepi import va_mapping_fieldsitepi
-from app.utils.va_mapping.va_mapping_02_fieldcoder import va_mapping_fieldcoder
-from app.utils.va_mapping.va_mapping_03_choice import va_mapping_choice
-from app.utils.va_mapping.va_mapping_04_summary import va_mapping_summary
-from app.utils.va_mapping.va_mapping_05_summaryflip import va_mapping_summaryflip
-from app.utils.va_mapping.va_mapping_06_info import va_mapping_info
-from app.utils.va_mapping.va_mapping_07_flip import va_mapping_flip
-
-from app.utils.va_researchproject.va_researchproject_01_variablevalidators import validate_project_code
+_EXPORTS = {
+    "va_odk_clientsetup": "app.utils.va_odk.va_odk_01_clientsetup",
+    "va_odk_submissionupdatedate": "app.utils.va_odk.va_odk_03_submissionupdatedate",
+    "va_odk_delta_count": "app.utils.va_odk.va_odk_05_deltacheck",
+    "va_odk_fetch_instance_ids": "app.utils.va_odk.va_odk_06_fetchsubmissions",
+    "va_odk_fetch_submissions": "app.utils.va_odk.va_odk_06_fetchsubmissions",
+    "va_odk_fetch_submissions_by_ids": "app.utils.va_odk.va_odk_06_fetchsubmissions",
+    "va_odk_sync_form_attachments": "app.utils.va_odk.va_odk_07_syncattachments",
+    "va_odk_sync_submission_attachments": "app.utils.va_odk.va_odk_07_syncattachments",
+    "va_preprocess_prepdata": "app.utils.va_preprocess.va_preprocess_01_prepdata",
+    "va_preprocess_summcatenotification": "app.utils.va_preprocess.va_preprocess_02_summcatenotification",
+    "va_preprocess_categoriestodisplay": "app.utils.va_preprocess.va_preprocess_03_categoriestodisplay",
+    "VA_SMARTVA_ICDS": "app.utils.va_smartva.va_smartva_01_icdcodes",
+    "va_smartva_prepdata": "app.utils.va_smartva.va_smartva_02_prepdata",
+    "va_smartva_runsmartva": "app.utils.va_smartva.va_smartva_03_runsmartva",
+    "va_smartva_formatsmartvaresult": "app.utils.va_smartva.va_smartva_04_formatsmartvaresult",
+    "validate_form_id": "app.utils.va_form.va_form_01_variablevalidators",
+    "validate_project_id": "app.utils.va_form.va_form_01_variablevalidators",
+    "validate_site_id": "app.utils.va_form.va_form_01_variablevalidators",
+    "validate_boolean_string": "app.utils.va_form.va_form_01_variablevalidators",
+    "validate_odk_form": "app.utils.va_form.va_form_01_variablevalidators",
+    "va_get_form_type_code_for_form": "app.utils.va_form.va_form_02_formtyperesolution",
+    "smartva_allowed_countries": "app.utils.va_smartva.va_smartva_06_smartvacountries",
+    "validate_smartva_country": "app.utils.va_form.va_form_01_variablevalidators",
+    "validate_project_code": "app.utils.va_researchproject.va_researchproject_01_variablevalidators",
+    "va_permission_abortwithflash": "app.utils.va_permission.va_permission_01_abortwithflash",
+    "va_permission_ensureallocation": "app.utils.va_permission.va_permission_02_ensureallocation",
+    "va_permission_ensureanyallocation": "app.utils.va_permission.va_permission_03_ensureanyallocation",
+    "va_permission_ensurenoactiveallocation": "app.utils.va_permission.va_permission_04_ensurenoactiveallocation",
+    "va_permission_validaterecodelimits": "app.utils.va_permission.va_permission_05_validaterecodelimits",
+    "va_permission_ensureviewable": "app.utils.va_permission.va_permission_06_ensureviewable",
+    "va_permission_ensurenotreviewed": "app.utils.va_permission.va_permission_07_ensurenotreviewed",
+    "va_permission_ensurereviewed": "app.utils.va_permission.va_permission_08_ensurereviewed",
+    "va_render_categoryneighbours": "app.utils.va_render.va_render_01_categoryneighbours",
+    "va_mapping_fieldsitepi": "app.utils.va_mapping.va_mapping_01_fieldsitepi",
+    "va_mapping_fieldcoder": "app.utils.va_mapping.va_mapping_02_fieldcoder",
+    "va_mapping_choice": "app.utils.va_mapping.va_mapping_03_choice",
+    "va_mapping_summary": "app.utils.va_mapping.va_mapping_04_summary",
+    "va_mapping_summaryflip": "app.utils.va_mapping.va_mapping_05_summaryflip",
+    "va_mapping_info": "app.utils.va_mapping.va_mapping_06_info",
+    "va_mapping_flip": "app.utils.va_mapping.va_mapping_07_flip",
+    "va_render_processcategorydata": "app.utils.va_render.va_render_06_processcategorydata",
+    "va_render_serialisedates": "app.utils.va_render.va_render_07_serialisedates",
+    "va_local_date": "app.utils.va_render.va_render_07_serialisedates",
+    "va_user_timezone_name": "app.utils.va_render.va_render_07_serialisedates",
+}
 
 __all__ = [
     "va_odk_clientsetup",
@@ -105,5 +98,18 @@ __all__ = [
     "va_render_processcategorydata",
     "va_render_serialisedates",
     "va_local_date",
-    "va_user_timezone_name"
+    "va_user_timezone_name",
 ]
+
+
+def __getattr__(name):
+    module_path = _EXPORTS.get(name)
+    if module_path is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(importlib.import_module(module_path), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(__all__ + list(globals()))

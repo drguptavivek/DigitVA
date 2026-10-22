@@ -13,7 +13,6 @@ Fallback source: GET /projects/{id}/forms/{id}/fields API
 import uuid
 import io
 import time
-import pandas as pd
 from datetime import datetime, timezone
 from sqlalchemy import select
 from app import db
@@ -41,6 +40,8 @@ def _extract_label(label_value) -> str:
 
 def _str_val(val) -> str:
     """Convert a DataFrame cell to a stripped string; return '' for NaN/None."""
+    import pandas as pd
+
     if val is None:
         return ""
     if isinstance(val, float) and pd.isna(val):
@@ -695,6 +696,8 @@ class OdkSchemaSyncService:
             )
             if resp.status_code != 200:
                 return None
+
+            import pandas as pd
 
             xls = pd.ExcelFile(io.BytesIO(resp.content))
 

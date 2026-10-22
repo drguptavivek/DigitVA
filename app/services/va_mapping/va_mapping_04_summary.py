@@ -1,10 +1,11 @@
 import os
 import traceback
-import pandas as pd
 from flask import current_app
 
 
 def va_mapping_summary():
+    import pandas as pd
+
     va_summary_var = "va_mapping_summary"
     try:
         df = pd.read_excel(

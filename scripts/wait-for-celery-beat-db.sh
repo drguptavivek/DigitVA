@@ -19,6 +19,8 @@ done
 
 echo "Celery beat database dependencies are ready."
 
+# Beat boots the app without blueprints (make_celery.py).
+export DIGITVA_REGISTER_ROUTES=0
 exec celery -A make_celery:celery_app beat \
   --loglevel=info \
   -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler

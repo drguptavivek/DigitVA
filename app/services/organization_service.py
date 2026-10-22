@@ -21,7 +21,6 @@ from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 
 import sqlalchemy as sa
-from openpyxl import Workbook, load_workbook
 
 from app import db
 from app.models import (
@@ -1824,6 +1823,7 @@ def export_organization_xlsx(project_id: str) -> bytes:
         "level_cadres": _LEVEL_CADRE_HEADERS,
         "workers": _WORKER_HEADERS,
     }
+    from openpyxl import Workbook
     workbook = Workbook()
     first = True
     for sheet_name in EXPORT_SHEETS:
@@ -1948,6 +1948,8 @@ class ImportPlan:
 
 def parse_organization_workbook(file_obj) -> dict[str, list[dict]]:
     """Read the export workbook back into rows keyed by sheet; missing sheets are skipped."""
+    from openpyxl import load_workbook
+
     raw = file_obj.read(5 * 1024 * 1024 + 1)
     if len(raw) > 5 * 1024 * 1024:
         raise OrganizationError("Workbook exceeds the 5 MB limit.")

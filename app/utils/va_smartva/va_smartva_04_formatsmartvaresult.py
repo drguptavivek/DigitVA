@@ -1,12 +1,20 @@
+from __future__ import annotations
+
 import io
 import os
-import pandas as pd
+from typing import TYPE_CHECKING
+
 from flask import current_app
 from app.utils.va_smartva.va_smartva_01_icdcodes import VA_SMARTVA_ICDS
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def _read_csv_no_nulls(file_path: str) -> pd.DataFrame:
     """Read CSV stripping null bytes first — pandas C parser truncates at \\x00."""
+    import pandas as pd
+
     with open(file_path, "rb") as fh:
         raw = fh.read()
     if b"\x00" in raw:
@@ -15,6 +23,8 @@ def _read_csv_no_nulls(file_path: str) -> pd.DataFrame:
 
 
 def va_smartva_formatsmartvaresult(va_form, workspace_dir: str):
+    import pandas as pd
+
     va_smartva_outputdir = os.path.join(workspace_dir, "smartva_output")
     va_smartva_outputfile = os.path.join(workspace_dir, "smartva_output.csv")
     if os.path.exists(va_smartva_outputdir) or os.listdir(va_smartva_outputdir):

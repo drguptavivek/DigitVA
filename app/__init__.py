@@ -1,5 +1,7 @@
+import gc
 import uuid
 import os
+import weakref
 from datetime import datetime
 from time import perf_counter
 import pytz
@@ -51,6 +53,34 @@ migrate = Migrate()
 login = LoginManager()
 csrf = CSRFProtect()
 sess_manager = Session()
+
+# A forked child (a gunicorn --preload worker, the Celery prefork child) must
+# never reuse a pooled connection it inherited: two processes on one socket
+# corrupt the protocol, and pool_pre_ping does not catch it. dispose(close=False)
+# is SQLAlchemy's child-side reset: the child drops the inherited pool. When
+# psycopg2 frees those connections the server ends them, so the parent's idle
+# pooled connection is reconnected by pool_pre_ping on its next checkout (the
+# gunicorn master and the Celery main process do no DB work after fork).
+# redis-py and kombu reset their own pools on a pid change. gc.freeze before
+# fork keeps the collector from touching (and so copying) the parent's objects
+# in the child: with gunicorn --preload it is what makes the workers share the
+# master's memory.
+_engines_to_reset_after_fork = weakref.WeakSet()
+
+
+def _freeze_before_fork():
+    # Collect first: whatever is frozen is never collected again, and the
+    # Celery main process forks a new child each time one is replaced.
+    gc.collect()
+    gc.freeze()
+
+
+def _reset_engines_after_fork():
+    for engine in list(_engines_to_reset_after_fork):
+        engine.dispose(close=False)
+
+
+os.register_at_fork(before=_freeze_before_fork, after_in_child=_reset_engines_after_fork)
 #: API paths whose responses are never stored by a browser or proxy.
 _NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases")
 
@@ -149,7 +179,8 @@ def _namespace_public_demo(app: Flask) -> None:
     app.config["CELERY"] = celery_conf
 
 
-def create_app(config_class=None):
+def create_app(config_class=None, register_routes=True):
+    """Celery beat passes register_routes=False: it only sends tasks by name."""
     if config_class is None:
         config_class = _default_config_class()
     app = Flask(__name__)
@@ -241,6 +272,8 @@ def create_app(config_class=None):
     validate_attachment_store_config(app.config)
 
     db.init_app(app)
+    with app.app_context():
+        _engines_to_reset_after_fork.update(db.engines.values())
     migrate.init_app(app, db)
     login.init_app(app)
     # CSRFProtect's own hook is switched off so the one below can skip bearer
@@ -339,19 +372,20 @@ def create_app(config_class=None):
     # Initialize Celery
     celery_init_app(app)
 
-    from app.routes import register_blueprints  
-    register_blueprints(app)
-    from app.routes.expo_client import expo_client
-    app.register_blueprint(expo_client)
-    # Always registered, gated by PUBLIC_DEMO_ENABLED in each view (404 off).
-    from app.routes.public_demo import public_demo
-    app.register_blueprint(public_demo)
-    # After every blueprint: wrap each non-exempt view so a request authz
-    # never decided is logged, and refused where AUTHZ_ENFORCE_CONSULTED.
-    from app.services.authz import consulted as authz_consulted
-    authz_consulted.install(app)
-    from app.routes.va_errors import register_error_handlers
-    register_error_handlers(app)
+    if register_routes:
+        from app.routes import register_blueprints
+        register_blueprints(app)
+        from app.routes.expo_client import expo_client
+        app.register_blueprint(expo_client)
+        # Always registered, gated by PUBLIC_DEMO_ENABLED in each view (404 off).
+        from app.routes.public_demo import public_demo
+        app.register_blueprint(public_demo)
+        # After every blueprint: wrap each non-exempt view so a request authz
+        # never decided is logged, and refused where AUTHZ_ENFORCE_CONSULTED.
+        from app.services.authz import consulted as authz_consulted
+        authz_consulted.install(app)
+        from app.routes.va_errors import register_error_handlers
+        register_error_handlers(app)
     from app.logging import va_logging
     va_logging(app)
     

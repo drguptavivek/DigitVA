@@ -149,7 +149,16 @@ Current behavior:
 - Celery worker and beat wait for the app container to become healthy before starting so dependency refreshes propagate through the shared virtualenv before task processes launch
 - celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
 - the live migration chain now includes a forward-only additive migration that ensures the required `celery_*` scheduler tables exist on fresh databases
-- celery worker startup uses `--concurrency=1`
+- celery worker startup uses `--concurrency=1 --max-memory-per-child=256000`
+  (KiB, 250 MiB; owner 2026-10-22): a task that leaves the pool child above
+  250 MiB finishes, then the child is replaced by a fresh fork. An idle child
+  sits near 180 MB and a 200-submission SmartVA sweep peaks near 192 MB, so
+  the limit catches only heavier tasks (exports, large syncs)
+- celery beat boots the app without blueprints: `scripts/wait-for-celery-beat-db.sh`
+  exports `DIGITVA_REGISTER_ROUTES=0` and `make_celery.py` passes it to
+  `create_app(register_routes=...)`. Beat only sends tasks by name; schedule
+  seeding and `cleanup_stale_runs()` run as before. The worker keeps the
+  routes for the email templates it renders
 - all services run Python entrypoints directly (`flask`, `celery`, `gunicorn`) — no `uv run` wrapper needed
 
 Current health checks:
@@ -220,7 +229,8 @@ Startup behavior is controlled by [`boot.sh`](../../boot.sh).
 Current startup sequence:
 
 1. retry `flask db upgrade` until DB is reachable
-2. start Gunicorn with one worker on port `5000`
+2. start Gunicorn on port `5000` with `--preload` and `GUNICORN_WORKERS`
+   workers (default 1; the split production deploy sets 2 x 4 threads)
 
 Current implication:
 
@@ -228,6 +238,62 @@ Current implication:
 - runtime is tightly coupled to the DB being available
 - old-format live databases are expected to migrate forward via additive
   Alembic migrations rather than manual resets
+
+### Startup imports
+
+Every web and Celery process runs `create_app()` (gunicorn through `run.py`,
+Celery worker and beat through `make_celery.py`). pandas, numpy, pyodk and
+openpyxl are not imported at startup: modules import them inside the
+functions that use them (`TYPE_CHECKING` for annotations), and
+`app/utils/__init__.py` resolves its re-exported helpers lazily on first
+access (PEP 562 `__getattr__`) instead of importing every helper.
+`tests/test_startup_imports.py` fails if either entry point loads one of them
+again. Measured 2026-10-22 (VmRSS of idle processes started from the tree
+before and after the change, same container, two runs each): gunicorn worker
+202 to 143 MB, Celery worker parent 213 to 154 MB and child 169 to 131 MB,
+beat 214 to 155 MB.
+
+## Process Memory
+
+Each Python process's memory is mostly its import baseline, not app data.
+
+`gunicorn --preload` imports the app once in the master, so the workers share
+those pages copy-on-write; it helps only with 2+ workers. `app/__init__.py`
+registers an `os.register_at_fork` hook for every fork (gunicorn workers, the
+Celery prefork child and its replacements):
+
+- before fork, `gc.collect()` then `gc.freeze()`: without the freeze each
+  worker's garbage collector touches, and so copies, every inherited object,
+  and preload saves nothing;
+- in the child, every SQLAlchemy engine is `dispose(close=False)`d. After
+  `import run` the master's pool already holds a connection, and two processes
+  on one socket corrupt the protocol (`pool_pre_ping` does not catch that).
+  The parent's idle pooled connection is ended when the child frees its copy
+  and reconnects on its next checkout; the gunicorn master and the Celery main
+  process do no DB work after fork. redis-py and kombu reset their own pools
+  on a pid change.
+
+`tests/test_process_startup.py` checks the pool reset and beat's route-less
+app.
+
+Measured 2026-10-22 (`digitva-345y`): VmRSS and Pss from `/proc/<pid>/status`
+and `smaps_rollup`, containers from the same image on an isolated database and
+Redis db, gunicorn `-w 2 --threads 4` as in the split deploy, after 20
+requests. Absolute idle figures move by up to ~30 MB between runs on the
+Docker VM under memory pressure.
+
+| Process | Before RSS (Pss) | After RSS (Pss) |
+| --- | --- | --- |
+| gunicorn master | 30 MB (19) | 205 MB (87), holds the preloaded app |
+| gunicorn worker, each of 2 | 224 MB (181) | 176 MB (87) |
+| gunicorn total Pss, 3 processes | 381 MB | 261 MB |
+| celery worker main | 225 MB (114) | 215 MB (111) |
+| celery worker pool child, idle | 186 MB (111) | 180 MB (108) |
+| celery beat | 225 MB (183) | 200 MB (161) |
+
+Preload without the freeze measured the same 381 MB total Pss as before. A
+200-submission `sweep_smartva_pending` (4 SmartVA batches, 200 results saved)
+takes the pool child from 171 MB to 190-192 MB, before and after.
 
 ## Database And Migrations
 

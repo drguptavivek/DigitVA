@@ -202,7 +202,7 @@ services:
       args: *release-pins
     container_name: minerva_celery_worker
     entrypoint: []
-    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
+    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1 --max-memory-per-child=256000
     volumes:
       - .:/app
       - minerva_venv:/app/.venv

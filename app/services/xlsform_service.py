@@ -49,8 +49,6 @@ from pathlib import Path
 from typing import Any
 
 import sqlalchemy as sa
-from openpyxl import Workbook, load_workbook
-from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 
 from app import db
 from app.models import (
@@ -187,6 +185,8 @@ def read_sheet(path: Path, sheet: str) -> list[dict]:
     language column is dropped (translations come from the database). Blank
     cells are absent. Used for the reference and for a deployed workbook.
     """
+    from openpyxl import load_workbook
+
     workbook = load_workbook(path, read_only=True, data_only=True)
     try:
         if sheet not in workbook.sheetnames:
@@ -770,6 +770,8 @@ def _attach_translations(
 
 
 def _cell(sheet, row: int, column: int, value: Any) -> None:
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
+
     if isinstance(value, str):
         # Control characters (a pasted unit name, a stray \x07) make openpyxl
         # raise; they are never meaningful in a form.
@@ -824,6 +826,8 @@ def _localized(rows: list[dict], languages: list[tuple[str, str]], translated: t
 
 def to_workbook_bytes(form: XlsForm) -> bytes:
     """Write the form as an ``.xlsx`` with ``survey``, ``choices``, ``settings``."""
+    from openpyxl import Workbook
+
     workbook = Workbook()
     survey_sheet = workbook.active
     survey_sheet.title = "survey"

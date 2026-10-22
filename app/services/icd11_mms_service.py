@@ -19,9 +19,6 @@ from urllib.parse import quote, unquote
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
-from openpyxl import Workbook
-from openpyxl.cell import WriteOnlyCell
-from openpyxl.styles import Font, PatternFill
 
 from app import db
 from app.models import MasIcd11Mms
@@ -835,6 +832,10 @@ def export_icd11_mms_policy_xlsx(release: str = DEFAULT_ICD11_RELEASE) -> bytes:
         )
         .order_by(MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
     )
+
+    from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
+    from openpyxl.styles import Font, PatternFill
 
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet("ICD11 Policy")

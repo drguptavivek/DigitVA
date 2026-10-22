@@ -52,9 +52,10 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+if TYPE_CHECKING:
+    import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -125,6 +126,8 @@ _SHEET_ROW_OFFSET = 2
 
 def _text(value: Any) -> str | None:
     """Return a stripped string, or None for NaN/blank."""
+    import pandas as pd
+
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return None
     text = str(value).strip()
@@ -137,6 +140,8 @@ def _flag(value: Any) -> bool:
     Numeric cells matter: openpyxl reads a bare 1 in read_only as 1.0, which
     must not read as false.
     """
+    import pandas as pd
+
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return not pd.isna(value) and float(value) != 0.0
     text = _text(value)
@@ -185,6 +190,8 @@ def _expression(value: Any) -> dict[str, str] | None:
 
 
 def _read_settings(path: Path) -> dict[str, str]:
+    import pandas as pd
+
     frame = pd.read_excel(path, sheet_name="settings")
     if frame.empty:
         raise XlsFormConversionError("The settings sheet is empty.")
@@ -211,6 +218,8 @@ def _default_language(raw: str | None) -> str:
 def _read_choices(
     path: Path, default_language: str, locales: set[str] | None = None
 ) -> dict[str, list[dict]]:
+    import pandas as pd
+
     frame = pd.read_excel(path, sheet_name="choices")
     columns = _restrict_locales(_language_columns(frame, default_language), locales)
     lists: dict[str, list[dict]] = {}
@@ -252,6 +261,8 @@ def build_instrument_from_xlsform(
     locale the workbook carries -- the behaviour every existing caller
     already depends on.
     """
+    import pandas as pd
+
     path = Path(path)
     if not path.exists():
         raise XlsFormConversionError(f"XLSForm not found: {path}")

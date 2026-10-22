@@ -1,10 +1,11 @@
 import os
 import traceback
-import pandas as pd
 from flask import current_app
 
 
 def va_mapping_flip():
+    import pandas as pd
+
     flip_var = "va_mapping_flip"
     try:
         df = pd.read_excel(

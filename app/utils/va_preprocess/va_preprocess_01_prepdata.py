@@ -1,11 +1,12 @@
 import os
-import pandas as pd
 from datetime import datetime
 from flask import current_app
 from app.utils.va_odk.va_odk_03_submissionupdatedate import va_odk_submissionupdatedate
 
 
 def va_preprocess_prepdata(va_form):
+    import pandas as pd
+
     va_formdir = os.path.join(current_app.config["APP_DATA"], va_form.form_id)
     csv_path = os.path.join(va_formdir, f"{va_form.odk_form_id}.csv")
     if os.path.exists(csv_path):

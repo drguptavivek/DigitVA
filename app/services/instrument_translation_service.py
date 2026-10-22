@@ -63,8 +63,8 @@ from dataclasses import field as dataclass_field
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-import pandas as pd
 import sqlalchemy as sa
 
 from app import db
@@ -91,6 +91,9 @@ from app.services.xlsform_instrument_builder import (
     _language_columns,
     _text,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -352,6 +355,8 @@ def read_workbook_items(
     Item keys match the instrument: a question's ``name``, or a choice's
     ``list_name`` + ``/`` + ``name``.
     """
+    import pandas as pd
+
     path = Path(path)
     if not path.exists():
         raise InstrumentTranslationError(f"Workbook not found: {path}")
@@ -2228,6 +2233,8 @@ def _reference_notes_cached(path: str) -> dict[tuple[str, str], str]:
     choice's note is its list name. Both exist only to tell a translator what
     they are looking at; nothing reads them back.
     """
+    import pandas as pd
+
     settings = pd.read_excel(path, sheet_name="settings")
     survey = pd.read_excel(path, sheet_name="survey")
     choices = pd.read_excel(path, sheet_name="choices")

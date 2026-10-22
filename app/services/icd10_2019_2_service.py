@@ -8,8 +8,6 @@ from io import BytesIO
 from pathlib import Path
 
 import sqlalchemy as sa
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill
 
 from app import db
 from app.models import (
@@ -873,6 +871,8 @@ def export_icd10_2019_2_policy_json() -> dict:
 
 
 def _format_xlsx_sheet(sheet) -> None:
+    from openpyxl.styles import Font, PatternFill
+
     header_fill = PatternFill("solid", fgColor="D9EAF7")
     header_font = Font(bold=True)
     for cell in sheet[1]:
@@ -932,6 +932,8 @@ def export_icd10_2019_2_policy_xlsx() -> bytes:
         manual_buckets_by_code.setdefault(row["icd_code"], [])
         if row["node_label"] not in manual_buckets_by_code[row["icd_code"]]:
             manual_buckets_by_code[row["icd_code"]].append(row["node_label"])
+
+    from openpyxl import Workbook
 
     workbook = Workbook()
     sheet = workbook.active

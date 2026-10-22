@@ -11,7 +11,10 @@ from app.logging.va_logger import (
     va_detailed_formatter,
 )
 
-flask_app = create_app()
+# Beat runs with DIGITVA_REGISTER_ROUTES=0 (scripts/wait-for-celery-beat-db.sh):
+# it never renders a page. The worker keeps the routes for the email
+# templates it renders.
+flask_app = create_app(register_routes=os.environ.get("DIGITVA_REGISTER_ROUTES") != "0")
 
 # Silence noisy SQLAlchemy INFO logging in Celery worker/beat output
 logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)

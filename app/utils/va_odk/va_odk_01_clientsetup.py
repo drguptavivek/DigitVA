@@ -8,10 +8,15 @@ Falls back to the legacy TOML file if no database connection is configured
 for the project (backward compatibility during migration).
 """
 
+from __future__ import annotations
+
 import os
 import logging
+from typing import TYPE_CHECKING
 from flask import current_app
-from pyodk.client import Client
+
+if TYPE_CHECKING:
+    from pyodk.client import Client
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +101,8 @@ def _client_from_toml(cache_path: str) -> Client:
     config_path = os.path.join(
         current_app.config.get("APP_RESOURCE"), "pyodk", "odk_config.toml"
     )
+    from pyodk.client import Client
+
     try:
         return Client(config_path=config_path, cache_path=cache_path)
     except Exception as exc:
@@ -116,6 +123,7 @@ def _build_client(
     to different ODK servers never overwrite each other's auth token.
     """
     import toml
+    from pyodk.client import Client
     from pyodk._utils.session import Session as PyOdkSession
 
     # Stub config — placeholder values, never used for API calls.

@@ -1,10 +1,11 @@
 import os
 import traceback
-import pandas as pd
 from flask import current_app
 
 
 def va_mapping_choice():
+    import pandas as pd
+
     mapping_name = "va_mapping_choice"
     try:
         df = pd.read_excel(

@@ -8,12 +8,6 @@ import secrets
 from types import SimpleNamespace
 
 import sqlalchemy as sa
-from openpyxl import Workbook
-from openpyxl.comments import Comment
-from openpyxl.styles import Font, PatternFill
-from openpyxl.utils import get_column_letter
-from openpyxl.workbook.defined_name import DefinedName
-from openpyxl.worksheet.datavalidation import DataValidation
 
 from app import db
 from app.models import (
@@ -64,6 +58,9 @@ def template_csv():
 
 def _defined_name(workbook, name, sheet, start_row, end_row, column):
     """Add a workbook name for a reference column, including empty lists."""
+    from openpyxl.utils import get_column_letter
+    from openpyxl.workbook.defined_name import DefinedName
+
     workbook.defined_names.add(DefinedName(
         name=name,
         attr_text=f"'{sheet.title}'!${get_column_letter(column)}${start_row}:"
@@ -127,6 +124,12 @@ def template_xlsx(project_id, actor=None):
     active_languages = list(db.session.execute(sa.select(
         MasLanguages.language_code, MasLanguages.language_name,
     ).where(MasLanguages.is_active.is_(True)).order_by(MasLanguages.language_code)).all())
+
+    from openpyxl import Workbook
+    from openpyxl.comments import Comment
+    from openpyxl.styles import Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
 
     workbook = Workbook()
     sheet = workbook.active

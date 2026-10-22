@@ -1,5 +1,7 @@
 """Centralized SmartVA generation service."""
 
+from __future__ import annotations
+
 import logging
 import math
 import os
@@ -10,8 +12,8 @@ import time
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
-import pandas as pd
 import sqlalchemy as sa
 from flask import current_app
 from sqlalchemy.orm import Session
@@ -32,6 +34,9 @@ from app.services.duplicate_exclusion import (
     is_confirmed_duplicate,
     not_confirmed_duplicate_condition,
 )
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 log = logging.getLogger(__name__)
 
@@ -110,6 +115,9 @@ def _read_smartva_csv(file_path: str) -> pd.DataFrame:
     Reading the raw bytes and replacing \\x00 before parsing avoids this.
     """
     import io
+
+    import pandas as pd
+
     with open(file_path, "rb") as fh:
         raw = fh.read()
     if b"\x00" in raw:
@@ -125,6 +133,8 @@ def _read_raw_likelihood_outputs(
     workspace_dir: str,
     pending_sids: set[str],
 ) -> dict[str, list[tuple[str | None, dict]]]:
+    import pandas as pd
+
     outputs_by_sid: dict[str, list[tuple[str | None, dict]]] = {}
     for result_for, file_path in _likelihood_output_path_map(workspace_dir).items():
         if not os.path.exists(file_path):
@@ -159,6 +169,8 @@ def _read_raw_likelihood_outputs(
 
 
 def _read_formatted_results(output_file: str) -> pd.DataFrame | None:
+    import pandas as pd
+
     if not output_file or not os.path.exists(output_file):
         log.debug("SmartVA formatted output file not found: %s", output_file)
         return None

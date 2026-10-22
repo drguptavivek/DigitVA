@@ -12,7 +12,6 @@ import uuid
 import sqlalchemy as sa
 from flask import current_app, jsonify, render_template, request
 from flask_login import current_user
-from openpyxl import Workbook
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db, limiter
@@ -781,6 +780,7 @@ def admin_org_units_template_xlsx(project_id):
     if err := _guard(project_id):
         return err
     from app.services.organization_service import _UNIT_HEADERS
+    from openpyxl import Workbook
     workbook = Workbook()
     workbook.active.title = "units"
     workbook.active.append([header for header in _UNIT_HEADERS if header != "path"])

@@ -41,7 +41,7 @@ CELERY = {
 
 On worker/beat startup `make_celery.py`:
 
-1. Creates the Flask app via `create_app()`
+1. Creates the Flask app via `create_app()`; beat without blueprints (`DIGITVA_REGISTER_ROUTES=0`, set by `scripts/wait-for-celery-beat-db.sh`; runtime-and-operations.md, "Process Memory")
 2. Retrieves `celery_app` from `flask_app.extensions["celery"]`
 3. Imports `app.tasks.sync_tasks` to register tasks with the worker
 4. Calls `cleanup_stale_runs()` — marks orphaned `running` sync rows (older than 45 minutes) as `error`

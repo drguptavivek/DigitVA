@@ -15,5 +15,7 @@ echo "Bootstrapping missing questionnaire translation sources..."
 flask instrument-translations import-missing-sources
 
 # GUNICORN_WORKERS (default 1); threads, TLS and the rest come through
-# GUNICORN_CMD_ARGS, which gunicorn reads itself.
-exec gunicorn -w "${GUNICORN_WORKERS:-1}" -b :5000 --access-logfile - --error-logfile - run:app
+# GUNICORN_CMD_ARGS, which gunicorn reads itself. --preload imports the app
+# once in the master so the workers share those pages copy-on-write; each
+# worker drops the inherited DB pool after fork (app/__init__.py).
+exec gunicorn --preload -w "${GUNICORN_WORKERS:-1}" -b :5000 --access-logfile - --error-logfile - run:app

@@ -11,8 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import sqlalchemy as sa
-from openpyxl import Workbook, load_workbook
-from openpyxl.styles import Font, PatternFill
 
 from app import cache, db
 from app.models import (
@@ -601,6 +599,8 @@ def _age_scope_warning_messages(age_bands: list[MasCodBucketSchemeAgeBand]) -> d
 
 
 def _load_sheet_rows(workbook_path: str | Path, sheet_name: str):
+    from openpyxl import load_workbook
+
     workbook = load_workbook(Path(workbook_path), read_only=True, data_only=True)
     sheet = workbook[sheet_name]
     rows = list(sheet.iter_rows(values_only=True))
@@ -2569,6 +2569,8 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
 
 
 def _format_xlsx_sheet(sheet) -> None:
+    from openpyxl.styles import Font, PatternFill
+
     header_fill = PatternFill("solid", fgColor="D9EAF7")
     header_font = Font(bold=True)
     for cell in sheet[1]:
@@ -2584,6 +2586,8 @@ def _format_xlsx_sheet(sheet) -> None:
 
 def export_cod_bucket_scheme_xlsx(*, scheme_code: str) -> bytes:
     payload = export_cod_bucket_scheme_json(scheme_code=scheme_code)
+
+    from openpyxl import Workbook
 
     workbook = Workbook()
     nodes_sheet = workbook.active

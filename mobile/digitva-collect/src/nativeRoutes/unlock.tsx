@@ -74,7 +74,7 @@ export default function Unlock() {
         }
         setPin("");
         if (result.wipe) {
-          Alert.alert(t("pinWiped"));
+          Alert.alert(t(result.revoked ? "sessionRevoked" : "pinWiped"));
           await reload();
           router.replace("/");
           return;

@@ -56,6 +56,11 @@ when the export is present (`VaUsers.landing_url()`, policy
      unit/site scopes in that project, per-project personal activity counts,
      and direct per-project action buttons.
 - Users also switch screens through the `WebShell` navigation, gated by role.
+  More lists **Users** `/users` (digitva-75wn) for an admin, project PI or
+  data manager (the In-charge included): the people in their scope with
+  contacts, roles, account and app-enrolment status, an Activity panel loaded
+  on open and an Issue enrolment code dialog (code and QR shown once, or
+  emailed), over `GET /api/v1/users` (api-v1.md, "Users").
   Coding and reviewing queues open on `last_project_id` from `/coding/projects`
   and `/reviewing/projects` unless a `?project=` query is passed.
 

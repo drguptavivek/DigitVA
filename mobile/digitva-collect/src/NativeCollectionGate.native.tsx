@@ -1,11 +1,13 @@
 import { Redirect, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Alert, Text } from "react-native";
+import { ActivityIndicator, Text } from "react-native";
 
 import { useAppState } from "./AppState";
 import { refreshAccessSummary, signOut } from "./auth";
 import { t } from "./i18n";
-import { isUnlocked } from "./interviewerDb";
+import { isUnlocked, openInterviewerDb, unsentWorkCount } from "./interviewerDb";
+import { confirmSignOut } from "./signOutConfirm";
+import { uploadQueuedWork } from "./sync";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 
 const COLLECTION_ROUTES = new Set([
@@ -21,14 +23,33 @@ const CODING_ROUTE = "/coding";
 const REVIEWING_ROUTE = "/reviewing";
 const WORKSPACE_ROUTE = "/workspace";
 
-/** Keep account controls available while collection is disabled. */
+/**
+ * Keep account controls available while collection is disabled. Unsent work
+ * is counted and can still be sent while the session lasts; an account that
+ * needs sign-in (or lost its access with work unsent) is offered "Sign in
+ * again", which keeps the store, rather than only a wiping sign-out.
+ */
 function NativePendingWorkspace({ userId }: { userId: string }) {
   const router = useRouter();
   const { accounts, lockNow, reload } = useAppState();
   const styles = useUiStyles();
-  const [signOutError, setSignOutError] = useState(false);
+  const [message, setMessage] = useState<string>();
+  const [unsent, setUnsent] = useState<number>();
+  const [sending, setSending] = useState(false);
   const account = accounts.find((item) => item.user_id === userId);
   const unlocked = isUnlocked(userId);
+
+  const recount = useCallback(async () => {
+    try {
+      setUnsent(await unsentWorkCount(userId));
+    } catch {
+      setUnsent(undefined);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void recount();
+  }, [recount, unlocked]);
 
   async function doSignOut() {
     try {
@@ -36,23 +57,39 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       await reload();
       router.replace("/");
     } catch {
-      setSignOutError(true);
+      setMessage(t("errGeneric"));
     }
   }
 
-  function confirmSignOut() {
-    Alert.alert(t("signOut"), t("pendingSignOutConfirm"), [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("signOutConfirm"),
-        style: "destructive",
-        onPress: () => void doSignOut(),
-      },
-    ]);
+  async function sendUnsent() {
+    setSending(true);
+    setMessage(undefined);
+    try {
+      const result = await uploadQueuedWork(userId, await openInterviewerDb(userId));
+      await recount();
+      setMessage(t("syncResult", { sent: result.sent, failed: result.failed, remaining: (await unsentWorkCount(userId)) ?? 0 }));
+    } catch (error) {
+      setMessage(errorText(error));
+      await reload();
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
     <Screen title={account?.name ?? t("accountsTitle")}>
+      {account?.access_removed ? (
+        <Text style={styles.error}>
+          {unsent === undefined ? t("accessRemovedLocked") : t("accessRemovedUnsent", { count: unsent })}
+        </Text>
+      ) : unsent ? (
+        <Text style={styles.text}>{t("unsentWaiting", { count: unsent })}</Text>
+      ) : null}
+      {account?.needs_sign_in ? (
+        <Button label={t("signInAgainAction")} onPress={() => router.push({ pathname: "/sign-in", params: { userId } })} />
+      ) : unlocked && unsent ? (
+        <Button label={t("sendUnsent")} loading={sending} disabled={sending} onPress={() => void sendUnsent()} />
+      ) : null}
       {account?.coding_access || account?.reviewing_access ? (
         <>
           <Text style={styles.text}>{t("workspaceTitle")}</Text>
@@ -60,10 +97,10 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
           {account.reviewing_access ? <Button label={t("navReview")} onPress={() => router.push({ pathname: REVIEWING_ROUTE, params: { userId } })} /> : null}
         </>
       ) : <Text style={styles.text}>{t("codingReviewPending")}</Text>}
-      {signOutError ? <Text style={styles.error}>{t("errGeneric")}</Text> : null}
+      {message ? <Text style={styles.error}>{message}</Text> : null}
       <Button kind="secondary" label={t("accounts")} onPress={() => router.replace("/")} />
       <Button kind="secondary" label={t("lockNow")} disabled={!unlocked} onPress={() => void lockNow()} />
-      <Button kind="danger" label={t("signOut")} onPress={confirmSignOut} />
+      <Button kind="danger" label={t("signOut")} onPress={() => void confirmSignOut(userId, () => void doSignOut())} />
     </Screen>
   );
 }

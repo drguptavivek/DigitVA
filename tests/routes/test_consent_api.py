@@ -678,3 +678,132 @@ class ConsentApiTests(BaseTestCase):
         settings = consent_service.get_settings(self.REQUIRED)
         self.assertEqual((settings.retention_period_days, settings.expiry_action), (30, "lock"))
         self.assertTrue(settings.consent_required)
+
+    # ── Project Setup: seed from draft, approve (digitva-athy) ─────────────
+
+    def test_seed_from_draft_creates_english_and_hindi_version_1_pending_review(self):
+        self._login(self.base_admin_id)
+        url = f"/api/v1/projects/{self.PLAIN}/consent-notices/seed"
+        self.assertEqual(self.client.post(url).status_code, 400)  # no CSRF
+        response = self.client.post(url, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 201, response.get_json())
+        versions = response.get_json()["notice_versions"]
+        self.assertEqual([(v["version"], v["language"]) for v in versions], [(1, "en"), (1, "hi")])
+        for version in versions:
+            self.assertIn("Consent CNS02", version["text"])
+            self.assertNotIn("[PROJECT NAME]", version["text"])
+            self.assertEqual(version["text_sha256"], hashlib.sha256(version["text"].encode()).hexdigest())
+        # Both languages answer the same purposes, so a record validates in either.
+        self.assertEqual(*[[(p["code"], p["required"]) for p in v["purposes"]] for v in versions])
+        listed = self.client.get(f"/api/v1/projects/{self.PLAIN}/consent-settings").get_json()["notice_versions"]
+        self.assertEqual([v["approved_at"] for v in listed], [None, None])
+        self._refusal(self.client.post(url, headers=self._csrf_headers()), 409, "conflict")
+
+    def test_seed_is_refused_to_an_interviewer(self):
+        response = self.client.post(f"/api/v1/projects/{self.PLAIN}/consent-notices/seed",
+                                    headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 403)
+
+    def test_only_an_admin_approves_a_notice_version(self):
+        notice_id = str(self.notice.notice_version_id)
+        url = f"/api/v1/projects/{self.REQUIRED}/consent-notices/{notice_id}/approve"
+        self._login(str(self.manager.user_id))
+        self.assertEqual(self.client.post(url, headers=self._csrf_headers()).status_code, 403)
+        self._login(self.base_admin_id)
+        self.assertEqual(self.client.post(url).status_code, 400)  # no CSRF
+        response = self.client.post(url, headers=self._csrf_headers())
+        self.assertEqual(response.status_code, 200, response.get_json())
+        approved = {v["notice_version_id"]: v["approved_at"] for v in response.get_json()["notice_versions"]}
+        self.assertIsNotNone(approved[notice_id])
+        again = self.client.post(url, headers=self._csrf_headers()).get_json()["notice_versions"]
+        self.assertEqual({v["notice_version_id"]: v["approved_at"] for v in again}[notice_id], approved[notice_id])
+        events = list(db.session.scalars(sa.select(MapConsentAudit.event).where(
+            MapConsentAudit.event == "consent_notice_approved",
+            MapConsentAudit.notice_version_id == self.notice.notice_version_id)))
+        self.assertEqual(events, ["consent_notice_approved"])
+        other = self.client.post(f"/api/v1/projects/{self.PLAIN}/consent-notices/{notice_id}/approve",
+                                 headers=self._csrf_headers())
+        self._refusal(other, 404, "not_found")
+        # The approval is not part of the 5.2 config shape.
+        self.assertNotIn("approved_at", consent_service.serialize_version(self.notice))
+
+    def test_an_edit_is_a_new_version_and_the_old_one_stays_usable(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(f"/api/v1/projects/{self.REQUIRED}/consent-notices",
+                                    headers=self._csrf_headers(), json={
+                                        "language": "en", "text": "Edited notice", "purposes": PURPOSES,
+                                        "allowed_modes": ["spoken"]})
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["notice_version"]["version"], 2)
+        self._login(self.interviewer_id)
+        # A consent shown the earlier version is still recorded against it.
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        self.assertEqual([r.notice_version_id for r in self._records(death_id)], [self.notice.notice_version_id])
+
+    # ── the browser interview: /intake/drafts/<id>/consent ─────────────────
+
+    def _direct_draft(self, project_id=None):
+        project_id = project_id or self.REQUIRED
+        site_id = self.SITE_REQ if project_id == self.REQUIRED else self.SITE_PLAIN
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(),
+                                   json={"project_id": project_id, "site_id": site_id})
+        self.assertEqual(started.status_code, 201, started.get_json())
+        return started.get_json()["draft"]["draft_id"]
+
+    def _submit(self, draft_id, answers):
+        return self.client.post(f"{INTAKE}/drafts/{draft_id}/submit", headers=self._csrf_headers(), json={
+            "completion": {"valid": True, "issues": [], "data": answers}})
+
+    def _draft_consent(self, draft_id, consent):
+        return self.client.post(f"{INTAKE}/drafts/{draft_id}/consent", headers=self._csrf_headers(),
+                                json={"consent": consent})
+
+    def test_a_direct_interview_needs_a_decision_before_covered_answers(self):
+        draft_id = self._direct_draft()
+        status = self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").get_json()
+        self.assertEqual(status, {"consent_required": True, "decision": None, "covered_fields": [],
+                                  "client_draft_id": None})
+        self._refusal(self._submit(draft_id, _answers(Id10007="Ram")), 422, "consent_required")
+        response = self._draft_consent(draft_id, self._consent())
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json()["decision"], "granted")
+        self.assertEqual(self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").get_json()["decision"], "granted")
+        response = self._submit(draft_id, _answers(Id10007="Ram"))
+        self.assertEqual(response.status_code, 201, response.get_json())
+        [record] = [r for r in self._records() if r.channel == "web" and r.client_draft_id is None
+                    and r.event == "granted"]
+        self.assertEqual(record.notice_version_id, self.notice.notice_version_id)
+
+    def test_a_refused_direct_interview_goes_ahead_without_covered_answers(self):
+        draft_id = self._direct_draft()
+        response = self._draft_consent(draft_id, self._consent(decision="refused"))
+        self.assertEqual(response.status_code, 201, response.get_json())
+        body = response.get_json()
+        self.assertEqual(body["decision"], "refused")
+        self.assertIn("Id10007", body["covered_fields"])
+        self._refusal(self._submit(draft_id, _answers(Id10007="Ram")), 422, "consent_conflict")
+        response = self._submit(draft_id, _answers())
+        self.assertEqual(response.status_code, 201, response.get_json())
+
+    def test_a_case_with_a_registration_consent_opens_the_interview_at_once(self):
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        started = self.client.post(f"{INTAKE}/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.REQUIRED, "site_id": self.SITE_REQ, "death_id": death_id})
+        draft_id = started.get_json()["draft"]["draft_id"]
+        self.assertEqual(self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").get_json()["decision"], "granted")
+
+    def test_a_project_without_consent_needs_no_decision(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        status = self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").get_json()
+        self.assertEqual((status["consent_required"], status["decision"]), (False, None))
+        self.assertEqual(self._submit(draft_id, _answers(Id10007="Ram")).status_code, 201)
+
+    def test_draft_consent_is_the_draft_owners_and_needs_csrf(self):
+        draft_id = self._direct_draft()
+        self.assertEqual(self.client.post(f"{INTAKE}/drafts/{draft_id}/consent",
+                                          json={"consent": self._consent()}).status_code, 400)
+        self._refusal(self._draft_consent(draft_id, {"decision": "granted"}), 422, "consent_invalid")
+        self._login(str(self.outsider.user_id))
+        self.assertEqual(self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").status_code, 404)
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 404)
+        self.assertEqual(self._records(), [])

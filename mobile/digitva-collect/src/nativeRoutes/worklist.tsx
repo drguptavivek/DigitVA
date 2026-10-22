@@ -21,11 +21,13 @@ import {
   listActions,
   listCases,
   listRegistrations,
+  type CaseAction,
   type CaseRow,
   type CaseDetail,
   type Registration,
 } from "../cases";
 import { listDrafts, type Db, type DraftRow } from "../drafts";
+import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import { t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import {
@@ -37,6 +39,8 @@ import {
 import {
   getCachedReferenceData,
   fetchCasePage,
+  listPausedProjects,
+  type PausedProject,
   refreshAuthorizedProjectDefinitions,
   refreshReferenceData,
   refreshCases,
@@ -135,7 +139,8 @@ function InterviewWorklist() {
   const [onlineCursor, setOnlineCursor] = useState<string | null>(null);
   const [onlineBusy, setOnlineBusy] = useState(false);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [queued, setQueued] = useState(0);
+  const [actions, setActions] = useState<CaseAction[]>([]);
+  const [pausedProjects, setPausedProjects] = useState<PausedProject[]>([]);
   const [referenceData, setReferenceData] =
     useState<Awaited<ReturnType<typeof getCachedReferenceData>>>();
   const [picking, setPicking] = useState(false);
@@ -212,7 +217,8 @@ function InterviewWorklist() {
     setSubmittedRevisionsError(false);
     setCases([]);
     setRegistrations([]);
-    setQueued(0);
+    setActions([]);
+    setPausedProjects([]);
     setOnlineCases([]);
     setOnlineCursor(null);
     setSelectedProjectId(undefined);
@@ -238,13 +244,18 @@ function InterviewWorklist() {
       current: () => boolean = () => true,
       caseFlagsAuthoritative = false,
     ) => {
-      const [d, c, r, a, localRevisions] = await Promise.all([
+      const [d, c, r, a, localRevisions, reference] = await Promise.all([
         listDrafts(handle),
         listCases(handle),
         listRegistrations(handle),
         listActions(handle),
         listLocalRevisions(handle),
+        getCachedReferenceData(handle),
       ]);
+      const paused = await listPausedProjects(
+        handle,
+        new Set(reference?.projects.map(({ project }) => project.project_id) ?? []),
+      );
       if (!current()) return;
       setDrafts(d);
       setRevisions(localRevisions);
@@ -256,7 +267,8 @@ function InterviewWorklist() {
         );
       }
       setRegistrations(r);
-      setQueued(a.length);
+      setActions(a);
+      setPausedProjects(paused);
     },
     [],
   );
@@ -275,12 +287,19 @@ function InterviewWorklist() {
         setDrafts([]);
         setCases([]);
         setRegistrations([]);
-        setQueued(0);
+        setActions([]);
+        setPausedProjects([]);
         setCanCodeNowUniqueIds([]);
         setSubmittedRevisions([]);
         setSubmittedRevisionsLoaded(false);
         setSubmittedRevisionsError(false);
         setMessage(errorText(error));
+        // Unsent work stays visible (as paused) when access is refused.
+        try {
+          await loadLocal(handle, current);
+        } catch {
+          // The cleared state is safer than retaining stale encrypted rows.
+        }
         return;
       }
       let latest: Awaited<ReturnType<typeof getCachedReferenceData>>;
@@ -309,7 +328,8 @@ function InterviewWorklist() {
       setDrafts([]);
       setCases([]);
       setRegistrations([]);
-      setQueued(0);
+      setActions([]);
+      setPausedProjects([]);
       try {
         await loadLocal(handle, current);
       } catch {
@@ -323,7 +343,7 @@ function InterviewWorklist() {
   const handleError = useCallback(
     async (error: unknown) => {
       if (error instanceof SessionRevokedError) {
-        Alert.alert(t("sessionRevoked"));
+        Alert.alert(errorText(error));
         clearVisible();
         await reload();
         router.replace("/");
@@ -754,24 +774,13 @@ function InterviewWorklist() {
 
   function confirmSignOut() {
     if (!account) return;
-    const doSignOut = async () => {
-      await signOut(account.user_id);
-      await reload();
-      router.replace("/");
-    };
-    const unsent = drafts.length + registrations.length + queued + revisions.length;
-    if (unsent === 0) {
-      void doSignOut();
-      return;
-    }
-    Alert.alert(t("signOut"), t("signOutUnsent", { count: unsent }), [
-      { text: t("cancel"), style: "cancel" },
-      {
-        text: t("signOutConfirm"),
-        style: "destructive",
-        onPress: () => void doSignOut(),
-      },
-    ]);
+    void confirmUnsentSignOut(account.user_id, () => {
+      void (async () => {
+        await signOut(account.user_id);
+        await reload();
+        router.replace("/");
+      })();
+    });
   }
 
   const selectedProject = (referenceData?.projects ?? []).find(
@@ -1108,6 +1117,26 @@ function InterviewWorklist() {
           ) : null}
         </Pressable>
       ))}
+      {pausedProjects.map((paused) => {
+        const count =
+          drafts.filter((row) => row.project_id === paused.projectId).length +
+          registrations.filter((row) => row.project_id === paused.projectId).length +
+          actions.filter((row) => row.project_id === paused.projectId).length +
+          revisions.filter((row) => row.project_id === paused.projectId).length;
+        return (
+          <View key={`paused-${paused.projectId}`} style={styles.card}>
+            <Text style={styles.text} accessibilityRole="header">
+              {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })}
+            </Text>
+            <Text style={styles.muted}>{t("pausedProjectReason")}</Text>
+            {paused.refusal ? (
+              <Text style={styles.error}>
+                {t("pausedProjectRefused", { code: paused.refusal.code ?? String(paused.refusal.status) })}
+              </Text>
+            ) : null}
+          </View>
+        );
+      })}
       <Text style={styles.text} accessibilityRole="header">
         {t("submittedInterviewsTitle")}
       </Text>

@@ -1,8 +1,12 @@
 /** Error identities shared by native and browser clients without native auth imports. */
 export class SessionRevokedError extends Error {
-  constructor() {
+  /** True when unsent work kept the store: the account is read-only, not wiped. */
+  readonly keptUnsent: boolean;
+
+  constructor(keptUnsent = false) {
     super("session_revoked");
     this.name = "SessionRevokedError";
+    this.keptUnsent = keptUnsent;
   }
 }
 

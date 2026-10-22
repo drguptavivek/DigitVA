@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Field Data Collection Policy
@@ -90,10 +90,42 @@ Requirements, all of which must hold before the app collects real data:
   (device, worker) pair, revocable server-side, and revoked automatically
   when the worker no longer holds any grant that opens a device session (see
   "Who may sign in on a device" below). Revocation wipes **that worker's store
-  only** and refuses further use under that account; other accounts on the
-  same handset are untouched.
+  only**, and only when it holds no unsent work (see "Unsent work is never
+  purged automatically" below), and refuses further use under that account;
+  other accounts on the same handset are untouched.
 - **Wipe on logout**, covering that interviewer's database, attachments and
-  cached keys.
+  cached keys. Sign-out states how many items are unsent and, when any are,
+  asks a second time; an account that only needs to sign in again is offered
+  "Sign in again", which keeps the store.
+- **Unsent work is never purged automatically** (owner decision 2026-10-22,
+  `digitva-tnr6`). A completed interview not yet acknowledged, an offline
+  registration, a queued contact attempt or visit, a queued revision or an
+  interview in progress stays on the device until the server acknowledges it
+  or the interviewer or a supervisor resolves it. Only rows the server has
+  acknowledged, and server copies the device can download again (cases and
+  their contacts, settings, form definitions), are deleted automatically.
+  - A project that leaves the worker's access (web intake turned off, a site
+    form deactivated, a grant paused) keeps its unsent rows. The worklist
+    shows "Project paused — N items waiting to send" with the reason; new
+    work in that project is blocked; every sync still tries to send the rows
+    first, before the access refresh, and a refusal keeps them and is shown.
+  - `session_revoked` with unsent work (or while the store is locked, so its
+    contents cannot be counted) does not wipe. The tokens are dropped and the
+    account is locked into a read-only "access removed — N items not sent;
+    contact your supervisor" state: no new work, the encrypted store kept.
+    Signing in again (if the server allows it) resumes sending. A later
+    unlock that finds nothing unsent completes the wipe.
+  - A new death registration being typed in the native app is kept in the
+    encrypted store with its client death id (`digitva-3o60`), cleared from
+    the screen while the app is hidden and restored on return; only Save or a
+    confirmed Discard removes it. The browser registration keeps its
+    wipe-on-hide rule.
+  - **Security trade-off, accepted by the owner:** after an administrative or
+    lost-device revoke, unsent interviews (with names, phone numbers and
+    answers) remain on the handset, encrypted under the interviewer's PIN and
+    the Keystore-held store secret; five wrong PINs still wipe the store. The
+    server can no longer receive the outstanding-work report for that device,
+    so the last report before revoke is the record of what it holds.
 - **Outstanding work is visible server-side.** Each sync reports the device's
   count of unsent interviews and their unique ids. Because there is no
   retention ceiling, this is the only way anyone can tell what a lost phone was
@@ -125,8 +157,9 @@ Built to `.tasks/2026-09-30-android-collection-app.md` (epic
   and (proposed addition) at most 90 days from sign-in, after which the
   interviewer signs in again. Expiry never loses data (the store is keyed by
   the PIN).
-- **Only revocation wipes.** The app wipes an interviewer's store only when
-  the server answers `session_revoked`, which it sends only for an
+- **Only revocation wipes**, and then only a store with no unsent work (see
+  "Unsent work is never purged automatically" above). The app wipes an
+  interviewer's store only when the server answers `session_revoked`, which it sends only for an
   administrative or device revoke (a lost phone must not keep data) or when
   the worker has no access left (every interviewer, coder, coding_tester and
   reviewer grant withdrawn, or their last project closed). Closing the device's enrolment project alone ends nothing while
@@ -202,7 +235,8 @@ name, both full phone numbers, the household address fields (address, house
 or street, village or ward, landmark) and the remarks. They come only from the
 single-case detail call, never from a list. They are kept exactly like
 drafts: deleted when the case leaves the active states, on logout, and on
-`session_revoked` (device or administrative revoke, withdrawn grant). ABHA
+`session_revoked` (device or administrative revoke, withdrawn grant); a case's
+contact copy is a server copy, so it goes even when unsent drafts are kept. ABHA
 number and address and the father's and mother's names are never in the
 detail's own fields (the case prefill keeps what it already carried). Cases
 in other states may be listed online without phone digits; the app does not
@@ -243,8 +277,10 @@ revoked there, and its closure ends the device). The session lasts while the
 worker holds at least one grant that opens a device session (an interviewer
 project, or a coder, coding_tester or reviewer grant elsewhere) and is revoked
 (`session_revoked`) when none remains. When a project drops out of the
-access summary's project list the app deletes that project's local data (drafts,
-cases, contact details), as it deletes a store on `session_revoked`. The
+access summary's project list the app deletes that project's server copies
+(cases, contact details, settings, form definitions) but keeps its unsent
+work (drafts, registrations, queued actions and revisions) as a paused
+project until it is sent or resolved (owner decision 2026-10-22). The
 browser (Path A, PWA included) is unchanged: no multi-project persistence
 and no offline storage.
 
@@ -434,7 +470,12 @@ Rule:
   version and renders it. Question, label, choice, relevance, constraint and
   order changes need no app build.
 - A draft stays on the version it started with. The app keeps a version
-  cached until every draft on it has uploaded.
+  cached until every draft on it has uploaded. Exception (2026-10-22,
+  digitva-oxvt): a draft saved without a definition pin (an earlier build)
+  whose form cannot be recovered exactly moves to the project's current form
+  with a visible notice and is pinned to it; answers to questions that form
+  no longer asks stay in the draft (section `_other`) but are not part of the
+  submission.
 - The definition names the engine version it needs. An app whose engine is
   older refuses it and asks for an update: new control types, expression
   functions or engine changes still need an app build.

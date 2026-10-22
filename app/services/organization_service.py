@@ -2816,6 +2816,84 @@ def lookup_existing_user(query: object, *, is_admin: bool = True) -> dict:
     }
 
 
+SUGGEST_LIMIT = 8
+SUGGEST_MIN_EMAIL = 3
+SUGGEST_MIN_DIGITS = 4
+SUGGEST_MAX_LEN = 128
+
+
+def suggest_existing_users(query: object, *, is_admin: bool = True) -> list[dict]:
+    """Up to 8 active accounts whose email (any text with a letter or ``@``,
+    from 3 characters) or canonical mobile (digits only, from 4) contains
+    *query*, case-insensitive: exact match first, then prefix, then by name.
+
+    Owner decision 2026-10-22 (organization-model.md): any admin or project
+    PI sees every matching account. A non-admin gets only the channel being
+    typed, as in ``lookup_existing_user``. A short or overlong query returns [].
+    """
+    from app.services.user_account_service import PHONE_CANONICAL
+
+    raw = str(query or "").strip().lower()
+    if len(raw) > SUGGEST_MAX_LEN:
+        return []
+    by_email = not raw.isdigit()
+    if by_email:
+        if len(raw) < SUGGEST_MIN_EMAIL:
+            return []
+        field = sa.func.lower(VaUsers.email)
+        match = field.contains(raw, autoescape=True)
+    else:
+        if len(raw) < SUGGEST_MIN_DIGITS:
+            return []
+        field = sa.func.coalesce(VaUsers.mobile_login, PHONE_CANONICAL)
+        match = field.contains(raw, autoescape=True)
+    # ponytail: contains-match is a sequential scan; fine at ~1k accounts,
+    # add a pg_trgm index on lower(email) and mobile_login past ~100k.
+    rank = sa.case((field == raw, 0), (field.startswith(raw, autoescape=True), 1), else_=2)
+    rows = db.session.execute(
+        sa.select(VaUsers.user_id, VaUsers.name, VaUsers.email, VaUsers.phone, VaUsers.mobile_login)
+        .where(match, VaUsers.user_status == VaStatuses.active)
+        .order_by(rank, VaUsers.name, VaUsers.user_id)
+        .limit(SUGGEST_LIMIT)
+    ).all()
+    suggestions = []
+    for user_id, name, email, phone, mobile_login in rows:
+        mobile = (phone or mobile_login) if (is_admin or not by_email) else None
+        suggestions.append({
+            "user_id": str(user_id),
+            "name": name,
+            "email": email if (is_admin or by_email) else None,
+            "mobile": mobile,
+        })
+    return suggestions
+
+
+def worker_data_collector_user(project_id: str, worker_id: object) -> VaUsers:
+    """The active, emailable account behind a worker that holds an active
+    interviewer or death_reporter grant in *project_id*, for the enrolment
+    email resend. Raises OrganizationError naming what is missing."""
+    worker = _get_worker(project_id, worker_id)
+    user = db.session.get(VaUsers, worker.user_id) if worker.user_id else None
+    if user is None or user.user_status != VaStatuses.active:
+        raise OrganizationError("This worker has no active DigitVA account.")
+    if not user.email:
+        raise OrganizationError("This worker has no email; use the QR on the Devices page.")
+    collector = db.session.scalar(
+        sa.select(VaUserAccessGrants.grant_id)
+        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+        .where(
+            VaUserAccessGrants.user_id == user.user_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            VaUserAccessGrants.role.in_((VaAccessRoles.interviewer, VaAccessRoles.death_reporter)),
+            sa.or_(VaUserAccessGrants.project_id == project_id, MasOrgUnit.project_id == project_id),
+        )
+        .limit(1)
+    )
+    if collector is None:
+        raise OrganizationError("This worker is not an interviewer or death reporter in this project.")
+    return user
+
+
 def sync_worker_unit_scope_grants(
     project_id: str,
     worker: MasOrgUnitWorker,

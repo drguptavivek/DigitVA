@@ -176,7 +176,7 @@ class BulkAddTests(BulkTestBase):
 
     def test_one_refused_row_of_several_roles_writes_nothing(self):
         user = self._made_by("b.mixroles")
-        with mock.patch.object(svc, "CODER_SLOTS", 0):
+        with mock.patch.object(svc, "_used_slots", return_value=set(range(1, 21))):  # every slot taken
             result = self._bulk([user], ["interviewer", "coder"], dry_run=False)
         self.assertFalse(result["applied"])
         self.assertEqual(self._participants(), [])
@@ -205,11 +205,12 @@ class BulkAddTests(BulkTestBase):
 
     def test_slot_exhaustion_is_refused(self):
         users = [self._made_by(f"b.full{i}") for i in range(3)]
-        with mock.patch.object(svc, "CODER_SLOTS", 2):
-            dry = self._bulk(users, "coder", dry_run=True)
-            self.assertEqual([r["action"] for r in dry["rows"]], ["add", "add", "refuse"])
-            self.assertEqual(dry["rows"][2]["reason"], svc.MESSAGES["no_free_coder_slot"])
-            applied = self._bulk(users, "coder", dry_run=False)
+        svc._find_session("S001").coder_slots = 2  # the session's own count bounds the slots
+        db.session.flush()
+        dry = self._bulk(users, "coder", dry_run=True)
+        self.assertEqual([r["action"] for r in dry["rows"]], ["add", "add", "refuse"])
+        self.assertEqual(dry["rows"][2]["reason"], svc.MESSAGES["no_free_coder_slot"])
+        applied = self._bulk(users, "coder", dry_run=False)
         self.assertFalse(applied["applied"])
         self.assertEqual(self._participants("coder"), [])
 

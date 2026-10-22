@@ -75,6 +75,10 @@ _RESOLVER = (
 )
 
 EXEMPT = {
+    "services/web_intake_service.py::case_submission_view": (
+        "reads one case's own workflow state to decide whether its submitter may still "
+        "revise it (revise_submission applies the same rule); never lists or counts coding work"
+    ),
     "services/synthetic_demo_service.py::_seed_cases": (
         "writes fresh synthetic workflow rows for the opted-in demo baseline; "
         "does not list or count existing coding work"

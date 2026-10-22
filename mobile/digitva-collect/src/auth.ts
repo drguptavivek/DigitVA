@@ -5,7 +5,12 @@
  *
  * Wipe rules (docs/policy/field-data-collection.md, Path B): only
  * `401 session_revoked` (admin or device revoke, grant withdrawn) wipes, and
- * it wipes that interviewer's store and tokens only. `session_ended`
+ * it wipes that interviewer's store and tokens only, and only when the
+ * unlocked store holds no unsent work. With unsent work, or while the store
+ * is locked (its contents cannot be counted), the tokens are dropped and the
+ * account is marked `access_removed`: read-only, its encrypted store kept
+ * until the interviewer signs in again or a later unlock finds nothing
+ * unsent (owner decision 2026-10-22). `session_ended`
  * (password reset or account deactivated) keeps the data. Losing the last
  * active project is session_revoked; losing one project is handled by access refresh.
  * Every other refusal of a refresh (`refresh_reused`, `409
@@ -50,6 +55,8 @@ export interface Account {
   reviewing_access?: boolean;
   /** The server refused the refresh token without revoking: sign in again, data kept. */
   needs_sign_in?: boolean;
+  /** session_revoked while unsent work remained: no new work, store kept, sign in again to send. */
+  access_removed?: boolean;
   terms_required?: boolean;
   /** A global bearer gate keeps local work but blocks collection until fixed. */
   access_blocked?: "maintenance";
@@ -314,15 +321,34 @@ export async function wipeInterviewer(userId: string): Promise<void> {
 }
 
 /** The server refused this interviewer's refresh without revoking: drop the dead tokens, flag the account, keep its data. */
-async function markSignInRequired(userId: string): Promise<void> {
+async function markSignInRequired(userId: string, accessRemoved = false): Promise<void> {
   await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
   const accounts = await loadAccounts();
   await writeJson(
     ACCOUNTS_KEY,
     accounts.map((a) =>
-      a.user_id === userId ? { ...a, needs_sign_in: true } : a,
+      a.user_id === userId
+        ? { ...a, needs_sign_in: true, ...(accessRemoved ? { access_removed: true } : {}) }
+        : a,
     ),
   );
+}
+
+/**
+ * session_revoked: wipe only when the unlocked store is known to hold no
+ * unsent work; otherwise keep the encrypted store and lock the account into
+ * the read-only "access removed" state.
+ */
+async function revokeInterviewer(userId: string): Promise<SessionRevokedError> {
+  const { unsentWorkCount } = require("./interviewerDb") as typeof import("./interviewerDb");
+  // ponytail: a locked store counts as "maybe unsent" and is kept; the next
+  // unlock finishes the wipe if it turns out empty (unlockInterviewer).
+  if ((await unsentWorkCount(userId)) === 0) {
+    await wipeInterviewer(userId);
+    return new SessionRevokedError();
+  }
+  await markSignInRequired(userId, true);
+  return new SessionRevokedError(true);
 }
 
 /** Sign out: tell the server (best effort, offline is fine), then wipe. */
@@ -347,9 +373,16 @@ export async function unlockInterviewer(
   userId: string,
   pin: string,
 ): Promise<UnlockResult> {
-  const { unlockInterviewerDb } = require("./interviewerDb") as typeof import("./interviewerDb");
+  const { unlockInterviewerDb, unsentWorkCount } = require("./interviewerDb") as typeof import("./interviewerDb");
   const result = await unlockInterviewerDb(userId, pin);
   if (!result.ok && result.wipe) await signOut(userId);
+  if (!result.ok) return result;
+  // A revoke that found the store locked kept it; now it can be counted.
+  const account = (await loadAccounts()).find((item) => item.user_id === userId);
+  if (account?.access_removed && (await unsentWorkCount(userId)) === 0) {
+    await wipeInterviewer(userId);
+    return { ok: false, failures: 0, wipe: true, revoked: true };
+  }
   return result;
 }
 
@@ -442,7 +475,8 @@ async function doRefresh(userId: string, server: string): Promise<Tokens> {
 }
 
 /**
- * Map a refused call to what the app does. Only `session_revoked` wipes;
+ * Map a refused call to what the app does. Only `session_revoked` wipes
+ * (and only a store with nothing unsent, revokeInterviewer);
  * any other 401, and 409 `refresh_retry_race` (the server rotated but the
  * response was lost), means "sign in again" with the data kept.
  */
@@ -461,10 +495,7 @@ export async function classifyAuthError(
     // mounted native screens cannot continue using stale scope.
     if (!accessRefreshes.has(userId)) await refreshAccessSummary(userId);
   }
-  if (error.status === 401 && error.code === "session_revoked") {
-    await wipeInterviewer(userId);
-    return new SessionRevokedError();
-  }
+  if (error.status === 401 && error.code === "session_revoked") return revokeInterviewer(userId);
   if (
     error.status === 401 ||
     (error.status === 409 && error.code === "refresh_retry_race")
@@ -479,7 +510,7 @@ export async function classifyAuthError(
  * An authenticated API call for one interviewer. On 401 it refreshes
  * once (or picks up tokens another call already rotated) and retries once.
  * A bodyFactory creates a fresh body for each HTTP attempt.
- * Throws SessionRevokedError (store already wiped), SignInRequiredError,
+ * Throws SessionRevokedError (store wiped, or kept read-only when work is unsent), SignInRequiredError,
  * ApiError, or the network error.
  */
 export async function authedRequest<T>(

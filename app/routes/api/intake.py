@@ -304,6 +304,11 @@ def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_su
     }
     if my_draft_id:
         links["form"] = url_for("intake.form_page", draft_id=my_draft_id)
+    # The submitted interview: read-only view (GET /va/<sid>/workspace?mode=view)
+    # and the submitter's correction (POST links.revise with a reason_code).
+    body.update(intake_svc.case_submission_view(current_user, death, my_submission))
+    if body["can_revise"]:
+        links["revise"] = url_for(".revise_submission", va_sid=death.va_sid)
     body["links"] = links
     return body
 

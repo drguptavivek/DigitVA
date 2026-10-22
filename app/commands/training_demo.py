@@ -1,11 +1,11 @@
 """Training & demo project (TRN01) operations.
 
   flask training-demo setup
-  flask training-demo create-session --name "..." --by admin@example.org
+  flask training-demo create-session --name "..." [--coder-slots 20] --by admin@example.org
   flask training-demo list-sessions
   flask training-demo add-participant S001 user@example.org coder,reviewer_data_manager --by admin@example.org
   flask training-demo remove-participant S001 user@example.org coder --by admin@example.org
-  flask training-demo check-source [--form-id UNSW01NC0101] [--limit 200]
+  flask training-demo check-source [--form-id UNSW01NC0101] [--limit N]
   flask training-demo report S001 --by admin@example.org [--csv coders.csv --cases-csv cases.csv]
   flask training-demo close-session S001 --by admin@example.org
   flask training-demo reopen-session S001 --by admin@example.org
@@ -22,7 +22,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import VaUsers
-from app.models.mas_training import PARTICIPANT_ROLES
+from app.models.mas_training import CODER_SLOTS, MAX_CODER_SLOTS, PARTICIPANT_ROLES
 from app.services import training_demo_service as service
 
 
@@ -57,7 +57,7 @@ def setup():
 
 @training_demo_group.command("check-source")
 @click.option("--form-id", default=service.DEFAULT_SOURCE_FORM_ID, show_default=True, help="Source ODK form.")
-@click.option("--limit", default=200, show_default=True, type=click.IntRange(1, 1000), help="Cases to check.")
+@click.option("--limit", default=None, type=click.IntRange(1, 1000), help="Cases to check (default: every source case).")
 def check_source(form_id, limit):
     """Read-only: pseudonymise the source cases in memory and print counts only."""
     _run(service.check_source, form_id, limit)
@@ -65,10 +65,12 @@ def check_source(form_id, limit):
 
 @training_demo_group.command("create-session")
 @click.option("--name", required=True, help="Session name, e.g. the training's place and date.")
+@click.option("--coder-slots", default=CODER_SLOTS, show_default=True, type=click.IntRange(1, MAX_CODER_SLOTS),
+              help="Coder slots of 10 pseudonymised cases each; cases repeat across slots beyond the source cases.")
 @by_option
-def create_session(name, by):
-    """Create a session: 20 coder slots and 200 pseudonymised cases."""
-    _run(lambda: service.create_training_session(name, _admin(by)))
+def create_session(name, coder_slots, by):
+    """Create a session: the chosen number of coder slots, 10 pseudonymised cases each."""
+    _run(lambda: service.create_training_session(name, _admin(by), coder_slots=coder_slots))
 
 
 @training_demo_group.command("list-sessions")

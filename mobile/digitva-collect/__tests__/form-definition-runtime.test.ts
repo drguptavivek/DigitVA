@@ -258,6 +258,65 @@ it("still rejects a pinless draft whose saved instrumentVersion is not the bundl
   expect(input.request).not.toHaveBeenCalled();
 });
 
+it("adopts the current definition for a pinless draft the bundle cannot resume, and only then", async () => {
+  const current = await verified(["geography"]);
+  const adopted = { instrument: baseInstrument, provenance: "served" as const, pin: readDefinitionPin({
+    instrumentVersion: version, definitionSha256: current.identity.sha256, definitionExtensions: ["geography"],
+  }) };
+  const adoptCurrentDefinition = jest.fn().mockResolvedValue(adopted);
+  // The staging case: an earlier build saved the bundle's version from an extension-bearing bundle, no pin.
+  const input = {
+    accountId,
+    projectId,
+    envelope: { instrumentId: "va_who_2022", instrumentVersion: "2026081401", data: { Id10007: "kept", gone_question: "kept" } },
+    request: jest.fn(),
+    cache: cache(),
+    narrationLanguageCodes: ["hindi"],
+    bundledLegacyDefinitions: [],
+    bundledOriginal: { instrument: baseInstrument, instrumentVersion: "2026081401", extensions: ["geography"] },
+    adoptCurrentDefinition,
+  };
+  await expect(resolveSavedEnvelopeDefinition(input)).resolves.toBe(adopted);
+  await expect(resolveSavedEnvelopeDefinition({ ...input, envelope: { ...input.envelope, instrumentVersion: "2025010101" } })).resolves.toBe(adopted);
+  expect(adoptCurrentDefinition).toHaveBeenCalledTimes(2);
+  // The envelope is never rewritten here; the draft store keeps its answers.
+  expect(input.envelope.data).toEqual({ Id10007: "kept", gone_question: "kept" });
+
+  adoptCurrentDefinition.mockClear();
+  // A bundle that resumes the draft exactly still wins.
+  await expect(resolveSavedEnvelopeDefinition({ ...input, bundledOriginal: { ...input.bundledOriginal, extensions: [] } }))
+    .resolves.toMatchObject({ provenance: "bundled-original", pin: null });
+  // An unsupported instrument or a missing version is never moved to this form.
+  await expect(resolveSavedEnvelopeDefinition({ ...input, envelope: { ...input.envelope, instrumentId: "OTHER_VA" } }))
+    .rejects.toMatchObject({ code: "unknown_saved_definition" });
+  await expect(resolveSavedEnvelopeDefinition({ ...input, envelope: { ...input.envelope, instrumentVersion: " " } }))
+    .rejects.toMatchObject({ code: "unknown_saved_definition" });
+  expect(adoptCurrentDefinition).not.toHaveBeenCalled();
+  expect(input.request).not.toHaveBeenCalled();
+});
+
+it("does not adopt the current definition for a pinned draft whose exact form is unavailable", async () => {
+  const value = await verified(["geography"]);
+  const adoptCurrentDefinition = jest.fn();
+  await expect(resolveSavedEnvelopeDefinition({
+    accountId,
+    projectId,
+    envelope: {
+      instrumentId: "WHO_2022_VA",
+      instrumentVersion: version,
+      definitionSha256: value.identity.sha256,
+      definitionExtensions: ["geography"],
+      data: {},
+    },
+    request: jest.fn().mockResolvedValue({ status: 404, body: null, headers: { etag: null, definitionSha256: null, contentEncoding: null } }),
+    cache: cache(),
+    narrationLanguageCodes: ["hindi"],
+    bundledLegacyDefinitions: [],
+    adoptCurrentDefinition,
+  })).rejects.toBeInstanceOf(FormDefinitionHistoryError);
+  expect(adoptCurrentDefinition).not.toHaveBeenCalled();
+});
+
 it("accepts va_who_2022 instrumentId and matches tag-filtered extensions from form-options", async () => {
   const value = await verified(["abha", "death_summary", "medical_records", "social_autopsy"]);
   const input = {

@@ -267,7 +267,7 @@ export function useUiStyles() {
 
 /** The UI string for an error from the device API; never shows server text or answers. */
 export function errorText(error: unknown): string {
-  if (error instanceof SessionRevokedError) return t("sessionRevoked");
+  if (error instanceof SessionRevokedError) return t(error.keptUnsent ? "accessRemovedKept" : "sessionRevoked");
   if (error instanceof SignInRequiredError) return t("signInAgain");
   if (error instanceof ApiError) {
     if (error.code === "enrolment_invalid") return t("errEnrolInvalid");

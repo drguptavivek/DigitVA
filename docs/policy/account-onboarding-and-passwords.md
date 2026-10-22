@@ -169,6 +169,10 @@ another person out.
   not destroy unsent device data (field-data-collection.md).
 - The app never stores the password; it stores only its device session
   token as field-data-collection.md describes.
+- A person given a new interviewer or death_reporter grant through Add
+  worker is emailed the device enrolment QR and the app link
+  ([mobile-sign-in.md](mobile-sign-in.md) section 6). That email carries no
+  password; it is sent apart from the verification or password email.
 
 ## 8. Existing accounts
 

@@ -1,11 +1,18 @@
 /**
  * Register a death with the web form's validation. Interviewers may save it
  * offline and start its questionnaire; reporter-only targets post online.
+ *
+ * A new registration being typed is kept in the encrypted store (debounced,
+ * and flushed when the app is hidden, the screen loses focus or the store
+ * locks) with its client death id, so returning restores it and a later save
+ * reuses the same id (no duplicate). The screen still clears the visible
+ * fields while hidden. Only Save or Discard (confirmed) removes the copy.
+ * The browser registration keeps its wipe-on-hide rule (src/web).
  */
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text, View } from "react-native";
+import { Alert, AppState, Text, View } from "react-native";
 import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
 import {
   resolveUiMessages,
@@ -40,7 +47,7 @@ import {
   validateRegistration,
   type RegistrationFields,
 } from "../cases";
-import { type Db } from "../drafts";
+import { getMeta, setMeta, type Db } from "../drafts";
 import { t, uiLocale, type StringKey } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { platformServices } from "../platform";
@@ -150,6 +157,26 @@ export function birthModeFor(fields: RegistrationFields): BirthMode {
   if (/^\d{4}$/.test(fields.date_of_birth_partial?.trim() ?? "")) return "year";
   if (fields.age_years?.trim()) return "unknown";
   return "exact";
+}
+
+/** The encrypted-store copy of the new registration being typed (one per interviewer). */
+const IN_PROGRESS_KEY = "registration-in-progress";
+
+interface InProgressRegistration {
+  clientDeathId: string;
+  projectId?: string;
+  siteId?: string;
+  orgUnitId?: string | null;
+  fields: RegistrationFields;
+  birthMode: BirthMode;
+  ageConfirmationPending: boolean;
+  ageConfirmationStartAfter: boolean;
+}
+
+function hasContent(fields: RegistrationFields): boolean {
+  const { identifiers, ...rest } = fields;
+  return Object.values(rest).some((value) => typeof value === "string" && value.trim() !== "") ||
+    Object.values(identifiers ?? {}).some((value) => typeof value === "string" && value.trim() !== "");
 }
 
 export function requiredBirthField(
@@ -320,7 +347,7 @@ export default function Register() {
     registrationCursor?: string;
     registrationSource?: string;
   }>();
-  const { accounts, lockVersion } = useAppState();
+  const { accounts, lockVersion, onBeforeLock } = useAppState();
   const account = accounts.find((a) => a.user_id === params.userId);
   const accountsRef = useRef(accounts);
   accountsRef.current = accounts;
@@ -361,35 +388,85 @@ export default function Register() {
   const operationGeneration = useRef(0);
   const appState = useRef(AppState.currentState);
   const focused = useRef(false);
+  // Only a new registration is kept while typing; an edit starts from its saved row.
+  const persistable = !editing && !serverDeathId;
+  const persistableRef = useRef(persistable);
+  persistableRef.current = persistable;
+  const [resumeVersion, setResumeVersion] = useState(0);
+  const hydrated = useRef(false);
+  const blurred = useRef(false);
+  const inProgressDb = useRef<Db | undefined>(undefined);
+  const pendingCopy = useRef<InProgressRegistration | undefined>(undefined);
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  /**
+   * Write the latest typed values now (or drop the copy when the form is
+   * empty). Writes are chained, so a lock waits for one already in flight.
+   */
+  const flushing = useRef<Promise<void>>(Promise.resolve());
+  const flushInProgress = useCallback(() => {
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = undefined;
+    const copy = pendingCopy.current;
+    const handle = inProgressDb.current;
+    pendingCopy.current = undefined;
+    if (!copy || !handle) return flushing.current;
+    flushing.current = flushing.current.then(async () => {
+      try {
+        if (hasContent(copy.fields)) await setMeta(handle, IN_PROGRESS_KEY, copy);
+        else await handle.runAsync("DELETE FROM meta WHERE key = ?", [IN_PROGRESS_KEY]);
+      } catch (error) {
+        console.warn(`registration copy not saved: ${error instanceof Error ? error.name : "error"}`);
+      }
+    });
+    return flushing.current;
+  }, []);
+
+  /** Saved or discarded: forget the copy and give the next registration its own id. */
+  const clearInProgress = useCallback(async (handle: Db) => {
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = undefined;
+    pendingCopy.current = undefined;
+    await flushing.current;
+    await handle.runAsync("DELETE FROM meta WHERE key = ?", [IN_PROGRESS_KEY]);
+    registrationId.current = randomUUID();
+  }, []);
+
+  /** Leaving the screen: keep the copy, then clear the visible fields. */
+  const hideFields = useCallback(() => {
+    void flushInProgress();
+    hydrated.current = false;
+    operationGeneration.current += 1;
+    serverBase.current = undefined;
+    serverUpdatedAt.current = undefined;
+    setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
+    setBusy(false);
+  }, [flushInProgress]);
+
+  useEffect(() => onBeforeLock?.(flushInProgress), [onBeforeLock, flushInProgress]);
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
+    if (blurred.current && persistableRef.current) setResumeVersion((version) => version + 1);
     return () => {
       focused.current = false;
-      operationGeneration.current += 1;
-      serverBase.current = undefined;
-      serverUpdatedAt.current = undefined;
-      setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
-      setBusy(false);
+      blurred.current = true;
+      hideFields();
     };
-  }, []));
+  }, [hideFields]));
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (next) => {
+      const previous = appState.current;
       appState.current = next;
-      if (next !== "active") {
-        operationGeneration.current += 1;
-        serverBase.current = undefined;
-        serverUpdatedAt.current = undefined;
-        setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
-        setBusy(false);
-      }
+      if (next !== "active") hideFields();
+      else if (previous !== "active" && persistableRef.current) setResumeVersion((version) => version + 1);
     });
     return () => {
       operationGeneration.current += 1;
       subscription.remove();
     };
-  }, []);
+  }, [hideFields]);
 
   useEffect(() => {
     if (!account) return;
@@ -398,6 +475,7 @@ export default function Register() {
     let active = true;
     setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
     setServerReadOnly(false);
+    hydrated.current = false;
     serverBase.current = undefined;
     serverUpdatedAt.current = undefined;
     void (async () => {
@@ -416,7 +494,11 @@ export default function Register() {
               : getNativeRegistrationCase(account.user_id, serverDeathId)
             : Promise.resolve(undefined),
         ]);
+        const saved = persistable
+          ? await getMeta<InProgressRegistration>(handle, IN_PROGRESS_KEY)
+          : undefined;
         if (!active || loadGeneration !== operationGeneration.current) return;
+        inProgressDb.current = handle;
         setDb(handle);
         setReferenceData(referenceData);
         setRegistrationAccess(access);
@@ -462,9 +544,19 @@ export default function Register() {
         const serverProjectId = serverExisting && typeof serverExisting.project_id === "string" ? serverExisting.project_id : undefined;
         const serverSiteId = serverExisting && typeof serverExisting.site_id === "string" ? serverExisting.site_id : undefined;
         const serverOrgUnitId = serverExisting && typeof serverExisting.org_unit_id === "string" ? serverExisting.org_unit_id : undefined;
+        const restored = saved && typeof saved.clientDeathId === "string" && saved.fields ? saved : undefined;
+        if (restored) {
+          registrationId.current = restored.clientDeathId;
+          setFields(restored.fields);
+          setBirthMode(restored.birthMode ?? birthModeFor(restored.fields));
+          setAgeConfirmationPending(restored.ageConfirmationPending === true);
+          setAgeConfirmationStartAfter(restored.ageConfirmationStartAfter === true);
+        }
+        if (persistable) hydrated.current = true;
         const nextProjectId =
           serverProjectId ??
           existing?.project_id ??
+          restored?.projectId ??
           params.projectId ??
           (registerProjects.length === 1
             ? registerProjects[0].project_id
@@ -504,6 +596,10 @@ export default function Register() {
               projectId: existing.project_id,
             },
           );
+        } else if (restored?.siteId && selectedChoices.some((c) =>
+          c.siteId === restored.siteId && (c.orgUnitId ?? null) === (restored.orgUnitId ?? null))) {
+          setTarget(selectedChoices.find((c) =>
+            c.siteId === restored.siteId && (c.orgUnitId ?? null) === (restored.orgUnitId ?? null)));
         } else if (selectedChoices.length === 1) {
           setTarget(selectedChoices[0]);
         } else if (!access && registrationOnly) {
@@ -518,7 +614,27 @@ export default function Register() {
     return () => {
       active = false;
     };
-  }, [account, editing, registrationOnly, serverDeathId, ownRegistrationSource, params.registrationCursor, lockVersion]);
+  }, [account, editing, registrationOnly, serverDeathId, ownRegistrationSource, params.registrationCursor, lockVersion, resumeVersion]);
+
+  // Keep the typed registration in the encrypted store, debounced.
+  useEffect(() => {
+    if (!persistable || !db || !hydrated.current) return;
+    pendingCopy.current = {
+      clientDeathId: registrationId.current,
+      ...(projectId ? { projectId } : {}),
+      ...(target ? { siteId: target.siteId, orgUnitId: target.orgUnitId ?? null } : {}),
+      fields,
+      birthMode,
+      ageConfirmationPending,
+      ageConfirmationStartAfter,
+    };
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => void flushInProgress(), 400);
+  }, [persistable, db, projectId, target, fields, birthMode, ageConfirmationPending, ageConfirmationStartAfter, flushInProgress]);
+
+  useEffect(() => () => {
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+  }, []);
 
   // The project's types come from the encrypted cache filled with the case list; an empty cache asks once.
   useEffect(() => {
@@ -727,6 +843,10 @@ export default function Register() {
           ...cleanRegistration(fields),
           client_death_id: clientDeathId,
         });
+        if (persistable) {
+          await clearInProgress(db);
+          hydrated.current = false;
+        }
         if (!current()) return;
         router.replace({
           pathname: "/worklist",
@@ -744,6 +864,10 @@ export default function Register() {
         org_unit_id: target.orgUnitId ?? null,
         fields: cleanRegistration(fields),
       });
+      if (persistable) {
+        await clearInProgress(db);
+        hydrated.current = false;
+      }
       if (!current()) return;
       if (!startAfter) {
         router.back();
@@ -779,6 +903,17 @@ export default function Register() {
     } finally {
       if (current()) setBusy(false);
     }
+  }
+
+  async function discard(handle: Db) {
+    await clearInProgress(handle);
+    setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
+    setBirthMode("exact");
+    setErrors({});
+    setIdErrors({});
+    setAgeConfirmationPending(false);
+    setAgeConfirmationStartAfter(false);
+    setMessage("");
   }
 
   const errorFor = (name: Field) =>
@@ -971,6 +1106,17 @@ export default function Register() {
           disabled={busy}
           onPress={() => router.back()}
         />
+        {persistable && db ? (
+          <Button
+            kind="danger"
+            label={t("discard")}
+            disabled={busy}
+            onPress={() => Alert.alert(t("discard"), t("registrationDiscardConfirm"), [
+              { text: t("cancel"), style: "cancel" },
+              { text: t("discard"), style: "destructive", onPress: () => void discard(db) },
+            ])}
+          />
+        ) : null}
       </Row>
     </Screen>
   );

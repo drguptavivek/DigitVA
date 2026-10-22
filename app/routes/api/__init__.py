@@ -18,11 +18,12 @@ from app.routes.api import (  # noqa: E402, F401
     data_management,
     doris_clinical,
     help_contextual,
-    identifier_types,
     icd10,
     icd11,
+    identifier_types,
     instruments,
     intake,
+    intake_consent,
     me,
     nqa,
     organization,
@@ -33,6 +34,7 @@ from app.routes.api import (  # noqa: E402, F401
     station_config,
     translation_suggestions,
     ui_strings,
+    users,
     va_case,
     va_definitions,
     workflow,
@@ -66,6 +68,7 @@ api_v1.register_blueprint(icd10.bp, url_prefix="/icd10")
 api_v1.register_blueprint(icd11.bp, url_prefix="/icd11")
 api_v1.register_blueprint(instruments.bp, url_prefix="/instruments")
 api_v1.register_blueprint(intake.bp, url_prefix="/intake")
+api_v1.register_blueprint(intake_consent.bp, url_prefix="/intake")
 api_v1.register_blueprint(me.bp, url_prefix="/me")
 api_v1.register_blueprint(nqa.bp, url_prefix="/va")
 api_v1.register_blueprint(organization.bp, url_prefix="/organization")
@@ -79,6 +82,7 @@ api_v1.register_blueprint(station_config.bp)
 api_v1.register_blueprint(bundles.bp)
 api_v1.register_blueprint(translation_suggestions.bp, url_prefix="/translations")
 api_v1.register_blueprint(ui_strings.bp, url_prefix="/ui-strings")
+api_v1.register_blueprint(users.bp, url_prefix="/users")
 api_v1.register_blueprint(va_case.bp, url_prefix="/va")
 api_v1.register_blueprint(va_definitions.bp, url_prefix="/va-definitions")
 api_v1.register_blueprint(workflow.bp, url_prefix="/workflow")

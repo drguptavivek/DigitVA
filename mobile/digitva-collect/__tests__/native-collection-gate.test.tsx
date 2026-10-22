@@ -3,7 +3,9 @@ import { act, create } from "react-test-renderer";
 
 let mockPathname = "/case";
 let mockParams: Record<string, string> = { userId: "worker" };
-const mockRouter = { replace: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockUnsentCount = jest.fn<Promise<number | undefined>, [string]>(async () => 0);
+const mockUpload = jest.fn(async () => ({ sent: 2, failed: 0, supersededUniqueIds: [], serverKeptUploads: [], canCodeNowUniqueIds: [] }));
 const mockRefreshAccess = jest.fn<Promise<unknown>, [string]>(async () => undefined);
 const mockReload = jest.fn(async () => undefined);
 const mockSignOut = jest.fn<Promise<void>, [string]>(async () => undefined);
@@ -11,7 +13,7 @@ const mockState = {
   ready: true,
   authenticated: true,
   bootstrap: { user: { user_id: "worker", name: "Worker" }, csrf: "csrf", access: { roles: [] }, capabilities: { intake: false, registerDeath: false, registeredDeaths: false } },
-  accounts: [{ user_id: "worker", name: "Worker", collection_access: false as boolean | undefined, registration_access: false as boolean | undefined }],
+  accounts: [{ user_id: "worker", name: "Worker", collection_access: false as boolean | undefined, registration_access: false as boolean | undefined } as Record<string, unknown>],
   reload: mockReload,
   lockNow: jest.fn(async () => undefined),
 };
@@ -31,7 +33,12 @@ jest.mock("../src/auth", () => ({
   refreshAccessSummary: (userId: string) => mockRefreshAccess(userId),
   signOut: (userId: string) => mockSignOut(userId),
 }));
-jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true }));
+jest.mock("../src/interviewerDb", () => ({
+  isUnlocked: () => true,
+  openInterviewerDb: async () => ({}),
+  unsentWorkCount: (userId: string) => mockUnsentCount(userId),
+}));
+jest.mock("../src/sync", () => ({ uploadQueuedWork: (...args: unknown[]) => mockUpload(...(args as [])) }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -152,4 +159,33 @@ it("shows pending copy without a collection link on the role-only browser worksp
   expect(output).toContain("codingReviewPending");
   expect(output).not.toContain("navCollection");
   await act(async () => tree.unmount());
+});
+
+describe("an account with unsent work and no collection session", () => {
+  it("offers Sign in again (keeping the store) instead of only sign-out", async () => {
+    mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: true, needs_sign_in: true, access_removed: true }];
+    mockUnsentCount.mockResolvedValue(3);
+    mockPathname = "/worklist";
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("accessRemovedUnsent");
+    const signInAgain = tree.root.findByProps({ label: "signInAgainAction" });
+    await act(async () => signInAgain.props.onPress());
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/sign-in", params: { userId: "worker" } });
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(tree.root.findAllByProps({ label: "sendUnsent" })).toHaveLength(0);
+  });
+
+  it("still sends unsent work when the session lasts but collection access is gone", async () => {
+    mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true }];
+    mockUnsentCount.mockResolvedValue(2);
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<NativeCollectionGate>stale case data</NativeCollectionGate>); });
+
+    expect(JSON.stringify(tree.toJSON())).toContain("unsentWaiting");
+    expect(tree.root.findAllByProps({ label: "signInAgainAction" })).toHaveLength(0);
+    await act(async () => tree.root.findByProps({ label: "sendUnsent" }).props.onPress());
+    expect(mockUpload).toHaveBeenCalledWith("worker", {});
+  });
 });

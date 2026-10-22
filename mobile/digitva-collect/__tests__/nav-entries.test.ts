@@ -26,12 +26,13 @@ const BEFORE: Array<[string, Fixture, string[]]> = [
   ["death reporter (register only)", { roles: ["death_reporter"], caps: { registerDeath: true } }, ["/death-registration"]],
   ["death reporter (my list only)", { roles: ["death_reporter"], caps: { registeredDeaths: true } }, ["/death-registration"]],
   ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/death-registration"]],
-  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/area/", "/data-management/"]],
+  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/area/", "/data-management/", "/users"]],
   ["mentor member", { mentor: { member: true } }, ["/mentoring"]],
   ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring"]],
   ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring"]],
-  ["platform admin", { is_admin: true }, ["/admin/"]],
-  ["admin role", { roles: ["admin"] }, ["/admin/"]],
+  ["platform admin", { is_admin: true }, ["/admin/", "/users"]],
+  ["admin role", { roles: ["admin"] }, ["/admin/", "/users"]],
+  ["project PI", { roles: ["project_pi"] }, ["/users"]],
   ["no role", {}, []],
 ];
 
@@ -53,7 +54,7 @@ test("order: the owner's primary items, then More in the owner's order", () => {
   });
   const { primary, more } = navEntries(all);
   expect(primary.map((entry) => entry.labelKey)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics"]);
-  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navSettings", "navWebsite", "navDataManagement", "navMentoring", "homeAdminConsole"]);
+  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navDataManagement", "navMentoring", "homeAdminConsole"]);
 });
 
 test("Deaths opens the deaths list for a user who interviews or reports deaths", () => {

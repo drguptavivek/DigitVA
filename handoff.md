@@ -3,117 +3,89 @@
 ## Start here
 
 Read `AGENTS.md`, `docs/current-state/README.md`, then the policy for the piece
-you take: `docs/policy/offline-api-contract.md`,
-`docs/policy/offline-bundle-and-transfer.md`, `docs/policy/pii-envelope-format.md`,
-`docs/policy/offline-phc-desktop-edition.md`, `docs/policy/icd11-local-api-runtime.md`,
-`docs/policy/pii-encryption-at-rest.md` (+ `docs/kb/pii-slice-*.md`),
-`docs/policy/death-registration-identifiers.md`. Stage explicit paths (`grep -Ev`
-filters, check the staged list), never stash, one full parallel run (`-n 4`) on a
-database of your own, one test database per concurrent agent. **The owner decides
-commit timing: hold all commits until the owner says go, then one commit.** The
-owner owns `vendor/who-va-2022`. Owners may edit accounts and translations: reread
-live state. Staging Hindi 40 in_review is the owner's live state: never overwrite.
+you take. Owner focus (bd memory `focus-2026-10-22`): the station app is paused;
+work on training (TRN01), the Expo web app and digitva-collect (Android, data
+collection only). digitva-coder will be a new Expo project in its own folder.
+Stage explicit paths (`grep -Ev` filters, check the staged list), never stash,
+one full parallel run (`-n 4`) on a database of your own, one test database per
+concurrent agent. **The owner decides commit timing: hold commits until the
+owner says go, then one commit.** The owner owns `vendor/who-va-2022`.
+Owners may edit accounts and translations: reread live state.
 
-## State (2026-10-22, late evening)
+## State (2026-10-22, night)
 
-`main` = `origin/main` = the owner-decisions commit on top of `4050fdcb6`
-(training) and `cac5d57a7` (area dashboard `qfh8`, CSRF fixes `ww5u`/`0trb`,
-one active allocation per user `igq7`). Migration chain head: `c5e8a1f4b2d9 →
-e2b7d4a9c6f1 → a7c3e9f1d5b2 → e3b7d1a9c4f2` (training tables); dev is at
-`e3b7d1a9c4f2`. The training session's work was taken over by this session
-(owner, 2026-10-22); its worktree and branch are removed.
+`main` = `origin/main`. Migration head: `c8e4a2f6b1d3 → d4a7c9e2f5b1` (consent
+notice approval) `→ f6b2d8a4c1e7` (training coder slots); dev is at the head.
+Hosts never compile: `smartva-rs` and the Expo web export are pinned GitHub
+releases downloaded and SHA-checked in Docker stages (pins in `x-release-pins`,
+`docker-compose.yml`). Dev serves the working tree's export
+(`EXPO_CLIENT_DIST=/app/mobile/digitva-collect/dist` in the override).
 
-Owner decisions landed 2026-10-22: reviewers may review cases they coded, in
-every project (`digitva-54in`, help text corrected, no guard); bundles made
-under an expired station config are refused with 422 `station_config_expired`
-(`digitva-xo2n`; superseded-but-unexpired still accepted); every account
-records `other.created_by_user_id` + `created_via` through
-`user_account_service.creation_other`; training is ON by default.
-
-Training & demo project `digitva-vd0g` (policy
-`docs/policy/training-demo-project.md`): project `TRN01` (WHO 2022 web, English
-form, English + Hindi narration, ICD-11 + DORIS, NQA and social autopsy off).
-Each training is a retained session: 200 consented `UNSW01NC0101` cases from the
-owner's frozen random list (`app/services/training_corpus/UNSW01NC0101.txt`),
-pseudonymised (names, addresses, phones, identifiers incl. inside the
-narrative; attachments kept original), 20 coder slots of 10. Trainees use their
-real accounts; admin adds them (one or several roles, single or bulk "accounts
-I created") in Admin > Training sessions; coders need Hindi. First sign-in shows
-a role checklist; public `/demo` page; trainer report at
-`/data-management/training/<code>` (progress, agreement with the source cause
-at WHO VA cause level, CSV); graduation CSV for the main project's users import.
-On by default: `DIGITVA_TRAINING_PROJECT_ID` defaults to `TRN01` (empty turns it
-off). Dev: `flask training-demo setup` done (TRN01, cadre, 2 units); no session
-created yet (Admin > Training sessions or `flask training-demo create-session`).
-Rehearsed on a clone of dev: 200 copies, 20x10,
-source untouched; only 28 of 228 attachments copied because dev holds only
-those files. `flask training-demo check-source` (read-only, counts only) found
-no residual original values in the 200.
-
-Drop after this commit: `minerva_test_xo2n`, `minerva_test_creator`.
+Staging: `https://digitvav3.causeofdeathindia.com`, AWS arm64
+`i-0b2caee6465bfcac1` (ap-south-1, profile `digitva`, `/data/DigitVA`); read-only
+checks via `aws ssm send-command` (the DB is external: query through
+`minerva_app_service` with `DATABASE_URL`). Never change staging without asking.
 
 ## Ranked next steps
 
-1. First training session on dev when an admin wants one (copies the 200 cases;
-   expect ~28 attachments on dev); on staging after the deploy (step 5) run
-   `flask training-demo setup`, then check the first session's
-   `attachments_copied` / `attachments_not_stored`.
-2. Remaining Fable review findings: `digitva-owqc` (N+1 in the allocation
-   sweep), `digitva-en2g` (admin NQA/SA without scope), `digitva-2s6p` (station
-   sign-out, duplicate React key, UTC dates, non-object JSON 500). Review
-   gotchas worth deciding: allocation timeout counts from start not last
-   activity; coding queue shows the data collector's name; hard-coded English
-   in workspace/queue/DORIS.
-3. `digitva-tz7b` station: five DORIS guidance routes (postcoordination offline),
-   picker assets in the export, Mac app shipping .NET 10 + WHO data, SIGTERM.
-4. `digitva-hs7e` ICD-11 + DORIS on the Expo Android app: NativeAOT library
-   proven in-app on an emulator (12/12 parity, ~0.9 GB peak); ~2–3 weeks to
-   integrate. Awaiting WHO's reply to the owner's email.
-5. Staging deploy (owner's word): PII + bundle signing keys
-   (`make ensure-secrets-prod`), image rebuild (now includes `smartva-rs`),
-   ICD service image + `icd11_runtime` volume, Expo export, migrations in a
-   maintenance window, verified dump; then `digitva-ddfx` Aadhaar sweep.
-6. Older: `9ffj`, `fx2c`, `pt0s`, `jkvl`, `athy` web consent UI, `ke83.11` Hindi
-   for ~100 station strings (English copies in `hi.json`), Tauri app, Android
-   release signing and per-ABI APK split, `ke83.9` SmartVA whitepaper fixes.
+1. Publish a new Expo web release (`npm run vendor:build`, `npm run
+   export:web`, tarball + `.sha256` as `expo-web-v<date>` on DigitVA) and bump
+   `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `x-release-pins`. The pinned
+   `expo-web-v2026.10.22` predates the consent, case-view, Users and Hindi fixes.
+2. `digitva-k4jt` digitva-collect: the QR may name any https server under
+   `causeofdeathindia.com` (owner decision; today a release build accepts only
+   `digitva.`, so staging cannot enrol); Settings shows the server read-only,
+   change = re-enrol, refused while anything is unsynced. Staging's
+   `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
+3. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
+   Users page.
+4. digitva-collect queue: `0vgh` phone consent (always required, like the
+   station), `cpx5` collection-only build, release key, per-ABI APK, GitHub
+   release link (the 19 Oct `android-v0.1.0` APK is stale), `zkgx`
+   questionnaire languages from the server (UI English + Hindi only), `jkvl`
+   audio/photo on the phone, `jish`, `wh4w`.
+5. Staging after deploy: Project Setup → HP0001 → Respondent consent → "Seed
+   from draft", approve when legal review is done, then switch "Require
+   respondent consent" on. `flask training-demo setup` if TRN01 is missing.
+6. Aakanksha's direct interview (staging, `88606c5b`, submitted fine at 06:58
+   UTC) was asked again for name/age at completion; the deceased section was
+   saved only at the second attempt. Unreproduced: need the exact message,
+   phone or browser, tabs. Two empty direct drafts of hers (`5d31cbd0`,
+   `cd39dff7`) sit at "Details pending".
+7. Older: `owqc`, `en2g`, `2s6p` (Fable review), `hs7e` ICD-11 on Android
+   (digitva-coder, deferred), `a6q9` KPI cards in UTC.
 
 ## Open owner decisions
 
-- Bulk import records `created_via: import` but its audit event says
-  `project_import`: align them?
-- ICD-11 licence inventory (`docs/kb/icd11-licence-inventory.md`): crosswalks
-  and their public serving, WHO map tables in the repo, labelling policy
-  columns, citation on bucket exports.
-- Grace period for superseded station configs' rosters (expired configs are
-  now refused).
-- Server ICD host uses more memory than the WHO container (535–680 MB idle,
-  1.13 GB peak, 2 GB cap); `DOTNET_gcServer=0` trades 2–3x latency under load.
-- Masked projects get no station coding (no Step 1 on the station).
-- Revoke dialog second confirm; parents' names consent coverage; retention and
-  legal review (Aadhaar vault, DPDP); seal `Id10021`?
+- Staging draft `84e711b0` (empty, Test Admin, created by opening a start link):
+  discard?
+- Enrolment email code lifetime (24 h, single use) and whether PIs may send it.
+- Users page: device sessions and activity counts are shown across the viewed
+  user's projects / whole project, not only the viewer's subtree.
+- Hindi strings of the Users page are the writer's translations: review.
+- Web consent gaps: server accepts a submission with no consent decision when
+  no covered answer is filled; a refusal while editing a registration is not
+  sent; withdrawal.
+- ICD-11 licence inventory (`docs/kb/icd11-licence-inventory.md`); bulk import
+  `created_via: import` vs audit `project_import`.
 
 ## Decisions already made (do not reopen)
 
-Supervision only in the Deaths tab; admin is a PII holder; Aadhaar last 3
-digits; phones encrypted but shown; key files outside the repo; offline
-informant fields always need consent; station coding mode = project mode;
-station coding gate = registered station + rostered coder; Python is the rule
-authority (Rust/TS follow via shared vectors); server runs SmartVA and ICD-11 on
-Rust; ICD service stays a separate container (one engine copy for all workers);
-station runs the engine in-process; reviewers may review their own coding;
-expired station configs are refused; every account records its creator;
-training on by default.
+Corrections are submitter-only; respondent consent is required when the project
+turns it on, notice seeded from the draft (en + hi), editable, "pending legal
+review" until an admin approves; Deaths menu hidden for direct-only
+interviewers, supervisors keep it; Add worker suggests all accounts and emails
+the enrolment QR + APK link to data collectors only; non-admin enrolment codes
+are single use within 60 minutes; training coder slots are chosen per session
+(1–100, cases repeat across slots); reviewers may review their own coding;
+expired station configs are refused; every account records its creator; the
+WHO ICD container stays on servers (Rust ICD licensing unresolved).
 
 ## Caveats
 
-- Station needs `DIGITVA_ICD11_BUNDLE_DIR` (and .NET 10) for ICD-11 + DORIS;
-  `/tmp/icdapi_portable` works on this Mac. After the engine loads, the station
-  ignores SIGTERM: stop it with SIGKILL.
-- Fixture generators: `python -m tests.test_station_config_fixture --write` hits
-  a pre-existing circular import; run it through `runpy` after `import app.utils`
-  (see the command in the station-config fixture test history) or the env-gated
-  pytest for bundle vectors (`DIGITVA_WRITE_BUNDLE_VECTORS=1`).
-- `cargo` is at `~/.cargo/bin` only. Other people's stations may run on
-  18420/18421; use another port.
-- `resource/smartva-phmrc-dataset/` (49 MB) is untracked and not part of this
-  work. Dev `.env` holds throwaway keys under `private/`.
+- Shared Python venv volume `digitva_minerva_venv` must be refreshed after an
+  image rebuild (stop app/worker/beat, `docker volume rm`, `up -d`).
+- `.dockerignore` excludes `desktop/` and `vendor/who-icd11-api/` (they made
+  images 6 GB+).
+- `resource/smartva-phmrc-dataset/` and `docs/from-server/` are untracked and
+  not part of this work.

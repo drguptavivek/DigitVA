@@ -192,7 +192,7 @@ test("bottom bar: the owner's labels and order, icons hidden from assistive tech
   expect(bar()!.querySelector("a[href='/area/']")!.textContent).toBe("Statistics");
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Organization", "Settings", "Website", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
+  expect(labels).toEqual(["Organization", "Users", "Settings", "Website", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
   const website = host.querySelector<HTMLAnchorElement>("[role='menuitem'][href='/vaindex']")!;
   expect([website.target, website.rel]).toEqual(["_blank", "noopener"]);
   expect(host.querySelector("[role='menuitem'][href='/app/organization']")).not.toBeNull();

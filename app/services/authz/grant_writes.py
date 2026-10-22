@@ -258,3 +258,25 @@ def grant_list_filter(actor, *, _grants: ResolvedGrants | None = None) -> sa.Col
         return sa.false()
     not_own_dm = sa.not_(sa.and_(_G.role == _R.data_manager, _G.user_id == g.user_id))
     return sa.and_(sa.or_(*clauses), not_own_dm)
+
+
+def _view_clause(actor: Grant) -> sa.ColumnElement:
+    if actor.scope_type == _U:
+        return _in_subtree(actor, strict=False)
+    if actor.scope_type == _PS:
+        return sa.and_(_G.scope_type == _PS, _G.project_site_id == actor.project_site_id)
+    return _at_project(actor.project_id, (_P, _PS, _U))
+
+
+def user_list_filter(actor, *, _grants: ResolvedGrants | None = None) -> sa.ColumnElement:
+    """Predicate over ``VaUserAccessGrants``: the grants, of every role, that
+    place their holder on *actor*'s Users page (access-control-model.md,
+    "Users page"). Admin: every grant (the page also lists grantless
+    accounts to an admin); project_pi: their project; data_manager or
+    In-charge: their own subtree. ``sa.false()`` for anyone else."""
+    mark_consulted()
+    g = _grants if _grants is not None else resolve_grants(actor)
+    if g.is_admin:
+        return sa.true()
+    clauses = [_view_clause(x) for x in writer_grants(g)]
+    return sa.or_(*clauses) if clauses else sa.false()

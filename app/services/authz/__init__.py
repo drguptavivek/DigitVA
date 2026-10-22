@@ -20,7 +20,8 @@ workflow services.
   that belongs to one role), ``codes_as_tester`` whether only the
   coding_tester lane reaches a submission (its output is tester output).
 - ``can_grant(actor, GrantTarget)`` / ``grant_list_filter(actor)``: grant
-  writes and the grant lists, one rule.
+  writes and the grant lists, one rule. ``user_list_filter(actor)``: the
+  grants that place a user on the actor's Users page (every role, in scope).
 - ``effective_roles(user)``: which ``role_required`` gates the user opens.
 - ``reachable_unit_ids(user, project_id, roles)``: the units of a project
   the user may browse (unit picker, device unit list, area dashboard).
@@ -48,6 +49,7 @@ from app.services.authz.grant_writes import (
     GrantTarget,
     can_grant,
     grant_list_filter,
+    user_list_filter,
     writer_grants,
 )
 from app.services.authz.grants import (
@@ -111,5 +113,6 @@ __all__ = [
     "resolve_grants",
     "scope_filter",
     "subtree_select",
+    "user_list_filter",
     "writer_grants",
 ]

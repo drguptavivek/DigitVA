@@ -199,6 +199,13 @@ def provisioning_qr_svg(uri: str) -> str:
     return buf.getvalue().decode("utf-8")
 
 
+def provisioning_qr_png(uri: str) -> bytes:
+    """The same QR as a PNG, for email: most mail clients drop inline SVG."""
+    buf = io.BytesIO()
+    segno.make(uri, error="m").save(buf, kind="png", scale=6, border=4)
+    return buf.getvalue()
+
+
 def _totp_step(for_time: float, interval: int) -> int:
     return int(for_time) // interval
 

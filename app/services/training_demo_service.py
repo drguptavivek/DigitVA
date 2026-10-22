@@ -1,8 +1,9 @@
 """Training & demo project (TRN01): training sessions, participants and onboarding.
 
 Policy: docs/policy/training-demo-project.md. The project is permanent and
-signed-in only. A trainer (admin) creates a training session, which copies 200
-consented cases from a real ODK form with names, addresses and phone-like
+signed-in only. A trainer (admin) creates a training session with a chosen
+number of coder slots, which copies ten consented cases per slot from a real
+ODK form with names, addresses and phone-like
 identifiers replaced (``training_pseudonymiser``), and then adds existing users
 to it in a role. Sessions are retained; closing one only deactivates its
 participants' grants. Every function here is a service call: callers check that
@@ -54,16 +55,20 @@ from app.models import (
     VaUsers,
 )
 from app.models.mas_training import (
-    CASES_PER_SESSION,
     CASES_PER_SLOT,
     CODER_SLOTS,
+    MAX_CODER_SLOTS,
     PARTICIPANT_ROLES,
 )
 from app.services import authz
 from app.services import organization_service as org
 from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError, _spreadsheet_safe
-from app.services.training_pseudonymiser import COUNT_KEYS, pseudonymise_payload, residual_categories
+from app.services.training_pseudonymiser import (
+    COUNT_KEYS,
+    pseudonymise_payload,
+    residual_categories,
+)
 from app.services.user_account_service import mask_mobile
 
 log = logging.getLogger(__name__)
@@ -82,6 +87,8 @@ TRAINING_RECODE_WINDOW_MINUTES = 60
 DISTRICT_UNIT_CODE = "TRNDH"
 CHC_UNIT_CODE = "TRNCHC"
 NAME_MAX = 200
+#: Source cases read when the form has no frozen corpus list.
+SOURCE_ROWS_DEFAULT = 200
 
 MESSAGES = {
     "target_not_configured": "Set DIGITVA_TRAINING_PROJECT_ID=TRN01 to enable the training project.",
@@ -93,7 +100,8 @@ MESSAGES = {
     "form_missing": "The training project has no active web form; run setup first.",
     "source_form_missing": "The source form does not exist.",
     "source_is_training": "The source form belongs to the training project.",
-    "not_enough_source_cases": "The source form has fewer than 200 eligible cases.",
+    "not_enough_source_cases": "The source form does not have enough eligible cases.",
+    "invalid_coder_slots": "Give the session 1 to 100 coder slots.",
     "invalid_name": "Give the session a name of 1 to 200 characters.",
     "admin_required": "Only an administrator may do this.",
     "session_not_found": "Training session not found.",
@@ -104,7 +112,7 @@ MESSAGES = {
     "user_inactive": "That user's account is not active.",
     "already_participant": "That user already has this role in the session.",
     "participant_not_found": "That user does not have this role in the session.",
-    "no_free_coder_slot": "All 20 coder slots of this session are taken.",
+    "no_free_coder_slot": "All coder slots of this session are taken.",
     "grant_not_allowed": "The access rules refused the training grant.",
     "coder_language_missing": "Add {languages} to this user's coding languages first.",
     "session_unit_conflict": "A unit with this session's code already exists in the training project.",
@@ -340,6 +348,28 @@ def _slot_of(case_number: int) -> int:
     return (case_number - 1) // CASES_PER_SLOT + 1
 
 
+def _clean_coder_slots(value) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_CODER_SLOTS:
+        raise TrainingDemoError("invalid_coder_slots")
+    return value
+
+
+def _source_order(coder_slots: int, available: int) -> list[int]:
+    """Source row index of each case copy, in case-number order.
+
+    Slot ``k`` takes ten consecutive source rows, wrapping around the
+    *available* rows (at least ``CASES_PER_SLOT``), so a slot never holds one
+    source case twice. Each further pass over the sources starts three rows
+    later, so a slot of a later pass is not a copy of an earlier slot.
+    """
+    order = []
+    for slot in range(coder_slots):
+        first = slot * CASES_PER_SLOT
+        start = (first + 3 * (first // available)) % available
+        order.extend((start + i) % available for i in range(CASES_PER_SLOT))
+    return order
+
+
 def slot_unit_code(session_code: str, slot: int) -> str:
     return f"{session_code}_C{slot:02d}"
 
@@ -357,10 +387,12 @@ def _corpus_sids(source_form_id: str) -> list[str] | None:
     return [line for line in lines if line and not line.startswith("#")]
 
 
-def _load_source_rows(source_form_id: str, limit: int = CASES_PER_SESSION, *, strict: bool = True) -> list:
-    """*limit* eligible source cases, in one query: active payload version,
-    consent given. A frozen corpus list fixes which cases and their order;
-    otherwise the first by va_sid. *strict* refuses fewer than *limit*."""
+def _load_source_rows(source_form_id: str, limit: int | None = None, *, strict: bool = True) -> list:
+    """Eligible source cases, in one query: active payload version, consent
+    given. A frozen corpus list fixes which cases and their order (all of it,
+    or its first *limit*); otherwise the first *limit* (default
+    ``SOURCE_ROWS_DEFAULT``) by va_sid. *strict* refuses a listed case that is
+    not eligible, and fewer than ``CASES_PER_SLOT`` cases."""
     corpus = _corpus_sids(source_form_id)
     query = (
         sa.select(VaSubmissions, VaSubmissionPayloadVersion)
@@ -376,14 +408,15 @@ def _load_source_rows(source_form_id: str, limit: int = CASES_PER_SESSION, *, st
         )
     )
     if corpus is not None:
-        rows = db.session.execute(query.where(VaSubmissions.va_sid.in_(corpus[:limit]))).all()
+        listed = corpus[:limit] if limit else corpus
+        rows = db.session.execute(query.where(VaSubmissions.va_sid.in_(listed))).all()
         order = {sid: number for number, sid in enumerate(corpus)}
         rows.sort(key=lambda row: order[row[0].va_sid])
-        if strict and len(rows) < limit:
+        if strict and len(rows) < max(len(listed), CASES_PER_SLOT):
             raise TrainingDemoError("not_enough_source_cases")
         return rows
-    rows = db.session.execute(query.order_by(VaSubmissions.va_sid).limit(limit)).all()
-    if strict and len(rows) < limit:
+    rows = db.session.execute(query.order_by(VaSubmissions.va_sid).limit(limit or SOURCE_ROWS_DEFAULT)).all()
+    if strict and len(rows) < CASES_PER_SLOT:
         raise TrainingDemoError("not_enough_source_cases")
     return rows
 
@@ -448,11 +481,13 @@ def _new_payload(source: dict, *, sid: str, form_id: str, code: str, number: int
 def _copy_attachments(source_form_id: str, form_id: str, sid_pairs: dict, created: list):
     """New attachment rows (and stored objects) for the copies; same bytes.
 
-    ``sid_pairs`` is ``{source_sid: new_sid}``. Every object written is
-    appended to *created* so a failed session can remove them. A source row
-    whose object is missing is skipped and counted; a row with no stored
-    object in DigitVA (never downloaded, or gone from ODK) is not copied and
-    is counted as not stored. Returns ``(rows, skipped, not_stored)``.
+    ``sid_pairs`` is ``{source_sid: [new_sid, ...]}``: a source case copied
+    into several slots gives each copy its own row and stored object. Every
+    object written is appended to *created* so a failed session can remove
+    them. A source row whose object is missing is skipped and counted once per
+    copy; a row with no stored object in DigitVA (never downloaded, or gone
+    from ODK) is not copied and is counted once per copy as not stored.
+    Returns ``(rows, skipped, not_stored)``.
     """
     from app.services.attachment_service import generate_storage_name
     from app.services.attachment_store import StoreTarget, get_attachment_store
@@ -464,66 +499,76 @@ def _copy_attachments(source_form_id: str, form_id: str, sid_pairs: dict, create
         sa.select(VaSubmissionAttachments).where(VaSubmissionAttachments.va_sid.in_(list(sid_pairs)))
     ).all()
     sources = [a for a in every if a.exists_on_odk and a.storage_name is not None]
-    not_stored = len(every) - len(sources)
+    not_stored = sum(len(sid_pairs[a.va_sid]) for a in every) - sum(len(sid_pairs[a.va_sid]) for a in sources)
     rows, skipped = [], 0
     for src in sources:
-        name = generate_storage_name(src.filename)
-        target = StoreTarget(form_id, name)
+        new_sids = sid_pairs[src.va_sid]
         source_target = StoreTarget(source_form_id, src.storage_name, src.local_path)
         content_type = src.mime_type or src.source_mime_type
-        local_path = None
-        if is_s3:
-            if not store.exists(source_target):
-                skipped += 1
-                continue
-            fd, tmp = tempfile.mkstemp(prefix="digitva_trn_")
-            os.close(fd)
-            try:
-                store.get_key(f"{source_form_id}/media/{src.storage_name}", tmp)
-                store.put(target, tmp, content_type=content_type)
-            finally:
-                if os.path.exists(tmp):
-                    os.remove(tmp)
-        else:
-            path = store.open_local_path(source_target)
-            if path is None:
-                skipped += 1
-                continue
-            local_path = store.put(target, path, content_type=content_type)
-        created.append(target)
-        rows.append(
-            VaSubmissionAttachments(
-                va_sid=sid_pairs[src.va_sid],
-                filename=src.filename,
-                local_path=local_path,
-                mime_type=src.mime_type,
-                etag=None,
-                exists_on_odk=True,
-                last_downloaded_at=src.last_downloaded_at,
-                storage_name=name,
-                source_state=src.source_state,
-                source_verified_at=src.source_verified_at,
-                source_mime_type=src.source_mime_type,
-                derivative_state=src.derivative_state,
-                derivative_mime_type=src.derivative_mime_type,
-                derivative_source_validator=src.derivative_source_validator,
-                derivative_verified_at=src.derivative_verified_at,
-                store_state="s3" if is_s3 else "local",
-                local_fallback_state="absent" if is_s3 else "present",
-            )
-        )
+        tmp = None
+        try:
+            if is_s3:
+                if not store.exists(source_target):
+                    skipped += len(new_sids)
+                    continue
+                fd, tmp = tempfile.mkstemp(prefix="digitva_trn_")
+                os.close(fd)
+                store.get_key(f"{source_form_id}/media/{src.storage_name}", tmp)  # once for every copy
+                path = tmp
+            else:
+                path = store.open_local_path(source_target)
+                if path is None:
+                    skipped += len(new_sids)
+                    continue
+            for new_sid in new_sids:
+                name = generate_storage_name(src.filename)
+                target = StoreTarget(form_id, name)
+                stored = store.put(target, path, content_type=content_type)
+                created.append(target)
+                rows.append(_attachment_copy(src, new_sid, name, None if is_s3 else stored, is_s3))
+        finally:
+            if tmp and os.path.exists(tmp):
+                os.remove(tmp)
     return rows, skipped, not_stored
 
 
-def create_training_session(name, created_by, *, source_form_id: str | None = None) -> dict:
-    """Create a training session with 200 pseudonymised case copies. One transaction.
+def _attachment_copy(src, new_sid: str, name: str, local_path, is_s3: bool) -> VaSubmissionAttachments:
+    return VaSubmissionAttachments(
+        va_sid=new_sid,
+        filename=src.filename,
+        local_path=local_path,
+        mime_type=src.mime_type,
+        etag=None,
+        exists_on_odk=True,
+        last_downloaded_at=src.last_downloaded_at,
+        storage_name=name,
+        source_state=src.source_state,
+        source_verified_at=src.source_verified_at,
+        source_mime_type=src.source_mime_type,
+        derivative_state=src.derivative_state,
+        derivative_mime_type=src.derivative_mime_type,
+        derivative_source_validator=src.derivative_source_validator,
+        derivative_verified_at=src.derivative_verified_at,
+        store_state="s3" if is_s3 else "local",
+        local_fallback_state="absent" if is_s3 else "present",
+    )
 
-    Builds the session root unit (named after the session) with 20 coder-slot
-    units, copies 200 eligible cases of *source_form_id* (default the UNSW01
-    NC01 form; its frozen list in ``training_corpus/`` when one exists) as ``trn-<code>-<n>`` under the TRN01 web form, case ``n``
+
+def create_training_session(
+    name, created_by, *, source_form_id: str | None = None, coder_slots: int = CODER_SLOTS
+) -> dict:
+    """Create a training session with *coder_slots* (1..100) slots of ten
+    pseudonymised case copies each. One transaction.
+
+    Builds the session root unit (named after the session) with one unit per
+    coder slot, copies ten eligible cases of *source_form_id* (default the
+    UNSW01 NC01 form; its frozen list in ``training_corpus/`` when one exists)
+    into each slot as ``trn-<code>-<n>`` under the TRN01 web form, case ``n``
     routed to slot ``((n-1)//10)+1``, state ``ready_for_coding``, and records
-    the source case's authoritative final cause as the answer key. Source rows
-    are never changed. Returns ``get_training_session(...)`` plus
+    the source case's authoritative final cause as the answer key. With more
+    slots than the sources fill, a source case is copied into more than one
+    slot (``_source_order``); every copy is its own case. Source rows are
+    never changed. Returns ``get_training_session(...)`` plus
     ``replacements`` (counts of names, addresses, identifiers and text
     occurrences replaced), ``attachments_copied``, ``attachments_skipped``
     (stored object missing) and ``attachments_not_stored`` (no stored object in
@@ -533,6 +578,7 @@ def create_training_session(name, created_by, *, source_form_id: str | None = No
     """
     _require_configured()
     name = _clean_name(name)
+    coder_slots = _clean_coder_slots(coder_slots)
     actor = _require_admin(created_by)
     source_form_id = source_form_id or DEFAULT_SOURCE_FORM_ID
     created_objects: list = []
@@ -557,13 +603,14 @@ def create_training_session(name, created_by, *, source_form_id: str | None = No
             )
         )
         code = f"S{existing + 1:03d}"
-        session_row, slot_units = _create_units_and_session(code, name, actor)
+        session_row, slot_units = _create_units_and_session(code, name, actor, coder_slots)
 
         replacements = dict.fromkeys(COUNT_KEYS, 0)
         new_subs, new_versions, cases, pairs = [], [], [], {}
         from app.services.va_data_sync.va_data_sync_01_odkcentral import build_submission_projection
 
-        for number, (source, version) in enumerate(rows, start=1):
+        for number, index in enumerate(_source_order(coder_slots, len(rows)), start=1):
+            source, version = rows[index]
             sid = f"trn-{code}-{number}"
             slot = _slot_of(number)
             payload, counts = _new_payload(
@@ -592,14 +639,14 @@ def create_training_session(name, created_by, *, source_form_id: str | None = No
                     source_final_cod=causes.get(source.va_sid),
                 )
             )
-            pairs[source.va_sid] = sid
+            pairs.setdefault(source.va_sid, []).append(sid)
         db.session.add_all(new_subs)
         db.session.flush()
 
         from app.services.submission_payload_version_service import write_payload_version
 
         now = _utcnow()
-        by_sid = {s.va_sid: s for s in new_subs}
+        versions = []
         for sid, payload, source_version in new_versions:
             version = VaSubmissionPayloadVersion(
                 va_sid=sid,
@@ -612,11 +659,14 @@ def create_training_session(name, created_by, *, source_form_id: str | None = No
                 attachments_expected=source_version.attachments_expected,
                 validation_err=[],
             )
-            # The one payload writer: sealed fields go to the side row when the split is on.
+            # The one payload writer: sealed fields go to the side row when the split is on
+            # (it then flushes each version itself, to seal under the version's id).
             write_payload_version(version, payload, new=True)
-            db.session.add(version)
-            db.session.flush()
-            by_sid[sid].active_payload_version_id = version.payload_version_id
+            versions.append(version)
+        db.session.add_all(versions)
+        db.session.flush()
+        for sub, version in zip(new_subs, versions, strict=True):
+            sub.active_payload_version_id = version.payload_version_id
         attachment_rows, skipped, not_stored = _copy_attachments(source_form_id, form.form_id, pairs, created_objects)
         db.session.add_all(attachment_rows)
         db.session.add_all(
@@ -644,11 +694,12 @@ def create_training_session(name, created_by, *, source_form_id: str | None = No
     return summary
 
 
-def check_source(source_form_id: str | None = None, limit: int = CASES_PER_SESSION) -> dict:
+def check_source(source_form_id: str | None = None, limit: int | None = None) -> dict:
     """Dry run of the pseudonymiser over the real source cases: counts only.
 
-    Loads the same deterministic selection as session creation (joined sealed
-    payloads), pseudonymises each case in memory and reports how many cases
+    Loads the same deterministic selection as session creation, each source
+    case once (joined sealed payloads; *limit* keeps the first ones),
+    pseudonymises each case in memory and reports how many cases
     still hold any original personal value (``residual_cases``, split by kind
     in ``residual_by_type``). Writes nothing and reads no training table, so
     it works before the training migration. Never returns a value.
@@ -688,7 +739,7 @@ def _remove_objects(targets: list) -> None:
             log.warning("training session: could not remove a copied attachment object")
 
 
-def _create_units_and_session(code: str, name: str, actor: VaUsers):
+def _create_units_and_session(code: str, name: str, actor: VaUsers, coder_slots: int):
     levels = {level.level_code: level for level in org.list_levels(TRAINING_PROJECT_ID)}
     chc = org.find_unit_by_code(TRAINING_PROJECT_ID, CHC_UNIT_CODE)
     if chc is None or "phc" not in levels or "subcentre" not in levels:
@@ -704,7 +755,7 @@ def _create_units_and_session(code: str, name: str, actor: VaUsers):
     except OrganizationError as exc:
         raise TrainingDemoError("session_unit_conflict") from exc
     slot_units = {}
-    for slot in range(1, CODER_SLOTS + 1):
+    for slot in range(1, coder_slots + 1):
         unit_code = slot_unit_code(code, slot)
         slot_units[slot] = MasOrgUnit(
             project_id=TRAINING_PROJECT_ID,
@@ -721,6 +772,7 @@ def _create_units_and_session(code: str, name: str, actor: VaUsers):
         name=name,
         created_by=actor.user_id,
         org_unit_id=root.org_unit_id,
+        coder_slots=coder_slots,
     )
     db.session.add(session_row)
     db.session.flush()
@@ -794,9 +846,9 @@ def list_training_sessions() -> list[dict]:
             **_session_fields(row),
             "participants_by_role": {role: by_role.get(sid, {}).get(role, 0) for role in PARTICIPANT_ROLES},
             "coder_slots_used": slots.get(sid, 0),
-            "coder_slots_total": CODER_SLOTS,
+            "coder_slots_total": row.coder_slots,
             "cases_coded": coded.get(sid, 0),
-            "cases_total": CASES_PER_SESSION,
+            "cases_total": row.coder_slots * CASES_PER_SLOT,
         })
     return out
 
@@ -829,8 +881,8 @@ def _participant_dict(participant, user) -> dict:
 
 
 def get_training_session(ref) -> dict:
-    """One session: its fields, every participant, and the 20 slots with their
-    coder and case counts. Three queries."""
+    """One session: its fields, every participant, and its coder slots with
+    their coder and case counts. Three queries."""
     row = _find_session(ref)
     participants = db.session.execute(
         sa.select(MapTrainingParticipant, VaUsers)
@@ -857,7 +909,7 @@ def get_training_session(ref) -> dict:
     }
     coder_of = {p.coder_slot: u for p, u in participants if p.role == "coder"}
     slots = []
-    for slot in range(1, CODER_SLOTS + 1):
+    for slot in range(1, row.coder_slots + 1):
         user = coder_of.get(slot)
         total, coded = per_slot.get(slot, [0, 0])
         slots.append({
@@ -877,7 +929,7 @@ def get_training_session(ref) -> dict:
         "participants_by_role": by_role,
         "slots": slots,
         "coder_slots_used": len(coder_of),
-        "coder_slots_total": CODER_SLOTS,
+        "coder_slots_total": row.coder_slots,
         "cases_total": sum(s["cases"] for s in slots),
         "cases_coded": sum(s["cases_coded"] for s in slots),
     }
@@ -1165,7 +1217,7 @@ def _used_slots(session_row: MasTrainingSession) -> set[int]:
 
 def _next_free_slot(session_row: MasTrainingSession) -> int:
     used = _used_slots(session_row)
-    free = [slot for slot in range(1, CODER_SLOTS + 1) if slot not in used]
+    free = [slot for slot in range(1, session_row.coder_slots + 1) if slot not in used]
     if not free:
         raise TrainingDemoError("no_free_coder_slot")
     return free[0]
@@ -1230,7 +1282,7 @@ def bulk_add_participants(session_ref, user_ids, roles, added_by, *, dry_run: bo
         languages: dict = {}
         if "coder" in roles:
             used = _used_slots(session_row)
-            free = [slot for slot in range(1, CODER_SLOTS + 1) if slot not in used]
+            free = [slot for slot in range(1, session_row.coder_slots + 1) if slot not in used]
             languages = _slot_languages(session_row)
         plan, rows = [], []
         for text, uid in parsed.items():

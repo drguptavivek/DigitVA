@@ -18,6 +18,11 @@ tasks/
 backup/
 resource/smartva
 vendor/smartva-analyze/rust/target/
+# The server image needs neither the offline station (desktop/, whose Rust
+# target/ is gigabytes) nor the Rust ICD-11 host; docker/icd11 has its own
+# ignore file.
+desktop/
+vendor/who-icd11-api/
 vendor/smartva-analyze/rust/evidence/
 resource/pyodk
 security-audit/

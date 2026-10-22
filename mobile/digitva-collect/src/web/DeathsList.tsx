@@ -323,6 +323,11 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
   );
   const canCode = bootstrap?.access.roles.some((role) => role === "coder" || role === "coding_tester") === true;
   const mayInterview = bootstrap?.capabilities.intake === true;
+  // Projects whose registrations this user may edit: the contexts the registration screen opens
+  // (a direct-only interviewer has none, and would land on "no collection access").
+  const registerProjects = useMemo(() => new Set(bootstrap ? intakeContextFromAccess(bootstrap.access, "register_death")
+    .filter((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both")
+    .map((entry) => entry.project_id) : []), [bootstrap]);
   const defaultMine = reporterOnly(bootstrap);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<DeathStatusFilter>("all");
@@ -440,7 +445,8 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
         const resume = interviewable && Boolean(row.my_draft_id) && !TERMINAL_CASE_STATES.has(state);
         const start = interviewable && !row.my_draft_id && canStartDeathInterview(rawState) && row.other_complete_interview !== true &&
           row.other_draft_active !== true && row.details_pending !== true;
-        const edit = row.other_complete_interview !== true && row.details_pending !== true;
+        const edit = row.other_complete_interview !== true && row.details_pending !== true &&
+          typeof row.project_id === "string" && registerProjects.has(row.project_id);
         // One primary action per card: the first of code, resume, start, edit, view.
         const primary = codeNow ? "code" : resume ? "resume" : start ? "start" : edit ? "edit" : "view";
         const kind = (action: string) => primary === action ? "primary" as const : "secondary" as const;

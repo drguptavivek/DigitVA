@@ -661,7 +661,29 @@ export async function projectIds(db: Db): Promise<string[]> {
   return [...ids].sort();
 }
 
-/** Remove one project's local data and project-scoped metadata only. */
+/**
+ * Work on this phone the server has not acknowledged yet: drafts, offline
+ * registrations, queued contact attempts and visits, and queued revisions.
+ * Each row is deleted on acknowledgement, so every remaining row is unsent.
+ */
+export async function countUnsentWork(db: Db, projectId?: string): Promise<number> {
+  const where = projectId ? " WHERE project_id = ?" : "";
+  const row = await db.getFirstAsync<{ n: number }>(
+    `SELECT (SELECT COUNT(*) FROM drafts${where}) + (SELECT COUNT(*) FROM registrations${where})
+       + (SELECT COUNT(*) FROM case_actions${where}) + (SELECT COUNT(*) FROM revision_drafts${where}) AS n`,
+    projectId ? [projectId, projectId, projectId, projectId] : []
+  );
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * A project left this worker's access: drop what the server can send again
+ * (downloaded cases, cached definitions, project settings) and stop mounted
+ * forms from writing to it. Unsent work (drafts, registrations, queued
+ * actions, revisions and the draft configs they reopen with) is never purged
+ * automatically: it stays until it is sent or the worker or a supervisor
+ * resolves it (docs/policy/field-data-collection.md, owner decision 2026-10-22).
+ */
 export async function purgeProjectData(db: Db, projectId: string, accountId?: string): Promise<void> {
   invalidateProjectStoreGeneration(db, projectId);
   await waitForProjectStoreWrites(db, projectId);
@@ -673,33 +695,6 @@ export async function purgeProjectData(db: Db, projectId: string, accountId?: st
     await definitions.initialize();
     await definitions.removeProject(projectId);
   }
-  const configs = await db.getAllAsync<{ key: string; value: string }>(
-    "SELECT key, value FROM meta WHERE key LIKE 'draft-config:%'",
-    []
-  );
-  for (const config of configs) {
-    let parsed: { projectId?: unknown; project_id?: unknown } | null;
-    try {
-      parsed = JSON.parse(config.value) as { projectId?: unknown; project_id?: unknown };
-    } catch {
-      // Leave malformed unrelated metadata untouched; it is not project data.
-      continue;
-    }
-    if (parsed && typeof parsed === "object" && (parsed.projectId === projectId || parsed.project_id === projectId)) {
-      // Storage errors must surface; a failed delete cannot be treated as an
-      // invalid JSON value or the revoked config would survive the purge.
-      await db.runAsync("DELETE FROM meta WHERE key = ?", [config.key]);
-    }
-  }
-  await db.runAsync(
-    `DELETE FROM meta
-     WHERE key LIKE ?
-        OR key IN (SELECT 'draft-config:' || id FROM drafts WHERE project_id = ?)`,
-    [`project:${projectId}:%`, projectId]
-  );
-  await db.runAsync("DELETE FROM drafts WHERE project_id = ?", [projectId]);
-  await db.runAsync("DELETE FROM revision_drafts WHERE project_id = ?", [projectId]);
+  await db.runAsync("DELETE FROM meta WHERE key LIKE ?", [`project:${projectId}:%`]);
   await db.runAsync("DELETE FROM cases WHERE project_id = ?", [projectId]);
-  await db.runAsync("DELETE FROM registrations WHERE project_id = ?", [projectId]);
-  await db.runAsync("DELETE FROM case_actions WHERE project_id = ?", [projectId]);
 }

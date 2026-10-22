@@ -763,6 +763,29 @@ export async function fetchProjectConsentConfig(
   return defaultProjectConsentConfig(projectId);
 }
 
+/** `GET/POST /api/v1/intake/drafts/<id>/consent`: the decision on file for a browser interview's case. */
+export interface DraftConsentStatus {
+  consent_required: boolean;
+  decision: "granted" | "refused" | "withdrawn" | null;
+  covered_fields: string[];
+  client_draft_id: string | null;
+}
+
+export function getDraftConsent(draftsLink: string, draftId: string, csrf: ClientCsrf): Promise<DraftConsentStatus> {
+  return requestClientJson(`${draftsLink}/${encodeURIComponent(draftId)}/consent`, { csrf });
+}
+
+export function postDraftConsent(
+  draftsLink: string,
+  draftId: string,
+  consent: ConsentRecordEnvelope,
+  csrf: ClientCsrf,
+): Promise<DraftConsentStatus> {
+  return requestClientJson(`${draftsLink}/${encodeURIComponent(draftId)}/consent`, {
+    method: "POST", json: { consent }, csrf,
+  });
+}
+
 export async function initConsentTables(db: Db): Promise<void> {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS consent_configs (

@@ -65,7 +65,7 @@ from app.services import (
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
 from app.services import web_intake_attachment_service as attachments
-from app.services.authz import resolve_grants, subtree_select, supervision
+from app.services.authz import Action, can, resolve_grants, subtree_select, supervision
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.authz.consulted import mark_consulted
 from app.services.case_transition_service import WebIntakeError
@@ -2594,6 +2594,61 @@ def find_own_submission(user: VaUsers, va_sid: str) -> VaWebIntakeDraft | None:
         VaWebIntakeDraft.user_id == user.user_id,
         VaWebIntakeDraft.status == "submitted",
     ))
+
+
+def may_read_submitted_answers(user: VaUsers, va_sid: str) -> bool:
+    """Whether *user* may read submission *va_sid*'s answers through intake:
+    the interviewer whose draft became it (``find_own_submission``) or a
+    supervisor of its case (``is_interview_supervisor_for``). The read-only
+    workspace view's intake gate and the case detail's ``can_view_answers``;
+    coding access (``Action.VIEW``) is decided separately. Two indexed reads."""
+    if find_own_submission(user, va_sid) is not None:
+        return True
+    death = db.session.scalar(sa.select(VaDeathRegister).where(VaDeathRegister.va_sid == va_sid).limit(1))
+    return death is not None and cases.is_interview_supervisor_for(user, death)
+
+
+def case_submission_view(user: VaUsers, death: VaDeathRegister, my_submission: bool) -> dict:
+    """The case detail's submitted interview (docs/policy/interview-revisions.md).
+
+    ``submission`` ``{va_sid, submitted_at, interview_outcome}`` (plus the
+    caller's ``draft_id``, which a revision opens) for the interviewer whose
+    draft became the case's submission (*my_submission*), a supervisor of
+    the case, or a caller with coding access to it (``Action.VIEW``, who
+    already reads it in the workspace); None otherwise or without a submission. ``can_view_answers``
+    follows it. ``can_revise``: only the submitter, while ``revise_submission``
+    would take a revision (case not ``duplicate``/``cancelled``; workflow not
+    in a protected state unless sent back or reopened). Revision stays open
+    during active coding (rule 2). ``revise_reason_required`` is always True:
+    a client revision needs one of ``REVISION_REASONS``.
+    """
+    view = {"submission": None, "can_view_answers": False, "can_revise": False, "revise_reason_required": True}
+    if not death.va_sid:
+        return view
+    draft = find_own_submission(user, death.va_sid) if my_submission else None
+    if draft is None:
+        if not (cases.is_interview_supervisor_for(user, death) or can(user, Action.VIEW, death.va_sid)):
+            return view
+        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.va_sid == death.va_sid, VaWebIntakeDraft.status == "submitted",
+        ).limit(1))
+        mine = False
+    else:
+        mine = True
+    view["submission"] = {
+        "va_sid": death.va_sid,
+        "submitted_at": draft.submitted_at.isoformat() if draft is not None and draft.submitted_at else None,
+        "interview_outcome": (draft.meta or {}).get("interviewOutcome") if draft is not None else None,
+        **({"draft_id": str(draft.draft_id)} if mine else {}),
+    }
+    view["can_view_answers"] = True
+    if mine and death.status not in ("duplicate", "cancelled"):
+        # Mirrors revise_submission's lock check.
+        state = get_submission_workflow_state(death.va_sid)
+        submission = db.session.get(VaSubmissions, death.va_sid)
+        reopening = state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and submission is not None and revision_unlocked(submission)
+        view["can_revise"] = state not in PROTECTED_WORKFLOW_STATES or reopening
+    return view
 
 
 def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str | None, completion: dict, envelope: dict, resubmit: bool = False) -> dict:

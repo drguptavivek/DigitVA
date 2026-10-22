@@ -1,5 +1,5 @@
 /** Interviewer sign-in on this device. */
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Linking, Text, TextInput, View } from "react-native";
 
@@ -18,7 +18,10 @@ import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 export default function SignIn() {
   const styles = useUiStyles();
   const router = useRouter();
-  const { reload } = useAppState();
+  // "Sign in again" names the account it came from; signIn never wipes a store.
+  const { userId } = useLocalSearchParams<{ userId?: string }>();
+  const { reload, accounts } = useAppState();
+  const returning = accounts.find((account) => account.user_id === userId);
   const [mode, setMode] = useState<"email" | "mobile">("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -61,6 +64,7 @@ export default function SignIn() {
 
   return (
     <Screen title={t("signInTitle")}>
+      {returning ? <Text style={styles.text}>{t("signInAgainAs", { name: returning.name })}</Text> : null}
       <Text style={styles.muted}>{t("signInIdentifierType")}</Text>
       <Row>
         <Button

@@ -196,9 +196,9 @@ function useFilterStyles() {
   }), [colors]);
 }
 
-type ChipOption<K extends string> = { key: K; label: string };
+export type ChipOption<K extends string> = { key: K; label: string };
 
-function ChipGroup<K extends string>({ options, value, onChange, a11yLabel }: {
+export function ChipGroup<K extends string>({ options, value, onChange, a11yLabel }: {
   options: ChipOption<K>[];
   value: K;
   onChange: (key: K) => void;

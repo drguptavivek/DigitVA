@@ -4,7 +4,12 @@
 # an edit here only; an empty pin fails the build for that architecture.
 # SMARTVA_RS_SOURCE=source in .env compiles vendor/smartva-analyze/rust
 # instead (developers only, never on a host).
-x-smartva-rs: &smartva-rs
+# The Expo web export is the same: a pinned DigitVA release (expo-web-v<date>)
+# downloaded and verified into /opt/digitva/expo-client (EXPO_CLIENT_DIST), so
+# hosts never run Node; dev serves its own local build instead (override file).
+x-release-pins: &release-pins
+  EXPO_WEB_TAG: "expo-web-v2026.10.22"
+  EXPO_WEB_SHA256: "0f505fda81b8ee90aad19e8cdc3dfbfc624c99e6057ef9846db356ee0208ed02"
   SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}
   SMARTVA_RS_VERSION: "v3.0.1"
   SMARTVA_RS_SHA256_ARM64: "aba6925d9868d43ca78d580ab1b698cb2bdc3bbd62eba32528459a55ec10be54"
@@ -82,13 +87,14 @@ services:
   minerva_app_service:
     build:
       context: .
-      args: *smartva-rs
+      args: *release-pins
     container_name: minerva_app
     command: ./boot.sh
     volumes:
       - .:/app
       - minerva_venv:/app/.venv
     environment:
+      - EXPO_CLIENT_DIST=${EXPO_CLIENT_DIST:-/opt/digitva/expo-client}
       - SECRET_KEY=${SECRET_KEY}
       - CAPTCHA_HMAC_KEY=${CAPTCHA_HMAC_KEY:-}
       - AUTH_FACTOR_ENCRYPTION_KEY=${AUTH_FACTOR_ENCRYPTION_KEY:-}
@@ -130,7 +136,7 @@ services:
     profiles: [icd11]
     build:
       context: .
-      args: *smartva-rs
+      args: *release-pins
     command: ./boot-public-doris.sh
     entrypoint: []
     # No bind mount of the checkout: the internet-facing training service runs
@@ -182,7 +188,7 @@ services:
   minerva_celery_worker:
     build:
       context: .
-      args: *smartva-rs
+      args: *release-pins
     container_name: minerva_celery_worker
     entrypoint: []
     command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1
@@ -225,7 +231,7 @@ services:
   minerva_celery_beat:
     build:
       context: .
-      args: *smartva-rs
+      args: *release-pins
     container_name: minerva_celery_beat
     entrypoint: []
     command: bash ./scripts/wait-for-celery-beat-db.sh

@@ -155,7 +155,7 @@ describe("native submitted interview revisions", () => {
     });
   });
 
-  it("invalidates a mounted revision store before an in-flight save can outlive project purge", async () => {
+  it("invalidates a mounted revision store before an in-flight save can outlive a project leaving access", async () => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
@@ -183,7 +183,10 @@ describe("native submitted interview revisions", () => {
     await purge;
     await expect(laterStaleSave).rejects.toThrow("project_access_revoked");
 
-    expect(await getRevisionRow(db, DRAFT_ID)).toBeNull();
+    // The queued revision is unsent work: kept, without either stale write.
+    const kept = await getRevisionRow(db, DRAFT_ID);
+    expect(kept).not.toBeNull();
+    expect(JSON.stringify(kept)).not.toContain("stale answer");
   });
 
   it("keeps the saved definition pin through revision autosave, queueing, and upload", async () => {

@@ -26,6 +26,7 @@ from app.decorators import role_required
 from app.models import VaFinalAssessments, VaForms, VaProjectMaster, VaStatuses, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
 from app.services import smartva_service
+from app.services import web_intake_service as intake_svc
 from app.services.icd11_titles import stored_cod_label
 from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
@@ -118,6 +119,7 @@ class _Case:
     active_version: object
     visible_category_codes: list[str]
     recode_active: bool = False
+    intake_only: bool = False
 
 
 def _private(response):
@@ -132,6 +134,10 @@ def _private(response):
 class _Session:
     mode: str
     recode_active: bool
+    #: ``mode=view`` opened by the intake gate alone (the submitter or a
+    #: supervisor of the case, no ``Action.VIEW``): answers only, never the
+    #: coders' work or the workflow history.
+    intake_only: bool = False
 
 
 def _authorize_session(va_sid: str):
@@ -168,10 +174,15 @@ def _authorize_session(va_sid: str):
 
 def _authorize_view(va_sid: str):
     """``_Session`` for ``mode=view`` (``Action.VIEW``, no allocation), or an
-    error response: 404 for a missing case, else 403."""
+    error response: 404 for a missing case, else 403. Without VIEW, the
+    interviewer whose draft became the submission or a supervisor of its
+    case may still read the answers (``may_read_submitted_answers``,
+    docs/policy/interview-revisions.md): an ``intake_only`` session."""
     try:
         require(current_user, Action.VIEW, va_sid)
     except AuthzError as exc:
+        if intake_svc.may_read_submitted_answers(current_user, va_sid):
+            return _Session("view", False, intake_only=True)
         return api_error(exc.message, status_code=exc.status_code)
     return _Session("view", False)
 
@@ -214,6 +225,7 @@ def _authorize(va_sid: str):
             joined_payload(active_version) if active_version else None, submission.va_form_id
         ),
         recode_active=recode_active,
+        intake_only=session.intake_only,
     )
 
 
@@ -396,7 +408,11 @@ def _category_counts(catcount, nav) -> dict[str, int]:
 
 
 @bp.get("/<va_sid>/workspace")
-@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
+# interviewer and interview_supervisor reach only mode=view's intake gate.
+@role_required(
+    "coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin",
+    "interviewer", "interview_supervisor",
+)
 def workspace(va_sid):
     """The workspace shell for ``?mode=coding|reviewing|view``.
 
@@ -449,7 +465,7 @@ def workspace(va_sid):
     masked = is_masked(case.project_mode)
     workflow_state = get_submission_workflow_state(va_sid)
     # ``mode=view`` only: the COD reference and SmartVA unblind coding.
-    show_reference = view and _may_see_cod_reference(va_sid, workflow_state, uid)
+    show_reference = view and not case.intake_only and _may_see_cod_reference(va_sid, workflow_state, uid)
     # The authoritative record carries the coder final it stands on (or
     # supersedes); one primary-key read, usually already in the session.
     authoritative = artifacts.va_final_assess
@@ -561,6 +577,8 @@ def workspace(va_sid):
             "workflow_state": workflow_state,
             "narrative_qa_enabled": not view and bool(case.project and case.project.narrative_qa_enabled),
             "social_autopsy_enabled": not view and social_autopsy_enabled(case.project, case.va_action),
+            # False for an intake-only view: its workflow events stay READ_EVENTS's.
+            "history_available": not case.intake_only,
         },
         "categories": [
             {
@@ -638,7 +656,10 @@ def _subcategories(
 
 
 @bp.get("/<va_sid>/categories/<code>")
-@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
+@role_required(
+    "coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin",
+    "interviewer", "interview_supervisor",
+)
 def category(va_sid, code):
     """One category's data for ``?mode=coding|reviewing|view``.
 

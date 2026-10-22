@@ -22,6 +22,7 @@ from app.routes.admin import _current_user_can_manage_project, _json_error, admi
 from app.services import org_grant_service
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
+from app.services import worker_enrolment_service as enrolment
 from app.services.user_account_service import canonical_mobile
 
 log = logging.getLogger(__name__)
@@ -654,6 +655,12 @@ def admin_org_create_worker(project_id):
             invite_warnings=warnings,
             sign_in_codes=sign_in_codes,
         )
+    onboarding["enrolment_email"] = None
+    for user_id in enrolment.newly_collecting_user_ids(changed_grants):
+        status = enrolment.send_enrolment_email(project_id, db.session.get(VaUsers, user_id), actor=current_user)
+        onboarding["enrolment_email"] = status
+        if status == "failed":
+            onboarding["invite_warnings"].append(enrolment.SEND_FAILED_WARNING)
     response = jsonify({"worker": serialized, "onboarding": onboarding})
     response.headers["Cache-Control"] = "no-store"
     log.info("organization worker-create | project=%s | by=%s | worker=%s", project_id, current_user.user_id, worker.worker_code)
@@ -694,6 +701,26 @@ def admin_org_update_worker(project_id, worker_id):
             request_ip=request.remote_addr,
         )
     return jsonify({"worker": serialized})
+
+
+@admin.post(f"{_API}/workers/<worker_id>/enrolment-email")
+@role_required("admin", "project_pi")
+@limiter.limit("10 per minute")
+def admin_org_resend_enrolment_email(project_id, worker_id):
+    """Email the worker a fresh app enrolment QR (mobile-sign-in.md section 6).
+    400 unless the worker's account is active, has an email and holds an
+    active interviewer or death_reporter grant in this project."""
+    if err := _guard(project_id):
+        return err
+    try:
+        user = org.worker_data_collector_user(project_id, worker_id)
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 400)
+    status = enrolment.send_enrolment_email(project_id, user, actor=current_user)
+    if status != "sent":
+        return _json_error(enrolment.SEND_FAILED_WARNING, 502)
+    log.info("organization enrolment-email | project=%s | by=%s | worker=%s", project_id, current_user.user_id, worker_id)
+    return jsonify({"sent": True})
 
 
 # ---------------------------------------------------------------------------
@@ -955,14 +982,15 @@ def admin_org_import(project_id):
 @role_required("admin", "project_pi")
 @limiter.limit("60 per minute")
 def admin_org_user_lookup(project_id):
+    """Exact lookup; with ``suggest=1`` also ``suggestions`` (up to 8 partial
+    matches) in the same response, so typing costs one request per pause."""
     if err := _guard(project_id):
         return err
-    return jsonify(
-        org.lookup_existing_user(
-            request.args.get("q"),
-            is_admin=current_user.is_admin(),
-        )
-    )
+    q, is_admin = request.args.get("q"), current_user.is_admin()
+    result = org.lookup_existing_user(q, is_admin=is_admin)
+    if request.args.get("suggest") == "1":
+        result["suggestions"] = org.suggest_existing_users(q, is_admin=is_admin)
+    return jsonify(result)
 
 
 @admin.get(f"{_API}/va-presets")

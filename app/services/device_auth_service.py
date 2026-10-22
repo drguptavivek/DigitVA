@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 import uuid
@@ -229,11 +230,14 @@ def _bounded_int(value, *, default: int, low: int, high: int, name: str) -> int:
     return value
 
 
-def create_enrolment_code(project_id: str, *, actor: VaUsers, expires_in_minutes=None, max_uses=None) -> tuple[AuthDeviceEnrolmentCode, str]:
+def create_enrolment_code(project_id: str, *, actor: VaUsers, expires_in_minutes=None, max_uses=None,
+                          subject_user_id=None) -> tuple[AuthDeviceEnrolmentCode, str]:
     """Issue an enrolment code for *project_id*. Returns (row, plaintext code);
-    the code is shown once and only its hash is stored. Refused (503
-    ``device_url_insecure``) when DEVICE_PUBLIC_URL, which the QR carries,
-    is plain http outside development. Caller commits."""
+    the code is shown once and only its hash is stored. *subject_user_id*,
+    when the code is issued for one person (enrolment email, Users page),
+    is the audit event's user. Refused (503 ``device_url_insecure``) when
+    DEVICE_PUBLIC_URL, which the QR carries, is plain http outside
+    development. Caller commits."""
     problem = device_public_url_problem(
         current_app.config.get("DEVICE_PUBLIC_URL"), allow_insecure=_insecure_device_url_allowed()
     )
@@ -256,10 +260,20 @@ def create_enrolment_code(project_id: str, *, actor: VaUsers, expires_in_minutes
     db.session.add(row)
     db.session.flush()
     record_security_event(
-        user_id=None, actor_user_id=actor.user_id, event_type="device_enrolment_code_created",
+        user_id=subject_user_id, actor_user_id=actor.user_id, event_type="device_enrolment_code_created",
         detail={"project_id": project_id, "max_uses": uses, "expires_in_minutes": minutes},
     )
     return row, code
+
+
+def enrolment_qr_payload(row: AuthDeviceEnrolmentCode, code: str) -> str:
+    """The JSON the enrolment QR carries, as the app's parseEnrolmentQr reads
+    it. One builder for the Devices page and the enrolment email, so both
+    show the same QR."""
+    return json.dumps(
+        {"v": 1, "server": current_app.config["DEVICE_PUBLIC_URL"], "enroll": code, "project": row.project_id},
+        separators=(",", ":"),
+    )
 
 
 def _clean_text(value, *, limit: int, name: str, required: bool) -> str | None:

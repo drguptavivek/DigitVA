@@ -82,6 +82,19 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
   WHO_VA_BUILT_IN_UI_TRANSLATIONS: {hi: {back: "पीछे", moreSectionsNote: "उत्तर देने पर और अनुभाग दिखेंगे"}},
 }), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});
+const mockGetDraftConsent = jest.fn();
+const mockPostDraftConsent = jest.fn();
+const mockFetchConsentConfig = jest.fn();
+jest.mock("../src/web/StationConsentPanel", () => ({
+  RespondentConsentPanel: (props: {language: string; onDecision: (envelope: unknown) => void}) =>
+    jest.requireActual("react").createElement("mock-consent-panel", props),
+}));
+jest.mock("../src/consent", () => ({
+  ...jest.requireActual("../src/consent"),
+  getDraftConsent: (...args: unknown[]) => mockGetDraftConsent(...args),
+  postDraftConsent: (...args: unknown[]) => mockPostDraftConsent(...args),
+  fetchProjectConsentConfig: (...args: unknown[]) => mockFetchConsentConfig(...args),
+}));
 
 import InterviewScreen, { INTERVIEW_FORM_CSS } from "../src/web/InterviewScreen";
 import { ClientApiError, getCaseDetail, getDraft, getIntakeContext, getProjectFormOptions, getInstrumentTranslations, startDraft, submitDraft } from "../src/client/api";
@@ -110,6 +123,9 @@ beforeEach(() => {
   (getProjectFormOptions as jest.Mock).mockResolvedValue({instrument_version: "server-v1", definition_sha256: mockDefinitionSha256, enabled_extensions: [], narration_languages: [{code: "en", label: "English"}, {code: "hi", label: "Hindi"}], form_types: [{instrument_code: "WHO_2022_VA", is_default: true}], available_locales: [{code: "en", label: "English"}, {code: "hi", label: "Hindi"}], translation_versions: {hi: 9}});
   (getInstrumentTranslations as jest.Mock).mockRejectedValue(new ClientApiError(404, "not_found"));
   mockRouter.replace.mockClear();
+  mockGetDraftConsent.mockReset().mockResolvedValue({consent_required: false, decision: null, covered_fields: [], client_draft_id: null});
+  mockPostDraftConsent.mockReset();
+  mockFetchConsentConfig.mockReset().mockResolvedValue(null);
 });
 
 function deferred<T>() {
@@ -472,6 +488,17 @@ it("shows the server stale-draft explanation and stays on the interview", async 
   await act(async () => tree.unmount());
 });
 
+it("asks for the translation when the project's only extra extensions are untagged ones (digitva-oxvt staging)", async () => {
+  (getProjectFormOptions as jest.Mock).mockResolvedValue({instrument_version: "server-v1", definition_sha256: mockDefinitionSha256, enabled_extensions: ["digitva_core", "intake_screen", "geography", "doris_support_whova_2022"], narration_languages: [{code: "en", label: "English"}, {code: "hi", label: "Hindi"}], form_types: [{instrument_code: "WHO_2022_VA", is_default: true}], available_locales: [{code: "en", label: "English"}, {code: "hi", label: "Hindi"}], translation_versions: {hi: 40}});
+  (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P"}, envelope: {id: "draft-1", schemaVersion: 1, formVersion: "2022", instrumentId: "WHO_2022_VA", instrumentVersion: "server-v1", definitionSha256: mockDefinitionSha256, definitionExtensions: [], currentSection: "s1", createdAt: "2026-10-04T10:00:00+05:30", updatedAt: "2026-10-04T11:00:00+05:30", locale: "hi", translation_version: 40, data: {}}, prefill: {}});
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  // Untagged extensions never appear in the definition, so they must not
+  // make the pin look different and skip the Hindi request.
+  expect(getInstrumentTranslations).toHaveBeenCalledWith(expect.anything(), "hi", expect.anything());
+  await act(async () => tree.unmount());
+});
+
 it("resolves and pins the current served form before creating a direct browser draft", async () => {
   mockParams = { projectId: "P", siteId: "S" };
   (getIntakeContext as jest.Mock).mockResolvedValue({ context: [{ project_id: "P", site_id: "S", web_intake_mode: "direct" }] });
@@ -543,7 +570,7 @@ it("blocks a new interview when definition metadata disappears after a served ve
   await act(async () => tree.unmount());
 });
 
-it("does not use changed project extensions to relabel an unpinned saved draft", async () => {
+it("moves an unpinned saved draft to the served form, never relabelling it with the extension-bearing bundle", async () => {
   const savedDraft = {
     draft: { project_id: "P", updated_at: "revision-1" },
     envelope: {
@@ -566,11 +593,12 @@ it("does not use changed project extensions to relabel an unpinned saved draft",
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<InterviewScreen />); });
 
-  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
-  expect(JSON.stringify(tree.toJSON())).toContain("unknown_saved_definition");
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+  expect(JSON.stringify(tree.toJSON())).toContain(t("formDefinitionAdopted"));
   expect(savedDraft.envelope.data).toEqual({ Id10007: "server-answer" });
-  expect(ServerDraftStore).not.toHaveBeenCalled();
-  expect(mockDefinitionCache.get).not.toHaveBeenCalled();
+  // Pinned to the served definition, not left pinless on the bundle.
+  expect((ServerDraftStore as unknown as jest.Mock).mock.calls.at(-1)[0].definitionPin).toMatchObject({ definitionSha256: mockDefinitionSha256 });
+  expect(mockDefinitionCache.get).toHaveBeenCalled();
   await act(async () => tree.unmount());
 });
 
@@ -771,5 +799,104 @@ describe("pinned case strip", () => {
 
   it("spans the phone viewport like the footer", () => {
     expect(INTERVIEW_FORM_CSS).toMatch(/@media \(max-width: 767px\)[\s\S]*#digitva-interview-case-strip \{\s*width: 100vw;\s*margin-inline: calc\(50% - 50vw\);/);
+  });
+});
+
+const mockPinlessEnvelope = {id: "draft-1", schemaVersion: 1, formVersion: "2022", instrumentId: "va_who_2022", instrumentVersion: "2026081401", currentSection: "s1", createdAt: "2026-10-04T10:00:00+05:30", updatedAt: "2026-10-04T11:00:00+05:30", locale: "en", data: {Id10007: "kept", gone_question: "kept"}};
+
+it("opens a pinless draft from an earlier build on the current served form with a notice and pins it", async () => {
+  mockDefinitionCache.get.mockImplementation(async (identity) => ({
+    identity, etag: null, engineVersion: 1, rawJson: "{}",
+    definition: {id: "WHO_2022_VA", version: identity.composedVersion, engineVersion: 1, extensions: [], sections: [], questions: []},
+  }));
+  (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P", updated_at: "revision-1"}, envelope: mockPinlessEnvelope, prefill: {}});
+  (getProjectFormOptions as jest.Mock).mockResolvedValue({instrument_version: "2026081401-503d5dd1bb", definition_sha256: mockDefinitionSha256, enabled_extensions: ["geography"], narration_languages: [{code: "en", label: "English"}], form_types: [{instrument_code: "WHO_2022_VA", is_default: true}], available_locales: [{code: "en", label: "English"}], translation_versions: {}});
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+  expect(JSON.stringify(tree.toJSON())).toContain(t("formDefinitionAdopted"));
+  const options = (ServerDraftStore as unknown as jest.Mock).mock.calls.at(-1)[0];
+  expect(options.definitionPin).toMatchObject({instrumentVersion: "2026081401-503d5dd1bb", definitionSha256: mockDefinitionSha256});
+  expect(mockMarkServed).toHaveBeenCalledWith("P");
+  await act(async () => tree.unmount());
+});
+
+it("names an unavailable current form instead of a server error when a pinless draft cannot open", async () => {
+  mockHasServed.mockReturnValue(true);
+  (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P", updated_at: "revision-1"}, envelope: mockPinlessEnvelope, prefill: {}});
+  (getProjectFormOptions as jest.Mock).mockResolvedValue({instrument_version: null, definition_sha256: null, enabled_extensions: ["geography"], narration_languages: [{code: "en", label: "English"}], form_types: [{instrument_code: "WHO_2022_VA", is_default: true}], available_locales: [{code: "en", label: "English"}], translation_versions: {}});
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+  const text = JSON.stringify(tree.toJSON());
+  expect(text).toContain(t("formDefinitionCurrentUnavailable"));
+  expect(text).not.toContain(t("formDefinitionAdopted"));
+  await act(async () => tree.unmount());
+});
+
+it("does not show the form-change notice for a draft on its own pinned form", async () => {
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+  expect(JSON.stringify(tree.toJSON())).not.toContain(t("formDefinitionAdopted"));
+  await act(async () => tree.unmount());
+});
+
+// ── respondent consent before a web interview (digitva-athy) ─────────────────
+
+describe("respondent consent before the interview", () => {
+  const consentConfig = {project_id: "P", consent_required: true, notice_versions: []};
+
+  it("shows the consent screen instead of the form until a decision is recorded", async () => {
+    mockGetDraftConsent.mockResolvedValue({consent_required: true, decision: null, covered_fields: [], client_draft_id: null});
+    mockFetchConsentConfig.mockResolvedValue(consentConfig);
+    mockPostDraftConsent.mockResolvedValue({consent_required: true, decision: "granted", covered_fields: ["Id10007"], client_draft_id: null});
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    expect(mockGetDraftConsent).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", mockBootstrap.csrf);
+    expect(mockFetchConsentConfig).toHaveBeenCalledWith("P", mockBootstrap.csrf);
+    expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+    const panel = tree.root.findByType("mock-consent-panel" as unknown as React.ElementType);
+    // The notice opens in the questionnaire's language.
+    expect(panel.props.language).toBe("hi");
+    const envelope = {client_id: "c1", decision: "granted"};
+    await act(async () => { await panel.props.onDecision(envelope); });
+    expect(mockPostDraftConsent).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", envelope, mockBootstrap.csrf);
+    expect(tree.root.findAllByType("mock-consent-panel" as unknown as React.ElementType)).toHaveLength(0);
+    expect(tree.root.findByType(WhoVaForm).props.lockedQuestionNames ?? []).not.toContain("Id10007");
+    await act(async () => tree.unmount());
+  });
+
+  it("opens the form at once when consent is not required or already on file", async () => {
+    for (const status of [
+      {consent_required: false, decision: null, covered_fields: [], client_draft_id: null},
+      {consent_required: true, decision: "granted", covered_fields: ["Id10007"], client_draft_id: null},
+    ]) {
+      mockGetDraftConsent.mockResolvedValue(status);
+      mockFetchConsentConfig.mockClear();
+      let tree!: ReturnType<typeof create>;
+      await act(async () => { tree = create(<InterviewScreen />); });
+      expect(tree.root.findAllByType("mock-consent-panel" as unknown as React.ElementType)).toHaveLength(0);
+      expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+      expect(mockFetchConsentConfig).not.toHaveBeenCalled();
+      await act(async () => tree.unmount());
+    }
+  });
+
+  it("after a refusal, locks the covered questions and never submits their answers", async () => {
+    mockGetDraftConsent.mockResolvedValue({consent_required: true, decision: null, covered_fields: [], client_draft_id: null});
+    mockFetchConsentConfig.mockResolvedValue(consentConfig);
+    mockPostDraftConsent.mockResolvedValue({consent_required: true, decision: "refused", covered_fields: ["Id10007", "Id10061"], client_draft_id: null});
+    (submitDraft as jest.Mock).mockResolvedValue({ va_sid: "sid-1", draft: { draft_id: "draft-1", project_id: "P", site_id: "S" }, superseded: false, validation_err: [] });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const panel = tree.root.findByType("mock-consent-panel" as unknown as React.ElementType);
+    await act(async () => { await panel.props.onDecision({client_id: "c2", decision: "refused"}); });
+    const form = tree.root.findByType(WhoVaForm);
+    expect(form.props.lockedQuestionNames).toEqual(expect.arrayContaining(["Id10007", "Id10061"]));
+    expect(tree.root.findByProps({testID: "consent-refused-note"})).toBeDefined();
+    await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes", Id10007: "Ram", interview_outcome: "completed" } }); });
+    expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "completed" } }, mockBootstrap.csrf, "revision-1");
+    await act(async () => tree.unmount());
   });
 });

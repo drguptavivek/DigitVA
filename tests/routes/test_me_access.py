@@ -487,6 +487,26 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         # A coder with an open gate holds it without intake.
         self.assertTrue(self._body("coder_p1")["account"]["device_access"])
 
+    def test_the_deaths_menu_follows_the_intake_mode(self):
+        """A direct-only project registers no deaths: its interviewer has no
+        register_death, but its supervisor keeps supervises_deaths (supervision
+        lives in the Deaths menu, owner 2026-10-22); death_register and both
+        give the interviewer register_death too."""
+        def reach(key):
+            project = self._project(self._body(key), TA)
+            return bool(project["actions"]["register_death"]), project["supervises_deaths"]
+
+        for mode, registers in (("direct", False), ("death_register", True), ("both", True)):
+            db.session.get(VaProjectMaster, TA).web_intake_mode = mode
+            db.session.commit()
+            self.assertEqual(reach("interviewer_p1"), (registers, False), mode)
+            self.assertEqual(reach("supervisor_c1"), (False, True), mode)
+        # A project_pi derives the supervisor roles; with web intake off none.
+        db.session.get(VaProjectMaster, TA).web_intake_mode = "off"
+        db.session.commit()
+        self.assertEqual(reach("pi_ta"), (False, False))
+        self.assertEqual(self._project(self._body("coder_p1"), TA)["supervises_deaths"], False)
+
     def test_a_unit_interviewer_reaches_units_only_while_web_intake_is_on(self):
         db.session.get(VaProjectMaster, TA).web_intake_mode = "both"
         db.session.commit()

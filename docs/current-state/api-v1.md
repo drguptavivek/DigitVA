@@ -697,6 +697,54 @@ Concurrent first saves can insert two rows (no unique constraint; the web has
 the same limit); reads take the latest by `note_updated_at`. Upgrade: a partial
 unique index on `(note_by, note_vasubmission)` where active.
 
+## Users (`/api/v1/users`, `app/routes/api/users.py`, `user_directory_service`)
+
+`digitva-75wn`; the web app's Users page (`/users`). Browser session only
+(a bearer token: 403 `cookie_session_required`). Gate `admin`, `project_pi`
+or `data_manager` (the In-charge passes as data_manager); others 403.
+Scope is `authz.user_list_filter` (access-control-model.md, "Users page"):
+an admin every account, a project PI the holders of an active grant in their
+projects, a data manager the holders of an active grant in their subtree.
+`Cache-Control: no-store` on every reply.
+
+- `GET /users?q=&project=&unit=&role=&status=&enrolment=&limit=&offset=`
+  (120/min). `q` contains-match on name, email, phone or mobile (wildcards
+  literal, max 64); `unit` a unit id (its subtree; unit grants only);
+  `role` an access role; `status` `all` (default) | `active` | `inactive`;
+  `enrolment` `enrolled` | `revoked` | `none`; `limit` 1..100 (default 50),
+  `offset`. Bad value: 400 `invalid_request`. Ordered by name. Reply
+  `{users, total, limit, offset, options?}`; each user `{user_id, name,
+  email, phone, active, last_signed_in_at, grants, enrolment}`: `grants` are
+  the in-scope active grants on active projects `{role, scope, project_id,
+  project_name, site_id, site_name, org_unit_id, unit_name, level_name}`;
+  `enrolment` `{status: enrolled|revoked|none, devices, revoked_devices,
+  last_seen_at}` from the user's device sessions (enrolled: a session that
+  is not revoked or expired on a device not revoked; revoked: sessions, none
+  live). `options` (first page only) `{projects: [{project_id,
+  project_name}], units: [{org_unit_id, unit_name, level_name, depth}]}`:
+  the viewer's projects (all active ones for an admin, max 200) and, for the
+  chosen `project`, the units they reach (max 500, path order). Three
+  queries a page (users with a count, their grants, their sessions grouped
+  per user) plus the options; the scope EXISTS is served by
+  `ix_va_user_access_grants_user_status`, the unit subtree by
+  `ix_mas_org_unit_path`, sessions by `ix_auth_device_sessions_user_id`.
+- `GET /users/<user_id>/activity` (120/min): `/me/activity`'s body for that
+  user, limited to the viewer's projects (an admin: all), plus `user_id`,
+  `name`, `last_signed_in_at`, `last_device_seen_at`, `last_active_at` (the
+  later of the two). Out of scope, unknown or malformed id: 404 `not_found`.
+- `POST /users/<user_id>/enrolment-code` (10/min, CSRF): body `project_id`,
+  `delivery` `show` (default) | `email`, and for show the Devices page's
+  optional `expires_in_minutes` (5..10080, default 60) and `max_uses`
+  (default 1). The user must be active (400 `user_inactive`) and hold an
+  active `interviewer`, `death_reporter`, `coder`, `coding_tester` or
+  `reviewer` grant in that project inside the viewer's scope (400
+  `no_device_role`); out of scope 404. Show: 201 `{code, qr_payload,
+  qr_png (base64 PNG), project_id, expires_at, max_uses}`, the code shown
+  once and never logged. Email: 201 `{emailed: true}` (the enrolment
+  email's 24-hour code); no email 400 `no_email`, a failed send 502
+  `email_failed`. Both audit `device_enrolment_code_created` with the
+  issued-for user (mobile-sign-in.md section 6).
+
 ## People and roles (`GET /api/v1/projects/<project_id>/people-roles` and `.csv`, `app/routes/api/people_roles.py`)
 
 Read-only; `app/services/people_roles_service.py`; policy
@@ -879,8 +927,9 @@ Contract: [Offline API Contract](../policy/offline-api-contract.md) section 5
   answers of an upload, a revision and `POST /intake/drafts/<id>/submit`, as
   received, before prefill (the attempt's own consent, else the case's
   registration consent; another attempt's never applies). The browser submit
-  cannot take a consent yet (digitva-athy): covered answers with none on file
-  are 422 `consent_required`. Draft autosave (`PATCH /intake/drafts/<id>`,
+  carries no consent: the interview page records one first on
+  `POST /intake/drafts/<id>/consent` (below); covered answers with none on
+  file are 422 `consent_required`. Draft autosave (`PATCH /intake/drafts/<id>`,
   `/drafts/sync`) is not gated. A same-hash upload resend returns the first
   result unchecked.
 - `GET|PUT /api/v1/projects/<project_id>/consent-settings` and
@@ -904,9 +953,34 @@ Contract: [Offline API Contract](../policy/offline-api-contract.md) section 5
   `conflict` when that version and language exist. The config and settings
   replies list at most 200 versions, the newest. Two concurrent first `PUT`s
   of a project's settings both apply (the later over the earlier), no 500. Versions are never edited.
-  Each write adds a `map_consent_audit` row. The Project Setup screen is
-  digitva-athy. Dev seeding: `flask web-intake seed-consent-notice <project>
+  Each write adds a `map_consent_audit` row. The configuring reply
+  (`GET|PUT .../consent-settings`) also gives each version `created_at`,
+  `retired_at` and `approved_at` (null: pending legal review); the 5.2
+  config shape does not carry `approved_at`. Screen: Project Setup, Data
+  collection, "Respondent consent" (`admin/panels/consent_settings.html`).
+  Dev seeding: `flask web-intake seed-consent-notice <project>
   --actor <admin email> [--language en] [--require]`.
+- `POST /api/v1/projects/<project_id>/consent-notices/seed` (same roles,
+  10/min): version 1 in `en` and `hi` from the policy draft
+  (`app/services/consent_notice_seed.py`, kept equal to
+  docs/policy/respondent-consent-notice-draft.md by a test), `[PROJECT NAME]`
+  filled in; 201 `{notice_versions}`; 409 `conflict` when the project has any
+  version. `POST .../consent-notices/<notice_version_id>/approve`: admin only
+  (403 otherwise), sets `approved_at`/`approved_by` once (a repeat changes
+  nothing), audit `consent_notice_approved`; 404 `not_found` for another
+  project's or an unknown id; replies the configuring view.
+- `GET|POST /api/v1/intake/drafts/<draft_id>/consent`
+  (`app/routes/api/intake_consent.py`): interviewer, the draft's owner only
+  (404 otherwise), browser session only, `X-CSRFToken` on `POST`. `GET`
+  `{consent_required, decision (granted|refused|withdrawn|null),
+  covered_fields (the decision's version), client_draft_id}`: the decision on
+  file for the draft's case (the attempt's own, else the registration
+  consent). `POST {consent}` (the 5.3 object, `client_draft_id` equal to the
+  draft's, null for a browser draft) stores it through `record_consent`
+  (channel `web`) on an open draft (409 otherwise); 201 with the `GET` shape;
+  refusals as above. The web interview page shows the notice and records the
+  decision here before it opens the form when the project requires consent
+  and nothing is on file.
 
 ## Offline station onboarding and station config (`app/routes/api/station_config.py`; `app/services/station_config_service.py`)
 
@@ -1271,6 +1345,11 @@ site or unit.
     `interview_supervisor` as in `roles`. `interviewer` is listed at a site
     only where `interviewer_context` lists that site (web intake on, an active
     form there); `death_reporter` only where `register_death` lists it. A site with no role left is omitted.
+  - `supervises_deaths`: true when an active grant holds `data_manager` or
+    `interview_supervisor` (derived included) and the project's
+    `web_intake_mode` is not `off` (direct-only included: supervision lives in
+    the Deaths menu, owner 2026-10-22); interviewers of a direct-only project
+    get no Deaths menu.
   - `has_tree`, `levels`, `units`: `levels` and `units` only when `has_tree`.
     Units are active and placed (unplaced units are skipped), in path order.
     Fields as the organization API's `/units`, plus `roles`, `selectable` and

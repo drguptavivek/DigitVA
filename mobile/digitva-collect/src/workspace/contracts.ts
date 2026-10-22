@@ -192,6 +192,8 @@ export interface WorkspacePayload {
     workflow_state: string;
     narrative_qa_enabled: boolean;
     social_autopsy_enabled: boolean;
+    /** False for an intake-only view (submitter or supervisor): no coding sections, no workflow history. */
+    history_available?: boolean;
   };
   categories: WorkspaceCategoryNav[];
   default_category: string;
@@ -590,6 +592,7 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
       workflow_state: string(caseSource.workflow_state, "workspace.case.workflow_state"),
       narrative_qa_enabled: boolean(caseSource.narrative_qa_enabled, "workspace.case.narrative_qa_enabled"),
       social_autopsy_enabled: boolean(caseSource.social_autopsy_enabled, "workspace.case.social_autopsy_enabled"),
+      ...(caseSource.history_available !== undefined ? { history_available: boolean(caseSource.history_available, "workspace.case.history_available") } : {}),
     },
     categories: array(source.categories, "workspace.categories", (item, field) => {
       const category = record(item, field);

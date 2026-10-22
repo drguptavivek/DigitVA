@@ -99,6 +99,20 @@ class AdminApiTests(TrainingDemoTestBase):
         self.assertEqual(body["cases_total"], 200)
         self.assertEqual(len(self.client.get(API).get_json()["sessions"]), 2)
 
+    def test_create_takes_the_coder_slot_count_and_checks_it(self):
+        from unittest import mock
+
+        for bad in (0, 101, "20", True, None):
+            response = self._post("", {"name": "Bad slots", "coder_slots": bad})
+            self.assertEqual(response.status_code, 400, bad)
+            self.assertIn("coder slots", response.get_json()["error"])
+        with mock.patch.object(svc, "DEFAULT_SOURCE_FORM_ID", SRC_FORM):
+            response = self._post("", {"name": "Small training", "coder_slots": 3})
+        self.assertEqual(response.status_code, 201, response.get_json())
+        body = response.get_json()
+        self.assertEqual((body["coder_slots_total"], body["cases_total"]), (3, 30))
+        self.assertIn(b'id="training-slots"', self.client.get("/admin/panels/training-sessions").data)
+
     def test_non_admins_and_anonymous_are_refused(self):
         for who in (self.base_coder_id, self.base_project_pi_id):
             self._login(who)

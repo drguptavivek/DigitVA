@@ -314,7 +314,7 @@ describe("sync queue", () => {
     expect(await getCachedIdentifierTypes(db, "OTHER")).toEqual([]);
   });
 
-  it("sends registrations, then attempts, then interviews, then the report and the case download, and purges each", async () => {
+  it("sends registrations, then attempts, then interviews, then refreshes access, the report and the case download, and purges each", async () => {
     const db = await freshDb();
     await offlineVisit(db);
     mockServer(accepting([caseRow(DEATH)]));
@@ -327,14 +327,15 @@ describe("sync queue", () => {
       definitionRefresh: [{ projectId: PROJECT, available: false, error: "current_definition_unavailable" }]
     });
 
+    // Unsent work goes first, before the access refresh (owner decision 2026-10-22).
     expect(calls.map(path)).toEqual([
-      "/api/v1/me/access",
-      "/api/v1/organization/P/form-options",
-      "/api/v1/intake/projects/P/prefill-policy",
       "/api/v1/intake/deaths",
       `/api/v1/intake/cases/${DEATH}/attempts`,
       "/api/v1/intake/submissions",
       "/api/v1/intake/submissions",
+      "/api/v1/me/access",
+      "/api/v1/organization/P/form-options",
+      "/api/v1/intake/projects/P/prefill-policy",
       "/api/v1/intake/outstanding",
       "/api/v1/intake/cases",
       `/api/v1/intake/cases/${DEATH}`,
@@ -360,12 +361,7 @@ describe("sync queue", () => {
     });
     await expect(syncInterviewer(USER, db)).rejects.toThrow(TypeError);
     // Nothing sent past the registration and nothing purged.
-    expect(calls.map(path)).toEqual([
-      "/api/v1/me/access",
-      "/api/v1/organization/P/form-options",
-      "/api/v1/intake/projects/P/prefill-policy",
-      "/api/v1/intake/deaths"
-    ]);
+    expect(calls.map(path)).toEqual(["/api/v1/intake/deaths"]);
     expect((await getRegistration(db, REG))?.state).toBe("pending");
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
 

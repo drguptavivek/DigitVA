@@ -908,9 +908,12 @@ object: `deletion`, `mentor_institution`, `central_team`, `dpo` or null,
 `purposes` (JSONB `[{code, label, required}]` by code), `covered_fields`
 (JSONB), `allowed_modes` (JSONB subset of `spoken`, `tap`, `signed`),
 `witness_allowed`, `contacts_snapshot` (the settings' contacts when created),
-`created_by`, `created_at`, `retired_at` (null: current; no API sets it yet).
-Unique (`project_id`, `version`, `language`). Never updated: a change is a new
-version.
+`created_by`, `created_at`, `retired_at` (null: current; no API sets it yet),
+`approved_at` / `approved_by` (FK `va_users`; null: pending legal review; set
+once by an admin, `consent_service.approve_notice_version`, migration
+`d4a7c9e2f5b1`). Unique (`project_id`, `version`, `language`). The text,
+purposes and fields are never updated: a change is a new version; only the
+approval is set later.
 
 ### `va_consent_records` and `va_consent_record_purposes`
 
@@ -953,15 +956,18 @@ One training. `training_session_id` (PK), `project_id` (FK
 `va_project_master`), `session_code` (`S001`, `S002`, ... per project; unique
 with `project_id`), `name`, `created_at` (timezone-aware), `created_by` (FK
 `va_users`), `org_unit_id` (FK `mas_org_unit`, unique: the session root unit,
-PHC level) and `status` (`active` or `closed`). Index
+PHC level), `status` (`active` or `closed`) and `coder_slots` (1 to 100,
+default 20; migration `f6b2d8a4c1e7`; the session has `coder_slots` x 10
+cases). Index
 `(project_id, created_at)`.
 
 ### `map_training_cases`
 
 One row per case copy. `va_sid` (PK and FK `va_submissions`, `trn-<code>-<n>`),
-`training_session_id` (FK), `case_number` (1 to 200, unique per session),
-`coder_slot` (1 to 20), `source_va_sid` (plain text: the source case belongs to
-another project) and `source_final_cod` (the source case's authoritative final
+`training_session_id` (FK), `case_number` (1 to 1000, unique per session),
+`coder_slot` (1 to 100), `source_va_sid` (plain text: the source case belongs to
+another project; not unique, since a source case may be copied into several
+slots of one session) and `source_final_cod` (the source case's authoritative final
 cause, the trainer's answer key; read only by admin-only code, never rendered
 on a coder screen). Index `(training_session_id, coder_slot)`.
 
@@ -970,7 +976,7 @@ on a coder screen). Index `(training_session_id, coder_slot)`.
 An existing user added to a session in one role (`death_reporter`,
 `interview_supervisor`, `interviewer`, `coder`, `reviewer_data_manager`).
 `participant_id` (PK), `training_session_id` and `user_id` (FKs), `role`,
-`coder_slot` (1 to 20; set exactly for coders), `grant_ids` (uuid array: the
+`coder_slot` (1 to 100; set exactly for coders), `grant_ids` (uuid array: the
 `va_user_access_grants` written for the role, two for
 `reviewer_data_manager`), `added_at`, `added_by`, `onboarded_at` (null until
 the user pressed Start on the welcome page) and `status` (`active` or

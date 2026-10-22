@@ -33,7 +33,7 @@ let mockBootstrap = createBootstrap();
 
 jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, push: mockPush, setParams: mockSetParams, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap }) }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key) }));
+jest.mock("../src/i18n", () => ({ t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key), uiLocale: () => mockLocale }));
 jest.mock("../src/ui", () => ({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
   stateLabel: (state: string) => `state:${state}`,
@@ -68,9 +68,19 @@ jest.mock("../src/web/StationConsentPanel", () => {
   const React = require("react") as typeof import("react");
   return {
     StationConsentPanel: ({ onChange }: { onChange: (envelope: unknown) => void }) =>
-      React.createElement("button", { "data-consent-panel": "true", onClick: () => onChange({ client_id: "c1", decision: "granted" }) } as Record<string, unknown>)
+      React.createElement("button", { "data-consent-panel": "true", onClick: () => onChange({ client_id: "c1", decision: "granted" }) } as Record<string, unknown>),
+    RespondentConsentPanel: ({ onDecision, language }: { onDecision: (envelope: unknown) => void; language: string }) =>
+      React.createElement("div", { "data-web-consent": language }, [
+        React.createElement("button", { key: "g", "data-web-decision": "granted", onClick: () => onDecision({ client_id: "w1", decision: "granted" }) } as Record<string, unknown>),
+        React.createElement("button", { key: "r", "data-web-decision": "refused", onClick: () => onDecision({ client_id: "w2", decision: "refused" }) } as Record<string, unknown>),
+      ])
   };
 });
+const mockFetchConsentConfig = jest.fn();
+jest.mock("../src/consent", () => ({
+  ...jest.requireActual("../src/consent"),
+  fetchProjectConsentConfig: (...args: unknown[]) => mockFetchConsentConfig(...args),
+}));
 jest.mock("../src/client/api", () => ({
   INTAKE_API: "/api/v1/intake",
   getCases: jest.fn(),
@@ -111,6 +121,7 @@ describe("DeathRegistrationScreen", () => {
     mockStartDraft.mockResolvedValue({ draft: { draft_id: "draft1" } });
     mockGetCases.mockReset();
     mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
+    mockFetchConsentConfig.mockResolvedValue(null);
   });
 
   it("blocks submit while a date control reports an invalid draft, then recovers", async () => {
@@ -197,6 +208,121 @@ describe("DeathRegistrationScreen", () => {
       await settle();
       expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
       expect(JSON.stringify(tree!.toJSON())).toContain("stationConsentNoNotice");
+      await act(async () => tree!.unmount());
+    } finally {
+      delete (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__;
+    }
+  });
+
+  // ── web respondent consent (digitva-athy, owner 2026-10-22) ──────────────
+
+  const requiredConfig = { project_id: "P1", consent_required: true, notice_versions: [] };
+
+  async function fillDeceased(tree: ReturnType<typeof create>) {
+    const findField = (field: string) => tree.root.findByProps({ "data-field": field });
+    await act(async () => {
+      findField("deceased_name").props.onClick("Asha");
+      findField("date_of_death").props.onClick("2026-09-30");
+      findField("date_of_birth").props.onClick("1987-04-12");
+    });
+    await act(async () => tree.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+  }
+
+  it("on the web, keeps informant fields closed until the respondent's consent is recorded, then sends it", async () => {
+    mockFetchConsentConfig.mockResolvedValue(requiredConfig);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(mockFetchConsentConfig).toHaveBeenCalledWith("P1", mockBootstrap.csrf);
+    // The panel is shown in the user's language; the informant fields are not there yet.
+    expect(tree!.root.findByProps({ "data-web-consent": "en" })).toBeDefined();
+    expect(tree!.root.findAllByProps({ "data-field": "informant_name" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-field": "informant_phone" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-field": "address" })).toHaveLength(0);
+    expect(tree!.root.findByProps({ testID: "informant-closed" })).toBeDefined();
+    await fillDeceased(tree!);
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree!.toJSON())).toContain("consentRegistrationBlocked");
+
+    await act(async () => tree!.root.findByProps({ "data-web-decision": "granted" }).props.onClick());
+    expect(tree!.root.findAllByProps({ "data-web-consent": "en" })).toHaveLength(0);
+    expect(tree!.root.findByProps({ testID: "respondent-consent-recorded" })).toBeDefined();
+    await act(async () => tree!.root.findByProps({ "data-field": "informant_name" }).props.onClick("Lakshmi"));
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    const body = mockRegisterDeath.mock.calls[0][1];
+    expect(body.informant_name).toBe("Lakshmi");
+    expect(body.consent).toEqual({ client_id: "w1", decision: "granted" });
+    await act(async () => tree!.unmount());
+  });
+
+  it("on the web, a refusal keeps the informant fields closed and empty and is sent with the registration", async () => {
+    mockFetchConsentConfig.mockResolvedValue(requiredConfig);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    await fillDeceased(tree!);
+    await act(async () => tree!.root.findByProps({ "data-web-decision": "refused" }).props.onClick());
+    expect(tree!.root.findAllByProps({ "data-field": "informant_name" })).toHaveLength(0);
+    expect(JSON.stringify(tree!.toJSON())).toContain("consentRecordedRefused");
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    const body = mockRegisterDeath.mock.calls[0][1];
+    expect(body.consent).toEqual({ client_id: "w2", decision: "refused" });
+    expect(body).not.toHaveProperty("informant_name");
+    await act(async () => tree!.unmount());
+  });
+
+  it("on the web, a project without required consent shows no consent screen", async () => {
+    mockFetchConsentConfig.mockResolvedValue({ ...requiredConfig, consent_required: false });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(tree!.root.findAllByProps({ "data-web-consent": "en" })).toHaveLength(0);
+    await fillDeceased(tree!);
+    await act(async () => tree!.root.findByProps({ "data-field": "informant_name" }).props.onClick("Lakshmi"));
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    expect(mockRegisterDeath.mock.calls[0][1]).not.toHaveProperty("consent");
+    await act(async () => tree!.unmount());
+  });
+
+  it("on the web, a server consent_required reloads the consent config so the screen appears", async () => {
+    mockRegisterDeath.mockRejectedValueOnce(new sharedApi.ApiError(422, "consent_required"));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    await fillDeceased(tree!);
+    await act(async () => tree!.root.findByProps({ "data-field": "informant_name" }).props.onClick("Lakshmi"));
+    mockFetchConsentConfig.mockResolvedValue(requiredConfig);
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(JSON.stringify(tree!.toJSON())).toContain("consentRegistrationBlocked");
+    expect(tree!.root.findByProps({ "data-web-consent": "en" })).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
+
+  it("on a station, keeps the always-required station rule whatever the project switch says", async () => {
+    (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "tok";
+    mockFetchConsentConfig.mockResolvedValue({ ...requiredConfig, consent_required: false });
+    let tree: ReturnType<typeof create>;
+    try {
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      // No web panel and no config fetch: informant fields are open, the station panel guards them.
+      expect(mockFetchConsentConfig).not.toHaveBeenCalled();
+      expect(tree!.root.findAllByProps({ "data-web-consent": "en" })).toHaveLength(0);
+      await fillDeceased(tree!);
+      await act(async () => tree!.root.findByProps({ "data-field": "informant_name" }).props.onClick("Lakshmi"));
+      expect(tree!.root.findByProps({ testID: "station-consent-blocked" })).toBeDefined();
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath).not.toHaveBeenCalled();
       await act(async () => tree!.unmount());
     } finally {
       delete (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__;
@@ -552,7 +678,7 @@ describe("DeathRegistrationScreen", () => {
     mockBootstrap.capabilities = { intake: false, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };
     mockBootstrap.access = { ...access("death_register"), roles: ["death_reporter"] };
     mockGetCases.mockResolvedValue({ cases: [
-      { death_id: "d1", unique_id: "U1", deceased_name: "Private Name", state: "registered", registered_by_me: true, can_interview: false },
+      { death_id: "d1", unique_id: "U1", deceased_name: "Private Name", state: "registered", project_id: "P1", site_id: "S1", registered_by_me: true, can_interview: false },
     ], next_cursor: null });
     const ownPage = jest.spyOn(sharedApi, "getRegisteredDeaths");
     let tree: ReturnType<typeof create>;

@@ -465,4 +465,59 @@ describe("web reported death details", () => {
     expect(JSON.stringify(tree!.toJSON())).toContain("Asha Devi");
     await act(async () => tree!.unmount());
   });
+
+  it("offers the submitted answers and a correction, and hides Start interview, on a submitted case", async () => {
+    mockGetCaseDetail.mockResolvedValue({ case: {
+      ...row,
+      prefill: undefined,
+      state: "submitted",
+      submission: { va_sid: "SID-1", draft_id: "draft-9", submitted_at: "2026-10-20T08:00:00Z", interview_outcome: "completed" },
+      can_view_answers: true,
+      can_revise: true,
+      revise_reason_required: true,
+    } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    const labels = tree!.root.findAll((node) => typeof node.props["data-label"] === "string").map((node) => node.props["data-label"]);
+    expect(labels).toContain("viewSubmittedAnswers");
+    expect(labels).toContain("correctInterview");
+    expect(labels).not.toContain("startInterview");
+    await act(async () => tree!.root.findByProps({ "data-label": "viewSubmittedAnswers" }).props.onClick());
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: "/workspace", params: { vaSid: "SID-1", mode: "view" } });
+    await act(async () => tree!.root.findByProps({ "data-label": "correctInterview" }).props.onClick());
+    expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: "/interview", params: {
+      revisionDraftId: "draft-9", revisionProjectId: "P1", revisionSiteId: "S1", revisionVaSid: "SID-1",
+    } });
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows neither action when the server allows neither", async () => {
+    mockGetCaseDetail.mockResolvedValue({ case: {
+      ...row, state: "submitted", submission: null, can_view_answers: false, can_revise: false,
+    } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("Asha Devi");
+    expect(rendered).not.toContain("viewSubmittedAnswers");
+    expect(rendered).not.toContain("correctInterview");
+    await act(async () => tree!.unmount());
+  });
+
+  it("views but does not offer a correction once the interview is locked", async () => {
+    mockGetCaseDetail.mockResolvedValue({ case: {
+      ...row, state: "submitted",
+      submission: { va_sid: "SID-1", draft_id: "draft-9", submitted_at: null, interview_outcome: "completed" },
+      can_view_answers: true, can_revise: false,
+    } });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CaseDetailScreen />); });
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("viewSubmittedAnswers");
+    expect(rendered).not.toContain("correctInterview");
+    await act(async () => tree!.unmount());
+  });
 });

@@ -6,10 +6,13 @@ import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "../for
 type SectionMap = Record<string, Record<string, unknown>>;
 type BaselineMap = Record<string, string>;
 
+/** The section answers to names outside the form's questions are saved in. */
+const RETAINED_SECTION = "_other";
+
 function splitBySection(data: Record<string, unknown>, sectionOf: ReadonlyMap<string, string>): SectionMap {
   const sections: SectionMap = {};
   for (const [name, value] of Object.entries(data)) {
-    const section = sectionOf.get(name) ?? "_other";
+    const section = sectionOf.get(name) ?? RETAINED_SECTION;
     (sections[section] ??= {})[name] = value;
   }
   return sections;
@@ -48,6 +51,14 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private locale?: string;
   private translationVersion?: number;
   private baseline: BaselineMap = {};
+  // Saved answers to questions this form does not ask (a draft moved to a
+  // newer form). The form never sees them, so every save carries them back,
+  // in the section splitBySection gives unknown names.
+  private retained: Record<string, unknown> = {};
+  // The first answer save writes that section: the server replaces a whole
+  // section row, and the rows they were saved in are rewritten without them.
+  // Not at load, which must not date the draft over a newer phone save.
+  private retainedUnwritten = false;
   private baselineLocale: string | undefined;
   private baselineTranslationVersion: number | undefined;
   private baselineDefinitionPin: DefinitionPin | null = null;
@@ -118,6 +129,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.baselineLocale = envelope.locale ?? this.locale;
     this.baselineTranslationVersion = envelope.translation_version ?? this.translationVersion;
     this.baselineDefinitionPin = savedPin;
+    this.retained = Object.fromEntries(Object.entries(savedData).filter(([name]) => !this.sectionOf.has(name)));
+    this.retainedUnwritten = Object.keys(this.retained).length > 0;
     this.baseline = Object.fromEntries(
       // Keep the server's raw answers as the baseline. Defaults newly added
       // by the host prefill must be emitted on the next save, while saved
@@ -181,12 +194,15 @@ export class ServerDraftStore implements WhoVaDraftStore {
   }
 
   private async writeDraft(draft: WhoVaDraft): Promise<void> {
-    const sections = splitBySection(draft.data as Record<string, unknown>, this.sectionOf);
+    const sections = splitBySection({ ...this.retained, ...(draft.data as Record<string, unknown>) }, this.sectionOf);
     const changed: SectionMap = {};
     // Empty sections must replace their saved answers too.
     for (const name of new Set([...Object.keys(sections), ...Object.keys(this.baseline)])) {
       const answers = sections[name] ?? {};
       if (serialise(answers) !== this.baseline[name]) changed[name] = answers;
+    }
+    if (this.retainedUnwritten && Object.keys(changed).length > 0) {
+      changed[RETAINED_SECTION] = sections[RETAINED_SECTION] ?? {};
     }
     const metadataChanged = this.locale !== this.baselineLocale ||
       this.translationVersion !== this.baselineTranslationVersion ||
@@ -230,6 +246,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     }
     this.serverUpdatedAt = acknowledgement.draft.updated_at;
     for (const [name, answers] of Object.entries(changed)) this.baseline[name] = serialise(answers);
+    if (Object.hasOwn(changed, RETAINED_SECTION)) this.retainedUnwritten = false;
     this.lastSection = draft.currentSection;
     this.baselineLocale = this.locale;
     this.baselineTranslationVersion = this.translationVersion;

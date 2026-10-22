@@ -1,7 +1,7 @@
 # Where smartva-rs comes from: "release" (default) downloads the pinned GitHub
 # release asset of drguptavivek/SmartVA-Analyze-rust and verifies its SHA-256,
 # so hosts never compile Rust; "source" builds vendor/smartva-analyze/rust with
-# cargo (developers only). The pins are build args from x-smartva-rs in
+# cargo (developers only). The pins are build args from x-release-pins in
 # docker-compose.yml.
 ARG SMARTVA_RS_SOURCE=release
 
@@ -20,34 +20,47 @@ RUN uv sync --frozen --no-dev && \
 
 # ---- SmartVA engine: pure-Rust smartva-rs (SMARTVA_ENGINE=rust) ----
 # An unset or wrong pin fails the build; verification is never skipped.
-FROM debian:bookworm-slim AS smartva_rs_release
+FROM python:3.13-slim AS smartva_rs_release
 ARG TARGETARCH
 ARG SMARTVA_RS_VERSION
 ARG SMARTVA_RS_SHA256_ARM64
 ARG SMARTVA_RS_SHA256_AMD64
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
-RUN set -eu; \
-    case "$TARGETARCH" in \
-      arm64) sha="$SMARTVA_RS_SHA256_ARM64" ;; \
-      amd64) sha="$SMARTVA_RS_SHA256_AMD64" ;; \
-      *) sha="" ;; \
-    esac; \
-    if [ -z "$SMARTVA_RS_VERSION" ] || [ -z "$sha" ]; then \
-      echo "ERROR: no smartva-rs pin for linux/$TARGETARCH: pass SMARTVA_RS_VERSION and SMARTVA_RS_SHA256_* (x-smartva-rs in docker-compose.yml) or build with SMARTVA_RS_SOURCE=source" >&2; \
-      exit 1; \
-    fi; \
-    case "$TARGETARCH" in amd64) arch=x86_64 ;; *) arch="$TARGETARCH" ;; esac; \
-    asset="smartva-rs-linux-${arch}"; \
-    curl -fsSL --retry 3 -o "/tmp/$asset.tar.gz" \
-      "https://github.com/drguptavivek/SmartVA-Analyze-rust/releases/download/${SMARTVA_RS_VERSION}/$asset.tar.gz"; \
-    echo "$sha  /tmp/$asset.tar.gz" | sha256sum -c -; \
-    tar -xzf "/tmp/$asset.tar.gz" -C /tmp "$asset/smartva-rs"; \
-    install -m 0755 "/tmp/$asset/smartva-rs" /usr/local/bin/smartva-rs; \
-    rm -rf "/tmp/$asset" "/tmp/$asset.tar.gz"
+# Python (already the base) downloads and verifies: no apt-get, no curl.
+RUN TARGETARCH="$TARGETARCH" SMARTVA_RS_VERSION="$SMARTVA_RS_VERSION" \
+    SHA_ARM64="$SMARTVA_RS_SHA256_ARM64" SHA_AMD64="$SMARTVA_RS_SHA256_AMD64" \
+    python - <<'PY'
+import hashlib, os, shutil, sys, tarfile, urllib.request
 
-# Developer option (RUST_BINARIES=source): compile here. Never on a host.
+arch = os.environ["TARGETARCH"]
+version = os.environ.get("SMARTVA_RS_VERSION", "")
+sha = {"arm64": os.environ.get("SHA_ARM64", ""), "amd64": os.environ.get("SHA_AMD64", "")}.get(arch, "")
+if not version or not sha:
+    sys.exit(f"ERROR: no smartva-rs pin for linux/{arch}: pass SMARTVA_RS_VERSION and "
+             "SMARTVA_RS_SHA256_* (x-release-pins in docker-compose.yml) or build with "
+             "SMARTVA_RS_SOURCE=source")
+asset = "smartva-rs-linux-" + ("x86_64" if arch == "amd64" else arch)
+url = f"https://github.com/drguptavivek/SmartVA-Analyze-rust/releases/download/{version}/{asset}.tar.gz"
+path = f"/tmp/{asset}.tar.gz"
+for attempt in range(3):
+    try:
+        urllib.request.urlretrieve(url, path)
+        break
+    except OSError:
+        if attempt == 2:
+            raise
+digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+if digest != sha:
+    sys.exit(f"ERROR: {asset}.tar.gz SHA-256 {digest} does not match the pin {sha}")
+print(f"{asset}.tar.gz: OK")
+with tarfile.open(path) as tar:
+    member = tar.getmember(f"{asset}/smartva-rs")
+    with tar.extractfile(member) as src, open("/usr/local/bin/smartva-rs", "wb") as dst:
+        shutil.copyfileobj(src, dst)
+os.chmod("/usr/local/bin/smartva-rs", 0o755)
+os.remove(path)
+PY
+
+# Developer option (SMARTVA_RS_SOURCE=source): compile here. Never on a host.
 FROM rust:1.90-slim-trixie AS smartva_rs_source
 RUN apt-get update && \
     apt-get install -y --no-install-recommends pkg-config libfontconfig1-dev && \
@@ -59,6 +72,40 @@ RUN CARGO_PROFILE_RELEASE_STRIP=true cargo build --release --locked --bin smartv
     cp target/release/smartva-rs /usr/local/bin/smartva-rs
 
 FROM smartva_rs_${SMARTVA_RS_SOURCE} AS smartva_rs
+
+# ---- Expo web export: pinned DigitVA release, never built on the host ----
+FROM python:3.13-slim AS expo_web
+ARG EXPO_WEB_TAG
+ARG EXPO_WEB_SHA256
+RUN EXPO_WEB_TAG="$EXPO_WEB_TAG" EXPO_WEB_SHA256="$EXPO_WEB_SHA256" python - <<'PY'
+import hashlib, os, sys, tarfile, urllib.request
+
+tag = os.environ.get("EXPO_WEB_TAG", "")
+sha = os.environ.get("EXPO_WEB_SHA256", "")
+if not tag or not sha:
+    sys.exit("ERROR: no Expo web export pin: pass EXPO_WEB_TAG and EXPO_WEB_SHA256 "
+             "(x-release-pins in docker-compose.yml)")
+url = f"https://github.com/drguptavivek/DigitVA/releases/download/{tag}/{tag}.tar.gz"
+path = f"/tmp/{tag}.tar.gz"
+for attempt in range(3):
+    try:
+        urllib.request.urlretrieve(url, path)
+        break
+    except OSError:
+        if attempt == 2:
+            raise
+digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+if digest != sha:
+    sys.exit(f"ERROR: {tag}.tar.gz SHA-256 {digest} does not match the pin {sha}")
+print(f"{tag}.tar.gz: OK")
+target = "/opt/digitva/expo-client"
+os.makedirs(target)
+with tarfile.open(path) as tar:
+    tar.extractall(target, filter="data")
+if not os.path.isfile(os.path.join(target, "index.html")):
+    sys.exit(f"ERROR: {tag}.tar.gz has no index.html")
+os.remove(path)
+PY
 
 # ---- Runtime: minimal image ----
 FROM python:3.13-slim AS runtime
@@ -81,6 +128,8 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Outside /app, so the dev compose bind mount (.:/app) does not hide it.
 COPY --from=smartva_rs /usr/local/bin/smartva-rs /usr/local/bin/smartva-rs
+# The Expo web export, also outside /app; EXPO_CLIENT_DIST points here.
+COPY --from=expo_web /opt/digitva/expo-client /opt/digitva/expo-client
 
 # Copy application code
 COPY . .

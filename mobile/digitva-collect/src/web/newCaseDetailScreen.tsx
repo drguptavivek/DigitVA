@@ -37,6 +37,30 @@ const CONTACT_OUTCOMES = [
 type ContactOutcome = (typeof CONTACT_OUTCOMES)[number];
 type ActionPanel = "attempt" | "visit" | undefined;
 
+/** The case detail's submitted interview (GET /intake/cases/<id>): read untyped, checked here. */
+interface SubmittedInterview {
+  vaSid: string;
+  draftId?: string;
+  submittedAt?: string;
+  canViewAnswers: boolean;
+  canRevise: boolean;
+}
+
+function submittedInterview(row: CaseDetail): SubmittedInterview | undefined {
+  const raw = row as CaseDetail & { submission?: unknown; can_view_answers?: unknown; can_revise?: unknown };
+  const submission = raw.submission;
+  if (typeof submission !== "object" || submission === null) return undefined;
+  const { va_sid: vaSid, draft_id: draftId, submitted_at: submittedAt } = submission as Record<string, unknown>;
+  if (typeof vaSid !== "string" || !vaSid) return undefined;
+  return {
+    vaSid,
+    draftId: typeof draftId === "string" && draftId ? draftId : undefined,
+    submittedAt: typeof submittedAt === "string" ? submittedAt : undefined,
+    canViewAnswers: raw.can_view_answers === true,
+    canRevise: raw.can_revise === true,
+  };
+}
+
 function paramValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -318,6 +342,16 @@ export default function NewCaseDetailScreen() {
     : false;
   const canInterview =
     canResume || (row ? Boolean(row.prefill) && canStartDeathInterview(state) : false);
+  const submitted = row ? submittedInterview(row) : undefined;
+  // The revision opens the existing interview screen, which asks for the reason.
+  const correctInterview = submitted?.canRevise && submitted.draftId && row?.project_id && row.site_id
+    ? () => router.push({ pathname: "/interview", params: {
+      revisionDraftId: submitted.draftId!,
+      revisionProjectId: row.project_id!,
+      revisionSiteId: row.site_id!,
+      revisionVaSid: submitted.vaSid,
+    } })
+    : undefined;
   const deceased = row?.deceased;
   const address = row?.household_address;
   const informant = row?.informant;
@@ -450,15 +484,38 @@ export default function NewCaseDetailScreen() {
               <Text style={styles.muted}>{t("contactDetailsUnavailable")}</Text>
             ) : null}
           </View>
+          {submitted && (submitted.canViewAnswers || correctInterview) ? (
+            <View style={styles.card}>
+              <Text style={styles.headline}>{t("submittedInterviewHeading")}</Text>
+              {submitted.submittedAt ? (
+                <Text style={styles.muted}>{t("submittedOn", { date: formatDate(submitted.submittedAt) })}</Text>
+              ) : null}
+              <View style={styles.row}>
+                {submitted.canViewAnswers ? (
+                  <Button
+                    kind="secondary"
+                    label={t("viewSubmittedAnswers")}
+                    disabled={busy}
+                    onPress={() => router.push({ pathname: "/workspace", params: { vaSid: submitted.vaSid, mode: "view" } })}
+                  />
+                ) : null}
+                {correctInterview ? (
+                  <Button label={t("correctInterview")} disabled={busy} onPress={correctInterview} />
+                ) : null}
+              </View>
+            </View>
+          ) : null}
           <View style={styles.row}>
-            <Button
-              label={
-                row.my_draft_id ? t("resumeInterview") : t("startInterview")
-              }
-              disabled={busy || !canInterview}
-              loading={busy}
-              onPress={() => void startOrResume()}
-            />
+            {state !== "submitted" ? (
+              <Button
+                label={
+                  row.my_draft_id ? t("resumeInterview") : t("startInterview")
+                }
+                disabled={busy || !canInterview}
+                loading={busy}
+                onPress={() => void startOrResume()}
+              />
+            ) : null}
             {canAct ? (
               <>
                 <Button

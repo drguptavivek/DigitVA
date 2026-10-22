@@ -212,6 +212,17 @@ class ProjectSetupPanelTests(BaseTestCase):
             with self.subTest(text=text):
                 self.assertIn(text, body)
 
+    def test_data_collection_hosts_the_respondent_consent_panel_locked(self):
+        body = self._setup_body()
+        self.assertEqual(body.count('id="panel-consent-settings"'), 1)
+        self.assertIn(
+            f'id="panel-consent-settings" data-locked-project="{self.BASE_PROJECT_ID}"', body
+        )
+        for text in ("Require respondent consent", "Seed from draft", "Pending legal review",
+                     "Save as new version"):
+            with self.subTest(text=text):
+                self.assertIn(text, body)
+
     def test_the_standalone_identifier_types_panel_follows_the_type_api_gate(self):
         url = "/admin/panels/identifier-types?project_id="
         self._login(self.base_admin_id)

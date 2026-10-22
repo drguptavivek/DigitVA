@@ -183,6 +183,9 @@
         {# Registration numbers (digitva-kzyp): the types the death register collects for this project. #}
         {% include "admin/panels/identifier_types.html" %}
         <hr class="my-4">
+        {# Respondent consent (digitva-athy): the DPDP notice, its versions and the require switch. #}
+        {% include "admin/panels/consent_settings.html" %}
+        <hr class="my-4">
         {% include "admin/panels/odk_connections.html" %}
       </section>
       {# Structure: each panel is included once per page (their scripts find

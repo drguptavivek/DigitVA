@@ -163,14 +163,17 @@ Current health checks:
 
 Hosts never build the Expo web export (no Node on the host). It is published
 as a release asset of DigitVA (`expo-web-v<date>`, a tarball of
-`mobile/digitva-collect/dist` with `ui-strings`) with its SHA-256, pinned in
-`deploy/expo-web-release.env`. `scripts/install-expo-web-release.sh` downloads
-it, verifies the SHA-256 and swaps `mobile/digitva-collect/dist`, keeping the
-previous export as `dist.prev` for rollback; then rebuild the app image (the
-export is copied into it). To publish a new export: build it on a developer
-machine (`vendor/who-va-2022` `npm run build`, then `npm run export:web` in
-`mobile/digitva-collect`), tar the `dist` contents, `gh release create` with the
-tarball and its `.sha256`, and bump the pin file.
+`mobile/digitva-collect/dist` with `ui-strings`) with its SHA-256. The app
+image's `expo_web` stage downloads the release pinned in `x-release-pins`
+(`EXPO_WEB_TAG`, `EXPO_WEB_SHA256`) in `docker-compose.yml`, verifies the
+checksum (a missing or wrong pin fails the build) and installs it at
+`/opt/digitva/expo-client`, outside the `.:/app` bind mount;
+`EXPO_CLIENT_DIST` points there. Dev (`docker-compose.override.yml`) serves
+its own `npm run export:web` build from the checkout instead. To publish a new
+export: build it on a developer machine (`vendor/who-va-2022` `npm run build`,
+then `npm run export:web` in `mobile/digitva-collect`), tar the `dist`
+contents, `gh release create` with the tarball and its `.sha256`, bump the two
+pins, rebuild the images.
 
 ### WHO ICD-11 service
 
@@ -620,7 +623,7 @@ Hosts never compile it. The app image downloads the pinned release asset of
 [drguptavivek/SmartVA-Analyze-rust](https://github.com/drguptavivek/SmartVA-Analyze-rust)
 (`v3.0.1`, `smartva-rs-linux-arm64.tar.gz` or `-linux-x86_64.tar.gz` by build
 architecture) and verifies its SHA-256; an unset or wrong pin fails the build.
-The pins are `x-smartva-rs` in `docker-compose.yml`, the one place to bump.
+The pins are `x-release-pins` in `docker-compose.yml`, the one place to bump.
 `SMARTVA_RS_SOURCE=source` in `.env` compiles `vendor/smartva-analyze/rust`
 instead, for developers only (it made the staging host unresponsive).
 `smartva-rs --version` in the image reports `SmartVA-Analyze 3.0.1-rust`.

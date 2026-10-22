@@ -239,6 +239,7 @@ jest.mock("../src/sync", () => ({
     prefill: {},
   })),
   getCachedReferenceData: jest.fn(async () => mockCachedReference),
+  listPausedProjects: jest.fn(async () => []),
   draftSyncDefaults: jest.fn(() => undefined),
   refreshReferenceData: jest.fn(async () => mockReference),
   refreshCases: jest.fn(async () => undefined),

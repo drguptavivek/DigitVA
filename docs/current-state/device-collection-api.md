@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Device Collection API (Path B server side)
@@ -365,6 +365,19 @@ behaviour.
   (`POST /intake/deaths`, `/cases/<id>/flags`, `/visit`, `/attempts`, `/pause`).
   `links`: `{self, attempts, visit, start_interview}` plus `form`
   (the Jinja questionnaire page) when `my_draft_id` is set.
+  The submitted interview (`case_submission_view`, digitva case view
+  2026-10-22): `submission` `{va_sid, submitted_at, interview_outcome}`
+  (plus the caller's `draft_id`) for the interviewer whose draft became the
+  case's submission or a supervisor of the case, else null;
+  `can_view_answers` follows it; `can_revise` only for that interviewer,
+  while `POST /intake/submissions/<va_sid>/revisions` would take a revision
+  (case not `duplicate`/`cancelled`, workflow not protected unless sent back
+  or reopened; open during active coding); `revise_reason_required` is
+  always true; `links.revise` when `can_revise`. The answers open read-only
+  at `GET /api/v1/va/<va_sid>/workspace?mode=view`, which admits that
+  interviewer and that supervisor without `Action.VIEW`
+  (`may_read_submitted_answers`): no COD reference, no SmartVA, and
+  `case.history_available: false` (workflow events stay `READ_EVENTS`'s).
 - **Offline download.** The app reads the list with its active states
   (`state=registered,scheduled,not_reachable,paused,refused,in_progress`,
   every page) per project, then the detail of each listed case, and keeps

@@ -17,7 +17,7 @@
  */
 import { deleteDatabaseAsync, openDatabaseAsync } from "expo-sqlite";
 
-import { migrate, type Db } from "./drafts";
+import { countUnsentWork, migrate, type Db } from "./drafts";
 import {
   buildPassphrase,
   createStoreSecret,
@@ -36,7 +36,10 @@ export class StoreLockedError extends Error {
   }
 }
 
-export type UnlockResult = { ok: true } | { ok: false; failures: number; wipe: boolean };
+export type UnlockResult =
+  | { ok: true }
+  /** `revoked`: the PIN was right, but access was removed and nothing was left unsent, so the store was wiped. */
+  | { ok: false; failures: number; wipe: boolean; revoked?: true };
 
 const unlocked = new Map<string, Db>();
 
@@ -50,6 +53,16 @@ export async function openInterviewerDb(userId: string): Promise<Db> {
   const db = unlocked.get(userId);
   if (!db) throw new StoreLockedError();
   return db;
+}
+
+/**
+ * How many items this interviewer has not sent, or undefined while the store
+ * is locked: the count is inside the encrypted store and is never kept
+ * outside it (no plaintext index of what a store holds).
+ */
+export async function unsentWorkCount(userId: string): Promise<number | undefined> {
+  const db = unlocked.get(userId);
+  return db ? countUnsentWork(db) : undefined;
 }
 
 /** Whether a PIN has been set up for this interviewer on this device. */

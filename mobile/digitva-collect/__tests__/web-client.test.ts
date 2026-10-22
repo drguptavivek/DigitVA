@@ -504,6 +504,57 @@ describe("server draft store", () => {
       deceased: { Id10017: "Ramesh" },
     });
   });
+  it("pins a pinless draft moved to the current form on load and keeps answers that form does not ask", async () => {
+    const sha = "a".repeat(64);
+    const patches: Array<Record<string, any>> = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)));
+        return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: `2026-10-03T00:0${patches.length + 1}:00Z` } } });
+      }
+      return response({
+        status: 200,
+        body: {
+          draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+          // Saved by an earlier build: bundle version, no pin, one question the current form dropped.
+          envelope: { ...draft, instrumentId: "va_who_2022", instrumentVersion: "2026081401", data: { Id10007: "old", gone_question: "kept" } },
+          prefill: {},
+        },
+      });
+    });
+    const store = new ServerDraftStore({
+      endpoint: "/api/v1/intake/drafts",
+      csrf,
+      sectionOf: new Map([["Id10007", "s1"]]),
+      definitionPin: { instrumentVersion: "2026081401-503d5dd1bb", definitionSha256: sha, definitionExtensions: ["geography"] },
+    });
+    const loaded = await store.load("d1");
+    expect(loaded?.data).toEqual({ Id10007: "old", gone_question: "kept" });
+    expect(patches).toHaveLength(1);
+    expect(patches[0].meta).toMatchObject({
+      instrumentVersion: "2026081401-503d5dd1bb",
+      definitionSha256: sha,
+      definitionExtensions: ["geography"],
+    });
+    // Opening writes no answers, so it cannot date the draft over a newer phone save.
+    expect(patches[0].sections).toEqual({});
+
+    // The form never sees the unasked answer. The first answer save replaces
+    // the section row that held it, so it carries it to its own section.
+    const save = store.save({ ...draft, data: { Id10007: "new" } });
+    await store.flush();
+    await save;
+    expect(patches).toHaveLength(2);
+    expect(patches[1].sections).toEqual({ s1: { Id10007: "new" }, _other: { gone_question: "kept" } });
+    expect(patches[1].meta).toMatchObject({ definitionSha256: sha });
+
+    // Written once; later saves send only what changed.
+    const later = store.save({ ...draft, data: { Id10007: "newer" } });
+    await store.flush();
+    await later;
+    expect(patches[2].sections).toEqual({ s1: { Id10007: "newer" } });
+  });
+
   it("persists clearing the last answer in a section across reload", async () => {
     let savedData: Record<string, unknown> = { Id10007: "old" };
     const patches: Record<string, unknown>[] = [];

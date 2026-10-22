@@ -19,6 +19,7 @@ import {
   markCompleted,
   migrate,
   purgeProjectData,
+  countUnsentWork,
   projectIds,
   setMeta,
   setDraftUploadIssue,
@@ -359,7 +360,7 @@ describe("draft store", () => {
     expect(await getMeta(db, "bootstrap")).toEqual({ context: [{ site_id: "S" }] });
   });
 
-  it("keeps revision work out of normal draft counts and purges it with its project", async () => {
+  it("keeps revision work out of normal draft counts and keeps it when its project leaves access", async () => {
     const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
     await store.save(draft("normal", "2026-09-30T01:00:00Z"));
     await db.runAsync(
@@ -371,8 +372,9 @@ describe("draft store", () => {
     expect(await completedDrafts(db)).toEqual([]);
     expect(await projectIds(db)).toEqual(["PROJECT1", "PROJECT2"]);
     await purgeProjectData(db, "PROJECT2");
-    expect(await db.getFirstAsync("SELECT draft_id FROM revision_drafts WHERE draft_id = ?", ["revision"])).toBeNull();
+    expect(await db.getFirstAsync("SELECT draft_id FROM revision_drafts WHERE draft_id = ?", ["revision"])).toEqual({ draft_id: "revision" });
     expect(await countDrafts(db)).toBe(1);
+    expect(await countUnsentWork(db, "PROJECT2")).toBe(1);
   });
 
   it("purges only the revoked project's cached definitions", async () => {
@@ -391,16 +393,29 @@ describe("draft store", () => {
     expect(await db.getFirstAsync("SELECT project_id FROM form_definitions WHERE project_id = ?", ["PROJECT2"])).toEqual({ project_id: "PROJECT2" });
   });
 
-  it("surfaces a draft-config delete failure during project purge", async () => {
-    await setMeta(db, "draft-config:one", { projectId: "PROJECT1" });
-    const failing: Db = {
-      ...db,
-      runAsync: async (sql, params) => {
-        if (sql === "DELETE FROM meta WHERE key = ?") throw new Error("storage failure");
-        return db.runAsync(sql, params);
-      }
-    };
-    await expect(purgeProjectData(failing, "PROJECT1")).rejects.toThrow("storage failure");
-    expect(await getMeta(db, "draft-config:one")).toEqual({ projectId: "PROJECT1" });
+  it("keeps every unsent row and draft config of a project that leaves access, dropping only server copies", async () => {
+    const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
+    await store.save(draft("unsent", "2026-09-30T01:00:00Z", { Id10007: "kept" }));
+    await markCompleted(db, "unsent", { valid: true, issues: [] });
+    await store.save(draft("open", "2026-09-30T02:00:00Z", { Id10007: "in progress" }));
+    await db.runAsync("INSERT INTO registrations (client_death_id, project_id, site_id, fields, created_at) VALUES (?, ?, ?, ?, ?)",
+      ["reg", "PROJECT1", "SITE1", "{}", "2026-09-30T00:00:00Z"]);
+    await db.runAsync("INSERT INTO case_actions (client_id, project_id, kind, body, created_at) VALUES (?, ?, ?, ?, ?)",
+      ["act", "PROJECT1", "attempt", "{}", "2026-09-30T00:00:00Z"]);
+    await db.runAsync("INSERT INTO cases (death_id, project_id, position, row) VALUES (?, ?, ?, ?)", ["case", "PROJECT1", 0, "{}"]);
+    await setMeta(db, "draft-config:unsent", { projectId: "PROJECT1" });
+    await setMeta(db, "units", { stale: true }, "PROJECT1");
+    expect(await countUnsentWork(db, "PROJECT1")).toBe(4);
+
+    await purgeProjectData(db, "PROJECT1");
+
+    expect(await countUnsentWork(db, "PROJECT1")).toBe(4);
+    expect(await completedDrafts(db)).toEqual([expect.objectContaining({ id: "unsent" })]);
+    expect(await getDraftRow(db, "open")).toMatchObject({ completed: 0 });
+    expect(await getMeta(db, "draft-config:unsent")).toEqual({ projectId: "PROJECT1" });
+    expect(await db.getFirstAsync("SELECT death_id FROM cases WHERE project_id = ?", ["PROJECT1"])).toBeNull();
+    expect(await getMeta(db, "units", "PROJECT1")).toBeUndefined();
+    expect(await countUnsentWork(db)).toBe(4);
+    expect(await countUnsentWork(db, "PROJECT2")).toBe(0);
   });
 });

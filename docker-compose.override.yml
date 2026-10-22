@@ -1,6 +1,9 @@
 services:
   minerva_app_service:
     environment:
+      # Dev serves its own `npm run export:web` build from the checkout, not
+      # the pinned release in the image.
+      - EXPO_CLIENT_DIST=/app/mobile/digitva-collect/dist
       - FLASK_DEBUG=1
       - FLASK_ENV=development
       # Dev .env may carry the production PUBLIC_BASE_URL; passkeys on dev must

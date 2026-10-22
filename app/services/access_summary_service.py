@@ -192,10 +192,16 @@ def _project(project_id, grants, resolved, name, site_rows, unit_names, intervie
         {k: entry[k] for k in ("site_id", "site_name", "web_intake_mode", "org_units")}
         for entry in register
     ]
+    # The app's Deaths menu holds supervision, so a supervisor keeps it in
+    # every project with intake on, direct-only included (owner 2026-10-22,
+    # digitva-hvtg); only interviewers of direct-only projects lose it.
+    held_any = roles_all_sites.union(*site_grants.values())
+    supervises_deaths = bool({_DM, _IS} & held_any) and settings.web_intake_mode != "off"
     body = {
         "project_id": project_id,
         "project_name": name,
         "has_tree": has_tree,
+        "supervises_deaths": supervises_deaths,
         "settings": {
             "web_intake_mode": settings.web_intake_mode,
             "coding_scope": None if settings.scope_depth is None else {

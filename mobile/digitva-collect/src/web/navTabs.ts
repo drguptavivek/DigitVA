@@ -43,11 +43,15 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   if (screens.includes("/reviewing")) primary.push({ key: "/reviewing", labelKey: "navVaReview", route: "/reviewing" });
   if (server.includes("/area/")) primary.push({ key: "/area/", labelKey: "navStatistics", serverPath: "/area/" });
 
-  const more: NavEntry[] = [
-    { key: "/organization", labelKey: "navOrg", route: "/organization" },
+  const more: NavEntry[] = [{ key: "/organization", labelKey: "navOrg", route: "/organization" }];
+  // The Users page's server gate (GET /api/v1/users): admin, project PI or data manager (the In-charge included).
+  if (bootstrap.access?.is_admin || roles.some((role) => role === "admin" || role === "project_pi" || role === "data_manager")) {
+    more.push({ key: "/users", labelKey: "navUsers", route: "/users" });
+  }
+  more.push(
     { key: "/settings", labelKey: "navSettings", route: "/settings" },
     { key: "website", labelKey: "navWebsite", href: WEBSITE_HREF },
-  ];
+  );
   if (server.includes("/data-management/")) more.push({ key: "/data-management/", labelKey: "navDataManagement", serverPath: "/data-management/" });
   if (screens.includes("/mentoring")) more.push({ key: "/mentoring", labelKey: "navMentoring", route: "/mentoring" });
   if (bootstrap.access?.is_admin || roles.includes("admin")) more.push({ key: "/admin/", labelKey: "homeAdminConsole", serverPath: "/admin/" });
@@ -65,7 +69,7 @@ export function activeTab(pathname: string, params: NavParams = {}): string | un
   }
   // The interview form and a case's details are reached from VA Interview.
   if (["/worklist", "/interview", "/case", "/form"].includes(pathname)) return "/collection";
-  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/organization", "/settings"]
+  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/organization", "/users", "/settings"]
     .find((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 

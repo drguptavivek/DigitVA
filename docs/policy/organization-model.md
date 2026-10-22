@@ -407,6 +407,25 @@ This is an explicit exception to the personal-data rule for worker names
   list, not the set of users.
 - Capped at 500 people per unit per response.
 
+### Users page: contacts shown (owner, 2026-10-22, digitva-75wn)
+
+The web app's **Users** page (`/users`, `GET /api/v1/users`) is an explicit
+exception to the name, cadre and roles-only rule above, for that page only.
+Owner decision 2026-10-22 (Vivek Gupta): a district data manager needs to
+phone and email the people they manage, so the page shows each listed
+user's **name, email and phone** with the roles they hold in the viewer's
+scope, account status, mobile enrolment status and activity counts.
+
+- Who sees whom is the access rule in
+  [Access Control Model](access-control-model.md), "Users page": an admin
+  every account, a project PI the holders of grants in their projects, a data
+  manager (the In-charge included) the holders of grants in their own
+  subtree. The My organization endpoints keep the names-only rule.
+- Only the grants inside the viewer's scope are listed for a user; grants
+  elsewhere are not named.
+- Never returned: password hash, TOTP or recovery material, device or
+  session tokens, enrolment code hashes, year of birth, sex, `worker_code`.
+
 ### My positions (owner, 2026-10-20)
 
 - The My organization page lists **every project** the user holds a live
@@ -860,6 +879,23 @@ account. An empty default-role mapping still creates only a roster worker.
   number in Add/Edit worker may look up an existing active `VaUsers` record by
   exact email or normalized phone match so the UI can pre-fill the account's
   name and skip redundant confirmation and demographic inputs.
+- **Suggestions while typing (`...users/lookup?q=...&suggest=1`, digitva-r8op):**
+  from 3 typed characters of an email, or 4 digits of a mobile number, the
+  same endpoint also returns up to 8 matching **active** accounts
+  (case-insensitive contains match on email, or on the canonical mobile
+  number), the exact match first, then prefix matches, then the rest by
+  name. Each suggestion carries only the user id, name, email and mobile,
+  under the exact lookup's disclosure rule (a project PI sees only the
+  channel being typed). Choosing one runs the exact lookup, so the form fills
+  and links exactly as above. Owner decision 2026-10-22: every admin and
+  project PI may see all matching accounts, not only those in their
+  projects. The endpoint stays at 60 requests a minute; the page waits for a
+  pause in typing and makes one request per pause.
+- **Enrolment email (digitva-o0nq):** saving a worker that newly gains an
+  interviewer or death_reporter grant emails the person the app enrolment
+  QR and the app download link ([mobile-sign-in.md](mobile-sign-in.md),
+  section 6). A worker row's **Resend enrolment email** action sends a fresh
+  one.
 - **Per-worker multi-unit coding & supervision grants (`coding_unit_ids`, `supervision_unit_ids`):**
   when creating or updating a worker linked to a `VaUsers` account whose
   `level × cadre` allows coding (`can_code_va_form`) or interview supervision

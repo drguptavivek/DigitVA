@@ -1,0 +1,281 @@
+{#
+  Respondent consent panel (digitva-athy, owner 2026-10-22).
+  Whether the project requires the DPDP respondent consent screen, and its notice per language with
+  version history. Calls GET/PUT /api/v1/projects/<id>/consent-settings, POST .../consent-notices
+  (an edit saves a new version; versions are never changed), POST .../consent-notices/seed (version 1
+  in English and Hindi from the policy draft) and POST .../consent-notices/<id>/approve (admin only)
+  with X-CSRFToken (window._adminCsrf). The API decides who may configure (admin, or a live
+  project_pi / data_manager grant on the project). Policy:
+  docs/policy/respondent-consent-notice-draft.md "Web flow". Ids are prefixed cns-.
+#}
+{% set cns_project = locked_project_id|default(project_id|default('')) %}
+<div id="panel-consent-settings" data-locked-project="{{ cns_project }}" data-can-approve="{{ '1' if current_user.is_admin() else '' }}">
+  <div class="card mb-3"><div class="card-body small">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <h6 class="card-title mb-0">Respondent consent</h6>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-sm btn-outline-primary d-none" id="cns-seed-btn">
+          <i class="fa-solid fa-file-import me-1"></i>Seed from draft</button>
+        <button type="button" class="btn btn-sm btn-primary d-none" id="cns-add-btn">
+          <i class="fa-solid fa-plus me-1"></i>New language</button>
+      </div>
+    </div>
+    <p class="text-muted mb-2">The DPDP notice read to the respondent (the informant) before their details are
+      saved. When required, the web shows it at death registration, before the informant's details, and before
+      an interview whose case has no consent decision yet. Editing a notice saves a new version; consent records
+      keep the version they were shown. A version is pending legal review until an admin approves it; it can be
+      used either way.</p>
+    <div class="form-check form-switch mb-2">
+      <input class="form-check-input" type="checkbox" role="switch" id="cns-required" disabled>
+      <label class="form-check-label" for="cns-required">Require respondent consent</label>
+    </div>
+    <div id="cns-error" class="alert alert-danger py-2 d-none" role="alert"></div>
+    <div id="cns-list"><div class="text-muted py-1">Loading…</div></div>
+  </div></div>
+
+  <div class="card mb-3 d-none" id="cns-form-card"><div class="card-body small">
+    <h6 class="card-title" id="cns-form-title">New notice version</h6>
+    <form id="cns-form" autocomplete="off" novalidate>
+      <div class="row g-2">
+        <div class="col-md-3">
+          <label class="form-label mb-1" for="cns-language">Language</label>
+          <input class="form-control form-control-sm font-monospace" id="cns-language" maxlength="16" spellcheck="false" placeholder="en">
+          <div class="form-text">A language code such as en or hi.</div>
+        </div>
+        <div class="col-md-9">
+          <span class="form-label mb-1 d-block">Allowed ways of giving consent</span>
+          <div class="d-flex flex-wrap gap-3">
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="cns-mode-spoken" value="spoken"><label class="form-check-label" for="cns-mode-spoken">Spoken</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="cns-mode-tap" value="tap"><label class="form-check-label" for="cns-mode-tap">Tapped on the device</label></div>
+            <div class="form-check"><input class="form-check-input" type="checkbox" id="cns-mode-signed" value="signed"><label class="form-check-label" for="cns-mode-signed">Signed</label></div>
+          </div>
+        </div>
+        <div class="col-12">
+          <label class="form-label mb-1" for="cns-text">Notice text</label>
+          <textarea class="form-control form-control-sm" id="cns-text" rows="14" maxlength="20000"></textarea>
+          <div class="form-text">Plain text, shown exactly as written. Fill in every bracketed item before field use.</div>
+        </div>
+        <div class="col-12">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="form-label mb-1">Purposes</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" id="cns-purpose-add">Add purpose</button>
+          </div>
+          <div class="form-text mb-1">Use the same codes and required flags in every language. A respondent who refuses a
+            required purpose has refused consent.</div>
+          <div id="cns-purposes"></div>
+        </div>
+      </div>
+      <div id="cns-form-error" class="alert alert-danger py-2 mt-3 mb-0 d-none" role="alert"></div>
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-sm btn-primary" id="cns-save-btn">Save as new version</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="cns-cancel-btn">Cancel</button>
+      </div>
+    </form>
+  </div></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var root = document.getElementById('panel-consent-settings');
+  var projectId = root.getAttribute('data-locked-project') || '';
+  var canApprove = root.getAttribute('data-can-approve') === '1';
+  var base = '/api/v1/projects/' + encodeURIComponent(projectId);
+  var MODES = ['spoken', 'tap', 'signed'];
+  var settings = null;
+  var source = null;   // the version an edit starts from (its covered fields and witness rule carry over)
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function headers() { return { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' }; }
+  function showError(box, message) { box.textContent = message || ''; box.classList.toggle('d-none', !message); }
+  function errorText(res, fallback) { return (res.data && res.data.error) || fallback + ' (HTTP ' + res.status + ').'; }
+  function request(method, url, body) {
+    return fetch(url, { method: method, headers: headers(), credentials: 'same-origin', body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, status: r.status, data: d }; },
+                             function () { return { ok: r.ok, status: r.status, data: null }; });
+      });
+  }
+
+  // ── list ──────────────────────────────────────────────────────────────────
+
+  // The newest version of each language is the one the screen shows; older ones are history.
+  function latestByLanguage(versions) {
+    var latest = {};
+    versions.forEach(function (v) { if (!latest[v.language] || latest[v.language].version < v.version) latest[v.language] = v; });
+    return latest;
+  }
+
+  function render() {
+    var versions = settings.notice_versions || [];
+    $('cns-required').checked = !!settings.consent_required;
+    $('cns-required').disabled = false;
+    $('cns-seed-btn').classList.toggle('d-none', versions.length > 0);
+    $('cns-add-btn').classList.toggle('d-none', versions.length === 0);
+    var list = $('cns-list');
+    if (!versions.length) {
+      list.innerHTML = '<div class="text-muted py-1">No notice yet. Seed one from the policy draft (English and Hindi), then edit it.</div>';
+      return;
+    }
+    var latest = latestByLanguage(versions);
+    var rows = versions.slice().reverse().map(function (v) {
+      var current = latest[v.language] === v && !v.retired_at;
+      var review = v.approved_at
+        ? '<span class="badge text-bg-success">Approved</span>'
+        : '<span class="badge text-bg-warning">Pending legal review</span>';
+      var purposes = (v.purposes || []).map(function (p) { return esc(p.code) + (p.required ? '' : ' (optional)'); }).join(', ');
+      return '<tr' + (current ? '' : ' class="text-muted"') + '>' +
+        '<td>' + esc(v.version) + '</td><td><code>' + esc(v.language) + '</code></td>' +
+        '<td>' + esc((v.created_at || '').slice(0, 10)) + '</td>' +
+        '<td>' + (current ? '<span class="badge text-bg-primary">Shown</span>' : (v.retired_at ? 'Retired' : 'Earlier')) + '</td>' +
+        '<td>' + review + '</td><td class="small">' + purposes + '</td>' +
+        '<td class="text-nowrap">' +
+          '<button type="button" class="btn btn-sm btn-outline-primary me-1" data-cns-edit="' + esc(v.notice_version_id) + '">Edit</button>' +
+          (canApprove && !v.approved_at
+            ? '<button type="button" class="btn btn-sm btn-outline-success" data-cns-approve="' + esc(v.notice_version_id) + '">Approve</button>'
+            : '') +
+        '</td></tr>';
+    }).join('');
+    list.innerHTML = '<div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr>' +
+      '<th>Version</th><th>Language</th><th>Created</th><th>Use</th><th>Legal review</th><th>Purposes</th><th></th></tr></thead><tbody>' +
+      rows + '</tbody></table></div>';
+  }
+
+  function load() {
+    request('GET', base + '/consent-settings').then(function (res) {
+      if (!res.ok) { showError($('cns-error'), errorText(res, 'Could not load the consent settings')); $('cns-list').innerHTML = ''; return; }
+      showError($('cns-error'), '');
+      settings = res.data;
+      render();
+    }).catch(function () { showError($('cns-error'), 'Network error.'); $('cns-list').innerHTML = ''; });
+  }
+
+  function versionById(id) {
+    return (settings.notice_versions || []).filter(function (v) { return v.notice_version_id === id; })[0] || null;
+  }
+
+  // ── editor ────────────────────────────────────────────────────────────────
+
+  function purposeRow(p) {
+    var row = document.createElement('div');
+    row.className = 'row g-1 mb-1 align-items-center';
+    row.setAttribute('data-cns-purpose', '');
+    row.innerHTML =
+      '<div class="col-md-3"><input class="form-control form-control-sm font-monospace" data-field="code" maxlength="64" spellcheck="false" placeholder="code" aria-label="Purpose code"></div>' +
+      '<div class="col-md-6"><input class="form-control form-control-sm" data-field="label" maxlength="200" placeholder="What the respondent agrees to" aria-label="Purpose label"></div>' +
+      '<div class="col-md-2"><div class="form-check"><input class="form-check-input" type="checkbox" data-field="required" aria-label="Required"><label class="form-check-label">Required</label></div></div>' +
+      '<div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger py-0" data-cns-remove aria-label="Remove purpose">&times;</button></div>';
+    row.querySelector('[data-field="code"]').value = p.code || '';
+    row.querySelector('[data-field="label"]').value = p.label || '';
+    row.querySelector('[data-field="required"]').checked = !!p.required;
+    return row;
+  }
+
+  function openForm(version) {
+    source = version || null;
+    $('cns-form-title').textContent = source ? 'Edit notice (' + source.language + ', version ' + source.version + ')' : 'New notice language';
+    $('cns-language').value = source ? source.language : '';
+    $('cns-text').value = source ? source.text : '';
+    MODES.forEach(function (m) { $('cns-mode-' + m).checked = source ? source.allowed_modes.indexOf(m) !== -1 : true; });
+    var box = $('cns-purposes');
+    box.innerHTML = '';
+    var purposes = source ? source.purposes : ((settings.notice_versions || [])[0] || { purposes: [] }).purposes;
+    purposes.forEach(function (p) { box.appendChild(purposeRow(p)); });
+    showError($('cns-form-error'), '');
+    $('cns-form-card').classList.remove('d-none');
+    $('cns-text').focus();
+  }
+
+  function closeForm() { $('cns-form-card').classList.add('d-none'); source = null; }
+
+  function formBody() {
+    var body = {
+      language: $('cns-language').value.trim(),
+      text: $('cns-text').value,
+      allowed_modes: MODES.filter(function (m) { return $('cns-mode-' + m).checked; }),
+      purposes: Array.prototype.map.call($('cns-purposes').querySelectorAll('[data-cns-purpose]'), function (row) {
+        return {
+          code: row.querySelector('[data-field="code"]').value.trim(),
+          label: row.querySelector('[data-field="label"]').value.trim(),
+          required: row.querySelector('[data-field="required"]').checked
+        };
+      })
+    };
+    if (source) { body.covered_fields = source.covered_fields; body.witness_allowed = source.witness_allowed; }
+    return body;
+  }
+
+  $('cns-add-btn').addEventListener('click', function () { openForm(null); });
+  $('cns-cancel-btn').addEventListener('click', closeForm);
+  $('cns-purpose-add').addEventListener('click', function () { $('cns-purposes').appendChild(purposeRow({})); });
+  $('cns-purposes').addEventListener('click', function (event) {
+    var remove = event.target.closest('[data-cns-remove]');
+    if (remove) remove.closest('[data-cns-purpose]').remove();
+  });
+
+  $('cns-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var body = formBody();
+    var errBox = $('cns-form-error');
+    // Advice only: the server's message is the authority.
+    if (!body.language) { showError(errBox, 'Language is required.'); return; }
+    if (!body.text.trim()) { showError(errBox, 'The notice text is required.'); return; }
+    if (!body.purposes.length) { showError(errBox, 'Add at least one purpose.'); return; }
+    if (!body.allowed_modes.length) { showError(errBox, 'Allow at least one way of giving consent.'); return; }
+    var btn = $('cns-save-btn');
+    btn.disabled = true;
+    request('POST', base + '/consent-notices', body).then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { showError(errBox, errorText(res, 'Could not save the notice')); return; }
+      closeForm();
+      load();
+    }).catch(function () { btn.disabled = false; showError(errBox, 'Network error.'); });
+  });
+
+  // ── switch, seed, approve ─────────────────────────────────────────────────
+
+  $('cns-required').addEventListener('change', function () {
+    var input = this;
+    input.disabled = true;
+    request('PUT', base + '/consent-settings', { consent_required: input.checked }).then(function (res) {
+      // 400 names the reason, e.g. a notice version is needed before consent can be required.
+      if (!res.ok) { input.checked = !input.checked; input.disabled = false; showError($('cns-error'), errorText(res, 'Could not save the setting')); return; }
+      showError($('cns-error'), '');
+      settings = res.data;
+      render();
+    }).catch(function () { input.checked = !input.checked; input.disabled = false; showError($('cns-error'), 'Network error.'); });
+  });
+
+  $('cns-seed-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    request('POST', base + '/consent-notices/seed').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { showError($('cns-error'), errorText(res, 'Could not seed the notice')); return; }
+      load();
+    }).catch(function () { btn.disabled = false; showError($('cns-error'), 'Network error.'); });
+  });
+
+  $('cns-list').addEventListener('click', function (event) {
+    var edit = event.target.closest('[data-cns-edit]');
+    if (edit) { openForm(versionById(edit.getAttribute('data-cns-edit'))); return; }
+    var approve = event.target.closest('[data-cns-approve]');
+    if (!approve) return;
+    var version = versionById(approve.getAttribute('data-cns-approve'));
+    if (!version || !window.confirm('Approve ' + version.language + ' version ' + version.version + ' as legally reviewed? This cannot be undone.')) return;
+    approve.disabled = true;
+    request('POST', base + '/consent-notices/' + encodeURIComponent(version.notice_version_id) + '/approve').then(function (res) {
+      if (!res.ok) { approve.disabled = false; showError($('cns-error'), errorText(res, 'Could not approve the version')); return; }
+      showError($('cns-error'), '');
+      settings = res.data;
+      render();
+    }).catch(function () { approve.disabled = false; showError($('cns-error'), 'Network error.'); });
+  });
+
+  if (projectId) load(); else $('cns-list').innerHTML = '<div class="text-muted py-1">Choose a project.</div>';
+}());
+</script>
+</div>

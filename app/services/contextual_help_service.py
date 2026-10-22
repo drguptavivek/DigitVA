@@ -794,7 +794,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
         "page_key": "admin_training-sessions",
         "stage_badge": "Admin · Training",
         "title": "Training Sessions",
-        "summary": "Run a training on the TRN01 project: each session copies 200 pseudonymised cases into 20 coder slots of 10.",
+        "summary": "Run a training on the TRN01 project: each session holds the number of coder slots you choose, 10 pseudonymised cases each; beyond the source cases (about 200) cases repeat across slots.",
         "bullets": [
             "Trainees use their own accounts: add existing users by email, or several at once from the accounts you created.",
             "Each coder gets the next free slot of 10 cases; coders need Hindi in their coding languages.",

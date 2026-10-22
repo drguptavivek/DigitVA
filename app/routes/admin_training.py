@@ -12,7 +12,7 @@ from flask_login import current_user
 
 from app import limiter
 from app.decorators import role_required
-from app.models.mas_training import PARTICIPANT_ROLES
+from app.models.mas_training import CODER_SLOTS, PARTICIPANT_ROLES
 from app.routes.admin import _json_error, admin
 from app.services import training_demo_service as service
 
@@ -82,9 +82,14 @@ def training_sessions_list():
 @role_required("admin")
 @limiter.limit("10 per hour")
 def training_sessions_create():
-    """Create a session (200 copies take a few seconds)."""
+    """Create a session; ``coder_slots`` (1..100, default 20) is checked by the
+    service and anything else is a 400. Copies take a few seconds."""
+    payload = _body()
     try:
-        summary = service.create_training_session(_body().get("name"), current_user._get_current_object())
+        summary = service.create_training_session(
+            payload.get("name"), current_user._get_current_object(),
+            coder_slots=payload.get("coder_slots", CODER_SLOTS),
+        )
     except service.TrainingDemoError as exc:
         return _fail(exc)
     return jsonify(summary), 201

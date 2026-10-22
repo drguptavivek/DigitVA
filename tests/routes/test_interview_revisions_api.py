@@ -626,3 +626,101 @@ class InterviewRevisionTests(BaseTestCase):
         db.session.expire_all()
         self.assertEqual(db.session.get(VaDeathRegister, death_id).status, "submitted")
         self.assertEqual(self._draft(va_sid).meta["interviewOutcome"], "partially_completed")
+
+    # ── the case detail's submitted interview (view and correct) ──────────
+
+    def _detail(self, death_id, user_id=None):
+        self._login(user_id or self.interviewer_id)
+        response = self.client.get(f"{API}/cases/{death_id}")
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return response.get_json()["case"]
+
+    def test_the_case_detail_offers_the_submitter_a_correction_until_coding_is_final(self):
+        death_id, va_sid = self._submitted()
+        case = self._detail(death_id)
+        self.assertEqual(case["submission"]["va_sid"], va_sid)
+        self.assertEqual(case["submission"]["draft_id"], str(self._draft(va_sid).draft_id))
+        self.assertEqual(case["submission"]["interview_outcome"], "completed")
+        self.assertIsNotNone(case["submission"]["submitted_at"])
+        self.assertEqual((case["can_view_answers"], case["can_revise"], case["revise_reason_required"]), (True, True, True))
+        self.assertEqual(case["links"]["revise"], f"{API}/submissions/{va_sid}/revisions")
+        # Active coding keeps it open (interview-revisions.md rule 2); a final COD locks it.
+        self._start_coding(va_sid)
+        self.assertTrue(self._detail(death_id)["can_revise"])
+        set_submission_workflow_state(va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test")
+        db.session.commit()
+        locked = self._detail(death_id)
+        self.assertEqual((locked["can_view_answers"], locked["can_revise"]), (True, False))
+        self.assertNotIn("revise", locked["links"])
+        self.assertEqual(self._revise(va_sid, _answers(Id10017="Binita")).get_json()["code"], "revision_locked")
+
+    def test_a_sent_back_case_reopens_the_correction(self):
+        death_id, va_sid = self._submitted()
+        set_submission_workflow_state(va_sid, "finalized_upstream_changed", reason="test", by_role="test")
+        db.session.commit()
+        self.assertFalse(self._detail(death_id)["can_revise"])
+        with patch("app.services.web_intake_service.revision_unlocked", return_value=True):
+            self.assertTrue(self._detail(death_id)["can_revise"])
+
+    def test_a_closed_case_offers_no_correction(self):
+        death_id, va_sid = self._submitted()
+        db.session.get(VaDeathRegister, death_id).status = "duplicate"
+        db.session.commit()
+        case = self._detail(death_id)
+        self.assertEqual(case["submission"]["va_sid"], va_sid)
+        self.assertFalse(case["can_revise"])
+
+    def test_a_teammate_sees_no_submission_and_a_supervisor_sees_it_without_correcting(self):
+        death_id, va_sid = self._submitted()
+        teammate = self._detail(death_id, self.teammate_id)
+        self.assertEqual(
+            (teammate["submission"], teammate["can_view_answers"], teammate["can_revise"]), (None, False, False)
+        )
+        supervises = lambda user, case: str(user.user_id) == self.teammate_id  # noqa: E731
+        with patch("app.services.case_transition_service.is_interview_supervisor_for", side_effect=supervises):
+            supervisor = self._detail(death_id, self.teammate_id)
+        self.assertEqual(supervisor["submission"]["va_sid"], va_sid)
+        self.assertNotIn("draft_id", supervisor["submission"])
+        self.assertEqual((supervisor["can_view_answers"], supervisor["can_revise"]), (True, False))
+
+    def test_the_read_only_view_opens_for_the_submitter_and_a_supervisor_only(self):
+        _death_id, va_sid = self._submitted()
+        view = f"/api/v1/va/{va_sid}/workspace?mode=view"
+        self._login(self.interviewer_id)
+        response = self.client.get(view)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        body = response.get_json()
+        self.assertFalse(body["case"]["history_available"])
+        self.assertIsNone(body["assessments"]["final"])
+        self.assertIsNone(body["smartva"])
+        # This database seeds no category display config for the web form: past the gate, an
+        # unconfigured category is 404, where a caller the gate refuses gets 403.
+        category = f"/api/v1/va/{va_sid}/categories/vademographicdetails?mode=view"
+        self.assertEqual(self.client.get(category).status_code, 404)
+        # The intake gate opens mode=view only.
+        self.assertEqual(self.client.get(f"/api/v1/va/{va_sid}/workspace?mode=coding").status_code, 403)
+        self.assertEqual(self.client.get(f"/api/v1/workflow/events/{va_sid}").status_code, 403)
+
+        self._login(self.teammate_id)
+        self.assertEqual(self.client.get(view).status_code, 403)
+        self.assertEqual(self.client.get(category).status_code, 403)
+        supervises = lambda user, case: str(user.user_id) == self.teammate_id  # noqa: E731
+        with patch("app.services.case_transition_service.is_interview_supervisor_for", side_effect=supervises):
+            self.assertEqual(self.client.get(view).status_code, 200)
+
+    def test_a_teammate_with_coding_access_sees_the_submission_but_cannot_correct_it(self):
+        death_id, va_sid = self._submitted()
+        coder = self._get_or_make_user("rev.coder.teammate@test.local", "Revision123")
+        for role in (VaAccessRoles.interviewer, VaAccessRoles.coder):
+            if not db.session.scalar(sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == coder.user_id, VaUserAccessGrants.role == role,
+            )):
+                db.session.add(VaUserAccessGrants(
+                    user_id=coder.user_id, role=role, scope_type=VaAccessScopeTypes.project,
+                    project_id=self.PROJECT_ID, notes="revision test grant", grant_status=VaStatuses.active,
+                ))
+        db.session.commit()
+        case = self._detail(death_id, str(coder.user_id))
+        self.assertEqual(case["submission"]["va_sid"], va_sid)
+        self.assertNotIn("draft_id", case["submission"])
+        self.assertEqual((case["can_view_answers"], case["can_revise"]), (True, False))

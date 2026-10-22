@@ -58,17 +58,24 @@ project.
 Creating a session builds, in one transaction:
 
 - a session root unit (PHC level, under a fixed training district and CHC) named
-  after the session, and 20 child units at the sub-centre level, "Coder slot
-  01" to "Coder slot 20";
-- a fresh copy of 200 cases taken from the real, consented ODK form
+  after the session, and one child unit per coder slot at the sub-centre level,
+  "Coder slot 01" onwards. The trainer chooses the number of coder slots when
+  creating the session: 1 to 100, default 20 (a training may have 50 to 60
+  coders). Each slot holds 10 cases, so a session has slots x 10 cases;
+- a fresh copy, for each slot, of 10 cases taken from the real, consented ODK form
   `UNSW01NC0101` (project UNSW01, site NC01): the owner's frozen list of 200
   consented cases chosen at random on 2026-10-22,
   `app/services/training_corpus/UNSW01NC0101.txt` (one `va_sid` per line, line
   order is the case number). A listed case must still have an active payload
   version and valid consent, or the session is refused. A form without a list
-  takes the first 200 eligible cases by `va_sid`. Case `n` goes to slot
-  `((n-1)//10)+1`, so each slot holds 10 cases and the copy's submission unit is
-  that slot unit. Copies have new `va_sid` values (`trn-<session>-<n>`), new
+  takes the first 200 eligible cases by `va_sid`. Slot `k` takes 10
+  consecutive source cases, wrapping round the source list: when slots x 10 is
+  more than the source cases, the same source case is copied into more than one
+  slot (owner, 2026-10-22: the forms may be duplicated). A slot never holds one
+  source case twice, and each further pass over the list starts three cases
+  later so a later slot is not a copy of an earlier one. Every copy is its own
+  case with its own pseudonymised payload and attachments. Case `n` goes to
+  slot `((n-1)//10)+1`, and the copy's submission unit is that slot unit. Copies have new `va_sid` values (`trn-<session>-<n>`), new
   unique ids, and workflow state `ready_for_coding`. Source rows are never
   modified, and the source case's coding is never copied into the copy's
   assessment tables;
@@ -76,7 +83,8 @@ Creating a session builds, in one transaction:
   final cause (ICD-10) as the answer key. The key is read only by the trainer
   report; it is never shown on a coder screen.
 
-If fewer than 200 eligible source cases exist the session is refused.
+A session is refused when a listed source case is no longer eligible, or when
+a form without a list has fewer than 10 eligible cases.
 
 ## Pseudonymisation
 

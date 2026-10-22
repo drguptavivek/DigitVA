@@ -21,6 +21,7 @@ import logging
 import re
 import unicodedata
 import uuid
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
@@ -32,6 +33,8 @@ from app.models import (
     MasProjectConsentSettings,
     VaConsentRecord,
     VaConsentRecordPurpose,
+    VaDeathRegister,
+    VaProjectMaster,
 )
 from app.models.va_consent import (
     CONSENT_CHANNELS,
@@ -40,6 +43,12 @@ from app.models.va_consent import (
     REFUSAL_BEHAVIOURS,
 )
 from app.services import identifier_type_service
+from app.services.consent_notice_seed import (
+    PROJECT_NAME_PLACEHOLDER,
+    SEED_ALLOWED_MODES,
+    SEED_PURPOSES,
+    SEED_TEXT,
+)
 from app.services.web_intake_service import _device_time
 
 log = logging.getLogger(__name__)
@@ -538,7 +547,8 @@ def serialize_settings(project_id: str) -> dict:
     versions = _newest_versions(project_id=project_id)
     config["notice_versions"] = [
         {**serialize_version(v), "created_at": v.created_at.isoformat(),
-         "retired_at": v.retired_at.isoformat() if v.retired_at else None}
+         "retired_at": v.retired_at.isoformat() if v.retired_at else None,
+         "approved_at": v.approved_at.isoformat() if v.approved_at else None}
         for v in versions
     ]
     return config
@@ -691,3 +701,83 @@ def create_notice_version(user, project_id: str, body: dict) -> MasConsentNotice
         "purposes": [p["code"] for p in row.purposes],
     }, notice_version_id=row.notice_version_id)
     return row
+
+
+def seed_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]:
+    """Project Setup's "Seed from draft": version 1 in English and Hindi from
+    ``consent_notice_seed`` (the policy draft), ``[PROJECT NAME]`` filled in,
+    pending legal review. Only for a project with no notice version yet (409
+    ``conflict``); a concurrent seed loses on the version unique key (409)."""
+    configuring_role(user, project_id)
+    if db.session.scalar(sa.select(MasConsentNoticeVersion.notice_version_id)
+                         .where(MasConsentNoticeVersion.project_id == project_id).limit(1)):
+        raise ConsentError("This project already has a notice. Edit it to save a new version.",
+                           "conflict", 409, fields=[])
+    name = db.session.get(VaProjectMaster, project_id).project_name
+    return [
+        create_notice_version(user, project_id, {
+            "version": 1, "language": language,
+            "text": SEED_TEXT[language].replace(PROJECT_NAME_PLACEHOLDER, name),
+            "purposes": SEED_PURPOSES[language], "allowed_modes": SEED_ALLOWED_MODES,
+        })
+        for language in ("en", "hi")
+    ]
+
+
+def approve_notice_version(user, project_id: str, notice_version_id: str) -> MasConsentNoticeVersion:
+    """Mark a notice version legally reviewed (owner 2026-10-22: admin only,
+    once; audited). Approving an approved version changes nothing. 404 for a
+    version of another project or an unknown id."""
+    role = configuring_role(user, project_id)
+    if not user.is_admin():
+        raise ConsentError("Only an admin approves a notice version.", "forbidden", 403, fields=[])
+    version_id = _uuid(notice_version_id)
+    row = db.session.get(MasConsentNoticeVersion, version_id, with_for_update=True) if version_id else None
+    if row is None or row.project_id != project_id:
+        raise ConsentError("Notice version not found.", "not_found", 404, fields=[])
+    if row.approved_at is None:
+        row.approved_at = datetime.now(UTC)
+        row.approved_by = user.user_id
+        _audit(user, role, project_id, "consent_notice_approved",
+               {"version": row.version, "language": row.language, "text_sha256": row.text_sha256},
+               notice_version_id=row.notice_version_id)
+    return row
+
+
+# ---------------------------------------------------------------------------
+# The browser interview (digitva-athy, owner 2026-10-22)
+# ---------------------------------------------------------------------------
+
+
+def draft_consent_status(draft) -> dict:
+    """What the interview page needs before it opens the form: whether the
+    project requires consent and the decision on file for the draft's case
+    (its attempt's own, else the registration consent: the gate's order),
+    with the covered fields that decision's version names (locked empty on a
+    refusal). No informant data."""
+    settings = get_settings(draft.project_id)
+    required = bool(settings and settings.consent_required)
+    record = None
+    if draft.death_id is not None:
+        record = ((draft.client_draft_id and _latest_record(draft.death_id, draft.client_draft_id))
+                  or _latest_record(draft.death_id, None))
+    return {
+        "consent_required": required,
+        "decision": record.event if record else None,
+        "covered_fields": sorted(_covered_by(record)) if record else [],
+        "client_draft_id": str(draft.client_draft_id) if draft.client_draft_id else None,
+    }
+
+
+def record_draft_consent(user, draft, consent: object) -> dict:
+    """Store a consent the browser took before an interview (granted or
+    refused) on the draft's case: ``record_consent`` with the draft's own
+    ``client_draft_id`` (null for a browser draft, so the case's consent the
+    submit gate then finds). Returns ``draft_consent_status``."""
+    if draft.death_id is None:
+        raise ConsentError("A consent is recorded on a case; this interview has none.")
+    death = db.session.get(VaDeathRegister, draft.death_id)
+    record_consent(user, project_id=draft.project_id, death=death, consent=consent,
+                   client_draft_id=draft.client_draft_id, channel="web")
+    db.session.flush()
+    return draft_consent_status(draft)

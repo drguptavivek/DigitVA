@@ -5,11 +5,15 @@
  *    each acknowledgement rebinds the drafts and actions waiting on it;
  * 2. queued contact attempts and visit dates (idempotent on client_attempt_id;
  *    a visit is idempotent by value);
- * 3. unfinished registered-case drafts (POST /drafts/sync), after any
- *    offline registration has supplied its server death id;
- * 4. completed interviews (POST /submissions, idempotent on client_draft_id);
- * 5. the outstanding-work report (what is still on the phone);
- * 6. the case download (GET /cases, every page), replacing the stored cases.
+ * 3. completed interviews (POST /submissions, idempotent on client_draft_id);
+ *    steps 1-3 run for every project on the phone, before the access refresh,
+ *    so a project that has left the worker's access still has its unsent
+ *    work tried (owner decision 2026-10-22: unsent work is never purged);
+ * 4. the access and settings refresh;
+ * 5. unfinished registered-case drafts (POST /drafts/sync) and revisions of
+ *    the projects still in access;
+ * 6. the outstanding-work report (what is still on the phone);
+ * 7. the case download (GET /cases, every page), replacing the stored cases.
  *
  * Each item is deleted once the server acknowledges it. A 422 reopens it for
  * editing (a draft goes back to in progress; a registration or action is
@@ -48,6 +52,7 @@ import {
 import {
   completedDrafts,
   countDrafts,
+  countUnsentWork,
   draftIds,
   draftUniqueIds,
   getMeta,
@@ -126,12 +131,76 @@ export function isUploadable(data: CompletedDraft["draft"]["data"] | undefined, 
   return typeof outcome === "string" && (INCOMPLETE_OUTCOMES as readonly string[]).includes(outcome);
 }
 
-/** Session and network failures stop the run with everything kept; anything but an API refusal is rethrown. */
+/** 403 codes that gate the whole account rather than one project's rows. */
+const ACCOUNT_GATE_CODES = new Set(["terms_required", "password_change_required", "maintenance", "no_collection_access"]);
+
+/**
+ * Session, network and account-wide failures stop the run with everything
+ * kept; anything but an API refusal is rethrown. A per-project 403 (a paused
+ * project, a withdrawn grant) is a refusal of that row only, so it cannot
+ * stop the other projects' work from being sent.
+ */
 function refusal(error: unknown): ApiError {
   if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
   if (!(error instanceof ApiError)) throw error;
-  if (error.status === 403) throw error;
+  if (error.status === 403 && ACCOUNT_GATE_CODES.has(error.code ?? "")) throw error;
   return error;
+}
+
+const PAUSED_META_PREFIX = "paused:";
+
+/** A project with unsent work on the phone that is no longer in this worker's access. */
+export interface PausedProject {
+  projectId: string;
+  projectName?: string;
+  /** The server's last refusal of this project's work (status and code only). */
+  refusal?: { status: number; code?: string };
+}
+
+/** Remember the server's refusal of a paused project's row so the worklist can show it. */
+async function notePausedRefusal(db: Db, projectId: string | null, refused: ApiError): Promise<void> {
+  if (!projectId || refused.status !== 403) return;
+  const current = await getMeta<Omit<PausedProject, "projectId">>(db, PAUSED_META_PREFIX + projectId);
+  await setMeta(db, PAUSED_META_PREFIX + projectId, {
+    ...current,
+    refusal: { status: refused.status, ...(refused.code ? { code: refused.code } : {}) },
+  });
+}
+
+/**
+ * Keep or clear the pause notice of each local project after an access
+ * change: a project back in access loses it; one out of access with unsent
+ * work keeps its name for the worklist.
+ */
+async function recordPausedProjects(
+  db: Db,
+  localProjectIds: Iterable<string>,
+  interviewProjectIds: Set<string>,
+  names: Map<string, string>,
+): Promise<void> {
+  // The interview set matches the worklist's (listPausedProjects): a project
+  // kept only for registration still shows its unsent drafts as paused.
+  for (const projectId of localProjectIds) {
+    const key = PAUSED_META_PREFIX + projectId;
+    if (interviewProjectIds.has(projectId) || (await countUnsentWork(db, projectId)) === 0) {
+      await db.runAsync("DELETE FROM meta WHERE key = ?", [key]);
+      continue;
+    }
+    const current = await getMeta<Omit<PausedProject, "projectId">>(db, key);
+    const projectName = names.get(projectId) ?? current?.projectName;
+    await setMeta(db, key, { ...current, ...(projectName ? { projectName } : {}) });
+  }
+}
+
+/** Projects with unsent work on the phone that have left this worker's access, with the reason recorded. */
+export async function listPausedProjects(db: Db, authorizedProjectIds: Set<string>): Promise<PausedProject[]> {
+  const paused: PausedProject[] = [];
+  for (const projectId of await projectIds(db)) {
+    if (authorizedProjectIds.has(projectId) || (await countUnsentWork(db, projectId)) === 0) continue;
+    const notice = await getMeta<Omit<PausedProject, "projectId">>(db, PAUSED_META_PREFIX + projectId);
+    paused.push({ ...notice, projectId });
+  }
+  return paused;
 }
 
 function acknowledgedCase(body: unknown): { deathId: string; state: string } {
@@ -181,28 +250,38 @@ async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unk
   }
 }
 
-export async function syncInterviewer(
+/** What one upload pass sent, refused and learned; the rows themselves stay until acknowledged. */
+export interface UploadResult {
+  sent: number;
+  failed: number;
+  supersededUniqueIds: string[];
+  serverKeptUploads: { uniqueId: string; locked: boolean }[];
+  canCodeNowUniqueIds: string[];
+}
+
+/**
+ * Send every queued registration, contact attempt or visit, and completed
+ * interview on the phone, in every project it holds, including a project
+ * that has left this worker's access: the server decides, and a refusal
+ * keeps the row and is recorded for the worklist (listPausedProjects).
+ */
+export async function uploadQueuedWork(
   userId: string,
   db: Db,
-  onSuperseded?: (uniqueId: string) => void,
-  onDraftConflict?: (draftId: string) => void,
-  onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void,
-  onCanCodeNow?: (uniqueId: string) => void
-): Promise<SyncResult> {
+  callbacks: {
+    onSuperseded?: (uniqueId: string) => void;
+    onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void;
+    onCanCodeNow?: (uniqueId: string) => void;
+  } = {}
+): Promise<UploadResult> {
+  const { onSuperseded, onServerKept, onCanCodeNow } = callbacks;
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
   const serverKeptUploads: { uniqueId: string; locked: boolean }[] = [];
   const canCodeNowUniqueIds: string[] = [];
-  const draftConflictIds: string[] = [];
-
-  // The authoritative project list is refreshed before any outbound work so
-  // revoked projects are purged before their queued payloads are considered.
-  const referenceData = await refreshReferenceData(userId, db, { force: true });
-  const authorizedProjects = new Set(referenceData.projects.map(({ project }) => project.project_id));
 
   for (const reg of await listRegistrations(db)) {
-    if (!authorizedProjects.has(reg.project_id)) continue;
     if (reg.state !== "pending") continue;
     try {
       const { body } = await authedRequest<{ case: CaseDetail }>(userId, `${INTAKE_API}/deaths`, {
@@ -221,6 +300,7 @@ export async function syncInterviewer(
     } catch (error) {
       const refused = refusal(error);
       console.warn(`registration refused id=${reg.client_death_id} status=${refused.status} code=${refused.code ?? "-"}`);
+      await notePausedRefusal(db, reg.project_id, refused);
       if (refused.status === 422) {
         const numbers = identifierFieldErrors(refused);
         if (Object.keys(numbers).length) await setRegistrationRefusal(db, reg.client_death_id, numbers);
@@ -231,7 +311,6 @@ export async function syncInterviewer(
   }
 
   for (const action of await listActions(db)) {
-    if (!authorizedProjects.has(action.project_id)) continue;
     if (action.state !== "pending" || !action.death_id) continue; // waits for its registration
     const path = `${INTAKE_API}/cases/${encodeURIComponent(action.death_id)}/${action.kind === "attempt" ? "attempts" : "visit"}`;
     try {
@@ -248,45 +327,14 @@ export async function syncInterviewer(
     } catch (error) {
       const refused = refusal(error);
       console.warn(`case action refused id=${action.client_id} status=${refused.status} code=${refused.code ?? "-"}`);
+      await notePausedRefusal(db, action.project_id, refused);
       if ([404, 409, 422].includes(refused.status)) await setActionState(db, action.client_id, "needs_edit");
       failed += 1;
     }
   }
 
-  // Page by stable local id so a large encrypted draft queue stays bounded.
-  // Query one authorized project at a time; each item is sent sequentially.
-  for (const { project } of referenceData.projects) {
-    let afterId: string | undefined;
-    while (true) {
-      const snapshots = await unfinishedDraftsForSync(
-        db,
-        project.project_id,
-        afterId,
-        DRAFT_SYNC_PAGE_SIZE,
-      );
-      if (snapshots.length === 0) break;
-      for (const item of snapshots) {
-        afterId = item.id;
-        if (!authorizedProjects.has(item.project_id) || !item.death_id) continue;
-        try {
-          const result = await syncDraftSnapshot(userId, db, item);
-          if (result.conflict) {
-            draftConflictIds.push(item.id);
-            onDraftConflict?.(item.id);
-          }
-          if (result.applied) sent += 1;
-        } catch (error) {
-          const refused = refusal(error);
-          console.warn(`draft sync refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
-          failed += 1;
-        }
-      }
-      if (snapshots.length < DRAFT_SYNC_PAGE_SIZE) break;
-    }
-  }
-
   draftLoop: for (const item of await completedDrafts(db)) {
-    if (!item.project_id || !authorizedProjects.has(item.project_id)) continue;
+    if (!item.project_id) continue;
     try {
       readDefinitionPin(item.draft);
     } catch (error) {
@@ -387,8 +435,63 @@ export async function syncInterviewer(
       // 422 (the interview as it stands) also reopens it for editing.
       const refused = refusal(error);
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
+      await notePausedRefusal(db, item.project_id, refused);
       if (refused.status === 422 && refused.code !== "answers_hash_invalid") await reopenDraft(db, item.id);
       failed += 1;
+    }
+  }
+
+  return { sent, failed, supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds };
+}
+
+export async function syncInterviewer(
+  userId: string,
+  db: Db,
+  onSuperseded?: (uniqueId: string) => void,
+  onDraftConflict?: (draftId: string) => void,
+  onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void,
+  onCanCodeNow?: (uniqueId: string) => void
+): Promise<SyncResult> {
+  // Upload before the access refresh: a project that has just left this
+  // worker's access still has its unsent work tried, and the server's answer
+  // (not a local purge) decides what happens to it.
+  const uploads = await uploadQueuedWork(userId, db, { onSuperseded, onServerKept, onCanCodeNow });
+  let { sent, failed } = uploads;
+  const { supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds } = uploads;
+  const draftConflictIds: string[] = [];
+
+  const referenceData = await refreshReferenceData(userId, db, { force: true });
+  const authorizedProjects = new Set(referenceData.projects.map(({ project }) => project.project_id));
+
+  // Page by stable local id so a large encrypted draft queue stays bounded.
+  // Query one authorized project at a time; each item is sent sequentially.
+  for (const { project } of referenceData.projects) {
+    let afterId: string | undefined;
+    while (true) {
+      const snapshots = await unfinishedDraftsForSync(
+        db,
+        project.project_id,
+        afterId,
+        DRAFT_SYNC_PAGE_SIZE,
+      );
+      if (snapshots.length === 0) break;
+      for (const item of snapshots) {
+        afterId = item.id;
+        if (!authorizedProjects.has(item.project_id) || !item.death_id) continue;
+        try {
+          const result = await syncDraftSnapshot(userId, db, item);
+          if (result.conflict) {
+            draftConflictIds.push(item.id);
+            onDraftConflict?.(item.id);
+          }
+          if (result.applied) sent += 1;
+        } catch (error) {
+          const refused = refusal(error);
+          console.warn(`draft sync refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
+          failed += 1;
+        }
+      }
+      if (snapshots.length < DRAFT_SYNC_PAGE_SIZE) break;
     }
   }
 
@@ -690,6 +793,14 @@ async function readReferencePack(db: Db): Promise<ReferencePack | undefined> {
   }
 }
 
+/** Display names of every project the worker had or has, for the pause notice. */
+function projectNames(previous: ReferencePack | undefined, access: AccessSummary): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const { project } of previous?.projects ?? []) names.set(project.project_id, project.project_name);
+  for (const project of access.projects) names.set(project.project_id, project.project_name);
+  return names;
+}
+
 /**
  * Reconcile an already downloaded settings pack with a fresh access summary.
  * This intentionally performs no network work: stable form options and
@@ -714,6 +825,7 @@ export async function reconcileReferenceAccess(
   for (const projectId of localProjectIds) {
     if (!retainedProjectIds.has(projectId)) await purgeProjectData(db, projectId, access.user.user_id);
   }
+  await recordPausedProjects(db, localProjectIds, new Set(authorized.keys()), projectNames(previous, access));
   const definitions = createNativeDefinitionCache(
     db as Parameters<typeof createNativeDefinitionCache>[0],
     access.user.user_id,
@@ -847,6 +959,7 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
   for (const projectId of localProjectIds) {
     if (!retainedProjectIds.has(projectId)) await purgeProjectData(db, projectId, userId);
   }
+  await recordPausedProjects(db, localProjectIds, authorized, projectNames(previous, access));
   const removedFromPrevious = previous?.projects.some(({ project }) => !authorized.has(project.project_id)) ?? false;
   if (previous && removedFromPrevious) {
     await setMeta(db, REFERENCE_META_KEY, {

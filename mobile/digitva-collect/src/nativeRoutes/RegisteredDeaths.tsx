@@ -1,12 +1,13 @@
 /** A reporter's own registrations, loaded in bounded pages. */
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, Text, View } from "react-native";
+import { AppState, Text, View } from "react-native";
 
 import { signOut } from "../auth";
 import { getNativeRegisteredDeaths } from "../deathRegistrationApi";
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
+import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import type { CaseRow } from "../api";
 import { Button, Screen, useUiStyles } from "../ui";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
@@ -121,10 +122,7 @@ export default function RegisteredDeaths({
   }
 
   function confirmSignOut() {
-    Alert.alert(t("signOut"), t("pendingSignOutConfirm"), [
-      { text: t("cancel"), style: "cancel" },
-      { text: t("signOutConfirm"), style: "destructive", onPress: () => void doSignOut() },
-    ]);
+    void confirmUnsentSignOut(userId, () => void doSignOut());
   }
 
   if (!account) return null;

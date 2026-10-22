@@ -27,6 +27,7 @@ const COLOUR_ALLOW: ReadonlyArray<{ file: string; text: string; why: string }> =
   { file: "src/web/caseFilters.tsx", text: "rgba(0,0,0,0.5)", why: "filter bottom-sheet scrim (the modal scrim)" },
   { file: "src/web/caseFilters.tsx", text: "rgba(0,0,0,0.35)", why: "filter side-panel scrim (lighter: the list stays readable beside it)" },
   { file: "src/web/DirectInterviewPanel.tsx", text: "rgba(0,0,0,0.5)", why: "area picker bottom-sheet scrim (the modal scrim)" },
+  { file: "src/web/UsersScreen.tsx", text: "rgba(0,0,0,0.5)", why: "enrolment code dialog scrim (the modal scrim)" },
   { file: "src/workspace/AccountMenu.web.tsx", text: "rgba(0,0,0,0.28)", why: "menu shadow" },
   { file: "src/workspace/AccountMenu.web.tsx", text: "rgba(255,255,255,0.22)", why: "focus ring on the dark navigation bar" },
   { file: "src/web/AppHeader.web.tsx", text: "rgba(0,0,0,0.28)", why: "menu and sheet shadow" },

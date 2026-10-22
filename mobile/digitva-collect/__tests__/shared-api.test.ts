@@ -243,7 +243,9 @@ it("uses authoritative interview entries and preserves only authorized subtrees 
   expect(context[0].web_intake_mode).toBe("both");
   expect(accessCapabilities(access)).toEqual({ intake: true, registerDeath: false, registeredDeaths: false, coding: true, reviewing: false, supervision: false });
   expect(accessCapabilities({ ...access, roles: ["reviewer"] }).reviewing).toBe(true);
-  expect(accessCapabilities({ ...access, roles: ["data_manager"] }).supervision).toBe(true);
+  // Supervision is the server's per-project supervises_deaths, not the role alone.
+  expect(accessCapabilities({ ...access, roles: ["data_manager"] }).supervision).toBe(false);
+  expect(accessCapabilities({ ...access, roles: ["data_manager"], projects: access.projects.map((p) => ({ ...p, supervises_deaths: true })) }).supervision).toBe(true);
   expect(accessCapabilities({ ...access, roles: [], demo_coding: { available: true, project_ids: ["D"] } }).coding).toBe(true);
 });
 

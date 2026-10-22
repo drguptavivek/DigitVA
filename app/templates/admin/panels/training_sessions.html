@@ -7,7 +7,9 @@
 <div id="training-panel">
   <h2 class="h4">Training sessions</h2>
   <p class="text-muted">
-    Each session is one training: 20 coder slots holding 10 pseudonymised cases each (200 in all).
+    Each session is one training: each coder slot holds 10 pseudonymised cases, and you choose the
+    number of slots per session (one per coder). The source has about 200 cases, so beyond 20 slots
+    the same case is copied into more than one slot.
     Trainees sign in with their own accounts; add existing users below. Closing a session
     deactivates its participants' training access and deletes nothing.
   </p>
@@ -20,13 +22,18 @@
   <div id="training-message" role="status" class="alert d-none"></div>
 
   <form id="training-create" class="row g-2 mb-4">
-    <div class="col-md-8">
+    <div class="col-md-6">
       <label class="form-label" for="training-name">New session name</label>
       <input id="training-name" name="name" class="form-control" maxlength="200" required
              placeholder="e.g. Kalpet PHC, November 2026">
     </div>
+    <div class="col-md-2">
+      <label class="form-label" for="training-slots">Coder slots</label>
+      <input id="training-slots" name="coder_slots" type="number" class="form-control" min="1" max="100"
+             step="1" value="20" required>
+    </div>
     <div class="col-md-4 align-self-end">
-      <button class="btn btn-primary" id="training-create-btn">Create session (200 cases)</button>
+      <button class="btn btn-primary" id="training-create-btn">Create session</button>
     </div>
   </form>
 
@@ -250,8 +257,9 @@
     });
   }
   el('create').onsubmit = e => { e.preventDefault(); guard(async () => {
-    const button = el('create-btn'); button.disabled = true; message('Creating the session; copying 200 cases takes a few seconds.');
-    try { const s = await call('', {name: el('name').value}); el('name').value = ''; await list(); await detail(s.session_code); message('Session ' + s.session_code + ' created.'); } finally { button.disabled = false; }
+    const slots = Number(el('slots').value);
+    const button = el('create-btn'); button.disabled = true; message('Creating the session; copying ' + (slots * 10) + ' cases takes a few seconds.');
+    try { const s = await call('', {name: el('name').value, coder_slots: slots}); el('name').value = ''; await list(); await detail(s.session_code); message('Session ' + s.session_code + ' created.'); } finally { button.disabled = false; }
   })(); };
   const pickedRoles = id => Array.from(el(id).querySelectorAll('input[type=checkbox]:checked')).map(c => c.value);
   el('add').onsubmit = e => { e.preventDefault(); guard(async () => {

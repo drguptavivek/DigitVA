@@ -9,9 +9,7 @@ Rules live in app/services/device_auth_service.py and
 app/services/device_signing_service.py.
 """
 
-import json
-
-from flask import current_app, jsonify, request
+from flask import jsonify, request
 from flask_login import current_user
 
 from app import db
@@ -41,10 +39,7 @@ def admin_create_device_enrolment(project_id):
         db.session.rollback()
         return _json_error(str(exc), exc.status_code)
     db.session.commit()
-    qr_payload = json.dumps(
-        {"v": 1, "server": current_app.config["DEVICE_PUBLIC_URL"], "enroll": code, "project": row.project_id},
-        separators=(",", ":"),
-    )
+    qr_payload = devices.enrolment_qr_payload(row, code)
     response = jsonify({
         "code": code,
         "qr_payload": qr_payload,

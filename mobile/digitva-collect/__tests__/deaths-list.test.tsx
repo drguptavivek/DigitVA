@@ -301,6 +301,33 @@ describe("DeathsList cards", () => {
   });
 });
 
+describe("DeathsList registration editing", () => {
+  it("hides Edit registration for a direct-only interviewer and keeps the identifiers editor", async () => {
+    const directOnly = {
+      ...projectAccess("P1", "Project One"),
+      actions: { interview: [{ site_id: "S1", site_name: "Site", web_intake_mode: "direct", org_units: [] }], register_death: [] },
+    };
+    mockBootstrap = makeBootstrap(["interviewer"], { intake: true, registerDeath: false }, [directOnly]);
+    mockGetCases.mockResolvedValue({ cases: [{ ...rows[2], can_edit_identifiers: true }], next_cursor: null });
+    jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue([
+      { code: "mccd", label: "MCCD number", min_length: 5, max_length: 12, char_type: null, pattern: null, example: null, required_at_report: false, sort_order: 1 },
+    ]);
+    const tree = await render(<DeathsListPanel />);
+    expect(text(tree)).toContain("Old Case");
+    expect(tree.root.findAll((n) => n.props["data-label"] === "editRegistration")).toHaveLength(0);
+    expect(tree.root.findAll((n) => n.props["data-label"] === "viewDetails")).toHaveLength(1);
+    expect(tree.root.findAll((n) => n.props["data-label"] === "idAddAction")).toHaveLength(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("keeps Edit registration where the project registers deaths", async () => {
+    mockGetCases.mockResolvedValue({ cases: [rows[2]], next_cursor: null });
+    const tree = await render(<DeathsListPanel />);
+    expect(tree.root.findAll((n) => n.props["data-label"] === "editRegistration")).toHaveLength(1);
+    await act(async () => tree.unmount());
+  });
+});
+
 describe("both screens", () => {
   it("render the same list: VA Interview's Reported deaths tab and the Deaths screen", async () => {
     mockBootstrap = makeBootstrap(["interviewer", "death_reporter"], { intake: true, registeredDeaths: true });

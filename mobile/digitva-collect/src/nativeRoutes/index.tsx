@@ -21,23 +21,33 @@ export default function Home() {
       <Text style={styles.muted}>{device.project_name}</Text>
       {accounts.length === 0 ? <Text style={styles.text}>{t("accountsEmpty")}</Text> : null}
       {accounts.map((account) => (
-        <Pressable
-          key={account.user_id}
-          accessibilityRole="button"
-          style={styles.card}
-          onPress={() =>
-            router.push({
-              pathname: isUnlocked(account.user_id) ? "/worklist" : "/unlock",
-              params: { userId: account.user_id }
-            })
-          }
-        >
-          <Text style={styles.text}>{account.name}</Text>
-          <Text style={styles.muted}>
-            {isUnlocked(account.user_id) ? t("unlockedState") : t("locked")}
-          </Text>
-          {account.needs_sign_in ? <Text style={styles.muted}>{t("signInAgain")}</Text> : null}
-        </Pressable>
+        <View key={account.user_id} style={{ gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            style={styles.card}
+            onPress={() =>
+              router.push({
+                pathname: isUnlocked(account.user_id) ? "/worklist" : "/unlock",
+                params: { userId: account.user_id }
+              })
+            }
+          >
+            <Text style={styles.text}>{account.name}</Text>
+            <Text style={styles.muted}>
+              {isUnlocked(account.user_id) ? t("unlockedState") : t("locked")}
+            </Text>
+            {account.access_removed ? <Text style={styles.error}>{t("accessRemovedKept")}</Text> : null}
+            {account.needs_sign_in ? <Text style={styles.muted}>{t("signInAgain")}</Text> : null}
+          </Pressable>
+          {/* Sign-in keeps this account's store; sign-out would wipe it. */}
+          {account.needs_sign_in ? (
+            <Button
+              kind="secondary"
+              label={t("signInAgainAction")}
+              onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id } })}
+            />
+          ) : null}
+        </View>
       ))}
       <View style={{ gap: 8 }}>
         <Button label={t("addInterviewer")} onPress={() => router.push("/sign-in")} />

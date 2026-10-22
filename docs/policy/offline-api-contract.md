@@ -571,7 +571,7 @@ informant is a different person, in which case the app takes a new one for
 that attempt (with its `client_draft_id`). The server accepts an interview's
 covered data when a granted consent exists for that `client_draft_id`, or a
 granted registration consent exists on the case and the submission does not
-carry a new one. Server: `implemented today` (uncommitted, digitva-gb8w.3); web and Expo capture: `specified, not built (digitva-athy)`.
+carry a new one. Server: `implemented today` (uncommitted, digitva-gb8w.3); web capture: `implemented today` (uncommitted, digitva-athy: registration sends `consent`; a browser interview records its decision first on `POST /intake/drafts/<id>/consent`, see [respondent-consent-notice-draft.md](respondent-consent-notice-draft.md) "Web flow"); Expo native capture: `specified, not built`.
 
 ### 5.5 Informant fields on a station registration
 

@@ -15,10 +15,12 @@ import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, get
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
-import { readDefinitionPin, resolveNewInterviewDefinition, resolveSavedEnvelopeDefinition, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
-import type { DefinitionRequest } from "../formDefinitions";
+import { formTagExtensions, PinnedDefinitionError, readDefinitionPin, resolveNewInterviewDefinition, resolveSavedEnvelopeDefinition, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
+import { FormDefinitionError, type DefinitionRequest } from "../formDefinitions";
+import { FormDefinitionHistoryError } from "../formDefinitionHistory";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
+import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type ConsentRecordEnvelope, type DraftConsentStatus, type ProjectConsentConfig } from "../consent";
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
 import { radius, useTheme } from "../theme";
@@ -28,6 +30,7 @@ import { AppHeaderBar } from "./AppHeader";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { InterviewCaseStrip } from "./InterviewCaseStrip";
+import { RespondentConsentPanel } from "./StationConsentPanel";
 import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
 
 /**
@@ -131,8 +134,21 @@ interface BrowserDefinitionAccess {
   sessionGeneration: number;
 }
 
+/** Name a form-definition failure instead of reporting it as a server error. */
+export function definitionErrorText(error: unknown): string | undefined {
+  if (error instanceof FormDefinitionError && error.code === "incompatible_engine") return t("formDefinitionUpdateApp");
+  if (error instanceof PinnedDefinitionError) {
+    return t(error.code === "current_definition_unavailable" ? "formDefinitionCurrentUnavailable" : "formDefinitionSavedUnavailable");
+  }
+  if (error instanceof FormDefinitionHistoryError) return t("formDefinitionSavedUnavailable");
+  if (error instanceof FormDefinitionError) return t("formDefinitionUnverified");
+  return undefined;
+}
+
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
 function interviewErrorText(error: unknown): string {
+  const definitionText = definitionErrorText(error);
+  if (definitionText) return definitionText;
   if (error instanceof ClientApiError && error.code === "draft_stale") {
     const message = error.payload?.error;
     if (typeof message === "string" && message.trim()) return message.trim().slice(0, 500);
@@ -141,6 +157,8 @@ function interviewErrorText(error: unknown): string {
 }
 
 function revisionErrorText(error: unknown): string {
+  const definitionText = definitionErrorText(error);
+  if (definitionText) return definitionText;
   if (!(error instanceof ClientApiError)) return browserErrorText(error);
   const errorKeys: Record<string, StringKey> = {
     not_found: "revisionUnavailable",
@@ -216,6 +234,8 @@ export default function InterviewScreen() {
   const saveFailedRef = useRef(false);
   const [busy, setBusy] = useState(false);
   const [translationFallback, setTranslationFallback] = useState(false);
+  // The draft's own form could not be recovered and it now uses the current one.
+  const [formAdopted, setFormAdopted] = useState(false);
   const [message, setMessage] = useState("");
   const [revisionReason, setRevisionReason] = useState<RevisionReasonCode>();
   const [needsNewSnapshot, setNeedsNewSnapshot] = useState(false);
@@ -237,6 +257,20 @@ export default function InterviewScreen() {
   openInterviewRef.current = { store, controller, userId: loadedBootstrap?.user.user_id };
   const resetSaveRef = useRef<Promise<void>>(Promise.resolve());
   const draftPrefill = draft?.prefill as Prefill | undefined;
+  // Respondent consent (digitva-athy): a draft interview opens its form only once the case has a
+  // decision on file where the project requires one. Revisions are never gated here.
+  const [consentGate, setConsentGate] = useState<{ status: DraftConsentStatus; config: ProjectConsentConfig | null }>();
+  const [consentCheck, setConsentCheck] = useState(0);
+  const consentRefused = consentGate?.status.decision === "refused";
+  const coveredFields = useMemo(
+    () => new Set(consentRefused ? consentGate?.status.covered_fields ?? [] : []),
+    [consentGate, consentRefused],
+  );
+  // A refusal locks the covered questions (the respondent's name, family and address answers) empty.
+  const lockedQuestionNames = useMemo(
+    () => coveredFields.size ? [...(draftPrefill?.lockedQuestionNames ?? []), ...coveredFields] : draftPrefill?.lockedQuestionNames,
+    [coveredFields, draftPrefill],
+  );
 
   const initialise = useCallback(async (isInitializationActive: () => boolean) => {
     if (!bootstrap || !definitionCache) return;
@@ -257,6 +291,7 @@ export default function InterviewScreen() {
     let nextRevision: RevisionDetail | undefined;
     let options: FormOptions | undefined;
     let resolved: ResolvedInstrument | undefined;
+    let adopted = false;
     const request = definitionRequest(bootstrap.csrf, isCurrent);
     const accountId = bootstrap.user.user_id;
 
@@ -357,6 +392,8 @@ export default function InterviewScreen() {
         resolved = await resolveNew(nextDraft.draft.project_id, options);
       } else {
         const bundledFallback = createWhoVa2022Instrument(options.enabled_extensions ?? []);
+        const projectId = nextDraft.draft.project_id;
+        const formOptions = options;
         resolved = await resolveSavedEnvelopeDefinition({
           accountId: bootstrap.user.user_id,
           projectId: nextDraft.draft.project_id,
@@ -369,6 +406,11 @@ export default function InterviewScreen() {
             instrument: bundledFallback,
             instrumentVersion: bundledFallback.version,
             extensions: options.enabled_extensions ?? [],
+          },
+          // A revision must keep its submitted form, so only a draft moves on.
+          adoptCurrentDefinition: nextRevision ? undefined : async () => {
+            adopted = true;
+            return resolveNew(projectId, formOptions);
           },
         });
       }
@@ -423,6 +465,7 @@ export default function InterviewScreen() {
     setLocale(nextLocale);
     setLocales(questionnaireLocales(options.available_locales));
     setResolvedInstrument(resolved);
+    setFormAdopted(adopted);
     setInstrument(nextInstrument);
     setStore(nextStore);
     setLoadedBootstrap(bootstrap);
@@ -443,6 +486,7 @@ export default function InterviewScreen() {
     setRevision(undefined);
     setInstrument(undefined);
     setResolvedInstrument(undefined);
+    setFormAdopted(false);
     setStore(undefined);
     setController(undefined);
     dirtyRef.current = false;
@@ -450,6 +494,7 @@ export default function InterviewScreen() {
     saveFailedRef.current = false;
     setRevisionReason(undefined);
     setNeedsNewSnapshot(false);
+    setConsentGate(undefined);
     setMessage("");
     setLoadedBootstrap(undefined);
     revisionGenerationRef.current = 0;
@@ -471,6 +516,34 @@ export default function InterviewScreen() {
     });
     return () => { active = false; };
   }, [bootstrap, initialise, params.revisionDraftId, sessionGeneration]);
+
+  // The consent decision on file for this draft's case; the notice only when one is still needed.
+  useEffect(() => {
+    if (!bootstrap || !draftId || !draft || revision) return undefined;
+    let live = true;
+    void (async () => {
+      const status = await getDraftConsent(bootstrap.links.intakeDrafts, draftId, bootstrap.csrf);
+      const config = status.consent_required && !status.decision
+        ? await fetchProjectConsentConfig(draft.draft.project_id, bootstrap.csrf)
+        : null;
+      if (live) setConsentGate({ status, config });
+    })().catch((error) => { if (live) setMessage(interviewErrorText(error)); });
+    return () => { live = false; };
+  }, [bootstrap, draftId, draft, revision, consentCheck]);
+
+  async function recordConsent(envelope: ConsentRecordEnvelope) {
+    if (!bootstrap || !draftId || !consentGate) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const status = await postDraftConsent(bootstrap.links.intakeDrafts, draftId, envelope, bootstrap.csrf);
+      setConsentGate({ ...consentGate, status });
+    } catch (error) {
+      setMessage(interviewErrorText(error));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // A best-effort save as the page unloads; the navigation guard owns the browser's leave prompt.
   useEffect(() => {
@@ -631,10 +704,14 @@ export default function InterviewScreen() {
         await sendRevisionSnapshot(snapshot);
         return;
       }
+      // Under a refusal the covered answers never leave the page (the server refuses them).
+      const data = coveredFields.size && result.data
+        ? Object.fromEntries(Object.entries(result.data).filter(([name]) => !coveredFields.has(name))) as typeof result.data
+        : result.data;
       const submission = await submitDraft(
         bootstrap.links.intakeDrafts,
         draftId,
-        { valid: result.valid, issues: result.issues, data: result.data },
+        { valid: result.valid, issues: result.issues, data },
         bootstrap.csrf,
         store instanceof ServerDraftStore ? store.getServerUpdatedAt() : undefined,
       );
@@ -660,6 +737,8 @@ export default function InterviewScreen() {
         router.replace("/collection");
       }
     } catch (error) {
+      // The project began requiring consent after this page checked: ask for it now.
+      if (isCurrent() && error instanceof ClientApiError && error.code === "consent_required") setConsentCheck((n) => n + 1);
       if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
     } finally {
       if (isCurrent()) setBusy(false);
@@ -697,6 +776,7 @@ export default function InterviewScreen() {
   const availableLocales = locales ?? [];
   // Only an interview started from a reported death; a direct one has no case to show.
   const showCaseStrip = !!draft?.draft.death_id;
+  const consentPending = !revision && (!consentGate || (consentGate.status.consent_required && !consentGate.status.decision));
   const webFormStyle = Platform.OS === "web"
     ? ({
         "--who-2022-web-color-brand": theme.colors.accent,
@@ -795,8 +875,21 @@ export default function InterviewScreen() {
             </View>
           ) : null}
           {translationFallback ? <Text style={styles.muted}>{t("questionnaireEnglishFallback")}</Text> : null}
+          {formAdopted ? <Text style={styles.muted} testID="form-adopted-notice">{t("formDefinitionAdopted")}</Text> : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
-          <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
+          {consentPending ? (
+            consentGate ? (
+              <RespondentConsentPanel
+                config={consentGate.config}
+                language={locale}
+                clientDraftId={consentGate.status.client_draft_id}
+                busy={busy}
+                onDecision={(envelope) => void recordConsent(envelope)}
+              />
+            ) : <Text style={styles.muted}>{t("loading")}</Text>
+          ) : null}
+          {consentRefused ? <Text style={styles.muted} testID="consent-refused-note">{t("consentRefusedInterview")}</Text> : null}
+          {consentPending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaForm
               key={`${draftId}:${locale}`}
               instrument={instrument}
@@ -823,10 +916,10 @@ export default function InterviewScreen() {
                 setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
               }}
               onComplete={complete}
-              lockedQuestionNames={draftPrefill?.lockedQuestionNames}
+              lockedQuestionNames={lockedQuestionNames}
               portalThemeStyle={webFormStyle}
             />
-          </View>
+          </View>}
         </>
       ) : (
         <Text style={styles.muted}>{message || t("loading")}</Text>
@@ -944,13 +1037,15 @@ async function translatedResolvedInstrument(
 ): Promise<{ instrument: InstrumentDefinition; fallback: boolean }> {
   if (!locale || locale === "en") return { instrument: resolved.instrument, fallback: false };
   const pin = resolved.pin;
-  const extensions = [...(options.enabled_extensions ?? [])].sort();
+  // Compare like with like: the pin records only tagged extensions.
+  const extensions = formTagExtensions(options.enabled_extensions ?? []);
+  const pinned = [...pin?.definitionExtensions ?? []].sort();
   if (
     !pin ||
     pin.instrumentVersion !== options.instrument_version ||
     pin.definitionSha256 !== options.definition_sha256 ||
-    pin.definitionExtensions.length !== extensions.length ||
-    pin.definitionExtensions.some((extension, index) => extension !== extensions[index])
+    pinned.length !== extensions.length ||
+    pinned.some((extension, index) => extension !== extensions[index])
   ) {
     return { instrument: resolved.instrument, fallback: true };
   }

@@ -325,9 +325,11 @@ project (`docs/policy/training-demo-project.md`) and is a thin client of
 `app/services/training_demo_service.py`.
 
 - List: code, name, created, status, participants by role, coder slots used out
-  of 20, cases coded out of 200.
-- Create: a name; the server copies and pseudonymises 200 cases (a few seconds;
-  limited to 10 creations an hour).
+  of the session's slots, cases coded out of its cases (slots x 10).
+- Create: a name and the number of coder slots (1 to 100, default 20; anything
+  else is a 400); the server copies and pseudonymises 10 cases per slot,
+  repeating source cases across slots beyond the ~200-case corpus (a few
+  seconds; limited to 10 creations an hour).
 - Session detail: add an existing user by email and one or more roles, ticked as checkboxes
   (all or nothing; unknown or inactive users are refused, no user is created), participants with role, slot,
   onboarded date and status with Remove, Close and Reopen behind a confirm

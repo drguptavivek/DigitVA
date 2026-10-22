@@ -101,6 +101,12 @@ class MasConsentNoticeVersion(db.Model):
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )
     retired_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    #: Legal review: NULL is "Pending legal review"; an admin approves a
+    #: version once. Usable for consent either way.
+    approved_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    approved_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
+    )
 
 
 class VaConsentRecord(db.Model):

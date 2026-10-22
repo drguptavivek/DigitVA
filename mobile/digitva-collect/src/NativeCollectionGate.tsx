@@ -33,11 +33,15 @@ export default function NativeCollectionGate({
   if (!ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!bootstrap) return <Redirect href="/" />;
   if (COLLECTION_ROUTES.has(pathname) && bootstrap.capabilities.intake) return children;
-  if (REGISTRATION_ROUTES.has(pathname) && (bootstrap.capabilities.registerDeath || bootstrap.capabilities.registeredDeaths)) return children;
+  if (REGISTRATION_ROUTES.has(pathname) && (bootstrap.capabilities.registerDeath || bootstrap.capabilities.registeredDeaths || bootstrap.capabilities.supervision)) return children;
   const hasOtherActiveRole = (bootstrap.access?.roles?.length ?? 0) > 0 || Boolean(bootstrap.access?.is_admin);
+  // An interviewer of direct-only projects: deaths are not registered, the interview starts in VA Interview.
+  const message = REGISTRATION_ROUTES.has(pathname) && bootstrap.capabilities.intake
+    ? "deathsNotRegistered"
+    : hasOtherActiveRole ? "noCollectionAccess" : "codingReviewPending";
   return (
     <Screen title={t("workspaceTitle")}>
-      <Text style={styles.text}>{t(hasOtherActiveRole ? "noCollectionAccess" : "codingReviewPending")}</Text>
+      <Text style={styles.text}>{t(message)}</Text>
       <Button label={t("workspaceTitle")} onPress={() => router.replace("/workspace")} />
     </Screen>
   );

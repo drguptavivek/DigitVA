@@ -221,10 +221,18 @@ export interface ResolveSavedEnvelopeDefinitionInput {
    * this bundle's version and the bundle carries no extensions, the draft
    * resumes on the bundle. A pinless draft records no extensions, so an
    * extension-bearing bundle (built from the project's current extensions)
-   * could relabel it; that case and any other pinless version still fail with
-   * `unknown_saved_definition`.
+   * could relabel it; that case and any other pinless version go to
+   * `adoptCurrentDefinition`, or fail with `unknown_saved_definition` without it.
    */
   bundledOriginal?: BundledDefinitionCompatibility;
+  /**
+   * The project's current definition, for a pinless draft whose exact form
+   * cannot be recovered: a pinless envelope records no fingerprint or
+   * extensions, so no historical slice can be verified for it. The caller
+   * tells the interviewer the form changed; its draft store pins the draft to
+   * the returned definition and keeps answers the current form does not ask.
+   */
+  adoptCurrentDefinition?: () => Promise<ResolvedInstrument>;
 }
 
 const SUPPORTED_SAVED_INSTRUMENT_IDS = new Set(["WHO_2022_VA", "va_who_2022"]);
@@ -234,6 +242,13 @@ const NON_TAGGED_FORM_EXTENSIONS = new Set([
   "intake_screen",
   "geography",
 ]);
+
+/** The enabled extensions a served definition records as tags (sorted): the
+ * non-tagged ones never appear in the definition, so they must not count when
+ * comparing a pin with the project's form options. */
+export function formTagExtensions(enabled: readonly string[]): string[] {
+  return enabled.filter((ext) => !NON_TAGGED_FORM_EXTENSIONS.has(ext)).sort();
+}
 
 /** Recover the exact saved definition or fail without rewriting the envelope. */
 export async function resolveSavedEnvelopeDefinition(
@@ -271,6 +286,7 @@ export async function resolveSavedEnvelopeDefinition(
           pin: null,
         };
       }
+      if (input.adoptCurrentDefinition) return input.adoptCurrentDefinition();
       throw new PinnedDefinitionError("unknown_saved_definition");
     }
     return {

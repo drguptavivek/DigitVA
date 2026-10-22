@@ -257,7 +257,12 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertEqual(len(svc.list_training_sessions()), 1)  # nothing half-made
 
     def test_too_few_source_cases_refused_and_rolled_back(self):
-        db.session.execute(sa.update(VaSubmissions).where(VaSubmissions.va_sid.like("src-2%")).values(va_consent="no"))
+        # Nine eligible cases (src-001..src-009): one slot needs ten distinct ones.
+        db.session.execute(
+            sa.update(VaSubmissions)
+            .where(VaSubmissions.va_form_id == SRC_FORM, VaSubmissions.va_sid >= "src-010")
+            .values(va_consent="no")
+        )
         db.session.flush()
         with self.assertRaises(svc.TrainingDemoError) as ctx:
             svc.create_training_session("short", self.admin, source_form_id=SRC_FORM)
@@ -324,22 +329,126 @@ class CorpusListTests(TrainingDemoTestBase):
         import tempfile
         from pathlib import Path
 
-        every = [row[0].va_sid for row in svc._load_source_rows(SRC_FORM, 5)]
+        every = [row[0].va_sid for row in svc._load_source_rows(SRC_FORM, 5, strict=False)]
         self.assertEqual(len(every), 5)
         chosen = [every[4], every[0], every[2]]
         with tempfile.TemporaryDirectory() as folder:
             Path(folder, f"{SRC_FORM}.txt").write_text("# comment\n" + "\n".join(chosen) + "\n")
             with mock.patch.object(svc, "CORPUS_DIR", Path(folder)):
-                rows = svc._load_source_rows(SRC_FORM, 3)
+                rows = svc._load_source_rows(SRC_FORM, strict=False)
                 self.assertEqual([row[0].va_sid for row in rows], chosen)
+                with self.assertRaises(svc.TrainingDemoError):  # fewer than one slot's ten
+                    svc._load_source_rows(SRC_FORM)
+            # A listed case that is no longer eligible refuses the list.
+            listed = [row[0].va_sid for row in svc._load_source_rows(SRC_FORM, 12)]
+            Path(folder, f"{SRC_FORM}.txt").write_text("\n".join([*listed, "src-000"]) + "\n")
+            with mock.patch.object(svc, "CORPUS_DIR", Path(folder)):
+                self.assertEqual(len(svc._load_source_rows(SRC_FORM, 12)), 12)
                 with self.assertRaises(svc.TrainingDemoError):
-                    svc._load_source_rows(SRC_FORM, 4)
+                    svc._load_source_rows(SRC_FORM)
 
     def test_real_corpus_list_has_200_distinct_ids(self):
         sids = svc._corpus_sids("UNSW01NC0101")
         self.assertIsNotNone(sids)
-        self.assertEqual(len(sids), svc.CASES_PER_SESSION)
+        self.assertEqual(len(sids), 200)
         self.assertEqual(len(set(sids)), len(sids))
+
+
+class CoderSlotsTests(TrainingDemoTestBase):
+    """A session's coder slot count is an input; beyond the sources, cases repeat."""
+
+    def _wide_session(self, sources: int, coder_slots: int) -> dict:
+        import tempfile
+        from pathlib import Path
+
+        corpus = [f"src-{i:03d}" for i in range(1, sources + 1)]
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, f"{SRC_FORM}.txt").write_text("\n".join(corpus) + "\n")
+            with mock.patch.object(svc, "CORPUS_DIR", Path(folder)):
+                return svc.create_training_session(
+                    "Wide", self.admin, source_form_id=SRC_FORM, coder_slots=coder_slots)
+
+    def test_source_order_keeps_each_slot_distinct_and_slots_different(self):
+        for coder_slots, available in ((100, 200), (60, 200), (7, 25), (12, 10), (9, 13)):
+            order = svc._source_order(coder_slots, available)
+            self.assertEqual(len(order), coder_slots * 10)
+            slots = [order[k * 10:(k + 1) * 10] for k in range(coder_slots)]
+            for chosen in slots:
+                self.assertEqual(len(set(chosen)), 10, (coder_slots, available))
+                self.assertTrue(all(0 <= i < available for i in chosen))
+            if available % 10 == 0 and available > 10:
+                self.assertEqual(len({frozenset(c) for c in slots}), coder_slots, (coder_slots, available))
+        self.assertEqual(svc._source_order(20, 200), list(range(200)))  # the default is unchanged
+
+    def test_more_slots_than_sources_copy_each_source_into_distinct_cases(self):
+        summary = self._wide_session(sources=25, coder_slots=7)
+        session_id = summary["training_session_id"]
+        rows = db.session.execute(
+            sa.select(MapTrainingCase.coder_slot, MapTrainingCase.source_va_sid, MapTrainingCase.va_sid,
+                      MapTrainingCase.case_number)
+            .where(MapTrainingCase.training_session_id == session_id)
+        ).all()
+        self.assertEqual(len(rows), 70)
+        self.assertEqual(sorted(r.case_number for r in rows), list(range(1, 71)))
+        self.assertEqual(len({r.va_sid for r in rows}), 70)
+        by_slot: dict = {}
+        for r in rows:
+            by_slot.setdefault(r.coder_slot, []).append(r.source_va_sid)
+        self.assertEqual(sorted(by_slot), list(range(1, 8)))
+        for sources in by_slot.values():
+            self.assertEqual(len(sources), 10)
+            self.assertEqual(len(set(sources)), 10)  # no source twice in one slot
+        self.assertEqual(len({frozenset(s) for s in by_slot.values()}), 7)
+        repeated = [r for r in rows if r.source_va_sid == "src-001"]
+        self.assertGreater(len(repeated), 1)
+        # Each copy of a repeated source is its own submission, payload and answer key.
+        sids = [r.va_sid for r in repeated]
+        self.assertEqual(len(db.session.scalars(sa.select(VaSubmissions.va_sid).where(
+            VaSubmissions.va_sid.in_(sids))).all()), len(sids))
+        versions = db.session.scalars(sa.select(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid.in_(sids))).all()
+        self.assertEqual(len(versions), len(sids))
+        self.assertEqual(len({v.payload_data["instanceID"] for v in versions}), len(sids))
+        subs = db.session.scalars(sa.select(VaSubmissions).where(VaSubmissions.va_sid.in_(sids))).all()
+        self.assertEqual(len({s.active_payload_version_id for s in subs}), len(sids))
+        self.assertTrue(all(db.session.get(MapTrainingCase, sid).source_final_cod == "J18.9" for sid in sids))
+        # Attachments: one row and one stored object per copy.
+        attachments = db.session.scalars(sa.select(VaSubmissionAttachments).where(
+            VaSubmissionAttachments.va_sid.in_(sids))).all()
+        self.assertEqual(sorted(a.va_sid for a in attachments), sorted(sids))
+        self.assertEqual(len({a.storage_name for a in attachments}), len(sids))
+        self.assertEqual(summary["attachments_copied"], sum(
+            1 for r in rows if r.source_va_sid in ("src-001", "src-002", "src-003")))
+        self.assertEqual((summary["coder_slots_total"], summary["cases_total"]), (7, 70))
+        listed = {s["session_code"]: s for s in svc.list_training_sessions()}[summary["session_code"]]
+        self.assertEqual((listed["coder_slots_total"], listed["cases_total"]), (7, 70))
+        self.assertEqual([s["slot"] for s in summary["slots"]], list(range(1, 8)))
+
+    def test_slots_fill_up_to_the_session_count_then_refuse(self):
+        summary = self._wide_session(sources=25, coder_slots=2)
+        coders = [self._user(f"wide{i}") for i in range(3)]
+        for user, slot in zip(coders[:2], (1, 2), strict=True):
+            self.assertEqual(svc.add_participant(summary["session_code"], user.email, "coder", self.admin)["coder_slot"],
+                             slot)
+        with self.assertRaises(svc.TrainingDemoError) as ctx:
+            svc.add_participant(summary["session_code"], coders[2].email, "coder", self.admin)
+        self.assertEqual(ctx.exception.code, "no_free_coder_slot")
+
+    def test_coder_slots_outside_1_to_100_are_refused(self):
+        for bad in (0, 101, -1, True, "20", 20.0, None):
+            with self.assertRaises(svc.TrainingDemoError) as ctx:
+                svc.create_training_session("bad", self.admin, source_form_id=SRC_FORM, coder_slots=bad)
+            self.assertEqual(ctx.exception.code, "invalid_coder_slots", bad)
+        self.assertEqual(len(svc.list_training_sessions()), 1)
+
+    def test_cli_takes_coder_slots(self):
+        from app.commands.training_demo import training_demo_group
+
+        runner = self.app.test_cli_runner()
+        result = runner.invoke(training_demo_group, [
+            "create-session", "--name", "x", "--coder-slots", "101", "--by", self.admin.email])
+        self.assertNotEqual(result.exit_code, 0)
+        self.assertEqual(len(svc.list_training_sessions()), 1)
 
 
 class ParticipantTests(TrainingDemoTestBase):

@@ -1,8 +1,9 @@
 """Training sessions of the Training & demo project (TRN01).
 
 Policy: docs/policy/training-demo-project.md. A session is one training: a
-root organization unit with 20 coder-slot units, 200 pseudonymised case copies
-and the participants an admin added. Everything is retained; closing a session
+root organization unit with its coder-slot units (20 by default, chosen per
+session), ten pseudonymised case copies per slot and the participants an admin
+added. Everything is retained; closing a session
 only deactivates its participants' grants.
 """
 
@@ -24,9 +25,10 @@ PARTICIPANT_ROLES = (
     "reviewer_data_manager",
 )
 PARTICIPANT_STATUSES = ("active", "removed")
+#: The default number of coder slots; each session stores its own (1..MAX_CODER_SLOTS).
 CODER_SLOTS = 20
+MAX_CODER_SLOTS = 100
 CASES_PER_SLOT = 10
-CASES_PER_SESSION = CODER_SLOTS * CASES_PER_SLOT
 
 
 def _utcnow() -> datetime:
@@ -34,13 +36,14 @@ def _utcnow() -> datetime:
 
 
 class MasTrainingSession(db.Model):
-    """One training: its code (S001..), name, root unit and status."""
+    """One training: its code (S001..), name, root unit, coder slots and status."""
 
     __tablename__ = "mas_training_sessions"
     __table_args__ = (
         sa.UniqueConstraint("project_id", "session_code", name="uq_mas_training_sessions_project_code"),
         sa.UniqueConstraint("org_unit_id", name="uq_mas_training_sessions_org_unit"),
         sa.CheckConstraint("status IN ('active', 'closed')", name="status"),
+        sa.CheckConstraint("coder_slots BETWEEN 1 AND 100", name="coder_slots"),
         sa.Index("ix_mas_training_sessions_project_created", "project_id", "created_at"),
     )
 
@@ -64,6 +67,9 @@ class MasTrainingSession(db.Model):
     status: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="active", server_default="active"
     )
+    coder_slots: so.Mapped[int] = so.mapped_column(
+        sa.Integer, nullable=False, default=CODER_SLOTS, server_default=str(CODER_SLOTS)
+    )
 
 
 class MapTrainingCase(db.Model):
@@ -76,8 +82,8 @@ class MapTrainingCase(db.Model):
     __tablename__ = "map_training_cases"
     __table_args__ = (
         sa.UniqueConstraint("training_session_id", "case_number", name="uq_map_training_cases_session_number"),
-        sa.CheckConstraint("case_number BETWEEN 1 AND 200", name="case_number"),
-        sa.CheckConstraint("coder_slot BETWEEN 1 AND 20", name="coder_slot"),
+        sa.CheckConstraint("case_number BETWEEN 1 AND 1000", name="case_number"),
+        sa.CheckConstraint("coder_slot BETWEEN 1 AND 100", name="coder_slot"),
         sa.Index("ix_map_training_cases_session_slot", "training_session_id", "coder_slot"),
     )
 
@@ -111,7 +117,7 @@ class MapTrainingParticipant(db.Model):
             "'reviewer_data_manager')",
             name="role",
         ),
-        sa.CheckConstraint("coder_slot IS NULL OR coder_slot BETWEEN 1 AND 20", name="coder_slot"),
+        sa.CheckConstraint("coder_slot IS NULL OR coder_slot BETWEEN 1 AND 100", name="coder_slot"),
         sa.CheckConstraint("(role = 'coder') = (coder_slot IS NOT NULL)", name="coder_slot_role"),
         sa.CheckConstraint("status IN ('active', 'removed')", name="status"),
         sa.Index("ix_map_training_participants_session_role", "training_session_id", "role"),

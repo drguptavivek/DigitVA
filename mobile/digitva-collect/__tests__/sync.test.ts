@@ -28,7 +28,7 @@ jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async ()
 
 import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary } from "../src/api";
-import { canUseBundledFallbackForProject, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { getCase, getRegistration, getRegistrationRefusal, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
@@ -347,6 +347,7 @@ describe("project scoped reference data", () => {
     expect(cached).toBeUndefined();
     expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [PROJECT])).not.toBeNull();
     expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [PROJECT])).not.toBeNull();
+    expect(await listPausedProjects(db, new Set())).toEqual([{ projectId: PROJECT, projectName: PROJECT }]);
   });
 
   it("throttles a failed automatic refresh for one day but retries on force", async () => {
@@ -430,7 +431,7 @@ describe("project scoped reference data", () => {
     expect(await getCachedReferenceData(db)).toEqual(previous);
   });
 
-  it("purges every removed project's queue, case, draft, and config before upload", async () => {
+  it("keeps every removed project's unsent queue, draft and config, and drops its cases and settings", async () => {
     const db = memoryDb();
     await migrate(db);
     const removed = "P2";
@@ -456,15 +457,16 @@ describe("project scoped reference data", () => {
     expect(calls.filter(({ url }) => url.endsWith("/form-options")).map(({ url }) => url)).toEqual([
       expect.stringContaining(`/organization/${PROJECT}/form-options`),
     ]);
-    expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [removed])).toBeNull();
-    expect(await db.getFirstAsync("SELECT * FROM case_actions WHERE project_id = ?", [removed])).toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [removed])).not.toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM case_actions WHERE project_id = ?", [removed])).not.toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [removed])).not.toBeNull();
+    expect(await getMeta(db, "draft-config:removed")).toEqual({ projectId: removed });
     expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", [removed])).toBeNull();
-    expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [removed])).toBeNull();
-    expect(await getMeta(db, "draft-config:removed")).toBeUndefined();
     expect(await getMeta(db, "units", removed)).toBeUndefined();
+    expect(await listPausedProjects(db, new Set([PROJECT]))).toEqual([{ projectId: removed, projectName: removed }]);
   });
 
-  it("purges stale project data and fetches no content for a coder-only account", async () => {
+  it("keeps unsent work, drops cases and fetches no content for a coder-only account", async () => {
     const db = memoryDb();
     await migrate(db);
     const removed = "P2";
@@ -488,11 +490,80 @@ describe("project scoped reference data", () => {
 
     await expect(refreshReferenceData(USER, db, { force: true })).rejects.toMatchObject({ status: 403, code: "no_collection_access" });
     expect(calls.map(({ url }) => url)).toEqual([expect.stringMatching(/\/api\/v1\/me\/access$/)]);
-    expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [removed])).toBeNull();
-    expect(await db.getFirstAsync("SELECT * FROM case_actions WHERE project_id = ?", [removed])).toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM registrations WHERE project_id = ?", [removed])).not.toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM case_actions WHERE project_id = ?", [removed])).not.toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [removed])).not.toBeNull();
+    expect(await getMeta(db, "draft-config:removed")).toEqual({ projectId: removed });
     expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", [removed])).toBeNull();
-    expect(await db.getFirstAsync("SELECT * FROM drafts WHERE project_id = ?", [removed])).toBeNull();
-    expect(await getMeta(db, "draft-config:removed")).toBeUndefined();
+  });
+});
+
+describe("unsent work in a project that leaves access", () => {
+  async function pausedSetup(): Promise<Db> {
+    const db = memoryDb();
+    await migrate(db);
+    server((call) => call.url.endsWith("/fixture-reference")
+      ? json(200, referenceFixture([project("P1"), project("P2")]))
+      : json(200, { scoped: false, levels: [], units: [] }));
+    await refreshReferenceData(USER, db, { force: true });
+    await saveRegistration(db, { project_id: "P2", client_death_id: REG, site_id: SITE, fields: { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29" } });
+    await createDraftStore(db, { projectId: "P2", siteId: SITE }).save(draft());
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    return db;
+  }
+
+  it("keeps it, lists it as paused and still tries to send it; a refusal is kept and recorded", async () => {
+    const db = await pausedSetup();
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([project("P1")]));
+      if (call.url.endsWith("/deaths") || call.url.endsWith("/submissions")) return json(403, { code: "project_forbidden" });
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null, scoped: false, levels: [], units: [] });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 2, remaining: 1 });
+
+    expect(calls.some(({ url, body }) => url.endsWith("/deaths") && body?.project_id === "P2")).toBe(true);
+    expect(calls.some(({ url, body }) => url.endsWith("/submissions") && body?.project_id === "P2")).toBe(true);
+    expect(await getRegistration(db, REG)).toMatchObject({ project_id: "P2", state: "pending" });
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ project_id: "P2", completed: 1, upload_issue: null });
+    expect(calls.find(({ url }) => url.endsWith("/outstanding"))?.body).toMatchObject({ count: 1, client_draft_ids: [DRAFT], client_death_ids: [REG] });
+    expect(await listPausedProjects(db, new Set(["P1"]))).toEqual([
+      { projectId: "P2", projectName: "P2", refusal: { status: 403, code: "project_forbidden" } },
+    ]);
+  });
+
+  it("deletes paused work the server acknowledges, and the pause notice with it", async () => {
+    const db = await pausedSetup();
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([project("P1")]));
+      if (call.url.endsWith("/deaths")) return json(201, { case: detail("P2") });
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call);
+      if (call.url.endsWith("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null, scoped: false, levels: [], units: [] });
+    });
+
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 2, failed: 0, remaining: 0 });
+
+    expect(await getRegistration(db, REG)).toBeUndefined();
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await db.getFirstAsync("SELECT * FROM cases WHERE project_id = ?", ["P2"])).toBeNull();
+    expect(await listPausedProjects(db, new Set(["P1"]))).toEqual([]);
+    expect(await getMeta(db, "paused:P2")).toBeUndefined();
+  });
+
+  it("keeps the uploads already sent when the access refresh then refuses every project", async () => {
+    const db = await pausedSetup();
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([]));
+      if (call.url.endsWith("/submissions")) return submissionSuccess(call);
+      return json(403, { code: "project_forbidden" });
+    });
+
+    await expect(syncInterviewer(USER, db)).rejects.toThrow();
+    expect(calls.some(({ url }) => url.endsWith("/submissions"))).toBe(true);
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await getRegistration(db, REG)).toMatchObject({ project_id: "P2", state: "pending" });
   });
 });
 
@@ -563,7 +634,7 @@ describe("registered phone draft sync", () => {
     });
   }
 
-  it("syncs an offline registration and its unfinished draft before completed uploads", async () => {
+  it("sends an offline registration and completed uploads before the access refresh, then its unfinished draft", async () => {
     const db = memoryDb();
     await migrate(db);
     await saveRegistration(db, {
@@ -599,9 +670,11 @@ describe("registered phone draft sync", () => {
     const registrations = calls.findIndex(({ url }) => url.endsWith("/deaths"));
     const unfinished = calls.findIndex(({ url }) => url.endsWith("/drafts/sync"));
     const submissions = calls.findIndex(({ url }) => url.endsWith("/submissions"));
+    const accessRefresh = calls.findIndex(({ url }) => url.endsWith("/me/access"));
     expect(registrations).toBeGreaterThanOrEqual(0);
-    expect(unfinished).toBeGreaterThan(registrations);
-    expect(submissions).toBeGreaterThan(unfinished);
+    expect(submissions).toBeGreaterThan(registrations);
+    expect(accessRefresh).toBeGreaterThan(submissions);
+    expect(unfinished).toBeGreaterThan(accessRefresh);
     expect(calls[unfinished].body).toMatchObject({
       project_id: PROJECT,
       death_id: DEATH,

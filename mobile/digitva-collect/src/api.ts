@@ -42,6 +42,8 @@ export interface AccessProject {
   project_id: string;
   project_name: string;
   has_tree: boolean;
+  /** Server rule: supervisor here and the project registers deaths (mode death_register or both). */
+  supervises_deaths?: boolean;
   grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean; active: boolean; source: "assigned" | "self_coding" }>;
   sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
   actions: { interview: AccessActionContext[]; register_death: AccessActionContext[] };
@@ -158,7 +160,8 @@ export function accessCapabilities(access: AccessSummary): ClientBootstrap["capa
     registeredDeaths: access.roles.includes("death_reporter"),
     coding: access.roles.some((role) => ["coder", "coding_tester"].includes(role)) || access.demo_coding.available,
     reviewing: access.roles.includes("reviewer"),
-    supervision: access.roles.some((role) => SUPERVISION_ROLES.includes(role)),
+    // Supervisors see Deaths only where deaths are registered (a direct-only project has no register).
+    supervision: access.projects.some((project) => project.supervises_deaths === true),
     ...(hasMentoring ? { mentoring: true } : {}),
   };
 }

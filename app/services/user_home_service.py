@@ -45,8 +45,13 @@ def _empty_counts() -> dict[str, int]:
     }
 
 
-def get_user_activity_summary(user) -> dict:
-    """Return ``{"totals": ..., "by_project": {<project_id>: ...}}`` for *user*."""
+def get_user_activity_summary(user, *, project_ids=None) -> dict:
+    """Return ``{"totals": ..., "by_project": {<project_id>: ...}}`` for *user*.
+
+    *project_ids*, when given, keeps only those projects (and totals over
+    them): the Users page shows another user's activity within the viewer's
+    projects only (access-control-model.md, "Users page"). None keeps all.
+    """
     mark_consulted()
     if user is None or not getattr(user, "is_authenticated", True):
         return {"totals": _empty_counts(), "by_project": {}}
@@ -194,6 +199,8 @@ def get_user_activity_summary(user) -> dict:
         if bucket is not None and metric in bucket:
             bucket[metric] = int(count or 0)
 
+    if project_ids is not None:
+        by_project = {pid: counts for pid, counts in by_project.items() if pid in project_ids}
     totals = _empty_counts()
     for counts in by_project.values():
         for key in totals:

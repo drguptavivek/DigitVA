@@ -133,7 +133,7 @@ describe("web shell navigation and last visit", () => {
     await openMore(renderer);
     expect(navLabels(renderer)).toEqual([
       "home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics", "navMore",
-      "navOrg", "navSettings", "navWebsite", "navDataManagement", "signOut",
+      "navOrg", "navUsers", "navSettings", "navWebsite", "navDataManagement", "signOut",
     ]);
     await act(async () => { renderer.unmount(); });
   });

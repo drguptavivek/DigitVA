@@ -5,7 +5,6 @@ import io
 import logging
 import os
 import re
-from urllib.parse import urlparse
 
 import markdown2
 from flask import (
@@ -71,6 +70,7 @@ from app.services.va_code_mapping_public_service import (
     icd11_state_csv_row,
     public_origin_display,
 )
+from app.services.worker_enrolment_service import valid_android_apk_url
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
 log = logging.getLogger(__name__)
@@ -360,18 +360,6 @@ def inject_contextual_page_help():
     return {"contextual_page_help": get_contextual_help(key) if key else None}
 
 
-
-def _valid_android_apk_url():
-    """Return the configured APK URL only when it is a credential-free HTTPS URL."""
-    value = (current_app.config.get("DIGITVA_ANDROID_APK_URL") or "").strip()
-    parsed = urlparse(value)
-    if parsed.scheme.lower() != "https" or not parsed.hostname:
-        return None
-    if parsed.username or parsed.password:
-        return None
-    return value
-
-
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -425,7 +413,7 @@ def page(slug):
     template_name = f"help/pages/{slug}.html"
     page_context = {}
     if slug == "mobile-app":
-        page_context["mobile_app_url"] = _valid_android_apk_url()
+        page_context["mobile_app_url"] = valid_android_apk_url()
     return render_template(
         "help/help_base.html",
         page_slug=slug,

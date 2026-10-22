@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-22
 ---
 
 # Access Control Model
@@ -656,6 +656,31 @@ below a `project_site` grant there is nothing.
 The same powers cover reactivating and revoking those grants, and a data
 manager sees, in the grant list, every grant they may manage. Nobody revokes
 their own `data_manager` grant from the data-manager page.
+
+## Users page (owner, 2026-10-22, digitva-75wn)
+
+The web app's Users page (`GET /api/v1/users`, `.../users/<id>/activity`,
+`POST .../users/<id>/enrolment-code`) is read through one predicate,
+`authz.user_list_filter(actor)`, over `va_user_access_grants`. Unlike
+`grant_list_filter` (the grants an actor may *manage*) it covers **every
+role**, the actor's own grants included:
+
+- `admin`: every account, with or without a grant.
+- `project_pi`: holders of an active grant at any scope in their project.
+- `data_manager` and the In-charge: holders of an active grant inside their
+  own subtree (a project-scope data manager: the whole project; a
+  project_site data manager: grants at their own pair; a unit data manager
+  or In-charge: unit grants on their unit and every unit beneath it).
+- Anyone else: 403.
+
+A user is listed when at least one active grant on an active project
+matches; only the matching grants are shown. Contacts (email, phone) are
+shown on this page: see [Organization Model Policy](organization-model.md),
+"Users page: contacts shown". Activity counts are per project and limited
+to the viewer's projects (all projects for an admin); a unit data manager
+sees a listed user's counts for the whole project, not only their own
+subtree (counts carry no case detail). Issuing an enrolment code from this
+page: [Sign-in by Mobile Number](mobile-sign-in.md), section 6.
 
 ## Closed Projects
 

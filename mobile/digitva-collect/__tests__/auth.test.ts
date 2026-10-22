@@ -18,8 +18,10 @@ jest.mock("expo-crypto", () => ({
   digestStringAsync: jest.fn(async (_algorithm: string, value: string) => `hash-${value}`),
 }));
 const mockDeleteDb = jest.fn(async (_userId: string) => undefined);
+const mockUnsent = jest.fn(async (_userId: string): Promise<number | undefined> => 0);
 jest.mock("../src/interviewerDb", () => ({
   deleteInterviewerDb: (id: string) => mockDeleteDb(id),
+  unsentWorkCount: (id: string) => mockUnsent(id),
 }));
 
 import {
@@ -533,6 +535,47 @@ it("wipes only this interviewer when the refresh answers session_revoked", async
   expect(mockDeleteDb).toHaveBeenCalledWith(USER);
   expect(mockSecure.has(`tokens.${USER}`)).toBe(false);
   expect(await loadAccounts()).toEqual([{ user_id: "other", name: "B" }]);
+});
+
+it.each([
+  ["unsent work", 3],
+  ["a locked store that cannot be counted", undefined],
+])("keeps the store read-only on session_revoked with %s", async (_label, unsent) => {
+  seed({ access: "a", refresh: "r1" });
+  mockUnsent.mockResolvedValueOnce(unsent);
+  mockDeleteDb.mockClear();
+  mockServer((call) =>
+    call.url.endsWith("/sessions/refresh")
+      ? json(401, { code: "session_revoked" })
+      : json(401, { code: "token_expired" }),
+  );
+  const failure = authedRequest(USER, "/api/v1/intake/cases");
+  await expect(failure).rejects.toBeInstanceOf(SessionRevokedError);
+  await expect(failure).rejects.toMatchObject({ keptUnsent: true });
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+  expect(mockSecure.has(`tokens.${USER}`)).toBe(false);
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)).toEqual({
+    user_id: USER, name: "A", needs_sign_in: true, access_removed: true,
+  });
+});
+
+it("signing in again clears the access-removed state and keeps the store", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockSecure.set("accounts", JSON.stringify([
+    { user_id: USER, name: "A", needs_sign_in: true, access_removed: true },
+  ]));
+  mockSecure.delete(`tokens.${USER}`);
+  mockDeleteDb.mockClear();
+  mockServer(() => json(201, {
+    access_token: "a2", access_expires_at: "", refresh_token: "r2", refresh_expires_at: "",
+    user: { user_id: USER, name: "A" }, access: interviewAccess(),
+  }));
+  await signIn("a@example.org", "secret");
+  expect(mockDeleteDb).not.toHaveBeenCalled();
+  const account = (await loadAccounts()).find(({ user_id }) => user_id === USER);
+  expect(account?.user_id).toBe(USER);
+  expect(account?.needs_sign_in).toBeUndefined();
+  expect(account?.access_removed).toBeUndefined();
 });
 
 describe.each([

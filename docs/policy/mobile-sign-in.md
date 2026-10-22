@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-22
 ---
 
 # Sign-in by Mobile Number
@@ -131,5 +131,60 @@ Android APK only when the deployment supplies a credential-free HTTPS release
 URL. Until a release is published, it directs users to the browser application
 and tells them to obtain the approved link from an administrator. DigitVA does
 not guess a GitHub release URL or publish an APK from the application server.
+
+## 6. Enrolment email for new data collectors (digitva-o0nq)
+
+Owner decision 2026-10-22: when Add worker gives a person (new or linked) a
+new or reactivated `interviewer` or `death_reporter` grant, the server emails
+that person the app enrolment QR, so the data manager need not be beside
+them. Coders and other roles get no such email.
+
+- **Same QR as the Devices page.** The email carries the same QR the
+  project's Devices page shows (owner decision): a project enrolment code
+  issued through the same service, with the same payload, plus the code as
+  text. Each email gets its own code, valid for **24 hours and one device**
+  (within the Devices page's 5 minutes to 7 days). The QR enrols a device;
+  the person still signs in with their own email or mobile number and
+  password and then sets the device PIN.
+- **Contents.** The QR as an inline image, the code text, the approved
+  Android APK link (section 5; when no valid link is configured the email
+  says the supervisor will share the app), and steps: install from the link,
+  allow installs from that source, open the app, scan the QR from another
+  screen (a computer, or a second phone; the phone being enrolled cannot
+  scan its own screen), sign in, set a PIN. English only: email templates
+  have no language selection.
+- **When.** After the save is committed, never inside it, and synchronously,
+  never through the task queue, because the code is a credential (like the
+  password emails, account-onboarding-and-passwords.md section 4). A failed
+  send never fails the save: the save reports "Enrolment email could not be
+  sent" and logs the project and user ids only. A re-save that adds no new
+  data-collector grant sends nothing. An account with no email gets no
+  email; use the Devices page QR. `MAIL_SUPPRESS_SEND` and
+  `EMAIL_DELIVERY_ENABLED` apply as to every email.
+- **Resend.** An admin, or a project PI who may manage the project, may
+  resend from the worker row; each resend issues a fresh code. This is also
+  the owner's decision that a project PI may cause an enrolment code to be
+  issued, which the Devices page still limits to admins.
+- **Users page (owner, 2026-10-22, digitva-75wn).** The web app's Users
+  page offers **Issue enrolment code** on a listed user who holds an active
+  `interviewer`, `death_reporter`, `coder`, `coding_tester` or `reviewer`
+  grant (the device roles; coders for the coder app to come) in the chosen
+  project. Owner decision: besides admins and project PIs, a **data
+  manager** (the In-charge included) may issue it, for a user whose such
+  grant lies inside their own subtree, so a district data manager need not
+  ask the PI. The target account must be active. Two deliveries:
+  - **Show**: a project enrolment code with the Devices page's rules
+    (default 60 minutes and one device; 5 minutes to 7 days, up to the
+    Devices page's use limit), shown once in a dialog as code and QR; the
+    server keeps its hash only. Only an admin may widen it: a PI or data
+    manager gets one device within at most 60 minutes, since the code
+    enrols any phone into the whole project (`code_too_wide` otherwise).
+  - **Email**: the section above's email (its own 24-hour, one-device code).
+  Every issue is audited as `device_enrolment_code_created` with the actor
+  and the user it was issued for. 10 requests a minute.
+- **Risk.** Anyone who reads the email can enrol a device to the project
+  within the 24 hours. Enrolment alone gives no data: every session still
+  needs the person's password. An admin can revoke any device on the
+  Devices page, which ends its sessions.
 
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

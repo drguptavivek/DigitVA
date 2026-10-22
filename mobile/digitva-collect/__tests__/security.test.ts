@@ -243,9 +243,21 @@ describe("wipe matrix", () => {
     expect(footprint(B)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
   });
 
-  it("session_revoked wipes that interviewer only", async () => {
+  it("session_revoked wipes that interviewer only when the unlocked store holds nothing unsent", async () => {
+    await setUpBoth();
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
+    await classifyAuthError(A, new ApiError(401, "session_revoked"));
+    expect(footprint(A)).toEqual({ file: false, secret: false, tokens: false, biometric: false });
+    expect(footprint(B)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
+  });
+
+  it("session_revoked keeps a locked store, and the next unlock wipes it once it proves empty", async () => {
     await setUpBoth();
     await classifyAuthError(A, new ApiError(401, "session_revoked"));
+    expect(footprint(A)).toEqual({ file: true, secret: true, tokens: false, biometric: true });
+    expect((await loadAccounts()).find(({ user_id }) => user_id === A)).toMatchObject({ access_removed: true, needs_sign_in: true });
+
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: false, failures: 0, wipe: true, revoked: true });
     expect(footprint(A)).toEqual({ file: false, secret: false, tokens: false, biometric: false });
     expect(footprint(B)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
   });

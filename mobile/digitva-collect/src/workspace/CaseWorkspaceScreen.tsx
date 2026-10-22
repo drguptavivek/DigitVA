@@ -196,7 +196,8 @@ export function CaseWorkspaceScreen({
       if (!current()) return;
       setLoadedWorkspace({ vaSid: identity.vaSid, mode: identity.mode, api, payload: result });
       setLoading(false);
-      const isWebViewMode = Platform.OS === "web" && identity.mode === "view";
+      // An intake-only view (the submitter or a supervisor) gets the answers, not the coding sections or history.
+      const isWebViewMode = Platform.OS === "web" && identity.mode === "view" && result.case.history_available !== false;
       const allCategories = isWebViewMode ? [...result.categories, ...VIEW_FINAL_CATEGORIES] : result.categories;
       const wanted = preserveCategory === undefined ? resolveSection(allCategories, pendingSection.current) : undefined;
       pendingSection.current = undefined;
@@ -211,7 +212,7 @@ export function CaseWorkspaceScreen({
           ?? result.categories.find((item) => item.code === result.default_category) ?? result.categories[0];
         if (defaultCategory) void loadCategory(defaultCategory.code, request, preserveCategory !== undefined);
       }
-      if (identity.mode === "view") {
+      if (identity.mode === "view" && result.case.history_available !== false) {
         void loadEvents(undefined, request);
       }
     } catch (loadError) {
@@ -327,7 +328,7 @@ export function CaseWorkspaceScreen({
     <PrivateNotePanel key={`${identityKey}:notes`} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} onNoteChanged={noteChanged} />
   ) : null;
   const browser = Platform.OS === "web";
-  const effectiveCategories = browser && identity.mode === "view"
+  const effectiveCategories = browser && identity.mode === "view" && workspace.case.history_available !== false
     ? [...workspace.categories, ...VIEW_FINAL_CATEGORIES]
     : workspace.categories;
   const selectedMode = workspace.categories.find((item) => item.code === selectedCode)?.render_mode;
@@ -448,7 +449,7 @@ export function CaseWorkspaceScreen({
           {identity.mode === "view" ? (
             <>
               <CaseReference workspace={workspace} />
-              <WorkflowHistory
+              {workspace.case.history_available === false ? null : <WorkflowHistory
                 events={events}
                 cursor={currentEvents?.cursor ?? null}
                 loading={historyLoading}
@@ -458,7 +459,7 @@ export function CaseWorkspaceScreen({
                 }}
                 onLatest={() => void loadEvents(undefined, generation.current)}
                 onRetry={() => void loadEvents(historyRetryCursor ?? undefined, generation.current)}
-              />
+              />}
             </>
           ) : null}
         </>

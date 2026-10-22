@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Web Intake Policy
@@ -226,6 +226,20 @@ is `low`). Owner decision (2026-09-29): SmartVA's run behaviour stays as
 is; its HIV and malaria status comes from the district setting of the
 submission's organization unit, falling back to the form-level setting
 (`digitva-cts`, [SmartVA Generation Policy](smartva-generation-policy.md)).
+
+## Respondent consent (DPDP; owner 2026-10-22, digitva-athy)
+
+When the project requires respondent consent (Project Setup, "Require
+respondent consent"), the web shows the project's consent notice at death
+registration before the informant fields and before an interview whose case
+has no consent decision on file (a direct start, or a registration made
+without one); a registration consent is reused by the interview. Off: no
+consent screen. A refusal keeps the registration and the interview going
+without the informant's contact details and with the consent-covered
+questions empty. Notice versions, legal-review approval and the exact flow:
+[respondent-consent-notice-draft.md](respondent-consent-notice-draft.md)
+"Web flow"; the record contract: [offline-api-contract.md](offline-api-contract.md)
+section 5.
 
 ## Submission
 

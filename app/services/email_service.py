@@ -97,6 +97,12 @@ def _should_attempt_email_delivery(to: str) -> bool:
 # High-level helpers (called from routes)
 # ---------------------------------------------------------------------------
 
+def can_deliver_to(to: str) -> bool:
+    """True when a synchronous send to *to* would be attempted: mail is
+    configured, delivery is on and the recipient is not suppressed."""
+    return is_mail_configured() and _should_attempt_email_delivery(to)
+
+
 def _email_link_base_url() -> str:
     """Return the scheme-qualified base URL used for links inside emails.
 
@@ -156,6 +162,27 @@ def send_password_email(user, password: str) -> None:
         subject="Your DigitVA password",
         template_name="emails/new_password",
         context={"password": password, "login_url": login_page_url()},
+    )
+
+
+ENROLMENT_QR_CID = "enrolment-qr"
+
+
+def send_enrolment_email(user, *, code: str, qr_png: bytes, apk_url: str | None) -> None:
+    """Send a data collector the app enrolment QR *synchronously*, never
+    through Celery: the enrolment code is a credential and must not sit in
+    the broker (mobile-sign-in.md section 6). The QR travels as an inline
+    PNG (``cid:enrolment-qr``); *apk_url* None means the supervisor shares
+    the app. Raises on any failure; the caller logs ids only."""
+    if not can_deliver_to(user.email):
+        raise RuntimeError("Mail is not configured, delivery is off, or this recipient is suppressed.")
+
+    _actually_send_email(
+        to=user.email,
+        subject="Set up the DigitVA Collect app",
+        template_name="emails/enrolment_qr",
+        context={"name": user.name, "code": code, "apk_url": apk_url, "qr_cid": ENROLMENT_QR_CID},
+        inline_images=[(ENROLMENT_QR_CID, qr_png)],
     )
 
 
@@ -289,8 +316,13 @@ def send_verification_email(user, token: str, *, actor_user_id=None, commit: boo
 # Celery task
 # ---------------------------------------------------------------------------
 
-def _actually_send_email(to: str, subject: str, template_name: str, context: dict) -> None:
-    """Render templates and send via Flask-Mail. Runs inside Celery worker."""
+def _actually_send_email(
+    to: str, subject: str, template_name: str, context: dict, inline_images=None
+) -> None:
+    """Render templates and send via Flask-Mail. Runs inside Celery worker,
+    or inline for credential-bearing mail. *inline_images* is a list of
+    ``(content_id, png_bytes)`` the HTML references as ``cid:<content_id>``;
+    synchronous senders only, never through the Celery task."""
     if not is_mail_configured():
         log.warning("Mail not configured — skipping email to %s", to)
         return
@@ -304,6 +336,11 @@ def _actually_send_email(to: str, subject: str, template_name: str, context: dic
         html=html,
         body=text,
     )
+    for content_id, data in inline_images or ():
+        msg.attach(
+            f"{content_id}.png", "image/png", data,
+            disposition="inline", headers={"Content-ID": f"<{content_id}>"},
+        )
     mail.send(msg)
     log.info("Email sent to %s: %s", to, subject)
 

@@ -39,6 +39,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "sign-in",
         "supervision",
         "unlock",
+        "users",
         "worklist",
         "workspace",
     }

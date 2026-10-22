@@ -6,7 +6,7 @@ import { ApiError, SUPERVISION_ROLES, getLocalStationLaunchToken, getCaseDetail,
 import { INTAKE_API, registerDeath, startDraft } from "../client/api";
 import { useAppState } from "../AppState";
 import { localToday, registrationAgeInfoIssue, registrationNeedsAgeConfirmation, validateRegistration, type RegistrationFields } from "../cases";
-import { t, type StringKey } from "../i18n";
+import { t, uiLocale, type StringKey } from "../i18n";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
 import { Button, useUiStyles } from "../ui";
@@ -20,8 +20,8 @@ import { RegistrationFieldControl, type RegistrationDateAppearance } from "./reg
 import { PhoneNumbers } from "../PhoneInput";
 import { IdentifierFields, identifierIssueText } from "../IdentifierFields";
 import { IdentifierFacts } from "./CaseIdentifiers";
-import { StationConsentPanel } from "./StationConsentPanel";
-import { INFORMANT_PII_FIELDS, type ConsentRecordEnvelope } from "../consent";
+import { RespondentConsentPanel, StationConsentPanel } from "./StationConsentPanel";
+import { fetchProjectConsentConfig, INFORMANT_PII_FIELDS, type ConsentRecordEnvelope, type ProjectConsentConfig } from "../consent";
 import {
   identifierChanges, identifierFieldErrors, identifierIssues, identifiersToSend, identifierValues, identifierWarnings,
   isBadgeOnly, loadIdentifierTypes, type CaseIdentifier, type IdentifierType,
@@ -207,7 +207,7 @@ export default function DeathRegistrationScreen() {
       setIsVisible(activeRef.current);
       if (!activeRef.current) {
         registrationGeneration.current += 1;
-        setFields({}); setLocation(null);
+        setFields({}); setLocation(null); setWebConsent(null);
         setSex("");
         setListMode(false);
         setEditingDeathId(undefined);
@@ -239,7 +239,7 @@ export default function DeathRegistrationScreen() {
     setProjectId("");
     setSiteId("");
     setOrgUnitId("");
-    setFields({}); setLocation(null);
+    setFields({}); setLocation(null); setWebConsent(null);
     setSex("");
     setEditingDeathId(undefined);
     setEditingReadOnly(false);
@@ -304,7 +304,7 @@ export default function DeathRegistrationScreen() {
       setProjectId("");
       setSiteId("");
       setOrgUnitId("");
-      setFields({}); setLocation(null);
+      setFields({}); setLocation(null); setWebConsent(null);
       setSex("");
       setEditingDeathId(undefined);
       setEditingReadOnly(false);
@@ -449,6 +449,7 @@ export default function DeathRegistrationScreen() {
     }
     const state = typeof death.state === "string" ? death.state : typeof death.status === "string" ? death.status : "";
     registrationBase.current = values;
+    setWebConsent(null);
     locationBase.current = registrationLocation(death);
     setLocation(locationBase.current);
     registrationUpdatedAt.current = typeof death.updated_at === "string" ? death.updated_at : undefined;
@@ -565,6 +566,42 @@ export default function DeathRegistrationScreen() {
   });
   const consentBlocked = informantNeedsConsent && !consent;
 
+  // Web (digitva-athy, owner 2026-10-22): where the project requires respondent consent, the decision
+  // comes before the informant fields: closed until granted, closed and empty after a refusal (which
+  // is still recorded). On an edit, a newly entered informant field needs a granted decision. The
+  // station keeps its own always-required rule above, whatever the project says.
+  const station = Boolean(getLocalStationLaunchToken());
+  const [consentConfig, setConsentConfig] = useState<ProjectConsentConfig | null>(null);
+  const [webConsent, setWebConsent] = useState<ConsentRecordEnvelope | null>(null);
+  const [consentCheck, setConsentCheck] = useState(0);
+  useEffect(() => {
+    setWebConsent(null);
+    setConsentConfig(null);
+    if (station || !projectId || !bootstrap) return undefined;
+    let live = true;
+    void fetchProjectConsentConfig(projectId, bootstrap.csrf).then((config) => { if (live) setConsentConfig(config); });
+    return () => { live = false; };
+  }, [station, projectId, bootstrap, consentCheck]);
+  const webConsentRequired = !station && consentConfig?.consent_required === true;
+  const informantChanged = INFORMANT_PII_FIELDS.some((key) => {
+    const next = String(fields[key] ?? "").trim();
+    return next !== "" && (!editingDeathId || next !== String(registrationBase.current?.[key] ?? "").trim());
+  });
+  const webConsentNeeded = webConsentRequired && (!editingDeathId || informantChanged || webConsent !== null);
+  const informantClosed = webConsentRequired && !editingDeathId && webConsent?.decision !== "granted";
+  const webConsentBlocked = webConsentNeeded && (!webConsent || (webConsent.decision === "refused" && informantChanged));
+  const consentToSend = informantNeedsConsent && consent ? consent : webConsentNeeded ? webConsent : null;
+
+  function recordWebConsent(envelope: ConsentRecordEnvelope) {
+    setWebConsent(envelope);
+    if (envelope.decision !== "refused") return;
+    // Refused: the informant fields go back to what is stored (empty on a new registration).
+    setFields((previous) => ({
+      ...previous,
+      ...Object.fromEntries(INFORMANT_PII_FIELDS.map((key) => [key, editingDeathId ? registrationBase.current?.[key] ?? "" : ""])),
+    }));
+  }
+
   const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => field.key === "informant_phone" ? (
     <PhoneNumbers
       key={field.key}
@@ -600,6 +637,10 @@ export default function DeathRegistrationScreen() {
     setNotice("");
     if (consentBlocked) {
       setMessage(t("stationConsentBlocked"));
+      return;
+    }
+    if (webConsentBlocked) {
+      setMessage(t("consentRegistrationBlocked"));
       return;
     }
     const typed = Object.fromEntries(idTypes.map((type) => [type.code, idValues[type.code]]));
@@ -658,7 +699,7 @@ export default function DeathRegistrationScreen() {
         }
         const result = await requestClientJson<unknown>(`${INTAKE_API}/deaths/${encodeURIComponent(editingDeathId)}`, {
           method: "PATCH",
-          json: { ...changes, ...(informantNeedsConsent && consent ? { consent } : {}), ...locationChanges, ...(Object.keys(idChanges).length ? { identifiers: idChanges } : {}), ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
+          json: { ...changes, ...(consentToSend ? { consent: consentToSend } : {}), ...locationChanges, ...(Object.keys(idChanges).length ? { identifiers: idChanges } : {}), ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
           csrf: bootstrap.csrf
         });
         if (!current()) return;
@@ -669,7 +710,7 @@ export default function DeathRegistrationScreen() {
         const finishEdit = () => {
           if (bootstrap.capabilities.registeredDeaths) {
             setEditingDeathId(undefined);
-            setFields({}); setLocation(null);
+            setFields({}); setLocation(null); setWebConsent(null);
             setSex("");
             showList(true);
             setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
@@ -706,7 +747,7 @@ export default function DeathRegistrationScreen() {
                 !["deceased_name", "date_of_death"].includes(key) && !(key === "age_years" && birthMode !== "unknown") && typeof value === "string" && value.trim() !== ""
             )
           ),
-          ...(informantNeedsConsent && consent ? { consent } : {}),
+          ...(consentToSend ? { consent: consentToSend } : {}),
           ...(location ? { latitude: location.latitude, longitude: location.longitude, accuracy_m: location.accuracy_m } : {}),
           ...(idShown && identifiersToSend(typed) ? { identifiers: identifiersToSend(typed) } : {})
         } as RegistrationInput,
@@ -722,7 +763,7 @@ export default function DeathRegistrationScreen() {
         if (saveOnly && bootstrap.capabilities.intake) {
           router.replace({ pathname: "/collection", params: { saved: "1" } });
         } else if (bootstrap.capabilities.registeredDeaths) {
-          setFields({}); setLocation(null);
+          setFields({}); setLocation(null); setWebConsent(null);
           setSex("");
           showList(true);
           setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
@@ -778,6 +819,13 @@ export default function DeathRegistrationScreen() {
           setMessage(t("stationConsentNoNotice"));
           return;
         }
+        // Web: the server requires a decision this page did not know about (the config was not
+        // loaded, or the project switched consent on): load it again so the consent screen shows.
+        if (!station && error instanceof ApiError && error.status === 422 && ["consent_required", "consent_conflict"].includes(error.code ?? "")) {
+          setMessage(t("consentRegistrationBlocked"));
+          setConsentCheck((n) => n + 1);
+          return;
+        }
         const refused = identifierFieldErrors(error);
         if (Object.keys(refused).length) setIdErrors(refused);
         setMessage(error instanceof ApiError && error.status === 422 ? t("serverValidation") : browserErrorText(error));
@@ -806,7 +854,7 @@ export default function DeathRegistrationScreen() {
               registrationUpdatedAt.current = undefined;
               registrationSource.current = undefined;
               registrationSourceCursor.current = undefined;
-              setFields({}); setLocation(null);
+              setFields({}); setLocation(null); setWebConsent(null);
               setSex("");
             }
             showList(true);
@@ -974,12 +1022,26 @@ export default function DeathRegistrationScreen() {
           {issueMessage("deceased_sex") ? (
             <Text style={styles.error} accessibilityRole="alert">{issueMessage("deceased_sex")}</Text>
           ) : null}
-          {FIELD_DEFINITIONS.slice(2).map((field) => field.key === "address" ? (
-            <View key={field.key}>
-              {renderField(field)}
-              <LocationCapture value={location} onChange={setLocation} />
+          {webConsentNeeded && !webConsent ? (
+            <RespondentConsentPanel config={consentConfig} language={uiLocale()} clientDraftId={null} busy={busy} onDecision={recordWebConsent} />
+          ) : null}
+          {webConsentNeeded && webConsent ? (
+            <View style={styles.row} testID="respondent-consent-recorded">
+              <Text style={styles.muted}>{t(webConsent.decision === "granted" ? "consentRecordedGranted" : "consentRecordedRefused")}</Text>
+              <Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={() => setWebConsent(null)} />
             </View>
-          ) : renderField(field))}
+          ) : null}
+          {informantClosed && !webConsent ? <Text style={styles.muted} testID="informant-closed">{t("consentInformantClosed")}</Text> : null}
+          {FIELD_DEFINITIONS.slice(2).map((field) => {
+            const closed = informantClosed && (INFORMANT_PII_FIELDS as readonly string[]).includes(field.key);
+            if (field.key === "address") return (
+              <View key={field.key}>
+                {closed ? null : renderField(field)}
+                <LocationCapture value={location} onChange={setLocation} />
+              </View>
+            );
+            return closed ? null : renderField(field);
+          })}
           {informantNeedsConsent && bootstrap ? (
             <StationConsentPanel projectId={projectId} csrf={bootstrap.csrf} onChange={setConsent} />
           ) : null}
@@ -1031,14 +1093,14 @@ export default function DeathRegistrationScreen() {
               </View>
             </View>
           ) : null}
-          <Button loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
+          <Button loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
           {!editingDeathId && bootstrap?.capabilities.intake ? (
-            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked} label={t("save")} onPress={() => void submit(false, true)} />
+            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t("save")} onPress={() => void submit(false, true)} />
           ) : null}
           <Button kind="secondary" label={t("cancel")} onPress={() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {
               setEditingDeathId(undefined);
-              setFields({}); setLocation(null);
+              setFields({}); setLocation(null); setWebConsent(null);
               setSex("");
               showList(true);
             } else router.back();

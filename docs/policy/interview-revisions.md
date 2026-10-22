@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-22
 ---
 
 # Interview Revisions Policy
@@ -50,8 +50,12 @@ ODK change by the latest workflow event's reason and show it as "Sent back for
 revision" (`app/services/workflow/revision_request_sql.py`, `digitva-jcll`). Only web and device interviews: an ODK submission is
 refused (409 `not_web_submission`), ODK has its own needs-revision path.
 
-**Not built**: the phone's Revise screen and "my submitted interviews" list,
-and a browser screen for revising. Every ODK-protected state stays locked to
+**Not built**: the phone's Revise screen and "my submitted interviews" list.
+**Browser (2026-10-22)**: the case screen offers "View submitted answers"
+(the read-only case view, open to the submitter and the case's supervisors
+without coding access, no COD or workflow history) and "Correct interview"
+(the revision, reason asked on the interview screen) while the case
+detail's `can_revise` holds. Every ODK-protected state stays locked to
 the interviewer unless the case was sent back or reopened.
 
 Decisions made while building part A:

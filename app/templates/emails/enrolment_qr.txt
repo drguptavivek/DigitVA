@@ -1,0 +1,18 @@
+Hello {{ name }},
+
+You have been added as a data collector in DigitVA. Set up the DigitVA Collect app on your Android phone:
+
+{% if apk_url %}1. On your phone, download the app: {{ apk_url }}
+{% else %}1. Your supervisor will share the app with you.
+{% endif %}2. Open the downloaded file. If the phone asks, allow installing apps from this source, then install.
+3. Open DigitVA Collect and choose to scan the enrolment QR.
+4. Scan the QR in the HTML version of this email. Open it on a computer or another phone to scan it: a phone cannot scan its own screen.
+5. Sign in with your email or mobile number and your DigitVA password.
+6. Set a PIN of at least 6 digits. You will use it to open the app.
+
+Enrolment code: {{ code }}
+
+This QR works for one phone and for 24 hours. If it has expired, ask your supervisor to send a new one.
+Do not share it. If you did not expect this email, tell your supervisor.
+
+DigitVA Team

@@ -5,6 +5,7 @@ import { Alert, Text, View } from "react-native";
 import { useAppState } from "../AppState";
 import { refreshAccessSummaryForAction, signOut } from "../auth";
 import { t } from "../i18n";
+import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import { isUnlocked } from "../interviewerDb";
 import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 import { createWorkspaceApi, type WorkspaceApi } from "../workspace/api";
@@ -160,10 +161,7 @@ function BoundScreen({
   }
 
   function confirmSignOut() {
-    Alert.alert(t("signOut"), t("pendingSignOutConfirm"), [
-      { text: t("cancel"), style: "cancel" },
-      { text: t("signOutConfirm"), style: "destructive", onPress: () => void doSignOut() },
-    ]);
+    void confirmUnsentSignOut(userId, () => void doSignOut());
   }
 
   return <Screen title={account.name}>

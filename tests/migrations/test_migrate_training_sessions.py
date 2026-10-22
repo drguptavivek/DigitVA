@@ -1,4 +1,5 @@
-"""``e3b7d1a9c4f2`` adds the three training-session tables.
+"""``e3b7d1a9c4f2`` adds the three training-session tables; ``f6b2d8a4c1e7``
+adds ``coder_slots`` and widens the slot and case-number checks.
 
 The suite builds its schema with ``create_all()`` and never runs the migration,
 so this builds a throwaway database at the previous head, upgrades, checks the
@@ -22,6 +23,8 @@ from config import TestConfig
 DB_NAME = "minerva_test_training_sessions"
 PREVIOUS_HEAD = "a7c3e9f1d5b2"
 REVISION = "e3b7d1a9c4f2"
+SLOTS_REVISION = "f6b2d8a4c1e7"
+SLOTS_PREVIOUS = "d4a7c9e2f5b1"
 TABLES = ("mas_training_sessions", "map_training_cases", "map_training_participants")
 
 
@@ -82,6 +85,7 @@ class TrainingSessionsMigrationTest(unittest.TestCase):
                 alembic_upgrade(revision="heads")
                 session_id, user_id = self._seed(db)
                 self._constraints(db, session_id, user_id)
+                self._coder_slots(db, session_id)
 
                 with self.assertRaises((RuntimeError, SystemExit)):  # flask-migrate may exit
                     alembic_downgrade(revision=PREVIOUS_HEAD)
@@ -151,7 +155,7 @@ class TrainingSessionsMigrationTest(unittest.TestCase):
         db.session.commit()
         for role, slot, user in (
             ("coder", 1, other),          # slot already taken in the session
-            ("coder", 21, other),         # slot out of range
+            ("coder", 101, other),        # slot out of range (1..100 since f6b2d8a4c1e7)
             ("coder", None, other),       # a coder needs a slot
             ("interviewer", 3, other),    # only a coder has a slot
             ("admin", None, other),       # unknown role
@@ -162,3 +166,28 @@ class TrainingSessionsMigrationTest(unittest.TestCase):
             db.session.rollback()
         participant("interviewer", None, other)
         db.session.commit()
+
+    def _coder_slots(self, db, session_id):
+        def slots(value):
+            db.session.execute(
+                sa.text("UPDATE mas_training_sessions SET coder_slots = :n WHERE training_session_id = :s"),
+                {"n": value, "s": session_id},
+            )
+
+        self.assertEqual(db.session.execute(sa.text("SELECT coder_slots FROM mas_training_sessions")).scalar(), 20)
+        for bad in (0, 101):
+            with self.assertRaises(sa.exc.IntegrityError, msg=str(bad)):
+                slots(bad)
+            db.session.rollback()
+        slots(30)
+        db.session.commit()
+        db.session.remove()
+        with self.assertRaises((RuntimeError, SystemExit)):  # a 30-slot session blocks narrowing
+            alembic_downgrade(revision=SLOTS_PREVIOUS)
+        slots(20)
+        db.session.commit()
+        db.session.remove()
+        alembic_downgrade(revision=SLOTS_PREVIOUS)
+        columns = {c["name"] for c in sa.inspect(db.engine).get_columns("mas_training_sessions")}
+        self.assertNotIn("coder_slots", columns)
+        alembic_upgrade(revision=SLOTS_REVISION)

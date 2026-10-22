@@ -203,7 +203,7 @@ export function projectActionItems(project: AccessProject, effectiveRoles: strin
 
 /**
  * Role screens the user may open, in landing order. Supervisors work in the
- * Deaths tab (interview_supervisor and data_manager, SUPERVISION_ROLES in ../api).
+ * Deaths tab, where their project registers deaths (capabilities.supervision, from the server's supervises_deaths).
  */
 export function roleScreens(bootstrap: RoleBootstrap): string[] {
   const roles = bootstrap.access?.roles ?? [];
@@ -211,8 +211,7 @@ export function roleScreens(bootstrap: RoleBootstrap): string[] {
   if (roles.some((role) => role === "coder" || role === "coding_tester")) screens.push("/coding");
   if (roles.includes("reviewer")) screens.push("/reviewing");
   if (bootstrap.capabilities?.intake) screens.push("/collection");
-  const supervises = roles.some((role) => role === "interview_supervisor" || role === "data_manager");
-  if (bootstrap.capabilities?.registerDeath || bootstrap.capabilities?.registeredDeaths || supervises) screens.push("/death-registration");
+  if (bootstrap.capabilities?.registerDeath || bootstrap.capabilities?.registeredDeaths || bootstrap.capabilities?.supervision) screens.push("/death-registration");
   if (
     bootstrap.capabilities?.mentoring ||
     bootstrap.access?.account?.mentor?.member ||

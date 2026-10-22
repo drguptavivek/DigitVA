@@ -196,6 +196,19 @@ it.each([
   }
 });
 
+it("never loads workflow history for an intake-only view (the submitter or a supervisor)", async () => {
+  const payload = workspace("view", "view");
+  const api = apiFor({ ...payload, case: { ...payload.case, history_available: false } });
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "view" }} api={api} onExit={jest.fn()} />);
+    await flush();
+  });
+  expect(api.getCategory).toHaveBeenCalled();
+  expect(api.getWorkflowEvents).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
+});
+
 it("does not load a browser workspace until the hidden page becomes visible", async () => {
   const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
   let visibilityState: "visible" | "hidden" = "hidden";

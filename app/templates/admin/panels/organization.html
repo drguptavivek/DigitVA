@@ -448,6 +448,7 @@
         <div class="col-md-6" id="ow-email-wrap"><label class="form-label small mb-1" for="ow-email">Email</label><input id="ow-email" type="email" class="form-control form-control-sm" autocomplete="email" placeholder="Type email to check existing user…">
           <div class="form-text" id="ow-email-hint">Existing account or a new account for this worker.</div></div>
         <div class="col-md-6"><label class="form-label small mb-1" for="ow-phone">Mobile number</label><input id="ow-phone" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm" placeholder="10-digit mobile"><div class="form-text">Exactly 10 digits; auto-checks existing users.</div></div>
+        <div class="col-12 d-none" id="ow-user-suggest"></div>
         <div class="col-12" id="ow-no-email-wrap"><div class="form-check"><input id="ow-no-email" type="checkbox" class="form-check-input"><label for="ow-no-email" class="form-check-label small">I have no email ID (mobile-only account)</label></div></div>
         <div class="col-md-6" id="ow-email-confirm-wrap"><label class="form-label small mb-1" for="ow-email-confirm">Confirm email</label><input id="ow-email-confirm" type="email" class="form-control form-control-sm" autocomplete="off"></div>
         <div class="col-md-6 d-none" id="ow-phone-confirm-wrap"><label class="form-label small mb-1" for="ow-phone-confirm">Confirm mobile number</label><input id="ow-phone-confirm" type="tel" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" class="form-control form-control-sm" autocomplete="off"></div>
@@ -1613,6 +1614,9 @@
   var WORKER_ROW_LIMIT = 500;
   var _workerUnitPicker = null, _workerFormUnitPicker = null, _workerLanguagePicker = null, _editingWorker = null;
   var _matchedExistingUser = null, _userLookupTimer = null;
+  // Suggestions: which field was typed last, the last query sent, and a
+  // sequence number so a slow older response cannot overwrite a newer one.
+  var _lookupSource = 'email', _lastLookupQ = null, _lookupSeq = 0, _suggestions = [];
   var WORKER_ROLE_LABELS = {
     collaborator: 'Viewer', collaborator_pii: 'Viewer (with PII)', coder: 'Coder',
     coding_tester: 'Coding Tester', reviewer: 'Reviewer', data_manager: 'Data Manager',
@@ -1702,6 +1706,10 @@
         return '<span class="badge text-bg-light border text-secondary me-1">' + esc(WORKER_ROLE_LABELS[r] || r) + '</span>';
       }).join('');
       var qrBtn = '<button type="button" class="btn btn-sm btn-link py-0 px-1 text-primary" data-act="qr" data-id="' + id + '" title="Show Expo mobile app QR code"><i class="fa-solid fa-qrcode"></i></button>';
+      var collects = (w.active_roles || []).some(function (r) { return r === 'interviewer' || r === 'death_reporter'; });
+      if (w.is_active && w.user_email && collects) {
+        qrBtn += '<button type="button" class="btn btn-sm btn-link py-0 px-1" data-act="enrol-email" data-id="' + id + '" title="Resend enrolment email"><i class="fa-solid fa-envelope"></i></button>';
+      }
       return '<tr class="' + (w.is_active ? '' : 'org-inactive') + '">'
         + '<td><div class="fw-medium">' + esc(w.worker_name) + '</div>' + (rolesHtml ? '<div class="mt-1">' + rolesHtml + '</div>' : '') + '</td>'
         + '<td><span class="badge text-bg-light border" title="' + esc(c ? c.cadre_name : w.cadre_code) + '">' + esc(w.cadre_code) + '</span></td>'
@@ -1730,6 +1738,17 @@
     if (!w) return;
     if (b.dataset.act === 'edit') { openWorkerForm(w, null); return; }
     if (b.dataset.act === 'qr') { showExpoQrModalForWorker(w); return; }
+    if (b.dataset.act === 'enrol-email') {
+      askConfirm('Email ' + w.worker_name + ' a new app enrolment QR? It works for one phone for 24 hours.', function () {
+        b.disabled = true;
+        api(base() + '/workers/' + encodeURIComponent(w.worker_id) + '/enrolment-email', 'POST', {}).then(function (res) {
+          b.disabled = false;
+          if (!res.ok) { fail(res); return; }
+          alertBox('success', 'Enrolment email sent to ' + w.user_email + '.');
+        }).catch(function () { b.disabled = false; alertBox('danger', 'Network error.'); });
+      });
+      return;
+    }
     var on = !w.is_active;
     var go = function () { api(base() + '/workers/' + w.worker_id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
     if (on) go(); else askConfirm('Deactivate worker ' + w.worker_name + '?', go);
@@ -1927,29 +1946,59 @@
   }
   $('ow-no-email').addEventListener('change', updateWorkerContactMode);
 
-  // Live existing-user lookup (by email or 10-digit mobile)
+  // Live existing-user lookup: one request per typing pause returns the
+  // exact match (full email or 10-digit mobile) and up to 8 suggestions
+  // (from 3 email characters or 4 digits). Choosing a suggestion fills its
+  // full email or mobile and runs the exact path again.
+  function hideUserSuggestions() {
+    _suggestions = [];
+    var box = $('ow-user-suggest');
+    if (box) { box.classList.add('d-none'); box.innerHTML = ''; }
+  }
+  function renderUserSuggestions(list) {
+    var box = $('ow-user-suggest');
+    _suggestions = list || [];
+    if (!box || !_suggestions.length) { hideUserSuggestions(); return; }
+    box.className = 'col-12';
+    box.innerHTML = '<div class="small text-muted mb-1">Existing DigitVA accounts</div><div class="list-group list-group-sm">'
+      + _suggestions.map(function (u, i) {
+        var contact = [u.email, u.mobile].filter(Boolean).join(' · ');
+        return '<button type="button" class="list-group-item list-group-item-action py-1 small" data-suggest="' + i + '">'
+          + '<span class="fw-medium">' + esc(u.name) + '</span>'
+          + (contact ? ' <span class="text-muted">' + esc(contact) + '</span>' : '') + '</button>';
+      }).join('') + '</div>';
+  }
+  function clearExistingUserMatch(banner) {
+    _matchedExistingUser = null;
+    if (banner) { banner.classList.add('d-none'); banner.innerHTML = ''; }
+    updateWorkerContactMode();
+    updateWorkerOnboardingNote();
+  }
   function runExistingUserLookup() {
     if (!PROJECT_ID) return;
     var email = val('ow-email'), phone = val('ow-phone');
     var q = '';
-    if (email && email.indexOf('@') > 0) q = email;
-    else if (phone && /^[0-9]{10}$/.test(phone)) q = phone;
+    if (_lookupSource === 'phone' && /^[0-9]{4,10}$/.test(phone)) q = phone;
+    else if (_lookupSource === 'email' && email.length >= 3) q = email;
+    else if (email && email.indexOf('@') > 0) q = email;
+    else if (/^[0-9]{10}$/.test(phone)) q = phone;
     var banner = $('ow-user-lookup-banner');
+    if (q === _lastLookupQ) return;
+    _lastLookupQ = q;
+    var seq = ++_lookupSeq;
     if (!q) {
-      _matchedExistingUser = null;
-      if (banner) { banner.classList.add('d-none'); banner.innerHTML = ''; }
-      updateWorkerContactMode();
-      updateWorkerOnboardingNote();
+      hideUserSuggestions();
+      clearExistingUserMatch(banner);
       return;
     }
-    api(base() + '/users/lookup?q=' + encodeURIComponent(q)).then(function (res) {
+    api(base() + '/users/lookup?suggest=1&q=' + encodeURIComponent(q)).then(function (res) {
+      if (seq !== _lookupSeq) return;
       if (!res.ok || !res.data || !res.data.found || !res.data.user) {
-        _matchedExistingUser = null;
-        if (banner) { banner.classList.add('d-none'); banner.innerHTML = ''; }
-        updateWorkerContactMode();
-        updateWorkerOnboardingNote();
+        renderUserSuggestions(res.ok && res.data ? res.data.suggestions : []);
+        clearExistingUserMatch(banner);
         return;
       }
+      hideUserSuggestions();
       var u = res.data.user;
       _matchedExistingUser = u;
       if (!val('ow-name') && u.name) $('ow-name').value = u.name;
@@ -1975,16 +2024,30 @@
       updateWorkerOnboardingNote();
     }).catch(function () {});
   }
-  function scheduleExistingUserLookup() {
+  function scheduleExistingUserLookup(ev) {
+    _lookupSource = ev && ev.target && ev.target.id === 'ow-phone' ? 'phone' : 'email';
     if (_userLookupTimer) clearTimeout(_userLookupTimer);
     _userLookupTimer = setTimeout(runExistingUserLookup, 280);
   }
   $('ow-email').addEventListener('input', scheduleExistingUserLookup);
   $('ow-phone').addEventListener('input', scheduleExistingUserLookup);
+  $('ow-user-suggest').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button[data-suggest]');
+    var u = b && _suggestions[Number(b.dataset.suggest)];
+    if (!u) return;
+    if (u.email && !$('ow-no-email').checked) { $('ow-email').value = u.email; _lookupSource = 'email'; }
+    else if (u.mobile) { $('ow-phone').value = u.mobile; _lookupSource = 'phone'; }
+    else return;
+    hideUserSuggestions();
+    if (_userLookupTimer) clearTimeout(_userLookupTimer);
+    runExistingUserLookup();
+  });
 
   function openWorkerForm(w, unit) {
     _editingWorker = w;
     _matchedExistingUser = null;
+    _lastLookupQ = null;
+    hideUserSuggestions();
     var lookupBanner = $('ow-user-lookup-banner');
     if (lookupBanner) { lookupBanner.classList.add('d-none'); lookupBanner.innerHTML = ''; }
     $('org-worker-form-title').textContent = w ? 'Edit worker ' + w.worker_name : (unit ? 'Add worker at ' + unit.unit_code : 'Add worker');
@@ -2089,6 +2152,12 @@
       queued.className = 'mb-2 text-success';
       queued.textContent = onboarding.invitations_queued + ' invitation(s) queued. Delivery is not confirmed.';
       body.appendChild(queued);
+    }
+    if (onboarding.enrolment_email === 'sent') {
+      var enrolSent = document.createElement('p');
+      enrolSent.className = 'mb-2 text-success';
+      enrolSent.textContent = 'App enrolment email sent (QR valid for one phone, 24 hours).';
+      body.appendChild(enrolSent);
     }
     (onboarding.invite_warnings || []).forEach(function (warning) {
       var warningEl = document.createElement('p');

@@ -63,6 +63,9 @@ Key fields:
 - `coding_intake_mode`
 - `demo_training_enabled`
 - `demo_retention_minutes`
+- `recode_window_minutes` (1..10080, default 1440; TRN01 60): the coder
+  recode / reviewer-eligibility window, migration `c8e4a2f6b1d3`
+  (docs/policy/coding-workflow-state-machine.md, "Recode Window")
 - `masked_cod_required` (default true)
 - `cod_entry_mode` (`simple` by default, or `doris` when unmasked and ICD-11)
 

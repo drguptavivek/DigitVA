@@ -75,6 +75,8 @@ DEFAULT_SOURCE_FORM_ID = "UNSW01NC0101"
 TRAINEE_CADRE_CODE = "TRAINEE"
 #: The source narratives are mostly Hindi; form locales stay English only.
 NARRATION_LANGUAGES = ("english", "hindi")
+#: Owner 2026-10-22: a trainee's coded case reaches review within the training.
+TRAINING_RECODE_WINDOW_MINUTES = 60
 #: Fixed ancestors of every session root: the tree needs a district and a CHC
 #: above the PHC-level root, because only optional levels may be skipped.
 DISTRICT_UNIT_CODE = "TRNDH"
@@ -223,7 +225,8 @@ def setup_training_project() -> dict:
     Needs ``DIGITVA_TRAINING_PROJECT_ID=TRN01``. An existing TRN01 is adopted
     only when it is an organization, web-only project without ODK mappings;
     its settings are then left as they are, except the narration languages
-    (English and Hindi), which are set to the fixed pair. Created: the project and its web
+    (English and Hindi), which are set to the fixed pair, and the recode
+    window, which is set to 60 minutes. Created: the project and its web
     form, the template levels and cadres, a "Trainee" cadre allowed to do
     every training task at the PHC and sub-centre levels, and the fixed
     district and CHC units above the session roots. Commits.
@@ -255,6 +258,7 @@ def setup_training_project() -> dict:
                 web_intake_intake_note="",
                 web_intake_death_summary_enabled=True,
                 web_intake_medical_records_enabled=True,
+                recode_window_minutes=TRAINING_RECODE_WINDOW_MINUTES,
             )
             db.session.add(project)
             db.session.flush()
@@ -263,6 +267,8 @@ def setup_training_project() -> dict:
             _require_target()
             if list(project.web_intake_narration_languages or []) != list(NARRATION_LANGUAGES):
                 project.web_intake_narration_languages = list(NARRATION_LANGUAGES)
+            if project.recode_window_minutes != TRAINING_RECODE_WINDOW_MINUTES:
+                project.recode_window_minutes = TRAINING_RECODE_WINDOW_MINUTES
         org.ensure_organization_site(TRAINING_PROJECT_ID)
         org.seed_default_organization(TRAINING_PROJECT_ID)
         levels = {level.level_code: level for level in org.list_levels(TRAINING_PROJECT_ID)}

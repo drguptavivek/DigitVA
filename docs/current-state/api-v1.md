@@ -402,7 +402,7 @@ when there is none or it is not in `project_options`; the queue opens on it
 Gate `coder`, `coding_tester` or `admin`. Paging is opt-in, because the web
 coder dashboard (`va_code_dashboard.js`) reads both lists whole and renders
 them in a client-side table: **without `limit` the body is exactly what it was**
-(`{forms, count}`, `{history, count}`, every row key unchanged).
+(`{forms, count}`, `{history, count}`, every existing row key unchanged; `recode_until` is added).
 
 | Parameter | Rule |
 | --- | --- |
@@ -423,6 +423,12 @@ Same rows, same keys and the same authorization as the unpaged body.
   own finals and not-codeable reviews on cases they may still view, newest
   coding date first, ties broken by submission date, status (completed
   before not-codeable), `va_sid` and row id, so pages never gap or repeat.
+- Every `/history` row (paged or not) carries `recode_until`: on a final
+  coding, its time plus the project's `recode_window_minutes`, tz-aware ISO
+  (UTC offset); null on not-codeable, tester and demo rows. It is set whether
+  or not the row is still `recodeable`, so a client can say the window has
+  closed ([Coding Workflow State Machine](../policy/coding-workflow-state-machine.md),
+  "Recode Window").
   `recodeable` is set on each page row. A paged request bypasses the five
   minute dashboard cache and reads the current rows.
 - Cost: `limit` and `offset` run in SQL (`LIMIT`/`OFFSET` over a UNION of the

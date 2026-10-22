@@ -77,6 +77,9 @@ class TrainingSessionsMigrationTest(unittest.TestCase):
                     "ix_mas_training_sessions_project_created",
                 } <= names)
 
+                # Seed at head: later migrations add project columns the
+                # models already map (e.g. recode_window_minutes).
+                alembic_upgrade(revision="heads")
                 session_id, user_id = self._seed(db)
                 self._constraints(db, session_id, user_id)
 
@@ -96,7 +99,8 @@ class TrainingSessionsMigrationTest(unittest.TestCase):
             _drop_database()
 
     def _seed(self, db):
-        # The schema is the head's, so the models write to it as they do in the app.
+        # The schema is the head's (the test upgrades to head before seeding),
+        # so the models write to it as they do in the app.
         from app.models import MasOrgLevel, MasOrgUnit, VaProjectMaster
 
         user = self._user(db, "a@b.c")

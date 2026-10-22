@@ -412,8 +412,40 @@ def get_coder_history_page(
         )
         for item in real_rows:
             item["recodeable"] = item["va_sid"] in recodeable
+        set_recode_until(real_rows)
+    for row in rows:
+        row["recode_until"] = None
     rows.extend(real_rows)
     return rows[:limit], len(rows) > limit
+
+
+def set_recode_until(rows: list[dict]) -> None:
+    """Set ``recode_until`` on history rows: when the coder's recode window ends.
+
+    A final coding's time plus its project's ``recode_window_minutes``, as
+    tz-aware UTC ISO; None on not-codeable and tester rows, which are never
+    recoded. Set whether or not the row is still ``recodeable`` so a client can
+    say the window has closed. One query for the rows' projects; done outside
+    the cached history so a changed window shows at once.
+    """
+    from app.services.recode_window import recode_windows_by_project
+
+    windows = recode_windows_by_project(row["project_id"] for row in rows)
+    for row in rows:
+        row["recode_until"] = None
+        window = windows.get(row["project_id"])
+        if (
+            window is None
+            or row.get("is_tester")
+            or row.get("va_code_status") != "VA Coding Completed"
+            or not row.get("va_coding_date")
+        ):
+            continue
+        coded_at = datetime.fromisoformat(row["va_coding_date"])
+        if coded_at.tzinfo is None:
+            # Stored as naive UTC.
+            coded_at = coded_at.replace(tzinfo=timezone.utc)
+        row["recode_until"] = (coded_at + window).isoformat()
 
 
 def get_coder_demo_history(user_id, tz_name: str = "Asia/Kolkata") -> list[dict]:
@@ -441,8 +473,9 @@ def get_coder_recodeable_sids(
 
     The same rule ``recode_limit_error`` applies when the recode starts
     (digitva-h67s), in SQL so the list stays one query: the user's own
-    active final within 24 hours, and at most one final or coder review of
-    theirs (any status) on the submission in those 24 hours, so a case
+    active final within the project's recode window
+    (``recode_window_minutes``), and at most one final or coder review of
+    theirs (any status) on the submission in that window, so a case
     already re-coded once is not offered again. And the same scope:
     only submissions *user* may RECODE (authz), so a case rerouted out of
     their unit is not offered on a form they still hold.
@@ -456,7 +489,10 @@ def get_coder_recodeable_sids(
         return []
     user_id = user.user_id
 
-    recent_window = sa.text("interval '24 hours'")
+    from app.services.recode_window import recode_window_interval
+
+    # Each submission's own project window; the outer query joins the project.
+    recent_window = recode_window_interval()
     # Aliased: the outer query joins both tables for the active rows.
     window_final = sa.orm.aliased(VaFinalAssessments, name="window_final")
     window_review = sa.orm.aliased(VaCoderReview, name="window_review")
@@ -469,7 +505,7 @@ def get_coder_recodeable_sids(
             window_final.is_tester.is_(False),
             window_final.va_finassess_createdat + recent_window > sa.func.now(),
         )
-        .correlate(VaSubmissions)
+        .correlate(VaSubmissions, VaProjectMaster)
         .scalar_subquery()
     )
     reviews_in_window = (
@@ -480,13 +516,15 @@ def get_coder_recodeable_sids(
             window_review.is_tester.is_(False),
             window_review.va_creview_createdat + recent_window > sa.func.now(),
         )
-        .correlate(VaSubmissions)
+        .correlate(VaSubmissions, VaProjectMaster)
         .scalar_subquery()
     )
     stmt = (
         sa.select(VaSubmissions.va_sid)
         .select_from(VaSubmissions)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(VaProjectMaster, VaProjectMaster.project_id == VaForms.project_id)
         .outerjoin(
             VaFinalAssessments,
             sa.and_(
@@ -515,7 +553,7 @@ def get_coder_recodeable_sids(
             VaFinalAssessments.va_finassess_createdat + recent_window
             > sa.func.now(),
             VaCoderReview.va_creview_id.is_(None),
-            # recode_limit_error: "already re-coded once in the last 24 hours".
+            # recode_limit_error: "already re-coded once in the last <window>".
             finals_in_window + reviews_in_window <= 1,
         )
     )

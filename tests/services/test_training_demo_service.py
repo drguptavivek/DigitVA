@@ -55,6 +55,7 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertEqual(project.coding_intake_mode, "pick_and_choose")
         self.assertEqual(project.web_intake_available_locales, ["en"])
         self.assertEqual(project.web_intake_narration_languages, ["english", "hindi"])
+        self.assertEqual(project.recode_window_minutes, 60)
         _code, extensions = project_instrument_and_extensions(project)
         self.assertEqual(
             set(extensions),
@@ -69,6 +70,13 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertEqual(svc.setup_training_project(), {"project": False, "cadre": False, "units": 0})
         self.assertEqual(project.web_intake_narration_languages, ["english", "hindi"])
         self.assertEqual(project.web_intake_available_locales, ["en"])
+
+    def test_setup_resets_the_recode_window_of_an_existing_project(self):
+        project = db.session.get(VaProjectMaster, "TRN01")
+        project.recode_window_minutes = 1440
+        db.session.flush()
+        self.assertEqual(svc.setup_training_project(), {"project": False, "cadre": False, "units": 0})
+        self.assertEqual(project.recode_window_minutes, 60)
 
     def test_setup_is_idempotent(self):
         before = db.session.scalar(sa.select(sa.func.count()).select_from(MasOrgUnit))

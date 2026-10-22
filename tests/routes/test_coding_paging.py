@@ -404,7 +404,8 @@ class CodingPagingTests(BaseTestCase):
                 "project_id", "site_id", "va_submission_date", "va_form_id",
                 "va_sid", "va_uniqueid_masked", "va_deceased_age",
                 "va_deceased_gender", "va_coding_date", "va_code_status",
-                "is_tester", "recodeable",
+                # recode_until: additive, digitva-yeg3.2.
+                "is_tester", "recodeable", "recode_until",
             },
         )
         self.assertEqual(

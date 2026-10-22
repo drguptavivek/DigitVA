@@ -18,6 +18,7 @@ from app.models import (
     VaAllocation,
     VaAllocations,
     VaForms,
+    VaProjectMaster,
     VaStatuses,
     VaSubmissionWorkflow,
     VaSubmissions,
@@ -944,14 +945,15 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     """Start a recode episode and create an allocation.
 
     Only the coder whose final COD is authoritative may recode, once, within
-    24 hours, while they still hold coder access to the form and the
+    the project's recode window (``app/services/recode_window.py``), while
+    they still hold coder access to the form and the
     submission is inside their coding scope. An existing live allocation on the
     same submission resumes after the scope check alone (RECODE): the recode
     window was checked when it was created, the scope can have changed since.
 
     Raises AllocationError when any of those fails.
     """
-    from datetime import timedelta
+    from app.services.recode_window import recode_window_for_submission
 
     existing_sid = get_active_coding_allocation(user.user_id)
     active_recode_episode = get_active_recode_episode(va_sid)
@@ -998,7 +1000,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
         raise AllocationError(limit_error)
     cutoff = (
         datetime.now(authoritative_final.va_finassess_createdat.tzinfo)
-        - timedelta(hours=24)
+        - recode_window_for_submission(va_sid)
     )
     if authoritative_final.va_finassess_createdat <= cutoff:
         raise AllocationError("This submission is outside the recode window.")
@@ -1093,13 +1095,21 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     now: datetime | None = None,
     actor=None,
 ) -> int:
-    """Transition coder-finalized submissions to reviewer_eligible after 24 hours."""
+    """Transition coder-finalized submissions to reviewer_eligible after the recode window.
+
+    The window is the submission's project's ``recode_window_minutes``,
+    counted from the authoritative final COD. One query reads each candidate with its project's window (joined, not
+    looked up per project).
+    """
     from datetime import timedelta, timezone
 
     now = now or datetime.now(timezone.utc)
-    cutoff = now - timedelta(hours=24)
-    finalized_sids = db.session.scalars(
-        sa.select(VaSubmissionWorkflow.va_sid).where(
+    finalized = db.session.execute(
+        sa.select(VaSubmissionWorkflow.va_sid, VaProjectMaster.recode_window_minutes)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionWorkflow.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .join(VaProjectMaster, VaProjectMaster.project_id == VaForms.project_id)
+        .where(
             VaSubmissionWorkflow.workflow_state == WORKFLOW_CODER_FINALIZED,
             # A finalized duplicate keeps its coding but does not advance to
             # review; after a reopen the next sweep picks it up.
@@ -1108,7 +1118,10 @@ def mark_reviewer_eligible_after_recode_window_submissions(
     ).all()
 
     transitioned = 0
-    for va_sid in finalized_sids:
+    # ponytail: per-candidate episode/final lookups (pre-existing); move them
+    # into the select if the coder_finalized backlog grows large.
+    for va_sid, window_minutes in finalized:
+        cutoff = now - timedelta(minutes=window_minutes)
         if get_active_recode_episode(va_sid):
             continue
         authoritative_final = get_authoritative_final_assessment(va_sid)

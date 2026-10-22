@@ -47,7 +47,7 @@
     </tr>
     <tr>
       <td>Actions</td>
-      <td>Continue (for in-progress), View (read-only), or Recode (during 24-hour window) buttons.</td>
+      <td>Continue (for in-progress), View (read-only), or Recode (during the project&rsquo;s recode window) buttons.</td>
     </tr>
   </tbody>
 </table>
@@ -71,7 +71,8 @@
 <h2>Recode Button</h2>
 
 <p>
-  Submissions that are still within the <strong>24-hour recode window</strong>
+  Submissions that are still within the project&rsquo;s <strong>recode window</strong>
+  (24 hours unless the project sets otherwise; 60 minutes on the training project)
   display a <strong>Recode</strong> button. Clicking it reopens the submission
   for the coder to change their COD determination.
 </p>
@@ -79,11 +80,11 @@
 <ul>
   <li>
     The recode button is available only while the submission is in
-    <code>coder_finalized</code> state and within 24 hours of finalization.
+    <code>coder_finalized</code> state and within the recode window of finalization.
   </li>
   <li>
     Once the submission transitions to <code>reviewer_eligible</code> (after the
-    24-hour window), the recode button is no longer shown.
+    recode window), the recode button is no longer shown.
   </li>
   <li>
     The existing finalized COD remains authoritative until a replacement final

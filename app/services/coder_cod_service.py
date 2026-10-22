@@ -958,7 +958,7 @@ def submit_coder_final_cod(
             mark_coder_finalized(
                 va_sid, reason="final_cod_submitted", actor=coder_actor(user.user_id)
             )
-        # Demo/training projects skip the 24-hour recode window so trainees
+        # Demo/training projects skip the recode window so trainees
         # can practise reviewing at once. Admin-started demo sessions on
         # ordinary projects keep the window.
         if is_demo_training_submission(va_sid):

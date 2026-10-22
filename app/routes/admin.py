@@ -23,6 +23,10 @@ from flask_wtf.csrf import generate_csrf
 from app import db, limiter
 from app.decorators import role_required
 from app.services.odk_case_service import ODK_SYNC_USER_ID
+from app.services.recode_window import (
+    DEFAULT_RECODE_WINDOW_MINUTES,
+    MAX_RECODE_WINDOW_MINUTES,
+)
 from app.services.odk_connection_guard_service import (
     OdkConnectionCooldownError,
     guarded_odk_call,
@@ -422,6 +426,7 @@ def _serialize_project(project, form_type_codes=None):
         "above_scope_coding_mode": project.above_scope_coding_mode,
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
+        "recode_window_minutes": project.recode_window_minutes,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
         "web_intake_mode": project.web_intake_mode,
         "self_coding_enabled": project.self_coding_enabled,
@@ -1426,6 +1431,26 @@ def admin_projects():
     return jsonify({"projects": _serialize_projects(projects)})
 
 
+def _parse_recode_window_minutes(value) -> tuple[int | None, str | None]:
+    """The coder recode window in whole minutes, 1..10080, or an error message.
+
+    Policy: docs/policy/coding-workflow-state-machine.md ("Recode Window").
+    """
+    error = (
+        f"recode_window_minutes must be a whole number from 1 to {MAX_RECODE_WINDOW_MINUTES}."
+    )
+    # bool is an int; a float would truncate silently.
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return None, error
+    try:
+        minutes = int(value)
+    except ValueError:
+        return None, error
+    if not 1 <= minutes <= MAX_RECODE_WINDOW_MINUTES:
+        return None, error
+    return minutes, None
+
+
 @admin.post("/api/projects")
 @role_required("admin")
 def admin_create_project():
@@ -1444,6 +1469,12 @@ def admin_create_project():
     except (TypeError, ValueError):
         return _json_error("demo_retention_minutes must be a positive integer.", 400)
     
+    recode_window_minutes, error = _parse_recode_window_minutes(
+        payload.get("recode_window_minutes", DEFAULT_RECODE_WINDOW_MINUTES)
+    )
+    if error:
+        return _json_error(error, 400)
+
     if not project_id or not project_name or not project_nickname:
         return _json_error("project_id, project_name, and project_nickname are required.", 400)
         
@@ -1522,6 +1553,7 @@ def admin_create_project():
         self_coding_enabled=self_coding_enabled,
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
         demo_retention_minutes=demo_retention_minutes,
+        recode_window_minutes=recode_window_minutes,
         # Only the keys the payload supplied, so the column defaults stand.
         **form_option_updates,
     )
@@ -1749,6 +1781,14 @@ def admin_update_project(project_id):
         if demo_retention_minutes < 1:
             return _json_error("demo_retention_minutes must be a positive integer.", 400)
         updates["demo_retention_minutes"] = demo_retention_minutes
+
+    if "recode_window_minutes" in payload:
+        recode_window_minutes, error = _parse_recode_window_minutes(
+            payload["recode_window_minutes"]
+        )
+        if error:
+            return _json_error(error, 400)
+        updates["recode_window_minutes"] = recode_window_minutes
 
     # Everything validated: apply.
     for field, value in updates.items():

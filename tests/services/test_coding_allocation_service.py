@@ -1374,6 +1374,83 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(event.previous_state, WORKFLOW_CODER_FINALIZED)
         self.assertEqual(event.current_state, WORKFLOW_REVIEWER_ELIGIBLE)
 
+    def _finalized_minutes_ago(self, sid, user, minutes):
+        self._add_submission(sid)
+        db.session.flush()
+        final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final)
+        db.session.flush()
+        final.va_finassess_createdat = datetime.now(timezone.utc) - timedelta(minutes=minutes)
+        upsert_final_cod_authority(
+            sid, final, reason="test_authority", source_role="vacoder", updated_by=user.user_id
+        )
+        set_submission_workflow_state(
+            sid, WORKFLOW_CODER_FINALIZED, reason="test_setup",
+            by_user_id=user.user_id, by_role="vacoder",
+        )
+        db.session.commit()
+
+    def _use_recode_window(self, minutes):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        previous = project.recode_window_minutes
+        project.recode_window_minutes = minutes
+        db.session.commit()
+
+        def restore():
+            db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).recode_window_minutes = previous
+            db.session.commit()
+
+        self.addCleanup(restore)
+
+    def _state(self, sid):
+        return db.session.scalar(
+            db.select(VaSubmissionWorkflow.workflow_state).where(VaSubmissionWorkflow.va_sid == sid)
+        )
+
+    def test_sweep_uses_the_project_recode_window(self):
+        """digitva-yeg3.2: 24 hours by default; a 60-minute project moves at 61, not 59."""
+        old_sid = "uuid:window-61"
+        new_sid = "uuid:window-59"
+        self._finalized_minutes_ago(old_sid, self.base_coder_user, 61)
+        self._finalized_minutes_ago(new_sid, self.base_coder_user, 59)
+
+        self.assertEqual(mark_reviewer_eligible_after_recode_window_submissions(), 0)
+        self.assertEqual(self._state(old_sid), WORKFLOW_CODER_FINALIZED)
+
+        self._use_recode_window(60)
+        self.assertEqual(mark_reviewer_eligible_after_recode_window_submissions(), 1)
+        self.assertEqual(self._state(old_sid), WORKFLOW_REVIEWER_ELIGIBLE)
+        self.assertEqual(self._state(new_sid), WORKFLOW_CODER_FINALIZED)
+
+    def test_recode_follows_the_project_recode_window(self):
+        """60-minute project: recode starts at 59 minutes and is refused at 61."""
+        user = self._make_user("recode.window@test.local", "RecodeWindow123")
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._use_recode_window(60)
+        self._finalized_minutes_ago("uuid:recode-window-61", user, 61)
+        self._finalized_minutes_ago("uuid:recode-window-59", user, 59)
+
+        with self.assertRaises(AllocationError) as ctx:
+            start_recode_allocation(user, "uuid:recode-window-61")
+        self.assertEqual(
+            ctx.exception.message,
+            "Re-coding is only allowed within 60 minutes of VA form finalisation.",
+        )
+
+        result = start_recode_allocation(user, "uuid:recode-window-59")
+        self.assertEqual(result.va_sid, "uuid:recode-window-59")
+        self.assertEqual(result.actiontype, "varesumecoding")
+
     def test_no_commit_path_when_nothing_is_stale(self):
         fresh_sid = "uuid:no_stale"
         self._add_submission(fresh_sid)

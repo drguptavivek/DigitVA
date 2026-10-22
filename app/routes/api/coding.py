@@ -43,6 +43,7 @@ from app.services.coder_dashboard_service import (
     get_coder_output_summary,
     get_coder_project_options,
     get_coder_recodeable_sids,
+    set_recode_until,
     last_allocated_project_id,
 )
 from app.services.coder_workflow_service import (
@@ -363,7 +364,7 @@ def run_smartva(va_sid):
 @bp.post("/reviewer-eligible-after-recode-window")
 @role_required("admin")
 def mark_reviewer_eligible_after_recode_window():
-    """Move coder-finalized submissions into reviewer_eligible after 24 hours."""
+    """Move coder-finalized submissions into reviewer_eligible after their project's recode window."""
     transitioned = mark_reviewer_eligible_after_recode_window_submissions(
         actor=admin_actor(current_user.user_id)
     )
@@ -643,6 +644,9 @@ def stats():
 def history():
     """Return the coder's completed coding history with recodeable flags.
 
+    Each row carries ``recode_until`` (tz-aware ISO, or null): when the
+    coder's recode window on a final coding ends (``set_recode_until``).
+
     Without ``limit``: the whole list, ``{history, count}`` (the web
     dashboard). With ``limit`` (1..200) and optional ``offset`` (>= 0): one
     page of the same rows in the same order, ``{history, count, limit,
@@ -668,9 +672,11 @@ def history():
     recodeable_sids = set(get_coder_recodeable_sids(current_user, va_form_access))
     for row in rows:
         row["recodeable"] = row["va_sid"] in recodeable_sids
+    set_recode_until(rows)
     demo_rows = get_coder_demo_history(current_user.user_id, va_user_timezone_name(current_user))
     for row in demo_rows:
         row["recodeable"] = False
+        row["recode_until"] = None
     rows = [*demo_rows, *rows]
     if project_id:
         rows = [row for row in rows if row["project_id"] == project_id]

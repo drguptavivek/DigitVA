@@ -23,6 +23,7 @@ from app.services.coder_dashboard_service import (
     get_coder_not_codeable_count,
     get_coder_output_summary,
     get_coder_recodeable_sids,
+    set_recode_until,
 )
 from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
@@ -496,3 +497,63 @@ class TestCoderDashboardService(BaseTestCase):
         recodeable = get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID])
         self.assertIn(once, recodeable)
         self.assertNotIn(twice, recodeable)
+
+    def test_recodeable_sids_follow_the_project_recode_window(self):
+        """digitva-yeg3.2: the offer follows the project's window, not 24 hours."""
+        sid = "uuid:coderdash-recode-window"
+        self._add_submission(sid)
+        final = VaFinalAssessments(
+            va_sid=sid,
+            va_finassess_by=self.dashboard_user.user_id,
+            va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active,
+        )
+        db.session.add(final)
+        db.session.flush()
+        final.va_finassess_createdat = datetime.now(timezone.utc) - timedelta(minutes=61)
+        db.session.commit()
+        set_submission_workflow_state(
+            sid,
+            WORKFLOW_CODER_FINALIZED,
+            by_user_id=self.dashboard_user.user_id,
+            by_role="vacoder",
+        )
+        db.session.commit()
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        self.addCleanup(self._set_recode_window, project.recode_window_minutes)
+
+        self.assertEqual(project.recode_window_minutes, 1440)
+        self.assertIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
+        self.assertIsNone(recode_limit_error(self.dashboard_user, sid))
+
+        self._set_recode_window(60)
+        self.assertNotIn(sid, get_coder_recodeable_sids(self.dashboard_user, [self.FORM_ID]))
+        self.assertEqual(
+            recode_limit_error(self.dashboard_user, sid),
+            "Re-coding is only allowed within 60 minutes of VA form finalisation.",
+        )
+
+    def _set_recode_window(self, minutes):
+        db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).recode_window_minutes = minutes
+        db.session.commit()
+
+    def test_set_recode_until_adds_the_project_window_to_final_codings(self):
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        self.addCleanup(self._set_recode_window, project.recode_window_minutes)
+        base = {"project_id": self.BASE_PROJECT_ID, "va_coding_date": "2026-10-22T10:00:00"}
+        rows = [
+            {**base, "va_code_status": "VA Coding Completed", "is_tester": False},
+            {**base, "va_code_status": "Not Codeable", "is_tester": False},
+            {**base, "va_code_status": "VA Coding Completed", "is_tester": True},
+            {**base, "project_id": "NOPE01", "va_code_status": "VA Coding Completed"},
+        ]
+        set_recode_until(rows)
+        self.assertEqual(
+            [row["recode_until"] for row in rows],
+            ["2026-10-23T10:00:00+00:00", None, None, None],
+        )
+
+        self._set_recode_window(60)
+        set_recode_until(rows)
+        self.assertEqual(rows[0]["recode_until"], "2026-10-22T11:00:00+00:00")
+        set_recode_until([])

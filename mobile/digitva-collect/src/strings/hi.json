@@ -707,6 +707,8 @@
   "codingDoneOnServer": "Coding for this project is done on the server.",
   "codingServerPending": "Sent — waiting for the server's DORIS",
   "codingServerRefused": "Refused by the server: {reason}",
+  "codingRecodeUntil": "{date} तक रीकोड कर सकते हैं",
+  "codingRecodeClosed": "रीकोड की समय-सीमा समाप्त",
   "codingRefused_offline_coding_disabled": "this station is no longer registered for the project",
   "codingRefused_actor_not_station_coder": "the person who coded is not a coder for this site on the server",
   "codingRefused_coding_mode_mismatch": "the coding mode does not match the project's",

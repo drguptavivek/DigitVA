@@ -288,6 +288,8 @@ export interface CoderHistoryCase {
   va_coding_date: string;
   va_code_status: string;
   recodeable: boolean;
+  /** When the coder's recode window on this final coding ends (tz-aware ISO); null or absent otherwise. */
+  recode_until?: string | null;
   /** Offline station only: the server's answer to this case's sent coding (absent elsewhere). */
   server_status?: "pending" | "refused" | null;
   /** The server's reason code for `server_status` (e.g. `doris_pending`, `coding_mode_mismatch`). */
@@ -697,6 +699,7 @@ function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
     va_coding_date: string(source.va_coding_date, `${field}.va_coding_date`),
     va_code_status: string(source.va_code_status, `${field}.va_code_status`),
     recodeable: boolean(source.recodeable, `${field}.recodeable`),
+    ...(source.recode_until !== undefined ? { recode_until: nullableString(source.recode_until, `${field}.recode_until`) } : {}),
     ...(source.server_status === "pending" || source.server_status === "refused"
       ? { server_status: source.server_status, server_code: nullableString(source.server_code ?? null, `${field}.server_code`) }
       : {}),

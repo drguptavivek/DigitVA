@@ -4,7 +4,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 
 import { ApiError } from "../src/api";
 import { errorText } from "../src/ui";
-import { QueueScreen } from "../src/workspace/QueueScreen";
+import { QueueScreen, recodeDeadlineText } from "../src/workspace/QueueScreen";
 import type { WorkspaceApi } from "../src/workspace/api";
 
 const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(Platform, "OS");
@@ -930,6 +930,47 @@ describe("offline station coding status", () => {
     const { renderer } = await render("coding", api);
     const note = renderer.root.findAll((n) => n.props.testID === "coding-done-on-server");
     expect(note[0]?.props.children).toBe("Coding for this project is done on the server.");
+    await unmount(renderer);
+  });
+});
+
+describe("coder recode deadline", () => {
+  const coded = (va_sid: string, extra: Record<string, unknown>) => ({
+    ...coderRow, va_sid, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: false, ...extra,
+  });
+  const local = (iso: string) => {
+    const d = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  test("recodeDeadlineText shows the deadline in local time, the closed state, or nothing", () => {
+    const now = Date.parse("2026-10-02T12:30:00Z");
+    expect(recodeDeadlineText({ recodeable: true, recode_until: "2026-10-02T13:00:00+00:00" }, now)).toBe(`Recode until ${local("2026-10-02T13:00:00+00:00")}`);
+    expect(recodeDeadlineText({ recodeable: false, recode_until: "2026-10-02T12:00:00+00:00" }, now)).toBe("Recode window closed");
+    // Not offered for another reason while the window is still open: say nothing.
+    expect(recodeDeadlineText({ recodeable: false, recode_until: "2026-10-02T13:00:00+00:00" }, now)).toBeNull();
+    expect(recodeDeadlineText({ recodeable: false, recode_until: null }, now)).toBeNull();
+    expect(recodeDeadlineText({ recodeable: true }, now)).toBeNull();
+  });
+
+  test("history rows carry the deadline next to the Recode action", async () => {
+    const api = makeApi({
+      getCodingHistory: jest.fn().mockResolvedValue({
+        history: [
+          coded("open", { recodeable: true, recode_until: "2999-01-01T00:00:00+00:00" }),
+          coded("closed", { recode_until: "2000-01-01T00:00:00+00:00" }),
+          coded("none", { va_code_status: "Not Codeable", recode_until: null }),
+        ],
+        count: 3, limit: 50, offset: 0, has_more: false,
+      }),
+    });
+    const { renderer } = await render("coding", api);
+    await press(renderer, "History");
+    const line = (sid: string) => renderer.root.findAll((n) => typeof n.type === "string" && n.props.testID === `recode-deadline-${sid}`).map((n) => n.props.children);
+    expect(line("open")).toEqual([`Recode until ${local("2999-01-01T00:00:00+00:00")}`]);
+    expect(line("closed")).toEqual(["Recode window closed"]);
+    expect(line("none")).toEqual([]);
     await unmount(renderer);
   });
 });

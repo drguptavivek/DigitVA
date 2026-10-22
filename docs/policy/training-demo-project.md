@@ -28,6 +28,12 @@ reset and accounts are unchanged.
   Enabled form extensions: `digitva_core`, `doris_support_whova_2022`,
   `narration_language`, `death_summary`, `medical_records`, `geography`.
   Coding intake is `pick_and_choose`.
+- The coder recode window (`recode_window_minutes`) is 60 minutes, not the
+  24-hour default (owner 2026-10-22), so a trainee's coded case reaches review
+  within the training. `setup` sets it on a new TRN01 and resets it to 60 on an
+  existing one; migration `c8e4a2f6b1d3` sets it on a TRN01 row that exists
+  when it runs. See docs/policy/coding-workflow-state-machine.md ("Recode
+  Window").
 - It is not a `demo_training_enabled` project and is never reset: the demo
   virtual coder/reviewer grants do not apply to it, and nothing deletes its
   data. Training is on by default: `DIGITVA_TRAINING_PROJECT_ID` defaults to

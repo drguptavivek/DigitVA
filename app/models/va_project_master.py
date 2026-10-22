@@ -45,6 +45,10 @@ class VaProjectMaster(db.Model):
             "(icd_classification = 'icd11') = (cod_entry_mode = 'doris')",
             name="cod_entry_mode_classification",
         ),
+        sa.CheckConstraint(
+            "recode_window_minutes BETWEEN 1 AND 10080",
+            name="recode_window_minutes",
+        ),
     )
     project_id: so.Mapped[str] = so.mapped_column(
         sa.String(6), primary_key=True, index=True
@@ -138,6 +142,13 @@ class VaProjectMaster(db.Model):
         nullable=False,
         default=10,
         server_default="10",
+    )
+    # How long after a coder's final COD that coder may recode it, and when
+    # the case becomes reviewer-eligible. 1..10080, default 24 hours; TRN01
+    # uses 60. Read through app/services/recode_window.py.
+    # Policy: docs/policy/coding-workflow-state-machine.md ("Recode Window").
+    recode_window_minutes: so.Mapped[int] = so.mapped_column(
+        sa.Integer(), nullable=False, default=1440, server_default="1440"
     )
     # Phase 4a of docs/planning/s3-attachment-plan.md: DigitVA keeps its own
     # permanent copy of every attachment and serves from that store first.

@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-22
 ---
 
 # VA Form Project Configuration Policy
@@ -167,6 +167,15 @@ own catalogue, by its code shape (`icd_classification_of` /
   `icd10`, and the ICD-10 coding search a project set to `icd11`.
 - **Changing the setting** is an admin edit on the project (Setup, Basics).
   It affects only new coding; existing values keep their shape.
+
+### 6. Coder recode window (decided 2026-10-20)
+
+`recode_window_minutes`, 1 to 10080, default 1440 (24 hours): how long after a
+coder's final COD that coder may reopen it once, and when the case becomes
+reviewer-eligible. An admin edit on the project (Setup, Basics); the admin API
+refuses a value outside the range and the database CHECK enforces it. TRN01
+uses 60. Rules: docs/policy/coding-workflow-state-machine.md ("Recode
+Window").
 
 ## Exposure
 

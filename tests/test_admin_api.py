@@ -653,7 +653,42 @@ class AdminApiTests(BaseTestCase):
         )
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertEqual(toggle_resp.get_json()["status"], "active")
-        
+
+    def test_project_recode_window_defaults_saves_and_validates(self):
+        """digitva-yeg3.2: 24 hours by default; 1..10080 whole minutes."""
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        create_resp = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJRW1", "project_name": "Recode window", "project_nickname": "RW"},
+            headers=headers,
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        self.assertEqual(create_resp.get_json()["project"]["recode_window_minutes"], 1440)
+
+        edit_resp = self.client.put(
+            "/admin/api/projects/PRJRW1", json={"recode_window_minutes": 60}, headers=headers
+        )
+        self.assertEqual(edit_resp.status_code, 200)
+        self.assertEqual(edit_resp.get_json()["project"]["recode_window_minutes"], 60)
+
+        for bad in (0, 10081, "abc", 1.5, True, None):
+            resp = self.client.put(
+                "/admin/api/projects/PRJRW1", json={"recode_window_minutes": bad}, headers=headers
+            )
+            self.assertEqual(resp.status_code, 400, bad)
+            self.assertIn("recode_window_minutes", resp.get_json()["error"])
+        self.assertEqual(db.session.get(VaProjectMaster, "PRJRW1").recode_window_minutes, 60)
+
+        bad_create = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJRW2", "project_name": "Bad", "project_nickname": "B",
+                  "recode_window_minutes": 10081},
+            headers=headers,
+        )
+        self.assertEqual(bad_create.status_code, 400)
+        self.assertIsNone(db.session.get(VaProjectMaster, "PRJRW2"))
+
     def test_admin_can_create_and_edit_site_master(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

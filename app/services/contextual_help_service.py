@@ -197,7 +197,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
         "bullets": [
             "Stage 3 (Coding): Read the family's narrative and symptom checklist, complete narrative quality assessment (if enabled), and select the ICD cause of death.",
             "Pick vs Random: Choose 'Start next random case' for automatic assignment or pick a specific case from your queue.",
-            "24-hour correction window: After submitting your final cause of death, you can reopen and correct your determination for up to 24 hours ('Recode').",
+            "Recode window: After submitting your final cause of death, you can reopen and correct your determination once, within the project's recode window (24 hours unless the project sets otherwise; 'Recode').",
             "Within Area: You only code deaths belonging to your assigned health facility, block, or district (or designated cross-facility roster).",
         ],
         "sections": [
@@ -209,10 +209,10 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
                 ],
             },
             {
-                "heading": "Available vs My Coded Cases (24-Hour Recode)",
+                "heading": "Available vs My Coded Cases (Recode Window)",
                 "items": [
                     "Cases currently assigned to you appear at the top so you can resume where you left off.",
-                    "Switch to 'My coded cases' to view cases you have already finalized; for 24 hours after coding, you can click 'Recode' to revise your cause of death before the case enters Stage 4 review.",
+                    "Switch to 'My coded cases' to view cases you have already finalized; until the recode deadline shown on the case (24 hours after coding unless the project sets otherwise), you can click 'Recode' to revise your cause of death before the case enters Stage 4 review.",
                 ],
             },
         ],
@@ -254,9 +254,9 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
         "page_key": "reviewing",
         "stage_badge": "Stage 4 of 5 · Quality Review",
         "title": "Senior Reviewer Queue",
-        "summary": "Independently review finalized verbal autopsy cases for clinical quality assurance after the 24-hour recode window closes (Stage 4 of 5).",
+        "summary": "Independently review finalized verbal autopsy cases for clinical quality assurance after the coder's recode window closes (Stage 4 of 5).",
         "bullets": [
-            "Stage 4 (Review): Senior Medical Officers and Medical College Faculty independently assess cases once the original coder's 24-hour window has closed.",
+            "Stage 4 (Review): Senior Medical Officers and Medical College Faculty independently assess cases once the original coder's recode window has closed.",
             "Independent assessment: You evaluate the narrative and symptoms without seeing the first coder's decision to ensure unbiased quality control.",
             "Reviewer authority: Your reviewed cause of death serves as the final quality-assured determination while preserving the first coder's record in history.",
             "Within Area: Cases are drawn from your assigned district, block, or mentoring medical college partner area.",
@@ -265,7 +265,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
             {
                 "heading": "Selecting a Case to Review",
                 "items": [
-                    "Cases appear in this queue only after the original coder has finalized Step 2 and the 24-hour recode window has elapsed.",
+                    "Cases appear in this queue only after the original coder has finalized Step 2 and the project's recode window has elapsed.",
                     "Click 'Start next random review' or select a case from the 'Available' tab to begin your quality review.",
                 ],
             },
@@ -289,7 +289,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
             "Blinded evaluation: Review all interview sections and narrative details on the left before recording your independent ICD assessment.",
             "Two-step review: Save your initial reviewer impression (Step 1) and then confirm your final conclusive cause of death (Step 2).",
             "Audit preservation: DigitVA preserves both the original coder's assessment and your reviewer determination in the permanent audit trail.",
-            "24-hour reviewer recode: After submitting your review, you can reopen and adjust your determination within 24 hours.",
+            "Reviewer recode: After submitting your review, you can reopen and adjust your determination within the project's recode window (24 hours unless the project sets otherwise).",
         ],
         "sections": [
             {
@@ -318,7 +318,7 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
             "Read-only inspection: Browse every questionnaire section and the family narrative without modifying any clinical data.",
             "COD Reference card: Compare the Final COD, Reviewer determination, and Initial Coder assessment side by side.",
             "Workflow History: Inspect the chronological audit log of registration, interview submission, coding, and review events.",
-            "Recode button: If you coded or reviewed this case within the last 24 hours, use the 'Recode' action in the queue to make corrections.",
+            "Recode button: If you coded or reviewed this case and its recode window is still open, use the 'Recode' action in the queue to make corrections.",
         ],
         "sections": [
             {
@@ -329,10 +329,10 @@ CONTEXTUAL_HELP_PAGES: dict[str, dict] = {
                 ],
             },
             {
-                "heading": "Recoding Within 24 Hours",
+                "heading": "Recoding Within the Recode Window",
                 "items": [
                     "This screen is read-only so you can safely review past work without accidental edits.",
-                    "If your 24-hour recode window is still open, return to 'My coded cases' or 'My reviewed cases' and click 'Recode' to reopen the assessment editor.",
+                    "If your recode window is still open, return to 'My coded cases' or 'My reviewed cases' and click 'Recode' to reopen the assessment editor.",
                 ],
             },
         ],

@@ -6,6 +6,7 @@ import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
+import { formatDisplayTimestamp } from "../web/DeathsList";
 import type { WorkspaceApi } from "./api";
 import type { QueueView } from "./viewState";
 import type {
@@ -125,6 +126,18 @@ export function codingServerStatusText(item: Pick<CoderHistoryCase, "server_stat
   const known = /^[a-z_]+$/.test(code) ? t(key) : key;
   const reason = known !== key ? known : t("codingRefused_unknown", { code: code || "?" });
   return t("codingServerRefused", { reason });
+}
+
+/**
+ * The recode deadline line on a coded case: "Recode until <local time>" while the Recode action
+ * is offered, "Recode window closed" once `recode_until` has passed, else null (the window is the
+ * project's, docs/policy/coding-workflow-state-machine.md "Recode Window").
+ */
+export function recodeDeadlineText(item: Pick<CoderHistoryCase, "recodeable" | "recode_until">, now: number = Date.now()): string | null {
+  if (!item.recode_until) return null;
+  if (item.recodeable) return t("codingRecodeUntil", { date: formatDisplayTimestamp(item.recode_until) });
+  const until = Date.parse(item.recode_until);
+  return !Number.isNaN(until) && until <= now ? t("codingRecodeClosed") : null;
 }
 
 function CaseCardDetails({ item }: { item: AnyQueueCase }) {
@@ -1051,6 +1064,7 @@ export function QueueScreen({
               </View>
               <CaseCardDetails item={item} />
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
+              {recodeDeadlineText(item) ? <Text style={styles.muted} testID={`recode-deadline-${item.va_sid}`}>{recodeDeadlineText(item)}</Text> : null}
               <View style={q.actions}>
                 <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
                 {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}

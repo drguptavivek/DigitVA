@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-22
 ---
 
 # Coding Workflow State Machine Policy
@@ -533,7 +533,7 @@ Desired target state machine:
 
       coder_finalized
             |
-            | 24h coder recode window closes
+            | project recode window closes (default 24h)
             v
       +--------------------+
       | reviewer_eligible  |
@@ -569,7 +569,7 @@ Current implementation note:
   `screening_pending -> smartva_pending` or
   `screening_pending -> not_codeable_by_data_manager`
 - reviewer delayed secondary coding is now partially modeled in runtime
-- `reviewer_eligible` is now current runtime behavior for the post-24-hour
+- `reviewer_eligible` is now current runtime behavior for the post-recode-window
   timer path
 - reviewer final-COD authority now prefers reviewer-owned final COD over coder
   final COD in the authority service
@@ -841,6 +841,25 @@ code their own case. This adds no workflow state and no new pool rule.
 
 Only coder-finalized cases may be recoded.
 
+The recode window is a per-project setting,
+`va_project_master.recode_window_minutes` (owner decision 2026-10-20): 1 to
+10080 minutes (7 days), default 1440 (24 hours), edited on the admin project
+form (Setup, Basics). The training project TRN01 uses 60 minutes (owner
+2026-10-22). The window is measured from the coder's authoritative final COD
+and is the same window everywhere it applies:
+
+- reopening for recode (`start_recode_allocation`) and the recode limits
+  (`recode_limit_error`: only the coder who finalized, once, within the window);
+  the refusal names the project's window ("within 60 minutes", "within 24
+  hours");
+- which of a coder's cases are offered for recode, and the deadline shown to
+  the coder (`recode_until` on `GET /api/v1/coding/history` rows, final codings
+  only; the app shows it in the user's local time, or "Recode window closed");
+- the sweep that moves `coder_finalized` to `reviewer_eligible`.
+
+Changing the setting applies at once to cases still inside or past the new
+window; nothing is stored per case.
+
 During the configured recode window:
 
 - a coder-finalized case may be reopened for recode
@@ -986,12 +1005,13 @@ Reviewer coding may be initiated by:
 
 ### Reviewer precondition
 
-Reviewer coding must not overlap with the coder's 24-hour recode window.
+Reviewer coding must not overlap with the coder's recode window (the
+project's `recode_window_minutes`, default 24 hours).
 
 Only cases that have:
 
 - reached `coder_finalized`
-- completed the 24-hour coder recode window
+- completed the project's coder recode window
 - not been reset back into the coder pool by admin
 
 should become `reviewer_eligible`.

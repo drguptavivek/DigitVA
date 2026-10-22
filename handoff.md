@@ -28,10 +28,10 @@ checks via `aws ssm send-command` (the DB is external: query through
 
 ## Ranked next steps
 
-1. Publish a new Expo web release (`npm run vendor:build`, `npm run
-   export:web`, tarball + `.sha256` as `expo-web-v<date>` on DigitVA) and bump
-   `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `x-release-pins`. The pinned
-   `expo-web-v2026.10.22` predates the consent, case-view, Users and Hindi fixes.
+1. Each web change ships as a new Expo web release (`npm run vendor:build`,
+   `npm run export:web`, tarball of `dist/` + `.sha256`, tag `expo-web-v<date>[.n]`
+   on DigitVA), then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `x-release-pins`.
+   Current: `expo-web-v2026.10.22.2` (built from `cc5742388`).
 2. `digitva-k4jt` digitva-collect: the QR may name any https server under
    `causeofdeathindia.com` (owner decision; today a release build accepts only
    `digitva.`, so staging cannot enrol); Settings shows the server read-only,

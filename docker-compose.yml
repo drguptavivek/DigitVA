@@ -8,8 +8,8 @@
 # downloaded and verified into /opt/digitva/expo-client (EXPO_CLIENT_DIST), so
 # hosts never run Node; dev serves its own local build instead (override file).
 x-release-pins: &release-pins
-  EXPO_WEB_TAG: "expo-web-v2026.10.22"
-  EXPO_WEB_SHA256: "0f505fda81b8ee90aad19e8cdc3dfbfc624c99e6057ef9846db356ee0208ed02"
+  EXPO_WEB_TAG: "expo-web-v2026.10.22.2"
+  EXPO_WEB_SHA256: "d4b959bb69ee9d33803de4af34005738e6a19e6f34bb52b5c49e3fed8add98ee"
   SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}
   SMARTVA_RS_VERSION: "v3.0.1"
   SMARTVA_RS_SHA256_ARM64: "aba6925d9868d43ca78d580ab1b698cb2bdc3bbd62eba32528459a55ec10be54"

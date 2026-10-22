@@ -699,6 +699,23 @@ describe("CollectionScreen tabs and filters", () => {
     await act(async () => tree.unmount());
   });
 
+  it("keeps the search across an access re-read for the same account", async () => {
+    mockGetDrafts.mockResolvedValue({ drafts: [
+      { draft_id: "dr1", project_id: "P1", site_id: "S1", unique_id: "UID-1", deceased_name: "Asha Devi", sections_saved: 2, updated_at: "2026-10-01T10:00:00" },
+    ] });
+    const tree = await render();
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "searchCases" }).props.onChangeText("asha"));
+    mockCurrentBootstrap = { ...mockBootstrap, csrf: { header: "X-CSRFToken", token: "renewed" } };
+    await act(async () => { tree.update(<CollectionScreen />); });
+    await settle();
+    expect(tree.root.findByProps({ accessibilityLabel: "searchCases" }).props.value).toBe("asha");
+    mockCurrentBootstrap = mockBootstrapB;
+    await act(async () => { tree.update(<CollectionScreen />); });
+    await settle();
+    expect(tree.root.findByProps({ accessibilityLabel: "searchCases" }).props.value).toBe("");
+    await act(async () => tree.unmount());
+  });
+
   it("hides the project chips when the user has one project", async () => {
     mockGetCases.mockResolvedValue({ cases: deathCases, next_cursor: null });
     const tree = await render();

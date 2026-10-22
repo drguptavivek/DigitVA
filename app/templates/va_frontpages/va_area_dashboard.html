@@ -14,7 +14,7 @@
         Area Dashboard
       </h4>
       <p class="text-muted small mb-0 mt-1">
-        Collection and coding progress in the part of each project you hold a grant for.
+        Deaths, interviews and coding in the part of each project you hold a grant for.
       </p>
     </div>
     <div>
@@ -32,22 +32,39 @@
     <ol class="breadcrumb small mb-2" id="area-breadcrumb"></ol>
   </nav>
 
-  <div id="area-card" class="mb-3 d-none">
-    <h6 class="mb-1">Coding progress <span class="text-muted small fw-normal">(snapshot, whole project)</span></h6>
-    <p class="text-muted small mb-2">
-      Where each submission is in the coding workflow, as in the table below:
-      coded means a coder has finalized it (including cases in or past review);
-      consent refused counts as not codeable.
-    </p>
-    <div class="row row-cols-2 row-cols-md-4 g-2 mb-3" id="area-card-coding-tiles"></div>
-    <h6 class="mb-1">Final cause of death <span class="text-muted small fw-normal">(live, whole project)</span></h6>
-    <p class="text-muted small mb-2">
-      Whether a final cause of death holds authority (the Site PI's counts):
-      not codeable here means marked so by a coder or data manager, and
-      consent refused is not counted.
-    </p>
-    <div class="row row-cols-2 row-cols-md-3 row-cols-xl-5 g-2" id="area-card-tiles"></div>
+  <div class="d-flex flex-wrap align-items-end gap-2 mb-3">
+    <div>
+      <label for="area-period" class="form-label small mb-1">Period</label>
+      <select id="area-period" class="form-select form-select-sm">
+        <option value="30d">Last 30 days</option>
+        <option value="90d">Last 90 days</option>
+        <option value="12m">Last 12 months</option>
+        <option value="all" selected>All time</option>
+      </select>
+    </div>
+    <a id="area-csv" class="btn btn-sm btn-outline-secondary d-none" href="#">
+      <i class="fas fa-file-csv"></i> Download CSV
+    </a>
+    <span class="text-muted small">The period applies to deaths reported, submitted and causes of death. The other counts are as of now.</span>
   </div>
+
+  <div id="area-card" class="mb-3 d-none">
+    <h6 class="mb-2" id="area-card-title">This area</h6>
+    <div class="row row-cols-2 row-cols-md-4 row-cols-xl-6 g-2 mb-2" id="area-card-tiles"></div>
+    <div class="row g-2">
+      <div class="col-md-5">
+        <div class="border rounded p-2 h-100 small" id="area-medians"></div>
+      </div>
+      <div class="col-md-7">
+        <div class="border rounded p-2 h-100">
+          <div class="small fw-semibold mb-1">Top causes of death <span class="text-muted fw-normal">(by date of death)</span></div>
+          <div id="area-causes" class="small"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="area-stations" class="small mb-3 d-none"></div>
 
   <div class="small text-muted mb-2 d-none" id="area-freshness">
     <span id="area-snapshot-label"></span>
@@ -60,53 +77,32 @@
       <thead>
         <tr>
           <th rowspan="2">Area</th>
-          <th rowspan="2" class="text-end border-start"
-              title="Death-register cases in this area, live. Confirmed duplicates and cancelled cases are left out.">Deaths reported</th>
-          <th colspan="4" class="text-center border-start">Collection</th>
-          <th colspan="6" class="text-center border-start">Coding progress (snapshot)</th>
-          <th rowspan="2" class="text-end border-start"
-              title="Submissions with an authoritative final cause of death (coder or reviewer). Live; differs from Coded (coder finalized).">Final COD</th>
-          <th rowspan="2" class="text-end border-start"
-              title="Refusals with no identity that carry a visit note (address and visit date). Live. A count only; the data manager's list shows the notes.">Visit notes</th>
+          <th colspan="2" class="text-center border-start">Deaths reported</th>
+          <th colspan="3" class="text-center border-start">Interviews pending</th>
+          <th colspan="6" class="text-center border-start">Submitted and coded</th>
         </tr>
-        <tr class="small">
-          <th class="text-end border-start" title="Snapshot">Submitted</th>
-          <th class="text-end" title="Snapshot">Last 7 days</th>
-          <th class="text-end" title="Snapshot">Last 30 days</th>
-          <th class="text-end" title="Live">In progress</th>
-          <th class="text-end border-start" title="Screening, attachment sync, SmartVA or ready for coding">Awaiting coding</th>
-          <th class="text-end" title="A coder has started or saved step 1">In coding</th>
-          <th class="text-end" title="Reviewer coding in progress">In review</th>
-          <th class="text-end" title="A coder has finalized, including cases open to review, reviewer finalized or changed in ODK after coding">Coded (coder finalized)</th>
-          <th class="text-end" title="Not codeable by a coder or data manager, or consent refused">Not codeable</th>
-          <th class="text-end" title="No workflow row yet">Other</th>
-        </tr>
+        <tr class="small" id="area-columns"></tr>
       </thead>
       <tbody id="area-rows"></tbody>
-      <tfoot id="area-total" class="fw-semibold"></tfoot>
     </table>
   </div>
   <p class="text-muted small mb-0">
-    Each row counts its whole area once. Collection and coding counts come
-    from the hourly snapshot; "In progress" (open web interviews) and
-    "Deaths reported", "Final COD" and "Visit notes" are live. "Coded (coder finalized)" and "Final COD" are
-    different counts: the first follows the coder's finalize step, the second
-    whether a final cause of death holds authority (for example, it can change
-    when a reviewer takes over or a case is reopened).
+    Each row counts its whole area once. Submitted, awaiting coding and not
+    codeable come from the hourly snapshot; the other counts are live.
+    Final COD means a final cause of death holds authority (by coder or reviewer).
   </p>
 
   <div id="area-staff-block" class="mt-3 d-none">
     <button type="button" class="btn btn-sm btn-outline-secondary" id="area-staff-toggle"
             aria-expanded="false" aria-controls="area-staff">
-      <i class="fas fa-users"></i> By staff
+      <i class="fas fa-users"></i> By interviewer
     </button>
     <div id="area-staff" class="mt-2 d-none">
       <p class="text-muted small mb-2" id="area-staff-status"></p>
       <div id="area-staff-tables"></div>
       <p class="text-muted small mb-0">
         Live, for this area as a whole. Confirmed duplicate cases are left out.
-        Contact attempts cover the last 30 days; coding counts the coder's
-        first-pass outcome in the last 7 and 30 days.
+        Contact attempts cover the last 30 days.
       </p>
     </div>
   </div>
@@ -116,16 +112,35 @@
 document.addEventListener("DOMContentLoaded", function () {
   var root = document.getElementById("area-dashboard");
   var projectSelect = document.getElementById("area-project");
+  var periodSelect = document.getElementById("area-period");
+  var csvLink = document.getElementById("area-csv");
   var rowsBody = document.getElementById("area-rows");
-  var totalFoot = document.getElementById("area-total");
   var crumbs = document.getElementById("area-breadcrumb");
   var errorBox = document.getElementById("area-error");
+  var PERIODS = ["30d", "90d", "12m", "all"];
+  // [count key, column label, one-line definition, starts a column group]
   var COLUMNS = [
-    "deaths_reported", "total_submissions", "last_7_days", "last_30_days", "drafts_in_progress",
-    "awaiting_coding", "in_coding", "in_review", "coded", "not_codeable", "other",
-    "final_cod", "visit_notes"
+    ["deaths_reported", "In period", "Death-register cases registered in the period, live. Duplicates and cancelled cases are left out.", true],
+    ["deaths_7_days", "Last 7 days", "Registered in the last 7 days", false],
+    ["interviews_pending", "Open", "Cases registered, scheduled, in progress, paused or not reachable, live", true],
+    ["pending_over_7_days", "Over 7 days", "Open cases registered more than 7 days ago", false],
+    ["pending_over_30_days", "Over 30 days", "Open cases registered more than 30 days ago", false],
+    ["submitted", "Submitted", "Interviews received in the period (snapshot)", true],
+    ["awaiting_coding", "Awaiting coding", "Screening, attachment sync, SmartVA or ready for coding (snapshot)", false],
+    ["final_cod", "Final COD", "A final cause of death holds authority (coder or reviewer), live", false],
+    ["not_codeable", "Not codeable", "Not codeable by a coder or data manager, or consent refused (snapshot)", false],
+    ["smartva_failed", "SmartVA failed", "The active SmartVA result failed, live", false],
+    ["visit_notes", "Visit notes", "Refusals with no identity that carry a visit note, live", false]
   ];
-  var BORDERED = { deaths_reported: true, total_submissions: true, awaiting_coding: true, final_cod: true, visit_notes: true };
+  // [key, label, one-line definition, extra line]
+  var TILES = [
+    ["deaths_reported", "Deaths reported", "Registered in the period", function (c) { return c.deaths_7_days + " in the last 7 days"; }],
+    ["interviews_pending", "Interviews pending", "Open cases waiting for an interview", function (c) { return c.pending_over_30_days + " over 30 days"; }],
+    ["submitted", "Submitted", "Interviews received in the period", null],
+    ["awaiting_coding", "Awaiting coding", "Screening, attachment sync, SmartVA or ready", null],
+    ["final_cod", "Final COD", "A final cause of death holds authority", null],
+    ["smartva_failed", "SmartVA failed", "The active SmartVA result failed", function (c) { return c.not_codeable + " not codeable"; }]
+  ];
   var staffBlock = document.getElementById("area-staff-block");
   var staffToggle = document.getElementById("area-staff-toggle");
   var staffBox = document.getElementById("area-staff");
@@ -133,54 +148,10 @@ document.addEventListener("DOMContentLoaded", function () {
   var staffTables = document.getElementById("area-staff-tables");
   var staffParams = null;
   var staffLoaded = false;
-  var STAFF_SECTIONS = [
-    ["interviewers", "Interviewers", [
-      ["cases_registered", "Registered"], ["interviews_started", "Started"],
-      ["submitted", "Submitted"], ["in_progress", "In progress"],
-      ["contact_attempts_30_days", "Contact attempts (30 days)"]
-    ]],
-    ["coders", "Coders", [
-      ["coded_7_days", "Coded (7 days)"], ["coded_30_days", "Coded (30 days)"],
-      ["not_codeable_7_days", "Not codeable (7 days)"],
-      ["not_codeable_30_days", "Not codeable (30 days)"]
-    ]]
-  ];
-  // [key, label, value, show share of submitted, one-line definition]
-  var CODING_TILES = [
-    ["total_submissions", "Submitted", function (c) { return c.coding_progress.total_submissions; }, false,
-      "Submissions received, from the snapshot"],
-    ["awaiting_coding", "Awaiting coding", function (c) { return c.coding_progress.awaiting_coding; }, true,
-      "Screening, attachment sync, SmartVA or ready for coding"],
-    ["in_coding", "In coding", function (c) { return c.coding_progress.in_coding; }, true,
-      "A coder has started or saved step 1"],
-    ["in_review", "In review", function (c) { return c.coding_progress.in_review; }, true,
-      "Reviewer coding in progress"],
-    ["coded", "Coded (coder finalized)", function (c) { return c.coding_progress.coded; }, true,
-      "A coder has finalized, including cases open to review, reviewer finalized or changed in ODK after coding"],
-    ["not_codeable", "Not codeable (incl. consent refused)", function (c) { return c.coding_progress.not_codeable; }, true,
-      "Not codeable by a coder or data manager, or consent refused"],
-    ["other", "Other", function (c) { return c.coding_progress.other; }, true,
-      "No workflow row yet"]
-  ];
-  var CARD_TILES = [
-    ["total_submissions", "Submitted", function (c) { return c.total_submissions; }, false,
-      "Submissions received, live"],
-    ["total_coded", "Final COD", function (c) { return c.final_cod.coded; }, true,
-      "A final cause of death holds authority (by coder or reviewer)"],
-    ["total_not_codeable", "Not codeable (coder or data manager)", function (c) { return c.final_cod.not_codeable; }, true,
-      "Marked not codeable by a coder or data manager; consent refused is not counted"],
-    ["pending_or_active", "Awaiting or in coding", function (c) { return c.current_state_kpis.pending_or_active; }, false,
-      "Screening, attachment sync, SmartVA, ready, in coding or step 1 saved"],
-    ["reviewer_eligible", "Coded, open to review", function (c) { return c.current_state_kpis.reviewer_eligible; }, false,
-      "Coder finalized and waiting for an optional review"],
-    ["reviewer_finalized", "Reviewer finalized", function (c) { return c.current_state_kpis.reviewer_finalized; }, false,
-      "A reviewer has finalized"],
-    ["upstream_changed", "Changed in ODK after coding", function (c) { return c.current_state_kpis.upstream_changed; }, false,
-      "The ODK record changed after it was coded"],
-    ["coder_authority", "Final COD by coder", function (c) { return c.final_cod.by_coder; }, false,
-      "The coder's final cause of death holds authority"],
-    ["reviewer_authority", "Final COD by reviewer", function (c) { return c.final_cod.by_reviewer; }, false,
-      "The reviewer's final cause of death holds authority"]
+  var STAFF_COLUMNS = [
+    ["cases_registered", "Registered"], ["interviews_started", "Started"],
+    ["submitted", "Submitted"], ["in_progress", "In progress"],
+    ["contact_attempts_30_days", "Contact attempts (30 days)"]
   ];
 
   function el(tag, className, text) {
@@ -190,15 +161,32 @@ document.addEventListener("DOMContentLoaded", function () {
     return node;
   }
 
+  COLUMNS.forEach(function (column) {
+    var th = el("th", "text-end" + (column[3] ? " border-start" : ""), column[1]);
+    th.title = column[2];
+    document.getElementById("area-columns").appendChild(th);
+  });
+
   function readState() {
     var params = new URLSearchParams(window.location.search);
-    return { project: params.get("project") || "", unit: params.get("unit") || "" };
+    var period = params.get("period") || "all";
+    return {
+      project: params.get("project") || "",
+      unit: params.get("unit") || "",
+      period: PERIODS.indexOf(period) >= 0 ? period : "all"
+    };
   }
 
-  function writeState(state, push) {
+  function stateParams(state) {
     var params = new URLSearchParams();
     if (state.project) params.set("project", state.project);
     if (state.unit) params.set("unit", state.unit);
+    if (state.period && state.period !== "all") params.set("period", state.period);
+    return params;
+  }
+
+  function writeState(state, push) {
+    var params = stateParams(state);
     var url = window.location.pathname + (params.toString() ? "?" + params.toString() : "");
     if (push) window.history.pushState(state, "", url);
     else window.history.replaceState(state, "", url);
@@ -227,44 +215,84 @@ document.addEventListener("DOMContentLoaded", function () {
     return link;
   }
 
-  function countCell(value, key, url) {
-    var cell = el("td", "text-end" + (BORDERED[key] ? " border-start" : ""));
-    cell.appendChild(linkOrText(url, String(value || 0)));
-    return cell;
+  function current() {
+    return { project: projectSelect.value, unit: readState().unit, period: periodSelect.value };
   }
 
-  function renderTiles(tiles, defs, card, total, links) {
+  function renderCard(data) {
+    var box = document.getElementById("area-card");
+    var tiles = document.getElementById("area-card-tiles");
     tiles.replaceChildren();
-    defs.forEach(function (tile) {
-      var value = tile[2](card) || 0;
+    var card = data && data.card;
+    box.classList.toggle("d-none", !card);
+    if (!card) return;
+    document.getElementById("area-card-title").textContent =
+      data.unit ? data.unit.name + " (" + data.unit.code + ")" : data.project_name;
+    var counts = card.counts;
+    var links = card.links || {};
+    TILES.forEach(function (tile) {
       var body = el("div", "border rounded p-2 h-100");
-      body.title = tile[4];
+      body.title = tile[2];
       var number = el("div", "fs-5 fw-semibold");
-      number.appendChild(linkOrText(links[tile[0]], String(value)));
-      if (tile[3] && total) {
+      number.appendChild(linkOrText(links[tile[0]], String(counts[tile[0]] || 0)));
+      if (tile[0] === "final_cod" && counts.submitted && data.period === "all") {
         number.appendChild(el("span", "text-muted small fw-normal ms-1",
-          "(" + Math.round(100 * value / total) + "%)"));
+          "(" + Math.round(100 * counts.final_cod / counts.submitted) + "% of submitted)"));
       }
       body.appendChild(number);
       body.appendChild(el("div", "text-muted small", tile[1]));
+      if (tile[3]) body.appendChild(el("div", "text-muted small", tile[3](counts)));
       var col = el("div", "col");
       col.appendChild(body);
       tiles.appendChild(col);
     });
-  }
 
-  function renderCard(card) {
-    var box = document.getElementById("area-card");
-    box.classList.toggle("d-none", !card);
-    if (!card) {
-      document.getElementById("area-card-coding-tiles").replaceChildren();
-      document.getElementById("area-card-tiles").replaceChildren();
+    var medians = document.getElementById("area-medians");
+    medians.replaceChildren();
+    medians.appendChild(el("div", "fw-semibold mb-1", "Median days (all time)"));
+    [["death_to_interview", "Death to interview"], ["interview_to_final_cod", "Interview to final COD"]]
+      .forEach(function (pair) {
+        var value = card.medians[pair[0] + "_days"];
+        var n = card.medians[pair[0] + "_n"];
+        medians.appendChild(el("div", null, pair[1] + ": " +
+          (value === null ? "no data" : value + " days (over " + n + ")")));
+      });
+
+    var causes = document.getElementById("area-causes");
+    causes.replaceChildren();
+    if (card.causes.hidden) {
+      causes.appendChild(el("div", "text-muted",
+        "Shown once at least 20 deaths are coded in this area and period (" + card.causes.coded + " so far)."));
       return;
     }
-    renderTiles(document.getElementById("area-card-coding-tiles"), CODING_TILES, card,
-      card.coding_progress.total_submissions, {});
-    renderTiles(document.getElementById("area-card-tiles"), CARD_TILES, card,
-      card.total_submissions, card.links || {});
+    var table = el("table", "table table-sm mb-0");
+    var body = el("tbody");
+    card.causes.rows.forEach(function (row) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, row.label));
+      tr.appendChild(el("td", "text-end", String(row.coded_count)));
+      tr.appendChild(el("td", "text-end text-muted", row.percent + "%"));
+      body.appendChild(tr);
+    });
+    table.appendChild(body);
+    causes.appendChild(table);
+    causes.appendChild(el("div", "text-muted mt-1",
+      "Of " + card.causes.coded + " coded deaths. Other (suppressed) holds causes with fewer than 5 deaths, causes past the top ten and codes with no cause group."));
+  }
+
+  function renderStations(projectCard) {
+    var box = document.getElementById("area-stations");
+    box.classList.toggle("d-none", !projectCard);
+    box.replaceChildren();
+    if (!projectCard) return;
+    var s = projectCard.stations;
+    var text = "Offline stations: " + s.active + " active";
+    if (s.active) {
+      text += s.never_synced ? ", " + s.never_synced + " never synced" : "";
+      if (s.oldest_last_bundle_at_display) text += "; longest without a bundle since " + s.oldest_last_bundle_at_display;
+      if (s.latest_bundle_at_display) text += "; latest bundle " + s.latest_bundle_at_display;
+    }
+    box.appendChild(el("span", "text-muted", text + "."));
   }
 
   function renderBreadcrumb(data) {
@@ -275,7 +303,7 @@ document.addEventListener("DOMContentLoaded", function () {
       link.href = "#";
       link.addEventListener("click", function (event) {
         event.preventDefault();
-        navigate({ project: data.project_id, unit: "" }, true);
+        navigate({ project: data.project_id, unit: "", period: periodSelect.value }, true);
       });
       top.appendChild(link);
     } else {
@@ -294,7 +322,7 @@ document.addEventListener("DOMContentLoaded", function () {
         link.href = "#";
         link.addEventListener("click", function (event) {
           event.preventDefault();
-          navigate({ project: data.project_id, unit: crumb.org_unit_id }, true);
+          navigate({ project: data.project_id, unit: crumb.org_unit_id, period: periodSelect.value }, true);
         });
         item.appendChild(link);
       }
@@ -304,8 +332,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function renderRows(data) {
     rowsBody.replaceChildren();
-    totalFoot.replaceChildren();
-    var totals = {};
     if (!data.rows.length) {
       var empty = el("tr");
       var cell = el("td", "text-muted small", "Nothing below this level.");
@@ -322,7 +348,7 @@ document.addEventListener("DOMContentLoaded", function () {
         link.href = "#";
         link.addEventListener("click", function (event) {
           event.preventDefault();
-          navigate({ project: data.project_id, unit: row.key }, true);
+          navigate({ project: data.project_id, unit: row.key, period: periodSelect.value }, true);
         });
         nameCell.appendChild(link);
       } else {
@@ -330,16 +356,13 @@ document.addEventListener("DOMContentLoaded", function () {
       }
       if (row.code) nameCell.appendChild(el("span", "text-muted small ms-1", row.code));
       tr.appendChild(nameCell);
-      COLUMNS.forEach(function (key) {
-        totals[key] = (totals[key] || 0) + (row.counts[key] || 0);
-        tr.appendChild(countCell(row.counts[key], key, (row.links || {})[key]));
+      COLUMNS.forEach(function (column) {
+        var td = el("td", "text-end" + (column[3] ? " border-start" : ""));
+        td.appendChild(linkOrText((row.links || {})[column[0]], String(row.counts[column[0]] || 0)));
+        tr.appendChild(td);
       });
       rowsBody.appendChild(tr);
     });
-    var totalRow = el("tr");
-    totalRow.appendChild(el("td", null, "Total"));
-    COLUMNS.forEach(function (key) { totalRow.appendChild(countCell(totals[key], key)); });
-    totalFoot.appendChild(totalRow);
   }
 
   function renderFreshness(freshness) {
@@ -349,49 +372,44 @@ document.addEventListener("DOMContentLoaded", function () {
         ? "Snapshot counts as of " + freshness.snapshot_refreshed_display + " (refreshed hourly)"
         : "Snapshot counts: refresh time not recorded yet (refreshed hourly)";
     document.getElementById("area-live-label").textContent =
-      "Deaths reported, in progress, Final COD and Visit notes: live, as of " + freshness.live_at_display;
+      "Live counts as of " + freshness.live_at_display;
   }
 
-  function staffTable(title, columns, rows) {
+  function renderStaff(data) {
+    staffTables.replaceChildren();
+    if (data.staff_identity_redacted) {
+      staffStatus.textContent = "Your role does not include staff identity, so the per-interviewer view is not shown.";
+      return;
+    }
+    staffStatus.textContent = data.truncated ? "Showing the most active interviewers only." : "";
     var wrap = el("div", "table-responsive mb-2");
     var table = el("table", "table table-sm align-middle mb-0");
     var head = el("tr", "small");
-    head.appendChild(el("th", null, title));
-    columns.forEach(function (column) { head.appendChild(el("th", "text-end", column[1])); });
+    head.appendChild(el("th", null, "Interviewer"));
+    STAFF_COLUMNS.forEach(function (column) { head.appendChild(el("th", "text-end", column[1])); });
     var thead = el("thead");
     thead.appendChild(head);
     table.appendChild(thead);
     var body = el("tbody");
+    var rows = data.interviewers || [];
     if (!rows.length) {
       var emptyRow = el("tr");
       var emptyCell = el("td", "text-muted small", "None in this area.");
-      emptyCell.colSpan = columns.length + 1;
+      emptyCell.colSpan = STAFF_COLUMNS.length + 1;
       emptyRow.appendChild(emptyCell);
       body.appendChild(emptyRow);
     }
     rows.forEach(function (row) {
       var tr = el("tr");
       tr.appendChild(el("td", null, row.name));
-      columns.forEach(function (column) {
+      STAFF_COLUMNS.forEach(function (column) {
         tr.appendChild(el("td", "text-end", String(row[column[0]] || 0)));
       });
       body.appendChild(tr);
     });
     table.appendChild(body);
     wrap.appendChild(table);
-    return wrap;
-  }
-
-  function renderStaff(data) {
-    staffTables.replaceChildren();
-    if (data.staff_identity_redacted) {
-      staffStatus.textContent = "Your role does not include staff identity, so the per-staff view is not shown.";
-      return;
-    }
-    staffStatus.textContent = data.truncated ? "Showing the most active staff only." : "";
-    STAFF_SECTIONS.forEach(function (section) {
-      staffTables.appendChild(staffTable(section[1], section[2], data[section[0]] || []));
-    });
+    staffTables.appendChild(wrap);
   }
 
   function loadStaff() {
@@ -402,7 +420,7 @@ document.addEventListener("DOMContentLoaded", function () {
       .then(renderStaff)
       .catch(function () {
         staffLoaded = false;
-        staffStatus.textContent = "Could not load the per-staff counts. Try again shortly.";
+        staffStatus.textContent = "Could not load the per-interviewer counts. Try again shortly.";
       });
   }
 
@@ -430,21 +448,27 @@ document.addEventListener("DOMContentLoaded", function () {
   function navigate(state, push) {
     writeState(state, push);
     showError("");
-    var params = new URLSearchParams({ project: state.project });
-    if (state.unit) params.set("unit", state.unit);
+    var params = stateParams(state);
+    params.set("period", state.period || "all");
+    var csvParams = new URLSearchParams(params);
+    csvParams.set("format", "csv");
+    csvLink.href = root.dataset.summaryUrl + "?" + csvParams.toString();
+    csvLink.classList.remove("d-none");
     getJson(root.dataset.summaryUrl + "?" + params.toString())
       .then(function (data) {
         renderBreadcrumb(data);
-        renderCard(data.project_card);
+        renderCard(data);
+        renderStations(data.project_card);
         renderRows(data);
         renderFreshness(data.freshness);
         resetStaff(data);
       })
       .catch(function (error) {
         rowsBody.replaceChildren();
-        totalFoot.replaceChildren();
         renderCard(null);
+        renderStations(null);
         resetStaff(null);
+        csvLink.classList.add("d-none");
         showError(error.message === "not_found"
           ? "That area is not available to you."
           : "Could not load the area counts. Try again shortly.");
@@ -455,12 +479,17 @@ document.addEventListener("DOMContentLoaded", function () {
     var state = readState();
     if (state.project) {
       projectSelect.value = state.project;
+      periodSelect.value = state.period;
       navigate(state, false);
     }
   });
 
   projectSelect.addEventListener("change", function () {
-    navigate({ project: projectSelect.value, unit: "" }, true);
+    navigate({ project: projectSelect.value, unit: "", period: periodSelect.value }, true);
+  });
+
+  periodSelect.addEventListener("change", function () {
+    navigate(current(), true);
   });
 
   getJson(root.dataset.projectsUrl)
@@ -469,6 +498,7 @@ document.addEventListener("DOMContentLoaded", function () {
         document.getElementById("area-empty").classList.remove("d-none");
         document.getElementById("area-table").classList.add("d-none");
         projectSelect.disabled = true;
+        periodSelect.disabled = true;
         return;
       }
       data.projects.forEach(function (project) {
@@ -478,8 +508,9 @@ document.addEventListener("DOMContentLoaded", function () {
       });
       var state = readState();
       var known = data.projects.some(function (p) { return p.project_id === state.project; });
-      if (!known) state = { project: data.projects[0].project_id, unit: "" };
+      if (!known) state = { project: data.projects[0].project_id, unit: "", period: state.period };
       projectSelect.value = state.project;
+      periodSelect.value = state.period;
       navigate(state, false);
     })
     .catch(function () {

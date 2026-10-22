@@ -6,12 +6,13 @@ grant gets an empty project list, not an error (docs/policy/area-dashboard.md).
 A project, unit or site outside the user's area is a 404, never a 403, so its
 existence does not leak. Counts only: no case lists or subject data; links go
 only to screens the user's role already has. Staff names come only from
-``/staff``, and only for a viewer ``should_redact_pii`` allows.
+``/staff``, and only for a viewer ``should_redact_pii`` allows. The summary's
+``?format=csv`` is the same aggregates (``area.summary_csv``), never names or ids.
 """
 
 from datetime import UTC, datetime
 
-from flask import Blueprint, current_app, jsonify, request, url_for
+from flask import Blueprint, Response, current_app, jsonify, request, url_for
 from flask_login import current_user, login_required
 
 from app import limiter
@@ -87,23 +88,49 @@ def staff():
     return jsonify(result)
 
 
+_FORMATS = ("json", "csv")
+
+
 @bp.get("/summary")
 @login_required
 @limiter.limit("120 per minute")
 def summary():
+    """One level of the area: card, rows and, at a project-wide root, the
+    project card. ``period`` is a ``PERIOD_DAYS`` key (default all time);
+    ``format=csv`` returns the same aggregates as a CSV download."""
     params, error = _area_params()
     if error:
         return error
     project_id, unit_id, site_id = params
+    period = _param("period") or area.DEFAULT_PERIOD
+    output = _param("format") or "json"
+    if period not in area.PERIOD_DAYS or output not in _FORMATS:
+        return api_error("Unknown period or format.", status_code=400)
     try:
         result = area.area_summary(
-            current_user, project_id, unit_id=unit_id or None, site_id=site_id or None
+            current_user, project_id, unit_id=unit_id or None, site_id=site_id or None,
+            period=period,
         )
     except area.AreaNotFound:
         return api_error("Not found.", status_code=404)
 
+    if output == "csv":
+        filename = f"area-{result['project_id']}-{period}.csv"
+        return Response(
+            area.summary_csv(result),
+            mimetype="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+    result["card"]["links"] = _link_urls(result["card"]["links"])
     if result["project_card"]:
-        result["project_card"]["links"] = _link_urls(result["project_card"]["links"])
+        stations = result["project_card"]["stations"]
+        for key in ("oldest_last_bundle_at", "latest_bundle_at"):
+            stations[f"{key}_display"] = _display_time(stations[key])
+            stations[key] = stations[key].isoformat() if stations[key] else None
     for row in result["rows"]:
         if row.get("links"):
             row["links"] = _link_urls(row["links"])

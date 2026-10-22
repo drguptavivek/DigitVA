@@ -3255,7 +3255,7 @@ def project_mentoring_overview(project_id: str) -> dict:
         "institutes": all_institutes,
         "attached_links": links,
         "scientists": scientists,
-        "mentor_roles": ["coder", "reviewer", "coding_tester", "collaborator_pii"],
+        "mentor_roles": ["coder", "reviewer", "coding_tester", "collaborator_pii", "collaborator"],
     }
 
 

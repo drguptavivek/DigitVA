@@ -73,39 +73,32 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
         ):
             self.assertEqual(self.client.get(SUMMARY, query_string=params).status_code, 404, params)
 
-    def test_project_card_links_are_data_manager_urls_without_pii(self):
+    def test_card_links_are_data_manager_urls_without_pii(self):
         self._as(self.project_user)
-        body = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()
-        card = body["project_card"]
-        self.assertIsNotNone(card)
-        self.assertEqual(card["total_submissions"], 7)
-        url = urlsplit(card["links"]["reviewer_eligible"])
+        body = self.client.get(SUMMARY, query_string={"project": self.TREE, "period": "30d"}).get_json()
+        self.assertEqual(body["period"], "30d")
+        card = body["card"]
+        self.assertEqual(set(card["counts"]), set(area.COUNT_KEYS))
+        url = urlsplit(card["links"]["submitted"])
         self.assertEqual(url.path, "/data-management/")
         query = parse_qs(url.query, keep_blank_values=True)
         self.assertTrue(set(query) <= set(area.DM_URL_FILTERS))
         self.assertEqual(query["project"], [self.TREE])
-        self.assertEqual(query["workflow"], ["reviewer_eligible"])
-        self.assertNotIn("pending_or_active", card["links"])
+        self.assertEqual(query["date_from"], [area.period_start("30d").date().isoformat()])
+        self.assertNotIn("awaiting_coding", card["links"])
+        stations = body["project_card"]["stations"]
+        self.assertEqual(stations["active"], 0)
+        self.assertIsNone(stations["latest_bundle_at_display"])
 
-    def test_card_and_rows_carry_both_coded_definitions(self):
+    def test_card_and_rows_carry_final_cod(self):
         self._give_authority("uuid:area-ca1")
         self._as(self.project_user)
         body = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()
-        card = body["project_card"]
-        self.assertEqual(card["coding_progress"]["total_submissions"], 7)
-        self.assertEqual(card["coding_progress"]["coded"], 1)
-        self.assertEqual(
-            card["final_cod"], {"coded": 1, "not_codeable": 1, "by_coder": 1, "by_reviewer": 0}
-        )
-        # Existing keys stay as they were.
-        self.assertEqual(card["total_coded"], 1)
-        self.assertEqual(card["authority_kpis"], {"coder_authority": 1, "reviewer_authority": 0})
+        self.assertEqual(body["card"]["counts"]["final_cod"], 1)
         self.assertTrue(body["rows"])
-        for row in body["rows"]:
-            self.assertIn("final_cod", row["counts"])
-            self.assertIn("coded", row["counts"])
         district_1 = next(r for r in body["rows"] if r["key"] == str(self.district_1.org_unit_id))
         self.assertEqual(district_1["counts"]["final_cod"], 1)
+        self.assertNotIn("coded", district_1["counts"])
 
     def test_collaborator_card_links_to_the_data_manager_dashboard(self):
         user = self._get_or_make_user("area.api.collab@test.local", "AreaUser123")
@@ -113,27 +106,54 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
                     project_id=self.TREE)
         db.session.commit()
         self._as(user)
-        card = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["project_card"]
-        self.assertIsNotNone(card)
-        self.assertEqual(urlsplit(card["links"]["total_submissions"]).path, "/data-management/")
+        card = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["card"]
+        self.assertEqual(urlsplit(card["links"]["submitted"]).path, "/data-management/")
         # A reviewer reaches the card but no data manager link (the subject exists first).
         self._as(self.site_user)
-        reviewer_card = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["project_card"]
-        self.assertIsNotNone(reviewer_card)
+        reviewer_card = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()["card"]
+        self.assertEqual(reviewer_card["counts"]["submitted"], 7)
         self.assertEqual(reviewer_card["links"], {})
+
+    def test_bad_period_or_format_is_400(self):
+        self._as(self.project_user)
+        for params in ({"period": "7d"}, {"format": "xml"}):
+            response = self.client.get(SUMMARY, query_string={"project": self.TREE, **params})
+            self.assertEqual(response.status_code, 400, params)
+
+    def test_csv_export_is_aggregates_for_the_users_area(self):
+        self._as(self.unit_user)
+        response = self.client.get(
+            SUMMARY, query_string={"project": self.TREE, "period": "90d", "format": "csv"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment", response.headers["Content-Disposition"])
+        text = response.get_data(as_text=True)
+        self.assertTrue(text.startswith(",".join(area.CSV_HEADER)))
+        self.assertIn("row,ACA,Unit ACA,submitted,", text)
+        self.assertIn("period,ARDT01,Area ARDT01,period,90d", text)
+        # Outside the unit user's subtree, and never a submission id.
+        self.assertNotIn("ACB", text)
+        self.assertNotIn("uuid:", text)
+        # Out of scope is still a 404, not an empty file.
+        outside = self.client.get(SUMMARY, query_string={
+            "project": self.TREE, "unit": str(self.chc_b.org_unit_id), "format": "csv",
+        })
+        self.assertEqual(outside.status_code, 404)
 
     def test_unit_scoped_user_gets_no_card(self):
         self._as(self.interviewer)
         body = self.client.get(SUMMARY, query_string={"project": self.TREE}).get_json()
         self.assertTrue(body["rows"])
         self.assertIsNone(body["project_card"])
+        self.assertIsNotNone(body["card"])
 
     def test_sites_mode_row_links_carry_site_filter(self):
         self._as(self.base_admin_user)
         body = self.client.get(SUMMARY, query_string={"project": self.SITES}).get_json()
         self.assertIsNotNone(body["project_card"])
         rows = {row["key"]: row for row in body["rows"]}
-        query = parse_qs(urlsplit(rows[self.SITE_TWO]["links"]["total_submissions"]).query,
+        query = parse_qs(urlsplit(rows[self.SITE_TWO]["links"]["submitted"]).query,
                          keep_blank_values=True)
         self.assertEqual((query["project"], query["site"]), ([self.SITES], [self.SITE_TWO]))
 
@@ -174,8 +194,14 @@ class AreaStaffRouteTests(AreaStaffFixture):
         self.assertEqual(hidden.status_code, 200)
         body = hidden.get_json()
         self.assertTrue(body["staff_identity_redacted"])
-        self.assertEqual((body["interviewers"], body["coders"]), ([], []))
+        self.assertEqual(body["interviewers"], [])
         self.assertNotIn(self.interviewer.name.encode(), hidden.data)
+        # The summary and its CSV carry no names for anyone.
+        for output in ("json", "csv"):
+            summary = self.client.get(SUMMARY, query_string={**params, "format": output})
+            self.assertEqual(summary.status_code, 200)
+            self.assertNotIn(self.interviewer.name.encode(), summary.data)
+            self.assertNotIn(self.coder_a.name.encode(), summary.data)
 
     def test_a_death_reporter_reaches_its_area_with_staff_identity_redacted(self):
         from app.models import VaAccessRoles, VaAccessScopeTypes
@@ -193,7 +219,7 @@ class AreaStaffRouteTests(AreaStaffFixture):
         self.assertEqual(response.status_code, 200)
         body = response.get_json()
         self.assertTrue(body["staff_identity_redacted"])
-        self.assertEqual((body["interviewers"], body["coders"]), ([], []))
+        self.assertEqual(body["interviewers"], [])
         self.assertNotIn(self.interviewer.name.encode(), response.data)
 
     def test_same_not_found_rules_as_summary(self):

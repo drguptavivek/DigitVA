@@ -74,6 +74,18 @@ interface BrowserAppState {
 
 const Context = createContext<BrowserAppState | undefined>(undefined);
 
+/**
+ * True when a re-read of /me/access changed nothing but its CSRF token. Screens reset on a new
+ * bootstrap object, so a tab resume or refusal reload must keep the old one; requests take the
+ * newest token from the API module, not from this snapshot.
+ */
+function sameBootstrap(previous: ClientBootstrap | undefined, next: ClientBootstrap): boolean {
+  if (!previous) return false;
+  const { csrf: _previousCsrf, ...previousRest } = previous;
+  const { csrf: _nextCsrf, ...nextRest } = next;
+  return JSON.stringify(previousRest) === JSON.stringify(nextRest);
+}
+
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
@@ -181,7 +193,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
       setError(undefined);
       setAuthenticated(true);
-      setBootstrap(result.bootstrap);
+      setBootstrap((previous) => sameBootstrap(previous, result.bootstrap) ? previous : result.bootstrap);
       setLoginUrl(undefined);
       setActionCode(undefined);
     } else {

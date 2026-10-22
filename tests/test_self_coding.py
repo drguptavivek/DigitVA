@@ -324,12 +324,6 @@ class CoderReleaseTests(SelfCodingFixture, BaseTestCase):
         self.assertEqual(ctx.exception.workflow_state, "coding_in_progress")
         self.assertEqual(len(self._allocations("csc-own")), 1)
 
-    def test_release_takes_the_first_when_two_active_rows_exist(self):
-        self._own_case("csc-own")
-        allocate_own_case(self.submitter, "csc-own")
-        self._hold("csc-own", self.submitter)  # a stray second active row
-        self.assertEqual(release_own_coding_allocation(self.submitter), "csc-own")
-
     def test_release_with_nothing_held_is_refused(self):
         self._own_case("csc-own")
         with self.assertRaises(AllocationError) as ctx:

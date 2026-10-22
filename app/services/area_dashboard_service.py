@@ -13,36 +13,43 @@ over all of the user's roles:
 Counts only: no case lists and no subject data. Staff names appear only in
 the optional per-staff view (``area_staff``), and only for a viewer
 ``should_redact_pii`` lets see staff identity. Each level is one query per
-section (units, snapshot counts, live drafts), with subtree rollups on ltree
-containment. A unit or site outside scope is reported as
-not found, never as forbidden, so its existence does not leak.
+section (units, snapshot counts, case counts, live counts), with subtree
+rollups on ltree containment, plus one each for the area card's medians and
+causes; causes are small-cell suppressed here, before any caller sees them.
+A unit or site outside scope is reported as not found, never as forbidden,
+so its existence does not leak.
 
 Policy: docs/policy/area-dashboard.md.
 """
 
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 
 import sqlalchemy as sa
 
 from app import cache, db
 from app.models import (
+    AuthDevice,
+    AuthStationConfig,
     MapCaseContactAttempt,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
+    VaBundleIngest,
     VaDeathRegister,
     VaFinalCodAuthority,
     VaForms,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
+    VaSmartvaResults,
     VaStatuses,
     VaSubmissions,
-    VaSubmissionWorkflowEvent,
     VaSyncRun,
     VaUserAccessGrants,
     VaUsers,
@@ -50,28 +57,24 @@ from app.models import (
 )
 from app.services import authz, org_grant_service
 from app.services.authz.consulted import mark_consulted
+from app.services.cod_bucket_mapping_service import (
+    count_coded_submissions_by_cause,
+    default_reporting_scheme_code,
+)
 from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
 )
 from app.services.odk_retirement_service import submission_is_in_odk
-from app.services.sitepi_reporting_service import get_project_workflow_kpis
 from app.services.submission_analytics_mv import (
-    AREA_BREAKDOWN_KEYS,
+    CORE_MV_NAME,
     get_area_site_stats_from_mv,
     get_area_unrouted_stats_from_mv,
     get_dm_org_unit_stats_from_mv,
 )
+from app.services.user_home_service import OPEN_CASE_STATES
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.visit_note import has_visit_note_condition
-from app.services.workflow.definition import (
-    CODING_BUCKETS,
-    TRANSITION_CODER_FINALIZED,
-    TRANSITION_CODER_NOT_CODEABLE,
-    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-    WORKFLOW_REVIEWER_ELIGIBLE,
-    WORKFLOW_REVIEWER_FINALIZED,
-)
 
 DRAFT_STATUS_IN_PROGRESS = "draft"
 # No shared constant exists for a cancelled case (web_intake_service compares
@@ -332,52 +335,42 @@ def _breadcrumb(scope: AreaScope, unit: MasOrgUnit) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Period
+# ---------------------------------------------------------------------------
+
+#: The period filter: days back from today, or None for all time
+#: (docs/policy/area-dashboard.md, "Period").
+PERIOD_DAYS = {"30d": 30, "90d": 90, "12m": 365, "all": None}
+DEFAULT_PERIOD = "all"
+
+
+def period_start(period: str) -> datetime | None:
+    """Start of *period* (a ``PERIOD_DAYS`` key) at UTC midnight, or None for all time.
+
+    Midnight, so a period count equals the data manager's ``date_from``
+    filter on the same day. Raises ValueError for any other value.
+    """
+    if period not in PERIOD_DAYS:
+        raise ValueError(f"Unknown period {period!r}.")
+    days = PERIOD_DAYS[period]
+    if days is None:
+        return None
+    return datetime.combine(datetime.now(UTC).date() - timedelta(days=days), time.min, UTC)
+
+
+# ---------------------------------------------------------------------------
 # Counts
 # ---------------------------------------------------------------------------
 
-
-def _open_drafts(project_id: str):
-    return sa.and_(
-        VaWebIntakeDraft.project_id == project_id,
-        VaWebIntakeDraft.status == DRAFT_STATUS_IN_PROGRESS,
-    )
-
-
-def _drafts_by_unit(project_id: str, unit_ids: list) -> dict:
-    """Open web-intake drafts in each unit's subtree, live, in one query."""
-    if not unit_ids:
-        return {}
-    draft_unit = sa.orm.aliased(MasOrgUnit, name="draft_unit")
-    rows = db.session.execute(
-        sa.select(MasOrgUnit.org_unit_id, sa.func.count(VaWebIntakeDraft.draft_id))
-        .select_from(MasOrgUnit)
-        .join(draft_unit, draft_unit.path.op("<@")(MasOrgUnit.path))
-        .join(VaWebIntakeDraft, VaWebIntakeDraft.org_unit_id == draft_unit.org_unit_id)
-        .where(
-            MasOrgUnit.org_unit_id.in_(sorted(unit_ids)),
-            draft_unit.project_id == project_id,
-            _open_drafts(project_id),
-        )
-        .group_by(MasOrgUnit.org_unit_id)
-    ).all()
-    return dict(rows)
-
-
-def _unrouted_drafts(project_id: str) -> int:
-    return db.session.scalar(
-        sa.select(sa.func.count(VaWebIntakeDraft.draft_id)).where(
-            _open_drafts(project_id), VaWebIntakeDraft.org_unit_id.is_(None)
-        )
-    ) or 0
-
-
-def _drafts_by_site(project_id: str, site_ids: list) -> dict:
-    rows = db.session.execute(
-        sa.select(VaWebIntakeDraft.site_id, sa.func.count(VaWebIntakeDraft.draft_id))
-        .where(_open_drafts(project_id), VaWebIntakeDraft.site_id.in_(sorted(site_ids)))
-        .group_by(VaWebIntakeDraft.site_id)
-    ).all()
-    return dict(rows)
+#: Every count a table row and the area card carry, in table order.
+CASE_COUNT_KEYS = (
+    "deaths_reported", "deaths_7_days", "deaths_30_days",
+    "interviews_pending", "pending_over_7_days", "pending_over_30_days",
+)
+LIVE_COUNT_KEYS = ("final_cod", "smartva_failed", "visit_notes")
+COUNT_KEYS = (
+    *CASE_COUNT_KEYS, "submitted", "awaiting_coding", "not_codeable", *LIVE_COUNT_KEYS
+)
 
 
 def _reported_deaths(project_id: str):
@@ -389,13 +382,36 @@ def _reported_deaths(project_id: str):
     )
 
 
-def _deaths_reported_by_unit(project_id: str, unit_ids: list) -> dict:
-    """Reported deaths in each unit's subtree, live, in one query."""
+def _case_count_columns(since) -> list:
+    """The death-register counts as labelled ``count FILTER`` columns: cases
+    registered in the period (all when *since* is None) and in the last 7 and
+    30 days, and open cases waiting for an interview, also those waiting
+    over 7 and 30 days since registration."""
+    now = datetime.now(UTC)
+    counted = sa.func.count(VaDeathRegister.death_id)
+    created = VaDeathRegister.created_at
+    pending = VaDeathRegister.status.in_(OPEN_CASE_STATES)
+    return [
+        (counted if since is None else counted.filter(created >= since)).label("deaths_reported"),
+        counted.filter(created >= now - timedelta(days=7)).label("deaths_7_days"),
+        counted.filter(created >= now - timedelta(days=30)).label("deaths_30_days"),
+        counted.filter(pending).label("interviews_pending"),
+        counted.filter(pending, created < now - timedelta(days=7)).label("pending_over_7_days"),
+        counted.filter(pending, created < now - timedelta(days=30)).label("pending_over_30_days"),
+    ]
+
+
+def _values(row, keys) -> dict:
+    return {key: row._mapping[key] or 0 for key in keys}
+
+
+def _case_counts_by_unit(project_id: str, unit_ids: list, since=None) -> dict:
+    """Unit id -> case counts in the unit's subtree, live, in one query."""
     if not unit_ids:
         return {}
     death_unit = sa.orm.aliased(MasOrgUnit, name="death_unit")
     rows = db.session.execute(
-        sa.select(MasOrgUnit.org_unit_id, sa.func.count(VaDeathRegister.death_id))
+        sa.select(MasOrgUnit.org_unit_id, *_case_count_columns(since))
         .select_from(MasOrgUnit)
         .join(death_unit, death_unit.path.op("<@")(MasOrgUnit.path))
         .join(VaDeathRegister, VaDeathRegister.org_unit_id == death_unit.org_unit_id)
@@ -406,101 +422,68 @@ def _deaths_reported_by_unit(project_id: str, unit_ids: list) -> dict:
         )
         .group_by(MasOrgUnit.org_unit_id)
     ).all()
-    return dict(rows)
+    return {row.org_unit_id: _values(row, CASE_COUNT_KEYS) for row in rows}
 
 
-def _deaths_reported_unrouted(project_id: str) -> int:
-    return db.session.scalar(
-        sa.select(sa.func.count(VaDeathRegister.death_id)).where(
+def _case_counts_unrouted(project_id: str, since=None) -> dict:
+    row = db.session.execute(
+        sa.select(*_case_count_columns(since)).where(
             _reported_deaths(project_id), VaDeathRegister.org_unit_id.is_(None)
         )
-    ) or 0
+    ).one()
+    return _values(row, CASE_COUNT_KEYS)
 
 
-def _deaths_reported_by_site(project_id: str, site_ids: list) -> dict:
+def _case_counts_by_site(project_id: str, site_ids: list, since=None) -> dict:
     rows = db.session.execute(
-        sa.select(VaDeathRegister.site_id, sa.func.count(VaDeathRegister.death_id))
+        sa.select(VaDeathRegister.site_id, *_case_count_columns(since))
         .where(_reported_deaths(project_id), VaDeathRegister.site_id.in_(sorted(site_ids)))
         .group_by(VaDeathRegister.site_id)
     ).all()
-    return dict(rows)
+    return {row.site_id: _values(row, CASE_COUNT_KEYS) for row in rows}
 
 
-def _authoritative_submissions(project_id: str):
-    """(va_sid, org_unit_id, site_id) of the project's submissions whose final
-    cause of death holds authority (``final-cod-authority.md``), live.
+def _has_final_cod():
+    """The submission's final cause of death holds authority
+    (``final-cod-authority.md``): an authority row naming a coder or reviewer
+    assessment, the Site PI KPIs' definition."""
+    return sa.exists().where(
+        VaFinalCodAuthority.va_sid == VaSubmissions.va_sid,
+        sa.or_(
+            VaFinalCodAuthority.authoritative_final_assessment_id.is_not(None),
+            VaFinalCodAuthority.authoritative_reviewer_final_assessment_id.is_not(None),
+        ),
+    )
 
-    The Site PI KPIs' authority definition (``sitepi_reporting_service``):
-    an authority row naming a coder or reviewer assessment, retired
-    submissions, confirmed duplicates and inactive project-sites left out.
+
+def _smartva_failed():
+    """The submission's active SmartVA result has outcome ``failed``."""
+    return sa.exists().where(
+        VaSmartvaResults.va_sid == VaSubmissions.va_sid,
+        VaSmartvaResults.va_smartva_status == VaStatuses.active,
+        VaSmartvaResults.va_smartva_outcome == VaSmartvaResults.OUTCOME_FAILED,
+    )
+
+
+def _live_flags(project_id: str):
+    """(org_unit_id, site_id, final_cod, smartva_failed, visit_notes) of the
+    project's submissions that carry any of the three, live.
+
+    One subquery serves the three live columns, so a level costs one query
+    for them, not three. Retired submissions, confirmed duplicates and
+    inactive project-sites are left out, as for every count on the page.
     """
+    flags = {
+        "final_cod": _has_final_cod(),
+        "smartva_failed": _smartva_failed(),
+        "visit_notes": has_visit_note_condition(),
+    }
     return (
-        sa.select(VaSubmissions.va_sid, VaSubmissions.org_unit_id, VaForms.site_id)
-        .join(VaFinalCodAuthority, VaFinalCodAuthority.va_sid == VaSubmissions.va_sid)
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .join(
-            VaProjectSites,
-            sa.and_(
-                VaProjectSites.project_id == VaForms.project_id,
-                VaProjectSites.site_id == VaForms.site_id,
-                VaProjectSites.project_site_status == VaStatuses.active,
-            ),
+        sa.select(
+            VaSubmissions.org_unit_id,
+            VaForms.site_id,
+            *(condition.label(key) for key, condition in flags.items()),
         )
-        .where(
-            VaForms.project_id == project_id,
-            sa.or_(
-                VaFinalCodAuthority.authoritative_final_assessment_id.is_not(None),
-                VaFinalCodAuthority.authoritative_reviewer_final_assessment_id.is_not(None),
-            ),
-            submission_is_in_odk(VaSubmissions),
-            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-        )
-        .subquery("authoritative_submissions")
-    )
-
-
-def _final_cod_by_unit(project_id: str, unit_ids: list) -> dict:
-    """Authoritative-final-COD submissions in each unit's subtree, one query."""
-    if not unit_ids:
-        return {}
-    authoritative = _authoritative_submissions(project_id)
-    sub_unit = sa.orm.aliased(MasOrgUnit, name="cod_unit")
-    rows = db.session.execute(
-        sa.select(MasOrgUnit.org_unit_id, sa.func.count(authoritative.c.va_sid))
-        .select_from(MasOrgUnit)
-        .join(sub_unit, sub_unit.path.op("<@")(MasOrgUnit.path))
-        .join(authoritative, authoritative.c.org_unit_id == sub_unit.org_unit_id)
-        .where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)), sub_unit.project_id == project_id)
-        .group_by(MasOrgUnit.org_unit_id)
-    ).all()
-    return dict(rows)
-
-
-def _final_cod_unrouted(project_id: str) -> int:
-    authoritative = _authoritative_submissions(project_id)
-    return db.session.scalar(
-        sa.select(sa.func.count(authoritative.c.va_sid)).where(
-            authoritative.c.org_unit_id.is_(None)
-        )
-    ) or 0
-
-
-def _final_cod_by_site(project_id: str, site_ids: list) -> dict:
-    authoritative = _authoritative_submissions(project_id)
-    rows = db.session.execute(
-        sa.select(authoritative.c.site_id, sa.func.count(authoritative.c.va_sid))
-        .where(authoritative.c.site_id.in_(sorted(site_ids)))
-        .group_by(authoritative.c.site_id)
-    ).all()
-    return dict(rows)
-
-
-def _visit_note_submissions(project_id: str):
-    """(org_unit_id, site_id) of the project's submissions whose active payload
-    carries a visit note, live. Inactive project-sites, retired submissions and
-    confirmed duplicates are left out, as for the other live counts."""
-    return (
-        sa.select(VaSubmissions.va_sid, VaSubmissions.org_unit_id, VaForms.site_id)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .join(
             VaProjectSites,
@@ -514,60 +497,61 @@ def _visit_note_submissions(project_id: str):
             VaForms.project_id == project_id,
             submission_is_in_odk(VaSubmissions),
             not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-            has_visit_note_condition(),
+            sa.or_(*flags.values()),
         )
-        .subquery("visit_note_submissions")
+        .subquery("live_flags")
     )
 
 
-def _visit_notes_by_unit(project_id: str, unit_ids: list) -> dict:
-    """Visit-note submissions in each unit's subtree, one query."""
+def _live_count_columns(flags) -> list:
+    return [sa.func.count().filter(flags.c[key]).label(key) for key in LIVE_COUNT_KEYS]
+
+
+def _live_counts_by_unit(project_id: str, unit_ids: list) -> dict:
+    """Unit id -> final COD, SmartVA failed and visit notes in the unit's subtree, one query."""
     if not unit_ids:
         return {}
-    notes = _visit_note_submissions(project_id)
-    sub_unit = sa.orm.aliased(MasOrgUnit, name="note_unit")
+    flags = _live_flags(project_id)
+    sub_unit = sa.orm.aliased(MasOrgUnit, name="flag_unit")
     rows = db.session.execute(
-        sa.select(MasOrgUnit.org_unit_id, sa.func.count(notes.c.va_sid))
+        sa.select(MasOrgUnit.org_unit_id, *_live_count_columns(flags))
         .select_from(MasOrgUnit)
         .join(sub_unit, sub_unit.path.op("<@")(MasOrgUnit.path))
-        .join(notes, notes.c.org_unit_id == sub_unit.org_unit_id)
+        .join(flags, flags.c.org_unit_id == sub_unit.org_unit_id)
         .where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)), sub_unit.project_id == project_id)
         .group_by(MasOrgUnit.org_unit_id)
     ).all()
-    return dict(rows)
+    return {row.org_unit_id: _values(row, LIVE_COUNT_KEYS) for row in rows}
 
 
-def _visit_notes_unrouted(project_id: str) -> int:
-    notes = _visit_note_submissions(project_id)
-    return db.session.scalar(
-        sa.select(sa.func.count(notes.c.va_sid)).where(notes.c.org_unit_id.is_(None))
-    ) or 0
+def _live_counts_total(project_id: str, unrouted_only: bool = False) -> dict:
+    """Live counts over the whole project, or its submissions with no unit."""
+    flags = _live_flags(project_id)
+    stmt = sa.select(*_live_count_columns(flags)).select_from(flags)
+    if unrouted_only:
+        stmt = stmt.where(flags.c.org_unit_id.is_(None))
+    return _values(db.session.execute(stmt).one(), LIVE_COUNT_KEYS)
 
 
-def _visit_notes_by_site(project_id: str, site_ids: list) -> dict:
-    notes = _visit_note_submissions(project_id)
+def _live_counts_by_site(project_id: str, site_ids: list) -> dict:
+    flags = _live_flags(project_id)
     rows = db.session.execute(
-        sa.select(notes.c.site_id, sa.func.count(notes.c.va_sid))
-        .where(notes.c.site_id.in_(sorted(site_ids)))
-        .group_by(notes.c.site_id)
+        sa.select(flags.c.site_id, *_live_count_columns(flags))
+        .where(flags.c.site_id.in_(sorted(site_ids)))
+        .group_by(flags.c.site_id)
     ).all()
-    return dict(rows)
+    return {row.site_id: _values(row, LIVE_COUNT_KEYS) for row in rows}
 
 
-def _counts(
-    stats: dict | None, drafts: int, final_cod: int, visit_notes: int = 0, deaths: int = 0
-) -> dict:
-    stats = stats or {}
-    counts = {"total_submissions": stats.get("total_submissions", 0)}
-    counts.update({key: stats.get(key, 0) for key in AREA_BREAKDOWN_KEYS})
-    counts["drafts_in_progress"] = drafts
-    counts["final_cod"] = final_cod
-    counts["visit_notes"] = visit_notes
-    counts["deaths_reported"] = deaths
-    return counts
+def _counts(stats: dict | None, cases: dict | None, live: dict | None) -> dict:
+    """One row's counts from the snapshot *stats*, the case and the live counts."""
+    merged = {**(stats or {}), **(cases or {}), **(live or {})}
+    return {key: merged.get(key, 0) for key in COUNT_KEYS}
 
 
-def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) -> list[dict]:
+def _unit_summary_rows(
+    scope: AreaScope, units: list, dm_links: bool = False, since=None
+) -> list[dict]:
     unit_ids = [row.org_unit_id for row in units]
     stats = {}
     if unit_ids:
@@ -579,12 +563,11 @@ def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) ->
                 project_site_pairs=[],
                 unit_ids=unit_ids,
                 include_breakdown=True,
+                since=since,
             )
         }
-    drafts = _drafts_by_unit(scope.project_id, unit_ids)
-    final_cod = _final_cod_by_unit(scope.project_id, unit_ids)
-    visit_notes = _visit_notes_by_unit(scope.project_id, unit_ids)
-    deaths = _deaths_reported_by_unit(scope.project_id, unit_ids)
+    cases = _case_counts_by_unit(scope.project_id, unit_ids, since)
+    live = _live_counts_by_unit(scope.project_id, unit_ids)
     return [
         {
             "kind": "unit",
@@ -594,10 +577,8 @@ def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) ->
             "has_children": bool(row.has_children),
             "counts": _counts(
                 stats.get(str(row.org_unit_id)),
-                drafts.get(row.org_unit_id, 0),
-                final_cod.get(row.org_unit_id, 0),
-                visit_notes.get(row.org_unit_id, 0),
-                deaths.get(row.org_unit_id, 0),
+                cases.get(row.org_unit_id),
+                live.get(row.org_unit_id),
             ),
             "links": (
                 {
@@ -613,7 +594,7 @@ def _unit_summary_rows(scope: AreaScope, units: list, dm_links: bool = False) ->
     ]
 
 
-def _unrouted_row(scope: AreaScope) -> dict:
+def _unrouted_row(scope: AreaScope, since=None) -> dict:
     return {
         "kind": UNROUTED_KEY,
         "key": UNROUTED_KEY,
@@ -621,20 +602,18 @@ def _unrouted_row(scope: AreaScope) -> dict:
         "name": "Unrouted",
         "has_children": False,
         "counts": _counts(
-            get_area_unrouted_stats_from_mv(project_id=scope.project_id),
-            _unrouted_drafts(scope.project_id),
-            _final_cod_unrouted(scope.project_id),
-            _visit_notes_unrouted(scope.project_id),
-            _deaths_reported_unrouted(scope.project_id),
+            get_area_unrouted_stats_from_mv(project_id=scope.project_id, since=since),
+            _case_counts_unrouted(scope.project_id, since),
+            _live_counts_total(scope.project_id, unrouted_only=True),
         ),
     }
 
 
-def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[dict]:
+def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool, since=None) -> list[dict]:
     """Per-site rows for a sites-mode project: every in-scope active site.
 
     With *dm_links*, each row's submitted count links to the data manager
-    dashboard filtered to that project and site.
+    dashboard filtered to that project, site and period.
     """
     where = [
         VaProjectSites.project_id == scope.project_id,
@@ -661,12 +640,11 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
         for row in get_area_site_stats_from_mv(
             project_ids=[],
             project_site_pairs=[(scope.project_id, s) for s in site_ids],
+            since=since,
         )
     }
-    drafts = _drafts_by_site(scope.project_id, site_ids)
-    final_cod = _final_cod_by_site(scope.project_id, site_ids)
-    visit_notes = _visit_notes_by_site(scope.project_id, site_ids)
-    deaths = _deaths_reported_by_site(scope.project_id, site_ids)
+    cases = _case_counts_by_site(scope.project_id, site_ids, since)
+    live = _live_counts_by_site(scope.project_id, site_ids)
     return [
         {
             "kind": "site",
@@ -674,16 +652,12 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
             "code": row.site_id,
             "name": row.site_name,
             "has_children": False,
-            "counts": _counts(
-                stats.get(row.site_id),
-                drafts.get(row.site_id, 0),
-                final_cod.get(row.site_id, 0),
-                visit_notes.get(row.site_id, 0),
-                deaths.get(row.site_id, 0),
-            ),
+            "counts": _counts(stats.get(row.site_id), cases.get(row.site_id), live.get(row.site_id)),
             "links": (
                 {
-                    "total_submissions": _dm_link(project=scope.project_id, site=row.site_id),
+                    "submitted": _dm_link(
+                        project=scope.project_id, site=row.site_id, date_from=_date_from(since)
+                    ),
                     "visit_notes": _dm_link(
                         project=scope.project_id, site=row.site_id, visit_note="1"
                     ),
@@ -694,6 +668,226 @@ def _site_rows(scope: AreaScope, site_id: str | None, dm_links: bool) -> list[di
         }
         for row in sites
     ]
+
+
+# ---------------------------------------------------------------------------
+# Area card
+# ---------------------------------------------------------------------------
+
+#: A cause with fewer deaths than this is folded into OTHER_CAUSES_LABEL.
+CAUSE_MIN_COUNT = 5
+#: Most causes the card names; the rest are folded too.
+TOP_CAUSES = 10
+OTHER_CAUSES_LABEL = "Other (suppressed)"
+
+
+def _in_area(scope: AreaScope, unit: MasOrgUnit | None = None, site_id: str | None = None):
+    """The selected area as ``in_area(project_col, site_col, unit_col)``.
+
+    A selected unit's whole subtree (inactive descendants included, as the
+    unit rollup counts them), a selected sites-mode site, or at the root the
+    user's whole scope: the project for a project-wide scope (unrouted cases
+    included), else the covered units or granted sites. Callers have already
+    checked *unit* and *site_id* are in scope.
+    """
+    project_id = scope.project_id
+    if unit is not None:
+        subtree = sa.select(MasOrgUnit.org_unit_id).where(
+            MasOrgUnit.project_id == project_id, MasOrgUnit.path.op("<@")(unit.path)
+        )
+        return lambda project_col, site_col, unit_col: sa.and_(
+            project_col == project_id, unit_col.in_(subtree)
+        )
+    if site_id:
+        return lambda project_col, site_col, unit_col: sa.and_(
+            project_col == project_id, site_col == site_id
+        )
+    if scope.project_wide:
+        return lambda project_col, site_col, unit_col: project_col == project_id
+    if scope.has_tree:
+        unit_ids = sorted(scope.unit_ids)
+        return lambda project_col, site_col, unit_col: sa.and_(
+            project_col == project_id, unit_col.in_(unit_ids)
+        )
+    site_ids = sorted(scope.site_ids)
+    return lambda project_col, site_col, unit_col: sa.and_(
+        project_col == project_id, site_col.in_(site_ids)
+    )
+
+
+def _medians(in_area) -> dict:
+    """Median days from death to interview and from interview to final COD
+    over the area's submissions, all time, with how many each is over.
+
+    Death to interview: the case register's date of death to the submission
+    date, for submissions with a case. Interview to final COD: submission
+    time to when the final COD took authority. One query; a median is None
+    when there is nothing to take it over.
+    """
+    core = sa.table(
+        CORE_MV_NAME,
+        sa.column("va_sid"),
+        sa.column("project_id"),
+        sa.column("site_id"),
+        sa.column("org_unit_id"),
+        sa.column("submission_at", sa.DateTime),
+        sa.column("submission_date", sa.Date),
+        sa.column("odk_missing"),
+    )
+    case_row = sa.orm.aliased(VaDeathRegister, name="median_case")
+    authority = VaFinalCodAuthority
+    death_to_interview = core.c.submission_date - case_row.date_of_death
+    cod_at = sa.func.coalesce(authority.effective_at, authority.created_at)
+    interview_to_cod = sa.extract("epoch", cod_at - core.c.submission_at) / 86400.0
+
+    def median(value):
+        return sa.func.percentile_cont(0.5).within_group(value)
+
+    row = db.session.execute(
+        sa.select(
+            median(death_to_interview).label("death_to_interview_days"),
+            sa.func.count(death_to_interview).label("death_to_interview_n"),
+            median(interview_to_cod).label("interview_to_final_cod_days"),
+            sa.func.count(interview_to_cod).label("interview_to_final_cod_n"),
+        )
+        .select_from(core)
+        .outerjoin(
+            case_row,
+            sa.and_(
+                case_row.va_sid == core.c.va_sid,
+                case_row.status.not_in([DUPLICATE_CASE_STATUS, CANCELLED_CASE_STATUS]),
+            ),
+        )
+        .outerjoin(
+            authority,
+            sa.and_(
+                authority.va_sid == core.c.va_sid,
+                sa.or_(
+                    authority.authoritative_final_assessment_id.is_not(None),
+                    authority.authoritative_reviewer_final_assessment_id.is_not(None),
+                ),
+            ),
+        )
+        .where(
+            in_area(core.c.project_id, core.c.site_id, core.c.org_unit_id),
+            core.c.odk_missing.is_(False),
+            authz.active_pair(core.c.project_id, core.c.site_id),
+            not_confirmed_duplicate_condition(core.c.va_sid),
+        )
+    ).one()
+
+    def days(value):
+        return None if value is None else round(float(value), 1)
+
+    return {
+        "death_to_interview_days": days(row.death_to_interview_days),
+        "death_to_interview_n": row.death_to_interview_n,
+        "interview_to_final_cod_days": days(row.interview_to_final_cod_days),
+        "interview_to_final_cod_n": row.interview_to_final_cod_n,
+    }
+
+
+def suppress_causes(total: int, causes: list[dict]) -> dict:
+    """The cause card after small-cell suppression (docs/policy/area-dashboard.md).
+
+    *total* is every coded death in the area and period, *causes* the
+    per-cause counts, most first. Hidden (no rows) when *total* is under
+    ``PERCENT_MIN_WHOLE``. Otherwise the top ``TOP_CAUSES`` causes with at
+    least ``CAUSE_MIN_COUNT`` deaths, then one ``OTHER_CAUSES_LABEL`` row
+    with every other coded death (small causes, causes past the top ten,
+    codes the scheme does not map), so no row carries a small named cell.
+    Shares are of *total*.
+    """
+    if total < PERCENT_MIN_WHOLE:
+        return {"coded": total, "hidden": True, "rows": []}
+    rows = [
+        {"label": cause["label"], "coded_count": cause["coded_count"]}
+        for cause in causes
+        if cause["coded_count"] >= CAUSE_MIN_COUNT
+    ][:TOP_CAUSES]
+    other = total - sum(row["coded_count"] for row in rows)
+    if other:
+        rows.append({"label": OTHER_CAUSES_LABEL, "coded_count": other})
+    for row in rows:
+        row["percent"] = round(100 * row["coded_count"] / total, 1)
+    return {"coded": total, "hidden": False, "rows": rows}
+
+
+def _causes(scope: AreaScope, unit, site_id: str | None, since) -> dict:
+    """Coded deaths by cause in the selected area, period by date of death, suppressed.
+
+    The COD bucket report's own scope arguments: a unit area is its subtree's
+    unit ids (``allowed_project_site_pairs=set()`` turns the unit filter on),
+    a site area its (project, site) pair, a project-wide root the project's
+    active pairs.
+    """
+    scheme_code = default_reporting_scheme_code()
+    if scheme_code is None:
+        return suppress_causes(0, [])
+    project_id = scope.project_id
+    if unit is not None:
+        subtree = set(
+            db.session.scalars(
+                sa.select(MasOrgUnit.org_unit_id).where(
+                    MasOrgUnit.project_id == project_id, MasOrgUnit.path.op("<@")(unit.path)
+                )
+            )
+        )
+        area_kwargs = {"allowed_project_site_pairs": set(), "allowed_org_unit_ids": subtree}
+    elif site_id:
+        area_kwargs = {"allowed_project_site_pairs": {(project_id, site_id)}}
+    elif scope.project_wide:
+        # Active pairs, not just the project: inactive project-sites are out
+        # of every count on the page.
+        area_kwargs = {
+            "allowed_project_site_pairs": {(project_id, s) for s in _active_site_ids(scope)}
+        }
+    elif scope.has_tree:
+        area_kwargs = {
+            "allowed_project_site_pairs": set(),
+            "allowed_org_unit_ids": set(scope.unit_ids),
+        }
+    else:
+        area_kwargs = {"allowed_project_site_pairs": {(project_id, s) for s in scope.site_ids}}
+    total, causes = count_coded_submissions_by_cause(
+        scheme_code=scheme_code,
+        project_id=project_id,
+        death_date_from=since.date() if since else None,
+        **area_kwargs,
+    )
+    return suppress_causes(total, causes)
+
+
+def _area_card(
+    scope: AreaScope, rows: list[dict], screens: set[str], unit=None, site_id=None, since=None
+) -> dict:
+    """The selected area's card: *rows*' counts summed (the caller passes the
+    selected unit's own subtree row, or rows that do not overlap), the
+    medians, the suppressed causes and links where a filter is exact."""
+    links = {}
+    if unit is not None:
+        dm_filters = {"org_unit": str(unit.org_unit_id)}
+    elif site_id:
+        dm_filters = {"site": site_id}
+    elif scope.project_wide:
+        dm_filters = {}
+    else:
+        dm_filters = None  # several roots: no single data manager filter
+    if SCREEN_DATA_MANAGEMENT in screens and dm_filters is not None:
+        links["submitted"] = _dm_link(
+            project=scope.project_id, date_from=_date_from(since), **dm_filters
+        )
+        links["visit_notes"] = _dm_link(project=scope.project_id, visit_note="1", **dm_filters)
+    elif SCREEN_INTAKE in screens:
+        links["submitted"] = {"endpoint": SCREEN_INTAKE, "params": {}}
+    if SCREEN_CODING in screens:
+        links["awaiting_coding"] = {"endpoint": SCREEN_CODING, "params": {}}
+    return {
+        "counts": {key: sum(row["counts"][key] for row in rows) for key in COUNT_KEYS},
+        "medians": _medians(_in_area(scope, unit, site_id)),
+        "causes": _causes(scope, unit, site_id, since),
+        "links": links,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -719,23 +913,17 @@ DM_URL_FILTERS = (
     "smartva", "age_group", "gender", "odk_sync", "workflow", "visit_note", "org_unit",
 )
 
-# Card counts that equal one data manager workflow filter exactly. The DM
-# groups (pending_coding, coded) do not match the card's pending or coded
-# definitions, so those counts get no data manager link. ``upstream_changed``
-# counts ODK changes only, which is what the finalized_upstream_changed filter
-# selects (a send-back or reopen is the sent_back_for_revision filter).
-_DM_WORKFLOW_FILTERS = {
-    "reviewer_eligible": WORKFLOW_REVIEWER_ELIGIBLE,
-    "reviewer_finalized": WORKFLOW_REVIEWER_FINALIZED,
-    "upstream_changed": WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-}
-
 
 def _dm_link(**filters) -> dict:
     return {
         "endpoint": SCREEN_DATA_MANAGEMENT,
         "params": {key: filters.get(key, "") for key in DM_URL_FILTERS},
     }
+
+
+def _date_from(since) -> str:
+    """The data manager's ``date_from`` for a period start (blank for all time)."""
+    return since.date().isoformat() if since else ""
 
 
 def link_screens(user, project_id: str) -> set[str]:
@@ -769,49 +957,37 @@ def link_screens(user, project_id: str) -> set[str]:
     return screens
 
 
-def project_card(scope: AreaScope, screens: set[str], rows: list[dict]) -> dict:
-    """The project-wide operational card, as two named definitions.
+def project_stations(project_id: str) -> dict:
+    """The project's offline stations, in one query.
 
-    ``coding_progress`` is the table's definition (coding buckets, snapshot),
-    summed from the root *rows* the table already shows, so it needs no query
-    and reconciles with the table's total row. ``final_cod`` is the Site PI's
-    (a final cause of death holds authority, live): ``get_project_workflow_kpis``.
-    The legacy flat keys (``total_coded``, ``total_not_codeable``,
-    ``authority_kpis``, ...) are the same Site PI numbers and stay for
-    existing consumers.
-
-    Counts only. The coder names and per-submission rows the Site PI page
-    also shows never reach it. ``links`` maps a count key to
-    ``{"endpoint", "params"}`` for the caller to turn into a URL.
+    A station is an active (not revoked) enrolled device that has been
+    issued a station config; handsets are not stations. ``never_synced``
+    have sent no bundle; ``oldest_last_bundle_at`` is the latest bundle of
+    the station that has waited longest; ``latest_bundle_at`` the newest
+    bundle of any station. Counts and times only.
     """
-    kpis = get_project_workflow_kpis(scope.project_id)
-    links = {}
-    if SCREEN_DATA_MANAGEMENT in screens:
-        links["total_submissions"] = _dm_link(project=scope.project_id)
-        for key, state in _DM_WORKFLOW_FILTERS.items():
-            links[key] = _dm_link(project=scope.project_id, workflow=state)
-    elif SCREEN_INTAKE in screens:
-        links["total_submissions"] = {"endpoint": SCREEN_INTAKE, "params": {}}
-    if SCREEN_CODING in screens:
-        links["pending_or_active"] = {"endpoint": SCREEN_CODING, "params": {}}
-    coding_progress = {
-        key: sum(row["counts"][key] for row in rows) for key in ("total_submissions", *CODING_BUCKETS)
-    }
-    return {
-        "coding_progress": coding_progress,
-        "final_cod": {
-            "coded": kpis["total_coded"],
-            "not_codeable": kpis["total_not_codeable"],
-            "by_coder": kpis["authority_kpis"]["coder_authority"],
-            "by_reviewer": kpis["authority_kpis"]["reviewer_authority"],
-        },
-        "total_submissions": kpis["total_submissions"],
-        "total_coded": kpis["total_coded"],
-        "total_not_codeable": kpis["total_not_codeable"],
-        "current_state_kpis": kpis["current_state_kpis"],
-        "authority_kpis": kpis["authority_kpis"],
-        "links": links,
-    }
+    per_station = (
+        sa.select(sa.func.max(VaBundleIngest.received_at).label("last_bundle_at"))
+        .select_from(AuthDevice)
+        .outerjoin(VaBundleIngest, VaBundleIngest.device_id == AuthDevice.device_id)
+        .where(
+            AuthDevice.project_id == project_id,
+            AuthDevice.revoked_at.is_(None),
+            sa.exists().where(AuthStationConfig.device_id == AuthDevice.device_id),
+        )
+        .group_by(AuthDevice.device_id)
+        .subquery("per_station")
+    )
+    last = per_station.c.last_bundle_at
+    row = db.session.execute(
+        sa.select(
+            sa.func.count().label("active"),
+            sa.func.count().filter(last.is_(None)).label("never_synced"),
+            sa.func.min(last).label("oldest_last_bundle_at"),
+            sa.func.max(last).label("latest_bundle_at"),
+        ).select_from(per_station)
+    ).one()
+    return dict(row._mapping)
 
 
 # ---------------------------------------------------------------------------
@@ -869,19 +1045,24 @@ def area_projects(user) -> list[dict]:
     return projects
 
 
-def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None) -> dict:
-    """Summary rows for one level of the user's area in *project_id*.
+def area_summary(
+    user, project_id: str, unit_id=None, site_id: str | None = None, period: str = DEFAULT_PERIOD
+) -> dict:
+    """The card and the table for one level of the user's area in *project_id*.
 
     Tree project, no unit: the grant roots, plus an Unrouted row when the
     scope is project-wide. With a unit: that unit's direct children. Each row
     is the row's whole subtree, counted once. Sites-mode project: one row per
     in-scope site (just *site_id* when given).
 
-    At the project root (no unit, no site) a project-wide scope also gets
-    ``project_card`` (built from the root rows); it is None otherwise.
+    ``card`` is the selected area as a whole (``_area_card``); at the
+    project root a project-wide scope also gets ``project_card`` (offline
+    stations), None otherwise. *period* (a ``PERIOD_DAYS`` key) filters
+    deaths reported, submitted and causes; ValueError for any other value.
 
     Raises AreaNotFound for a project, unit or site outside the user's area.
     """
+    since = period_start(period)
     scope = resolve_area_scope(user, project_id)
     if scope is None:
         raise AreaNotFound()
@@ -890,27 +1071,22 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
         "project_name": scope.project_name,
         "mode": "organization" if scope.has_tree else "sites",
         "project_wide": scope.project_wide,
+        "period": period,
         "unit": None,
         "breadcrumb": [],
         "project_card": None,
     }
-    at_root = not unit_id and not site_id
     screens = link_screens(user, project_id)
-    with_card = at_root and scope.project_wide
+    dm_links = SCREEN_DATA_MANAGEMENT in screens
 
     if not scope.has_tree:
         if unit_id:
             raise AreaNotFound()
-        result["rows"] = _site_rows(
-            scope, site_id or None, dm_links=SCREEN_DATA_MANAGEMENT in screens
-        )
-        if with_card:
-            result["project_card"] = project_card(scope, screens, result["rows"])
-        return result
-
-    if site_id:
-        raise AreaNotFound()
-    if unit_id:
+        rows = _site_rows(scope, site_id or None, dm_links=dm_links, since=since)
+        result["card"] = _area_card(scope, rows, screens, site_id=site_id or None, since=since)
+    elif unit_id:
+        if site_id:
+            raise AreaNotFound()
         unit = _selected_unit(scope, unit_id)
         result["unit"] = {
             "org_unit_id": str(unit.org_unit_id),
@@ -918,26 +1094,81 @@ def area_summary(user, project_id: str, unit_id=None, site_id: str | None = None
             "name": unit.unit_name,
         }
         result["breadcrumb"] = _breadcrumb(scope, unit)
+        # The unit itself rides along in the children's grouped queries, so
+        # its card costs no extra query per section.
         units = _unit_rows(
             [
                 MasOrgUnit.project_id == scope.project_id,
-                MasOrgUnit.parent_org_unit_id == unit.org_unit_id,
+                sa.or_(
+                    MasOrgUnit.parent_org_unit_id == unit.org_unit_id,
+                    MasOrgUnit.org_unit_id == unit.org_unit_id,
+                ),
             ]
         )
-        result["rows"] = _unit_summary_rows(
-            scope, units, dm_links=SCREEN_DATA_MANAGEMENT in screens
-        )
-        return result
-
-    rows = _unit_summary_rows(
-        scope, grant_root_units(scope), dm_links=SCREEN_DATA_MANAGEMENT in screens
-    )
-    if scope.project_wide:
-        rows.append(_unrouted_row(scope))
+        all_rows = _unit_summary_rows(scope, units, dm_links=dm_links, since=since)
+        own = [row for row in all_rows if row["key"] == str(unit.org_unit_id)]
+        rows = [row for row in all_rows if row["key"] != str(unit.org_unit_id)]
+        result["card"] = _area_card(scope, own, screens, unit=unit, since=since)
+    else:
+        if site_id:
+            raise AreaNotFound()
+        rows = _unit_summary_rows(scope, grant_root_units(scope), dm_links=dm_links, since=since)
+        if scope.project_wide:
+            rows.append(_unrouted_row(scope, since))
+        result["card"] = _area_card(scope, rows, screens, since=since)
     result["rows"] = rows
-    if with_card:
-        result["project_card"] = project_card(scope, screens, rows)
+
+    if not unit_id and not site_id and scope.project_wide:
+        result["project_card"] = {"stations": project_stations(scope.project_id)}
     return result
+
+
+#: Columns of the CSV export: one line per (section, area, measure).
+CSV_HEADER = ("section", "area_code", "area_name", "measure", "value")
+
+
+def _csv_cell(value):
+    """A cell a spreadsheet will not run: text starting with ``= + - @`` (or
+    a tab or carriage return) gets a leading ``'``. Numbers pass as they are."""
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
+def summary_csv(summary: dict) -> str:
+    """*summary* (``area_summary``) as CSV of aggregates only.
+
+    The period, the card's counts, medians and suppressed causes, each table
+    row's counts and, at a project-wide root, the stations. Area codes and
+    names only: no person names, no submission or case ids, no case rows.
+    """
+    out = io.StringIO()
+    writer = csv.writer(out)
+
+    def line(section, code, name, measure, value):
+        writer.writerow([_csv_cell(cell) for cell in (section, code or "", name, measure, value)])
+
+    selected = summary["unit"] or {"code": summary["project_id"], "name": summary["project_name"]}
+    code, name = selected["code"], selected["name"]
+    card = summary["card"]
+    writer.writerow(CSV_HEADER)
+    line("period", code, name, "period", summary["period"])
+    for key in COUNT_KEYS:
+        line("area", code, name, key, card["counts"][key])
+    for key, value in card["medians"].items():
+        line("area", code, name, key, "" if value is None else value)
+    line("area", code, name, "causes_coded", card["causes"]["coded"])
+    for cause in card["causes"]["rows"]:
+        line("cause", code, name, cause["label"], cause["coded_count"])
+    for row in summary["rows"]:
+        for key in COUNT_KEYS:
+            line("row", row["code"], row["name"], key, row["counts"][key])
+    if summary["project_card"]:
+        for key, value in summary["project_card"]["stations"].items():
+            if isinstance(value, datetime):
+                value = value.isoformat()
+            line("stations", code, name, key, "" if value is None else value)
+    return out.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -1008,12 +1239,7 @@ def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
             )
             or 0
         )
-        auth = _authoritative_submissions(project_id)
-        final_cod = (
-            db.session.scalar(sa.select(sa.func.count(auth.c.va_sid)))
-            or 0
-        )
-        return deaths, submissions, final_cod
+        return deaths, submissions, _live_counts_total(project_id)["final_cod"]
 
     if scope.has_tree:
         unit_ids = [row.org_unit_id for row in grant_root_units(scope)]
@@ -1026,13 +1252,8 @@ def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
                 unit_ids=unit_ids,
             )
             submissions = sum(row["total_submissions"] for row in stats)
-        deaths = sum(_deaths_reported_by_unit(project_id, unit_ids).values())
-        final_cod = sum(_final_cod_by_unit(project_id, unit_ids).values())
-        if scope.project_wide:
-            unrouted = get_area_unrouted_stats_from_mv(project_id=project_id)
-            submissions += unrouted.get("total_submissions", 0)
-            deaths += _deaths_reported_unrouted(project_id)
-            final_cod += _final_cod_unrouted(project_id)
+        deaths = sum(c["deaths_reported"] for c in _case_counts_by_unit(project_id, unit_ids).values())
+        final_cod = sum(c["final_cod"] for c in _live_counts_by_unit(project_id, unit_ids).values())
         return deaths, submissions, final_cod
 
     site_ids = _active_site_ids(scope)
@@ -1050,13 +1271,7 @@ def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
         )
         or 0
     )
-    auth = _authoritative_submissions(project_id)
-    final_cod = (
-        db.session.scalar(
-            sa.select(sa.func.count(auth.c.va_sid)).where(auth.c.site_id.in_(site_ids))
-        )
-        or 0
-    )
+    final_cod = sum(c["final_cod"] for c in _live_counts_by_site(project_id, site_ids).values())
     return (
         deaths,
         sum(row["total_submissions"] for row in stats),
@@ -1122,54 +1337,32 @@ CONTACT_WINDOW_DAYS = 30
 def _staff_area(scope: AreaScope, unit_id, site_id: str | None):
     """The area the staff view counts, as ``in_area(project_col, site_col, unit_col)``.
 
-    The same area as the summary at that level, so the per-staff numbers
-    cover exactly the rows above them: a selected unit's whole subtree
-    (inactive descendants included, as the unit rollup counts them), a
-    selected site of a sites-mode project, or the whole project at its root
-    for a project-wide scope (unrouted cases included). A root that is not
+    The same area as the summary at that level (``_in_area``): a selected
+    unit's whole subtree, a selected site of a sites-mode project, or the
+    whole project at its root for a project-wide scope. A root that is not
     project-wide has no single area and, like anything outside scope,
     raises AreaNotFound.
     """
-    project_id = scope.project_id
     if (scope.has_tree and site_id) or (not scope.has_tree and unit_id):
         raise AreaNotFound()
-
     if unit_id:
-        unit = _selected_unit(scope, unit_id)
-        subtree = sa.select(MasOrgUnit.org_unit_id).where(
-            MasOrgUnit.project_id == project_id, MasOrgUnit.path.op("<@")(unit.path)
-        )
-
-        def in_area(project_col, site_col, unit_col):
-            return sa.and_(project_col == project_id, unit_col.in_(subtree))
-
-        return in_area
-
+        return _in_area(scope, unit=_selected_unit(scope, unit_id))
     if site_id:
         in_scope = scope.site_ids is None or site_id in scope.site_ids
         if not in_scope or not db.session.scalar(
             sa.select(
                 sa.exists().where(
-                    VaProjectSites.project_id == project_id,
+                    VaProjectSites.project_id == scope.project_id,
                     VaProjectSites.site_id == site_id,
                     VaProjectSites.project_site_status == VaStatuses.active,
                 )
             )
         ):
             raise AreaNotFound()
-
-        def in_area(project_col, site_col, unit_col):
-            return sa.and_(project_col == project_id, site_col == site_id)
-
-        return in_area
-
+        return _in_area(scope, site_id=site_id)
     if not scope.project_wide:
         raise AreaNotFound()
-
-    def in_area(project_col, site_col, unit_col):
-        return project_col == project_id
-
-    return in_area
+    return _in_area(scope)
 
 
 def _case_not_duplicate(case=VaDeathRegister):
@@ -1268,66 +1461,12 @@ def _interviewer_rows(in_area) -> tuple[list[dict], bool]:
     return _sorted_staff(by_user.values(), keys), truncated
 
 
-def _coder_rows(in_area) -> tuple[list[dict], bool]:
-    """Per-coder first-pass outcomes in the area over the last 7 and 30 days.
-
-    The attribution ``dm_coder_daily_statistics`` uses: the actor of a
-    ``coder_finalized`` (coded) or ``coder_not_codeable`` workflow event.
-    Retired submissions, inactive project-sites and confirmed duplicates are
-    left out, as in the coding columns of the table.
-    """
-    now = datetime.now(UTC)
-    event = VaSubmissionWorkflowEvent
-    coded = event.transition_id == TRANSITION_CODER_FINALIZED
-    not_codeable = event.transition_id == TRANSITION_CODER_NOT_CODEABLE
-    last_7 = event.event_created_at >= now - timedelta(days=7)
-    counted = sa.func.count()
-    stmt = (
-        sa.select(
-            event.actor_user_id,
-            VaUsers.name,
-            counted.filter(coded, last_7).label("coded_7_days"),
-            counted.filter(coded).label("coded_30_days"),
-            counted.filter(not_codeable, last_7).label("not_codeable_7_days"),
-            counted.filter(not_codeable).label("not_codeable_30_days"),
-        )
-        .join(VaSubmissions, VaSubmissions.va_sid == event.va_sid)
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .join(
-            VaProjectSites,
-            sa.and_(
-                VaProjectSites.project_id == VaForms.project_id,
-                VaProjectSites.site_id == VaForms.site_id,
-                VaProjectSites.project_site_status == VaStatuses.active,
-            ),
-        )
-        .join(VaUsers, VaUsers.user_id == event.actor_user_id)
-        .where(
-            event.transition_id.in_((TRANSITION_CODER_FINALIZED, TRANSITION_CODER_NOT_CODEABLE)),
-            event.event_created_at >= now - timedelta(days=30),
-            in_area(VaForms.project_id, VaForms.site_id, VaSubmissions.org_unit_id),
-            submission_is_in_odk(VaSubmissions),
-            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-        )
-        .group_by(event.actor_user_id, VaUsers.name)
-        .order_by(counted.desc(), VaUsers.name)
-        .limit(STAFF_ROW_LIMIT + 1)
-    )
-    keys = ("coded_7_days", "coded_30_days", "not_codeable_7_days", "not_codeable_30_days")
-    result = db.session.execute(stmt).all()
-    rows = [
-        {"name": record.name or "Unknown", **{key: getattr(record, key) for key in keys}}
-        for record in result[:STAFF_ROW_LIMIT]
-    ]
-    return _sorted_staff(rows, keys), len(result) > STAFF_ROW_LIMIT
-
-
 def _sorted_staff(rows, keys) -> list[dict]:
     return sorted(rows, key=lambda row: (-sum(row[key] for key in keys), row["name"].lower()))
 
 
 def area_staff(user, project_id: str, unit_id=None, site_id: str | None = None) -> dict:
-    """Per-interviewer and per-coder counts for one area of the dashboard.
+    """Per-interviewer counts for one area of the dashboard.
 
     The area is the selected unit's subtree or sites-mode site, or the whole
     project at its root for a project-wide scope (``_staff_area``). Every row
@@ -1335,7 +1474,9 @@ def area_staff(user, project_id: str, unit_id=None, site_id: str | None = None) 
     from gets no rows and ``staff_identity_redacted``, not pseudonyms: a
     "Coder 1" with its own throughput still singles out one person, which is
     why ``dm_coder_daily_statistics`` does the same (docs/policy/area-dashboard.md,
-    "Staff identity"). The staff queries do not run for such a viewer.
+    "Staff identity"). The staff queries do not run for such a viewer. The
+    per-coder table was cut on 2026-10-22; coder throughput is the data
+    manager's coder statistics.
 
     Raises AreaNotFound for a project, unit or site outside the user's area,
     before the identity decision, so a redacted viewer learns no more.
@@ -1348,12 +1489,9 @@ def area_staff(user, project_id: str, unit_id=None, site_id: str | None = None) 
         "project_id": scope.project_id,
         "staff_identity_redacted": should_redact_pii(user),
         "interviewers": [],
-        "coders": [],
         "truncated": False,
     }
     if result["staff_identity_redacted"]:
         return result
-    result["interviewers"], interviewers_truncated = _interviewer_rows(in_area)
-    result["coders"], coders_truncated = _coder_rows(in_area)
-    result["truncated"] = interviewers_truncated or coders_truncated
+    result["interviewers"], result["truncated"] = _interviewer_rows(in_area)
     return result

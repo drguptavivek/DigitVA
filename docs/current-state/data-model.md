@@ -596,6 +596,9 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
   (last activity). Index `ix_va_death_register_registered_by (registered_by,
   updated_at, death_id)` (migration `f2j6n9r4u1x7`) serves a death reporter's
   own list ("registered by me, newest activity first", keyset-paged).
+- Index `ix_va_death_register_va_sid (va_sid)` (migration `e2b7d4a9c6f1`)
+  serves the area dashboard's death-to-interview medians, which join the
+  register to submissions by `va_sid`.
 - `next_visit_at`, `last_contact_at` (timestamptz, nullable): the appointment
   or follow-up date and the latest contact attempt. Index
   `ix_va_death_register_next_visit (next_visit_at, updated_at, death_id)`
@@ -1132,7 +1135,12 @@ Key fields:
 Indexes: `ix_va_allocations_to_for_createdat` on (`va_allocated_to`,
 `va_allocation_for`, `va_allocation_createdat`) serves "this user's most
 recent coding or reviewing allocation", which picks the project a queue
-opens on (`digitva-umc4`, migration `j7n3q9w5y2e8`).
+opens on (`digitva-umc4`, migration `j7n3q9w5y2e8`). The partial unique
+index `uq_va_allocations_active_to_for` on (`va_allocated_to`,
+`va_allocation_for`) WHERE `va_allocation_status = 'active'` (migration
+`a7c3e9f1d5b2`, `digitva-igq7`) enforces at most one active coding and one
+active reviewing allocation per user; an allocator whose insert is refused
+resumes the held allocation or answers `allocation_exists`.
 
 ### `va_submission_payload_versions`
 

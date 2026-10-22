@@ -3,7 +3,7 @@ title: Coding Allocation Timeout Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-10-22
 ---
 
 # Coding Allocation Timeout Policy
@@ -110,6 +110,27 @@ The effect is the same as the timeout release, through
 Only the allocation's own coder may release it, and only while it is active.
 The automatic release after the timeout above stays as it is. The invariant
 below applies to a coder release too.
+
+## One active allocation, enforced
+
+`digitva-igq7`. "One active coding allocation per coder" and "one active
+reviewing allocation per reviewer" are enforced by the partial unique index
+`uq_va_allocations_active_to_for` on `va_allocations (va_allocated_to,
+va_allocation_for) WHERE va_allocation_status = 'active'`. The allocators'
+"already holds one?" check is not enough on its own: two concurrent requests
+from one user for different cases both passed it. Now the second insert is
+refused, its savepoint is rolled back with nothing else written, and the
+allocator answers as its check would have: random allocation resumes the held
+case; a pick, "Code this case now", or a reviewer start resumes it when it is
+the same case and refuses with 409 `allocation_exists` otherwise; a recode or
+demo start refuses.
+
+Migration `a7c3e9f1d5b2` resolved existing duplicates before adding the index:
+the newest active allocation per (user, kind) stayed active, the others were
+marked `deactive` with an audit row `va_allocation_deactivated_duplicate_active`
+(role `vasystem`). It did not replay the release's workflow transitions or
+artifact deactivations, so a case behind a demoted allocation keeps its
+in-progress state; the migration prints the count. Dev had none.
 
 ## Revocation when a web case is confirmed as a duplicate
 

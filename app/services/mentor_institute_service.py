@@ -51,12 +51,14 @@ from app.services.organization_service import (
 )
 
 # The only roles an institute member may hold, always at org_unit scope.
+# Plain collaborator: area counts without names (owner, 2026-10-22).
 MENTOR_ROLES = frozenset(
     {
         VaAccessRoles.coder,
         VaAccessRoles.reviewer,
         VaAccessRoles.coding_tester,
         VaAccessRoles.collaborator_pii,
+        VaAccessRoles.collaborator,
     }
 )
 _MENTOR_ROLE_NAMES = ", ".join(sorted(role.value for role in MENTOR_ROLES))

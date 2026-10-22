@@ -271,6 +271,7 @@ export function errorText(error: unknown): string {
   if (error instanceof SignInRequiredError) return t("signInAgain");
   if (error instanceof ApiError) {
     if (error.code === "enrolment_invalid") return t("errEnrolInvalid");
+    if (error.code === "csrf_failed") return t("csrfRefreshed");
     if (error.code === "cookie_session_required") return t("loginRequiredAction");
     if (error.code === "maintenance") return t("serverUnavailable");
     if (error.code === "forbidden" || error.code === "project_forbidden") return t("serverForbidden");

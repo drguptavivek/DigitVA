@@ -173,7 +173,6 @@ class ReviewingAuthzStageFourTests(CodingScopeFixtureMixin, BaseTestCase):
         """An allocation that outlived a re-routing no longer carries the save."""
         reviewer = self._user("unit.json", (VaAccessRoles.reviewer, self.phc_a))
         self._allocate(reviewer, "csc-s4-a")
-        self._allocate(reviewer, "csc-s4-b")
         self._login(str(reviewer.user_id))
         body = {"va_actiontype": "varesumereviewing", "cannot_grade": True, "selected_options": []}
         for path in ("narrative-qa", "social-autopsy"):
@@ -184,6 +183,13 @@ class ReviewingAuthzStageFourTests(CodingScopeFixtureMixin, BaseTestCase):
                 self.assertNotEqual(
                     (mine.get_json() or {}).get("error"), "Reviewer access is required."
                 )
+        # One active reviewing allocation per user: the out-of-scope case next.
+        db.session.execute(sa.update(VaAllocations).where(
+            VaAllocations.va_allocated_to == reviewer.user_id
+        ).values(va_allocation_status=VaStatuses.deactive))
+        self._allocate(reviewer, "csc-s4-b")
+        for path in ("narrative-qa", "social-autopsy"):
+            with self.subTest(api=path):
                 theirs = self.client.post(
                     f"/api/v1/va/csc-s4-b/{path}", json=body, headers=self._csrf_headers()
                 )

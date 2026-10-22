@@ -139,7 +139,8 @@ function AddIdentifierPanel({ row, onChanged }: { row: Editable; onChanged: () =
       } else {
         const fieldErrors = identifierFieldErrors(error);
         setErrors(fieldErrors);
-        setMessage(Object.keys(fieldErrors).length ? t("serverValidation") : t("serverError"));
+        setMessage(Object.keys(fieldErrors).length ? t("serverValidation")
+          : error instanceof ApiError && error.code === "csrf_failed" ? t("csrfRefreshed") : t("serverError"));
       }
     } finally {
       if (alive.current) setBusy(false);

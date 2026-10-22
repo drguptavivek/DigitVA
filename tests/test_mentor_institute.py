@@ -121,7 +121,6 @@ class MentorInstituteTests(MentorBase):
             VaAccessRoles.interviewer,
             VaAccessRoles.data_manager,
             VaAccessRoles.interview_supervisor,
-            VaAccessRoles.collaborator,
         ):
             with self.subTest(role=role):
                 with self.assertRaises(REFUSED) as ctx:
@@ -147,10 +146,29 @@ class MentorInstituteTests(MentorBase):
             VaAccessRoles.reviewer,
             VaAccessRoles.coding_tester,
             VaAccessRoles.collaborator_pii,
+            VaAccessRoles.collaborator,
         ):
             for unit in (d1, chc):
                 with self.subTest(role=role, unit=unit.unit_code):
                     self._validate(user, role, unit)
+
+    def test_collaborator_mentor_sees_its_area_without_staff_names(self):
+        """digitva-qfh8: plain collaborator is a mentor role; counts, no names."""
+        from app.services import area_dashboard_service as area
+
+        d1, _, chc, user = self._setup_one()
+        self._validate(user, VaAccessRoles.collaborator, d1)
+        db.session.add(VaUserAccessGrants(
+            user_id=user.user_id, role=VaAccessRoles.collaborator,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=d1.org_unit_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        scope = area.resolve_area_scope(user, self.P1)
+        self.assertEqual([row.unit_code for row in area.grant_root_units(scope)], ["D01"])
+        staff = area.area_staff(user, self.P1, unit_id=str(chc.org_unit_id))
+        self.assertTrue(staff["staff_identity_redacted"])
+        self.assertEqual(staff["interviewers"], [])
 
     def test_non_member_is_unaffected(self):
         d1, d2, chc, _ = self._setup_one()

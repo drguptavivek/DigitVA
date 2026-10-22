@@ -1,5 +1,6 @@
 """Helpers for coding allocation lifecycle."""
 
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
@@ -19,6 +20,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissionsAuditlog,
 )
+from app.models.va_allocations import ACTIVE_ALLOCATION_INDEX
 from app.services.final_cod_authority_service import (
     abandon_active_recode_episode,
     get_active_recode_episode,
@@ -54,6 +56,32 @@ from app.services.workflow.state_store import (
     get_submission_workflow_state,
     sync_submission_workflow_from_legacy_records,
 )
+
+
+class ActiveAllocationHeld(Exception):
+    """The user already holds an active allocation of this kind: a concurrent
+    request of theirs inserted first (digitva-igq7)."""
+
+
+@contextmanager
+def active_allocation_savepoint():
+    """Run an active allocation's insert in a savepoint.
+
+    The partial unique index ``uq_va_allocations_active_to_for`` refuses a
+    second active allocation per user and kind. On that refusal the savepoint
+    is rolled back, the rest of the session (an enclosing bundle ingest
+    savepoint included) is left as it was, and ActiveAllocationHeld is raised
+    for the caller to resume or refuse as its own pre-check does. Any other
+    IntegrityError propagates.
+    """
+    try:
+        with db.session.begin_nested():
+            yield
+    except sa.exc.IntegrityError as exc:
+        diag = getattr(exc.orig, "diag", None)
+        if getattr(diag, "constraint_name", None) != ACTIVE_ALLOCATION_INDEX:
+            raise
+        raise ActiveAllocationHeld() from None
 
 
 def _naive_utc_now() -> datetime:

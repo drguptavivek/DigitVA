@@ -660,6 +660,32 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("keeps the typed edit and its error after a business 403 and an unchanged access re-read", async () => {
+    mockParams = { deathId: "d1" };
+    const detail = {
+      death_id: "d1", project_id: "P1", site_id: "S1", org_unit_id: null, state: "registered",
+      updated_at: "2026-10-06T12:00:00+00:00", deceased: { name: "Asha", sex: "female", date_of_death: "2026-09-30", date_of_birth: "1987-04-12", age_years: 39 },
+      household_address: { address: "Old address" }, informant: {}, remarks: null, links: {}
+    };
+    jest.spyOn(sharedApi, "getCaseDetail").mockResolvedValue({ case: detail } as never);
+    // IDENTIFIER_FORBIDDEN reaches the browser as 403 `forbidden`.
+    jest.spyOn(sharedApi, "requestClientJson").mockRejectedValue(new sharedApi.ApiError(403, "forbidden"));
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    await act(async () => tree!.root.findByProps({ "data-field": "address" }).props.onClick("Keep this edit"));
+    await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
+    await settle();
+    const alert = () => tree!.root.findAll((node) => node.props.accessibilityRole === "alert" && node.props.children === "error");
+    expect(alert().length).toBeGreaterThan(0);
+    // A tab resume re-reads /me/access; AppState keeps the same bootstrap object when nothing changed.
+    await act(async () => { tree!.update(<DeathRegistrationScreen />); });
+    await settle();
+    expect(tree!.root.findByProps({ "data-field": "address" }).props["data-value"]).toBe("Keep this edit");
+    expect(alert().length).toBeGreaterThan(0);
+    await act(async () => tree!.unmount());
+  });
+
   it("refetches an own reporter record from the bounded own list after a stale conflict", async () => {
     mockParams = { deathId: "d1", registered: "mine" };
     mockBootstrap.capabilities = { intake: true, registerDeath: true, registeredDeaths: true, coding: false, reviewing: false };

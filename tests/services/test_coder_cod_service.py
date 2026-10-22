@@ -139,6 +139,12 @@ class TestCoderCodService(BaseTestCase):
             created_by_role="vasystem",
         )
         if allocated:
+            # One active allocation per coder: the newest case holds it.
+            db.session.execute(sa.update(VaAllocations).where(
+                VaAllocations.va_allocated_to == (user or self.coder).user_id,
+                VaAllocations.va_allocation_for == VaAllocation.coding,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            ).values(va_allocation_status=VaStatuses.deactive))
             db.session.add(VaAllocations(
                 va_allocation_id=uuid.uuid4(), va_sid=sid,
                 va_allocated_to=(user or self.coder).user_id,
@@ -234,6 +240,10 @@ class TestCoderCodService(BaseTestCase):
         self._refused(lambda: submit_coder_initial_cod(
             self.coder, "uuid:missing", immediate_cod=_COD, antecedent_cod=_COD, actiontype=""),
             404, "not_found")
+        # Before the cases below: their allocations release sid's (one per coder).
+        self._refused(lambda: submit_coder_initial_cod(
+            self.coder, sid, immediate_cod="", antecedent_cod=_COD, actiontype=""),
+            400, "invalid_request")
         unallocated = self._case(allocated=False)
         self._refused(lambda: submit_coder_initial_cod(
             self.coder, unallocated, immediate_cod=_COD, antecedent_cod=_COD, actiontype=""),
@@ -247,9 +257,6 @@ class TestCoderCodService(BaseTestCase):
         self._refused(lambda: submit_coder_initial_cod(
             self.coder, ready, immediate_cod=_COD, antecedent_cod=_COD, actiontype=""),
             409, "wrong_state")
-        self._refused(lambda: submit_coder_initial_cod(
-            self.coder, sid, immediate_cod="", antecedent_cod=_COD, actiontype=""),
-            400, "invalid_request")
         self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(
             VaInitialAssessments).where(VaInitialAssessments.va_sid == sid)), 0)
 

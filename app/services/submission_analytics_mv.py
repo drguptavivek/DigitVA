@@ -1678,6 +1678,7 @@ def get_dm_org_unit_stats_from_mv(
     unit_ids: Iterable | None = None,
     include_breakdown: bool = False,
     scope_unit_ids=None,
+    since=None,
 ) -> list[dict]:
     """Return per-organization-unit submission counts for one project's tree.
 
@@ -1700,7 +1701,8 @@ def get_dm_org_unit_stats_from_mv(
     (``_mv_scope_filter``). ``include_breakdown`` adds the area
     dashboard's columns to each row, from the same query: submissions in
     the last 7 and 30 days and one count per coding bucket
-    (``area_breakdown_columns``). docs/policy/area-dashboard.md.
+    (``area_breakdown_columns``, with ``submitted`` counted from *since*).
+    docs/policy/area-dashboard.md.
     """
     from app.models.mas_organization import MasOrgUnit
 
@@ -1746,7 +1748,7 @@ def get_dm_org_unit_stats_from_mv(
     )
 
     count_columns = (
-        area_breakdown_columns(scoped_submissions)
+        area_breakdown_columns(scoped_submissions, since)
         if include_breakdown
         else [sa.func.count(scoped_submissions.c.org_unit_path).label("total_submissions")]
     )
@@ -1789,13 +1791,14 @@ def get_dm_org_unit_stats_from_mv(
 # Area dashboard (docs/policy/area-dashboard.md)
 # ---------------------------------------------------------------------------
 
-AREA_BREAKDOWN_KEYS = ("last_7_days", "last_30_days", *CODING_BUCKETS)
+AREA_BREAKDOWN_KEYS = ("submitted", "last_7_days", "last_30_days", *CODING_BUCKETS)
 
 
-def area_breakdown_columns(source) -> list:
+def area_breakdown_columns(source, since=None) -> list:
     """Labelled aggregate columns over *source* (va_sid, submission_at, workflow_state).
 
-    Total, last 7 and 30 days, and one ``count(*) FILTER`` per coding bucket.
+    Total, submitted since *since* (the total when None: the area period
+    filter), last 7 and 30 days, and one ``count(*) FILTER`` per coding bucket.
     The bucket CASE is built from ``WORKFLOW_CODING_BUCKETS`` itself, so the
     SQL and ``coding_bucket()`` cannot drift; a NULL or unknown state falls
     to the ELSE and counts as ``other``. Counting ``va_sid`` keeps an
@@ -1808,6 +1811,9 @@ def area_breakdown_columns(source) -> list:
     )
     return [
         counted.label("total_submissions"),
+        (counted if since is None else counted.filter(source.c.submission_at >= since)).label(
+            "submitted"
+        ),
         counted.filter(source.c.submission_at >= now - timedelta(days=7)).label("last_7_days"),
         counted.filter(source.c.submission_at >= now - timedelta(days=30)).label("last_30_days"),
         *(counted.filter(bucket == name).label(name) for name in CODING_BUCKETS),
@@ -1836,7 +1842,7 @@ def _core_table_with_org_unit():
 
 
 def get_area_site_stats_from_mv(
-    *, project_ids: list[str], project_site_pairs, site: str = ""
+    *, project_ids: list[str], project_site_pairs, site: str = "", since=None
 ) -> list[dict]:
     """Area-dashboard counts per site, for a project with no organization tree.
 
@@ -1849,7 +1855,7 @@ def get_area_site_stats_from_mv(
         core, None, project_ids=project_ids, project_site_pairs=project_site_pairs, site=site
     )
     rows = db.session.execute(
-        sa.select(core.c.project_id, core.c.site_id, *area_breakdown_columns(core))
+        sa.select(core.c.project_id, core.c.site_id, *area_breakdown_columns(core, since))
         .where(*conditions)
         .group_by(core.c.project_id, core.c.site_id)
     ).mappings().all()
@@ -1864,7 +1870,7 @@ def get_area_site_stats_from_mv(
     ]
 
 
-def get_area_unrouted_stats_from_mv(*, project_id: str) -> dict:
+def get_area_unrouted_stats_from_mv(*, project_id: str, since=None) -> dict:
     """Area-dashboard counts for a tree project's submissions with no unit.
 
     Postgres cannot FULL JOIN on ``<@``, so the unrouted row cannot come out
@@ -1876,7 +1882,7 @@ def get_area_unrouted_stats_from_mv(*, project_id: str) -> dict:
         core, None, project_ids=[project_id], project_site_pairs=[]
     )
     row = db.session.execute(
-        sa.select(*area_breakdown_columns(core))
+        sa.select(*area_breakdown_columns(core, since))
         .where(*conditions)
         .where(core.c.org_unit_path.is_(None))
     ).mappings().one()

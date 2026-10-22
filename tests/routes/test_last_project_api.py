@@ -124,13 +124,14 @@ class LastProjectApiTests(BaseTestCase):
         cls.coder_two = cls._make_user(f"lp.coder2.{_SUFFIX}@test.local", "LastProject123")
         cls._grant(cls.coder_two, P1, VaAccessRoles.coder)
         cls._grant(cls.coder_two, P2, VaAccessRoles.coder)
-        cls._allocate(cls.coder_two, sid(P1, 0), VaAllocation.coding, T0)
+        # One active allocation per user and kind: the older one was released.
+        cls._allocate(cls.coder_two, sid(P1, 0), VaAllocation.coding, T0, VaStatuses.deactive)
         cls._allocate(cls.coder_two, sid(P2, 0), VaAllocation.coding, T1)
 
         # Newest coding allocation is in P3, which this coder holds no grant on.
         cls.coder_gone = cls._make_user(f"lp.codergone.{_SUFFIX}@test.local", "LastProject123")
         cls._grant(cls.coder_gone, P1, VaAccessRoles.coder)
-        cls._allocate(cls.coder_gone, sid(P1, 1), VaAllocation.coding, T0)
+        cls._allocate(cls.coder_gone, sid(P1, 1), VaAllocation.coding, T0, VaStatuses.deactive)
         cls._allocate(cls.coder_gone, sid(P3, 0), VaAllocation.coding, T1)
 
         cls.coder_none = cls._make_user(f"lp.codernone.{_SUFFIX}@test.local", "LastProject123")
@@ -153,7 +154,7 @@ class LastProjectApiTests(BaseTestCase):
 
         cls.rev_gone = cls._make_user(f"lp.revgone.{_SUFFIX}@test.local", "LastProject123")
         cls._grant(cls.rev_gone, P1, VaAccessRoles.reviewer)
-        cls._allocate(cls.rev_gone, sid(P1, 4), VaAllocation.reviewing, T0)
+        cls._allocate(cls.rev_gone, sid(P1, 4), VaAllocation.reviewing, T0, VaStatuses.deactive)
         cls._allocate(cls.rev_gone, sid(P3, 1), VaAllocation.reviewing, T1)
 
         cls.rev_none = cls._make_user(f"lp.revnone.{_SUFFIX}@test.local", "LastProject123")

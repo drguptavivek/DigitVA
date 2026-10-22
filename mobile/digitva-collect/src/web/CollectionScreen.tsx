@@ -219,7 +219,8 @@ export default function CollectionScreen() {
     setInterviewStatus("all");
     setAdvanced(EMPTY_ADVANCED);
     setProjectFilter(undefined);
-  }, [bootstrap]);
+    // Keyed on the account, not the bootstrap object: an access re-read keeps the user's filters.
+  }, [bootstrap?.user.user_id]);
 
   useEffect(() => {
     void refresh().then((result) => {

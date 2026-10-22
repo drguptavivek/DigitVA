@@ -33,7 +33,9 @@ from app.services.authz import (
     scope_filter,
 )
 from app.services.coding_allocation_service import (
+    ActiveAllocationHeld,
     _release_coding_allocation,
+    active_allocation_savepoint,
     release_stale_coding_allocations,
 )
 from app.services.demo_project_service import (
@@ -599,14 +601,19 @@ def _create_coding_allocation(
     *,
     demo_session: bool = False,
 ):
-    """Create allocation row, bump formcount, write audit, advance workflow state."""
+    """Create allocation row, bump formcount, write audit, advance workflow state.
+
+    Raises ActiveAllocationHeld, having written nothing, when *user* already
+    holds an active coding allocation (a concurrent request inserted first).
+    """
     gen_uuid = uuid.uuid4()
-    db.session.add(VaAllocations(
-        va_allocation_id=gen_uuid,
-        va_sid=va_sid,
-        va_allocated_to=user.user_id,
-        va_allocation_for=VaAllocation.coding,
-    ))
+    with active_allocation_savepoint():
+        db.session.add(VaAllocations(
+            va_allocation_id=gen_uuid,
+            va_sid=va_sid,
+            va_allocated_to=user.user_id,
+            va_allocation_for=VaAllocation.coding,
+        ))
     user.vacode_formcount += 1
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
@@ -642,13 +649,20 @@ def _create_coding_allocation(
 # ---------------------------------------------------------------------------
 
 def get_active_coding_allocation(user_id: str) -> str | None:
-    """Return the va_sid of the current active coding allocation, or None."""
+    """Return the va_sid of the current active coding allocation, or None.
+
+    The unique index allows one; newest first keeps "Resume" on the same case
+    should rows from before it ever coexist.
+    """
     return db.session.scalar(
-        sa.select(VaAllocations.va_sid).where(
+        sa.select(VaAllocations.va_sid)
+        .where(
             VaAllocations.va_allocated_to == user_id,
             VaAllocations.va_allocation_for == VaAllocation.coding,
             VaAllocations.va_allocation_status == VaStatuses.active,
         )
+        .order_by(VaAllocations.va_allocation_createdat.desc())
+        .limit(1)
     )
 
 
@@ -717,13 +731,20 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         raise AllocationError(msg)
 
     actiontype = _actiontype_for_submission(va_new_sid, "vastartcoding")
-    _create_coding_allocation(
-        va_new_sid,
-        user,
-        "form allocated to coder",
-        "vacoder",
-        demo_session=(actiontype == "vademo_start_coding"),
-    )
+    try:
+        _create_coding_allocation(
+            va_new_sid,
+            user,
+            "form allocated to coder",
+            "vacoder",
+            demo_session=(actiontype == "vademo_start_coding"),
+        )
+    except ActiveAllocationHeld:
+        # A concurrent request of this user allocated first: resume it.
+        existing_sid = require_active_coding_allocation(user)
+        if existing_sid is None:  # and was released since
+            raise _allocation_exists() from None
+        return AllocationResult(va_sid=existing_sid, actiontype="varesumecoding")
     db.session.commit()
     return AllocationResult(va_sid=va_new_sid, actiontype=actiontype)
 
@@ -760,12 +781,7 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
 
     existing_sid = get_active_coding_allocation(user.user_id)
     if existing_sid:
-        if existing_sid == va_sid:
-            _require_coder_access(user, va_sid)
-            return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
-        raise AllocationError(
-            "You already have an active coding allocation.", code="allocation_exists"
-        )
+        return _resume_picked(user, existing_sid, va_sid)
 
     form = _require_coder_access(user, va_sid)
 
@@ -822,8 +838,29 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
             raise
         db.session.rollback()
         raise _unavailable(get_submission_workflow_state(va_sid)) from None
+    except ActiveAllocationHeld:
+        # A concurrent request of this user allocated first.
+        existing_sid = get_active_coding_allocation(user.user_id)
+        if existing_sid is None:  # and was released since
+            raise _allocation_exists() from None
+        return _resume_picked(user, existing_sid, va_sid)
     db.session.commit()
     return AllocationResult(va_sid=va_sid, actiontype=actiontype)
+
+
+def _allocation_exists() -> AllocationError:
+    return AllocationError(
+        "You already have an active coding allocation.", code="allocation_exists"
+    )
+
+
+def _resume_picked(user, existing_sid: str, va_sid: str) -> AllocationResult:
+    """*user* already holds *existing_sid*: resume it when it is the picked
+    *va_sid*, else refuse with ``allocation_exists``."""
+    if existing_sid != va_sid:
+        raise _allocation_exists()
+    _require_coder_access(user, va_sid)
+    return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
 
 
 def allocate_own_case(user, va_sid: str) -> AllocationResult:
@@ -965,16 +1002,21 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
     if authoritative_final.va_finassess_createdat <= cutoff:
         raise AllocationError("This submission is outside the recode window.")
 
-    episode = start_recode_episode(
-        va_sid, user.user_id, base_final_assessment=authoritative_final
-    )
     gen_uuid = uuid.uuid4()
-    db.session.add(VaAllocations(
-        va_allocation_id=gen_uuid,
-        va_sid=va_sid,
-        va_allocated_to=user.user_id,
-        va_allocation_for=VaAllocation.coding,
-    ))
+    try:
+        # The episode shares the savepoint: a refused allocation leaves none.
+        with active_allocation_savepoint():
+            episode = start_recode_episode(
+                va_sid, user.user_id, base_final_assessment=authoritative_final
+            )
+            db.session.add(VaAllocations(
+                va_allocation_id=gen_uuid,
+                va_sid=va_sid,
+                va_allocated_to=user.user_id,
+                va_allocation_for=VaAllocation.coding,
+            ))
+    except ActiveAllocationHeld:
+        raise AllocationError("You already have an active coding allocation.") from None
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
         va_audit_byrole="vacoder",
@@ -1148,12 +1190,20 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
         raise AllocationError("No forms are currently available for demo coding.")
 
     gen_uuid = uuid.uuid4()
-    db.session.add(VaAllocations(
-        va_allocation_id=gen_uuid,
-        va_sid=va_new_sid,
-        va_allocated_to=user.user_id,
-        va_allocation_for=VaAllocation.coding,
-    ))
+    try:
+        with active_allocation_savepoint():
+            db.session.add(VaAllocations(
+                va_allocation_id=gen_uuid,
+                va_sid=va_new_sid,
+                va_allocated_to=user.user_id,
+                va_allocation_for=VaAllocation.coding,
+            ))
+    except ActiveAllocationHeld:
+        # A concurrent demo start inserted first; drop this one's release too.
+        db.session.rollback()
+        raise AllocationError(
+            "You already have an active coding allocation.", 409, code="allocation_exists"
+        ) from None
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_new_sid,
         va_audit_byrole="vaadmin",

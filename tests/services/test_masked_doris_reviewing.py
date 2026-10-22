@@ -207,6 +207,16 @@ class TestMaskedDorisReviewing(BaseTestCase):
             )
         )
         if allocate:
+            # One active allocation per reviewer: the newest case holds it.
+            db.session.execute(
+                db.update(VaAllocations)
+                .where(
+                    VaAllocations.va_allocated_to == self.reviewer.user_id,
+                    VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                    VaAllocations.va_allocation_status == VaStatuses.active,
+                )
+                .values(va_allocation_status=VaStatuses.deactive)
+            )
             db.session.add(
                 VaAllocations(
                     va_sid=sid,

@@ -5,6 +5,8 @@ from app import db
 from datetime import datetime, timezone
 from app.models.va_selectives import VaAllocation, VaStatuses
 
+ACTIVE_ALLOCATION_INDEX = "uq_va_allocations_active_to_for"
+
 
 class VaAllocations(db.Model):
     __tablename__ = "va_allocations"
@@ -49,6 +51,15 @@ class VaAllocations(db.Model):
             "va_allocated_to",
             "va_allocation_for",
             "va_allocation_createdat",
+        ),
+        # One active allocation per user and kind: a concurrent second insert
+        # fails here and the allocator resumes the first (digitva-igq7).
+        sa.Index(
+            ACTIVE_ALLOCATION_INDEX,
+            "va_allocated_to",
+            "va_allocation_for",
+            unique=True,
+            postgresql_where=sa.text("va_allocation_status = 'active'"),
         ),
     )
 

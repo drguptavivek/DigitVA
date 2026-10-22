@@ -613,6 +613,31 @@ describe("leave guard of an open interview", () => {
   }
   afterEach(() => stayOnPage());
 
+  it("saves the typed answers to the server before a session reset reloads the draft", async () => {
+    const {tree, saveDraft} = await openEdited();
+    const order: string[] = [];
+    saveDraft.mockImplementation(async () => { order.push("save"); });
+    mockServerFlush.mockImplementation(async () => { order.push("flush"); });
+    const loadDraft = (getDraft as jest.Mock).getMockImplementation()!;
+    (getDraft as jest.Mock).mockImplementation(async (...args: unknown[]) => { order.push("load"); return loadDraft(...args); });
+    // A re-read whose access really changed hands the screen a new bootstrap object for the same account.
+    mockCurrentBootstrap = {...mockBootstrap, access: {...mockBootstrap.access}};
+    await act(async () => { tree.update(<InterviewScreen />); });
+    expect(order.slice(0, 3)).toEqual(["save", "flush", "load"]);
+    await act(async () => tree.unmount());
+  });
+
+  it("does not write the open draft under another account's session", async () => {
+    const {tree, saveDraft} = await openEdited();
+    saveDraft.mockClear();
+    mockServerFlush.mockClear();
+    mockCurrentBootstrap = {...mockBootstrap, user: {user_id: "u2", name: "Other"}};
+    await act(async () => { tree.update(<InterviewScreen />); });
+    expect(saveDraft).not.toHaveBeenCalled();
+    expect(mockServerFlush).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
   it("keeps Back to collection above the form with no second Save: answers autosave", async () => {
     const {tree} = await openEdited(false);
     expect(backButton(tree)).toBeDefined();

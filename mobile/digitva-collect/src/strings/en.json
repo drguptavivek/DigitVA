@@ -42,6 +42,7 @@
   "serverUnavailable": "The server is unavailable. Check the connection and try again.",
   "serverUnauthorized": "Your sign-in has expired. Sign in again.",
   "serverForbidden": "You do not have permission to do that.",
+  "csrfRefreshed": "Your session security token was refreshed. Please try again.",
   "serverValidation": "Check the highlighted fields and try again.",
   "debugWarning": "Debug build: do not collect real interviews.",
   "enrolTitle": "Enrol this device",

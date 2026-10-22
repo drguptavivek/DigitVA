@@ -150,11 +150,12 @@ class DmKpiRetiredSubmissionTests(BaseTestCase):
             )
         )
         db.session.add(
+            # Released at finalization; one active allocation per coder.
             VaAllocations(
                 va_sid=sid,
                 va_allocated_to=cls.base_coder_user.user_id,
                 va_allocation_for=VaAllocation.coding,
-                va_allocation_status=VaStatuses.active,
+                va_allocation_status=VaStatuses.deactive,
             )
         )
         db.session.flush()

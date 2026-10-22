@@ -142,7 +142,8 @@ class TestCodingAllocationService(BaseTestCase):
                 VaAllocations(
                     va_allocation_id=fresh_allocation_id,
                     va_sid=fresh_sid,
-                    va_allocated_to=self.base_coder_user.user_id,
+                    # Another coder: one active allocation per user.
+                    va_allocated_to=self.base_admin_user.user_id,
                     va_allocation_for=VaAllocation.coding,
                     va_allocation_status=VaStatuses.active,
                     va_allocation_createdat=datetime.now(timezone.utc)

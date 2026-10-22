@@ -24,11 +24,15 @@ from app.models import (
     MasIcd1020192,
     MasIcd11Mms,
     VaCodBucketSchemeSnapshot,
+    VaDeathRegister,
     VaSmartvaResults,
     VaForms,
     VaSubmissions,
 )
-from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+from app.services.duplicate_exclusion import (
+    DUPLICATE_CASE_STATUS,
+    not_confirmed_duplicate_condition,
+)
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -3999,6 +4003,65 @@ def _matched_cod_bucket_rows_subquery(*, scheme, base_rows):
     return query.subquery("matched_cod_bucket_rows")
 
 
+def count_coded_submissions_by_cause(
+    *,
+    scheme_code: str,
+    project_id: str,
+    allowed_project_site_pairs: set[tuple[str, str]] | None = None,
+    allowed_org_unit_ids: set | None = None,
+    death_date_from=None,
+) -> tuple[int, list[dict]]:
+    """(coded total, causes) for the area dashboard's cause card.
+
+    The coded total is every coded submission in scope (a human final COD
+    with an ICD code), mapped by the scheme or not. Causes are
+    ``{"label", "coded_count"}``, one per scheme cause, most deaths first;
+    each death counts once (``aggregate_coded_submissions_by_bucket`` adds
+    reporting-band detail rows for some schemes, so its counts do not sum).
+    Scope as in ``_cod_bucket_aggregate_base_subquery``: pass
+    ``allowed_project_site_pairs=set()`` with unit ids to scope by unit.
+    No suppression here; the caller applies it. Two queries.
+    """
+    if (
+        allowed_project_site_pairs is not None
+        and not allowed_project_site_pairs
+        and not allowed_org_unit_ids
+    ):
+        return 0, []
+    scheme, base_rows = _cod_bucket_aggregate_base_subquery(
+        scheme_code=scheme_code,
+        project_id=project_id,
+        allowed_project_site_pairs=allowed_project_site_pairs,
+        allowed_org_unit_ids=allowed_org_unit_ids,
+        death_date_from=death_date_from,
+    )
+    total = int(db.session.scalar(sa.select(sa.func.count()).select_from(base_rows)) or 0)
+    if not total:
+        return 0, []
+    matched = _matched_cod_bucket_rows_subquery(scheme=scheme, base_rows=base_rows)
+    counted = sa.func.count()
+    rows = db.session.execute(
+        sa.select(
+            matched.c.bucket_category,
+            matched.c.bucket_subcategory,
+            matched.c.bucket_field,
+            counted.label("coded_count"),
+        )
+        .group_by(matched.c.bucket_category, matched.c.bucket_subcategory, matched.c.bucket_field)
+        .order_by(counted.desc(), matched.c.bucket_field)
+    ).all()
+    causes = [
+        {
+            "label": " / ".join(
+                part for part in (row.bucket_category, row.bucket_subcategory, row.bucket_field) if part
+            ),
+            "coded_count": int(row.coded_count),
+        }
+        for row in rows
+    ]
+    return total, causes
+
+
 def summarize_cod_bucket_reporting_breakdowns(
     *,
     scheme_code: str,
@@ -4797,8 +4860,13 @@ def _cod_bucket_aggregate_base_subquery(
     submission_date_to=None,
     allowed_project_site_pairs: set[tuple[str, str]] | None = None,
     allowed_org_unit_ids: set | None = None,
+    death_date_from=None,
 ):
     """Return the filtered coded submission set joined to scheme age bands.
+
+    ``death_date_from`` keeps deaths on or after that date: the case
+    register's date of death when the submission has a case, else the
+    submission date (ODK submissions synced before cases existed have none).
 
     Submissions retired from ODK are never part of the set
     (docs/policy/odk-retired-submissions.md).
@@ -4869,6 +4937,18 @@ def _cod_bucket_aggregate_base_subquery(
         conditions.append(core.c.submission_date >= submission_date_from)
     if submission_date_to:
         conditions.append(core.c.submission_date <= submission_date_to)
+    if death_date_from:
+        case_date_of_death = (
+            sa.select(sa.func.min(VaDeathRegister.date_of_death))
+            .where(
+                VaDeathRegister.va_sid == core.c.va_sid,
+                VaDeathRegister.status.not_in((DUPLICATE_CASE_STATUS, "cancelled")),
+            )
+            .scalar_subquery()
+        )
+        conditions.append(
+            sa.func.coalesce(case_date_of_death, core.c.submission_date) >= death_date_from
+        )
     if allowed_project_site_pairs is not None:
         # Whole project-sites, plus (for a unit grant) the deaths routed into
         # the grant's subtree on an active pair, as the grid lists them:

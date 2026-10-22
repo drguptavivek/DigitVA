@@ -611,17 +611,81 @@ export async function saveStationSettings(
   return requestClientJson<StationSettings>("/api/v1/station/settings", { method: "PUT", json: change, csrf });
 }
 
+/**
+ * The newest CSRF token the cookie session (or the local station) sent in an X-CSRFToken response
+ * header. flask-wtf tokens expire (WTF_CSRF_TIME_LIMIT, one hour by default), so a token captured in
+ * a long-lived bootstrap snapshot goes stale; every same-origin cookie request sends this one instead
+ * and falls back to the caller's snapshot only before any response has carried a token.
+ */
+let currentCsrf: ClientCsrf | undefined;
+
+function rememberCsrf(response: Response): ClientCsrf | undefined {
+  const token = response.headers.get("X-CSRFToken");
+  if (typeof token !== "string" || !token.trim()) return undefined;
+  currentCsrf = { header: "X-CSRFToken", token };
+  return currentCsrf;
+}
+
+function cookieCsrfHeader(server: string, snapshot?: ClientCsrf): string | undefined {
+  return (server ? snapshot : currentCsrf ?? snapshot)?.token;
+}
+
+/**
+ * 403 codes that mean the session's access itself changed, so the app re-reads /me/access. Business
+ * refusals (`forbidden`, which also carries IDENTIFIER_FORBIDDEN and wrong-password answers,
+ * `no_allocation`, `allocation_exists`, ...) must not: that reload resets open screens. A 403 with no
+ * machine code (an HTML login or error page) is not a business refusal and still counts.
+ */
+const ACCESS_CHANGED_403_CODES = new Set(["terms_required", "project_forbidden"]);
+
+function signalAccessStale(status: number, code: string | undefined, path: string, cookie: boolean): void {
+  if (status !== 403 || !cookie || path === "/api/v1/me/access" || (code !== undefined && !ACCESS_CHANGED_403_CODES.has(code))) return;
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event("digitva-access-stale"));
+  }
+}
+
+let csrfRefresh: Promise<unknown> | undefined;
+
+/** Re-read /me/access once for a fresh token; concurrent csrf_failed refusals share the one request. */
+function refreshCsrf(): Promise<unknown> {
+  csrfRefresh ??= requestOnce("", "/api/v1/me/access", {}).finally(() => { csrfRefresh = undefined; });
+  return csrfRefresh;
+}
+
+/**
+ * A cookie request refused with 400 `csrf_failed` (an expired token) refreshes the token once and is
+ * retried once; the server refused it before handling, so the retry cannot apply it twice. A second
+ * refusal surfaces as `csrf_failed` for the screen's own message.
+ */
 export async function requestJson<T>(
   server: string,
   path: string,
   options: ClientRequestOptions & { body?: unknown; token?: string } = {},
+): Promise<{ status: number; body: T; csrf?: ClientCsrf }> {
+  try {
+    return await requestOnce<T>(server, path, options);
+  } catch (error) {
+    const cookie = options.token === undefined && !server;
+    if (!cookie || path === "/api/v1/me/access" || !(error instanceof ApiError)
+      || error.status !== 400 || error.code !== "csrf_failed" || options.signal?.aborted) throw error;
+    await refreshCsrf();
+    return requestOnce<T>(server, path, options);
+  }
+}
+
+async function requestOnce<T>(
+  server: string,
+  path: string,
+  options: ClientRequestOptions & { body?: unknown; token?: string },
 ): Promise<{ status: number; body: T; csrf?: ClientCsrf }> {
   const json = options.body !== undefined ? options.body : options.json;
   const headers: Record<string, string> = { Accept: "application/json" };
   if (json !== undefined) headers["Content-Type"] = "application/json";
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
   else {
-    if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+    const csrfToken = cookieCsrfHeader(server, options.csrf);
+    if (csrfToken) headers["X-CSRFToken"] = csrfToken;
     const launchToken = !server ? getLocalStationLaunchToken() : undefined;
     if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
   }
@@ -643,8 +707,7 @@ export async function requestJson<T>(
       signal: controller.signal,
       redirect: options.allowRedirect ? "manual" : "follow",
     });
-    const csrfToken = options.token === undefined && !server ? response.headers.get("X-CSRFToken") : null;
-    const csrf = typeof csrfToken === "string" && csrfToken.trim() ? { header: "X-CSRFToken", token: csrfToken } : undefined;
+    const csrf = options.token === undefined && !server ? rememberCsrf(response) : undefined;
     if (response.status === 204) return { status: 204, body: undefined as T };
     const contentType = response.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
@@ -695,9 +758,7 @@ export async function requestJson<T>(
         typeof body.code === "string"
           ? body.code
           : undefined;
-      if (response.status === 403 && options.token === undefined && path !== "/api/v1/me/access" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-        window.dispatchEvent(new Event("digitva-access-stale"));
-      }
+      signalAccessStale(response.status, code, path, options.token === undefined);
       throw new ApiError(response.status, code, redirectUrl, csrf, body);
     }
     return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
@@ -749,7 +810,8 @@ export async function requestRaw(
   const headers: Record<string, string> = { Accept: "application/json" };
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
   else {
-    if (options.csrf) headers["X-CSRFToken"] = options.csrf.token;
+    const csrfToken = cookieCsrfHeader(server, options.csrf);
+    if (csrfToken) headers["X-CSRFToken"] = csrfToken;
     const launchToken = !server ? getLocalStationLaunchToken() : undefined;
     if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
   }
@@ -776,10 +838,7 @@ export async function requestRaw(
       signal: controller.signal,
       redirect: options.allowRedirect ? "manual" : "follow",
     });
-    const csrfToken = options.token === undefined && !server ? response.headers.get("X-CSRFToken") : null;
-    const csrf = typeof csrfToken === "string" && csrfToken.trim()
-      ? { header: "X-CSRFToken", token: csrfToken }
-      : undefined;
+    const csrf = options.token === undefined && !server ? rememberCsrf(response) : undefined;
     const responseHeaders = {
       etag: response.headers.get("ETag"),
       definitionSha256: response.headers.get("X-Definition-SHA256"),
@@ -789,16 +848,14 @@ export async function requestRaw(
     const manualRedirect = options.allowRedirect &&
       (response.status === 0 || response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400));
     if (manualRedirect || response.redirected) throw new ApiError(response.status, "redirected_response", redirectUrl);
-    if (response.status === 403 && options.token === undefined && path !== "/api/v1/me/access" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-      window.dispatchEvent(new Event("digitva-access-stale"));
-    }
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("json")) signalAccessStale(response.status, undefined, path, options.token === undefined);
     if (response.status !== 304) {
       const contentLength = Number(response.headers.get("Content-Length"));
       if (Number.isFinite(contentLength) && contentLength > 8 * 1024 * 1024) {
         throw new ApiError(response.status, "response_too_large");
       }
     }
-    const contentType = response.headers.get("content-type") ?? "";
     if (contentType && !contentType.toLowerCase().includes("json")) {
       throw new ApiError(response.status, "redirected_response", redirectUrl);
     }
@@ -822,6 +879,7 @@ export async function requestRaw(
         // Keep the JSON client's generic error shape for malformed refusal bodies.
       }
       const code = typeof payload.code === "string" ? payload.code : undefined;
+      signalAccessStale(response.status, code, path, options.token === undefined);
       throw new ApiError(response.status, code, redirectUrl, csrf, payload);
     }
     return { status: response.status, body, headers: responseHeaders, ...(csrf ? { csrf } : {}) };

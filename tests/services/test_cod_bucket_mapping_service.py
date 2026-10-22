@@ -50,6 +50,7 @@ from app.services.cod_bucket_mapping_service import (
     MIGRATION_ARTIFACT_WHO_2022_VA_2026_WORKBOOK_PATH,
     aggregate_coded_submissions_by_bucket,
     apply_admin_cod_bucket_mapping_metadata,
+    count_coded_submissions_by_cause,
     create_cod_bucket_scheme,
     default_reporting_scheme_code,
     export_cod_bucket_reporting_csv,
@@ -2202,6 +2203,103 @@ class CodBucketMappingServiceTests(BaseTestCase):
         self.assertEqual(rows[0]["Project"], self.PROJECT_ID)
         self.assertEqual(rows[0]["Site"], self.SITE_ID)
         self.assertEqual(rows[0]["Form code"], self.FORM_ID)
+
+    def test_count_coded_submissions_by_cause_counts_each_death_once_by_date_of_death(self):
+        """digitva-qfh8: the area card's causes. One row per cause (no reporting
+        band detail rows), a total that keeps unmapped codes, and a period by
+        the register's date of death, else the submission date."""
+        from datetime import timedelta
+
+        from app.models import VaDeathRegister
+
+        for model in (VaFinalAssessments, VaSubmissionWorkflow):
+            db.session.execute(sa.delete(model).where(model.va_sid.in_(
+                sa.select(VaSubmissions.va_sid).where(VaSubmissions.va_form_id == self.FORM_ID)
+            )))
+        db.session.execute(sa.delete(VaSubmissions).where(VaSubmissions.va_form_id == self.FORM_ID))
+        db.session.commit()
+
+        now = datetime.now(timezone.utc)
+        scheme = MasCodBucketScheme(
+            scheme_code="TEST_AREA_CAUSES", scheme_name="Area causes", mapping_version=1, is_active=True
+        )
+        db.session.add(scheme)
+        db.session.flush()
+        db.session.add(MasCodBucketSchemeAgeBand(
+            scheme_id=scheme.scheme_id, age_scope=None, age_label="All Ages",
+            min_age_value=0, min_age_unit="days", max_age_value=120, max_age_unit="years",
+            level_count=2, sort_order=1, is_active=True,
+        ))
+        category = MasCodBucketNode(
+            scheme_id=scheme.scheme_id, age_scope=None, node_type=NODE_TYPE_CATEGORY,
+            node_code="alpha", node_label="Alpha", sort_order=1,
+        )
+        heart = MasCodBucketNode(
+            scheme_id=scheme.scheme_id, age_scope=None, node_type=NODE_TYPE_FIELD, parent=category,
+            node_code="heart", node_label="Heart Failure", sort_order=1,
+        )
+        sepsis = MasCodBucketNode(
+            scheme_id=scheme.scheme_id, age_scope=None, node_type=NODE_TYPE_FIELD, parent=category,
+            node_code="sepsis", node_label="Sepsis", sort_order=2,
+        )
+        db.session.add_all([category, heart, sepsis])
+        db.session.flush()
+        db.session.add_all([
+            MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="I21",
+                            node_id=heart.node_id, is_active=True),
+            MapIcdCodBucket(scheme_id=scheme.scheme_id, age_scope=None, icd_code="A41",
+                            node_id=sepsis.node_id, is_active=True),
+        ])
+        for index, icd in enumerate(("I21", "I21", "I21", "A41", "J18")):
+            self._add_coded_submission(
+                sid=f"uuid:area-cause-{index}", icd=icd, submitted_at=now,
+                normalized_years=Decimal("40"),
+            )
+        db.session.flush()
+        from app.models import VaProjectMaster, VaSiteMaster
+
+        if db.session.get(VaProjectMaster, self.PROJECT_ID) is None:
+            db.session.add(VaProjectMaster(
+                project_id=self.PROJECT_ID, project_code=self.PROJECT_ID, project_name="COD Bucket",
+                project_nickname="CodBucket", project_status=VaStatuses.active,
+                project_registered_at=now, project_updated_at=now,
+            ))
+        if db.session.get(VaSiteMaster, self.SITE_ID) is None:
+            db.session.add(VaSiteMaster(
+                site_id=self.SITE_ID, site_name="COD Bucket Site", site_abbr=self.SITE_ID,
+                site_status=VaStatuses.active, site_registered_at=now, site_updated_at=now,
+            ))
+        db.session.flush()
+        # The sepsis death happened 400 days ago, by the case register.
+        db.session.add(VaDeathRegister(
+            project_id=self.PROJECT_ID, site_id=self.SITE_ID, death_number=995001,
+            unique_id="AREA-CAUSE-1", deceased_name="Test Case", deceased_sex="male",
+            date_of_death=(now - timedelta(days=400)).date(),
+            registered_by=self.base_coder_user.user_id, status="submitted",
+            va_sid="uuid:area-cause-3",
+        ))
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        total, causes = count_coded_submissions_by_cause(
+            scheme_code="TEST_AREA_CAUSES", project_id=self.PROJECT_ID
+        )
+        self.assertEqual(total, 5)  # J18 is coded but the scheme does not map it
+        self.assertEqual(causes, [
+            {"label": "Alpha / Heart Failure", "coded_count": 3},
+            {"label": "Alpha / Sepsis", "coded_count": 1},
+        ])
+        total, causes = count_coded_submissions_by_cause(
+            scheme_code="TEST_AREA_CAUSES", project_id=self.PROJECT_ID,
+            death_date_from=(now - timedelta(days=30)).date(),
+        )
+        self.assertEqual(total, 4)
+        self.assertEqual(causes, [{"label": "Alpha / Heart Failure", "coded_count": 3}])
+        # An empty unit scope is nothing, not everything.
+        self.assertEqual(count_coded_submissions_by_cause(
+            scheme_code="TEST_AREA_CAUSES", project_id=self.PROJECT_ID,
+            allowed_project_site_pairs=set(), allowed_org_unit_ids=set(),
+        ), (0, []))
 
     def test_summarize_cod_bucket_reporting_breakdowns_returns_dashboard_summaries(self):
         db.session.execute(

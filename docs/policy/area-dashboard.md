@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-22
 ---
 
 # Area Dashboard Policy
@@ -22,6 +22,11 @@ separate project dashboard build. Bead `digitva-stc`.
 
 - Any user with at least one active grant, of any role, on an active project.
   A user with no grant sees an empty page, not an error.
+- District offices through their usual roles at the district unit (data
+  manager, collaborator with or without personal data, site PI); mentoring
+  institute staff through their mentor-role unit grants, `collaborator`
+  included for a mentor who should see counts without names
+  ([Organization Model](organization-model.md), "Mentoring institutes").
 - `admin` sees every project whole.
 - The page and API require only a signed-in session, not a role: a role list
   would refuse users with no grant instead of showing them an empty page.
@@ -55,12 +60,13 @@ when the user holds that role on the project and that screen admits them
 (`digitva-stc.3`):
 
 - data manager (and admin): the data manager dashboard, filtered to the
-  project, and to the site or workflow state where the count is exactly
+  project, and to the site, unit or period start where the count is exactly
   that filter;
-- coder: the coding dashboard, from the awaiting-or-in-coding count;
+- coder: the coding dashboard, from the awaiting-coding count;
 - interviewer: web intake, from the submitted count.
 
-No link otherwise. Links carry project, site and workflow codes only, never
+No link otherwise. Links carry project, site and unit codes and a date
+only, never
 subject or staff data. Collaborators also reach the data manager dashboard
 and get the data manager's links (owner, 2026-10-09). The link test is the role on the
 project, not that role's reach: a data manager on one site of a project the
@@ -68,76 +74,121 @@ user sees whole through another role gets a link whose landing page shows
 only their site. The target screen enforces its own scope, so this can
 show a smaller number, never more data.
 
-Retired submissions and inactive project-sites are left out, as on the data
-manager dashboard.
+Retired submissions, confirmed duplicates and inactive project-sites are
+left out of every count, as on the data manager dashboard.
+
+**Simplified for district offices and mentoring institutions** (owner,
+2026-10-22, `digitva-qfh8`). The page is one card for the selected area, one
+table of that area's child units, the drill-down and the links. Cut, as not
+decision-useful to a district officer or a mentor: the coding-progress tiles
+and the Site PI KPI tiles (open to review, reviewer finalized, final COD by
+coder and by reviewer, changed in ODK after coding: these stay on the data
+manager dashboard and the Site PI page), the submitted last 7 and 30 days
+columns (the period filter replaces them), web interviews in progress
+(replaced by interviews pending), the in coding, in review, coded (coder
+finalized) and other columns, and the per-coder throughput table of the
+staff view (the data manager's coder statistics keep it). SmartVA run
+counts, data-quality flags and sync-run status were never on this page and
+are not added.
 
 The page opens at the user's grant roots and drills down one level at a time
 (the selected unit's direct children, with a breadcrumb back up). Each row
 is the unit's whole subtree, counted once.
 
-- **Deaths reported**: death-register cases (`VaDeathRegister`, every
-  source: register and direct) in the unit subtree or the site, live. Confirmed
-  duplicates and cancelled cases are left out. An unrouted case counts in the
-  Unrouted row. It has no link: no data manager filter selects death-register
-  cases, so the count goes nowhere rather than to a different number.
-- **Collection progress**: submissions received (web and ODK alike, from the
-  submission analytics snapshot) in total and in the last 7 and 30 days,
-  and web interviews in progress (open drafts, live).
-- **Coding progress**: submissions by coding stage, bucketed from
-  `workflow_state` in one mapping (`coding_bucket` in
-  `app/services/workflow/definition.py`): awaiting coding (screening,
-  attachment sync, SmartVA pending, ready), in coding, in review (reviewer
-  coding in progress), coded, not codeable (including consent refused),
-  other (no workflow row). The data manager's "coded" filter counts reviewer
-  coding in progress as coded; this page shows it as in review.
+### Period
 
-Collection counts do not use the death-register status. The interviewer
-worklist (`digitva-vzk`, `web-intake.md`) replaces it with case states; case
-outcomes (started, incomplete, refused) join this page when those exist.
+One filter, *Last 30 days*, *Last 90 days*, *Last 12 months* or *All time*
+(the default, which keeps the page's earlier meaning). It applies to deaths
+reported (by registration date, `created_at`), submitted (by submission
+date) and causes of death (by date of death: the case register's date of
+death when the submission has a case, else the submission date, since ODK
+submissions synced before cases existed have no register row). The backlog
+columns are current state and never filtered: interviews pending, awaiting
+coding, not codeable, SmartVA failed, final COD and visit notes.
+
+### Table columns
+
+- **Deaths reported**: death-register cases (`VaDeathRegister`, every
+  source) registered in the period, live, and also those of the last 7 days
+  (the API and CSV carry the last 30 days too, `digitva-yeg3.27`). Confirmed
+  duplicates and cancelled cases are left out. An unrouted case counts in
+  the Unrouted row. No link: no data manager filter selects death-register
+  cases.
+- **Interviews pending**: open cases (registered, scheduled, in progress,
+  paused, not reachable), live, with how many have waited **over 7 days**
+  and **over 30 days** since registration.
+- **Submitted**: submissions received in the period (web and ODK alike,
+  from the hourly snapshot).
+- **Awaiting coding**: screening, attachment sync, SmartVA pending or ready
+  (the `awaiting_coding` bucket of `coding_bucket`, snapshot).
+- **Final COD**: submissions whose final cause of death holds authority
+  ([Final COD Authority](final-cod-authority.md)), live.
+- **Not codeable**: marked not codeable by a coder or data manager, or
+  consent refused (the `not_codeable` bucket, snapshot).
+- **SmartVA failed**: submissions whose active SmartVA result has outcome
+  `failed`, live. These need a data manager to rerun or code without SmartVA.
+- **Visit notes** (owner, 2026-10-09; built `digitva-96a7`): the nameless
+  refusals that carry a visit note ([Web Intake Policy](web-intake.md),
+  "Visit note"), live. For a viewer with the data manager's link the count
+  links to the record list filtered to them (`visit_note=1` with `org_unit`,
+  the subtree, or `site`; the list still applies the viewer's own scope),
+  where each record shows its note, minus address and remarks for a viewer
+  `should_redact_pii` redacts. The Unrouted row is a count without a link.
+
+**One coded definition.** The table and card show only *Final COD* (the
+authority definition). The two-definition layout of 2026-10-09 (a
+"Coded (coder finalized)" column beside "Final COD") is superseded by the
+2026-10-22 simplification: one number for "coded", so the two can no longer
+disagree on the page.
 
 **Unrouted submissions** (no org unit) fall outside every subtree, so child
 rows do not sum to the project total. Users with a project-wide scope see an
 "Unrouted" row at the project root so the totals reconcile.
 
-### Project cards
+### Area card
 
-At the project root, a user whose scope is project-wide (admin, project PI,
-a project grant, or a site grant on an organization project, and a project
-grant on a sites-mode project) also sees the project's operational card: the
-Site PI KPIs computed once over the whole project's active sites
-(`sitepi_reporting_service.get_project_workflow_kpis`). It shows submitted,
-coded (a final cause of death holds authority, `final-cod-authority.md`),
-not codeable, awaiting or in coding, coded and open to review, reviewer
-finalized, changed in ODK after coding, and final COD by coder and by
-reviewer; coded and not codeable also as a share of submitted. The card is
-live. Its definitions are the Site PI's, so its coded and not codeable
-differ from the table's coding buckets (the table counts coder-finalized as
-coded and consent refused as not codeable; the card uses authority rows and
-the two not-codeable states). No staff or subject identity.
+Above the table, for the selected area: the selected unit's subtree; at the
+root the union of the user's grant roots (the whole project, unrouted
+included, for a project-wide scope); in sites mode the in-scope sites or the
+selected site. It shows the table's numbers for that whole area (not the sum
+of the child rows, which leaves out cases on the selected unit itself), and:
 
-**Two definitions, both named** (owner, 2026-10-09). The page
-must say which "coded" a number means instead of leaving the card and table
-to disagree silently. The card becomes two labelled cards: *Coding progress*
-(coder finalized, consent refused counted as not codeable: the table's
-definitions) and *Final cause of death* (a final COD holds authority; the two
-not-codeable states: the Site PI's definitions). The table keeps its coder-
-finalized column, labelled "Coded (coder finalized)", and adds a live "Final
-COD" column on the authority definition. Every such heading carries a one-line definition (visible text or
-tooltip), and the two never share a label.
+- **Median days from death to interview**: the case register's date of
+  death to the submission date, over submissions that have a case with a
+  date of death; all time.
+- **Median days from interview to final COD**: submission time to the time
+  the final COD took authority (`effective_at`, else when the authority row
+  was written); all time.
+- **Top causes of death** (lifts the 2026-09-30 exclusion; owner,
+  2026-10-22): coded submissions (a human final COD with an ICD code, the
+  base of the COD bucket report) in the area and period, grouped by the
+  default reporting scheme's cause groups (`WHO_2022_VA_2026`). Small-cell
+  suppression: the table is **hidden when fewer than 20** submissions are
+  coded in the area and period (`PERCENT_MIN_WHOLE`), and any cause with
+  **fewer than 5** deaths is folded into one *Other (suppressed)* row with
+  the causes beyond the top ten and codes the scheme does not map. Shares
+  are of the coded total. Suppression is applied in the service, so the
+  JSON and CSV never carry a small cell.
 
-**Visit notes column** (owner, 2026-10-09; built `digitva-96a7`). Each table
-row counts the nameless refusals that carry a visit note
-([Web Intake Policy](web-intake.md), "Visit note"): submissions whose active
-payload has a visit date or address, in the row's whole subtree (or site),
-live, with confirmed duplicates, retired submissions and inactive
-project-sites left out. For a viewer with the data manager's link the count
-links to the record list filtered to them (`visit_note=1` with `org_unit`,
-the subtree, or `site`; the list still applies the viewer's own scope), where
-each record shows its note, minus address and remarks for a viewer
-`should_redact_pii` redacts. The count carries no subject data. The Unrouted
-row is a count without a link. No coding turnaround yet: the data holds no
-cheap submission-to-final-COD pair on this path. Unit-scoped users see no
-card.
+### Project card
+
+At the project root, a user whose scope is project-wide also sees the
+project's offline stations. A station is an active (not revoked) enrolled
+device that has been issued a station config; handsets are not stations.
+The card shows how many there are, how many have never sent a bundle, the
+latest bundle of the station that has waited longest, and the newest bundle
+of any station. A station does not call home, so its bundles, not
+`last_seen_at`, are its last contact. Counts and times only. Stations per
+unit needs a unit on the device and is
+deferred. The card keeps the data manager and coding links.
+
+### CSV export
+
+`/api/v1/area/summary?format=csv` returns the same level, scope and period
+as aggregates only: one line per (section, area, measure) with the table
+rows, the card and the suppressed cause rows. No person names, no
+submission or case ids, no case-level rows. A cell that starts with `=`,
+`+`, `-` or `@` is prefixed with `'` so a spreadsheet does not run it.
 
 **Freshness.** Snapshot counts carry the finish time of the last recorded
 snapshot refresh (hourly; an ad-hoc refresh records no run, so the time is a
@@ -145,8 +196,8 @@ lower bound); live counts say so. The two are labelled separately.
 
 ## Staff identity
 
-An optional "By staff" view under the table breaks the same area down per
-person (`digitva-stc.2`). It is offered at a selected unit or site, and at
+An optional "By interviewer" view under the table breaks the same area down
+per interviewer (`digitva-stc.2`). It is offered at a selected unit or site, and at
 the project root for a project-wide scope; a unit-scoped user's root is
 several areas, so it has none. The area is exactly the rows': the selected
 subtree counted once, or the whole project including unrouted cases.
@@ -156,10 +207,9 @@ Confirmed duplicate cases count nowhere.
   registered them), interviews started (by who opened the first interview
   on the case), interviews submitted and in progress (by the draft's
   owner), and contact attempts logged in the last 30 days.
-- **Coders**: submissions coded and marked not codeable at first pass, in
-  the last 7 and 30 days, by the coder who did it (the same attribution as
-  the data manager's coder daily statistics). Retired submissions and
-  inactive project-sites are left out, as in the coding columns.
+
+The per-coder throughput table was removed on 2026-10-22 (see "What it
+shows"); the data manager's coder daily statistics keep it.
 
 Who sees names is decided only by `should_redact_pii`, never a per-screen
 role test (`access-control-model.md`). A viewer it redacts, such as a plain
@@ -201,4 +251,7 @@ grouped query per measure per project, whatever the unit count.
 
 ## Not in scope yet
 
-Cause-of-death distribution and data-quality measures (owner, 2026-09-30).
+Data-quality measures (owner, 2026-09-30). Offline stations per unit
+(needs `auth_devices.org_unit_id`). The cause-of-death distribution, out of
+scope on 2026-09-30, is in the area card since 2026-10-22, suppressed as
+above.

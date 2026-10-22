@@ -220,6 +220,12 @@ class VaCaseApiTests(BaseTestCase):
             source_updated_at=now, created_by_role="vasystem",
         )
         if allocated_to is not None:
+            # One active allocation per user and kind: the newest case holds it.
+            db.session.execute(sa.update(VaAllocations).where(
+                VaAllocations.va_allocated_to == allocated_to,
+                VaAllocations.va_allocation_for == allocation_for,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            ).values(va_allocation_status=VaStatuses.deactive))
             db.session.add(VaAllocations(
                 va_allocation_id=uuid.uuid4(), va_sid=sid, va_allocated_to=allocated_to,
                 va_allocation_for=allocation_for, va_allocation_status=VaStatuses.active,

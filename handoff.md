@@ -14,77 +14,55 @@ commit timing: hold all commits until the owner says go, then one commit.** The
 owner owns `vendor/who-va-2022`. Owners may edit accounts and translations: reread
 live state. Staging Hindi 40 in_review is the owner's live state: never overwrite.
 
-## State (2026-10-22)
+## State (2026-10-22, evening)
 
-`main` = `origin/main` = `c8a20edf6`. The main checkout holds one large
-UNCOMMITTED, tested change set (offline PHC landing). If it is still uncommitted
-when you start, the owner has not said go yet. It contains:
+`main` = `origin/main` = `9a92932a5` (offline PHC landing `3dbd60206` + beads).
+The main checkout holds a second UNCOMMITTED, tested batch (full run green:
+pytest -n 4 5493 passed; Jest 1783; tsc; cargo workspace; single head
+`a7c3e9f1d5b2`). Commit only on the owner's go:
 
-- gb8w.2/.3/.4/.5/.8, ke83.10, PII slice 2 (from 2026-10-21) and six migrations:
-  `d4f1b8c2a6e9 → e5a2c7b9d3f1 → b9e4f2a7c1d3 → e8c4f2a7b913 → f3a9c6d2e1b7 →
-  a7d3e9b2c4f6 → c5e8a1f4b2d9` (dev is at the head; do not reorder).
-- Station serves the real composed WHO VA form (byte-identical to the server,
-  shared vectors), modules and languages from the signed config (7o4h); Settings:
-  Facility details, interview modules, coding mode (locked by project policy).
-- Station ICD-11 + DORIS in-process via `digitva-icd11` (r7gr): lazy engine
-  (~13 s, ~0.65 GB with `DOTNET_gcServer=0`, set at startup), server-shaped
-  DORIS seed, unmasked workspaces go straight to final.
-- Offline consent: informant fields always need a granted consent against a
-  notice version in the config (owner); `consent_notice_unavailable` when the
-  project has none (no project has one yet). Bad records are held back and listed.
-- Ingest accepts station coding (lmxr): station registered+active for the
-  project, coder on its roster, `coding_mode` = project mode (config carries it;
-  null = no station coding, incl. masked projects); icd11_doris held
-  `doris_pending`, server re-runs DORIS in the Celery applier.
-- Server SmartVA on the Rust engine `smartva-rs` (fy14; `SMARTVA_ENGINE=python`
-  rolls back; engine recorded in `va_smartva_runs.run_metadata`); SmartVA
-  metadata-column bug fixed (omn4).
-- Server ICD-11 + DORIS via the Rust host `digitva-icd11-server` (cr3l) under the
-  same service name/port; WHO container kept as profile `icd11-container`.
-- ICD-11 licence: citation everywhere ICD-11 is used, URIs kept, DigitVA
-  additions labelled, inventory `docs/kb/icd11-licence-inventory.md` (zde8).
-- Bundle conformance vectors `tests/fixtures/bundles/vectors/` (gb8w.6/.7).
-- `.gitmodules` points `vendor/smartva-analyze` at `drguptavivek/SmartVA-Analyze`.
-- `desktop/scripts/package-macos.sh` (trial unsigned DigitVA.app).
+- `digitva-qfh8` /area/ extended and simplified for district offices and
+  mentors (period filter, pending backlog, SmartVA failed, medians, top causes
+  with n<5 suppression and hide under 20 coded, stations, CSV of aggregates;
+  `collaborator` allowed for mentors). Design record
+  `.tasks/2026-10-22-area-dashboard-district-mentor.md`. Migration
+  `e2b7d4a9c6f1` (index `ix_va_death_register_va_sid`). Closes the area half of
+  `yeg3.27`.
+- `digitva-ww5u` + `digitva-0trb` (Fable review): client keeps the newest
+  CSRF token from every response, retries once on `csrf_failed`; bootstrap
+  identity kept when only the token changed; access reload only on
+  `terms_required` / `project_forbidden` / codeless 403; interview saves and
+  flushes before a same-account reset.
+- `digitva-igq7`: one active coding and one active reviewing allocation per
+  user (partial unique index `uq_va_allocations_active_to_for`, migration
+  `a7c3e9f1d5b2`, dedupe keeps the newest); allocators resume on a refused
+  insert.
+- `docs/current-state/data-model.md` lines for both indexes.
 
-End-to-end 2026-10-22: server flow and station flow (register → interview →
-SmartVA → ICD-11/DORIS → .dvb → ingest → receipt → applier) both pass on GUJ026.
-ICD-10 station flow not run (needs a second station; DEMO01).
-
-## The commit (when the owner says go)
-
-1. Commit and push the `vendor/who-icd11-api` working-tree change
-   (`src/bootstrap.rs` second ICD-API.dll pin for linux/amd64,
-   `tests/icd11_integration.rs`) to `drguptavivek/who-icd11-api`, then include
-   the submodule pointer bump. Without it a fresh clone's ICD service crash-loops.
-2. One commit in the repo's voice; build the list from `git diff` and untracked
-   files. Exclude `docs/from-server/`, `resource/smartva-phmrc-dataset/`, build
-   output (`app/static/expo-client/` is gitignored, `desktop/target/`).
-3. `git pull --rebase && git push`; close gb8w.2/.3/.4/.5/.6/.7/.8, ke83.10,
-   7o4h, r7gr, lmxr, omn4, r6fj, gmnm, pwh8, gxs0, fy14, cr3l, cfb1, ke83.12,
-   zde8 (inventory decisions stay with the owner).
-4. Drop test DBs `minerva_test_gb8w*`, `minerva_test_ke8310`,
-   `minerva_test_consentfix`, `minerva_test_gapfix`, `minerva_test_stationforms`,
-   `minerva_test_smartvafix`, `minerva_test_smartvars`, `minerva_test_lmxr`,
-   `minerva_test_gb8wtests`, `minerva_test_zde8`; remove agent worktrees (delete
-   the integration worktree's `node_modules` / `vendor/who-va-2022/dist`
-   symlinks first). Revoke the e2e test station `87253e1c-…` in GUJ026 if unwanted.
+Dev is upgraded to `a7c3e9f1d5b2`. After the commit, tell the "Full Training
+and Demo module" session the head id: it chains its `e3b7d1a9c4f2` onto it
+(its work lives only in `.claude/worktrees/demo-training`; leave that worktree,
+`minerva_test_vd0g*`, `minerva_test_drift`, `minerva_test_training_sessions`).
+Drop `minerva_test_area`, `minerva_test_alloc` after the commit.
 
 ## Ranked next steps
 
-1. `digitva-i3dl` Fable review of all Expo web screens and server paths (owner).
-2. `digitva-qfh8` simplest dashboard for district offices and mentoring
-   institutions: Fable design, owner approves before build.
-3. `digitva-tz7b` station: five DORIS guidance routes (postcoordination offline),
+1. Remaining Fable review findings: `digitva-owqc` (N+1 in the allocation
+   sweep), `digitva-en2g` (admin NQA/SA without scope), `digitva-2s6p` (station
+   sign-out, duplicate React key, UTC dates, non-object JSON 500). Review
+   gotchas worth deciding: allocation timeout counts from start not last
+   activity; coding queue shows the data collector's name; hard-coded English
+   in workspace/queue/DORIS.
+2. `digitva-tz7b` station: five DORIS guidance routes (postcoordination offline),
    picker assets in the export, Mac app shipping .NET 10 + WHO data, SIGTERM.
-4. `digitva-hs7e` ICD-11 + DORIS on the Expo Android app: NativeAOT library
+3. `digitva-hs7e` ICD-11 + DORIS on the Expo Android app: NativeAOT library
    proven in-app on an emulator (12/12 parity, ~0.9 GB peak); ~2–3 weeks to
    integrate. Awaiting WHO's reply to the owner's email.
-5. Staging deploy (owner's word): PII + bundle signing keys
+4. Staging deploy (owner's word): PII + bundle signing keys
    (`make ensure-secrets-prod`), image rebuild (now includes `smartva-rs`),
    ICD service image + `icd11_runtime` volume, Expo export, migrations in a
    maintenance window, verified dump; then `digitva-ddfx` Aadhaar sweep.
-6. Older: `9ffj`, `fx2c`, `pt0s`, `jkvl`, `athy` web consent UI, `ke83.11` Hindi
+5. Older: `9ffj`, `fx2c`, `pt0s`, `jkvl`, `athy` web consent UI, `ke83.11` Hindi
    for ~100 station strings (English copies in `hi.json`), Tauri app, Android
    release signing and per-ABI APK split, `ke83.9` SmartVA whitepaper fixes.
 

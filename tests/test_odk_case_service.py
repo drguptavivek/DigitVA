@@ -247,8 +247,8 @@ class OdkCaseCreationTests(OdkCaseFixtureMixin, BaseTestCase):
         self._mapping()
         self._sync([self._record("uuid:odk-case-count", org_phc_code="P01")])
 
-        counts = dashboard._deaths_reported_by_site(self.PROJECT, [self.SITE])
-        self.assertEqual(counts.get(self.SITE), 1)
+        counts = dashboard._case_counts_by_site(self.PROJECT, [self.SITE])
+        self.assertEqual(counts[self.SITE]["deaths_reported"], 1)
 
 
 class OdkCaseUnitTests(OdkCaseFixtureMixin, BaseTestCase):
@@ -256,9 +256,10 @@ class OdkCaseUnitTests(OdkCaseFixtureMixin, BaseTestCase):
 
     def _area_counts(self, phc, district):
         """Reported deaths: unrouted, and per unit subtree for the PHC and its district."""
+        by_unit = dashboard._case_counts_by_unit(self.PROJECT, [phc.org_unit_id, district.org_unit_id])
         return (
-            dashboard._deaths_reported_unrouted(self.PROJECT),
-            dashboard._deaths_reported_by_unit(self.PROJECT, [phc.org_unit_id, district.org_unit_id]),
+            dashboard._case_counts_unrouted(self.PROJECT)["deaths_reported"],
+            {unit_id: counts["deaths_reported"] for unit_id, counts in by_unit.items()},
         )
 
     def test_unrouted_odk_va_gets_a_case_with_no_unit_counted_as_unrouted(self):

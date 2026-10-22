@@ -252,6 +252,52 @@ class TestReviewerCodingService(BaseTestCase):
 
         self.assertEqual(result.actiontype, "vastartreviewing")
 
+    def test_concurrent_second_start_is_refused_by_the_index(self):
+        """digitva-igq7: a second request that missed the held allocation in
+        its pre-check hits the unique index and answers as the pre-check
+        would, leaving one active reviewing allocation and no transition."""
+        from app.services import reviewer_coding_service as rcs
+
+        held, other = "uuid:reviewer-race-held", "uuid:reviewer-race-other"
+        for sid in (held, other):
+            self._add_submission(sid)
+            set_submission_workflow_state(
+                sid, WORKFLOW_REVIEWER_ELIGIBLE, reason="test_setup", by_role="vasystem"
+            )
+        db.session.commit()
+        self._release_active_reviewer_allocations()
+        start_reviewer_coding(self.base_reviewer_user, held)
+
+        real = rcs.get_active_reviewing_allocation
+        missed = []
+
+        def lookup(user_id):
+            if not missed:
+                missed.append(user_id)
+                return None
+            return real(user_id)
+
+        with patch.object(rcs, "get_active_reviewing_allocation", side_effect=lookup):
+            with self.assertRaises(ReviewerCodingError) as ctx:
+                start_reviewer_coding(self.base_reviewer_user, other)
+        self.assertEqual(ctx.exception.code, "allocation_exists")
+        active = db.session.scalars(
+            db.select(VaAllocations.va_sid).where(
+                VaAllocations.va_allocated_to == self.base_reviewer_user.user_id,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        ).all()
+        self.assertEqual(active, [held])
+        self.assertEqual(
+            db.session.scalar(
+                db.select(VaSubmissionWorkflow.workflow_state).where(
+                    VaSubmissionWorkflow.va_sid == other
+                )
+            ),
+            WORKFLOW_REVIEWER_ELIGIBLE,
+        )
+
     def test_active_reviewer_allocation_on_retired_submission_still_resumes(self):
         sid = "uuid:reviewer-coding-retired-resume"
         submission = self._add_submission(sid)

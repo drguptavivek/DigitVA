@@ -69,6 +69,8 @@ class VaDeathRegister(db.Model):
         sa.Index("ix_va_death_register_next_visit", "next_visit_at", "updated_at", "death_id"),
         # The worklist's "Recent" chip: newest registration first.
         sa.Index("ix_va_death_register_created", "created_at", "death_id"),
+        # The area card joins cases to submissions (median days death to interview).
+        sa.Index("ix_va_death_register_va_sid", "va_sid"),
         # Every coding reader asks "is this va_sid a confirmed duplicate?"
         # (app/services/duplicate_exclusion.py); only duplicate rows matter.
         sa.Index(

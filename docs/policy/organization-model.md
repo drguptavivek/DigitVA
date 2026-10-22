@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-20
+last_updated: 2026-10-22
 ---
 
 # Organization Model Policy
@@ -562,9 +562,13 @@ be all of:
 1. at `org_unit` scope (never `project`, `project_site` or `global`);
 2. on a unit inside the subtree (the district itself included) of a district
    unit attached to one of that person's institutes, in the same project;
-3. one of `coder`, `reviewer`, `coding_tester`, `collaborator_pii`. Never
-   `interviewer`, `data_manager`, `interview_supervisor`, `site_pi`,
-   `project_pi`, `collaborator` or `admin`.
+3. one of `coder`, `reviewer`, `coding_tester`, `collaborator_pii`,
+   `collaborator`. Never `interviewer`, `data_manager`,
+   `interview_supervisor`, `site_pi`, `project_pi` or `admin`. Plain
+   `collaborator` (owner, 2026-10-22, `digitva-qfh8`) gives a mentor the
+   area dashboard's counts with no personal data and no staff names
+   (`should_redact_pii`); a mentor who also holds a coder or reviewer grant
+   sees staff names there as on every other screen.
 
 Otherwise the write is refused with an operator message. The guard runs on
 grant create, on reactivating a grant, and in the project user import.

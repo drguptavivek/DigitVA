@@ -297,11 +297,14 @@ def require_reviewing_session(user, va_sid: str) -> None:
 
 def get_active_reviewing_allocation(user_id) -> str | None:
     return db.session.scalar(
-        sa.select(VaAllocations.va_sid).where(
+        sa.select(VaAllocations.va_sid)
+        .where(
             VaAllocations.va_allocated_to == user_id,
             VaAllocations.va_allocation_for == VaAllocation.reviewing,
             VaAllocations.va_allocation_status == VaStatuses.active,
         )
+        .order_by(VaAllocations.va_allocation_createdat.desc())
+        .limit(1)
     )
 
 
@@ -355,8 +358,23 @@ def release_own_reviewing_allocation(user) -> str:
     return va_sid
 
 
+def _resume_reviewing(active_sid: str | None, va_sid: str) -> ReviewerCodingResult:
+    """The user holds *active_sid*: resume it when it is *va_sid*, else 409."""
+    if active_sid != va_sid:
+        raise ReviewerCodingError(
+            "You already have an active reviewer allocation.",
+            409,
+            code="allocation_exists",
+        )
+    return ReviewerCodingResult(va_sid=va_sid, actiontype="varesumereviewing")
+
+
 def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
-    from app.services.coding_allocation_service import release_stale_reviewer_allocations
+    from app.services.coding_allocation_service import (
+        ActiveAllocationHeld,
+        active_allocation_savepoint,
+        release_stale_reviewer_allocations,
+    )
 
     release_stale_reviewer_allocations(timeout_hours=1)
 
@@ -386,13 +404,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
 
     active_sid = get_active_reviewing_allocation(user.user_id)
     if active_sid:
-        if active_sid != va_sid:
-            raise ReviewerCodingError(
-                "You already have an active reviewer allocation.",
-                409,
-                code="allocation_exists",
-            )
-        return ReviewerCodingResult(va_sid=va_sid, actiontype="varesumereviewing")
+        return _resume_reviewing(active_sid, va_sid)
 
     # A retired submission never enters a new reviewer allocation; an existing
     # active allocation above still resumes.
@@ -401,14 +413,19 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
         raise ReviewerCodingError(RETIRED_MESSAGE, 409, code="conflict")
 
     allocation_id = uuid.uuid4()
-    db.session.add(
-        VaAllocations(
-            va_allocation_id=allocation_id,
-            va_sid=va_sid,
-            va_allocated_to=user.user_id,
-            va_allocation_for=VaAllocation.reviewing,
-        )
-    )
+    try:
+        with active_allocation_savepoint():
+            db.session.add(
+                VaAllocations(
+                    va_allocation_id=allocation_id,
+                    va_sid=va_sid,
+                    va_allocated_to=user.user_id,
+                    va_allocation_for=VaAllocation.reviewing,
+                )
+            )
+    except ActiveAllocationHeld:
+        # A concurrent request of this user allocated first.
+        return _resume_reviewing(get_active_reviewing_allocation(user.user_id), va_sid)
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,

@@ -285,7 +285,7 @@ def test_every_coding_state_reader_applies_the_predicate_or_is_exempt():
     assert "services/coder_workflow_service.py::allocate_random_form" in readers
     assert "services/submission_analytics_mv.py::get_dm_kpi_from_mv" in readers
     # Readers of workflow *events* only (VaSubmissionWorkflowEvent) count too.
-    assert "services/area_dashboard_service.py::_coder_rows" in readers
+    assert "services/data_management_service.py::dm_coder_daily_statistics" in readers
 
     missing = sorted(
         key for key in readers - EXEMPT.keys() if not _applies(FUNCTIONS[key])

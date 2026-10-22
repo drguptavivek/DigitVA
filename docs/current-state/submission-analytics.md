@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-09
+last_updated: 2026-10-22
 ---
 
 # Submission Analytics Materialized Views
@@ -199,15 +199,17 @@ The materialized view is intended for:
 ### Area dashboard
 
 `GET /area/` (page) and `GET /api/v1/area/projects`,
-`/api/v1/area/summary?project=&unit=&site=` and `/api/v1/area/staff` (JSON) show collection and coding
-counts for the part of a project a user holds a grant for
-(`docs/policy/area-dashboard.md`, bead `digitva-stc`). Code:
+`/api/v1/area/summary?project=&unit=&site=&period=&format=` and
+`/api/v1/area/staff` (JSON) show deaths, interviews and coding for the part
+of a project a user holds a grant for (`docs/policy/area-dashboard.md`,
+beads `digitva-stc`, `digitva-qfh8`). Code:
 `app/services/area_dashboard_service.py`, `app/routes/area.py`,
 `app/routes/api/area.py`.
 
 - Gated by `login_required`: any active grant of any role opens an area; no
   grant gives an empty project list. The navbar link shows for any user with
-  an active grant (`VaUsers.has_any_active_grant`).
+  an active grant (`VaUsers.has_any_active_grant`). Expo web opens the same
+  page ("Statistics", Mentoring screen).
 - Scope is viewing scope, a union over all roles, per project. A project with
   an active organization level is a tree project and uses
   `authz.reachable_unit_ids` (whole tree for admin, the project's
@@ -215,85 +217,67 @@ counts for the part of a project a user holds a grant for
   shared with the organization API's unit picker. A project with no tree is
   shown per site: all active sites for admin, PI or a project grant, else the
   granted sites. A project, unit or site outside scope is a 404.
+- `period` is `30d`, `90d`, `12m` or `all` (default); anything else is a 400.
+  `period_start` is UTC midnight that many days back, so it equals the data
+  manager's `date_from`. It filters deaths reported (case `created_at`),
+  submitted (`submission_at`) and causes (date of death); nothing else.
 - Rows are the grant roots (or the project's top-level units when the scope
   is project-wide, plus an "Unrouted" row), or the direct children of a
-  selected unit. Each row is its whole subtree, counted once, from
-  `get_dm_org_unit_stats_from_mv(unit_ids=..., include_breakdown=True)`:
-  one ltree-containment query giving total, last 7 and 30 days and one
-  `count(*) FILTER` per coding bucket. Sites-mode rows use
-  `get_area_site_stats_from_mv`, the unrouted row
-  `get_area_unrouted_stats_from_mv`. Retired (missing in ODK) submissions
-  and inactive project-sites are excluded, as on the data-manager dashboard.
-- Coding buckets come from `workflow.definition.WORKFLOW_CODING_BUCKETS`
-  (`coding_bucket()`); the SQL CASE is built from the same dict, and a NULL
-  or unknown state counts as `other`.
-- "In progress" is live: open web-intake drafts (`va_web_intake_drafts.status
-  = 'draft'`) per subtree or site.
+  selected unit. Each row is its whole subtree, counted once. Every row and
+  the card carry `COUNT_KEYS`, from four grouped queries per level:
+  - snapshot (`get_dm_org_unit_stats_from_mv(include_breakdown=True,
+    since=...)`, sites `get_area_site_stats_from_mv`, unrouted
+    `get_area_unrouted_stats_from_mv`): `submitted` in the period and the
+    `awaiting_coding` and `not_codeable` coding buckets;
+  - case counts over `va_death_register` (`_case_count_columns`, duplicates
+    and cancelled cases out): `deaths_reported` in the period,
+    `deaths_7_days`, `deaths_30_days`, `interviews_pending` (status in
+    `user_home_service.OPEN_CASE_STATES`) and `pending_over_7_days` /
+    `_30_days` by `created_at`;
+  - live counts over one `_live_flags` subquery of `va_submissions`
+    (retired, confirmed-duplicate and inactive-pair submissions out):
+    `final_cod` (an authority row naming a coder or reviewer assessment),
+    `smartva_failed` (active `va_smartva_results` row with outcome
+    `failed`, via `ix_va_smartva_results_sid_status_covering`) and
+    `visit_notes`.
+  Unit rows join on ltree `<@`; there is no query per unit.
+- Card (`card`, every level): the selected unit's own subtree row (the unit
+  rides along in its children's grouped queries), else the sum of the
+  non-overlapping rows. Plus `medians` (one query over the core MV joined to
+  `va_death_register` on `va_sid`, index `ix_va_death_register_va_sid`, and
+  `va_final_cod_authority`; `percentile_cont`, all time) and `causes`
+  (`cod_bucket_mapping_service.count_coded_submissions_by_cause` on the
+  default reporting scheme, then `suppress_causes`: hidden under 20 coded,
+  causes under 5 and past the top ten folded into "Other (suppressed)").
+- `project_card` (project root, project-wide scope only): `stations` from
+  `project_stations`, active devices with a station config, their latest
+  bundle (`va_bundle_ingests`), never-synced count. One query.
+- `format=csv`: `summary_csv`, long format (section, area code, area name,
+  measure, value), aggregates only; text cells starting `= + - @` get a
+  leading `'`.
 - Freshness: the snapshot label is the `finished_at` of the latest successful
   `analytics_mv` run in `va_sync_runs`. Ad-hoc refreshes from the data
   manager and analytics screens are not recorded there, so the label is a
   lower bound. Both labels are formatted in the user's timezone.
-- Project card (`project_card` in the summary, null otherwise): only at the
-  project root (no unit, no site) for a project-wide scope. Two named
-  definitions of "coded" (`digitva-dhmc`; the page labels them "Coding
-  progress" and "Final cause of death" and never gives them one label):
-  - `coding_progress` (snapshot): `total_submissions` plus one key per coding
-    bucket (`awaiting_coding`, `in_coding`, `in_review`, `coded`,
-    `not_codeable`, `other`), summed in Python from the root rows the table
-    already built, so it costs no query and equals the table's total row.
-    Coded = coder finalized (and later review states); consent refused is in
-    `not_codeable`.
-  - `final_cod` (live): `coded` (a final COD holds authority), `not_codeable`
-    (coder or data manager not-codeable only; consent refused is not
-    counted), `by_coder`, `by_reviewer`. From
-    `sitepi_reporting_service.get_project_workflow_kpis`, the Site PI KPI
-    query run once over the project's active project-sites; the Site PI
-    page's coder names and per-submission rows are not passed on.
-  - The legacy flat keys (`total_submissions`, `total_coded`,
-    `total_not_codeable`, `current_state_kpis`, `authority_kpis`, `links`)
-    are unchanged and carry the Site PI (Final COD) numbers.
-  No turnaround figure: the only submission-to-final-COD pair is in the COD
-  snapshot MV, which is not guaranteed to exist and is not on this path.
-- Row `counts` gained `final_cod`: submissions in the row's subtree (or site,
-  or the unrouted row) whose final COD holds authority, live. The snapshot
-  MVs cannot answer it (`has_human_final_cod` in the demographics MV also
-  counts a bare active assessment without an authority row), so
-  `_final_cod_by_unit` / `_final_cod_by_site` / `_final_cod_unrouted` each run
-  one grouped query over `va_submissions` joined to `va_final_cod_authority`
-  (a coder or reviewer assessment id set), with retired submissions, confirmed
-  duplicates and inactive project-sites left out, as the card's authority
-  count does. No materialized-view change. Unit rows join to the authority
-  submissions on ltree `<@` like the draft counts.
-- Links (`links` on the card and on sites-mode rows, count key -> URL):
-  `area_dashboard_service.link_screens` offers a screen only when the user
-  holds that role on the project (one grant query) and passes the target
-  route's own role gate. Data manager, collaborator or collaborator_pii (the
-  dashboard route admits both; `digitva-1zdi`) or admin: `/data-management/` with
-  every URL filter it reads, blank unless set (project; site on site rows;
-  `workflow` only for the three card counts equal to one workflow state).
-  Coder: `/coding/` on the pending count. Interviewer (without data
-  manager): `/intake/` on the submitted count. URLs carry project, site and
-  workflow codes only.
+- Links (`links` on the card, sites-mode rows and unit rows' visit notes,
+  count key -> URL): `link_screens` offers a screen only when the user holds
+  that role on the project and passes the target route's own role gate.
+  Data manager, collaborator or collaborator_pii or admin: `/data-management/`
+  with every URL filter it reads, blank unless set (project; `site`,
+  `org_unit` or `date_from` where the count is exactly that filter; no
+  data-manager link at a root of several grant roots). Coder: `/coding/` on
+  awaiting coding. Interviewer (without data manager): `/intake/` on
+  submitted.
 - Staff view (`GET /api/v1/area/staff?project=&unit=&site=`,
-  `area_dashboard_service.area_staff`, bead `digitva-stc.2`): live, not from
-  the MV. Area: a selected unit's subtree (ltree `<@`), a selected sites-mode
-  site, or the whole project at its root for a project-wide scope; a root
-  that is not project-wide, and anything outside scope, is a 404 by the same
-  rules as the summary. Interviewers: one query over `va_death_register`
-  (registered = `registered_by` on `source = 'register'` cases, started =
-  `started_by_user_id`), one over `va_web_intake_drafts` by owner
-  (submitted, in progress), one over `map_case_contact_attempts` by
-  `by_user_id` in the last 30 days (driven by the `attempted_at` index). Coders: one query over
-  `va_submission_workflow_events`, the actor of `coder_finalized` (coded)
-  and `coder_not_codeable` in the last 7 and 30 days, the attribution
-  `dm_coder_daily_statistics` uses; retired submissions and inactive
-  project-sites left out. Confirmed duplicates are excluded everywhere
-  (case status, and `not_confirmed_duplicate_condition` on the va_sid).
-  Each query returns at most 500 staff rows (`truncated` when cut). When
-  `should_redact_pii` hides staff identity the queries do not run and the
-  response is `staff_identity_redacted: true` with no rows. The page loads
-  it lazily from a "By staff" button under the table, shown at a selected
-  unit or a project-wide root.
+  `area_dashboard_service.area_staff`, bead `digitva-stc.2`): interviewers
+  only since 2026-10-22 (the per-coder table was cut). Area as the summary's
+  (`_in_area`); a root that is not project-wide, and anything outside scope,
+  is a 404. One query over `va_death_register` (registered, started), one
+  over `va_web_intake_drafts` by owner (submitted, in progress), one over
+  `map_case_contact_attempts` in the last 30 days. Confirmed duplicates
+  excluded. At most 500 rows (`truncated`). When `should_redact_pii` hides
+  staff identity the queries do not run and the response is
+  `staff_identity_redacted: true` with no rows.
 
 Not all existing dashboard endpoints have been migrated to use the view yet.
 Some current operational dashboard queries still read directly from live tables.

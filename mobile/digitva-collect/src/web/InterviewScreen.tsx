@@ -231,6 +231,11 @@ export default function InterviewScreen() {
     generationRef.current += 1;
     pendingRevisionRef.current = undefined;
   }
+  // The open interview, read by the reset below (which must not re-run when it changes) so answers
+  // typed since the last save reach the server before the store is dropped.
+  const openInterviewRef = useRef({ store, controller, userId: loadedBootstrap?.user.user_id });
+  openInterviewRef.current = { store, controller, userId: loadedBootstrap?.user.user_id };
+  const resetSaveRef = useRef<Promise<void>>(Promise.resolve());
   const draftPrefill = draft?.prefill as Prefill | undefined;
 
   const initialise = useCallback(async (isInitializationActive: () => boolean) => {
@@ -242,6 +247,9 @@ export default function InterviewScreen() {
       bootstrapRef.current === bootstrap && requestSessionGeneration === sessionGeneration;
     if (!isCurrent()) return;
     setLoadedBootstrap(undefined);
+    // Load only after the reset's save of the previous store, or the draft read misses those answers.
+    await resetSaveRef.current;
+    if (!isCurrent()) return;
     const nextIntake = await getIntakeContext(bootstrap.csrf);
     if (!isCurrent()) return;
     setIntake(nextIntake);
@@ -421,6 +429,14 @@ export default function InterviewScreen() {
   }, [bootstrap, chooseUiLocale, definitionCache, hasServedDefinition, markServedDefinition, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId, sessionGeneration]);
 
   useEffect(() => {
+    const open = openInterviewRef.current;
+    // Same account only: another user's session must not write this draft.
+    if (open.store instanceof ServerDraftStore && open.userId && open.userId === bootstrapRef.current?.user.user_id) {
+      const previousStore = open.store;
+      resetSaveRef.current = (open.controller?.saveDraft() ?? Promise.resolve())
+        .then(() => previousStore.flush())
+        .catch(() => undefined);
+    }
     setIntake(undefined);
     setDraftId(params.draftId);
     setDraft(undefined);

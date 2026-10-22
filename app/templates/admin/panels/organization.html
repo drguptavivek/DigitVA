@@ -2395,7 +2395,7 @@
     var sciWrap = $('org-mentoring-scientists-wrap');
     var institutes = data.institutes || [];
     var units = data.units || [];
-    var roles = data.mentor_roles || ['coder', 'reviewer', 'coding_tester', 'collaborator_pii'];
+    var roles = data.mentor_roles || ['coder', 'reviewer', 'coding_tester', 'collaborator_pii', 'collaborator'];
     var allScientists = [];
     institutes.forEach(function (inst) {
       (inst.scientists || []).forEach(function (s) {

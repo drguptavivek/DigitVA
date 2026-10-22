@@ -303,6 +303,26 @@ describe("role home dashboard", () => {
     });
   });
 
+  test("admin, collaborator and viewer homes carry their Flask-page entries", async () => {
+    for (const [roles, label, path] of [
+      [["admin"], "homeAdminConsole", "/admin/"],
+      [["collaborator"], "navDataManagement", "/data-management/"],
+      [["collaborator_pii"], "navDataManagement", "/data-management/"],
+      [["project_pi"], "navDataManagement", "/data-management/"],
+    ] as const) {
+      assign.mockClear();
+      mockAppBootstrap = bootstrap([...roles], {});
+      mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+      const renderer = await render(<WorkspaceScreen />);
+      expect(buttonLabels(renderer)).toContain(label);
+      renderer.root.findAllByType("button" as never).find((node) => node.props.label === label)?.props.onPress();
+      expect(assign).toHaveBeenCalledWith(path);
+      await act(async () => {
+        renderer.unmount();
+      });
+    }
+  });
+
   test("a role's projects are named up to MANY_PROJECTS, then counted", () => {
     const grants: AccessProject["grants"] = [{ role: "coder", scope: "project", codes: true, active: true, source: "assigned" }];
     const make = (id: string): AccessProject => ({ project_id: id, project_name: `Name ${id}`, has_tree: false, grants, sites: [], units: [], levels: [], actions: { interview: [], register_death: [] } });

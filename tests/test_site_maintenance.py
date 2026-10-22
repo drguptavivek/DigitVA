@@ -160,7 +160,7 @@ class SiteMaintenanceTests(BaseTestCase):
         )
         self._login(self.base_coder_id)
 
-        response = self.client.get("/")
+        response = self.client.get("/profile/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"site-maintenance-banner", response.data)
@@ -170,7 +170,7 @@ class SiteMaintenanceTests(BaseTestCase):
     def test_non_admin_page_includes_maintenance_watcher_without_refresh(self):
         self._login(self.base_coder_id)
 
-        response = self.client.get("/")
+        response = self.client.get("/profile/")
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"site-maintenance-root", response.data)

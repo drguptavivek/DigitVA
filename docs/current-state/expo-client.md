@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Expo Client Hosting And Access
@@ -35,7 +35,9 @@ back to English. Login retains a language choice before an interview is opened.
 
 The browser home (`/app/`, `src/web/WorkspaceScreen.tsx` with
 `src/web/roleHome.ts` and `src/home/api.ts`) is the user's role-appropriate
-Home / Dashboard (`digitva-dsj2`):
+Home / Dashboard (`digitva-dsj2`). Every signed-in user lands here after login
+when the export is present (`VaUsers.landing_url()`, policy
+`docs/policy/expo-client.md`); `landing_page` is only the fallback without it:
 - For a user with no roles and no project grants yet, it renders a Welcome
   home card explaining that no project roles have been assigned yet, with
   actions for Settings / Profile, Help (`/help`), and Demo Coding when

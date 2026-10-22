@@ -45,7 +45,11 @@ from app.utils.va_permission.va_permission_08_ensurereviewed import va_permissio
 
 from app.utils.va_render.va_render_01_categoryneighbours import va_render_categoryneighbours
 from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
-from app.utils.va_render.va_render_07_serialisedates import va_render_serialisedates
+from app.utils.va_render.va_render_07_serialisedates import (
+    va_local_date,
+    va_render_serialisedates,
+    va_user_timezone_name,
+)
 
 from app.utils.va_mapping.va_mapping_01_fieldsitepi import va_mapping_fieldsitepi
 from app.utils.va_mapping.va_mapping_02_fieldcoder import va_mapping_fieldcoder
@@ -99,5 +103,7 @@ __all__ = [
     "va_mapping_info",
     "va_mapping_flip",
     "va_render_processcategorydata",
-    "va_render_serialisedates"
+    "va_render_serialisedates",
+    "va_local_date",
+    "va_user_timezone_name"
 ]

@@ -28,8 +28,8 @@ from app.services.final_cod_authority_service import (
 )
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.demo_project_service import (
-    get_demo_coding_allocation_timeout_minutes,
-    should_use_demo_actiontype_for_submission,
+    DEMO_CODING_ALLOCATION_TIMEOUT_MINUTES,
+    demo_sids_among_actively_allocated,
 )
 from app.services.payload_bound_coding_artifact_service import (
     deactivate_active_narrative_assessments_for_submission,
@@ -237,23 +237,28 @@ def return_tester_coding_to_pool(record: VaAllocations, *, reason: str) -> None:
 
 
 def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
-    """Release stale active coding allocations without discarding coding work."""
+    """Release stale active coding allocations without discarding coding work.
+
+    Runs on every allocation request, so it loads only allocations past the
+    shorter of the two timeouts and classifies demo sessions in one batch.
+    """
     now = _naive_utc_now()
+    normal_cutoff = now - timedelta(hours=timeout_hours)
+    demo_cutoff = now - timedelta(minutes=DEMO_CODING_ALLOCATION_TIMEOUT_MINUTES)
     stale_allocations = db.session.scalars(
         sa.select(VaAllocations).where(
             VaAllocations.va_allocation_status == VaStatuses.active,
             VaAllocations.va_allocation_for == VaAllocation.coding,
+            VaAllocations.va_allocation_createdat < max(normal_cutoff, demo_cutoff),
         )
     ).all()
+    demo_sids = demo_sids_among_actively_allocated(
+        {record.va_sid for record in stale_allocations}
+    )
 
     released = 0
     for record in stale_allocations:
-        if should_use_demo_actiontype_for_submission(record.va_sid):
-            cutoff = now - timedelta(
-                minutes=get_demo_coding_allocation_timeout_minutes(record.va_sid)
-            )
-        else:
-            cutoff = now - timedelta(hours=timeout_hours)
+        cutoff = demo_cutoff if record.va_sid in demo_sids else normal_cutoff
         if record.va_allocation_createdat >= cutoff:
             continue
 

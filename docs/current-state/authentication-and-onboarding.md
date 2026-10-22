@@ -257,7 +257,7 @@ All pages are server-rendered Flask-WTF forms posting `csrf_token` (section
 
 ### 3.1 Identifier step: `GET|POST /vaauth/valogin`
 
-- A signed-in visitor is redirected to `landing_url()`. Every visit clears
+- A signed-in visitor is redirected to `landing_url()` (`/app/` for every user while the Expo export is present; the stored `landing_page` only applies without it). Every visit clears
   any pre-auth state ("not you?" goes back here).
 - The page fetches `GET /vaauth/valogin/captcha-challenge`, which returns
   `{"salt", "difficulty", "expires", "signature"}` (HMAC-SHA256 under

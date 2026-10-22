@@ -18,6 +18,7 @@ from app.models import (
 from app.routes.api.request_helpers import (
     BadQuery,
     intake_error,
+    optional_object_body,
     optional_page_args,
     parse_body,
     project_filter_arg,
@@ -25,6 +26,7 @@ from app.routes.api.request_helpers import (
 from app.routes.api.request_helpers import (
     error as api_error,
 )
+from app.utils import va_user_timezone_name
 from app.services import smartva_service
 from app.services.authz import Action, Reason, can
 from app.services.case_transition_service import WebIntakeError
@@ -117,7 +119,13 @@ def get_allocation():
         "va_age": form.va_deceased_age if form else None,
         "va_gender": form.va_deceased_gender if form else None,
         "va_form_id": form.va_form_id if form else None,
-        "va_submission_date": str(form.va_submission_date.date()) if form and form.va_submission_date else None,
+        # The column is naive UTC: the date is the user's local one, as the web
+        # shows it, so an evening submission in IST is not a day early.
+        "va_submission_date": (
+            current_app.jinja_env.filters["user_timezone"](form.va_submission_date, "%Y-%m-%d")
+            if form and form.va_submission_date
+            else None
+        ),
         "va_data_collector": form.va_data_collector if form else None,
         "va_deceased_age": form.va_deceased_age if form else None,
         "va_deceased_gender": form.va_deceased_gender if form else None,
@@ -145,10 +153,17 @@ def get_allocation():
 @role_required("coder", "coding_tester", "admin")
 def allocate():
     """Allocate a form for coding and return the allocation details."""
-    body = request.get_json(silent=True) or {}
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.", "invalid_request", 400)
     sid = body.get("sid")
     is_demo = body.get("demo", False)
-    project_id = (body.get("project_id") or "").strip().upper() or None
+    project_id = body.get("project_id")
+    if sid is not None and not isinstance(sid, str):
+        return api_error("sid must be text.", "invalid_request", 400)
+    if project_id is not None and not isinstance(project_id, str):
+        return api_error("project_id must be text.", "invalid_request", 400)
+    project_id = (project_id or "").strip().upper() or None
 
     try:
         if is_demo:
@@ -653,7 +668,7 @@ def history():
     recodeable_sids = set(get_coder_recodeable_sids(current_user, va_form_access))
     for row in rows:
         row["recodeable"] = row["va_sid"] in recodeable_sids
-    demo_rows = get_coder_demo_history(current_user.user_id)
+    demo_rows = get_coder_demo_history(current_user.user_id, va_user_timezone_name(current_user))
     for row in demo_rows:
         row["recodeable"] = False
     rows = [*demo_rows, *rows]

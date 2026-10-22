@@ -913,3 +913,18 @@ it("puts a reviewer's COD form above the COD section's reference content, and a 
   expect(await order("reviewing")).toEqual([SimpleCodPanel, CategoryPanel]);
   expect(await order("coding")).toEqual([CategoryPanel, SimpleCodPanel]);
 });
+
+it("renders the private notes and the COD editor as siblings without a duplicate React key", async () => {
+  const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
+  const api = apiFor(workspace("coding"));
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} onDone={jest.fn()} />);
+    await flush();
+  });
+  expect(byLabel(tree, "Private note")).toBeTruthy();
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Save initial COD" }).length).toBeGreaterThan(0);
+  expect(errors.mock.calls.filter((call) => String(call[0]).includes("same key"))).toHaveLength(0);
+  errors.mockRestore();
+  await act(async () => tree.unmount());
+});

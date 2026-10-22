@@ -11,11 +11,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 #: Interviewer sex, as WHO VA 2022 Id10010b's choices.
 USER_SEX_VALUES = ("female", "male", "undetermined")
-# Roles whose login lands on the Expo role home (docs/policy/expo-client.md).
-ROLE_HOME_ROLES = frozenset({
-    "interviewer", "death_reporter", "interview_supervisor", "coder", "coding_tester", "reviewer",
-    "data_manager",
-})
 
 
 class VaUsers(UserMixin, db.Model):
@@ -151,21 +146,16 @@ class VaUsers(UserMixin, db.Model):
     def landing_url(self) -> str:
         """Return the correct post-login URL for this user.
 
-        Admin and project_pi keep the landing below. Any role in
-        ROLE_HOME_ROLES (authz effective roles, so derived roles count) or a
-        user with no effective roles yet goes to the Expo role home while the
-        export is present; otherwise, and for everyone else, the stored
-        landing_page and the role fallbacks apply.
+        Everyone lands on the Expo home while the export is present; the
+        stored landing_page and the role fallbacks below only serve a
+        deployment without the export.
         Rule: docs/policy/expo-client.md, "Role home and login landing".
         """
         from flask import url_for
         from app.routes.expo_client import export_ready
-        from app.services.authz.predicates import role_flags
 
-        roles = role_flags(self)
-        if not roles & {"admin", "project_pi"}:
-            if (roles & ROLE_HOME_ROLES or not roles) and export_ready():
-                return url_for("expo_client.expo_index")
+        if export_ready():
+            return url_for("expo_client.expo_index")
         if self.landing_page == "admin":
             return url_for("admin.admin_index")
         if self.landing_page == "data_manager":

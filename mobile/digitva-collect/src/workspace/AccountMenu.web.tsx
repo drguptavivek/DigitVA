@@ -8,8 +8,8 @@ import { useWebPalette } from "./webPalette";
 export type AccountMenuProps = {
   /** Display name from /api/v1/me; shown in the menu heading and (wide) beside the avatar. Never logged. */
   name: string;
-  /** Ends the session (POST logout with CSRF, in the app state). A rejection keeps the menu open with an error. */
-  onSignOut: () => Promise<void>;
+  /** Ends the session (POST logout with CSRF, in the app state). A rejection keeps the menu open with an error. Omitted on the desktop station, which has no session to end. */
+  onSignOut?: () => Promise<void>;
   /** Plain-click handler of the Profile link (a full Flask page); true when it held the navigation (the menu closes). */
   onProfileClick?: (event: React.MouseEvent) => boolean;
 };
@@ -96,7 +96,7 @@ export function AccountMenu({ name, onSignOut, onProfileClick }: AccountMenuProp
     setBusy(true);
     setError("");
     try {
-      await onSignOut();
+      await onSignOut?.();
       setOpen(false);
     } catch {
       setError("Could not sign out. Try again.");
@@ -140,7 +140,7 @@ export function AccountMenu({ name, onSignOut, onProfileClick }: AccountMenuProp
     }, option.label, theme.preference === option.value ? h("span", { "aria-hidden": true, style: { marginLeft: "auto" } }, "✓") : null)),
     h("div", { style: rule, role: "separator" }),
     h("a", { role: "menuitem", href: "/help", target: "_blank", rel: "noopener", style: itemStyle }, "Help"),
-    h("button", { type: "button", role: "menuitem", disabled: busy, onClick: () => void signOut(), style: { ...itemStyle, color: tokens.destructiveText } }, busy ? "Signing out…" : "Sign out"),
+    onSignOut ? h("button", { type: "button", role: "menuitem", disabled: busy, onClick: () => void signOut(), style: { ...itemStyle, color: tokens.destructiveText } }, busy ? "Signing out…" : "Sign out") : null,
   ),
   error ? h("div", { role: "alert", style: { padding: "6px 12px", color: tokens.destructiveText, fontFamily: ROBOTO, fontSize: 12 } }, error) : null,
   ) : null;

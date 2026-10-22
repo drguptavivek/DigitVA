@@ -140,6 +140,15 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         db.session.add(submission)
         db.session.flush()
         ensure_active_payload_version(submission, payload_data={"sa01": 1.0}, source_updated_at=None, created_by_role="vasystem")
+        # The admin demo allocation start_demo_allocation would have written.
+        db.session.add(
+            VaAllocations(
+                va_sid=submission.va_sid,
+                va_allocated_to=cls.base_admin_user.user_id,
+                va_allocation_for=VaAllocation.coding,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
         db.session.commit()
         cls.social_sid = submission.va_sid
         cls.reviewer_user = cls._make_user(
@@ -434,4 +443,35 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
         self.assertEqual(
             set(payload["missing_delay_levels"]),
             {"delay_1_decision", "delay_2_reaching", "delay_3_receiving"},
+        )
+
+    def test_admin_demo_save_without_its_allocation_writes_nothing(self):
+        db.session.execute(
+            db.update(VaAllocations)
+            .where(VaAllocations.va_allocated_to == self.base_admin_user.user_id)
+            .values(va_allocation_status=VaStatuses.deactive)
+        )
+        db.session.commit()
+        self._login(self.base_admin_id)
+
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "vademo_start_coding",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.get_json()["code"], "no_allocation")
+        self.assertIsNone(
+            db.session.scalar(
+                db.select(VaSocialAutopsyAnalysis).where(
+                    VaSocialAutopsyAnalysis.va_sid == self.social_sid,
+                    VaSocialAutopsyAnalysis.va_saa_by == self.base_admin_user.user_id,
+                )
+            )
         )

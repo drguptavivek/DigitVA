@@ -147,6 +147,21 @@ def parse_body() -> dict:
     return body if isinstance(body, dict) else {}
 
 
+def optional_object_body() -> dict | None:
+    """The JSON object body, ``{}`` when absent or malformed; None when it is
+    JSON but not an object (a list, a number, a string), which the caller
+    answers 400 ``invalid_request``. Unlike ``parse_body`` it does not read a
+    list as ``{}``: on a route where ``{}`` means "do the default" (allocate at
+    random, clear a pin) that would act on a bad request."""
+    try:
+        body = request.get_json(silent=True)
+    except RecursionError:  # absurdly nested JSON within the size cap
+        return None
+    if body is None:
+        return {}
+    return body if isinstance(body, dict) else None
+
+
 def interviewer_context(roles: frozenset = INTERVIEWER) -> list[dict]:
     """``interviewer_context`` of the caller for *roles* (interviewer alone by
     default), computed once per request and roleset. Kept in the WSGI environ,

@@ -2,6 +2,7 @@ import { useGlobalSearchParams, useIsFocused, usePathname, useRouter } from "exp
 import React, { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { useWindowDimensions } from "react-native";
 
+import { getLocalStationLaunchToken } from "../api";
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import { ui, useTheme } from "../theme";
@@ -144,7 +145,8 @@ function useNav() {
       await logout?.();
     });
   };
-  return { bootstrap, hidden, pathname, params, go, items, more, current, logout, signOut };
+  // The desktop station has no /vaauth logout; it switches actor in Settings ("Who am I now"), so no Sign out there.
+  return { bootstrap, hidden, pathname, params, go, items, more, current, logout, signOut: getLocalStationLaunchToken() ? undefined : signOut };
 }
 
 /** Escape, outside press and arrow-key roving for a menu panel; the same patterns as AccountMenu. */
@@ -429,8 +431,9 @@ export function BottomTabs() {
     }, h(MenuEntries, {
       entries: more, go, close: () => close(false), tokens,
       extra: h(React.Fragment, null,
-        h("div", { role: "separator", style: { height: 1, margin: "4px 0", background: tokens.border } }),
-        h("button", { type: "button", role: "menuitem", className: "dva-sheet-item", style: { ...entry, color: tokens.destructiveText }, onClick: () => void signOut() }, h(Icon, { name: "signOut" }), t("signOut"))),
+        signOut ? h(React.Fragment, null,
+          h("div", { role: "separator", style: { height: 1, margin: "4px 0", background: tokens.border } }),
+          h("button", { type: "button", role: "menuitem", className: "dva-sheet-item", style: { ...entry, color: tokens.destructiveText }, onClick: () => void signOut() }, h(Icon, { name: "signOut" }), t("signOut"))) : null),
     })) : null,
     h("nav", {
       "aria-label": "Primary",

@@ -487,10 +487,14 @@ Errors `{error, code}`; a body that is not a JSON object is 400
 invalid or missing NQA fields, `selected_options` not a list or an invalid
 option, an unanswered delay question: the last also carries
 `missing_delay_levels`); 403 `forbidden` (reviewer outside review scope,
-Social Autopsy disabled for the role, a demo session outside a demo/training
-project), `no_allocation` (no active reviewing or coding allocation on the
-case); 404 `not_found`. The coding-allocation check shared with `icd10.py`
-answers the same two 403 codes (`require_coding_access`).
+coder or coding tester outside coding scope (`Action.CODE`), Social Autopsy
+disabled for the role, a coder demo session outside a demo/training project),
+`no_allocation` (no active reviewing or coding allocation on the case); 404
+`not_found`. Admin passes a demo session (`vademo_start_coding`) on a
+demo/training submission; anywhere else admin needs its own active coding
+allocation (its demo allocation), as admin holds no coding scope
+(digitva-en2g). The coding-access check shared with `icd10.py` answers the
+same two 403 codes (`require_coding_access`).
 
 ## Workspace content (`GET /api/v1/va/<va_sid>/workspace` and `.../categories/<code>`, `app/routes/api/va_case.py`)
 

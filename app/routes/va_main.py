@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from flask import Blueprint, abort, current_app, render_template, send_from_directory, url_for
+from flask import Blueprint, abort, current_app, redirect, render_template, send_from_directory, url_for
+from flask_login import current_user
 
 va_main = Blueprint("va_main", __name__)
 
@@ -79,6 +80,13 @@ def _who_va_related_documents() -> dict[str, list[dict[str, str | bool]]]:
 @va_main.route("/index")
 @va_main.route("/vaindex")
 def va_index():
+    # Signed-in users' home is the Expo app (docs/policy/expo-client.md,
+    # "Role home and login landing"); landing_url() is only /app/ when the
+    # export is present, so this cannot loop back here.
+    from app.routes.expo_client import export_ready
+
+    if current_user.is_authenticated and export_ready():
+        return redirect(current_user.landing_url())
     return render_template(
         "va_frontpages/va_index.html",
         who_va_related_documents=_who_va_related_documents(),

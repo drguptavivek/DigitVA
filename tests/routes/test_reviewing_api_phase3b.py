@@ -543,6 +543,44 @@ class ReviewingApiPhase3bTests(BaseTestCase):
             for params in ({"limit": 200}, {"limit": 1, "offset": 0}):
                 self.assertEqual(self.client.get(f"{_API}/{route}", query_string=params).status_code, 200)
 
+    def test_dates_are_the_users_local_day_not_utc(self):
+        """20:00 UTC is the next day in IST and the same day in UTC; order stays by instant."""
+        evening = datetime(2026, 3, 1, 20, 0, tzinfo=UTC)
+        late = self._case(submitted=evening)  # gets a final: history, not available
+        open_late = self._case(submitted=evening)
+        early = self._case(submitted=evening - timedelta(hours=3))
+        submission = db.session.get(VaSubmissions, late)
+        db.session.add(VaReviewerFinalAssessments(
+            va_sid=late, payload_version_id=submission.active_payload_version_id,
+            va_rfinassess_by=self.reviewer.user_id, va_conclusive_cod="R99",
+            va_rfinassess_status=VaStatuses.active,
+            va_rfinassess_createdat=evening,
+        ))
+        db.session.commit()
+        original = self.reviewer.timezone
+        try:
+            for tz, day in (("Asia/Kolkata", "2026-03-02"), ("UTC", "2026-03-01")):
+                self.reviewer.timezone = tz
+                db.session.commit()
+                avail = {c["va_sid"]: c for c in self._available(limit=200).get_json()["cases"]}
+                self.assertEqual(avail[open_late]["va_submission_date"], day)
+                self.assertEqual(avail[early]["va_submission_date"], "2026-03-01")
+                order = [c["va_sid"] for c in self._available(limit=200).get_json()["cases"]]
+                self.assertLess(order.index(early), order.index(open_late))
+                hist = self.client.get(f"{_API}/history").get_json()["history"]
+                self.assertEqual(next(r for r in hist if r["va_sid"] == late)["va_submission_date"], day)
+                rows = reviewer_dashboard_service.list_dashboard_forms(self.reviewer)
+                row = next(r for r in rows if r["va_sid"] == late)
+                self.assertEqual((row["va_submission_date"], row["va_reviewed_at"]), (day, day))
+            # An unknown timezone falls back to the app default (IST), never errors.
+            self.reviewer.timezone = "Not/AZone"
+            db.session.commit()
+            avail = {c["va_sid"]: c for c in self._available(limit=200).get_json()["cases"]}
+            self.assertEqual(avail[open_late]["va_submission_date"], "2026-03-02")
+        finally:
+            self.reviewer.timezone = original
+            db.session.commit()
+
     def test_history_is_the_callers_own_active_finals_newest_first_in_view_scope(self):
         base = datetime(2026, 2, 1, tzinfo=UTC)
 

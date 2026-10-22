@@ -14,13 +14,17 @@ import json
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 import pytz
 import sqlalchemy as sa
 from flask_login import current_user
 
 from app import db
+from app.utils.va_render.va_render_07_serialisedates import (
+    va_local_date,
+    va_user_timezone_name,
+)
 from app.models import (
     MasOdkConnections,
     MapProjectOdk,
@@ -538,6 +542,43 @@ def _odk_sync_condition(odk_sync: str):
     return submission_is_in_odk()
 
 
+def _local_date_conditions(user, date_from, date_to) -> list:
+    """WHERE terms for date_from/date_to read as the user's local calendar days.
+
+    The local-day bounds become UTC instants so the plain column (and its
+    index) is compared, not a function of it. ``va_submission_date`` is naive
+    UTC. An unparseable bound is ignored, as an empty one is.
+    """
+    tz = pytz.timezone(va_user_timezone_name(user))
+
+    def utc_midnight(raw, add_days=0):
+        try:
+            day = date.fromisoformat(str(raw)[:10]) + timedelta(days=add_days)
+        except ValueError:
+            return None
+        return tz.localize(datetime(day.year, day.month, day.day)).astimezone(
+            timezone.utc
+        ).replace(tzinfo=None)
+
+    conditions = []
+    start = utc_midnight(date_from) if date_from else None
+    end = utc_midnight(date_to, 1) if date_to else None
+    if start is not None:
+        conditions.append(VaSubmissions.va_submission_date >= start)
+    if end is not None:
+        conditions.append(VaSubmissions.va_submission_date < end)
+    return conditions
+
+
+def _local_wall_time(value, tz_name: str) -> str:
+    """Naive-UTC *value* as local wall time (``YYYY-MM-DD HH:MM:SS``)."""
+    if not value:
+        return ""
+    return (
+        pytz.utc.localize(value).astimezone(pytz.timezone(tz_name)).strftime("%Y-%m-%d %H:%M:%S")
+    )
+
+
 def _csv_values(raw: str) -> list[str]:
     if not raw:
         return []
@@ -692,8 +733,9 @@ _WORKFLOW_LABEL = {
     "consent_refused":              "Consent Refused",
 }
 
+# "va_submission_date" is added per request in dm_submissions_page: its sort key
+# is the viewer's local calendar day.
 _SORT_FIELDS = {
-    "va_submission_date": sa.func.date(VaSubmissions.va_submission_date),
     "va_uniqueid_masked": VaSubmissions.va_uniqueid_masked,
     "project_id":         VaForms.project_id,
     "site_id":            VaForms.site_id,
@@ -747,6 +789,7 @@ def dm_submissions_page(
     ``should_redact_pii`` redacts).
     """
     from app.utils import va_render_serialisedates
+    tz_name = va_user_timezone_name(user)
     coder_final_user = sa.orm.aliased(VaUsers)
     reviewer_final_user = sa.orm.aliased(VaUsers)
 
@@ -812,10 +855,7 @@ def dm_submissions_page(
         conditions.append(VaForms.project_id.in_(project_values))
     if site_values:
         conditions.append(VaForms.site_id.in_(site_values))
-    if date_from:
-        conditions.append(sa.func.date(VaSubmissions.va_submission_date) >= date_from)
-    if date_to:
-        conditions.append(sa.func.date(VaSubmissions.va_submission_date) <= date_to)
+    conditions.extend(_local_date_conditions(user, date_from, date_to))
     if odk_status == "hasIssues":
         conditions.append(VaSubmissions.va_odk_reviewstate == "hasIssues")
     elif odk_status == "approved":
@@ -870,7 +910,7 @@ def dm_submissions_page(
             VaSubmissions.va_uniqueid_masked,
             VaForms.project_id,
             VaForms.site_id,
-            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            va_local_date(VaSubmissions.va_submission_date, tz_name).label("va_submission_date"),
             VaSubmissions.va_data_collector,
             sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),
             sa.case((smartva_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva"),
@@ -955,10 +995,11 @@ def dm_submissions_page(
     )
     sort_fields = {
         **_SORT_FIELDS,
+        "va_submission_date": va_local_date(VaSubmissions.va_submission_date, tz_name),
         "coded_on": coded_on_sort_col,
         "coded_by": coded_by_sort_col,
     }
-    sort_col = sort_fields.get(sort_field, sa.func.date(VaSubmissions.va_submission_date))
+    sort_col = sort_fields.get(sort_field, sort_fields["va_submission_date"])
     order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
     offset = (page - 1) * per_page
     total = db.session.execute(count_q).scalar_one()
@@ -1076,10 +1117,7 @@ def _dm_submission_query_parts(
         conditions.append(VaForms.project_id.in_(project_values))
     if site_values:
         conditions.append(VaForms.site_id.in_(site_values))
-    if date_from:
-        conditions.append(sa.func.date(VaSubmissions.va_submission_date) >= date_from)
-    if date_to:
-        conditions.append(sa.func.date(VaSubmissions.va_submission_date) <= date_to)
+    conditions.extend(_local_date_conditions(user, date_from, date_to))
     if odk_status == "hasIssues":
         conditions.append(VaSubmissions.va_odk_reviewstate == "hasIssues")
     elif odk_status == "approved":
@@ -1283,7 +1321,12 @@ def dm_submissions_export_csv(
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> str:
-    """Return a CSV export for all filtered DM submissions."""
+    """Return a CSV export for all filtered DM submissions.
+
+    ``va_submission_date`` is written in the user's local time, matching the
+    grid and the date filters (the column was UTC).
+    """
+    export_tz = va_user_timezone_name(user)
     redact_pii = should_redact_pii(user)
     attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
         user,
@@ -1586,7 +1629,9 @@ def dm_submissions_export_csv(
             "site_id": row.get("site_id"),
             "va_form_id": row.get("va_form_id"),
             "va_uniqueid_masked": row.get("va_uniqueid_masked"),
-            "va_submission_date": row.get("va_submission_date"),
+            "va_submission_date": _local_wall_time(
+                row.get("va_submission_date"), export_tz
+            ),
             "va_odk_updatedat": row.get("va_odk_updatedat"),
             "va_odk_reviewstate": row.get("va_odk_reviewstate"),
             "va_odk_reviewcomments": _serialize_csv_cell(row.get("va_odk_reviewcomments")),

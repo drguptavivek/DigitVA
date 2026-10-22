@@ -512,3 +512,32 @@ describe("leave dialog of an open interview's navigation guard", () => {
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("desktop station", () => {
+  afterEach(() => { delete (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__; });
+
+  test("the account menu has no Sign out (the station switches actor in Settings), and has it off-station", () => {
+    const labels = () => Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
+    mount();
+    act(() => { host.querySelector<HTMLButtonElement>("button[aria-label^='Account menu']")!.click(); });
+    expect(labels()).toContain("Sign out");
+    act(() => root.unmount());
+    root = createRoot(host);
+    (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "launch-token";
+    mount();
+    act(() => { host.querySelector<HTMLButtonElement>("button[aria-label^='Account menu']")!.click(); });
+    expect(labels()).toContain("Help");
+    expect(labels()).not.toContain("Sign out");
+  });
+
+  test("phone: the More sheet has no Sign out", () => {
+    (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "launch-token";
+    mockWidth = 375;
+    mockPathname = "/";
+    mountAll();
+    act(() => moreButton().click());
+    const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
+    expect(labels).toContain("Settings");
+    expect(labels).not.toContain("Sign out");
+  });
+});

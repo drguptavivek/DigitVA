@@ -85,6 +85,7 @@ from app.services.workflow.transitions import (
     reset_demo_state,
     system_actor,
 )
+from app.utils import va_local_date, va_user_timezone_name
 from app.utils.va_permission.va_permission_05_validaterecodelimits import (
     recode_limit_error,
 )
@@ -1245,7 +1246,9 @@ def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None 
             VaSubmissions.va_form_id,
             VaForms.project_id,
             VaForms.site_id,
-            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            va_local_date(VaSubmissions.va_submission_date, va_user_timezone_name(user)).label(
+                "va_submission_date"
+            ),
             VaSubmissions.va_data_collector,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,

@@ -12,6 +12,8 @@ whole project (the old ``_dm_scope_pairs`` /
 ``dm_submission_org_unit_condition`` pair is gone; the assertions on those
 internals are now assertions on the forms the user is offered).
 """
+import csv
+import io
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
@@ -38,6 +40,7 @@ from app.services.authz import Action, can, resolve_grants, scope_filter
 from app.services.data_management_service import (
     dm_filter_options,
     dm_scoped_forms,
+    dm_submissions_export_csv,
     dm_submissions_page,
 )
 from app.services.submission_payload_version_service import ensure_active_payload_version
@@ -320,6 +323,79 @@ class DmScopeFilterCollaboratorTests(BaseTestCase):
         submission_b.org_unit_id = cls.unit_b.org_unit_id
         submission_b.org_unit_resolution = "manual"
         db.session.commit()
+
+    TZ_SID = "uuid:dm-scope-local-day"
+
+    def _tz_user(self, email, tz_name):
+        """A project-scope data manager whose timezone is *tz_name*."""
+        user = self._get_or_make_user(email, "VdsTzUser123")
+        user.timezone = tz_name
+        self._grant(
+            user,
+            VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.PROJECT,
+        )
+        return user
+
+    def _tz_submission(self):
+        """A submission made 2031-03-10 20:00 UTC: 11 Mar 01:30 in Kolkata."""
+        moment = datetime(2031, 3, 10, 20, 0)
+        sub = db.session.get(VaSubmissions, self.TZ_SID)
+        if sub is None:
+            sub = VaSubmissions(
+                va_sid=self.TZ_SID, va_form_id=self.FORM_A,
+                va_submission_date=moment, va_odk_updatedat=moment,
+                va_data_collector="Collector", va_instance_name=self.TZ_SID,
+                va_uniqueid_real=self.TZ_SID, va_uniqueid_masked=self.TZ_SID,
+                va_consent="yes", va_narration_language="English",
+                va_deceased_age=40, va_deceased_gender="male",
+                va_summary=[], va_catcount={}, va_category_list=[],
+            )
+            db.session.add(sub)
+            db.session.flush()
+            ensure_active_payload_version(
+                sub, payload_data={"sid": self.TZ_SID, "form_def": self.FORM_A},
+                source_updated_at=moment, created_by_role="vasystem",
+            )
+            db.session.add(VaSubmissionWorkflow(
+                va_sid=self.TZ_SID, workflow_state=WORKFLOW_READY_FOR_CODING,
+                workflow_created_at=moment, workflow_updated_at=moment,
+            ))
+            db.session.commit()
+
+    def _tz_rows(self, user, **filters):
+        page = dm_submissions_page(user, per_page=100, **filters)
+        return {r["va_sid"]: r for r in page["data"]}
+
+    def test_submission_date_is_the_users_local_day(self):
+        self._tz_submission()
+        ist = self._tz_user("vds.tz.ist@test.local", "Asia/Kolkata")
+        utc = self._tz_user("vds.tz.utc@test.local", "UTC")
+        self.assertEqual(self._tz_rows(ist)[self.TZ_SID]["va_submission_date"], "2031-03-11")
+        self.assertEqual(self._tz_rows(utc)[self.TZ_SID]["va_submission_date"], "2031-03-10")
+
+    def test_date_filters_are_local_days(self):
+        self._tz_submission()
+        ist = self._tz_user("vds.tz.ist@test.local", "Asia/Kolkata")
+        utc = self._tz_user("vds.tz.utc@test.local", "UTC")
+        day = dict(date_from="2031-03-11", date_to="2031-03-11")
+        self.assertIn(self.TZ_SID, self._tz_rows(ist, **day))
+        self.assertNotIn(self.TZ_SID, self._tz_rows(utc, **day))
+        prev = dict(date_from="2031-03-10", date_to="2031-03-10")
+        self.assertNotIn(self.TZ_SID, self._tz_rows(ist, **prev))
+        self.assertIn(self.TZ_SID, self._tz_rows(utc, **prev))
+
+    def test_sort_by_date_still_orders_and_export_is_local(self):
+        self._tz_submission()
+        ist = self._tz_user("vds.tz.ist@test.local", "Asia/Kolkata")
+        asc = dm_submissions_page(ist, per_page=100, sort_field="va_submission_date", sort_dir="asc")
+        dates = [r["va_submission_date"] for r in asc["data"]]
+        self.assertEqual(dates, sorted(dates))
+        self.assertIn("2031-03-11", dates)
+        rows = list(csv.DictReader(io.StringIO(dm_submissions_export_csv(ist))))
+        row = next(r for r in rows if r["va_sid"] == self.TZ_SID)
+        self.assertEqual(row["va_submission_date"], "2031-03-11 01:30:00")
 
     @staticmethod
     def _scoped_pairs(user):

@@ -9,7 +9,7 @@ from flask_login import current_user, login_required
 from app import db, limiter
 from app.models import AuthWebauthnCredential
 from app.routes.api.request_helpers import error as api_error
-from app.routes.api.request_helpers import parse_body
+from app.routes.api.request_helpers import optional_object_body, parse_body
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services.webauthn_service import (
     PasskeyVerificationError,
@@ -177,8 +177,13 @@ def generate_password():
 def update_timezone():
     """Update the current user's timezone."""
     import pytz
-    body = request.get_json(silent=True) or {}
-    timezone = (body.get("timezone") or "").strip()
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.")
+    timezone = body.get("timezone")
+    if timezone is not None and not isinstance(timezone, str):
+        return api_error("Invalid timezone.")
+    timezone = (timezone or "").strip()
 
     if not timezone:
         return api_error("Timezone is required.")
@@ -224,7 +229,9 @@ def update_interviewer_profile():
     prefills and locks the sex into WHO Id10010b; the year of birth no longer
     feeds Id10010a (digitva-q219). An omitted key keeps its
     value; null or blank clears it. Values are never logged."""
-    body = request.get_json(silent=True) or {}
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.")
     try:
         current_user.set_interviewer_profile(
             body.get("year_of_birth", current_user.year_of_birth),
@@ -251,9 +258,11 @@ def reauth():
     """Re-verify the current user's password to refresh the 10-minute
     reauthentication window that passkey registration/rename/revoke need
     (docs/policy/authentication-factors.md section 7)."""
-    body = request.get_json(silent=True) or {}
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.")
     password = body.get("password", "")
-    if not password or not current_user.check_password(password):
+    if not password or not isinstance(password, str) or not current_user.check_password(password):
         return api_error("Incorrect password.", status_code=403)
     session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
     return jsonify({"message": "Reauthenticated."})
@@ -403,9 +412,16 @@ def register_passkey():
         clear_registration_challenge()
         return reauth_error
 
-    body = request.get_json(silent=True) or {}
+    body = optional_object_body()
+    if body is None:
+        clear_registration_challenge()
+        return api_error("A JSON object is required.")
     credential = body.get("credential")
-    name = (body.get("name") or "").strip()[:64] or "Passkey"
+    name = body.get("name")
+    if name is not None and not isinstance(name, str):
+        clear_registration_challenge()
+        return api_error("name must be text.")
+    name = (name or "").strip()[:64] or "Passkey"
     if not isinstance(credential, dict):
         clear_registration_challenge()
         return api_error("Invalid passkey response.")
@@ -464,8 +480,11 @@ def rename_passkey(passkey_id):
     if cred is None:
         return api_error("Passkey not found.", status_code=404)
 
-    body = request.get_json(silent=True) or {}
-    name = (body.get("name") or "").strip()[:64]
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.")
+    name = body.get("name")
+    name = name.strip()[:64] if isinstance(name, str) else ""
     if not name:
         return api_error("A name is required.")
 

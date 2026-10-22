@@ -324,7 +324,7 @@ export function CaseWorkspaceScreen({
   }
 
   const privateNotes = identity.mode !== "view" ? (
-    <PrivateNotePanel key={identityKey} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} onNoteChanged={noteChanged} />
+    <PrivateNotePanel key={`${identityKey}:notes`} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} onNoteChanged={noteChanged} />
   ) : null;
   const browser = Platform.OS === "web";
   const effectiveCategories = browser && identity.mode === "view"
@@ -347,7 +347,7 @@ export function CaseWorkspaceScreen({
   const reviewing = identity.mode === "reviewing";
   // Reviewers get the COD entry form right under the coder's COD, above the long reference content.
   const codEditor = selectedCode === "vacodassessment" && identity.mode !== "view" ? (
-    <View key={identityKey}>
+    <View key={`${identityKey}:cod`}>
       {workspace.case.project_mode.endsWith("_doris") ? (
         renderDoris ? renderDoris(workspace, loadWorkspace, finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (

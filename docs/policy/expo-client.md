@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-22
 ---
 
 # Expo Web Client Boundary
@@ -56,18 +56,23 @@ factor is introduced.
 
 ## Role home and login landing
 
-Owner decision, 2026-10-11, 2026-10-12 and 2026-10-19 (design: `.tasks/2026-10-11-home-jump-page.md`, bead `digitva-dsj2`).
-After login (and after accepting terms on `/profile/force-password-change`),
-a user holding one of the field, coding or data manager roles — or a new user
-with no role grants yet — lands on the Expo role home dashboard at `/app/`:
+Owner decision, 2026-10-22 (supersedes 2026-10-11, -12 and -19; design:
+`.tasks/2026-10-11-home-jump-page.md`, bead `digitva-dsj2`). The Expo home at
+`/app/` is the default home for every signed-in user — admin, `project_pi`,
+collaborators, viewers, `site_pi`, field, coding and data manager roles, and
+users with no role grants yet — whenever the Expo export is present
+(`export_ready()`, an `index.html` in the export directory).
 
-- `admin` or `project_pi`: unchanged (today's landing).
-- Any of `interviewer`, `death_reporter`, `interview_supervisor`, `coder`,
-  `coding_tester`, `reviewer`, `data_manager`, in the user's effective roles,
-  or a user with no effective roles yet: `/app/`.
-- Anything else (collaborators, viewers, `site_pi` at a project site alone):
-  today's landing, unchanged. If the Expo export is missing (no `index.html`),
-  every user keeps today's landing.
+- After login (every sign-in path), after accepting terms on
+  `/profile/force-password-change`, and on `/` for a signed-in user, the
+  browser goes to `/app/`. The Flask "Return to Dashboard" and logo links
+  follow the same rule. `/admin/`, `/data-management/`, `/area/`, `/sitepi/`
+  and the other Flask pages stay reachable by URL and from the Expo home.
+- The stored `landing_page` column is kept but no longer chooses the
+  post-login page while the export is present. Only when the export is
+  missing (no `index.html`) does `VaUsers.landing_url()` fall back to the old
+  rule: `landing_page` where the user still holds the matching role, then the
+  first role dashboard, then `/`.
 - `/app/` renders the user's Home / Dashboard directly on login:
   - When the user holds roles or project grants, it shows overall personal
     activity totals (forms filled, drafts in progress, deaths reported, forms
@@ -75,14 +80,17 @@ with no role grants yet — lands on the Expo role home dashboard at `/app/`:
     quick action buttons, and a card per project listing the user's assigned
     roles and scopes in that project, per-project personal activity counts, and
     per-project action buttons.
+  - Quick actions reach the Flask pages a role has no Expo screen for: the
+    admin console (`/admin/`) for an admin, Data management (`/data-management/`)
+    for `project_pi`, collaborator and viewer (`collaborator_pii`) users, and
+    the VA dashboard (`/sitepi/`) for `site_pi`.
   - When a user holds no roles in any project yet, `/app/` shows a Welcome
     home state explaining that no project roles have been assigned yet, with
     links to Settings / Profile, Help, and Demo Coding when available.
 
 Effective roles come from the authz helper, so a `site_pi` held at an org
 unit (the In-charge) counts as `data_manager` and `interview_supervisor`.
-`VaUsers.landing_url()` implements the rule, and `/profile/force-password-change`
-redirects to `current_user.landing_url()`.
+`VaUsers.landing_url()` implements the rule.
 
 ## Hosting and languages
 

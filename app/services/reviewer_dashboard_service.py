@@ -27,7 +27,7 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
 )
-from app.utils import va_render_serialisedates
+from app.utils import va_local_date, va_render_serialisedates, va_user_timezone_name
 
 #: Rows per page of the API lists: the default, and the server-side clamp.
 DEFAULT_PAGE_SIZE = 50
@@ -127,6 +127,7 @@ def count_completed(user, project_id: str | None = None) -> int:
 
 def list_dashboard_forms(user) -> list[dict]:
     """Every in-scope submission with its review status, for the web dashboard."""
+    tz_name = va_user_timezone_name(user)
     review_scope = scope_filter(user, Action.REVIEW)
     active_final = (
         sa.select(
@@ -142,7 +143,7 @@ def list_dashboard_forms(user) -> list[dict]:
     va_forms_raw = (
         db.session.execute(
             sa.select(
-                sa.func.date(VaSubmissions.va_submission_date).label(
+                va_local_date(VaSubmissions.va_submission_date, tz_name).label(
                     "va_submission_date"
                 ),
                 VaForms.project_id.label("project_id"),
@@ -154,7 +155,7 @@ def list_dashboard_forms(user) -> list[dict]:
                 VaSubmissions.va_narration_language,
                 VaSubmissions.va_deceased_age,
                 VaSubmissions.va_deceased_gender,
-                sa.func.date(active_final.c.va_coded_at).label("va_coded_at"),
+                va_local_date(active_final.c.va_coded_at, tz_name).label("va_coded_at"),
                 # Workflow state is the canonical source for review status.
                 # reviewer_finalized  → terminal, final COD submitted
                 # reviewer_coding_in_progress → session active
@@ -172,8 +173,8 @@ def list_dashboard_forms(user) -> list[dict]:
                     ),
                     else_=sa.literal("Not Reviewed"),
                 ).label("va_review_status"),
-                sa.func.date(
-                    VaReviewerFinalAssessments.va_rfinassess_createdat
+                va_local_date(
+                    VaReviewerFinalAssessments.va_rfinassess_createdat, tz_name
                 ).label("va_reviewed_at"),
             )
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
@@ -285,6 +286,7 @@ def list_available(
     project, site, submission date, masked id, then ``va_sid`` so paging is
     stable.
     """
+    tz_name = va_user_timezone_name(user)
     rows = (
         db.session.execute(
             sa.select(
@@ -293,7 +295,7 @@ def list_available(
                 VaSubmissions.va_form_id,
                 VaForms.project_id,
                 VaForms.site_id,
-                sa.func.date(VaSubmissions.va_submission_date).label(
+                va_local_date(VaSubmissions.va_submission_date, tz_name).label(
                     "va_submission_date"
                 ),
                 VaSubmissions.va_data_collector,
@@ -337,6 +339,7 @@ def list_history(
     opens): authoring a final grants nothing once the case is rerouted out of
     the reviewer's unit. ``va_reviewed_at`` is the final's UTC timestamp, ISO with ``+00:00``.
     """
+    tz_name = va_user_timezone_name(user)
     stmt = (
         sa.select(
             VaSubmissions.va_sid,
@@ -344,7 +347,7 @@ def list_history(
             VaSubmissions.va_form_id,
             VaForms.project_id,
             VaForms.site_id,
-            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            va_local_date(VaSubmissions.va_submission_date, tz_name).label("va_submission_date"),
             VaSubmissions.va_data_collector,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,

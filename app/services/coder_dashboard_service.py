@@ -29,7 +29,7 @@ from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
 )
-from app.utils import va_render_serialisedates
+from app.utils import va_local_date, va_render_serialisedates, va_user_timezone_name
 
 
 CODER_DASHBOARD_CACHE_TTL = 300
@@ -198,12 +198,13 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None):
     from app.services.authz import Action, scope_filter
 
     user_id = user.user_id
+    tz_name = va_user_timezone_name(user)
     view_scope = scope_filter(user, Action.VIEW)
     final_sel = (
         sa.select(
             VaForms.project_id.label("project_id"),
             VaForms.site_id.label("site_id"),
-            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            va_local_date(VaSubmissions.va_submission_date, tz_name).label("va_submission_date"),
             VaSubmissions.va_form_id,
             VaSubmissions.va_sid,
             VaSubmissions.va_uniqueid_masked,
@@ -232,7 +233,7 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None):
         sa.select(
             VaForms.project_id.label("project_id"),
             VaForms.site_id.label("site_id"),
-            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            va_local_date(VaSubmissions.va_submission_date, tz_name).label("va_submission_date"),
             VaSubmissions.va_form_id,
             VaSubmissions.va_sid,
             VaSubmissions.va_uniqueid_masked,
@@ -298,20 +299,20 @@ def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> lis
     # add the grants digest to the key if that window matters.
     return _cached_dashboard_value(
         user_id,
-        "history",
+        f"history:{va_user_timezone_name(user)}",
         scoped_form_ids,
         compute,
     )
 
 
-def _demo_history_stmt(user_id, project_id: str | None = None):
+def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "Asia/Kolkata"):
     """Unexpired demo finals of *user_id*; see ``get_coder_demo_history``."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     stmt = (
         sa.select(
             VaForms.project_id.label("project_id"),
             VaForms.site_id.label("site_id"),
-            sa.func.date(VaSubmissions.va_submission_date).label("va_submission_date"),
+            va_local_date(VaSubmissions.va_submission_date, tz_name).label("va_submission_date"),
             VaSubmissions.va_form_id,
             VaSubmissions.va_sid,
             VaSubmissions.va_uniqueid_masked,
@@ -365,7 +366,7 @@ def get_coder_history_page(
     ``has_more`` without a count.
     """
     user_id = user.user_id
-    demo_stmt = _demo_history_stmt(user_id, project_id)
+    demo_stmt = _demo_history_stmt(user_id, project_id, va_user_timezone_name(user))
     demo_total = db.session.scalar(
         sa.select(sa.func.count()).select_from(demo_stmt.order_by(None).subquery())
     )
@@ -415,7 +416,7 @@ def get_coder_history_page(
     return rows[:limit], len(rows) > limit
 
 
-def get_coder_demo_history(user_id) -> list[dict]:
+def get_coder_demo_history(user_id, tz_name: str = "Asia/Kolkata") -> list[dict]:
     """Return the coder's demo final codes that have not expired yet.
 
     Demo work is kept out of the cached history and KPIs, but a trainee
@@ -426,7 +427,7 @@ def get_coder_demo_history(user_id) -> list[dict]:
     are left out.
     """
     rows = db.session.execute(
-        _demo_history_stmt(user_id).order_by(
+        _demo_history_stmt(user_id, tz_name=tz_name).order_by(
             VaFinalAssessments.va_finassess_createdat.desc()
         )
     ).mappings().all()

@@ -1,5 +1,7 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
+
+import sqlalchemy as sa
 
 from app import db
 from app.models import (
@@ -1396,3 +1398,90 @@ class TestCodingAllocationService(BaseTestCase):
         self.assertEqual(released, 0)
         allocation = db.session.get(VaAllocations, allocation_id)
         self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+    def _add_demo_event(self, sid, transition_id, at):
+        db.session.add(
+            VaSubmissionWorkflowEvent(
+                va_sid=sid,
+                transition_id=transition_id,
+                previous_state="ready_for_coding",
+                current_state="coding_in_progress",
+                actor_kind="coder",
+                actor_role="vacoder",
+                actor_user_id=self.base_coder_user.user_id,
+                transition_reason="test_seed",
+                event_created_at=at,
+            )
+        )
+
+    def _add_active_coding_allocation(self, sid, user_id, created_at):
+        allocation = VaAllocations(
+            va_sid=sid,
+            va_allocated_to=user_id,
+            va_allocation_for=VaAllocation.coding,
+            va_allocation_status=VaStatuses.active,
+            va_allocation_createdat=created_at,
+        )
+        db.session.add(allocation)
+        return allocation
+
+    def test_demo_started_event_on_a_real_project_uses_the_demo_timeout(self):
+        sid = "uuid:event-only-demo"
+        self._add_submission(sid)
+        db.session.flush()
+        started = datetime.now(UTC) - timedelta(minutes=20)
+        self._add_demo_event(sid, "demo_started", started)
+        allocation = self._add_active_coding_allocation(
+            sid, self.base_coder_user.user_id, started
+        )
+        db.session.commit()
+
+        self.assertEqual(release_stale_coding_allocations(timeout_hours=1), 1)
+        db.session.refresh(allocation)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.deactive)
+
+    def test_demo_reset_after_start_keeps_the_normal_timeout(self):
+        sid = "uuid:reset-demo"
+        self._add_submission(sid)
+        db.session.flush()
+        started = datetime.now(UTC) - timedelta(minutes=20)
+        self._add_demo_event(sid, "demo_started", started)
+        self._add_demo_event(sid, "demo_reset", started + timedelta(minutes=1))
+        allocation = self._add_active_coding_allocation(
+            sid, self.base_coder_user.user_id, started
+        )
+        db.session.commit()
+
+        self.assertEqual(release_stale_coding_allocations(timeout_hours=1), 0)
+        db.session.refresh(allocation)
+        self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
+
+    def _count_sweep_queries(self, allocation_count):
+        """Seed *allocation_count* 30-minute-old real allocations (past the demo
+        timeout, inside the normal one) and count the sweep's statements."""
+        created_at = datetime.now(UTC) - timedelta(minutes=30)
+        for _ in range(allocation_count):
+            sid = f"uuid:sweep-{uuid.uuid4().hex[:12]}"
+            self._add_submission(sid)
+            user = self._make_user(f"sweep{uuid.uuid4().hex[:8]}@example.com", "Sweep@123")
+            db.session.flush()
+            self._add_active_coding_allocation(sid, user.user_id, created_at)
+        db.session.commit()
+
+        statements = []
+
+        def count(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", count)
+        try:
+            self.assertEqual(release_stale_coding_allocations(timeout_hours=1), 0)
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", count)
+        return len(statements)
+
+    def test_stale_sweep_query_count_does_not_grow_with_active_allocations(self):
+        few = self._count_sweep_queries(2)
+        many = self._count_sweep_queries(6)
+        self.assertGreater(few, 0)
+        self.assertEqual(few, many)

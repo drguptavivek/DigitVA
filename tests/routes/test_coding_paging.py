@@ -292,6 +292,41 @@ class CodingPagingTests(BaseTestCase):
             self.assertFalse(pages[-1]["has_more"])
             self.assertTrue(all(b["has_more"] for b in pages[:-1]))
 
+    def test_dates_are_the_users_local_day_not_utc(self):
+        """20:00 UTC is the next day in IST, the same day in UTC; cache keyed per timezone."""
+        from app.services.coder_dashboard_service import bust_coder_dashboard_cache
+
+        evening = datetime(2026, 3, 1, 20, 0)
+        sids = ("pg-a-0", "hist-a-0", "hist-d-0")
+        originals = {sid: db.session.get(VaSubmissions, sid).va_submission_date for sid in sids}
+        original_tz = self.coder.timezone
+        try:
+            for sid in sids:
+                db.session.get(VaSubmissions, sid).va_submission_date = evening
+            db.session.commit()
+            for tz, day in (("Asia/Kolkata", "2026-03-02"), ("UTC", "2026-03-01")):
+                self.coder.timezone = tz
+                db.session.commit()
+                # No bust between zones: the unpaged history cache must not leak across them.
+                for path, key in (
+                    ("/api/v1/coding/available", "forms"),
+                    ("/api/v1/coding/history", "history"),
+                ):
+                    for params in ({}, {"limit": 200}):
+                        rows = self._get(path, **params).get_json()[key]
+                        by_sid = {r["va_sid"]: r["va_submission_date"] for r in rows}
+                        probe = "pg-a-0" if key == "forms" else "hist-a-0"
+                        self.assertEqual(by_sid[probe], day, (tz, path, params))
+                rows = self._get("/api/v1/coding/history").get_json()["history"]
+                demo = next(r for r in rows if r["va_sid"] == "hist-d-0")
+                self.assertEqual(demo["va_submission_date"], day)
+        finally:
+            for sid, original in originals.items():
+                db.session.get(VaSubmissions, sid).va_submission_date = original
+            self.coder.timezone = original_tz
+            db.session.commit()
+            bust_coder_dashboard_cache(self.coder.user_id)
+
     def test_available_offset_past_the_end_is_an_empty_last_page(self):
         body = self._get("/api/v1/coding/available", limit=5, offset=10_000).get_json()
         self.assertEqual(body["forms"], [])

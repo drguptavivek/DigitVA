@@ -881,8 +881,9 @@ read-only is built by `digitva-0wc` stage 2 (next subsection).
   dashboard the user can open (`data_management.dashboard` for a viewer).
   The data-management grid links a viewer's rows there (`viewOnly` in
   `DM_DASHBOARD_CONFIG`) and shows no Edit or View Changes button; the
-  navbar shows a "Data" entry and `VaUsers.landing_url` lands a viewer on
-  the dashboard.
+  navbar shows a "Data" entry; with the Expo export present a viewer lands on
+  `/app/` like everyone (Data management is a quick action there), and
+  `VaUsers.landing_url` falls back to the dashboard only without the export.
 - The `vadata` and `vaarea` partial validators require `VIEW`. Every write
   partial in `va_form.renderpartial` requires its own action in
   `_require_partial_write`: `vadmtriage` TRIAGE (GET and POST), Step 1,

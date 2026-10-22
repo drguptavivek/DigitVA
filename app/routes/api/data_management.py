@@ -31,6 +31,7 @@ from app import cache, db, limiter
 from app.decorators import role_required
 from app.models import VaForms, VaSyncRun, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
+from app.routes.api.request_helpers import optional_object_body
 from app.services.data_management_service import (
     audit_dm_submission_action,
     dm_accept_upstream_change,
@@ -56,6 +57,7 @@ from app.services.data_management_service import (
 from app.services import smartva_service
 from app.services.authz import Action, AuthzError, can, require, scope_filter
 from app.services.viewer_pii_service import should_redact_pii
+from app.utils import va_user_timezone_name
 from app.services import export_store_service as export_store
 from app.services.attachment_store import AttachmentStoreError
 from app.services.export_store_service import (
@@ -91,7 +93,8 @@ def _refusal(action: Action, target, message: str):
 
 def _cache_key(suffix: str) -> str:
     qs = request.query_string.decode()
-    return f"dm_analytics:{current_user.user_id}:{suffix}:{qs}"
+    # Date filters are the user's local days, so the timezone is part of the key.
+    return f"dm_analytics:{current_user.user_id}:{va_user_timezone_name(current_user)}:{suffix}:{qs}"
 
 
 def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
@@ -193,13 +196,16 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) 
     CSV is already in hand, so it is sent inline and only the caching is lost.
     """
     filters = _export_filters_from_request()
+    # Part of the cache identity only (not an export argument): a changed
+    # timezone must not be served the old day boundaries.
+    cache_filters = {**filters, "timezone": va_user_timezone_name(current_user)}
     ttl_seconds = _export_cache_ttl_seconds()
     filename = f"{filename_prefix}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.csv"
 
     ref = export_store.export_cache_lookup(
         export_kind=export_kind,
         user_id=current_user.user_id,
-        filters=filters,
+        filters=cache_filters,
         ttl_seconds=ttl_seconds,
     )
     if ref is not None:
@@ -212,7 +218,7 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) 
         ref = export_store.write_export(
             export_kind=export_kind,
             user_id=current_user.user_id,
-            filters=filters,
+            filters=cache_filters,
             csv_text=csv_text,
         )
     except (ExportStoreError, AttachmentStoreError, OSError) as exc:
@@ -436,9 +442,16 @@ def sync_preview():
     if not dm_grant_scope(current_user).has_direct:
         return api_error("Form sync requires a project or site grant.", status_code=403)
 
-    payload = request.get_json(silent=True) or {}
+    payload = optional_object_body()
+    if payload is None:
+        return api_error("A JSON object is required.", status_code=400)
     project_ids = payload.get("project_ids") or []
     site_ids = payload.get("site_ids") or []
+    if not all(
+        isinstance(ids, list) and all(isinstance(i, str) for i in ids)
+        for ids in (project_ids, site_ids)
+    ):
+        return api_error("project_ids and site_ids must be lists of text.", status_code=400)
 
     try:
         from app.utils import va_odk_fetch_instance_ids, va_odk_delta_count
@@ -905,7 +918,9 @@ def set_submission_org_unit(va_sid: str):
         sa.select(VaForms.project_id).where(VaForms.form_id == submission.va_form_id)
     ).first()
 
-    payload = request.get_json(silent=True) or {}
+    payload = optional_object_body()
+    if payload is None:
+        return api_error("A JSON object is required.", status_code=400)
     raw_unit_id = payload.get("org_unit_id")
     # The target unit is checked on its own (authz ROUTE_PIN on a unit): a
     # project or pair grant pins anywhere in the project; a unit data

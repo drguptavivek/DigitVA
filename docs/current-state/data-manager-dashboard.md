@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-10-22
 ---
 
 # Data Manager Dashboard
@@ -154,7 +154,7 @@ The table currently shows scoped submissions with:
 
 - masked ID
 - project/site
-- submitted date
+- submitted date (the calendar day in the viewer's own timezone, not UTC)
 - workflow state
 - coded-on / coded-by for coded submissions
 - ODK review state
@@ -250,6 +250,15 @@ Current filter behavior:
 - this includes project, site, submitted from/to, ODK status, SmartVA status,
   age group, gender, ODK sync, workflow state, and text search
 - date grouping uses the current user's timezone
+- the table's submitted date, its date sort and the submitted from/to filters all
+  use the viewer's local calendar day (`user.timezone`, default Asia/Kolkata);
+  from/to are converted to UTC instants (`>= local start`, `< next local day`)
+  so the plain column is compared. The KPI cards and charts read the analytics
+  materialized views and still bucket by UTC day, so a late-evening case can
+  count on a different day there than in the table
+- the full-submissions CSV writes `va_submission_date` as local wall time
+  (`YYYY-MM-DD HH:MM:SS`); the timezone is part of the data-management cache key
+  and of the export cache identity
 
 ## Exports
 

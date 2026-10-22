@@ -187,6 +187,10 @@ EXEMPT = {
     "services/demo_project_service.py::should_use_demo_actiontype_for_submission": (
         "classifies one named submission as a demo session; decides no allocation or count"
     ),
+    "services/demo_project_service.py::demo_sids_among_actively_allocated": (
+        "batch form of the demo classification for already-allocated sids in the stale "
+        "sweep; decides no allocation or count"
+    ),
     "services/data_management_service.py::dm_screening_reject": _WRITER,
     "services/data_management_service.py::dm_accept_upstream_change": _WRITER,
     "services/data_management_service.py::dm_keep_current_icd_on_upstream_change": _WRITER,

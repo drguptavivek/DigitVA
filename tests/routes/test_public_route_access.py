@@ -23,11 +23,17 @@ class LandingPageIsPublicTests(BaseTestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertNotIn("Location", response.headers)
 
-    def test_logged_in_get_root_renders(self):
-        self._login(self.base_coder_id)
-        response = self.client.get("/")
+    def test_logged_in_get_root_goes_to_landing_url(self):
+        """Signed-in users go to /app/ while the export is present, else the page renders."""
+        from unittest import mock
 
-        self.assertEqual(response.status_code, 200)
+        self._login(self.base_coder_id)
+        with mock.patch("app.routes.expo_client.export_ready", return_value=True):
+            response = self.client.get("/")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/app/"))
+        with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+            self.assertEqual(self.client.get("/").status_code, 200)
 
     def test_login_page_answers_anonymous_visitors(self):
         """The dedicated login page must render for an anonymous visitor; it

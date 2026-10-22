@@ -302,7 +302,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
     def test_plain_user_sees_va_coding_nav_link_when_demo_project_exists(self):
         self._login(self.demo_plain_user_id)
 
-        response = self.client.get("/")
+        response = self.client.get("/profile/")
 
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)

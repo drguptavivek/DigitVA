@@ -135,8 +135,9 @@ class RoleHomeLandingTests(BaseTestCase):
         user = self._user("in_charge", (R.site_pi, self.ch1))
         self.assertEqual(self._landing(user), self._app_url())
 
-    def test_admin_project_pi_and_collaborators_keep_today_landing(self):
-        # Pinned to today's branch of landing_url(), with no stored landing_page.
+    def test_admin_project_pi_and_collaborators_land_on_the_role_home(self):
+        # Owner 2026-10-22 (digitva-7kez): every user lands on /app/ when the
+        # export exists; their old landing stays as the no-export fallback.
         cases = {
             "admin": ((R.admin, None), "va_main.va_index"),
             "project_pi": ((R.project_pi, None), "data_management.dashboard"),
@@ -145,9 +146,11 @@ class RoleHomeLandingTests(BaseTestCase):
         for key, (grant, endpoint) in cases.items():
             with self.subTest(roster=key):
                 user = self._user(key, grant)
-                with self.app.test_request_context():
-                    expected = url_for(endpoint)
-                self.assertEqual(self._landing(user), expected)
+                self.assertEqual(self._landing(user), self._app_url())
+                with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+                    with self.app.test_request_context():
+                        expected = url_for(endpoint)
+                    self.assertEqual(self._landing(user), expected)
 
     def test_the_new_death_page_opens_for_a_death_reporter(self):
         user = self._user("reporter_page", (R.death_reporter, self.sca))

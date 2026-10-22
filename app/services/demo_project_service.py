@@ -95,11 +95,6 @@ def get_demo_expiry_for_submission(
     return now + timedelta(hours=ADMIN_DEMO_RETENTION_HOURS)
 
 
-def get_demo_coding_allocation_timeout_minutes(va_sid: str) -> int:
-    """Return the coding-allocation timeout for demo/training sessions."""
-    return DEMO_CODING_ALLOCATION_TIMEOUT_MINUTES
-
-
 def get_coder_demo_project_form_ids(*, only_active: bool = True) -> set[str]:
     if not demo_project_schema_ready():
         return set()
@@ -143,6 +138,58 @@ def get_demo_training_project_ids(
 
 def is_demo_training_submission(va_sid: str) -> bool:
     return is_demo_training_project(get_project_for_submission(va_sid))
+
+
+def demo_sids_among_actively_allocated(va_sids: set[str]) -> set[str]:
+    """Return the subset of *va_sids* in a demo coding session, in two queries.
+
+    Set form of ``should_use_demo_actiontype_for_submission`` for callers whose
+    sids all hold an active coding allocation (the stale-allocation sweep), so
+    its active-allocation leg is already true and is not re-queried.
+    """
+    if not va_sids:
+        return set()
+
+    demo_sids: set[str] = set()
+    if demo_project_schema_ready():
+        demo_sids.update(
+            db.session.scalars(
+                sa.select(VaSubmissions.va_sid)
+                .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+                .join(VaProjectMaster, VaProjectMaster.project_id == VaForms.project_id)
+                .where(
+                    VaSubmissions.va_sid.in_(va_sids),
+                    VaProjectMaster.demo_training_enabled.is_(True),
+                )
+            )
+        )
+
+    latest: dict[tuple[str, str], datetime] = {
+        (sid, transition): created_at
+        for sid, transition, created_at in db.session.execute(
+            sa.select(
+                VaSubmissionWorkflowEvent.va_sid,
+                VaSubmissionWorkflowEvent.transition_id,
+                sa.func.max(VaSubmissionWorkflowEvent.event_created_at),
+            )
+            .where(
+                VaSubmissionWorkflowEvent.va_sid.in_(va_sids - demo_sids),
+                VaSubmissionWorkflowEvent.transition_id.in_(
+                    (TRANSITION_DEMO_STARTED, TRANSITION_DEMO_RESET)
+                ),
+            )
+            .group_by(
+                VaSubmissionWorkflowEvent.va_sid,
+                VaSubmissionWorkflowEvent.transition_id,
+            )
+        )
+    }
+    for sid in va_sids - demo_sids:
+        started = latest.get((sid, TRANSITION_DEMO_STARTED))
+        reset = latest.get((sid, TRANSITION_DEMO_RESET))
+        if started is not None and (reset is None or reset < started):
+            demo_sids.add(sid)
+    return demo_sids
 
 
 def should_use_demo_actiontype_for_submission(va_sid: str) -> bool:

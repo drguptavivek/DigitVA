@@ -241,12 +241,18 @@ class CollaboratorViewerAccessTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("viewOnly: false", response.get_data(as_text=True))
 
-    def test_viewer_lands_on_the_data_page(self):
+    def test_viewer_lands_on_the_data_page_only_without_the_expo_export(self):
+        """Every user lands on /app/ when the Expo export exists (owner
+        2026-10-22, digitva-7kez); the data page is the no-export fallback."""
+        from unittest import mock
         user = self._make_viewer(
             VaAccessRoles.collaborator, "vca.collab.landing@test.local", "VcaCollabLanding123"
         )
         with self.app.test_request_context():
-            self.assertEqual(user.landing_url(), "/data-management/")
+            with mock.patch("app.routes.expo_client.export_ready", return_value=True):
+                self.assertEqual(user.landing_url(), "/app/")
+            with mock.patch("app.routes.expo_client.export_ready", return_value=False):
+                self.assertEqual(user.landing_url(), "/data-management/")
 
     def test_viewers_open_one_submission_read_only(self):
         """Owner decision (access-control-model.md "collaborator"): a viewer

@@ -15,6 +15,7 @@ from app import cache, db, limiter
 from app.decorators.role_required import role_required
 from app.models import MasIcd1020192, VaAllocation, VaAllocations, VaStatuses, VaSubmissions
 from app.routes.api.request_helpers import error as api_error
+from app.routes.api.request_helpers import optional_object_body
 from app.services import coding_search_telemetry_service
 from app.services.authz import Action, can
 from app.services.coding_search_explain import explained_payload
@@ -287,7 +288,9 @@ def icd10_2019_2_policy_import():
 @bp.patch("/2019-2/node/<code>/policy")
 @role_required("admin")
 def icd10_2019_2_update_policy(code: str):
-    body = request.get_json(silent=True) or {}
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.", status_code=400)
     try:
         payload = update_icd10_2019_2_policy(
             code=code.strip(),

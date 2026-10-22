@@ -2826,6 +2826,8 @@ def suggest_existing_users(query: object, *, is_admin: bool = True) -> list[dict
     """Up to 8 active accounts whose email (any text with a letter or ``@``,
     from 3 characters) or canonical mobile (digits only, from 4) contains
     *query*, case-insensitive: exact match first, then prefix, then by name.
+    An admin's text query also matches the account name (the admin training
+    panel searches people by name).
 
     Owner decision 2026-10-22 (organization-model.md): any admin or project
     PI sees every matching account. A non-admin gets only the channel being
@@ -2842,6 +2844,8 @@ def suggest_existing_users(query: object, *, is_admin: bool = True) -> list[dict
             return []
         field = sa.func.lower(VaUsers.email)
         match = field.contains(raw, autoescape=True)
+        if is_admin:
+            match = sa.or_(match, sa.func.lower(VaUsers.name).contains(raw, autoescape=True))
     else:
         if len(raw) < SUGGEST_MIN_DIGITS:
             return []

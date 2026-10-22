@@ -228,7 +228,7 @@ export function ChipGroup<K extends string>({ options, value, onChange, a11yLabe
 }
 
 /** Native browser date field (web only screen); the value is an ISO date or "". */
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+export function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const { colors } = useTheme();
   const s = useFilterStyles();
   return (

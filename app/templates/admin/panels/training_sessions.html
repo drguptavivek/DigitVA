@@ -62,7 +62,9 @@
     <form id="training-add" class="row g-2 mb-3">
       <div class="col-md-5">
         <label class="form-label" for="training-email">Existing user's email</label>
-        <input id="training-email" name="email" type="email" class="form-control" maxlength="254" required>
+        <input id="training-email" name="email" type="email" class="form-control" maxlength="254" required
+               list="training-email-options" autocomplete="off" placeholder="Type a name or email">
+        <datalist id="training-email-options"></datalist>
       </div>
       <fieldset class="col-md-4" id="training-roles">
         <legend class="form-label fs-6">Roles in this session (at least one)</legend>
@@ -216,6 +218,26 @@
   function ask(text) { return new Promise(resolve => { el('confirm-text').textContent = text; const d = el('confirm'); d.addEventListener('close', () => resolve(d.returnValue === 'ok'), {once: true}); d.showModal(); }); }
   function guard(fn) { return async (...args) => { if (busy) return; busy = true; try { await fn(...args); } catch (e) { message(e.message, true); } finally { busy = false; } }; }
   const roleName = r => r.replace(/_/g, ' ');
+
+  // Name or email suggestions while typing; picking one fills the email.
+  let suggestTimer = null, suggestSeq = 0;
+  el('email').addEventListener('input', () => {
+    clearTimeout(suggestTimer);
+    const q = el('email').value.trim();
+    if (q.length < 3) { el('email-options').replaceChildren(); return; }
+    suggestTimer = setTimeout(async () => {
+      const seq = ++suggestSeq;
+      const response = await fetch('/admin/api/training/user-suggestions?q=' + encodeURIComponent(q)).catch(() => null);
+      const data = response && response.ok ? await response.json() : {suggestions: []};
+      if (seq !== suggestSeq) return;
+      el('email-options').replaceChildren(...data.suggestions.filter(u => u.email).map(u => {
+        const option = document.createElement('option');
+        option.value = u.email;
+        option.label = u.name + (u.mobile ? ' · ' + u.mobile : '');
+        return option;
+      }));
+    }, 250);
+  });
 
   async function list() {
     const data = await call('');

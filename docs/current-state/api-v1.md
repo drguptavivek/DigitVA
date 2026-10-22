@@ -745,6 +745,50 @@ projects, a data manager the holders of an active grant in their subtree.
   `email_failed`. Both audit `device_enrolment_code_created` with the
   issued-for user (mobile-sign-in.md section 6).
 
+### Users page admin tools (digitva-cgmc, `user_admin_tools_service`)
+
+Admin only (`role_required("admin")` and the service: anyone else 403
+`forbidden`); browser session, CSRF on POST, `Cache-Control: no-store`.
+Policy: access-control-model.md ("Users page admin tools"),
+account-onboarding-and-passwords.md ("Admin account upload and invite on
+first grant").
+
+- `POST /users/import/preview` (10/min): body `{filename, content}`,
+  `filename` ending `.csv` or `.xlsx`, `content` the file in base64 (over 1 MB
+  decoded: 413 `payload_too_large`). Headers exactly `name,email,phone`,
+  at most 1000 rows (`tabular_import_service.parse_table`, the project user
+  import's bounds). Reply `{rows, counts}`: each row `{row, name, email,
+  phone (masked), status: new|exists|invalid, reason, phone_clash}`;
+  `counts {new, exists, invalid}`. Writes nothing.
+- `POST /users/import/apply` (10/min): the same body; re-classifies the file
+  and creates only `new` rows. 201 `{rows, counts, created}`. A race on an
+  email or number: 409 `conflict`, nothing created. No email is sent. Audits
+  `account_upload_applied` `{created, rows}` and `account_created` per account.
+- `GET /users/grid?project=&from=&to=&q=&role=&status=&limit=&offset=`
+  (120/min). `project` required (unknown or inactive: 404); `from`/`to`
+  `YYYY-MM-DD` on `user_created_at` read as the admin's local days; `q` name
+  or email contains; `role` holds that role in the project; `limit` 1..100.
+  Every account (grantless ones included), newest created first
+  (`ix_va_users_user_created_at`). Reply `{users, total, limit, offset,
+  options?}`; each user `{user_id, name, email, phone, active, created_at,
+  grants, enrolment}`, `grants` the active grants in that project with a
+  `unit` key (`project`, `site:<site_id>` or `unit:<org_unit_id>`).
+  `options` (first page) `{mode: organization|sites, units: [{key, label,
+  depth}], cadres: [{cadre_id, cadre_code, cadre_name}]}`. Three queries a
+  page (users with a count, grants, sessions) plus the options.
+- `POST /users/<user_id>/grants` (60/min): body `{project_id, unit, roles,
+  cadre_id?, name?, phone?, active?}`; `roles` a subset of `death_reporter`,
+  `interviewer`, `interview_supervisor`, `coder`, `reviewer`, `data_manager`.
+  Sets those six roles at that unit to exactly `roles`: added grants are
+  created or reactivated through the admin panel's
+  `_resolve_scope_from_payload`, removed ones soft revoked; other units are
+  untouched. A refused role: 400 `grant_refused` naming each role and
+  reason, nothing written. Phone in use: 400; self-deactivation: 400.
+  Reply `{user, changes, invited, enrolment_email, warnings}`; on the
+  account's first active grant the invitation (and, for death_reporter or
+  interviewer, the enrolment email) is sent once, `other.first_grant_invited_at`
+  recording it; mail failures are `warnings`.
+
 ## People and roles (`GET /api/v1/projects/<project_id>/people-roles` and `.csv`, `app/routes/api/people_roles.py`)
 
 Read-only; `app/services/people_roles_service.py`; policy

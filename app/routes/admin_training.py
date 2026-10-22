@@ -149,6 +149,17 @@ def training_candidates(ref):
         return _fail(exc)
 
 
+@admin.get(f"{_API}/user-suggestions")
+@role_required("admin")
+@limiter.limit("60 per minute")
+def training_user_suggestions():
+    """Up to 8 active accounts whose name, email or mobile contains ``q``,
+    for the add-participant box (the Add worker lookup, admin channel)."""
+    from app.services.organization_service import suggest_existing_users
+
+    return jsonify({"suggestions": suggest_existing_users(request.args.get("q"), is_admin=True)})
+
+
 @admin.post(f"{_API}/sessions/<ref>/participants/bulk")
 @role_required("admin")
 def training_participants_bulk(ref):

@@ -93,6 +93,7 @@ class VaUsers(UserMixin, db.Model):
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),
         nullable=False,
+        index=True,
     )
     user_updated_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime,

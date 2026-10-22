@@ -682,6 +682,45 @@ sees a listed user's counts for the whole project, not only their own
 subtree (counts carry no case detail). Issuing an enrolment code from this
 page: [Sign-in by Mobile Number](mobile-sign-in.md), section 6.
 
+### Users page admin tools: upload and grant grid (owner 2026-10-22, digitva-cgmc)
+
+Two Users page tools are **admin only** (anyone else: 403; the list above is
+unchanged for a PI or data manager). The account upload is described in
+account-onboarding-and-passwords.md ("Admin account upload").
+
+The grant grid lists accounts (every account, grantless ones included, as
+the admin list does) for one chosen project, filtered by created date (the
+admin's local calendar days), name or email, role in that project and
+status, newest first, at most 100 a page. Per account it shows the six
+grid roles at one unit of that project: `death_reporter` (report),
+`interviewer` (interview), `interview_supervisor` (supervise), `coder`
+(code), `reviewer` (review), `data_manager` (manager). The unit is an
+organization unit in a tree project, a project-site in a site project, or
+the whole project, the same scopes the admin access-grant panel accepts.
+Grants the account holds in that project at other units, or of other
+roles, are shown read only.
+
+A save names one project and one unit and applies only the difference
+there: grid-role grants added (created or reactivated) and removed (soft
+revoked to `deactive`, never deleted), plus the account's status, name and
+phone. Another admin's status, name and phone are not changed here (403
+`admin_account`; the admin Users panel manages admin accounts), an admin
+cannot deactivate themself, and a name may not start with `=`, `+`, `-` or
+`@` (as in uploads). Grants at other units are untouched, so choosing another unit edits
+that unit, it does not move grants. Every added grant passes the admin
+access-grant panel's validation (`_resolve_scope_from_payload`: role at
+scope, unit and cadre rules of `validate_org_unit_grant`, the mentoring
+institute guard), so the grid cannot write a grant the panel would refuse:
+`death_reporter` and `interview_supervisor` need an organization unit, and
+`coder`, `interview_supervisor` and `death_reporter` at a unit need a cadre
+permitted at that unit's level (the save names one; the grid offers the
+project's cadres). `coder` and `reviewer` also need the account to have
+coding languages (their case lists filter on them); an account without any
+is refused with a message to set them on the admin Users panel. One save is one transaction: any refusal leaves
+nothing written. Each grant change is audited (`log_grant_action`) and the
+grantee's authorization cache invalidated, as the importer's
+`finalize_apply` does. An admin may not deactivate their own account here.
+
 ## Closed Projects
 
 A project whose `va_project_master.project_status` is not `active` resolves

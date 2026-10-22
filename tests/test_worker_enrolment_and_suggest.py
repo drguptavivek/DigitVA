@@ -112,6 +112,24 @@ class UserSuggestionTests(_OrgProjectCase):
         self._login(str(self.base_admin_id))
         self.assertEqual(len(self._suggest("bulk.sugg")["suggestions"]), 8)
 
+    def test_admin_also_matches_the_name_and_pi_does_not(self):
+        _user("zx.person@example.org", name="Kavita Name-Only", mobile="9811100099")
+        db.session.commit()
+        self._login(str(self.base_admin_id))
+        emails = [s["email"] for s in self._suggest("kavita name")["suggestions"]]
+        self.assertEqual(emails, ["zx.person@example.org"])
+        self._login(str(self.base_project_pi_id))
+        self.assertEqual(self._suggest("kavita name")["suggestions"], [])
+
+    def test_training_panel_suggestions_are_admin_only(self):
+        url = "/admin/api/training/user-suggestions"
+        self._login(str(self.base_admin_id))
+        res = self.client.get(url, query_string={"q": "asha two"})
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual([s["email"] for s in res.get_json()["suggestions"]], ["asha.sugg.two@example.org"])
+        self._login(str(self.base_project_pi_id))
+        self.assertEqual(self.client.get(url, query_string={"q": "asha"}).status_code, 403)
+
     def test_partial_phone_and_pi_sees_only_typed_channel(self):
         self._login(str(self.base_admin_id))
         admin_rows = self._suggest("98111000")["suggestions"]

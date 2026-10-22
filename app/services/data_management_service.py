@@ -542,13 +542,16 @@ def _odk_sync_condition(odk_sync: str):
     return submission_is_in_odk()
 
 
-def _local_date_conditions(user, date_from, date_to) -> list:
+def _local_date_conditions(user, date_from, date_to, column=None) -> list:
     """WHERE terms for date_from/date_to read as the user's local calendar days.
 
     The local-day bounds become UTC instants so the plain column (and its
-    index) is compared, not a function of it. ``va_submission_date`` is naive
-    UTC. An unparseable bound is ignored, as an empty one is.
+    index) is compared, not a function of it. *column* is a naive-UTC
+    datetime column, ``va_submission_date`` by default (the Users page grant
+    grid passes ``VaUsers.user_created_at``). An unparseable bound is
+    ignored, as an empty one is.
     """
+    column = VaSubmissions.va_submission_date if column is None else column
     tz = pytz.timezone(va_user_timezone_name(user))
 
     def utc_midnight(raw, add_days=0):
@@ -564,9 +567,9 @@ def _local_date_conditions(user, date_from, date_to) -> list:
     start = utc_midnight(date_from) if date_from else None
     end = utc_midnight(date_to, 1) if date_to else None
     if start is not None:
-        conditions.append(VaSubmissions.va_submission_date >= start)
+        conditions.append(column >= start)
     if end is not None:
-        conditions.append(VaSubmissions.va_submission_date < end)
+        conditions.append(column < end)
     return conditions
 
 

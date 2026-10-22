@@ -57,6 +57,34 @@ is read only by admin-side features (the training "accounts I created"
 picker, a data manager's edit right over an unverified account they made);
 no non-admin response carries it.
 
+### Admin account upload and invite on first grant (owner 2026-10-22, digitva-cgmc)
+
+An admin may create accounts in bulk from the Users page with a CSV or XLSX
+of `name, email, phone` (the project user import's bounds: 1 MB, 1000 rows,
+its email rule; phone blank or a mobile number that canonicalises to ten
+digits, `+91` allowed). The upload is two steps: a preview that marks every
+row `new`, `exists` (an account already has that email, compared without
+case) or `invalid` with a reason (bad email or phone, a repeat within the
+file, or a phone another account already holds), then an apply that
+re-reads the same file on the server and creates only the rows it finds
+`new`. An existing account is never changed by the upload. New accounts are
+active with the unknown random placeholder password, no languages, and
+`other.created_via = "import"` with the admin as creator. **No email is sent
+at upload**: the account has no grant yet. One audit event per apply
+(`account_upload_applied`, the count and the admin) plus the usual
+`account_created` per account; no name, email or phone is logged.
+
+The invitation goes out with the account's **first grant**: when an admin's
+save on the Users page grant grid gives an account its first active grant
+anywhere, and the account has never signed in nor holds a password it
+knows (`has_usable_password` false, no `last_signed_in_at`), the server sends
+the verification email of section 5.1 and, when a granted role is
+`death_reporter` or `interviewer`, the app enrolment QR email (mobile-sign-in.md
+section 6), as Add worker does. It is sent once per account:
+`other.first_grant_invited_at` records it and a later first grant (after
+every grant was revoked) sends nothing. A mail failure is a warning on the
+save, never a failed save; the admin can resend from the admin Users panel.
+
 ## 4. The generated password
 
 - Three short plain English words and a 4-digit number joined by `-`

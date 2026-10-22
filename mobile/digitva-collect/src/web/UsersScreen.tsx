@@ -7,7 +7,7 @@ import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import {
   emailEnrolmentCode, enrolmentProjects, getUserActivity, getUsers, issueEnrolmentCode,
-  type DirectoryOptions, type DirectoryUser, type IssuedCode, type UserActivity, type UserFilters, type UserGrant,
+  type DirectoryOptions, type DirectoryUser, type GridUser, type IssuedCode, type UserActivity, type UserFilters,
 } from "../users/api";
 import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
@@ -15,11 +15,13 @@ import { ChipGroup } from "./caseFilters";
 import { browserErrorText, WebShell } from "./common";
 import { formatDisplayTimestamp } from "./DeathsList";
 import { roleLabelKey } from "./roleHome";
+import { AccountUpload, GrantGrid, grantLine } from "./UsersAdminTools";
 
 /**
  * The Users page (digitva-75wn): everyone the server lets this viewer see (admin all, project PI their projects,
  * data manager their subtree), filtered on the server, a table on a wide screen and cards on a phone. Each row opens
- * its activity (loaded on open) and, for a data collector or coder, issues an app enrolment code shown once.
+ * its activity (loaded on open) and, for a data collector or coder, issues an app enrolment code shown once. An admin
+ * also gets the grant grid and the account upload (digitva-cgmc, ./UsersAdminTools).
  */
 
 const WIDE_MIN_WIDTH = 768;
@@ -27,13 +29,9 @@ const SEARCH_DELAY_MS = 300;
 const MAX_UNIT_CHIPS = 20;
 const ROLE_FILTERS = ["interviewer", "death_reporter", "coder", "reviewer", "data_manager", "interview_supervisor", "site_pi", "project_pi"];
 
-const EMPTY_FILTERS: UserFilters = { q: "", project: "", unit: "", role: "", status: "active", enrolment: "" };
+type UsersView = "list" | "grid" | "upload";
 
-function grantLine(grant: UserGrant): string {
-  const role = t(roleLabelKey(grant.role));
-  const place = grant.unit_name ?? grant.site_name;
-  return place ? t("usersRoleAt", { role, place }) : t("usersRoleAt", { role, place: t("usersWholeProject", { project: grant.project_name ?? grant.project_id }) });
-}
+const EMPTY_FILTERS: UserFilters = { q: "", project: "", unit: "", role: "", status: "active", enrolment: "" };
 
 function enrolmentLabel(user: DirectoryUser): string {
   const e = user.enrolment;
@@ -203,6 +201,8 @@ export default function UsersScreen() {
   const [error, setError] = useState("");
   const [openActivity, setOpenActivity] = useState<string>();
   const [issuing, setIssuing] = useState<DirectoryUser>();
+  const [view, setView] = useState<UsersView>("list");
+  const isAdmin = bootstrap?.access.roles.includes("admin") ?? false;
   const generation = useRef(0);
 
   // The search box applies after a pause in typing.
@@ -244,8 +244,31 @@ export default function UsersScreen() {
 
   const toggle = (userId: string) => setOpenActivity((current) => (current === userId ? undefined : userId));
 
+  const issueFor = (user: GridUser) => setIssuing({ ...user, last_signed_in_at: null });
+  const views = isAdmin ? (
+    <ChipGroup
+      options={[{ key: "list", label: t("usersViewList") }, { key: "grid", label: t("usersViewGrid") }, { key: "upload", label: t("usersViewUpload") }]}
+      value={view}
+      onChange={(next) => setView(next as UsersView)}
+      a11yLabel={(label) => t("usersViewLabel", { label })}
+    />
+  ) : null;
+
+  if (isAdmin && view !== "list") {
+    return (
+      <WebShell title={t("usersTitle")}>
+        {views}
+        {view === "grid"
+          ? <GrantGrid request={request} projects={options.projects} wide={wide} onIssue={issueFor} />
+          : <AccountUpload request={request} />}
+        {issuing ? <EnrolmentDialog request={request} user={issuing} onClose={() => setIssuing(undefined)} /> : null}
+      </WebShell>
+    );
+  }
+
   return (
     <WebShell title={t("usersTitle")}>
+      {views}
       <View style={s.filters}>
         <TextInput
           accessibilityLabel={t("usersSearchLabel")}

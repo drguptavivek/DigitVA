@@ -61,6 +61,14 @@ when the export is present (`VaUsers.landing_url()`, policy
   contacts, roles, account and app-enrolment status, an Activity panel loaded
   on open and an Issue enrolment code dialog (code and QR shown once, or
   emailed), over `GET /api/v1/users` (api-v1.md, "Users").
+  An admin also gets two views there (digitva-cgmc, `src/web/UsersAdminTools.tsx`):
+  **Grant access**, the grant grid (choose a project; created-date, name or
+  email, role and status filters; a table at 768px and wider, cards below;
+  per row the unit, six role boxes, status, app enrolment, enrolment code and
+  Edit/Save, with the account's grants at other units shown read only), and
+  **Upload accounts** (template download, choose a CSV or XLSX, preview every
+  row, then create the new ones). The file is sent as base64 in JSON, since the
+  shared requester sends JSON only.
   Coding and reviewing queues open on `last_project_id` from `/coding/projects`
   and `/reviewing/projects` unless a `?project=` query is passed.
 

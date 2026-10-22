@@ -132,3 +132,141 @@ export function enrolmentProjects(user: DirectoryUser): { project_id: string; pr
   }
   return [...seen].map(([project_id, project_name]) => ({ project_id, project_name }));
 }
+
+/* ---------------------------------------------------------------------------
+ * Admin tools (digitva-cgmc): account upload and the grant grid. The server refuses anyone but an admin
+ * (docs/policy/access-control-model.md, "Users page admin tools").
+ * ------------------------------------------------------------------------- */
+
+/** The grid's six roles, in column order. */
+export const GRID_ROLES = ["death_reporter", "interviewer", "interview_supervisor", "coder", "reviewer", "data_manager"] as const;
+export type GridRole = (typeof GRID_ROLES)[number];
+
+/** A directory grant plus its grid unit key: `project`, `site:<site_id>` or `unit:<org_unit_id>`. */
+export interface GridGrant extends UserGrant {
+  unit: string;
+}
+
+export interface GridUser {
+  user_id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  active: boolean;
+  created_at: string | null;
+  grants: GridGrant[];
+  enrolment: UserEnrolment;
+}
+
+export interface GridOptions {
+  mode: "organization" | "sites";
+  units: { key: string; label: string; depth: number }[];
+  cadres: { cadre_id: string; cadre_code: string; cadre_name: string }[];
+}
+
+export interface GridPage {
+  users: GridUser[];
+  total: number;
+  limit: number;
+  offset: number;
+  options?: GridOptions;
+}
+
+export interface GridFilters {
+  project: string;
+  from?: string;
+  to?: string;
+  q?: string;
+  role?: string;
+  status?: "all" | "active" | "inactive";
+}
+
+export interface GridSave {
+  project_id: string;
+  unit: string;
+  roles: GridRole[];
+  cadre_id?: string;
+  name?: string;
+  phone?: string;
+  active?: boolean;
+}
+
+export interface GridSaveResult {
+  user: GridUser;
+  changes: number;
+  invited: boolean;
+  enrolment_email: "sent" | "failed" | "no_email" | null;
+  warnings: string[];
+}
+
+export const GRID_PAGE_SIZE = 50;
+
+/** The grid URL for *filters* at *offset*: only the filters that are set, each encoded. */
+export function gridQuery(filters: GridFilters, offset = 0, limit = GRID_PAGE_SIZE): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (text && !(key === "status" && text === "all")) params.set(key, text);
+  }
+  params.set("limit", String(limit));
+  if (offset) params.set("offset", String(offset));
+  return `${USERS_API}/grid?${params.toString()}`;
+}
+
+export async function getGrid(request: JsonRequester, filters: GridFilters, offset = 0): Promise<GridPage> {
+  return (await request(gridQuery(filters, offset))) as GridPage;
+}
+
+export async function saveGridRow(request: JsonRequester, userId: string, save: GridSave): Promise<GridSaveResult> {
+  return (await request(`${USERS_API}/${encodeURIComponent(userId)}/grants`, { method: "POST", json: save })) as GridSaveResult;
+}
+
+/** The grid roles *user* holds at *unit*. */
+export function rolesAt(user: GridUser, unit: string): GridRole[] {
+  return GRID_ROLES.filter((role) => user.grants.some((g) => g.unit === unit && g.role === role));
+}
+
+/** The row's unit: where the user holds the most grid roles in the project, else the first offered unit. */
+export function primaryUnit(user: GridUser, fallback: string): string {
+  let best = fallback;
+  let count = 0;
+  for (const grant of user.grants) {
+    const n = rolesAt(user, grant.unit).length;
+    if (n > count) [best, count] = [grant.unit, n];
+  }
+  return best;
+}
+
+export type UploadStatus = "new" | "exists" | "invalid";
+
+export interface UploadRow {
+  row: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  status: UploadStatus;
+  reason: string | null;
+  phone_clash: boolean;
+}
+
+export interface UploadResult {
+  rows: UploadRow[];
+  counts: Record<UploadStatus, number>;
+  created?: number;
+}
+
+/** The upload body: the file's name and its bytes in base64. */
+export interface UploadFile {
+  filename: string;
+  content: string;
+}
+
+export const UPLOAD_TEMPLATE = "name,email,phone\n";
+
+export async function previewUpload(request: JsonRequester, file: UploadFile): Promise<UploadResult> {
+  return (await request(`${USERS_API}/import/preview`, { method: "POST", json: file })) as UploadResult;
+}
+
+export async function applyUpload(request: JsonRequester, file: UploadFile): Promise<UploadResult> {
+  return (await request(`${USERS_API}/import/apply`, { method: "POST", json: file })) as UploadResult;
+}

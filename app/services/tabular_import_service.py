@@ -52,7 +52,9 @@ def _value(value, column, row_number):
     if any(ord(char) < 32 or ord(char) == 127 for char in value):
         raise TabularImportError(f"Row {row_number}: control characters are not allowed.")
     if value and value[0] in "=+-@":
-        if column not in {"latitude", "longitude"} or not re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)", value):
+        # A signed plain number is no formula: coordinates, and a phone
+        # written with its country code (+919876543210).
+        if column not in {"latitude", "longitude", "phone"} or not re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)", value):
             raise TabularImportError(f"Row {row_number}: formula-like values are not allowed.")
     return value or None
 

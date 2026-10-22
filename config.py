@@ -283,6 +283,10 @@ class Config:
     # Both write the same CSV tree. Owner decision 2026-10-22.
     SMARTVA_ENGINE = os.environ.get("SMARTVA_ENGINE", "rust").strip().lower()
     SMARTVA_RS_BIN = os.environ.get("SMARTVA_RS_BIN", "/usr/local/bin/smartva-rs")
+    # The rust engine runs in-process through this C-ABI library (models stay
+    # cached per worker, so warm runs skip the ~85 ms model build). Empty runs
+    # the smartva-rs CLI subprocess instead: the rollback.
+    SMARTVA_RS_LIB = os.environ.get("SMARTVA_RS_LIB", "/usr/local/lib/libsmartva_rust.so")
 
     # --- Database backups ----------------------------------------------
     # The nightly ``pg_dump -Fc`` of the application database. With

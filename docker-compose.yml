@@ -202,7 +202,10 @@ services:
       args: *release-pins
     container_name: minerva_celery_worker
     entrypoint: []
-    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1 --max-memory-per-child=256000
+    # The child keeps SmartVA's trained models in memory (in-process engine,
+    # SMARTVA_RS_LIB): measured child peak 236-240 MiB on SmartVA work, so the
+    # cap sits above it, or every task would recycle the child and lose them.
+    command: celery -A make_celery:celery_app worker --loglevel=info --concurrency=1 --max-memory-per-child=300000
     volumes:
       - .:/app
       - minerva_venv:/app/.venv

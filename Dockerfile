@@ -53,10 +53,15 @@ if digest != sha:
     sys.exit(f"ERROR: {asset}.tar.gz SHA-256 {digest} does not match the pin {sha}")
 print(f"{asset}.tar.gz: OK")
 with tarfile.open(path) as tar:
-    member = tar.getmember(f"{asset}/smartva-rs")
-    with tar.extractfile(member) as src, open("/usr/local/bin/smartva-rs", "wb") as dst:
-        shutil.copyfileobj(src, dst)
-os.chmod("/usr/local/bin/smartva-rs", 0o755)
+    # The binary, plus the in-process engine (SMARTVA_RS_LIB) from the same
+    # verified tarball.
+    for name, dest, mode in (
+        ("smartva-rs", "/usr/local/bin/smartva-rs", 0o755),
+        ("libsmartva_rust.so", "/usr/local/lib/libsmartva_rust.so", 0o644),
+    ):
+        with tar.extractfile(tar.getmember(f"{asset}/{name}")) as src, open(dest, "wb") as dst:
+            shutil.copyfileobj(src, dst)
+        os.chmod(dest, mode)
 os.remove(path)
 PY
 
@@ -68,8 +73,9 @@ RUN apt-get update && \
 WORKDIR /build
 COPY vendor/smartva-analyze/rust/Cargo.toml vendor/smartva-analyze/rust/Cargo.lock ./
 COPY vendor/smartva-analyze/rust/src src
-RUN CARGO_PROFILE_RELEASE_STRIP=true cargo build --release --locked --bin smartva-rs && \
-    cp target/release/smartva-rs /usr/local/bin/smartva-rs
+RUN CARGO_PROFILE_RELEASE_STRIP=true cargo build --release --locked --bin smartva-rs --lib && \
+    cp target/release/smartva-rs /usr/local/bin/smartva-rs && \
+    cp target/release/libsmartva_rust.so /usr/local/lib/libsmartva_rust.so
 
 FROM smartva_rs_${SMARTVA_RS_SOURCE} AS smartva_rs
 
@@ -159,6 +165,7 @@ COPY --from=builder /app/.venv /app/.venv
 
 # Outside /app, so the dev compose bind mount (.:/app) does not hide it.
 COPY --from=smartva_rs /usr/local/bin/smartva-rs /usr/local/bin/smartva-rs
+COPY --from=smartva_rs /usr/local/lib/libsmartva_rust.so /usr/local/lib/libsmartva_rust.so
 # The Expo web export, also outside /app; EXPO_CLIENT_DIST points here.
 COPY --from=expo_web /opt/digitva/expo-client /opt/digitva/expo-client
 # The pinned Android APK (or an empty folder), served at /download/android.

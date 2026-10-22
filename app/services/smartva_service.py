@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 
 import pandas as pd
@@ -15,18 +16,22 @@ import sqlalchemy as sa
 from flask import current_app
 from sqlalchemy.orm import Session
 
-from app import cache as flask_cache, db
+from app import cache as flask_cache
+from app import db
 from app.models import (
     VaSmartvaFormRun,
+    VaSmartvaResults,
     VaSmartvaRun,
     VaSmartvaRunOutput,
-    VaSmartvaResults,
     VaStatuses,
-    VaSubmissionWorkflow,
     VaSubmissions,
     VaSubmissionsAuditlog,
+    VaSubmissionWorkflow,
 )
-from app.services.duplicate_exclusion import is_confirmed_duplicate, not_confirmed_duplicate_condition
+from app.services.duplicate_exclusion import (
+    is_confirmed_duplicate,
+    not_confirmed_duplicate_condition,
+)
 
 log = logging.getLogger(__name__)
 
@@ -862,6 +867,7 @@ def _generate_batch(
         _derive_smartva_run_options,
         group_sids_by_run_options,
     )
+    from app.utils.va_smartva.va_smartva_03_runsmartva import smartva_engine_info
 
     if not batch_sids:
         return 0
@@ -872,6 +878,7 @@ def _generate_batch(
     )
     try:
         options_by_sid = _derive_smartva_run_options(va_form, batch_sids)
+        engine = smartva_engine_info()  # raises on an unknown SMARTVA_ENGINE
     except Exception as exc:
         # Same outcome as a failed prep: the batch's submissions get durable
         # "execution" failure rows instead of staying smartva_pending.
@@ -880,13 +887,15 @@ def _generate_batch(
 
     total = 0
     for (hiv, malaria), group_sids in sorted(group_sids_by_run_options(options_by_sid).items()):
-        # What each result's run row records: the options and where each came from.
+        # What each result's run row records: the engine, the options and
+        # where each option came from.
         metadata_by_sid = {
             va_sid: {
+                "smartva_engine": engine,
                 "smartva_options": {
                     "hiv": {"value": hiv, "source": options_by_sid[va_sid]["hiv_source"]},
                     "malaria": {"value": malaria, "source": options_by_sid[va_sid]["malaria_source"]},
-                }
+                },
             }
             for va_sid in group_sids
         }
@@ -1408,6 +1417,8 @@ SMARTVA_DONE = "done"
 SMARTVA_FAILED = "failed"
 
 _QUEUE_SIDS = "smartva_queue_sids"
+#: ``session.info`` flag set by ``queue_suppressed``.
+_NO_QUEUE = "smartva_queue_suppressed"
 
 
 def run_marker_key(va_sid: str) -> str:
@@ -1523,8 +1534,25 @@ def queue_smartva_after_commit(va_sid: str, triggered_by: str) -> None:
     The queued marker is set now, not after the commit, so the 30 s sweep that
     sees the committed ``smartva_pending`` row also sees the marker and skips it.
     """
+    info = db.session().info
+    if info.get(_NO_QUEUE):
+        return
     set_run_marker(va_sid, SMARTVA_QUEUED)
-    db.session().info.setdefault(_QUEUE_SIDS, {})[va_sid] = triggered_by
+    info.setdefault(_QUEUE_SIDS, {})[va_sid] = triggered_by
+
+
+@contextmanager
+def queue_suppressed():
+    """Inside it, ``queue_smartva_after_commit`` does nothing: no marker,
+    no run. For work that is always rolled back (the bundle ``/validate``
+    dry run), where even the eager marker would show a real case queued."""
+    info = db.session().info
+    previous = info.get(_NO_QUEUE)
+    info[_NO_QUEUE] = True
+    try:
+        yield
+    finally:
+        info[_NO_QUEUE] = previous
 
 
 @sa.event.listens_for(Session, "after_commit")

@@ -287,6 +287,20 @@ class SmartvaRunOptionsTests(BaseTestCase):
         self.assertEqual(saved, 2)
         self.assertEqual(options_per_run, [{"hiv": "True", "malaria": "False"}])
 
+    def test_each_run_records_the_engine_that_ran(self):
+        sid = self._submission("engine-recorded")
+        db.session.commit()
+        engine = {"name": "rust", "version": "smartva-rs 0.2.0"}
+
+        self._generate({sid}, extra_patches=(patch(
+            "app.utils.va_smartva.va_smartva_03_runsmartva.smartva_engine_info",
+            return_value=engine,
+        ),))
+
+        run = db.session.scalars(sa.select(VaSmartvaRun).where(VaSmartvaRun.va_sid == sid)).one()
+        self.assertEqual(run.run_metadata["smartva_engine"], engine)
+        self.assertIn("smartva_options", run.run_metadata)
+
     # -- failures ----------------------------------------------------------
 
     def _runs(self, sids):

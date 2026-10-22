@@ -159,6 +159,12 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.profile_api.update_timezone": "Own timezone.",
     "api_v1.auth_api.end_session": "Own device sign-out; must work after a grant is "
                                    "withdrawn.",
+    "api_v1.auth_api.set_device_signing_key": "Own device's bundle-signing key, set once: "
+                                              "the device is the caller's bearer session's, "
+                                              "never named in the body; reads no data.",
+    "api_v1.station_config_api.device_station_config": "Own station's signed config: the "
+                                                       "device is the caller's bearer session's, "
+                                                       "never named in the request.",
     "api_v1.icd10_api.icd10_search": "ICD-10 reference search; the same data the public "
                                      "help browser serves.",
     "api_v1.instruments_api.instrument_translations": "Questionnaire strings of a "

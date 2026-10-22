@@ -9,10 +9,12 @@ from app.routes.api import (  # noqa: E402, F401
     area,
     attachments,
     auth,
+    bundles,
     cases,
     cod_buckets,
     coding,
     coding_search_demo,
+    consent_settings,
     data_management,
     doris_clinical,
     help_contextual,
@@ -28,6 +30,7 @@ from app.routes.api import (  # noqa: E402, F401
     profile,
     reviewing,
     so,
+    station_config,
     translation_suggestions,
     ui_strings,
     va_case,
@@ -67,10 +70,13 @@ api_v1.register_blueprint(me.bp, url_prefix="/me")
 api_v1.register_blueprint(nqa.bp, url_prefix="/va")
 api_v1.register_blueprint(organization.bp, url_prefix="/organization")
 api_v1.register_blueprint(identifier_types.bp, url_prefix="/projects")
+api_v1.register_blueprint(consent_settings.bp, url_prefix="/projects")
 api_v1.register_blueprint(people_roles.bp, url_prefix="/projects")
 api_v1.register_blueprint(profile.bp, url_prefix="/profile")
 api_v1.register_blueprint(reviewing.bp, url_prefix="/reviewing")
 api_v1.register_blueprint(so.bp, url_prefix="/va")
+api_v1.register_blueprint(station_config.bp)
+api_v1.register_blueprint(bundles.bp)
 api_v1.register_blueprint(translation_suggestions.bp, url_prefix="/translations")
 api_v1.register_blueprint(ui_strings.bp, url_prefix="/ui-strings")
 api_v1.register_blueprint(va_case.bp, url_prefix="/va")

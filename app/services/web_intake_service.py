@@ -28,8 +28,6 @@ from app import db
 from app.models import (
     MapCaseContactAttempt,
     MapCaseTransition,
-    MapDeathIdentifier,
-    MasDeathIdentifierType,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -59,6 +57,8 @@ from app.services import death_identifier_service as death_identifiers
 from app.services import (
     notification_service,
     org_grant_service,
+    register_duplicate_service,
+    register_pii_accessor,
     served_form_service,
     smartva_service,
 )
@@ -76,6 +76,7 @@ from app.services.coding_release_service import (
     reopen_coding_after_revision,
 )
 from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS
+from app.services.register_duplicate_service import DUPLICATE_CANDIDATES_MAX
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
     ensure_active_payload_version,
@@ -126,6 +127,7 @@ from app.services.workflow.upstream_changes import (
     resolve_pending_upstream_change,
 )
 from app.utils.national_id import redact_national_id_digits, redact_payload_national_ids
+from app.utils.phone import normalise_phone
 
 log = logging.getLogger(__name__)
 
@@ -182,8 +184,6 @@ PARTIAL_BIRTH_MIN_YEAR = 1900
 _ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
 _ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
 # Phone: exactly 10 digits, optionally after +91, 91 or 0.
-_PHONE_RE = re.compile(r"^(?:\+91|91|0)?(\d{10})$")
-_PHONE_SEPARATORS_RE = re.compile(r"[\s()-]")
 _SECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
 #: An instrument locale code as the XLSForm writes it ("hi", "kha", "pt-BR").
 _LOCALE_CODE_RE = re.compile(r"^[A-Za-z0-9-]{2,16}$")
@@ -664,10 +664,10 @@ def _clean_phone(raw: object, *, what: str) -> str | None:
     value = _clean(raw, what=what, max_len=32)
     if value is None:
         return None
-    match = _PHONE_RE.match(_PHONE_SEPARATORS_RE.sub("", value))
-    if not match:
+    phone = normalise_phone(value)
+    if phone is None:
         raise WebIntakeError(f"{what} must be a 10-digit phone number, for example 987 654 3210.")
-    return match.group(1)
+    return phone
 
 
 #: The register form's fields (``VaDeathRegister`` columns ``_clean_death_fields`` fills).
@@ -821,6 +821,8 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         source="register",
         client_death_id=client_death_id,
     )
+    # Flag on: sealed before it is added, so the flags are right for open_case.
+    register_pii_accessor.seal_new_row(death)
     cases.open_case(death, actor=user)
     _, found = death_identifiers.set_identifiers(
         death, user, identifiers or {}, reason_context="registration", enforce_required=True)
@@ -1081,7 +1083,8 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     # The registration numbers ride along for the edit form's prefill.
     identifiers = death_identifiers.identifier_payloads(user, page)
     editable = can_edit_identifiers(user, page)
-    return {"deaths": [dict(serialize_death(d, show_gps=True), va_sid=None, identifiers=identifiers[d.death_id],
+    opened = register_pii_accessor.open_register_pii(page)
+    return {"deaths": [dict(serialize_death(d, show_gps=True, register=opened[d.death_id]), va_sid=None, identifiers=identifiers[d.death_id],
                             can_edit_identifiers=editable[d.death_id])
                        for d in page],
             "next_cursor": next_cursor}
@@ -1128,7 +1131,8 @@ def _interview_completed(death: VaDeathRegister) -> bool:
 
 
 def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_at: object | None = None,
-                 identifiers: dict | None = None, warnings: list | None = None) -> VaDeathRegister:
+                 identifiers: dict | None = None, warnings: list | None = None,
+                 station_roster: bool = False) -> VaDeathRegister:
     """Correct the register fields of a case, until an interview of it is completed.
 
     *changes* holds only the fields to change, named as ``register_death``'s
@@ -1156,17 +1160,33 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
     who may correct the details gets 403 for the whole request. After an
     interview is completed the numbers go through
     ``death_identifier_write.put_identifiers`` instead.
+
+    *station_roster*: a station supervisor's correction from a bundle
+    (offline-api-contract.md 4.1, 4.2). The caller has authorized *user*
+    from the station's signed roster, so the reach and number-writer gates
+    are skipped; a cancelled or confirmed-duplicate case is 409
+    ``case_closed`` for any change (stricter than the web).
     """
-    try:
-        death = get_death(user, death_id)
-    except WebIntakeError:
+    if station_roster:
         try:
             death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
         except ValueError:
             death = None
-        if death is None or not (cases.is_interview_supervisor_for(user, death) or _reporter_reaches(user, death)):
-            raise
+        if death is None:
+            raise WebIntakeError("Death entry not found.", 404)
+    else:
+        try:
+            death = get_death(user, death_id)
+        except WebIntakeError:
+            try:
+                death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
+            except ValueError:
+                death = None
+            if death is None or not (cases.is_interview_supervisor_for(user, death) or _reporter_reaches(user, death)):
+                raise
     death = cases.lock_case(death)
+    if station_roster and death.status in IDENTIFIER_CLOSED_STATES:
+        raise WebIntakeError("This case is closed; correct it on the web.", 409, "case_closed")
     if not changes and not identifiers:
         raise WebIntakeError("Nothing to change.")
     unknown = set(changes) - set(REGISTER_FIELDS)
@@ -1176,7 +1196,7 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
         raise WebIntakeError("Record the details in the interview first.", 409, "details_pending")
     if _interview_completed(death):
         raise WebIntakeError("An interview of this case is completed; its answers are the case details.", 409, "case_completed")
-    if identifiers:
+    if identifiers and not station_roster:
         # Register-field edits of a closed case are unchanged; the numbers
         # have the any-time write's own gate.
         require_identifier_write(user, death)
@@ -1196,7 +1216,8 @@ def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_a
 def _correct_register_fields(user: VaUsers, death: VaDeathRegister, changes: dict) -> None:
     """The register-field half of ``update_death``: validate the case as it
     would stand and audit the changed fields (nothing when none changed)."""
-    current = {name: getattr(death, name) for name in REGISTER_FIELDS}
+    opened = register_pii_accessor.current_values(death)
+    current = {name: opened[name] if name in opened else getattr(death, name) for name in REGISTER_FIELDS}
     # A phone is validated only when this edit changes it.
     keep_phones = frozenset(n for n in _PHONE_FIELDS if changes.get(n, current[n]) == current[n])
     try:
@@ -1216,8 +1237,7 @@ def _correct_register_fields(user: VaUsers, death: VaDeathRegister, changes: dic
     changed = [name for name in changes if cleaned[name] != current[name]]
     if not changed:
         return
-    for name in changed:
-        setattr(death, name, cleaned[name])
+    register_pii_accessor.write_fields(death, {name: cleaned[name] for name in changed})
     if any(name in LOCATION_FIELDS for name in changed):
         death.captured_at = _utcnow() if cleaned["latitude"] is not None else None
     _audit_details_change(death, user, DETAILS_EDITED,
@@ -1390,9 +1410,13 @@ def _org_path_names(org_unit_id: uuid.UUID | None) -> list[str]:
     return [row["unit_name"] for row in org.list_units_by_codes(unit.project_id, str(unit.path).split("."))]
 
 
-def _case_address(death: VaDeathRegister) -> str:
-    """The case's address parts, structured first, joined with commas."""
-    parts = (death.address_house_street, death.address_village_ward, death.address_landmark, death.address)
+_ADDRESS_ATTRS = ("address_house_street", "address_village_ward", "address_landmark", "address")
+
+
+def _case_address(values: dict) -> str:
+    """The case's address parts, structured first, joined with commas.
+    *values* holds the opened register attributes (``current_values``)."""
+    parts = tuple(values[attr] for attr in _ADDRESS_ATTRS)
     return ", ".join(part.strip() for part in parts if part and part.strip())
 
 
@@ -1473,7 +1497,11 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         answers.update(presets)
         locked.update(presets)
     org_path = ", ".join(unit_parts[1] if unit_parts else _org_path_names(org_unit_id))
-    address = _case_address(death) if death is not None else ""
+    # Opened once (one unwrap for a sealed row); the sealed columns are NULL.
+    register = (register_pii_accessor.current_values(death, (
+        *_ADDRESS_ATTRS, *PREFILL_ANSWER_FIELDS.values(), *PREFILL_LOCKED_FIELDS, "deceased_name"))
+        if death is not None else {})
+    address = _case_address(register) if death is not None else ""
     # Id10057 in prefill.ts's location format: "path; address".
     place = "; ".join(part for part in (org_path, address) if part)
     residence = address or org_path
@@ -1486,13 +1514,13 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         answers["Id10051"] = "yes"
     if death is not None:
         for name, field in PREFILL_ANSWER_FIELDS.items():
-            value = getattr(death, field)
+            value = register[field]
             if name == "Id10058":
                 value = _who_place_of_death(value)
             if value:
                 answers[name] = value
     if death is not None and cases.identity_complete(death):
-        names = death.deceased_name.split()
+        names = register["deceased_name"].split()
         deceased = {
             "givenNames": " ".join(names[:-1] or names),
             "sex": death.deceased_sex if death.deceased_sex in ("male", "female") else "undetermined",
@@ -1525,7 +1553,7 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
                 answers.update({"dob_precision": "year", "dob_year": f"{partial}-01-01"})
         prefill["deceased"] = deceased
         for name in PREFILL_LOCKED_FIELDS:
-            value = getattr(death, name)
+            value = register[name]
             if value:
                 answers[name] = value
                 locked.add(name)
@@ -1866,13 +1894,15 @@ def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> N
     answer never blanks a value the case already holds."""
     incoming = _identity_from_answers(data)
     incoming.update(_birth_age_from_answers(data, incoming.get("date_of_death") or death.date_of_death))
+    opened = register_pii_accessor.current_values(death)
     before: dict = {}
     after: dict = {}
     for field, value in incoming.items():
-        if getattr(death, field) != value:
-            before[field] = getattr(death, field)
+        stored = opened[field] if field in opened else getattr(death, field)
+        if stored != value:
+            before[field] = stored
             after[field] = value
-            setattr(death, field, value)
+    register_pii_accessor.write_fields(death, after)
     if before and death.status != "draft_identity":
         # A completed interview overwrote registered details: the field
         # names go in the reason, the old and new values in ``changes``.
@@ -2112,9 +2142,10 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["language"] = payload.get("language") or payload["narr_language"]
     if death is not None:
         if death.source == "register":
-            abha = {"abha_number": death.abha_number, "abha_address": death.abha_address}
             if carry is not None:
-                abha = {k: carry[k] for k in abha if k in carry}
+                abha = {k: carry[k] for k in ("abha_number", "abha_address") if k in carry}
+            else:
+                abha = register_pii_accessor.current_values(death, ("abha_number", "abha_address"))
             for key, value in abha.items():
                 payload.setdefault(key, value)
         payload["death_register_id"] = str(death.death_id)
@@ -2556,6 +2587,15 @@ def revision_unlocked(submission: VaSubmissions) -> bool:
     return get_open_revision_request(submission.va_sid) is not None
 
 
+def find_own_submission(user: VaUsers, va_sid: str) -> VaWebIntakeDraft | None:
+    """*user*'s submitted draft that holds submission *va_sid*, or None."""
+    return db.session.scalar(sa.select(VaWebIntakeDraft).where(
+        VaWebIntakeDraft.va_sid == va_sid,
+        VaWebIntakeDraft.user_id == user.user_id,
+        VaWebIntakeDraft.status == "submitted",
+    ))
+
+
 def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str | None, completion: dict, envelope: dict, resubmit: bool = False) -> dict:
     """Revise the submitted interview *va_sid* as its interviewer; returns the
     reply ``{changed, va_sid, payload_version_id, answers_sha256, outcome,
@@ -2623,11 +2663,7 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     """
     if not resubmit and reason_code not in REVISION_REASONS:
         raise WebIntakeError("reason_code must be one of: " + ", ".join(REVISION_REASONS) + ".", 422, "invalid_reason")
-    draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.va_sid == va_sid,
-        VaWebIntakeDraft.user_id == user.user_id,
-        VaWebIntakeDraft.status == "submitted",
-    ))
+    draft = find_own_submission(user, va_sid)
     if draft is None:
         raise WebIntakeError("Submission not found.", 404)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
@@ -2697,7 +2733,8 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
                 _require_live_org_unit(draft)
                 # What the identity sync below will leave on the case.
                 identity = {
-                    "deceased_name": death.deceased_name, "date_of_death": death.date_of_death,
+                    "deceased_name": register_pii_accessor.current_values(death, ("deceased_name",))["deceased_name"],
+                    "date_of_death": death.date_of_death,
                     "deceased_sex": death.deceased_sex, **_identity_from_answers(raw),
                 }
                 if not all(identity.values()):
@@ -3946,7 +3983,7 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
                        else _encode_worklist_cursor(last))
     else:
         next_cursor = None
-    duplicates = _possible_duplicate_rows([row[0].death_id for row in page], scope, per_case=3)
+    duplicates = register_duplicate_service.possible_duplicate_rows([row[0].death_id for row in page], scope, per_case=3)
     possible = {}
     for row in duplicates:
         possible.setdefault(row.subject_id, []).append(
@@ -4006,14 +4043,22 @@ def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
         {row[0].project_id for row in result["cases"]}) if result["cases"] else set()
     identifiers = death_identifiers.identifier_payloads(user, [row[0] for row in result["cases"]])
     editable = can_edit_identifiers(user, [row[0] for row in result["cases"]])
+    # Names of the page opened once (one unwrap a sealed row); the GPS fix
+    # only for rows that carry it and may show it, so nothing else opens.
+    deaths = [row[0] for row in result["cases"]]
+    names = register_pii_accessor.open_register_pii(deaths, only=("deceased_name",))
+    shows_fix = [d for d in deaths if d.has_location and d.project_id in org_projects
+                 and (not redact or d.registered_by == user.user_id)]
+    fixes = register_pii_accessor.open_register_pii(shows_fix, only=("latitude", "longitude"))
     rows = []
     for row in result["cases"]:
-        serialized = serialize_worklist_row(user, *row)
+        serialized = serialize_worklist_row(user, *row, register=names[row[0].death_id])
         serialized["identifiers"] = identifiers[row[0].death_id]
         serialized["can_edit_identifiers"] = editable[row[0].death_id]
         if row[0].project_id in org_projects and (not redact or serialized["registered_by_me"]):
-            serialized["latitude"] = row[0].latitude
-            serialized["longitude"] = row[0].longitude
+            fix = fixes.get(row[0].death_id) or {}
+            serialized["latitude"] = fix.get("latitude")
+            serialized["longitude"] = fix.get("longitude")
         serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
         # A case reached only as its reporter: no interview here, so nothing
         # about other interviewers' drafts (as _case_body, digitva-t6q).
@@ -4092,194 +4137,13 @@ def prefill_policy(user: VaUsers, project_id: str) -> dict:
 # Possible-duplicate check (phase 6, digitva-vzk.11)
 # ---------------------------------------------------------------------------
 
-#: Dates of death this many days apart or less may be the same death.
-DUPLICATE_DAYS = 3
-#: pg_trgm ``similarity()`` of the normalised names at or above this matches.
-DUPLICATE_NAME_SIMILARITY = 0.5
-#: Most candidates the case API returns.
-DUPLICATE_CANDIDATES_MAX = 50
-_UNKNOWN_SEX = ("undetermined", "unknown")
-#: Honorifics dropped before comparing names ("Late Smt. Kamla Devi").
-_NAME_TITLES_RE = r"\m(late|lt|mr|mrs|ms|miss|smt|shrimati|shri|sri|dr|master|baby|kumari|km)\M"
-
-
-def _normalised_name(column):
-    """SQL: lowercase, punctuation to spaces, titles dropped, spaces collapsed."""
-    text = sa.func.regexp_replace(sa.func.lower(column), r"[[:punct:]]+", " ", "g")
-    text = sa.func.regexp_replace(text, _NAME_TITLES_RE, " ", "g")
-    return sa.func.btrim(sa.func.regexp_replace(text, r"\s+", " ", "g"))
-
-
-def _possible_duplicate_rows(subject_ids: list[uuid.UUID], scope, *, per_case: int) -> list:
-    """Other cases that may be the same death as each subject, in ONE query.
-
-    A candidate is in the subject's project, not the subject, not cancelled
-    and not itself a confirmed duplicate (neither can be named as the kept
-    case), inside *scope* (the caller's worklist reach, so no name leaves it),
-    with a date of death within ``DUPLICATE_DAYS``, the same sex unless either
-    is unknown, a normalised-name ``similarity()`` of at least
-    ``DUPLICATE_NAME_SIMILARITY``, and a neighbouring unit: the same unit, its
-    parent, a child, or a sibling (same parent), or either case has no unit.
-    Two top-level units are not neighbours. Subjects without a name or date of
-    death get no name match; a closed subject, or one with a flag waiting for a
-    supervisor, gets none. A case holding the same registration number (blind
-    index of a project-scoped type, ``death_identifier_service``) as the
-    subject is also a candidate, score 1, whatever its name, date or unit says
-    (still inside *scope*, still open). At most *per_case* candidates per
-    subject, most similar first. Rows: ``subject_id``, ``death_id``,
-    ``unique_id``, ``status``, ``unit_name``, ``score``, and the candidate's
-    ``deceased_name``, ``date_of_death``, ``deceased_sex``, ``age_years``,
-    ``informant_name``, ``address_village_ward`` and ``interviewer_name`` (who started its
-    interview, NULL when nobody did: a registrant may not be an interviewer)
-    and ``registrant_name`` (who registered the death), all from the same
-    statement.
-    """
-    if not subject_ids or scope is None:
-        return []
-    subject = aliased(VaDeathRegister)
-    subject_unit = aliased(MasOrgUnit)
-    unit = aliased(MasOrgUnit)
-    interviewer = aliased(VaUsers)
-    registrant = aliased(VaUsers)
-    closed = ("cancelled", "duplicate")
-    days = sa.literal_column(str(DUPLICATE_DAYS), sa.Integer)  # a constant, never input
-    score = sa.func.similarity(
-        _normalised_name(subject.deceased_name), _normalised_name(VaDeathRegister.deceased_name)
-    )
-
-    def columns(score_column):
-        """The columns both match rules select: the subject and the candidate."""
-        return (
-            subject.death_id.label("subject_id"),
-            VaDeathRegister.death_id,
-            VaDeathRegister.unique_id,
-            VaDeathRegister.status,
-            unit.unit_name,
-            VaDeathRegister.deceased_name,
-            VaDeathRegister.date_of_death,
-            VaDeathRegister.deceased_sex,
-            VaDeathRegister.age_years,
-            VaDeathRegister.informant_name,
-            VaDeathRegister.address_village_ward,
-            interviewer.name.label("interviewer_name"),
-            registrant.name.label("registrant_name"),
-            score_column.label("score"),
-        )
-
-    by_name = (
-        sa.select(*columns(score))
-        .select_from(subject)
-        .join(
-            VaDeathRegister,
-            sa.and_(
-                VaDeathRegister.project_id == subject.project_id,
-                VaDeathRegister.death_id != subject.death_id,
-                VaDeathRegister.date_of_death.between(
-                    subject.date_of_death - days, subject.date_of_death + days
-                ),
-                VaDeathRegister.status.not_in(closed),
-                VaDeathRegister.deceased_name.is_not(None),
-            ),
-        )
-        .outerjoin(subject_unit, subject_unit.org_unit_id == subject.org_unit_id)
-        .outerjoin(unit, unit.org_unit_id == VaDeathRegister.org_unit_id)
-        .outerjoin(interviewer, interviewer.user_id == VaDeathRegister.started_by_user_id)
-        .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
-        .where(
-            subject.death_id.in_(subject_ids),
-            subject.status.not_in(closed),
-            subject.pending_flag.is_(None),
-            subject.deceased_name.is_not(None),
-            subject.date_of_death.is_not(None),
-            sa.or_(
-                subject.deceased_sex.is_(None),
-                subject.deceased_sex.in_(_UNKNOWN_SEX),
-                VaDeathRegister.deceased_sex.is_(None),
-                VaDeathRegister.deceased_sex.in_(_UNKNOWN_SEX),
-                VaDeathRegister.deceased_sex == subject.deceased_sex,
-            ),
-            sa.or_(
-                subject.org_unit_id.is_(None),
-                VaDeathRegister.org_unit_id.is_(None),
-                VaDeathRegister.org_unit_id == subject.org_unit_id,
-                VaDeathRegister.org_unit_id == subject_unit.parent_org_unit_id,
-                unit.parent_org_unit_id == subject.org_unit_id,
-                unit.parent_org_unit_id == subject_unit.parent_org_unit_id,
-            ),
-            score >= DUPLICATE_NAME_SIMILARITY,
-            scope,
-        )
-    )
-    # The same registration number (blind index, one project-scoped type) is a
-    # strong candidate whatever the names, dates or units say: score 1. It
-    # keeps the same subject and candidate gates and the caller's scope, so it
-    # names nothing outside the reach; the index lookup is
-    # ix_map_death_identifier_type_bidx.
-    mine = aliased(MapDeathIdentifier)
-    theirs = aliased(MapDeathIdentifier)
-    by_number = (
-        sa.select(*columns(sa.literal(1.0, sa.Float)))
-        .select_from(subject)
-        .join(mine, mine.death_id == subject.death_id)
-        .join(
-            MasDeathIdentifierType,
-            sa.and_(
-                MasDeathIdentifierType.identifier_type_id == mine.identifier_type_id,
-                MasDeathIdentifierType.uniqueness_scope == "project",
-            ),
-        )
-        .join(
-            theirs,
-            sa.and_(
-                theirs.identifier_type_id == mine.identifier_type_id,
-                theirs.value_blind_index == mine.value_blind_index,
-                theirs.death_id != mine.death_id,
-            ),
-        )
-        .join(
-            VaDeathRegister,
-            sa.and_(
-                VaDeathRegister.death_id == theirs.death_id,
-                VaDeathRegister.project_id == subject.project_id,
-                VaDeathRegister.status.not_in(closed),
-            ),
-        )
-        .outerjoin(unit, unit.org_unit_id == VaDeathRegister.org_unit_id)
-        .outerjoin(interviewer, interviewer.user_id == VaDeathRegister.started_by_user_id)
-        .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
-        .where(
-            subject.death_id.in_(subject_ids),
-            subject.status.not_in(closed),
-            subject.pending_flag.is_(None),
-            scope,
-        )
-    )
-    # One row per (subject, candidate): the number match outranks the name score.
-    both = sa.union_all(by_name, by_number).subquery()
-    best = (
-        sa.select(both)
-        .distinct(both.c.subject_id, both.c.death_id)
-        .order_by(both.c.subject_id, both.c.death_id, both.c.score.desc())
-        .subquery()
-    )
-    ranked = sa.select(
-        best,
-        sa.func.row_number()
-        .over(partition_by=best.c.subject_id, order_by=(best.c.score.desc(), best.c.death_id))
-        .label("rank"),
-    ).subquery()
-    return db.session.execute(
-        sa.select(ranked).where(ranked.c.rank <= per_case).order_by(ranked.c.subject_id, ranked.c.rank)
-    ).all()
-
-
 def possible_duplicates(user: VaUsers, case: VaDeathRegister, scope=None) -> list[dict]:
     """Cases in *user*'s worklist reach that may be the same death as *case*.
 
     A warning for the interviewer, never a block and never a merge: flagging
     stays a person's decision (decisions 6 and 14). The caller has already
     checked *user* may see *case* (``get_death``). Rules in
-    ``_possible_duplicate_rows``. Each candidate carries what tells a person
+    ``register_duplicate_service``. Each candidate carries what tells a person
     whether it is the same death (name, date of death, village, age, sex,
     informant, previous interviewer, who reported the death); the candidates are only cases inside
     *scope* (default: *user*'s worklist reach), so nothing of any other case is
@@ -4289,7 +4153,7 @@ def possible_duplicates(user: VaUsers, case: VaDeathRegister, scope=None) -> lis
     """
     if scope is None:
         scope = _worklist_scope(user)
-    rows = _possible_duplicate_rows([case.death_id], scope, per_case=DUPLICATE_CANDIDATES_MAX)
+    rows = register_duplicate_service.possible_duplicate_rows([case.death_id], scope, per_case=DUPLICATE_CANDIDATES_MAX)
     return [
         {
             "death_id": str(row.death_id),
@@ -4482,48 +4346,65 @@ def shows_gps(user: VaUsers, death: VaDeathRegister, visible_projects: set[str])
     return death.registered_by == user.user_id or death.project_id in visible_projects
 
 
-def _serialize_location(death: VaDeathRegister, show_gps: bool) -> dict:
+def _serialize_location(death: VaDeathRegister, show_gps: bool, values: dict) -> dict:
     """The GPS fix, for the serializers that already carry the address; the
-    keys are omitted (not null) when *show_gps* is False (``shows_gps``)."""
+    keys are omitted (not null) when *show_gps* is False (``shows_gps``).
+    *values* are the opened register attributes."""
     if not show_gps:
         return {}
     return {
-        "latitude": death.latitude,
-        "longitude": death.longitude,
-        "accuracy_m": death.accuracy_m,
+        "latitude": values["latitude"],
+        "longitude": values["longitude"],
+        "accuracy_m": values["accuracy_m"],
         "captured_at": death.captured_at.isoformat() if death.captured_at else None,
     }
 
 
-def serialize_death(death: VaDeathRegister, *, show_gps: bool = False) -> dict:
+def _register_values(death: VaDeathRegister, register: dict | None, only) -> dict:
+    """The opened sealed attributes of *death* named in *only*: *register*
+    when the caller opened a whole page (``open_register_pii``, one unwrap a
+    row), else opened here. A viewer who may not see an attribute leaves it
+    out of *only*, so it is never decrypted."""
+    return register if register is not None else register_pii_accessor.current_values(death, only)
+
+
+def _without_location(names=register_pii_accessor.SEALED_ATTRS) -> tuple:
+    return tuple(n for n in names if n not in LOCATION_FIELDS)
+
+
+def serialize_death(death: VaDeathRegister, *, show_gps: bool = False, register: dict | None = None) -> dict:
     """One register row. The GPS fix (``latitude``, ``longitude``,
-    ``accuracy_m``, ``captured_at``) only when *show_gps* (``shows_gps``)."""
+    ``accuracy_m``, ``captured_at``) only when *show_gps* (``shows_gps``).
+    *register*: the row's opened attributes when the caller opened a page of
+    rows (``open_register_pii``); else opened here."""
+    values = _register_values(
+        death, register, register_pii_accessor.SEALED_ATTRS if show_gps else _without_location())
     return {
         "death_id": str(death.death_id),
         "project_id": death.project_id,
         "site_id": death.site_id,
         "org_unit_id": str(death.org_unit_id) if death.org_unit_id else None,
         "unique_id": death.unique_id,
-        "deceased_name": death.deceased_name,
+        "deceased_name": values["deceased_name"],
         "deceased_sex": death.deceased_sex,
-        "abha_number": death.abha_number,
-        "abha_address": death.abha_address,
+        "abha_number": values["abha_number"],
+        "abha_address": values["abha_address"],
         "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
         "date_of_birth_partial": death.date_of_birth_partial,
         "age_years": death.age_years,
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
-        "place_of_death": death.place_of_death,
-        "address": death.address,
-        "address_house_street": death.address_house_street,
-        "address_village_ward": death.address_village_ward,
-        "address_landmark": death.address_landmark,
-        **_serialize_location(death, show_gps),
-        "informant_name": death.informant_name,
-        "father_name": death.father_name,
-        "mother_name": death.mother_name,
-        "informant_phone": death.informant_phone,
-        "informant_phone_2": death.informant_phone_2,
-        "remarks": death.remarks,
+        "place_of_death": values["place_of_death"],
+        "address": values["address"],
+        "address_house_street": values["address_house_street"],
+        "address_village_ward": values["address_village_ward"],
+        "address_landmark": values["address_landmark"],
+        **_serialize_location(death, show_gps, values),
+        "informant_name": values["informant_name"],
+        "father_name": values["father_name"],
+        "mother_name": values["mother_name"],
+        "informant_phone": values["informant_phone"],
+        "informant_phone_2": values["informant_phone_2"],
+        "remarks": values["remarks"],
         "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
         "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
         "status": death.status,
@@ -4541,8 +4422,10 @@ def _code_now(user: VaUsers, death: VaDeathRegister, my_submission: bool, ready_
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                            my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
                            my_submission: bool = False, other_complete_interview: bool = False,
-                           ready_for_coding: bool | None = False) -> dict:
-    """One worklist row (browser and device lists). No informant name or
+                           ready_for_coding: bool | None = False, register: dict | None = None) -> dict:
+    """One worklist row (browser and device lists). *register*: the row's
+    opened ``deceased_name`` when the caller opened the page (one unwrap a
+    row); phone presence comes from the ``has_*`` flags, nothing else opens. No informant name or
     address, and no phone digits (only ``has_informant_phone`` booleans): the
     list shows who died, not how to reach the family. ``va_sid`` only for the interviewer whose draft
     became the submission (*my_submission*): the interview form is its
@@ -4552,6 +4435,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
     exists (a supervisor may choose it), never whose. ``code_now``: the caller's
     own submission is ``ready_for_coding`` in a self-coding project where they
     code, so "Code now" works (``coder_workflow_service.allocate_own_case``)."""
+    values = _register_values(death, register, ("deceased_name",))
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -4562,15 +4446,15 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "source": death.source,
         "state": death.status,
         "details_pending": death.status == "draft_identity",
-        "deceased_name": death.deceased_name,
+        "deceased_name": values["deceased_name"],
         "deceased_sex": death.deceased_sex,
         "age_years": death.age_years,
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
         "pending_flag": death.pending_flag,
         "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
         "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
-        "has_informant_phone": bool(death.informant_phone),
-        "has_informant_phone_2": bool(death.informant_phone_2),
+        "has_informant_phone": bool(death.has_informant_phone),
+        "has_informant_phone_2": bool(death.has_informant_phone_2),
         "registered_by_me": death.registered_by == user.user_id,
         "started_by_me": death.started_by_user_id == user.user_id,
         # Someone started the case (no name: who holds it is supervisor-only).
@@ -4586,10 +4470,15 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
     }
 
 
+#: Never in a case detail (``serialize_case_detail``): they come only in the
+#: API's ``prefill`` to a caller who may start the interview.
+_CASE_DETAIL_HIDDEN = ("abha_number", "abha_address", "father_name", "mother_name")
+
+
 def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                           my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
                           my_submission: bool = False, other_complete_interview: bool = False,
-                          ready_for_coding: bool | None = False) -> dict:
+                          ready_for_coding: bool | None = False, register: dict | None = None) -> dict:
     """One case for the case page and the device detail: the worklist row's
     case fields plus the full contact details (informant name, both phones,
     household address, remarks). Never ABHA, parents' names, other users' ids
@@ -4601,8 +4490,13 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     ``other_draft_started_at`` and ``other_complete_interview`` as in
     ``serialize_worklist_row``, as is ``code_now``. The household address's
     GPS fix only where ``shows_gps`` allows it; otherwise its keys are
-    absent."""
+    absent. *register*: the row's opened attributes, if the caller has them;
+    ABHA and parents' names, and the fix without ``show_gps``, are never
+    opened here."""
     show_gps = shows_gps(user, death, gps_projects(user, {death.project_id}))
+    values = _register_values(death, register, tuple(
+        n for n in register_pii_accessor.SEALED_ATTRS
+        if n not in _CASE_DETAIL_HIDDEN and (show_gps or n not in LOCATION_FIELDS)))
     return {
         "death_id": str(death.death_id),
         "unique_id": death.unique_id,
@@ -4615,27 +4509,27 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
         "details_pending": death.status == "draft_identity",
         "pending_flag": death.pending_flag,
         "deceased": {
-            "name": death.deceased_name,
+            "name": values["deceased_name"],
             "sex": death.deceased_sex,
             "age_years": death.age_years,
             "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
             "date_of_birth_partial": death.date_of_birth_partial,
             "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
-            "place_of_death": death.place_of_death,
+            "place_of_death": values["place_of_death"],
         },
         "household_address": {
-            "address": death.address,
-            "house_street": death.address_house_street,
-            "village_ward": death.address_village_ward,
-            "landmark": death.address_landmark,
-            **_serialize_location(death, show_gps),
+            "address": values["address"],
+            "house_street": values["address_house_street"],
+            "village_ward": values["address_village_ward"],
+            "landmark": values["address_landmark"],
+            **_serialize_location(death, show_gps, values),
         },
         "informant": {
-            "name": death.informant_name,
-            "phone": death.informant_phone,
-            "phone_2": death.informant_phone_2,
+            "name": values["informant_name"],
+            "phone": values["informant_phone"],
+            "phone_2": values["informant_phone_2"],
         },
-        "remarks": death.remarks,
+        "remarks": values["remarks"],
         "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
         "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
         "registered_by_me": death.registered_by == user.user_id,
@@ -4653,12 +4547,13 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
 
 def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                              registered_by_name: str | None, started_by_name: str | None,
-                             other_complete_interview: bool = False) -> dict:
+                             other_complete_interview: bool = False, register: dict | None = None) -> dict:
     """A worklist row plus who registered and started the case (staff identity,
     decision 13), without the informant's phones: the supervisor list does not
     contact families. ``other_complete_interview``: a candidate to choose
     exists (``choose_interview``)."""
-    row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview)
+    row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview,
+                                 register=register)
     for key in ("my_draft_id", "has_informant_phone", "has_informant_phone_2",
                 "other_draft_active", "other_draft_started_at", "code_now"):
         row.pop(key)
@@ -4705,19 +4600,19 @@ def serialize_drafts(drafts: list[VaWebIntakeDraft]) -> list[dict]:
         .group_by(VaWebIntakeDraftSection.draft_id)
     ).all())
     death_ids = {d.death_id for d in drafts if d.death_id}
-    cases = {row.death_id: row for row in db.session.execute(
-        sa.select(
-            VaDeathRegister.death_id, VaDeathRegister.deceased_name, VaDeathRegister.deceased_sex,
-            VaDeathRegister.age_years, VaDeathRegister.date_of_death,
-        )
-        .where(VaDeathRegister.death_id.in_(death_ids))
-    ).all()} if death_ids else {}
+    cases = {c.death_id: c for c in db.session.scalars(
+        sa.select(VaDeathRegister).where(VaDeathRegister.death_id.in_(death_ids))
+    )} if death_ids else {}
+    # The name is sealed on a sealed row: open it for the page's rows (no
+    # query, one unwrap a sealed row).
+    names = {k: v["deceased_name"] for k, v in register_pii_accessor.open_register_pii(
+        cases.values(), only=("deceased_name",)).items()}
     rows = []
     for d in drafts:
         case = cases.get(d.death_id)
         rows.append(dict(
             serialize_draft(d, sections_saved=counts.get(d.draft_id, 0)),
-            deceased_name=case.deceased_name if case else None,
+            deceased_name=names.get(d.death_id),
             deceased_sex=case.deceased_sex if case else None,
             age_years=case.age_years if case else None,
             date_of_death=case.date_of_death.isoformat() if case and case.date_of_death else None,

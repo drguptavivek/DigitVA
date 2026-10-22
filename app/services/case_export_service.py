@@ -185,7 +185,7 @@ def _batches(user: VaUsers, plan: ExportPlan):
     cursor = None
     while True:
         page = case_list.list_cases(user, preset=plan.preset, filters=plan.filters, cursor=cursor, limit=BATCH,
-                                    with_identifiers=bool(pinned), identifier_projects=pinned)
+                                    with_identifiers=bool(pinned), identifier_projects=pinned, with_names=False)
         revealed = case_list.identifier_value_death_ids(
             user, [uuid.UUID(str(r["death_id"])) for r in page["cases"] if r.get("project_id") in pinned]
         ) if pinned else set()

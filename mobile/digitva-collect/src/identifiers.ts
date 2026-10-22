@@ -5,7 +5,11 @@
  * requester, which sends X-CSRFToken on every mutation.
  */
 import { ApiError, INTAKE_API, requestClientJson, type ClientCsrf } from "./api";
-import { formatPhone, normalisePhone as normalisePhoneStrict } from "./phoneFormat";
+import { formatPhone, normalisePhone as normalisePhoneStrict, PY_SPACE } from "./phoneFormat";
+
+/** The server's whitespace (Python `str.split()`), not JS `\s`: see PY_SPACE. */
+const PY_SPACE_EDGES = new RegExp(`^[${PY_SPACE}]+|[${PY_SPACE}]+$`, "g");
+const PY_SPACE_RUNS = new RegExp(`[${PY_SPACE}]+`, "g");
 
 export type IdentifierCharType = "digits" | "letters" | "letters_digits" | "letters_digits_hyphen_slash";
 
@@ -68,7 +72,7 @@ export function typedCaret(prev: string, selection: { start: number; end: number
 
 /** What is sent: NFKC, trimmed, inner spaces collapsed, upper-case (the server normalises in the same order). */
 export function cleanIdentifier(raw: string | null | undefined): string {
-  return (raw ?? "").normalize("NFKC").trim().replace(/\s+/g, " ").toUpperCase();
+  return (raw ?? "").normalize("NFKC").replace(PY_SPACE_EDGES, "").replace(PY_SPACE_RUNS, " ").toUpperCase();
 }
 
 /**
@@ -78,14 +82,20 @@ export function cleanIdentifier(raw: string | null | undefined): string {
 export function checkIdentifier(type: IdentifierType, raw: string): IdentifierRule | undefined {
   const value = cleanIdentifier(raw);
   if (!value) return undefined;
-  if (value.length < type.min_length || value.length > type.max_length) return "length";
+  const length = [...value].length; // code points, as the server's len()
+  if (length < type.min_length || length > type.max_length) return "length";
   if (type.char_type && !CHAR_TYPE_RE[type.char_type]?.test(value)) return "char_type";
   if (type.pattern) {
+    // "u" so "." is one code point, as in the server's re2; patterns that
+    // are not valid in u-mode fall back to plain mode, then to no check.
     let re: RegExp | undefined;
-    try {
-      re = new RegExp(`^(?:${type.pattern})$`);
-    } catch {
-      re = undefined;
+    for (const flags of ["u", ""]) {
+      try {
+        re = new RegExp(`^(?:${type.pattern})$`, flags);
+        break;
+      } catch {
+        re = undefined;
+      }
     }
     if (re && !re.test(value)) return "pattern";
   }

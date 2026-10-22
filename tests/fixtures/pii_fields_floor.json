@@ -1,0 +1,24 @@
+{
+ "rule": "app/services/pii_field_registry.py PII_FIELDS (offline-api-contract.md 6.6): the sealed set's floor. Compared as a set; order is not meaningful.",
+ "fields": [
+  "Id10007",
+  "Id10010",
+  "Id10010a",
+  "Id10010b",
+  "Id10010c",
+  "Id10017",
+  "Id10018",
+  "Id10055",
+  "Id10057",
+  "Id10061",
+  "Id10062",
+  "Id10070",
+  "Id10071",
+  "Id10072",
+  "Id10073",
+  "visit_address",
+  "visit_remarks",
+  "abha_number",
+  "abha_address"
+ ]
+}

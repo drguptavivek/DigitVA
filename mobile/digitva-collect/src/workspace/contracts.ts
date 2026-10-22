@@ -288,6 +288,10 @@ export interface CoderHistoryCase {
   va_coding_date: string;
   va_code_status: string;
   recodeable: boolean;
+  /** Offline station only: the server's answer to this case's sent coding (absent elsewhere). */
+  server_status?: "pending" | "refused" | null;
+  /** The server's reason code for `server_status` (e.g. `doris_pending`, `coding_mode_mismatch`). */
+  server_code?: string | null;
 }
 
 export interface CoderHistory {
@@ -306,6 +310,8 @@ export interface ProjectOptions {
 
 export interface CoderProjects extends ProjectOptions {
   projects: string[];
+  /** Offline station only: true when its config codes none of its projects (coded on the server). */
+  station_coding_disabled?: boolean;
 }
 
 export type ReviewerProjects = ProjectOptions;
@@ -691,6 +697,9 @@ function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
     va_coding_date: string(source.va_coding_date, `${field}.va_coding_date`),
     va_code_status: string(source.va_code_status, `${field}.va_code_status`),
     recodeable: boolean(source.recodeable, `${field}.recodeable`),
+    ...(source.server_status === "pending" || source.server_status === "refused"
+      ? { server_status: source.server_status, server_code: nullableString(source.server_code ?? null, `${field}.server_code`) }
+      : {}),
   };
 }
 
@@ -737,7 +746,11 @@ function parseProjectOptions(source: Record<string, unknown>, field: string): Pr
 
 export function parseCoderProjects(value: unknown): CoderProjects {
   const source = record(value, "coding.projects");
-  return { projects: stringArray(source.projects, "coding.projects.projects"), ...parseProjectOptions(source, "coding.projects") };
+  return {
+    projects: stringArray(source.projects, "coding.projects.projects"),
+    ...parseProjectOptions(source, "coding.projects"),
+    ...(source.station_coding_disabled === true ? { station_coding_disabled: true } : {}),
+  };
 }
 
 export function parseReviewerProjects(value: unknown): ReviewerProjects {

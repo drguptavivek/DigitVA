@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-22
 ---
 
 # SmartVA Analysis
@@ -295,13 +295,27 @@ submissions in `va_smartva_results`.
 
 ## Execution (`va_smartva_03_runsmartva.py`)
 
-SmartVA is invoked as a Python subprocess:
+SmartVA runs as a subprocess on the engine `SMARTVA_ENGINE` selects
+([Runtime and operations](runtime-and-operations.md#smartva-engine)). The
+default, `rust`, runs the pure-Rust drop-in built into the image:
+
+```bash
+/usr/local/bin/smartva-rs --no-charts --country Unknown \
+    --hiv False --malaria False --hce True --freetext True \
+    smartva_input.csv smartva_output/
+```
+
+`python` (the rollback) runs Python SmartVA with the same flags:
 
 ```bash
 python -m smartva.va_cli --country=Unknown \
     --figures=False --hiv=False --malaria=False --hce=True --freetext=True \
     smartva_input.csv smartva_output/
 ```
+
+Both write the same CSV tree, which the rest of this page reads. With `rust`
+and the binary missing, the run fails (no fallback). Each run's
+`run_metadata` also records `"smartva_engine": {"name", "version"}`.
 
 `--hiv` and `--malaria` are resolved per submission, not per form
 (`_derive_smartva_run_options` in `va_smartva_02_prepdata.py`, called by
@@ -320,7 +334,7 @@ row, per option set. Each `va_smartva_runs.run_metadata` records
 `"form flag"` or `"default"`. No schema change: `run_metadata` already existed.
 Policy: [SmartVA Generation Policy](../policy/smartva-generation-policy.md).
 
-The command above is what `SMARTVA_CHARTS` (debugging only) runs, with
+The Python command above is what `SMARTVA_CHARTS` (debugging only) runs, with
 `--figures True`. Otherwise the runner starts
 [`smartva_cli_no_charts.py`](../../app/utils/va_smartva/smartva_cli_no_charts.py)
 in place of `-m smartva.va_cli`: SmartVA imports matplotlib in three modules and

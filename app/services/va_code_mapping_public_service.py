@@ -50,6 +50,7 @@ from app.services.cod_bucket_mapping_service import (
     NODE_TYPE_FIELD,
     _slugify,
 )
+from app.services.icd11_licence import ICD11_CITATION
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, POLICY_STATUS_OPTIONS
 
 log = logging.getLogger(__name__)
@@ -122,7 +123,7 @@ ICD11_ORIGIN_FILTER_LABELS = {
 POLICY_REVIEW_FILTERS = set(POLICY_STATUS_OPTIONS)
 ICD11_CSV_HEADERS = (
     "code", "code_title", "chapter", "block", "selectable", "policy_status",
-    "va_code", "va_title", "origin", "sex", "age_group",
+    "va_code", "va_title", "origin", "sex", "age_group", "linearization_uri",
 )
 ICD10_CSV_HEADERS = (
     "classification", "code", "title", "semantic_level", "chapter", "block",
@@ -612,6 +613,7 @@ def _build_icd11_catalogue(release: str) -> dict[str, dict]:
         block = block_of(row.linearization_uri)
         catalogue[row.code] = {
             "title": row.title,
+            "linearization_uri": row.linearization_uri,  # licence 1.2.2: code travels with its URI
             "chapter": chapter,
             "block": block,
             "selectable": bool(row.is_coding_selectable),
@@ -860,6 +862,7 @@ def icd11_code_states(codes: list[str], catalogue: dict[str, dict], rows: list[d
         states.append({
             "code": code,
             "code_title": entry["title"],
+            "linearization_uri": entry["linearization_uri"],
             "chapter": entry["chapter"],
             "block": entry["block"],
             "selectable": entry["selectable"],
@@ -941,7 +944,8 @@ def cached_icd11_state_csv(root: str, selectable: str, make_states) -> str | Non
     (same csv.writer dialect, UTF-8). Returns None when `root` is not
     writable, and the caller streams live instead. Only public data is written.
     """
-    prefix = f"icd11_states_{selectable or 'all'}_"
+    # "2": the file now carries the URI column and WHO citation row (digitva-zde8).
+    prefix = f"icd11_states2_{selectable or 'all'}_"
     path = os.path.join(root, f"{prefix}{public_data_version()}.csv")
     if os.path.exists(path):
         return path
@@ -953,6 +957,7 @@ def cached_icd11_state_csv(root: str, selectable: str, make_states) -> str | Non
                 writer = csv.writer(out)
                 writer.writerow(ICD11_CSV_HEADERS)
                 writer.writerows(icd11_state_csv_row(state) for state in make_states())
+                writer.writerow([f"# {ICD11_CITATION}"])
             os.replace(tmp_path, path)
         except BaseException:
             _remove_quietly(tmp_path)

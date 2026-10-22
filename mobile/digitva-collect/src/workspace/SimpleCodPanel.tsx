@@ -4,6 +4,7 @@ import { WhoVaQuestionControls } from "../whoControls";
 import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
 
 import { ApiError } from "../api";
+import { t } from "../i18n";
 import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { IcdSearchItem, WorkspaceAssessment, WorkspacePayload } from "./contracts";
@@ -139,6 +140,7 @@ export function SimpleCodPanel({
       {identity.mode === "coding" ? (
         <NotCodeablePanel api={api} vaSid={identity.vaSid} reason={notCodeableReason} other={notCodeableOther} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onDone={onDone} onError={setError} />
       ) : null}
+      {workspace.case.icd_classification === "icd11" ? <Text testID="icd11-citation" style={styles.muted}>{t("icd11Citation")}</Text> : null}
     </View>
   );
 }

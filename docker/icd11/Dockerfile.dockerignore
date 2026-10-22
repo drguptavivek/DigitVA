@@ -1,0 +1,10 @@
+*
+!desktop/Cargo.toml
+!desktop/Cargo.lock
+!desktop/crates
+!vendor/who-icd11-api
+!docker/icd11/healthcheck.sh
+!vendor/smartva-analyze/rust/Cargo.toml
+!vendor/smartva-analyze/rust/src
+**/target
+vendor/who-icd11-api/runtime

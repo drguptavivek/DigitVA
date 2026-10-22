@@ -98,17 +98,20 @@ LAST_SEEN_INTERVAL = timedelta(seconds=60)
 OUTSTANDING_MAX_IDS = 1000
 _DEVICE_NAME_MAX = 64
 _APP_VERSION_MAX = 32
-_PLATFORMS = frozenset({"android", "ios"})
+#: "desktop" is the offline PHC station (docs/policy/offline-bundle-and-transfer.md).
+_PLATFORMS = frozenset({"android", "ios", "desktop"})
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-device-timing-equaliser")
 
 
 class DeviceAuthError(Exception):
-    """A refused device call: ``code`` is the contract's machine code."""
+    """A refused device call: ``code`` is the contract's machine code;
+    ``fields`` names the inputs to fix, when the refusal names any."""
 
-    def __init__(self, message: str, code: str, status_code: int):
+    def __init__(self, message: str, code: str, status_code: int, fields: list[str] | None = None):
         super().__init__(message)
         self.code = code
         self.status_code = status_code
+        self.fields = fields
 
 
 @dataclass
@@ -287,7 +290,7 @@ def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevic
     name = _clean_text(device_name, limit=_DEVICE_NAME_MAX, name="device_name", required=True)
     version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
     if platform not in _PLATFORMS:
-        raise DeviceAuthError("platform must be android or ios.", "invalid_request", 400)
+        raise DeviceAuthError("platform must be android, ios or desktop.", "invalid_request", 400)
     if not isinstance(code, str) or not code.strip():
         raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
 
@@ -329,13 +332,17 @@ def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevic
     return device, secret
 
 
-def revoke_device(device: AuthDevice, *, actor: VaUsers) -> int:
+def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = False) -> int:
     """Revoke a device and every session on it. Returns the number of sessions
-    ended. Idempotent. Caller commits."""
+    ended. Idempotent. *compromised* (lost or stolen) refuses every bundle the
+    device signed, not only those created after the revoke; a later revoke
+    may raise it on an already revoked device, never clear it. Caller commits."""
     now = _now()
     if device.revoked_at is None:
         device.revoked_at = now
         device.revoked_by = actor.user_id
+    if compromised:
+        device.revoked_compromised = True
     ended = db.session.execute(
         sa.update(AuthDeviceSession)
         .where(AuthDeviceSession.device_id == device.device_id, AuthDeviceSession.revoked_at.is_(None))
@@ -343,7 +350,8 @@ def revoke_device(device: AuthDevice, *, actor: VaUsers) -> int:
     ).rowcount
     record_security_event(
         user_id=None, actor_user_id=actor.user_id, event_type="device_revoked",
-        detail={"device_id": str(device.device_id), "sessions_ended": ended},
+        detail={"device_id": str(device.device_id), "sessions_ended": ended,
+                "compromised": bool(device.revoked_compromised)},
     )
     return ended
 
@@ -729,6 +737,8 @@ def list_project_devices(project_id: str) -> list[dict]:
             "enrolled_at": iso(d.enrolled_at),
             "last_seen_at": iso(d.last_seen_at),
             "revoked_at": iso(d.revoked_at),
+            "revoked_compromised": d.revoked_compromised,
+            "signing_key_id": d.signing_key_id,
             "sessions": sessions_by_device.get(d.device_id, []),
         }
         for d in devices

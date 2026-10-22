@@ -128,12 +128,14 @@ class HelpVaCodeMappingsRouteTests(BaseTestCase):
         self.assertEqual(response.mimetype, "text/csv")
         self.assertIn("attachment", response.headers["Content-Disposition"])
         rows = list(csv.DictReader(io.StringIO(response.get_data(as_text=True))))
+        self.assertTrue(rows.pop()["classification"].startswith("# "))  # WHO citation row
         self.assertEqual([(r["code"], r["va_code"], r["origin"]) for r in rows], [("K72", "VAs-06.02", "differs")])
         self.assertEqual(rows[0]["note"], "note for K72")
 
         full = list(csv.reader(io.StringIO(self.client.get("/help/va-code-mappings.csv").get_data(as_text=True))))
         self.assertEqual(tuple(full[0]), service.CSV_HEADERS)
-        self.assertEqual(len(full), 154)
+        self.assertEqual(len(full), 155)  # + the WHO citation row
+        self.assertTrue(full[-1][0].startswith("# International Classification of Diseases"))
 
     def test_post_is_not_allowed(self):
         # Keep these 405s from counting toward a ban on the shared test IP.
@@ -378,7 +380,7 @@ class PublicMappingRouteTests(BaseTestCase):
     def test_csv_honours_origin_filter_and_streams_live(self):
         response = self.client.get("/help/va-code-mappings/unmapped.csv?origin=who")
         lines = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
-        self.assertEqual({line[0] for line in lines[1:]}, {"1G40"})
+        self.assertEqual({line[0] for line in lines[1:-1]}, {"1G40"})
         self.assertEqual(self.cache_files(), [])  # filtered: no cache file written
 
     def test_csv_honours_policy_status_filter_and_streams_live(self):
@@ -389,7 +391,7 @@ class PublicMappingRouteTests(BaseTestCase):
         db.session.commit()
         response = self.client.get("/help/va-code-mappings/unmapped.csv?policy_status=reviewed")
         lines = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
-        self.assertEqual({line[0] for line in lines[1:]}, {"1G40"})
+        self.assertEqual({line[0] for line in lines[1:-1]}, {"1G40"})
         self.assertEqual(self.cache_files(), [])
 
     def test_state_csv(self):
@@ -398,8 +400,10 @@ class PublicMappingRouteTests(BaseTestCase):
         self.assertEqual(response.mimetype, "text/csv")
         lines = list(csv.reader(io.StringIO(response.get_data(as_text=True))))
         self.assertEqual(tuple(lines[0]), service.ICD11_CSV_HEADERS)
-        self.assertEqual(lines[0][-2:], ["sex", "age_group"])
-        by_code = {line[0]: line for line in lines[1:]}
+        self.assertEqual(lines[0][-3:], ["sex", "age_group", "linearization_uri"])
+        self.assertTrue(lines[-1][0].startswith("# ") and "CC BY-ND 3.0 IGO" in lines[-1][0])
+        by_code = {line[0]: line for line in lines[1:-1]}
+        self.assertTrue(by_code["KD3B.0"][-1])  # linearization_uri kept beside the code
         self.assertIn("KD3B.0", by_code)
         self.assertEqual(by_code["KD3B.0"][4], "no")
         self.assertNotIn("1G40", by_code)
@@ -418,15 +422,15 @@ class PublicMappingRouteTests(BaseTestCase):
         legacy = self.client.get("/help/va-code-mappings/unmapped.csv" + query)
         self.assertEqual(canonical.data, legacy.data)
         lines = list(csv.reader(io.StringIO(canonical.get_data(as_text=True))))
-        by_code = {line[0]: line for line in lines[1:]}
+        by_code = {line[0]: line for line in lines[1:-1]}  # last row is the WHO citation
         self.assertEqual(set(by_code), {"KD3B.0"})
-        self.assertEqual(by_code["KD3B.0"][-2:], ["female", "neonate"])
+        self.assertEqual(by_code["KD3B.0"][-3:-1], ["female", "neonate"])
 
     def test_cached_csv_is_byte_identical_to_live(self):
         cached = self.client.get("/help/va-code-mappings/unmapped.csv?selectable=no")
         files = self.cache_files()
         self.assertEqual(len(files), 1)
-        self.assertTrue(files[0].startswith("icd11_states_no_"))
+        self.assertTrue(files[0].startswith("icd11_states2_no_"))
         again = self.client.get("/help/va-code-mappings/unmapped.csv?selectable=no")
         self.assertEqual(self.cache_files(), files)
         # Every fixture code shares the chapter title, so this search selects the

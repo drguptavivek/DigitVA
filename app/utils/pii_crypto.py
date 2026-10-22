@@ -335,6 +335,12 @@ def current_key_id() -> str:
     return _keyring().public.key_id
 
 
+def current_public_key() -> KemPublicKey:
+    """The KEM public key new values are wrapped with; the station config
+    hands it to offline stations (bundle spec 6.4 ``kem_public_key``)."""
+    return _keyring().public
+
+
 # ---------------------------------------------------------------------------
 # Combiner and wrapping
 # ---------------------------------------------------------------------------

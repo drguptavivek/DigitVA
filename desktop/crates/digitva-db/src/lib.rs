@@ -1,5 +1,6 @@
 pub mod catalog;
 pub mod consent;
+pub mod doris_prefill;
 pub mod instrument;
 pub mod roster;
 
@@ -7,11 +8,9 @@ use crate::catalog::{ensure_catalog_seeded, lookup_va_definition_for_icd, search
 use crate::consent::{
     append_consent_record, assert_informant_consent_before_write, get_latest_consent_for_case,
     parse_contract_consent_config, purge_informant_pii_for_death_id, upsert_project_consent_config,
-    ConsentEnvelopeInput,
+    ConsentEnvelopeInput, ConsentRefusal,
 };
-use crate::instrument::{
-    default_form_options, default_who_2022_va_definition, default_who_2022_va_definition_sha256,
-};
+use crate::instrument::ServedDefinition;
 use crate::roster::{
     get_active_actor, get_roster_snapshot, init_roster_tables_and_seed, normalise_acting_role,
     replace_provisioned_roster, switch_active_actor, update_sandbox_designations,
@@ -20,12 +19,12 @@ use crate::roster::{
 };
 use chrono::Utc;
 use digitva_bundle::{
-    build_bundle, sha256_hex, verify_and_plan_receipt, ActingRole, BuiltBundle,
+    build_bundle, sha256_hex, validate_bundle_record, verify_and_plan_receipt, ActingRole, BuiltBundle,
     BundleRecordEnvelope, BundleRecordPayload, CodingResultKind, CodingResultRecord,
     ConsentDecision, ConsentMode, ConsentPurposeGrant, ConsentRecord, DeathCorrectionRecord,
-    DeathRef, DeathRegistrationRecord, IdentifiersSetRecord, InterviewCompletion,
-    InterviewDraftMeta, InterviewSubmissionRecord, StationConfigPayload, StationSigningKey,
-    VerifiedStationConfig,
+    DeathRef, DeathRegistrationRecord, RecordIngestOutcome, IdentifiersSetRecord, InterviewCompletion,
+    InterviewDraftMeta, InterviewSubmissionRecord, RosterRoleGrant, StationConfigPayload,
+    StationProjectConfig, StationSigningKey, VerifiedStationConfig,
 };
 use digitva_pdf::{render_who_mccd_pdf, MccdConditionLine, WhoMccdCertificateData};
 use digitva_smartva::{
@@ -50,11 +49,327 @@ use std::time::Instant;
 use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
+/// The station app version sent in bundle manifests and the enrolment file (server limit 32 chars).
+pub const STATION_APP_VERSION: &str = "0.1.0-offline";
+
+/// Case list page size, as the server's `REPORTED_PAGE_DEFAULT` / `WORKLIST_PAGE_DEFAULT`.
+pub const CASE_PAGE_DEFAULT: i64 = 50;
+/// Largest case list page, as the server's `REPORTED_PAGE_MAX` / `WORKLIST_PAGE_MAX`.
+pub const CASE_PAGE_MAX: i64 = 200;
+
+/// Station coding modes (Settings): ICD-11 with the DORIS certificate (the server's
+/// `unmasked_doris` workspace on ICD-11), or ICD-10 (the server's `unmasked_simple` on ICD-10).
+pub const CODING_MODE_ICD11_DORIS: &str = "icd11_doris";
+pub const CODING_MODE_ICD10: &str = "icd10";
+pub const CODING_MODES: [&str; 2] = [CODING_MODE_ICD11_DORIS, CODING_MODE_ICD10];
+
+/// A stored config `coding_mode` (`"icd10"`, `null`) as a known station mode; anything else,
+/// `null` included, means the station does not code the project.
+fn parse_coding_mode_json(raw: &str) -> Option<String> {
+    serde_json::from_str::<Option<String>>(raw)
+        .ok()
+        .flatten()
+        .filter(|m| CODING_MODES.contains(&m.as_str()))
+}
+
+/// Death-register values a draft's prefill is built from (`interview_prefill`).
+#[derive(Default)]
+struct RegisterPrefill<'a> {
+    deceased_name: Option<&'a str>,
+    deceased_sex: Option<&'a str>,
+    date_of_death: Option<&'a str>,
+    age_years: Option<f64>,
+    date_of_birth: Option<&'a str>,
+    date_of_birth_partial: Option<&'a str>,
+    place_of_death: Option<&'a str>,
+    informant_name: Option<&'a str>,
+    father_name: Option<&'a str>,
+    mother_name: Option<&'a str>,
+    abha_number: Option<&'a str>,
+    abha_address: Option<&'a str>,
+    /// House/street, village/ward, landmark, address: joined with ", " as the server's
+    /// `_case_address`.
+    address_parts: [Option<&'a str>; 4],
+    /// The unit's ", "-joined path (the register's `org_unit_name`).
+    org_path: Option<&'a str>,
+}
+
+/// The Id10058 choice for a free-text register place of death (the server's
+/// `_who_place_of_death`): exact choice first, then keywords in this order ("on the way to
+/// hospital" is en route, "nursing home" a facility). None when nothing matches: the question is
+/// then left unasked, never defaulted to `other` (it is a coding input).
+fn who_place_of_death(text: &str) -> Option<&'static str> {
+    let value = text.to_lowercase().replace('_', " ").split_whitespace().collect::<Vec<_>>().join(" ");
+    let exact = [
+        ("hospital", "hospital"),
+        ("other health facility", "other_health_facility"),
+        ("home", "home"),
+        ("on route to hospital or facility", "on_route_to_hospital_or_facility"),
+        ("other", "other"),
+    ];
+    if let Some((_, choice)) = exact.iter().find(|(label, _)| *label == value) {
+        return Some(choice);
+    }
+    let keywords: [(&str, &[&str]); 4] = [
+        ("on_route_to_hospital_or_facility", &["route", "on the way", "transit", "ambulance"]),
+        (
+            "other_health_facility",
+            &["phc", "chc", "health centre", "health center", "sub centre", "subcentre", "clinic",
+              "dispensary", "nursing home", "facility"],
+        ),
+        ("hospital", &["hospital"]),
+        ("home", &["home", "house", "residence"]),
+    ];
+    keywords
+        .iter()
+        .find(|(_, words)| words.iter().any(|w| value.contains(w)))
+        .map(|(choice, _)| *choice)
+}
+
+/// A draft's prefill in the server's shape (`_prefill_from_death`, docs/policy/web-intake.md),
+/// which the app's `initialDataFromPrefill` reads: `interviewer` (the acting roster member),
+/// `deceased` (only with name, sex and date of death), WHO `answers` and `lockedQuestionNames`.
+/// The registered age goes to `age_group` with `age_adult` (12-119, as `ageInYears`) or the
+/// child fields (1-11); age 0 and an exact date of birth send none. Id10051 is the WHO yes/no
+/// question that opens Id10055/Id10057, answered "yes" only when those are prefilled; it never
+/// carries an age.
+fn interview_prefill(actor: &ActiveActorContext, reg: &RegisterPrefill) -> Value {
+    let present = |v: Option<&str>| v.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+    let mut interviewer = Map::new();
+    let mut locked: Vec<&str> = vec![];
+    if let Some(name) = present(Some(actor.name.as_str())) {
+        interviewer.insert("name".to_string(), json!(name));
+    }
+    if let Some(id) = actor.user_id {
+        interviewer.insert("id".to_string(), json!(id.to_string()));
+        locked.push("Id10010c");
+    }
+    let mut answers = Map::new();
+    let address: Vec<String> = reg.address_parts.iter().filter_map(|p| present(*p)).collect();
+    let address = address.join(", ");
+    let org_path = present(reg.org_path).unwrap_or_default();
+    let place: Vec<&str> = [org_path.as_str(), address.as_str()].into_iter().filter(|p| !p.is_empty()).collect();
+    let place = place.join("; ");
+    let residence = if address.is_empty() { org_path.clone() } else { address.clone() };
+    if !place.is_empty() {
+        answers.insert("Id10057".to_string(), json!(place));
+    }
+    if !residence.is_empty() {
+        answers.insert("Id10055".to_string(), json!(residence));
+    }
+    if !place.is_empty() || !residence.is_empty() {
+        answers.insert("Id10051".to_string(), json!("yes"));
+    }
+    if let Some(choice) = reg.place_of_death.and_then(who_place_of_death) {
+        answers.insert("Id10058".to_string(), json!(choice));
+    }
+    for (question, value) in [("Id10007", reg.informant_name), ("Id10061", reg.father_name), ("Id10062", reg.mother_name)] {
+        if let Some(value) = present(value) {
+            answers.insert(question.to_string(), json!(value));
+        }
+    }
+    let mut prefill = Map::new();
+    let name = present(reg.deceased_name);
+    let date_of_death = present(reg.date_of_death);
+    let sex = present(reg.deceased_sex);
+    if let (Some(name), Some(date_of_death), Some(sex)) = (name, date_of_death, sex) {
+        let words: Vec<&str> = name.split_whitespace().collect();
+        let given = if words.len() > 1 { &words[..words.len() - 1] } else { &words[..] };
+        let mut deceased = json!({
+            "givenNames": given.join(" "),
+            "sex": if sex == "male" || sex == "female" { sex.as_str() } else { "undetermined" },
+            "dateOfDeath": date_of_death,
+        });
+        if words.len() > 1 {
+            deceased["surname"] = json!(words[words.len() - 1]);
+        }
+        let age = reg.age_years.filter(|a| a.fract() == 0.0).map(|a| a as i64);
+        if let Some(dob) = present(reg.date_of_birth) {
+            deceased["dateOfBirth"] = json!(dob);
+        } else if let Some(age @ 12..=119) = age {
+            deceased["ageInYears"] = json!(age);
+            answers.insert("age_group".to_string(), json!("adult"));
+            answers.insert("age_adult".to_string(), json!(age));
+        } else if let Some(age @ 1..=11) = age {
+            for (k, v) in [("Id10020", json!("no")), ("age_group", json!("child")), ("age_child_unit", json!("years")), ("age_child_years", json!(age))] {
+                answers.insert(k.to_string(), v);
+            }
+        }
+        if present(reg.date_of_birth).is_none()
+            && let Some(partial) = present(reg.date_of_birth_partial)
+        {
+            answers.insert("Id10020".to_string(), json!("no"));
+            if partial.len() == 7 {
+                answers.insert("dob_precision".to_string(), json!("month_year"));
+                answers.insert("dob_month_year".to_string(), json!(format!("{partial}-01")));
+            } else {
+                answers.insert("dob_precision".to_string(), json!("year"));
+                answers.insert("dob_year".to_string(), json!(format!("{partial}-01-01")));
+            }
+        }
+        prefill.insert("deceased".to_string(), deceased);
+        for (question, value) in [("abha_number", reg.abha_number), ("abha_address", reg.abha_address)] {
+            if let Some(value) = present(value) {
+                answers.insert(question.to_string(), json!(value));
+                locked.push(question);
+            }
+        }
+    }
+    locked.sort_unstable();
+    prefill.insert("interviewer".to_string(), Value::Object(interviewer));
+    prefill.insert("answers".to_string(), redact_payload_national_ids(&Value::Object(answers)).0);
+    prefill.insert("lockedQuestionNames".to_string(), json!(locked));
+    Value::Object(prefill)
+}
+
+/// The deceased's age in whole years from a WHO 2022 payload, by the server's precedence
+/// (`who_age_normalization.normalize_who_2022_age`): neonate hours/days, then the child or adult
+/// branch's days, months or years, then any of them; None when the payload records no age.
+/// Id10051 is a yes/no question, never an age.
+fn who_age_years(payload: &Value) -> Option<String> {
+    let num = |k: &str| -> Option<f64> {
+        match payload.get(k)? {
+            Value::Number(n) => n.as_f64(),
+            Value::String(s) => s.trim().parse().ok(),
+            _ => None,
+        }
+        .filter(|v: &f64| v.is_finite())
+    };
+    let flag = |k: &str| payload.get(k).is_some_and(|v| matches!(v.to_string().trim_matches('"'), "1" | "1.0" | "true" | "True"));
+    let (days, months, years, years2, final_years) =
+        (num("ageInDays"), num("ageInMonths"), num("ageInYears"), num("ageInYears2"), num("finalAgeInYears"));
+    let from_days = |d: f64| d / 365.25;
+    let age = if num("age_neonate_hours").is_some() {
+        Some(0.0)
+    } else if let Some(d) = num("age_neonate_days") {
+        Some(from_days(d))
+    } else if flag("isNeonatal") && days.is_some() {
+        days.map(from_days)
+    } else if flag("isChild") {
+        days.map(from_days).or(months.map(|m| m / 12.0)).or(years).or(years2).or(final_years)
+    } else if flag("isAdult") && (years.is_some() || years2.is_some() || final_years.is_some()) {
+        years.or(years2).or(final_years)
+    } else {
+        years.or(days.map(from_days)).or(months.map(|m| m / 12.0)).or(years2).or(final_years)
+    };
+    age.map(|a| (a.floor() as i64).to_string())
+}
+
+/// The `interview_outcome` a submission is stored with (the server's `_interview_outcome`):
+/// `refused` when consent (Id10013) is no, `completed` when the form reports itself valid, else
+/// the interviewer's own pick of `partially_completed` or `respondent_unavailable`. None when the
+/// form is invalid and nothing was picked (the server refuses that submit with 422).
+fn interview_outcome(data: &Value, completion_valid: bool) -> Option<&'static str> {
+    if data["Id10013"].as_str().is_some_and(|c| c.trim().eq_ignore_ascii_case("no")) {
+        return Some("refused");
+    }
+    if completion_valid {
+        return Some("completed");
+    }
+    match data["interview_outcome"].as_str() {
+        Some("partially_completed") => Some("partially_completed"),
+        Some("respondent_unavailable") => Some("respondent_unavailable"),
+        _ => None,
+    }
+}
+
+/// SQL predicate for submissions whose project the station codes: drops the projects a
+/// provisioned config's `coding_mode` locks out (null or unknown). `?1` is 1 when provisioned.
+const CODED_PROJECT_FILTER: &str = "project_id NOT IN (
+    SELECT project_id FROM loc_project_config
+    WHERE ?1 = 1 AND coding_mode_json IS NOT NULL
+      AND coding_mode_json NOT IN ('\"icd11_doris\"', '\"icd10\"'))";
+
+/// The raw `limit`, `cursor` and `registered` query values the shared app sends to
+/// `GET /intake/deaths` and `GET /intake/cases` (`mobile/digitva-collect/src/api.ts`).
+#[derive(Debug, Default, Clone, Deserialize)]
+pub struct CaseListQuery {
+    pub limit: Option<String>,
+    pub cursor: Option<String>,
+    pub registered: Option<String>,
+}
+
+/// A validated `CaseListQuery`: `limit` clamped, `after` the last `death_id` already shown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CaseListPage {
+    pub limit: i64,
+    pub after: Option<i64>,
+    pub registered_mine: bool,
+}
+
+impl CaseListQuery {
+    /// The server's rules (`web_intake_service.reported_deaths_page`, `routes/api/intake.py`
+    /// `list_deaths`): blank `limit` is 50, any whole number is clamped to 1..200, other text is
+    /// refused; `registered` is blank or `mine`; `cursor` is one this station issued. The error
+    /// is a message safe to return with `invalid_request`; it never echoes the value.
+    pub fn parse(&self) -> Result<CaseListPage, String> {
+        // As the server's `args.get(...) or default`: only an empty value is absent.
+        fn given(v: &Option<String>) -> Option<&str> {
+            v.as_deref().filter(|s| !s.is_empty()).map(str::trim)
+        }
+        let limit = match given(&self.limit) {
+            None => CASE_PAGE_DEFAULT,
+            Some(text) => text
+                .parse::<i64>()
+                .map_err(|_| "limit must be a whole number.".to_string())?
+                .clamp(1, CASE_PAGE_MAX),
+        };
+        let after = match given(&self.cursor) {
+            None => None,
+            Some(text) => Some(
+                text.parse::<i64>()
+                    .ok()
+                    .filter(|id| *id > 0)
+                    .ok_or_else(|| "Invalid cursor.".to_string())?,
+            ),
+        };
+        let registered_mine = match self.registered.as_deref() {
+            None | Some("") => false,
+            Some("mine") => true,
+            Some(_) => return Err("registered must be mine.".to_string()),
+        };
+        Ok(CaseListPage { limit, after, registered_mine })
+    }
+}
+
+fn query_ids(conn: &Connection, sql: &str, args: &[&dyn rusqlite::ToSql]) -> Result<Vec<i64>, String> {
+    let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
+    let ids = stmt
+        .query_map(args, |r| r.get(0))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<i64>, _>>()
+        .map_err(|e| e.to_string())?;
+    Ok(ids)
+}
+
+/// `{total, <state>: n}` over the death register, or one actor's registrations; one query.
+fn case_state_counts(conn: &Connection, member: Option<&str>) -> Result<Value, String> {
+    let row = |r: &rusqlite::Row| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?));
+    let pairs = match member {
+        Some(member) => conn
+            .prepare("SELECT state, COUNT(*) FROM loc_death_register WHERE actor_member_id = ?1 GROUP BY state")
+            .and_then(|mut stmt| stmt.query_map(params![member], row)?.collect::<Result<Vec<_>, _>>()),
+        None => conn
+            .prepare("SELECT state, COUNT(*) FROM loc_death_register GROUP BY state")
+            .and_then(|mut stmt| stmt.query_map([], row)?.collect::<Result<Vec<_>, _>>()),
+    }
+    .map_err(|e| e.to_string())?;
+    let mut counts = Map::new();
+    counts.insert("total".to_string(), json!(pairs.iter().map(|(_, n)| n).sum::<i64>()));
+    for (state, n) in pairs {
+        counts.insert(state, json!(n));
+    }
+    Ok(Value::Object(counts))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StationConfig {
     pub mode: String, // "standalone" | "provisioned"
     pub station_id: String,
     pub facility_name: String,
+    pub facility_code: String,
+    pub facility_type: String,
+    pub facility_address: String,
     pub district_name: String,
     pub state_name: String,
     pub remote_server_url: Option<String>,
@@ -65,10 +380,135 @@ pub struct StationConfig {
     pub updated_at: String,
 }
 
+/// A site a roster actor may record under in a provisioned project, with the org units
+/// (`(org_unit_id, display path)`) its grants cover there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GrantTarget {
+    pub site_id: String,
+    pub site_name: String,
+    pub org_units: Vec<(String, String)>,
+}
+
+/// Sites and org units `grants` allow in `project` for any of `roles`, in grant order: the
+/// same match the bundle's roster check makes, so a record made here passes it.
+///
+/// A grant without an org unit covers the project's org units mapped to the grant's site by
+/// `org_unit_sites`, or every listed org unit when the config predates that map. Labels come from `site_names` / `org_unit_paths`,
+/// falling back to the id for configs that predate those keys.
+pub fn grant_targets(
+    project: &StationProjectConfig,
+    grants: &[RosterRoleGrant],
+    roles: &[ActingRole],
+) -> Vec<GrantTarget> {
+    let label = |names: &BTreeMap<String, String>, id: &str| {
+        names
+            .get(id)
+            .filter(|name| !name.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| id.to_string())
+    };
+    let mut out: Vec<GrantTarget> = Vec::new();
+    for grant in grants
+        .iter()
+        .filter(|g| g.project_id == project.project_id && roles.contains(&g.role))
+    {
+        let idx = match out.iter().position(|t| t.site_id == grant.site_id) {
+            Some(idx) => idx,
+            None => {
+                out.push(GrantTarget {
+                    site_id: grant.site_id.clone(),
+                    site_name: label(&project.site_names, &grant.site_id),
+                    org_units: Vec::new(),
+                });
+                out.len() - 1
+            }
+        };
+        let covered: Vec<&String> = match &grant.org_unit_id {
+            Some(ou) => vec![ou],
+            // `org_unit_sites` absent (older config): every project unit, as before.
+            None => project
+                .org_units
+                .iter()
+                .filter(|ou| {
+                    project.org_unit_sites.is_empty()
+                        || project.org_unit_sites.get(*ou) == Some(&grant.site_id)
+                })
+                .collect(),
+        };
+        for ou in covered {
+            if !out[idx].org_units.iter().any(|(id, _)| id == ou) {
+                out[idx].org_units.push((ou.clone(), label(&project.org_unit_paths, ou)));
+            }
+        }
+    }
+    out
+}
+
+const ALL_ACTING_ROLES: [ActingRole; 4] = [
+    ActingRole::DeathReporter,
+    ActingRole::Interviewer,
+    ActingRole::StationSupervisor,
+    ActingRole::Coder,
+];
+
+/// Grant roles that let `acting_role` record a death registration (the bundle requires the
+/// grant's role to equal the record's acting role).
+/// 422 body for informant details saved without a granted consent; `informant_fields` lists the
+/// non-empty fields so the form can point at them. Holds field names only, never values.
+fn consent_required_for_informant(refusal: &ConsentRefusal, fields: &[(&str, Option<&str>)]) -> Value {
+    let msg = refusal.message.as_str();
+    let names: Vec<&str> = fields
+        .iter()
+        .filter(|(_, v)| v.map(|s| !s.trim().is_empty()).unwrap_or(false))
+        .map(|(k, _)| *k)
+        .collect();
+    json!({
+        "error": msg,
+        "code": refusal.code.unwrap_or("consent_required_for_informant"),
+        "fields": { "consent": msg },
+        "informant_fields": names
+    })
+}
+
+fn registration_roles(acting_role: &str) -> &'static [ActingRole] {
+    match normalise_acting_role(acting_role) {
+        Some("death_reporter") => &[ActingRole::DeathReporter],
+        Some("interviewer") => &[ActingRole::Interviewer],
+        _ => &[],
+    }
+}
+
+/// Grant roles that let `acting_role` record an interview.
+fn interview_roles(acting_role: &str) -> &'static [ActingRole] {
+    match normalise_acting_role(acting_role) {
+        Some("interviewer") => &[ActingRole::Interviewer],
+        _ => &[],
+    }
+}
+
+/// `(site_name, org_unit path)` when `targets` offer `org_unit_id` under `site_id`.
+fn target_labels(targets: &[GrantTarget], site_id: &str, org_unit_id: &str) -> Option<(String, String)> {
+    targets.iter().filter(|t| t.site_id == site_id).find_map(|t| {
+        t.org_units
+            .iter()
+            .find(|(id, _)| id == org_unit_id)
+            .map(|(_, path)| (t.site_name.clone(), path.clone()))
+    })
+}
+
+/// The sandbox's fixed demo org unit names.
+fn sandbox_unit_name(org_unit_id: &str, facility_name: &str) -> String {
+    match org_unit_id {
+        "ou-phc-1" => facility_name.to_string(),
+        "ou-sc-2" => "Sub-Centre 2".to_string(),
+        _ => "Sub-Centre 1".to_string(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IdentifierTypeSpec {
     pub id: i64,
-    pub project_id: i64,
+    pub project_id: String,
     pub code: String,
     pub label: String,
     pub description: String,
@@ -254,8 +694,16 @@ impl OfflineDatabase {
                 updated_at TEXT NOT NULL
             );
 
+            -- One row per project of the imported signed config that carries a form policy:
+            -- its form-options body and {locale: translations body}, served as they are.
+            CREATE TABLE IF NOT EXISTS loc_project_form_policy (
+                project_id TEXT PRIMARY KEY,
+                form_options_json TEXT NOT NULL,
+                translations_json TEXT NOT NULL DEFAULT '{}'
+            );
+
             CREATE TABLE IF NOT EXISTS consent_configs (
-                project_id INTEGER PRIMARY KEY,
+                project_id TEXT PRIMARY KEY,
                 consent_required INTEGER NOT NULL DEFAULT 1,
                 min_notice_version TEXT NOT NULL DEFAULT '0.1',
                 config_json TEXT NOT NULL,
@@ -264,7 +712,7 @@ impl OfflineDatabase {
 
             CREATE TABLE IF NOT EXISTS consent_records (
                 consent_id TEXT PRIMARY KEY,
-                project_id INTEGER NOT NULL,
+                project_id TEXT NOT NULL,
                 client_death_id TEXT,
                 client_draft_id TEXT,
                 death_id INTEGER,
@@ -292,7 +740,7 @@ impl OfflineDatabase {
 
             CREATE TABLE IF NOT EXISTS mas_death_identifier_type (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
+                project_id TEXT NOT NULL,
                 code TEXT NOT NULL,
                 label TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
@@ -311,7 +759,7 @@ impl OfflineDatabase {
                 death_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_death_id TEXT UNIQUE,
                 unique_id TEXT NOT NULL UNIQUE,
-                project_id INTEGER NOT NULL DEFAULT 1,
+                project_id TEXT NOT NULL DEFAULT '1',
                 project_id_str TEXT NOT NULL DEFAULT '1',
                 site_id TEXT NOT NULL DEFAULT 'PHC01',
                 site_name TEXT NOT NULL DEFAULT 'Primary Health Centre',
@@ -358,10 +806,13 @@ impl OfflineDatabase {
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
+            -- registered=mine on the case list (list_cases): one actor's deaths, newest first.
+            CREATE INDEX IF NOT EXISTS idx_loc_death_register_actor
+                ON loc_death_register(actor_member_id, death_id);
 
             CREATE TABLE IF NOT EXISTS map_death_identifier (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                project_id INTEGER NOT NULL,
+                project_id TEXT NOT NULL,
                 death_id INTEGER NOT NULL REFERENCES loc_death_register(death_id) ON DELETE CASCADE,
                 type_code TEXT NOT NULL,
                 identifier_norm TEXT NOT NULL,
@@ -490,6 +941,9 @@ impl OfflineDatabase {
                 sync_error_code TEXT,
                 created_at TEXT NOT NULL
             );
+            -- The coding history reads each case's latest result.
+            CREATE INDEX IF NOT EXISTS idx_loc_coding_results_va_sid
+                ON loc_coding_results (va_sid, created_at);
 
             CREATE TABLE IF NOT EXISTS loc_workflow_events (
                 event_id TEXT PRIMARY KEY,
@@ -536,23 +990,120 @@ impl OfflineDatabase {
             ",
         )?;
 
+        // Stores made before project ids were strings declared consent_configs.project_id
+        // INTEGER PRIMARY KEY (a rowid alias), which refuses "TST001"; rebuild once, keeping rows.
+        // The other tables' INTEGER project_id columns store text as-is and are read with CAST.
+        let legacy_consent_configs = guard
+            .query_row(
+                "SELECT type FROM pragma_table_info('consent_configs') WHERE name = 'project_id'",
+                [],
+                |r| r.get::<_, String>(0),
+            )
+            .map(|t| t.eq_ignore_ascii_case("INTEGER"))
+            .unwrap_or(false);
+        if legacy_consent_configs {
+            guard.execute_batch(
+                "BEGIN;
+                 CREATE TABLE consent_configs_text_id (
+                     project_id TEXT PRIMARY KEY,
+                     consent_required INTEGER NOT NULL DEFAULT 1,
+                     min_notice_version TEXT NOT NULL DEFAULT '0.1',
+                     config_json TEXT NOT NULL,
+                     synced_at TEXT NOT NULL
+                 );
+                 INSERT INTO consent_configs_text_id
+                     SELECT CAST(project_id AS TEXT), consent_required, min_notice_version, config_json, synced_at
+                     FROM consent_configs;
+                 DROP TABLE consent_configs;
+                 ALTER TABLE consent_configs_text_id RENAME TO consent_configs;
+                 COMMIT;",
+            )?;
+        }
+
+        // Draft columns added after the first stations shipped: per-section answers (a save sends
+        // only the sections that changed) and the client's draft meta, which holds the definition
+        // pin (`instrumentVersion`, `definitionSha256`, `definitionExtensions`).
+        for (column, decl) in [
+            ("sections_json", "TEXT NOT NULL DEFAULT '{}'"),
+            ("meta_json", "TEXT NOT NULL DEFAULT '{}'"),
+        ] {
+            let present: bool = guard.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('loc_va_drafts') WHERE name = ?1",
+                params![column],
+                |r| r.get::<_, i64>(0),
+            )? > 0;
+            if !present {
+                guard.execute_batch(&format!("ALTER TABLE loc_va_drafts ADD COLUMN {column} {decl};"))?;
+            }
+        }
+
+        // Facility details added after the first stations shipped (plain local text, editable).
+        for column in ["facility_code", "facility_type", "facility_address"] {
+            let present: bool = guard.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('loc_station_config') WHERE name = ?1",
+                params![column],
+                |r| r.get::<_, i64>(0),
+            )? > 0;
+            if !present {
+                guard.execute_batch(&format!(
+                    "ALTER TABLE loc_station_config ADD COLUMN {column} TEXT NOT NULL DEFAULT '';"
+                ))?;
+            }
+        }
+
+        // Station Settings choices (2026-10-21): the local module selection (NULL = every module,
+        // so a module a later binary adds starts enabled) and coding mode; and the coding mode each
+        // saved coding record was made in.
+        for (table, column, decl) in [
+            ("loc_station_config", "enabled_modules_json", "TEXT"),
+            ("loc_station_config", "coding_mode", "TEXT NOT NULL DEFAULT 'icd11_doris'"),
+            ("loc_coding_results", "coding_mode", "TEXT"),
+            // Display fields for the coder history, copied at code time so the row still reads
+            // after a receipt deletes its interview (nothing else of the interview is kept).
+            ("loc_coding_results", "unique_id", "TEXT"),
+            ("loc_coding_results", "form_type_code", "TEXT"),
+            // The config's per-project `coding_mode` as JSON (`"icd10"`, `null`); SQL NULL when
+            // the config carried no key (contract 4.3, 2026-10-22).
+            ("loc_project_config", "coding_mode_json", "TEXT"),
+        ] {
+            let present: bool = guard.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info(?1) WHERE name = ?2",
+                params![table, column],
+                |r| r.get::<_, i64>(0),
+            )? > 0;
+            if !present {
+                guard.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl};"))?;
+            }
+        }
+
         let now = Utc::now().to_rfc3339();
         let mut signing_seed = [0u8; 32];
         OsRng.fill_bytes(&mut signing_seed);
         let signing_key = StationSigningKey::from_secret_bytes(&signing_seed);
         let secret_hex = hex::encode(signing_seed);
+        // `station_id` is this installation's device id (a UUID, the `device_id` the server
+        // registers from the enrolment file); created once here and never regenerated.
+        let device_id = Uuid::new_v4().to_string();
         guard.execute(
             "INSERT OR IGNORE INTO loc_station_config (
                 id, mode, station_id, facility_name, district_name, state_name,
                 station_signing_secret_b64, station_signing_public_b64, station_signing_key_id,
                 bundle_seq, updated_at
-             ) VALUES (1, 'standalone', 'phc-standalone-01', 'Model Primary Health Centre', 'Demo District', 'Demo State', ?1, ?2, ?3, 0, ?4)",
+             ) VALUES (1, 'standalone', ?5, 'Model Primary Health Centre', 'Demo District', 'Demo State', ?1, ?2, ?3, 0, ?4)",
             params![
                 secret_hex,
                 signing_key.public_key_base64url(),
                 signing_key.signing_key_id(),
-                now
+                now,
+                device_id
             ],
+        )?;
+        // Stations seeded before device ids existed carry this fixed placeholder; it was never
+        // exported (standalone mode exports nothing), so it is safe to replace once.
+        guard.execute(
+            "UPDATE loc_station_config SET station_id = ?1
+             WHERE id = 1 AND mode = 'standalone' AND station_id = 'phc-standalone-01'",
+            params![device_id],
         )?;
 
         // Seed built-in CRS and MCCD identifier types for project 1
@@ -843,52 +1394,52 @@ impl OfflineDatabase {
     // Signed Station Config Import, Purge & .dvb Bundle / Receipt (Contract 2 & 6)
     // ========================================================================
 
+    /// The enrolment file an admin pastes into Project Setup to register this never-online
+    /// station: exactly `device_id`, `signing_public_key` (unpadded base64url of the raw
+    /// Ed25519 key) and `app_version`. The server derives the key id itself.
+    pub fn station_enrolment_file(&self) -> Result<Value, String> {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT station_id, station_signing_public_b64 FROM loc_station_config WHERE id = 1",
+                [],
+                |r| Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?)),
+            )
+            .map_err(|e| e.to_string())
+        })
+        .and_then(|(device_id, public_key)| {
+            let public_key = public_key.ok_or_else(|| "Station signing key is missing.".to_string())?;
+            Ok(json!({
+                "device_id": device_id,
+                "signing_public_key": public_key,
+                "app_version": STATION_APP_VERSION,
+            }))
+        })
+    }
+
     /// Verify and apply a signed `.digitva-station.json` two-line station config file.
     pub fn import_signed_station_config(
         &self,
         raw_two_line_text: &str,
     ) -> Result<Value, (u16, Value)> {
         let current = self.get_station_config();
-        let pinned_vk_hex: Option<String> = self.with_conn(|conn| {
-            conn.query_row(
-                "SELECT server_verifying_key_hex FROM loc_station_config WHERE id = 1",
-                [],
-                |r| r.get::<_, Option<String>>(0),
-            )
-            .optional()
-            .ok()
-            .flatten()
-            .flatten()
-        });
-
-        let line1 = raw_two_line_text
-            .trim()
-            .lines()
-            .next()
-            .ok_or_else(|| {
-                (
-                    422,
-                    json!({
-                        "error": "Signed station config is empty.",
-                        "code": "invalid_station_config"
-                    }),
+        type InForce = (Option<String>, Option<String>, Option<String>);
+        let (pinned_vk_hex, in_force_config_id, in_force_issued_at): InForce = self
+            .with_conn(|conn| {
+                conn.query_row(
+                    "SELECT server_verifying_key_hex, station_config_id, config_issued_at
+                     FROM loc_station_config WHERE id = 1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
                 )
-            })?;
-        let unverified_payload: StationConfigPayload = serde_json::from_str(line1).map_err(|e| {
-            (
-                422,
-                json!({
-                    "error": format!("Invalid station config JSON: {e}"),
-                    "code": "invalid_station_config"
-                }),
-            )
-        })?;
+                .optional()
+                .ok()
+                .flatten()
+            })
+            .unwrap_or((None, None, None));
 
-        let expected_device_id = if current.mode == "provisioned" {
-            current.station_id.as_str()
-        } else {
-            unverified_payload.device_id.as_str()
-        };
+        // A config is issued for one device: the id this station exports in its enrolment
+        // file (`station_enrolment_file`), standalone or provisioned alike.
+        let expected_device_id = current.station_id.as_str();
 
         let pinned_key: Option<[u8; 32]> = match pinned_vk_hex {
             Some(ref hex_str) => Some(
@@ -920,6 +1471,27 @@ impl OfflineDatabase {
             )
         })?;
 
+        // Monotonic: a replayed older config must not bring back a roster member, project or
+        // key the server has since removed. Re-importing the config in force is idempotent.
+        if let Some(stored_at) = in_force_issued_at.as_deref() {
+            let stored = chrono::DateTime::parse_from_rfc3339(stored_at)
+                .map(|d| d.with_timezone(&Utc))
+                .map_err(|_| {
+                    (500, json!({ "error": "Corrupt stored station config time", "code": "db_error" }))
+                })?;
+            let same_config =
+                in_force_config_id.as_deref() == Some(preview.config.config_id.to_string().as_str());
+            if preview.issued_at < stored || (preview.issued_at == stored && !same_config) {
+                return Err((
+                    409,
+                    json!({
+                        "error": "This station configuration is older than the one in force.",
+                        "code": "station_config_superseded"
+                    }),
+                ));
+            }
+        }
+
         if preview.is_expired(Utc::now()) {
             return Err((
                 422,
@@ -931,6 +1503,22 @@ impl OfflineDatabase {
         }
 
         let cfg = &preview.config;
+        // The station serves each project's form exactly as the server does, or not at all:
+        // refuse a config naming a form version this binary does not carry.
+        for proj in &cfg.projects {
+            let Some(ref options) = proj.form_options else {
+                return Err((
+                    422,
+                    json!({
+                        "error": format!("This station config carries no form policy for project {}; issue a new station config on the server.", proj.project_id),
+                        "code": "form_policy_missing"
+                    }),
+                ));
+            };
+            instrument::check_form_options(&proj.project_id, options).map_err(|msg| {
+                (422, json!({ "error": msg, "code": "instrument_version_unsupported" }))
+            })?;
+        }
         let now = Utc::now().to_rfc3339();
         let vk_hex = hex::encode(preview.server_verifying_key);
         let custodian_json = serde_json::to_string(&cfg.custodian).ok();
@@ -983,27 +1571,49 @@ impl OfflineDatabase {
             )
             .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
 
+            // The config in force carries the whole form policy: what it does not list is gone.
+            conn.execute("DELETE FROM loc_project_form_policy", [])
+                .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
             for proj in &cfg.projects {
-                let pid_num = proj.project_id.parse::<i64>().unwrap_or(2);
+                if let Some(ref options) = proj.form_options {
+                    conn.execute(
+                        "INSERT INTO loc_project_form_policy (project_id, form_options_json, translations_json)
+                         VALUES (?1, ?2, ?3)",
+                        params![
+                            proj.project_id,
+                            options.to_string(),
+                            serde_json::to_string(&proj.translations).unwrap_or_else(|_| "{}".to_string())
+                        ],
+                    )
+                    .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
+                }
                 let sealed_json = serde_json::to_string(&proj.sealed_field_ids)
                     .unwrap_or_else(|_| "[]".to_string());
                 let inst_versions_json = serde_json::to_string(&proj.instrument_versions).ok();
 
+                let project_name = proj
+                    .project_name
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or(&proj.project_id);
+                let coding_mode_json = proj.coding_mode.as_ref().map(|m| json!(m).to_string());
                 conn.execute(
-                    "INSERT INTO loc_project_config (project_id, project_name, sealed_field_ids_json, va_instrument_json, coding_config_json, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, NULL, ?5)
+                    "INSERT INTO loc_project_config (project_id, project_name, sealed_field_ids_json, va_instrument_json, coding_config_json, updated_at, coding_mode_json)
+                     VALUES (?1, ?2, ?3, ?4, NULL, ?5, ?6)
                      ON CONFLICT(project_id) DO UPDATE SET
                         project_name = excluded.project_name,
                         sealed_field_ids_json = excluded.sealed_field_ids_json,
                         va_instrument_json = excluded.va_instrument_json,
-                        updated_at = excluded.updated_at",
-                    params![proj.project_id, proj.project_id, sealed_json, inst_versions_json, now],
+                        updated_at = excluded.updated_at,
+                        coding_mode_json = excluded.coding_mode_json",
+                    params![proj.project_id, project_name, sealed_json, inst_versions_json, now, coding_mode_json],
                 )
                 .ok();
 
                 if let Some(ref consent_val) = proj.consent {
                     let parsed_consent =
-                        parse_contract_consent_config(pid_num, consent_val).map_err(|msg| {
+                        parse_contract_consent_config(&proj.project_id, consent_val).map_err(|msg| {
                             (
                                 422,
                                 json!({ "error": msg, "code": "invalid_consent_config" }),
@@ -1152,82 +1762,26 @@ impl OfflineDatabase {
         })
     }
 
-    /// Export a signed and encrypted `.dvb` bundle of all pending records in Provisioned mode.
-    pub fn export_dvb_bundle(&self) -> Result<(BuiltBundle, String), (u16, Value)> {
-        let cfg = self.get_station_config();
-        if cfg.mode != "provisioned" {
-            return Err((
-                403,
-                json!({
-                    "error": "Standalone Sandbox mode records (project_id = '1') cannot be exported in a .dvb bundle.",
-                    "code": "sandbox_not_exportable"
-                }),
-            ));
-        }
+    /// Pending sandbox (project "1") records that an export leaves on this computer.
+    pub fn count_pending_sandbox_records(&self) -> i64 {
+        self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT (SELECT COUNT(*) FROM loc_death_register WHERE sync_state = 'pending' AND project_id = '1')
+                      + (SELECT COUNT(*) FROM loc_va_submissions WHERE sync_state = 'pending' AND project_id = '1')
+                      + (SELECT COUNT(*) FROM consent_records WHERE sync_state = 'pending' AND project_id = '1')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0)
+        })
+    }
 
-        let (raw_signed_cfg, secret_raw, next_seq): (String, String, u64) =
-            self.with_conn(|conn| {
-                let row: Option<(Option<String>, Option<String>, i64)> = conn
-                    .query_row(
-                        "SELECT raw_signed_config, station_signing_secret_b64, bundle_seq FROM loc_station_config WHERE id = 1",
-                        [],
-                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-                    )
-                    .optional()
-                    .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
-                let Some((Some(raw_cfg), Some(sec), seq)) = row else {
-                    return Err((
-                        403,
-                        json!({
-                            "error": "No verified signed station configuration is loaded.",
-                            "code": "sandbox_not_exportable"
-                        }),
-                    ));
-                };
-                Ok((raw_cfg, sec, (seq as u64) + 1))
-            })?;
-
-        let verified =
-            VerifiedStationConfig::parse_and_verify(&raw_signed_cfg, &cfg.station_id, None)
-                .map_err(|e| {
-                    (
-                        403,
-                        json!({
-                            "error": e.to_string(),
-                            "code": "station_config_invalid_or_expired"
-                        }),
-                    )
-                })?;
-
-        let signing_key = if let Ok(bytes) = hex::decode(&secret_raw) {
-            let arr: [u8; 32] = bytes.try_into().map_err(|_| {
-                (
-                    500,
-                    json!({ "error": "Invalid station signing secret length", "code": "signing_key_error" }),
-                )
-            })?;
-            StationSigningKey::from_secret_bytes(&arr)
-        } else {
-            StationSigningKey::from_base64url_secret(&secret_raw).map_err(|e| {
-                (
-                    500,
-                    json!({ "error": e.to_string(), "code": "signing_key_error" }),
-                )
-            })?
-        };
-
-        let active_actor = self.get_active_actor_context();
-        let default_user_id = active_actor
-            .user_id
-            .or_else(|| {
-                verified
-                    .config
-                    .roster
-                    .first()
-                    .map(|m| m.user_id)
-            })
-            .unwrap_or(1);
-
+    /// The pending, exportable records as bundle envelopes, plus `{client_id, reason}` for
+    /// rows that cannot become one (a consent without its notice version id).
+    fn pending_bundle_records(
+        &self,
+        default_user_id: i64,
+    ) -> Result<(Vec<BundleRecordEnvelope>, Vec<Value>), (u16, Value)> {
         let parse_role = |r: Option<&str>, fallback: ActingRole| -> ActingRole {
             match r.and_then(normalise_acting_role) {
                 Some("death_reporter") => ActingRole::DeathReporter,
@@ -1238,38 +1792,21 @@ impl OfflineDatabase {
             }
         };
 
-        let records: Vec<BundleRecordEnvelope> = self.with_conn(|conn| {
+        self.with_conn(|conn| {
             let mut out = Vec::new();
+            let mut held_back = Vec::new();
 
-            // Check if any pending record belongs to sandbox project "1"
-            let sandbox_pending: i64 = conn
-                .query_row(
-                    "SELECT (SELECT COUNT(*) FROM loc_death_register WHERE sync_state = 'pending' AND project_id = 1)
-                          + (SELECT COUNT(*) FROM loc_va_submissions WHERE sync_state = 'pending' AND project_id = '1')
-                          + (SELECT COUNT(*) FROM consent_records WHERE sync_state = 'pending' AND project_id = 1)",
-                    [],
-                    |r| r.get(0),
-                )
-                .unwrap_or(0);
-            if sandbox_pending > 0 {
-                return Err((
-                    403,
-                    json!({
-                        "error": "Sandbox project_id = '1' records cannot be exported.",
-                        "code": "sandbox_not_exportable"
-                    }),
-                ));
-            }
+            // Sandbox (project "1") records are never exportable: the queries below skip them.
 
             // 1. Consent records
             let mut stmt = conn
                 .prepare(
-                    "SELECT consent_id, project_id, client_death_id, client_draft_id, action_type,
-                            notice_version_id, notice_version, locale, notice_sha256, mode,
+                    "SELECT consent_id, CAST(project_id AS TEXT), client_death_id, client_draft_id, action_type,
+                            notice_version_id, locale, notice_sha256, mode,
                             witness_present, supersedes_client_id, purposes_json,
                             actor_user_id, acting_role, recorded_at
                      FROM consent_records
-                     WHERE sync_state = 'pending' AND project_id != 1
+                     WHERE sync_state = 'pending' AND project_id != '1'
                      ORDER BY recorded_at ASC",
                 )
                 .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
@@ -1277,7 +1814,7 @@ impl OfflineDatabase {
                 .query_map([], |r| {
                     Ok((
                         r.get::<_, String>(0)?,
-                        r.get::<_, i64>(1)?,
+                        r.get::<_, String>(1)?,
                         r.get::<_, Option<String>>(2)?,
                         r.get::<_, Option<String>>(3)?,
                         r.get::<_, String>(4)?,
@@ -1285,13 +1822,12 @@ impl OfflineDatabase {
                         r.get::<_, String>(6)?,
                         r.get::<_, String>(7)?,
                         r.get::<_, String>(8)?,
-                        r.get::<_, String>(9)?,
-                        r.get::<_, i32>(10)?,
-                        r.get::<_, Option<String>>(11)?,
-                        r.get::<_, String>(12)?,
-                        r.get::<_, Option<i64>>(13)?,
-                        r.get::<_, Option<String>>(14)?,
-                        r.get::<_, String>(15)?,
+                        r.get::<_, i32>(9)?,
+                        r.get::<_, Option<String>>(10)?,
+                        r.get::<_, String>(11)?,
+                        r.get::<_, Option<i64>>(12)?,
+                        r.get::<_, Option<String>>(13)?,
+                        r.get::<_, String>(14)?,
                     ))
                 })
                 .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
@@ -1304,7 +1840,6 @@ impl OfflineDatabase {
                     cdraft,
                     action,
                     nv_id,
-                    nv,
                     loc,
                     sha,
                     mode_raw,
@@ -1323,10 +1858,14 @@ impl OfflineDatabase {
                     .and_then(|s| Uuid::parse_str(s).ok())
                     .unwrap_or_else(Uuid::new_v4);
                 let draft_uuid = cdraft.as_deref().and_then(|s| Uuid::parse_str(s).ok());
-                let notice_uuid = Uuid::parse_str(if nv_id.is_empty() { &nv } else { &nv_id })
-                    .unwrap_or_else(|_| {
-                        Uuid::parse_str(crate::consent::DEFAULT_NOTICE_VERSION_ID_EN).unwrap()
-                    });
+                // No default notice: a consent without its served notice id cannot travel.
+                let Ok(notice_uuid) = Uuid::parse_str(&nv_id) else {
+                    held_back.push(json!({
+                        "client_id": client_id,
+                        "reason": "Consent notice_version_id is not a notice version id."
+                    }));
+                    continue;
+                };
                 let decision = if action == "refusal" || action == "refused" {
                     ConsentDecision::Refused
                 } else {
@@ -1364,14 +1903,14 @@ impl OfflineDatabase {
             // 2. Death reports
             let mut dstmt = conn
                 .prepare(
-                    "SELECT death_id, client_death_id, project_id, site_id, org_unit_id,
+                    "SELECT death_id, client_death_id, CAST(project_id AS TEXT), site_id, org_unit_id,
                             deceased_name, deceased_sex, date_of_death, date_of_birth,
                             age_years, place_of_death, informant_name, informant_relation,
                             informant_phone, informant_phone_2, address, address_house_street,
                             address_village_ward, address_landmark, remarks,
                             actor_user_id, acting_role, created_at
                      FROM loc_death_register
-                     WHERE sync_state = 'pending' AND project_id != 1
+                     WHERE sync_state = 'pending' AND project_id != '1'
                      ORDER BY death_id ASC",
                 )
                 .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
@@ -1380,7 +1919,7 @@ impl OfflineDatabase {
                     Ok((
                         r.get::<_, i64>(0)?,
                         r.get::<_, Option<String>>(1)?,
-                        r.get::<_, i64>(2)?,
+                        r.get::<_, String>(2)?,
                         r.get::<_, String>(3)?,
                         r.get::<_, String>(4)?,
                         r.get::<_, String>(5)?,
@@ -1437,7 +1976,7 @@ impl OfflineDatabase {
                 };
                 let ids = Self::load_case_identifiers(conn, did);
                 let latest_consent =
-                    get_latest_consent_for_case(conn, pid, Some(&cdid_str), Some(did))
+                    get_latest_consent_for_case(conn, &pid, Some(&cdid_str), Some(did))
                         .ok()
                         .flatten();
                 let mut fields = BTreeMap::new();
@@ -1593,8 +2132,9 @@ impl OfflineDatabase {
             let mut sstmt = conn
                 .prepare(
                     "SELECT va_sid, draft_id, death_id, project_id, site_id, org_unit_id,
-                            payload_json, actor_user_id, acting_role, submitted_at
-                     FROM loc_va_submissions
+                            payload_json, actor_user_id, acting_role, submitted_at,
+                            (SELECT d.meta_json FROM loc_va_drafts d WHERE d.draft_id = s.draft_id)
+                     FROM loc_va_submissions s
                      WHERE sync_state = 'pending' AND project_id != '1'
                      ORDER BY submitted_at ASC",
                 )
@@ -1612,12 +2152,17 @@ impl OfflineDatabase {
                         r.get::<_, Option<i64>>(7)?,
                         r.get::<_, Option<String>>(8)?,
                         r.get::<_, String>(9)?,
+                        r.get::<_, Option<String>>(10)?,
                     ))
                 })
                 .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
 
             for row in sub_rows.flatten() {
-                let (va_sid, draft_id_opt, did_opt, pid, sid, ouid, pjson, uid, role, sub_at) = row;
+                let (va_sid, draft_id_opt, did_opt, pid, sid, ouid, pjson, uid, role, sub_at, meta_raw) = row;
+                // The definition pin the interview was filled on, as the app recorded it.
+                let meta: Value = meta_raw
+                    .and_then(|raw| serde_json::from_str(&raw).ok())
+                    .unwrap_or_else(|| json!({}));
                 let cid_str = draft_id_opt.unwrap_or(va_sid.clone());
                 let Ok(client_id) = Uuid::parse_str(&cid_str) else {
                     continue;
@@ -1637,10 +2182,9 @@ impl OfflineDatabase {
                     .and_then(|s| Uuid::parse_str(s).ok())
                     .unwrap_or_else(Uuid::new_v4);
                 let answers_sha256 = sha256_hex(pjson.as_bytes());
-                let pid_num = pid.parse::<i64>().unwrap_or(2);
                 let latest_consent = get_latest_consent_for_case(
                     conn,
-                    pid_num,
+                    &pid,
                     client_death_id.as_deref(),
                     did_opt,
                 )
@@ -1658,17 +2202,21 @@ impl OfflineDatabase {
                         org_unit_id: ouid,
                         death_ref: DeathRef::client_death(death_uuid),
                         draft: InterviewDraftMeta {
-                            instrument_version: "2022_v1".to_string(),
-                            definition_sha256: default_who_2022_va_definition_sha256(),
-                            definition_extensions: None,
-                            started_at: sub_at.clone(),
-                            completed_at: Some(sub_at),
+                            instrument_version: meta["instrumentVersion"]
+                                .as_str()
+                                .filter(|v| !v.is_empty())
+                                .unwrap_or(instrument::composed_version())
+                                .to_string(),
+                            definition_sha256: meta["definitionSha256"].as_str().map(ToString::to_string),
+                            definition_extensions: meta.get("definitionExtensions").cloned(),
+                            started_at: meta["startedAt"].as_str().unwrap_or(&sub_at).to_string(),
+                            completed_at: Some(meta["completedAt"].as_str().unwrap_or(&sub_at).to_string()),
                             device_clock_at: None,
-                            interview_outcome: "completed".to_string(),
+                            interview_outcome: meta["interviewOutcome"].as_str().unwrap_or("completed").to_string(),
                         },
                         completion: InterviewCompletion {
-                            valid: true,
-                            issues: vec![],
+                            valid: meta["completion"]["valid"].as_bool().unwrap_or(true),
+                            issues: meta["completion"]["issues"].as_array().cloned().unwrap_or_default(),
                         },
                         answers_json: pjson,
                         answers_sha256,
@@ -1682,7 +2230,7 @@ impl OfflineDatabase {
             let mut crstmt = conn
                 .prepare(
                     "SELECT client_id, client_draft_id, project_id,
-                            actor_user_id, acting_role, payload_json, created_at
+                            actor_user_id, acting_role, payload_json, created_at, coding_mode
                      FROM loc_coding_results
                      WHERE sync_state = 'pending' AND project_id != '1'
                      ORDER BY created_at ASC",
@@ -1698,12 +2246,13 @@ impl OfflineDatabase {
                         r.get::<_, Option<String>>(4)?,
                         r.get::<_, String>(5)?,
                         r.get::<_, String>(6)?,
+                        r.get::<_, Option<String>>(7)?,
                     ))
                 })
                 .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
 
             for row in cr_rows.flatten() {
-                let (cid_str, cdraft_str, pid, uid, role, pjson, cat) = row;
+                let (cid_str, cdraft_str, pid, uid, role, pjson, cat, coding_mode) = row;
                 let Ok(client_id) = Uuid::parse_str(&cid_str) else {
                     continue;
                 };
@@ -1739,22 +2288,143 @@ impl OfflineDatabase {
                         client_draft_id,
                         coded_answers_sha256,
                         kind,
-                        initial: pval.get("initial_assessment").cloned().filter(|v| !v.is_null()),
+                        // Station modes are unmasked: never a Step 1, even from an older row.
+                        initial: None,
                         final_cod: pval.get("final_assessment").cloned().filter(|v| !v.is_null()),
                         not_codeable: pval.get("not_codeable").cloned().filter(|v| !v.is_null()),
+                        coding_mode,
                     }),
                 });
             }
 
-            Ok(out)
-        })?;
+            Ok((out, held_back))
+        })
+    }
+
+    /// Export a signed and encrypted `.dvb` bundle of all pending records in Provisioned mode.
+    ///
+    /// A record that fails the bundle rules is held back, not dropped: it stays pending and is
+    /// returned as `{client_id, reason}` in the third element, so one bad record cannot block
+    /// every later export. A registration whose consent is held back is held back with it.
+    /// 422 `records_held_back` when every pending record is held back.
+    pub fn export_dvb_bundle(&self) -> Result<(BuiltBundle, String, Vec<Value>), (u16, Value)> {
+        let cfg = self.get_station_config();
+        if cfg.mode != "provisioned" {
+            return Err((
+                403,
+                json!({
+                    "error": "Standalone Sandbox mode records (project_id = '1') cannot be exported in a .dvb bundle.",
+                    "code": "sandbox_not_exportable"
+                }),
+            ));
+        }
+
+        let (raw_signed_cfg, secret_raw, next_seq): (String, String, u64) =
+            self.with_conn(|conn| {
+                let row: Option<(Option<String>, Option<String>, i64)> = conn
+                    .query_row(
+                        "SELECT raw_signed_config, station_signing_secret_b64, bundle_seq FROM loc_station_config WHERE id = 1",
+                        [],
+                        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    )
+                    .optional()
+                    .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
+                let Some((Some(raw_cfg), Some(sec), seq)) = row else {
+                    return Err((
+                        403,
+                        json!({
+                            "error": "No verified signed station configuration is loaded.",
+                            "code": "sandbox_not_exportable"
+                        }),
+                    ));
+                };
+                Ok((raw_cfg, sec, (seq as u64) + 1))
+            })?;
+
+        let verified =
+            VerifiedStationConfig::parse_and_verify(&raw_signed_cfg, &cfg.station_id, None)
+                .map_err(|e| {
+                    (
+                        403,
+                        json!({
+                            "error": e.to_string(),
+                            "code": "station_config_invalid_or_expired"
+                        }),
+                    )
+                })?;
+
+        let signing_key = if let Ok(bytes) = hex::decode(&secret_raw) {
+            let arr: [u8; 32] = bytes.try_into().map_err(|_| {
+                (
+                    500,
+                    json!({ "error": "Invalid station signing secret length", "code": "signing_key_error" }),
+                )
+            })?;
+            StationSigningKey::from_secret_bytes(&arr)
+        } else {
+            StationSigningKey::from_base64url_secret(&secret_raw).map_err(|e| {
+                (
+                    500,
+                    json!({ "error": e.to_string(), "code": "signing_key_error" }),
+                )
+            })?
+        };
+
+        let active_actor = self.get_active_actor_context();
+        let default_user_id = active_actor
+            .user_id
+            .or_else(|| {
+                verified
+                    .config
+                    .roster
+                    .first()
+                    .map(|m| m.user_id)
+            })
+            .unwrap_or(1);
+
+        let (records, mut held_back) = self.pending_bundle_records(default_user_id)?;
+
+        // Consents first: a registration may lean only on a consent that travels with it.
+        let station = &verified.config;
+        let no_consents = BTreeSet::new();
+        let granted_consents: BTreeSet<Uuid> = records
+            .iter()
+            .filter(|rec| match &rec.payload {
+                BundleRecordPayload::Consent(c) => {
+                    c.decision == ConsentDecision::Granted && c.client_draft_id.is_none()
+                }
+                _ => false,
+            })
+            .filter(|rec| validate_bundle_record(station, rec, &no_consents).is_ok())
+            .map(|rec| rec.client_id)
+            .collect();
+        let records: Vec<BundleRecordEnvelope> = records
+            .into_iter()
+            .filter(|rec| match validate_bundle_record(station, rec, &granted_consents) {
+                Ok(_) => true,
+                Err(e) => {
+                    held_back.push(json!({ "client_id": rec.client_id, "reason": e.to_string() }));
+                    false
+                }
+            })
+            .collect();
+        if records.is_empty() && !held_back.is_empty() {
+            return Err((
+                422,
+                json!({
+                    "error": "No pending record can be sent; every one was held back.",
+                    "code": "records_held_back",
+                    "records_held_back": held_back
+                }),
+            ));
+        }
 
         let built = build_bundle(
             &verified,
             &signing_key,
             &cfg.station_id,
             next_seq,
-            "0.1.0-offline",
+            STATION_APP_VERSION,
             Utc::now(),
             &records,
         )
@@ -1780,7 +2450,7 @@ impl OfflineDatabase {
             "digitva-{}-{:06}-{}.dvb",
             cfg.station_id, next_seq, built.manifest.bundle_id
         );
-        Ok((built, filename))
+        Ok((built, filename, held_back))
     }
 
     /// Verify and apply a signed `.dvb.receipt` two-line file from the server.
@@ -1902,40 +2572,21 @@ impl OfflineDatabase {
             deleted
         });
 
-        // 2. Mark `pending_client_ids` as `server_pending`
+        // 2. Mark `pending_records` as `server_pending`, keeping the server's code
+        //    (`doris_pending`, `not_ready`) for the coding history.
         self.with_conn(|conn| {
-            for uuid in &plan.pending_client_ids {
+            for (uuid, code) in &plan.pending_records {
                 let cid = uuid.to_string();
-                conn.execute(
-                    "UPDATE consent_records SET sync_state = 'server_pending' WHERE consent_id = ?1",
-                    params![cid],
-                )
-                .ok();
-                conn.execute(
-                    "UPDATE loc_death_register SET sync_state = 'server_pending' WHERE client_death_id = ?1",
-                    params![cid],
-                )
-                .ok();
-                conn.execute(
-                    "UPDATE loc_va_drafts SET sync_state = 'server_pending' WHERE draft_id = ?1",
-                    params![cid],
-                )
-                .ok();
-                conn.execute(
-                    "UPDATE loc_va_submissions SET sync_state = 'server_pending' WHERE draft_id = ?1",
-                    params![cid],
-                )
-                .ok();
-                conn.execute(
-                    "UPDATE loc_supervisor_corrections SET sync_state = 'server_pending' WHERE client_id = ?1",
-                    params![cid],
-                )
-                .ok();
-                conn.execute(
-                    "UPDATE loc_coding_results SET sync_state = 'server_pending' WHERE client_id = ?1",
-                    params![cid],
-                )
-                .ok();
+                for sql in [
+                    "UPDATE consent_records SET sync_state = 'server_pending', sync_error_code = ?1 WHERE consent_id = ?2",
+                    "UPDATE loc_death_register SET sync_state = 'server_pending', sync_error_code = ?1 WHERE client_death_id = ?2",
+                    "UPDATE loc_va_drafts SET sync_state = 'server_pending', sync_error_code = ?1 WHERE draft_id = ?2",
+                    "UPDATE loc_va_submissions SET sync_state = 'server_pending', sync_error_code = ?1 WHERE draft_id = ?2",
+                    "UPDATE loc_supervisor_corrections SET sync_state = 'server_pending', sync_error_code = ?1 WHERE client_id = ?2",
+                    "UPDATE loc_coding_results SET sync_state = 'server_pending', sync_error_code = ?1 WHERE client_id = ?2",
+                ] {
+                    conn.execute(sql, params![code, cid]).ok();
+                }
             }
 
             // 3. Mark `rejected_records` with `sync_state = 'rejected'` and `sync_error_code`
@@ -1983,13 +2634,29 @@ impl OfflineDatabase {
             .map(ToString::to_string)
             .collect();
 
+        // Counts come from the receipt's own outcomes; `deleted_count` is what was removed here.
+        let accepted_count = plan
+            .report
+            .records
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r.outcome,
+                    RecordIngestOutcome::Accepted
+                        | RecordIngestOutcome::Duplicate
+                        | RecordIngestOutcome::Superseded
+                )
+            })
+            .count();
+
         Ok(json!({
             "bundle_id": plan.report.bundle_id.to_string(),
             "device_id": plan.report.device_id,
             "status": plan.report.status,
             "deleted_count": deleted_count,
             "acknowledged_deleted_count": deleted_count,
-            "pending_count": plan.pending_client_ids.len(),
+            "accepted_count": accepted_count,
+            "pending_count": plan.pending_records.len(),
             "rejected_count": plan.rejected_records.len(),
             "purged_count": purged_count,
             "purged_ids": purged_ids
@@ -2005,7 +2672,8 @@ impl OfflineDatabase {
             conn.query_row(
                 "SELECT mode, station_id, facility_name, district_name, state_name,
                         remote_server_url, provisioned_user_id, provisioned_user_name,
-                        provisioned_roles_json, provisioned_token, updated_at
+                        provisioned_roles_json, provisioned_token, updated_at,
+                        facility_code, facility_type, facility_address
                  FROM loc_station_config WHERE id = 1",
                 [],
                 |r| {
@@ -2024,6 +2692,9 @@ impl OfflineDatabase {
                         provisioned_roles: roles,
                         provisioned_token: r.get(9)?,
                         updated_at: r.get(10)?,
+                        facility_code: r.get(11)?,
+                        facility_type: r.get(12)?,
+                        facility_address: r.get(13)?,
                     })
                 },
             )
@@ -2031,6 +2702,9 @@ impl OfflineDatabase {
                 mode: "standalone".to_string(),
                 station_id: "phc-standalone-01".to_string(),
                 facility_name: "Model Primary Health Centre".to_string(),
+                facility_code: String::new(),
+                facility_type: String::new(),
+                facility_address: String::new(),
                 district_name: "Demo District".to_string(),
                 state_name: "Demo State".to_string(),
                 remote_server_url: None,
@@ -2095,6 +2769,305 @@ impl OfflineDatabase {
         Ok(self.get_station_config())
     }
 
+    /// Saves the six plain facility fields (trimmed). Name is required; each field is capped
+    /// (200 chars, address 500). Returns a field-level message on failure.
+    pub fn update_facility_details(
+        &self,
+        name: &str,
+        code: &str,
+        facility_type: &str,
+        address: &str,
+        district: &str,
+        state: &str,
+    ) -> Result<StationConfig, String> {
+        let (name, code, facility_type, address, district, state) = (
+            name.trim(),
+            code.trim(),
+            facility_type.trim(),
+            address.trim(),
+            district.trim(),
+            state.trim(),
+        );
+        if name.is_empty() {
+            return Err("Facility name is required.".to_string());
+        }
+        for (label, value, max) in [
+            ("Facility name", name, 200),
+            ("Facility code", code, 200),
+            ("Facility type", facility_type, 200),
+            ("Address", address, 500),
+            ("District", district, 200),
+            ("State", state, 200),
+        ] {
+            if value.chars().count() > max {
+                return Err(format!("{label} must be at most {max} characters."));
+            }
+        }
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE loc_station_config
+                 SET facility_name = ?1, facility_code = ?2, facility_type = ?3,
+                     facility_address = ?4, district_name = ?5, state_name = ?6, updated_at = ?7
+                 WHERE id = 1",
+                params![name, code, facility_type, address, district, state, Utc::now().to_rfc3339()],
+            )
+            .map_err(|e| e.to_string())
+        })?;
+        Ok(self.get_station_config())
+    }
+
+    /// The station's own module selection (every module when never set) and coding mode.
+    fn local_station_choices(&self) -> (BTreeSet<String>, String) {
+        let (modules_raw, coding_mode): (Option<String>, String) = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT enabled_modules_json, coding_mode FROM loc_station_config WHERE id = 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap_or((None, CODING_MODE_ICD11_DORIS.to_string()))
+        });
+        let modules = match modules_raw.and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok()) {
+            Some(list) => list.into_iter().filter(|m| instrument::tag_vocabulary().contains(m)).collect(),
+            None => instrument::tag_vocabulary().clone(),
+        };
+        (modules, coding_mode)
+    }
+
+    /// The modules the imported config's project policies enable (the union over projects whose
+    /// form-options carry `enabled_extensions`), or None when no policy governs modules.
+    fn policy_modules(&self) -> Option<BTreeSet<String>> {
+        if self.get_station_config().mode != "provisioned" {
+            return None;
+        }
+        let rows: Vec<String> = self.with_conn(|conn| {
+            conn.prepare("SELECT form_options_json FROM loc_project_form_policy")
+                .and_then(|mut stmt| stmt.query_map([], |r| r.get(0))?.collect())
+                .unwrap_or_default()
+        });
+        let mut carried = false;
+        let mut union = BTreeSet::new();
+        for options in rows.iter().filter_map(|raw| serde_json::from_str::<Value>(raw).ok()) {
+            if options["enabled_extensions"].is_array() {
+                carried = true;
+                union.extend(
+                    instrument::enabled_extensions(&options)
+                        .into_iter()
+                        .filter(|e| instrument::tag_vocabulary().contains(*e))
+                        .map(str::to_string),
+                );
+            }
+        }
+        carried.then_some(union)
+    }
+
+    /// The signed config's `coding_mode` for `project_id` (contract 4.3): `None` when nothing
+    /// locks it (sandbox, standalone, or a config before the key), `Some(None)` when the station
+    /// must not code the project, else `Some(Some(mode))`. An unknown mode reads as `null`.
+    fn project_coding_lock(&self, project_id: &str) -> Option<Option<String>> {
+        if self.get_station_config().mode != "provisioned" {
+            return None;
+        }
+        let raw: Option<String> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT coding_mode_json FROM loc_project_config WHERE project_id = ?1",
+                params![project_id],
+                |r| r.get(0),
+            )
+            .optional()
+            .ok()
+            .flatten()
+            .flatten()
+        });
+        raw.map(|raw| parse_coding_mode_json(&raw))
+    }
+
+    /// The mode the station codes `project_id` in (`icd11_doris` or `icd10`), or `None` when the
+    /// signed config says the station does not code that project (coding is done on the server).
+    pub fn project_coding_mode(&self, project_id: &str) -> Option<String> {
+        self.project_coding_lock(project_id)
+            .unwrap_or_else(|| Some(self.local_station_choices().1))
+    }
+
+    /// `project_coding_mode` for the project of submission `va_sid`; `None` for an unknown case.
+    pub fn coding_mode_for_va(&self, va_sid: &str) -> Option<String> {
+        let project_id: Option<String> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT project_id FROM loc_va_submissions WHERE va_sid = ?1",
+                params![va_sid],
+                |r| r.get(0),
+            )
+            .optional()
+            .ok()
+            .flatten()
+        });
+        project_id.and_then(|pid| self.project_coding_mode(&pid))
+    }
+
+    /// Err `(409, station_coding_not_enabled)` when the station must not code submission
+    /// `va_sid`'s project (its config `coding_mode` is null). An unknown case passes: the
+    /// route's own lookup answers 404.
+    pub fn check_station_coding(&self, va_sid: &str) -> Result<(), (u16, Value)> {
+        if self.has_va_submission(va_sid) && self.coding_mode_for_va(va_sid).is_none() {
+            return Err((
+                409,
+                json!({
+                    "error": "Coding for this project is done on the server.",
+                    "code": "station_coding_not_enabled"
+                }),
+            ));
+        }
+        Ok(())
+    }
+
+    /// The config's coding lock Settings shows: the first project (by id) whose config carries
+    /// `coding_mode`. `None` when no project's config carries it.
+    fn config_coding_lock(&self) -> Option<Option<String>> {
+        // ponytail: one shown mode for the station; a station of several projects with different
+        // locks codes each in its own (`project_coding_mode`), Settings shows the first.
+        self.station_projects()
+            .iter()
+            .find_map(|(project_id, _)| self.project_coding_lock(project_id))
+    }
+
+    /// `GET /station/settings`: every module with whether it is enabled, the coding mode, and
+    /// which of the two a project policy governs (read-only in Settings). `coding_mode` is null
+    /// when the config locks the station out of coding (the project is coded on the server).
+    pub fn station_settings(&self) -> Value {
+        let (local_modules, local_coding_mode) = self.local_station_choices();
+        let policy = self.policy_modules();
+        let enabled = policy.as_ref().unwrap_or(&local_modules);
+        let modules: Vec<Value> = instrument::tag_vocabulary()
+            .iter()
+            .map(|tag| json!({ "code": tag, "label": instrument::module_label(tag), "enabled": enabled.contains(tag) }))
+            .collect();
+        let lock = self.config_coding_lock();
+        json!({
+            "modules": modules,
+            "modules_locked": policy.is_some(),
+            "coding_mode": lock.clone().unwrap_or(Some(local_coding_mode)),
+            "coding_mode_locked": lock.is_some(),
+            "available_coding_modes": CODING_MODES,
+        })
+    }
+
+    /// `PUT /station/settings`: saves whichever of the two choices is given. Err `(409,
+    /// policy_locked)` when a project policy governs a given field, `(400, validation_error)`
+    /// for an unknown module or mode. Nothing is saved unless the whole request is valid.
+    pub fn update_station_settings(
+        &self,
+        enabled_modules: Option<&[String]>,
+        coding_mode: Option<&str>,
+    ) -> Result<Value, (u16, Value)> {
+        let invalid = |msg: String| (400, json!({ "error": msg, "code": "validation_error" }));
+        if enabled_modules.is_some() && self.policy_modules().is_some() {
+            return Err((
+                409,
+                json!({ "error": "Interview modules are set by your project's setup file.", "code": "policy_locked" }),
+            ));
+        }
+        if coding_mode.is_some() && self.config_coding_lock().is_some() {
+            return Err((
+                409,
+                json!({ "error": "The coding mode is set by your project's setup file.", "code": "policy_locked" }),
+            ));
+        }
+        if let Some(mode) = coding_mode {
+            if !CODING_MODES.contains(&mode) {
+                return Err(invalid(format!("Unknown coding mode: {mode}.")));
+            }
+        }
+        let modules_json = match enabled_modules {
+            Some(list) => {
+                if let Some(bad) = list.iter().find(|m| !instrument::tag_vocabulary().contains(*m)) {
+                    return Err(invalid(format!("Unknown module: {bad}.")));
+                }
+                let chosen: BTreeSet<&String> = list.iter().collect();
+                Some(serde_json::to_string(&chosen).unwrap_or_else(|_| "[]".to_string()))
+            }
+            None => None,
+        };
+        self.with_conn(|conn| {
+            conn.execute(
+                "UPDATE loc_station_config
+                 SET enabled_modules_json = COALESCE(?1, enabled_modules_json),
+                     coding_mode = COALESCE(?2, coding_mode),
+                     updated_at = ?3
+                 WHERE id = 1",
+                params![modules_json, coding_mode, Utc::now().to_rfc3339()],
+            )
+        })
+        .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
+        Ok(self.station_settings())
+    }
+
+    /// `(project_id, project_name)` the station works in: the server's projects from the signed
+    /// config once provisioned, otherwise only the sandbox project "1".
+    pub fn station_projects(&self) -> Vec<(String, String)> {
+        let cfg = self.get_station_config();
+        if cfg.mode == "provisioned" {
+            let rows: Vec<(String, String)> = self.with_conn(|conn| {
+                conn.prepare("SELECT project_id, project_name FROM loc_project_config ORDER BY project_id")
+                    .and_then(|mut stmt| stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect())
+                    .unwrap_or_default()
+            });
+            if !rows.is_empty() {
+                return rows;
+            }
+        }
+        vec![("1".to_string(), format!("{} Mortality Surveillance", cfg.facility_name))]
+    }
+
+    /// The imported signed config's line 1 while provisioned; None in the sandbox or before any
+    /// import. Not re-verified here: it was verified at import, and an expired config must
+    /// still label the cases recorded under it.
+    fn provisioned_payload(&self) -> Option<StationConfigPayload> {
+        if self.get_station_config().mode != "provisioned" {
+            return None;
+        }
+        let raw: Option<String> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT raw_signed_config FROM loc_station_config WHERE id = 1",
+                [],
+                |r| r.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .ok()
+            .flatten()
+            .flatten()
+        });
+        serde_json::from_str(raw?.split('\n').next()?).ok()
+    }
+
+    /// Targets `actor` may record under in `project_id` for `roles`; None when the sandbox
+    /// demo units apply (project "1", or no signed config imported). A project the config no
+    /// longer lists has no targets.
+    fn project_targets(
+        &self,
+        project_id: &str,
+        actor: &ActiveActorContext,
+        roles: &[ActingRole],
+    ) -> Option<Vec<GrantTarget>> {
+        if project_id == "1" {
+            return None;
+        }
+        let payload = self.provisioned_payload()?;
+        Some(
+            payload
+                .projects
+                .iter()
+                .find(|p| p.project_id == project_id)
+                .map(|p| grant_targets(p, &actor.roles, roles))
+                .unwrap_or_default(),
+        )
+    }
+
+    /// Every site and org unit the active actor's grants cover in `project_id` (any role);
+    /// None when the sandbox demo tree applies.
+    pub fn active_actor_targets(&self, project_id: &str) -> Option<Vec<GrantTarget>> {
+        let actor = self.get_active_actor_context();
+        self.project_targets(project_id, &actor, &ALL_ACTING_ROLES)
+    }
+
     /// Filter roles down to the Contract 3.1 device-allowed projection:
     /// `interviewer`, `death_reporter`, `coder`, `coding_tester`, `reviewer`.
     /// Never emit `admin`, `data_manager`, `project_manager`, or `interview_supervisor`.
@@ -2125,9 +3098,13 @@ impl OfflineDatabase {
     /// - `roles`, `projects[].roles`, `projects[].grants`, `projects[].sites[].roles`, and
     ///   `projects[].units[].roles` only contain `interviewer`, `death_reporter`, `coder`,
     ///   `coding_tester`, or `reviewer`.
+    /// - A project from the imported signed config offers the sites and org units the active
+    ///   actor's roster grants allow (`grant_targets`), labelled from `site_names` /
+    ///   `org_unit_paths`; the sandbox project "1" keeps the demo PHC01 tree.
     pub fn build_access_summary(&self) -> Result<Value, String> {
         let cfg = self.get_station_config();
         let active_actor = self.get_active_actor_context();
+        let payload = self.provisioned_payload();
         let (user_id, user_name, roles, allow_interview, allow_register_death, can_code) =
             if cfg.mode == "standalone" {
                 let (r, intv, reg, code) = match active_actor.acting_role.as_str() {
@@ -2311,10 +3288,59 @@ impl OfflineDatabase {
             "station_mode": cfg.mode,
             "remote_server_url": cfg.remote_server_url,
             "active_actor": active_actor,
-            "projects": [
-                {
-                    "project_id": "1",
-                    "project_name": format!("{} Mortality Surveillance", cfg.facility_name),
+            "projects": self.station_projects().into_iter().map(|(project_id, project_name)| {
+                // A provisioned project offers exactly what the active actor's roster grants
+                // allow; the sandbox keeps the demo PHC01 tree below.
+                let real = payload.as_ref().filter(|_| project_id != "1").map(|p| {
+                    p.projects.iter().find(|proj| proj.project_id == project_id)
+                });
+                if let Some(proj) = real {
+                    let targets = |roles: &[ActingRole]| {
+                        proj.map(|proj| grant_targets(proj, &active_actor.roles, roles))
+                            .unwrap_or_default()
+                    };
+                    let action = |t: &GrantTarget| json!({
+                        "site_id": t.site_id,
+                        "site_name": t.site_name,
+                        "web_intake_mode": "both",
+                        "org_units": t.org_units.iter().map(|(id, path)| json!({
+                            "org_unit_id": id, "unit_code": id, "unit_name": path, "path": id
+                        })).collect::<Vec<Value>>()
+                    });
+                    let all = targets(&ALL_ACTING_ROLES);
+                    let mut units: Vec<Value> = Vec::new();
+                    for (id, path) in all.iter().flat_map(|t| t.org_units.iter()) {
+                        if !units.iter().any(|u| u["org_unit_id"] == id.as_str()) {
+                            units.push(json!({
+                                "org_unit_id": id, "unit_code": id, "unit_name": path,
+                                "level_code": "UNIT", "path": id, "is_active": true,
+                                "selectable": true, "roles": roles, "can_code": can_code
+                            }));
+                        }
+                    }
+                    return json!({
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "has_tree": true,
+                        "roles": roles,
+                        "grants": grants,
+                        "sites": all.iter().map(|t| json!({
+                            "site_id": t.site_id, "site_name": t.site_name, "roles": roles
+                        })).collect::<Vec<Value>>(),
+                        "actions": {
+                            "interview": targets(interview_roles(&active_actor.acting_role))
+                                .iter().map(action).collect::<Vec<Value>>(),
+                            "register_death": targets(registration_roles(&active_actor.acting_role))
+                                .iter().map(action).collect::<Vec<Value>>()
+                        },
+                        "units": units,
+                        // ponytail: one flat level; the config names each unit's path, not its ancestors' ids.
+                        "levels": [{ "level_code": "UNIT", "level_name": "Org unit", "depth": 1 }]
+                    });
+                }
+                json!({
+                    "project_id": project_id,
+                    "project_name": project_name,
                     "has_tree": true,
                     "roles": roles,
                     "grants": grants,
@@ -2334,8 +3360,8 @@ impl OfflineDatabase {
                         { "level_code": "PHC", "level_name": "Primary Health Centre", "depth": 1 },
                         { "level_code": "SUBCENTRE", "level_name": "Sub-Centre / Village", "depth": 2 }
                     ]
-                }
-            ]
+                })
+            }).collect::<Vec<Value>>()
         }))
     }
 
@@ -2343,11 +3369,11 @@ impl OfflineDatabase {
     // Registration Identifiers (CRS / MCCD / Project-Configured)
     // ========================================================================
 
-    pub fn list_identifier_types(&self, project_id: i64) -> Vec<IdentifierTypeSpec> {
+    pub fn list_identifier_types(&self, project_id: &str) -> Vec<IdentifierTypeSpec> {
         self.with_conn(|conn| {
             let mut stmt = conn
                 .prepare(
-                    "SELECT id, project_id, code, label, description, char_type,
+                    "SELECT id, CAST(project_id AS TEXT), code, label, description, char_type,
                             min_length, max_length, pattern, example, required_at_registration,
                             active, sort_order
                      FROM mas_death_identifier_type
@@ -2382,7 +3408,7 @@ impl OfflineDatabase {
 
     pub fn validate_and_store_identifiers(
         conn: &Connection,
-        project_id: i64,
+        project_id: &str,
         death_id: i64,
         raw_identifiers: &BTreeMap<String, Option<String>>,
         actor_name: &str,
@@ -2514,7 +3540,7 @@ impl OfflineDatabase {
 
     pub fn load_case_identifier_items(
         conn: &Connection,
-        project_id: i64,
+        project_id: &str,
         death_id: i64,
         is_coder: bool,
     ) -> Vec<Value> {
@@ -2571,7 +3597,7 @@ impl OfflineDatabase {
     /// Contract 4.4: Non-blocking duplicate identifier warnings NEVER expose `matching_death_ids`.
     pub fn compute_identifier_warnings(
         conn: &Connection,
-        project_id: i64,
+        project_id: &str,
         death_id: i64,
         identifiers: &BTreeMap<String, String>,
     ) -> Vec<IdentifierDuplicateWarning> {
@@ -2608,13 +3634,13 @@ impl OfflineDatabase {
             )
         })?;
 
-        let project_id: i64 = obj
-            .get("project_id")
-            .and_then(|v| {
-                v.as_i64()
-                    .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
-            })
-            .unwrap_or(1);
+        // The server's string project id ("TST001"); a number is accepted as its text, and an
+        // absent id is the sandbox "1" (never exportable).
+        let project_id: String = match obj.get("project_id") {
+            Some(Value::String(s)) if !s.trim().is_empty() => s.trim().to_string(),
+            Some(Value::Number(n)) => n.to_string(),
+            _ => "1".to_string(),
+        };
 
         let site_id = obj
             .get("site_id")
@@ -2685,6 +3711,28 @@ impl OfflineDatabase {
 
         let station_cfg = self.get_station_config();
         let active_actor = self.get_active_actor_context();
+        // A provisioned project records only where the actor's roster grants allow, so the
+        // bundle's roster check accepts the record; the sandbox keeps the demo units.
+        let (site_name, org_unit_name) = match self.project_targets(
+            &project_id,
+            &active_actor,
+            registration_roles(&active_actor.acting_role),
+        ) {
+            None => (
+                station_cfg.facility_name.clone(),
+                sandbox_unit_name(org_unit_id, &station_cfg.facility_name),
+            ),
+            Some(targets) => target_labels(&targets, site_id, org_unit_id).ok_or_else(|| {
+                (
+                    403,
+                    json!({
+                        "error": "You are not assigned to record deaths at this site and unit.",
+                        "code": "forbidden",
+                        "fields": { "org_unit_id": "Choose a unit you are assigned to." }
+                    }),
+                )
+            })?,
+        };
 
         self.with_conn(|conn| {
             // Idempotency on client_death_id
@@ -2718,20 +3766,20 @@ impl OfflineDatabase {
                         })?;
                     append_consent_record(
                         conn,
-                        project_id,
+                        &project_id,
                         Some(&client_death_id),
                         None,
                         &env,
                         actor_name,
                         &station_cfg.station_id,
                     )
-                    .map_err(|msg| {
+                    .map_err(|refusal| {
                         (
                             422,
                             json!({
-                                "error": msg,
-                                "code": "invalid_registration",
-                                "fields": { "consent": msg }
+                                "error": refusal.message,
+                                "code": refusal.code.unwrap_or("invalid_registration"),
+                                "fields": { "consent": refusal.message }
                             }),
                         )
                     })?;
@@ -2740,7 +3788,7 @@ impl OfflineDatabase {
 
             // Extract informant personal fields
             let latest_consent =
-                get_latest_consent_for_case(conn, project_id, Some(&client_death_id), None)
+                get_latest_consent_for_case(conn, &project_id, Some(&client_death_id), None)
                     .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
 
             let refused = latest_consent
@@ -2811,7 +3859,7 @@ impl OfflineDatabase {
             // Hard DPDP Consent Gate before writing informant personal data!
             let consent_status = assert_informant_consent_before_write(
                 conn,
-                project_id,
+                &project_id,
                 Some(&client_death_id),
                 None,
                 &[
@@ -2825,14 +3873,19 @@ impl OfflineDatabase {
                     location.as_deref(),
                 ],
             )
-            .map_err(|msg| {
+            .map_err(|refusal| {
                 (
                     422,
-                    json!({
-                        "error": msg,
-                        "code": "invalid_registration",
-                        "fields": { "consent": msg }
-                    }),
+                    consent_required_for_informant(&refusal, &[
+                        ("informant_name", informant_name.as_deref()),
+                        ("informant_phone", informant_phone.as_deref()),
+                        ("informant_phone_2", informant_phone_2.as_deref()),
+                        ("address", address.as_deref()),
+                        ("address_house_street", address_house_street.as_deref()),
+                        ("address_village_ward", address_village_ward.as_deref()),
+                        ("address_landmark", address_landmark.as_deref()),
+                        ("location", location.as_deref()),
+                    ]),
                 )
             })?;
 
@@ -2848,11 +3901,6 @@ impl OfflineDatabase {
                 })
                 .unwrap_or(1);
             let unique_id = format!("PHC-{:05}", next_seq);
-            let org_unit_name = match org_unit_id {
-                "ou-phc-1" => station_cfg.facility_name.clone(),
-                "ou-sc-2" => "Sub-Centre 2".to_string(),
-                _ => "Sub-Centre 1".to_string(),
-            };
 
             conn.execute(
                 "INSERT INTO loc_death_register (
@@ -2882,7 +3930,7 @@ impl OfflineDatabase {
                     project_id,
                     project_id.to_string(),
                     site_id,
-                    station_cfg.facility_name,
+                    site_name,
                     org_unit_id,
                     org_unit_name,
                     deceased_name,
@@ -2941,7 +3989,7 @@ impl OfflineDatabase {
             if !raw_ids.is_empty() || true {
                 match Self::validate_and_store_identifiers(
                     conn,
-                    project_id,
+                    &project_id,
                     death_id,
                     &raw_ids,
                     actor_name,
@@ -3036,9 +4084,9 @@ impl OfflineDatabase {
         let active_actor = self.get_active_actor_context();
 
         self.with_conn(|conn| {
-            let existing: Option<(i64, Option<String>, String, String, Option<String>, String, String)> = conn
+            let existing: Option<(String, Option<String>, String, String, Option<String>, String, String)> = conn
                 .query_row(
-                    "SELECT project_id, client_death_id, status, state, va_sid, site_id, org_unit_id
+                    "SELECT CAST(project_id AS TEXT), client_death_id, status, state, va_sid, site_id, org_unit_id
                      FROM loc_death_register WHERE death_id = ?1",
                     params![death_id],
                     |r| {
@@ -3101,20 +4149,20 @@ impl OfflineDatabase {
                         })?;
                     let rec = append_consent_record(
                         conn,
-                        project_id,
+                        &project_id,
                         client_death_id.as_deref(),
                         Some(death_id),
                         &env,
                         actor_name,
                         &station_cfg.station_id,
                     )
-                    .map_err(|msg| {
+                    .map_err(|refusal| {
                         (
                             422,
                             json!({
-                                "error": msg,
-                                "code": "invalid_death",
-                                "fields": { "consent": msg }
+                                "error": refusal.message,
+                                "code": refusal.code.unwrap_or("invalid_death"),
+                                "fields": { "consent": refusal.message }
                             }),
                         )
                     })?;
@@ -3153,19 +4201,22 @@ impl OfflineDatabase {
             {
                 assert_informant_consent_before_write(
                     conn,
-                    project_id,
+                    &project_id,
                     client_death_id.as_deref(),
                     Some(death_id),
                     &incoming_inf,
                 )
-                .map_err(|msg| {
+                .map_err(|refusal| {
                     (
                         422,
-                        json!({
-                            "error": msg,
-                            "code": "invalid_death",
-                            "fields": { "consent": msg }
-                        }),
+                        consent_required_for_informant(
+                            &refusal,
+                            &inf_keys
+                                .iter()
+                                .copied()
+                                .zip(incoming_inf.iter().copied())
+                                .collect::<Vec<_>>(),
+                        ),
                     )
                 })?;
             }
@@ -3384,9 +4435,9 @@ impl OfflineDatabase {
         let now = Utc::now().to_rfc3339();
 
         self.with_conn(|conn| {
-            let row: Option<(i64, Option<String>, String, String, String, String)> = conn
+            let row: Option<(String, Option<String>, String, String, String, String)> = conn
                 .query_row(
-                    "SELECT project_id, client_death_id, status, state, site_id, org_unit_id
+                    "SELECT CAST(project_id AS TEXT), client_death_id, status, state, site_id, org_unit_id
                      FROM loc_death_register WHERE death_id = ?1",
                     params![death_id],
                     |r| {
@@ -3421,7 +4472,7 @@ impl OfflineDatabase {
 
             let (stored, warnings) = Self::validate_and_store_identifiers(
                 conn,
-                pid,
+                &pid,
                 death_id,
                 &raw_ids,
                 actor_name,
@@ -3486,34 +4537,68 @@ impl OfflineDatabase {
         })
     }
 
-    pub fn list_cases(&self) -> Value {
+    /// One page of the station's cases, newest registration first, for `GET /intake/deaths`
+    /// and `GET /intake/cases`: `{cases, deaths, counts, next_cursor}`. `counts` is
+    /// `{total, <state>: n}` over the whole (filtered) list, not the page. Keyset-paged on
+    /// `death_id`; the cursor is opaque to the app. Errors are safe 400 messages
+    /// (`CaseListQuery::parse`).
+    pub fn list_cases(&self, query: &CaseListQuery) -> Result<Value, String> {
+        let page = query.parse()?;
+        let mine = if page.registered_mine {
+            Some(self.get_active_actor_context().member_id)
+        } else {
+            None
+        };
         self.with_conn(|conn| {
-            let mut stmt = conn
-                .prepare(
-                    "SELECT death_id FROM loc_death_register ORDER BY death_id DESC LIMIT 100",
-                )
-                .unwrap();
-            let ids: Vec<i64> = stmt
-                .query_map([], |r| r.get(0))
-                .unwrap()
-                .filter_map(Result::ok)
-                .collect();
+            let fetch = page.limit + 1;
+            let ids: Vec<i64> = match (&mine, page.after) {
+                (Some(member), Some(after)) => query_ids(
+                    conn,
+                    "SELECT death_id FROM loc_death_register WHERE actor_member_id = ?1 AND death_id < ?2 ORDER BY death_id DESC LIMIT ?3",
+                    params![member, after, fetch],
+                ),
+                (Some(member), None) => query_ids(
+                    conn,
+                    "SELECT death_id FROM loc_death_register WHERE actor_member_id = ?1 ORDER BY death_id DESC LIMIT ?2",
+                    params![member, fetch],
+                ),
+                (None, Some(after)) => query_ids(
+                    conn,
+                    "SELECT death_id FROM loc_death_register WHERE death_id < ?1 ORDER BY death_id DESC LIMIT ?2",
+                    params![after, fetch],
+                ),
+                (None, None) => query_ids(
+                    conn,
+                    "SELECT death_id FROM loc_death_register ORDER BY death_id DESC LIMIT ?1",
+                    params![fetch],
+                ),
+            }?;
+            let has_more = ids.len() as i64 > page.limit;
+            let page_ids = &ids[..ids.len().min(page.limit as usize)];
 
-            let mut rows = Vec::new();
-            for id in ids {
-                if let Ok(detail) = Self::build_case_row(conn, id) {
-                    rows.push(detail);
-                }
-            }
-            json!({
+            // ponytail: build_case_row reads each row's draft and identifiers separately
+            // (bounded by CASE_PAGE_MAX); batch them if pages grow slow.
+            let rows: Vec<Value> = page_ids
+                .iter()
+                .filter_map(|&id| Self::build_case_row(conn, id).ok())
+                .collect();
+            let next_cursor = if has_more {
+                page_ids.last().map(|id| id.to_string())
+            } else {
+                None
+            };
+            Ok(json!({
                 "cases": rows,
                 "deaths": rows,
-                "counts": {
-                    "total": rows.len()
-                },
-                "next_cursor": null
-            })
+                "counts": case_state_counts(conn, mine.as_deref())?,
+                "next_cursor": next_cursor
+            }))
         })
+    }
+
+    /// `{total, <state>: n}` over the whole death register (the KPI strip).
+    pub fn case_counts(&self) -> Result<Value, String> {
+        self.with_conn(|conn| case_state_counts(conn, None))
     }
 
     pub fn get_case_detail(&self, death_id: i64) -> Result<Value, String> {
@@ -3530,7 +4615,7 @@ impl OfflineDatabase {
         let mut stmt = conn
             .prepare(
                 "SELECT death_id, unique_id, deceased_name, deceased_sex, date_of_death,
-                        age_years, status, state, project_id, site_id, site_name,
+                        age_years, status, state, CAST(project_id AS TEXT), site_id, site_name,
                         org_unit_id, org_unit_name, informant_phone, informant_phone_2,
                         last_contact_at, next_visit_at, va_sid, updated_at,
                         client_death_id, sync_state
@@ -3548,7 +4633,7 @@ impl OfflineDatabase {
                 let age_years: Option<f64> = r.get(5)?;
                 let status: String = r.get(6)?;
                 let state: String = r.get(7)?;
-                let project_id: i64 = r.get(8)?;
+                let project_id: String = r.get(8)?;
                 let site_id: String = r.get(9)?;
                 let site_name: String = r.get(10)?;
                 let org_unit_id: String = r.get(11)?;
@@ -3573,7 +4658,7 @@ impl OfflineDatabase {
                     .flatten();
 
                 let identifiers_list =
-                    Self::load_case_identifier_items(conn, project_id, id_num, is_coder);
+                    Self::load_case_identifier_items(conn, &project_id, id_num, is_coder);
                 let is_closed = matches!(status.as_str(), "cancelled" | "duplicate" | "closed")
                     || matches!(state.as_str(), "cancelled" | "duplicate" | "closed");
                 let can_edit_identifiers = !is_closed && !is_coder;
@@ -3650,7 +4735,7 @@ impl OfflineDatabase {
                         father_name, mother_name, abha_number, abha_address,
                         informant_name, informant_relation, informant_phone, informant_phone_2,
                         address, address_house_street, address_village_ward, address_landmark,
-                        remarks, created_at, project_id, client_death_id
+                        remarks, created_at, CAST(project_id AS TEXT), client_death_id
                  FROM loc_death_register WHERE death_id = ?1",
                 params![death_id],
                 |r| {
@@ -3672,7 +4757,7 @@ impl OfflineDatabase {
                         r.get::<_, Option<String>>(14)?,
                         r.get::<_, Option<String>>(15)?,
                         r.get::<_, String>(16)?,
-                        r.get::<_, i64>(17)?,
+                        r.get::<_, String>(17)?,
                         r.get::<_, Option<String>>(18)?,
                     ))
                 },
@@ -3682,7 +4767,7 @@ impl OfflineDatabase {
         let latest_consent = if is_coder {
             None
         } else {
-            get_latest_consent_for_case(conn, project_id, client_death_id.as_deref(), Some(death_id))
+            get_latest_consent_for_case(conn, &project_id, client_death_id.as_deref(), Some(death_id))
                 .ok()
                 .flatten()
         };
@@ -3728,16 +4813,8 @@ impl OfflineDatabase {
                     "phone_2": null
                 }),
             );
-            obj.insert(
-                "prefill".to_string(),
-                json!({
-                    "Id10019": deceased_sex,
-                    "Id10021": dob,
-                    "Id10023": date_of_death,
-                    "Id10051": age_years,
-                    "Id10058": place_of_death
-                }),
-            );
+            // A coder never starts an interview: no personal data rides along.
+            obj.insert("prefill".to_string(), json!({ "answers": {}, "lockedQuestionNames": [] }));
         } else {
             obj.insert(
                 "deceased".to_string(),
@@ -3773,19 +4850,26 @@ impl OfflineDatabase {
                     "phone_2": inf_phone2
                 }),
             );
-            obj.insert(
-                "prefill".to_string(),
-                json!({
-                    "Id10007": inf_name,
-                    "Id10008": inf_rel,
-                    "Id10017": deceased_name,
-                    "Id10019": deceased_sex,
-                    "Id10021": dob,
-                    "Id10023": date_of_death,
-                    "Id10051": age_years,
-                    "Id10058": place_of_death
-                }),
+            let prefill = interview_prefill(
+                &active_actor,
+                &RegisterPrefill {
+                    deceased_name: deceased_name.as_str(),
+                    deceased_sex: deceased_sex.as_str(),
+                    date_of_death: date_of_death.as_str(),
+                    age_years: age_years.as_f64(),
+                    date_of_birth: dob.as_deref(),
+                    date_of_birth_partial: dob_partial.as_deref(),
+                    place_of_death: place_of_death.as_deref(),
+                    informant_name: inf_name.as_deref(),
+                    father_name: father_name.as_deref(),
+                    mother_name: mother_name.as_deref(),
+                    abha_number: abha_number.as_deref(),
+                    abha_address: abha_address.as_deref(),
+                    address_parts: [addr_house.as_deref(), addr_village.as_deref(), addr_landmark.as_deref(), addr.as_deref()],
+                    org_path: obj.get("org_unit_name").and_then(Value::as_str),
+                },
             );
+            obj.insert("prefill".to_string(), prefill);
         }
         obj.insert("remarks".to_string(), if is_coder { Value::Null } else { json!(remarks) });
         obj.insert("registered_by_me".to_string(), Value::Bool(true));
@@ -3920,6 +5004,19 @@ impl OfflineDatabase {
         let station_cfg = self.get_station_config();
         let active_actor = self.get_active_actor_context();
         let now = Utc::now().to_rfc3339();
+        let (site_name, org_unit_name) = match self.project_targets(
+            project_id,
+            &active_actor,
+            interview_roles(&active_actor.acting_role),
+        ) {
+            None => (
+                station_cfg.facility_name.clone(),
+                sandbox_unit_name(org_unit_id, &station_cfg.facility_name),
+            ),
+            Some(targets) => target_labels(&targets, site_id, org_unit_id).ok_or_else(|| {
+                "You are not assigned to interview at this site and unit.".to_string()
+            })?,
+        };
 
         self.with_conn(|conn| {
             if let Some(did) = death_id {
@@ -3949,7 +5046,11 @@ impl OfflineDatabase {
             } else {
                 (
                     format!("VA-{}", &draft_id[..8].to_uppercase()),
-                    json!({ "Id10012": &now[..10] }),
+                    {
+                        let mut prefill = interview_prefill(&active_actor, &RegisterPrefill::default());
+                        prefill["answers"]["Id10012"] = json!(&now[..10]);
+                        prefill
+                    },
                 )
             };
 
@@ -3960,20 +5061,21 @@ impl OfflineDatabase {
                     org_unit_id, org_unit_name, death_id, status, current_section,
                     locale, translation_version, answers_json, prefill_json,
                     actor_user_id, actor_member_id, acting_role, sync_state, updated_at, created_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'Sub-Centre 1', ?7, 'in_progress', 'respondent', 'en', 1, ?8, ?8, ?9, ?10, ?11, 'pending', ?12, ?12)",
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?13, ?7, 'in_progress', NULL, 'en', 0, '{}', ?8, ?9, ?10, ?11, 'pending', ?12, ?12)",
                 params![
                     draft_id,
                     unique_id,
                     project_id,
                     site_id,
-                    station_cfg.facility_name,
+                    site_name,
                     org_unit_id,
                     death_id,
                     prefill_str,
                     active_actor.user_id,
                     active_actor.member_id,
                     active_actor.acting_role,
-                    now
+                    now,
+                    org_unit_name
                 ],
             )
             .map_err(|e| e.to_string())?;
@@ -4017,7 +5119,8 @@ impl OfflineDatabase {
         conn.query_row(
             "SELECT draft_id, unique_id, project_id, site_id, site_name,
                     org_unit_id, org_unit_name, death_id, status, current_section,
-                    locale, translation_version, answers_json, prefill_json, updated_at
+                    locale, translation_version, answers_json, prefill_json, updated_at,
+                    meta_json, created_at
              FROM loc_va_drafts WHERE draft_id = ?1",
             params![draft_id],
             |r| {
@@ -4040,17 +5143,30 @@ impl OfflineDatabase {
                     "current_section": r.get::<_, Option<String>>(9)?,
                     "updated_at": updated_at
                 });
+                let meta: Value = serde_json::from_str(&r.get::<_, String>(15)?).unwrap_or_else(|_| json!({}));
+                let created_at: String = r.get(16)?;
+                // The server's `load_draft_envelope` shape; the definition pin only when recorded.
+                let mut envelope = json!({
+                    "schemaVersion": meta.get("schemaVersion").cloned().unwrap_or(json!(1)),
+                    "formVersion": meta.get("formVersion").cloned().unwrap_or(json!("2022")),
+                    "id": draft_id,
+                    "instrumentId": meta.get("instrumentId").cloned().unwrap_or(json!("va_who_2022")),
+                    "instrumentVersion": meta.get("instrumentVersion").cloned().unwrap_or(json!("")),
+                    "locale": r.get::<_, String>(10)?,
+                    "translation_version": r.get::<_, i64>(11)?,
+                    "currentSection": summary["current_section"].as_str().unwrap_or_default(),
+                    "createdAt": meta.get("createdAt").cloned().unwrap_or(json!(created_at)),
+                    "updatedAt": meta.get("updatedAt").cloned().unwrap_or(json!(updated_at)),
+                    "data": answers
+                });
+                for key in ["definitionSha256", "definitionExtensions"] {
+                    if let Some(v) = meta.get(key) {
+                        envelope[key] = v.clone();
+                    }
+                }
                 Ok(json!({
                     "draft": summary,
-                    "envelope": {
-                        "draft_id": draft_id,
-                        "instrument_code": "WHO_2022_VA",
-                        "instrument_version": "2022.1.5-offline",
-                        "locale": r.get::<_, String>(10)?,
-                        "translation_version": r.get::<_, i64>(11)?,
-                        "data": answers,
-                        "updated_at": updated_at
-                    },
+                    "envelope": envelope,
                     "prefill": prefill
                 }))
             },
@@ -4058,23 +5174,150 @@ impl OfflineDatabase {
         .map_err(|e| e.to_string())
     }
 
+    /// `PATCH /intake/drafts/<id>`, the shared app's autosave (the server's `save_draft`):
+    /// `{sections: {name: answers}, current_section, meta}`. Each section replaces its saved
+    /// answers; the draft's answers are the sections merged. `meta` keeps the app's envelope keys,
+    /// the definition pin among them, which the bundle's `interview_submission` carries.
+    /// Returns `(status, body)`: 200 `{saved_sections, draft}`, 400/422 for a malformed body,
+    /// 404 unknown draft, 409 a submitted one.
+    /// ponytail: no `if_updated_at` stale check; one station writes its own drafts.
+    pub fn save_draft_sections(&self, draft_id: &str, body: &Value) -> Result<(u16, Value), String> {
+        let bad = |status: u16, msg: &str| Ok((status, json!({ "error": msg, "code": "invalid_request" })));
+        let empty = serde_json::Map::new();
+        let Some(sections) = body.get("sections").map_or(Some(&empty), Value::as_object) else {
+            return bad(400, "sections must be an object keyed by section name.");
+        };
+        let section_name_ok = |n: &str| (1..=64).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_');
+        for (name, answers) in sections {
+            if !section_name_ok(name) || !answers.is_object() {
+                return bad(400, "Each section is an object of answers under a valid section name.");
+            }
+        }
+        let current_section = body.get("current_section").and_then(Value::as_str);
+        if current_section.is_some_and(|c| !section_name_ok(c)) {
+            return bad(400, "Invalid current section.");
+        }
+        let meta_in = body.get("meta").and_then(Value::as_object).cloned().unwrap_or_default();
+        if let Some(sha) = meta_in.get("definitionSha256") {
+            let ok = sha.as_str().is_some_and(|v| v.len() == 64 && v.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')));
+            if !ok {
+                return bad(422, "definitionSha256 must be 64 lowercase hex characters.");
+            }
+        }
+        if let Some(names) = meta_in.get("definitionExtensions") {
+            let ok = names.as_array().is_some_and(|list| {
+                list.len() <= 16
+                    && list.iter().all(|n| {
+                        n.as_str().is_some_and(|n| {
+                            (1..=32).contains(&n.len())
+                                && n.as_bytes()[0].is_ascii_lowercase()
+                                && n.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                        })
+                    })
+            });
+            if !ok {
+                return bad(422, "definitionExtensions must be a short list of extension names.");
+            }
+        }
+        let locale = meta_in.get("locale");
+        if locale.is_some_and(|l| {
+            !l.as_str().is_some_and(|l| (2..=16).contains(&l.len()) && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+        }) {
+            return bad(400, "Invalid locale.");
+        }
+        let translation_version = meta_in.get("translation_version");
+        if translation_version.is_some_and(|v| v.as_u64().is_none()) {
+            return bad(400, "Invalid translation version.");
+        }
+        const META_KEYS: [&str; 9] = [
+            "schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt",
+            "updatedAt", "definitionSha256", "definitionExtensions", "currentSection",
+        ];
+        let now = Utc::now().to_rfc3339();
+        self.with_conn(|conn| {
+            let row: Option<(String, String, String)> = conn
+                .query_row(
+                    "SELECT status, sections_json, meta_json FROM loc_va_drafts WHERE draft_id = ?1",
+                    params![draft_id],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                )
+                .optional()
+                .map_err(|e| e.to_string())?;
+            let Some((status, sections_raw, meta_raw)) = row else {
+                return Ok((404, json!({ "error": "Draft not found.", "code": "not_found" })));
+            };
+            if status == "submitted" {
+                return Ok((409, json!({ "error": "This draft is no longer editable.", "code": "conflict" })));
+            }
+            let mut stored: serde_json::Map<String, Value> =
+                serde_json::from_str(&sections_raw).unwrap_or_default();
+            for (name, answers) in sections {
+                // Reduce Id10073 and sweep free-text national IDs before writing to local storage.
+                stored.insert(name.clone(), redact_payload_national_ids(answers).0);
+            }
+            let mut names: Vec<&String> = stored.keys().collect();
+            names.sort();
+            let mut merged = serde_json::Map::new();
+            for name in names {
+                if let Some(answers) = stored[name].as_object() {
+                    merged.extend(answers.iter().map(|(k, v)| (k.clone(), v.clone())));
+                }
+            }
+            let mut meta: serde_json::Map<String, Value> = serde_json::from_str(&meta_raw).unwrap_or_default();
+            for key in META_KEYS {
+                if let Some(v) = meta_in.get(key) {
+                    meta.insert(key.to_string(), v.clone());
+                }
+            }
+            let written = sections.len();
+            conn.execute(
+                "UPDATE loc_va_drafts
+                 SET sections_json = ?1,
+                     answers_json = CASE WHEN ?7 > 0 THEN ?2 ELSE answers_json END,
+                     meta_json = ?3,
+                     current_section = COALESCE(?4, current_section),
+                     locale = COALESCE(?5, locale),
+                     translation_version = COALESCE(?6, translation_version),
+                     updated_at = CASE WHEN ?7 > 0 THEN ?8 ELSE updated_at END
+                 WHERE draft_id = ?9",
+                params![
+                    Value::Object(stored).to_string(),
+                    Value::Object(merged).to_string(),
+                    Value::Object(meta).to_string(),
+                    current_section,
+                    locale.and_then(Value::as_str),
+                    translation_version.and_then(Value::as_i64),
+                    written as i64,
+                    now,
+                    draft_id
+                ],
+            )
+            .map_err(|e| e.to_string())?;
+            let detail = Self::build_draft_response(conn, draft_id)?;
+            Ok((200, json!({ "saved_sections": written, "draft": detail["draft"] })))
+        })
+    }
+
     pub fn submit_draft(&self, draft_id: &str, body: &Value) -> Result<(u16, Value), String> {
         let now = Utc::now().to_rfc3339();
         let active_actor = self.get_active_actor_context();
         self.with_conn(|conn| {
-            let (unique_id, project_id, site_id, org_unit_id, death_id, existing_answers_str): (
+            let (unique_id, project_id, site_id, org_unit_id, death_id, existing_answers_str, meta_raw, created_at): (
                 String,
                 String,
                 String,
                 Option<String>,
                 Option<i64>,
                 String,
+                String,
+                String,
             ) = conn
                 .query_row(
-                    "SELECT unique_id, project_id, site_id, org_unit_id, death_id, answers_json
+                    "SELECT unique_id, project_id, site_id, org_unit_id, death_id, answers_json,
+                            meta_json, created_at
                      FROM loc_va_drafts WHERE draft_id = ?1",
                     params![draft_id],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?)),
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?, r.get(6)?, r.get(7)?)),
                 )
                 .map_err(|e| format!("Draft not found: {e}"))?;
 
@@ -4088,11 +5331,45 @@ impl OfflineDatabase {
 
             // Reduce Id10073 to last 3 digits (`XXXXXXXXX123`) and sweep free-text fields!
             let (mut reduced_payload, flagged_fields) = redact_payload_national_ids(&incoming_data);
+            let completion = body.get("completion").cloned().unwrap_or_else(|| json!({}));
+            let completion_valid = completion.get("valid").and_then(Value::as_bool) == Some(true);
+            let Some(outcome) = interview_outcome(&incoming_data, completion_valid) else {
+                return Ok((
+                    422,
+                    json!({
+                        "error": "The questionnaire is not valid yet; complete the sections flagged by the form, or record the interview outcome as partially completed or respondent unavailable.",
+                        "code": "invalid_interview"
+                    }),
+                ));
+            };
             if let Some(obj) = reduced_payload.as_object_mut() {
                 obj.entry("sid".to_string())
                     .or_insert_with(|| Value::String(unique_id.clone()));
+                obj.insert("interview_outcome".to_string(), json!(outcome));
             }
             let fingerprint = canonical_payload_fingerprint(&reduced_payload);
+            // What the bundle's `interview_submission` carries (`draft.*`, `completion`): the
+            // app's own times when it sent them, else the draft's start and this submit.
+            let mut meta: Value = serde_json::from_str(&meta_raw).unwrap_or_else(|_| json!({}));
+            if !meta.is_object() {
+                meta = json!({});
+            }
+            if meta["startedAt"].as_str().is_none() {
+                meta["startedAt"] = meta.get("createdAt").filter(|v| v.is_string()).cloned().unwrap_or(json!(created_at));
+            }
+            if meta["completedAt"].as_str().is_none() {
+                meta["completedAt"] = json!(now);
+            }
+            meta["interviewOutcome"] = json!(outcome);
+            meta["completion"] = json!({
+                "valid": completion_valid,
+                "issues": completion.get("issues").filter(|v| v.is_array()).cloned().unwrap_or(json!([])),
+            });
+            conn.execute(
+                "UPDATE loc_va_drafts SET meta_json = ?1 WHERE draft_id = ?2",
+                params![meta.to_string(), draft_id],
+            )
+            .map_err(|e| e.to_string())?;
 
             let deceased_name = reduced_payload
                 .get("Id10017")
@@ -4102,13 +5379,7 @@ impl OfflineDatabase {
                 .get("Id10019")
                 .and_then(Value::as_str)
                 .map(ToString::to_string);
-            let deceased_age = reduced_payload
-                .get("Id10051")
-                .map(|v| {
-                    v.as_str()
-                        .map(ToString::to_string)
-                        .unwrap_or_else(|| v.to_string())
-                });
+            let deceased_age = who_age_years(&reduced_payload);
 
             let va_sid = format!("VA-{}", &draft_id[..8].to_uppercase());
             let payload_str =
@@ -4307,13 +5578,17 @@ impl OfflineDatabase {
 
     pub fn get_va_workspace(&self, va_sid: &str, mode: &str) -> Result<Value, String> {
         let station_cfg = self.get_station_config();
+        // ICD-10 is the server's simple (no DORIS) workspace searching ICD-10.
+        let icd10 = self.coding_mode_for_va(va_sid).as_deref() == Some(CODING_MODE_ICD10);
+        let (project_mode, icd_classification) =
+            if icd10 { ("unmasked_simple", "icd10") } else { ("unmasked_doris", "icd11") };
         self.with_conn(|conn| {
             let row = conn
                 .query_row(
                     "SELECT unique_id, project_id, site_id, form_type_code, deceased_age,
                             deceased_gender, workflow_state, smartva_status, smartva_json,
                             initial_assessment_json, final_assessment_json, not_codeable_json,
-                            reviewer_initial_json, reviewer_final_json, doris_json,
+                            reviewer_initial_json, reviewer_final_json,
                             narrative_qa_json, social_autopsy_json
                      FROM loc_va_submissions WHERE va_sid = ?1",
                     params![va_sid],
@@ -4335,7 +5610,6 @@ impl OfflineDatabase {
                             r.get::<_, Option<String>>(13)?,
                             r.get::<_, Option<String>>(14)?,
                             r.get::<_, Option<String>>(15)?,
-                            r.get::<_, Option<String>>(16)?,
                         ))
                     },
                 )
@@ -4356,7 +5630,6 @@ impl OfflineDatabase {
                 nc_raw,
                 rev_init_raw,
                 rev_final_raw,
-                doris_raw,
                 nqa_raw,
                 sa_raw,
             ) = row;
@@ -4372,7 +5645,6 @@ impl OfflineDatabase {
             let rev_init = parse_opt(rev_init_raw);
             let rev_final = parse_opt(rev_final_raw);
             let smartva_val = parse_opt(smartva_raw);
-            let doris_saved = parse_opt(doris_raw);
             let nqa_saved = parse_opt(nqa_raw);
             let sa_saved = parse_opt(sa_raw);
 
@@ -4381,10 +5653,10 @@ impl OfflineDatabase {
                 "view"
             } else if !final_ass.is_null() || !nc_ass.is_null() {
                 "done"
-            } else if !initial_ass.is_null() {
-                "final"
             } else {
-                "initial"
+                // Station modes are unmasked only (unmasked_doris, unmasked_simple): no Step 1,
+                // as the server's unmasked workspace.
+                "final"
             };
 
             let categories = json!([
@@ -4448,27 +5720,30 @@ impl OfflineDatabase {
                 })
             };
 
-            let doris = if is_view {
+            // The server's unmasked seed (doris_context_service.workspace_doris): the saved final
+            // certificate as it is, else the interview prefill; the editor adds ICDVersion and Part I.
+            let doris = if is_view || icd10 {
                 Value::Null
             } else {
-                json!({
-                    "initial_certificate": {
-                        "line_1a_code": "",
-                        "line_1a_text": "",
-                        "line_1b_code": "",
-                        "line_1b_text": "",
-                        "line_1c_code": "",
-                        "line_1c_text": "",
-                        "line_1d_code": "",
-                        "line_1d_text": "",
-                        "part2_code": "",
-                        "part2_text": ""
-                    },
-                    "prefill_provenance": null,
-                    "saved_processing": if doris_saved.is_object() { doris_saved } else { Value::Null },
-                    "step1_certificate": null,
-                    "step1_processing": null
-                })
+                let saved_certificate = final_ass
+                    .get("doris_certificate")
+                    .filter(|c| c.as_object().is_some_and(|m| !m.is_empty()));
+                let (certificate, provenance) = match saved_certificate {
+                    Some(saved) => (saved.clone(), json!({})),
+                    None => {
+                        let payload: Value = conn
+                            .query_row(
+                                "SELECT payload_json FROM loc_va_submissions WHERE va_sid = ?1",
+                                params![va_sid],
+                                |r| r.get::<_, String>(0),
+                            )
+                            .ok()
+                            .and_then(|raw| serde_json::from_str(&raw).ok())
+                            .unwrap_or(Value::Null);
+                        doris_prefill::doris_prefill_from_payload(&payload)
+                    }
+                };
+                json!({ "initial_certificate": certificate, "prefill_provenance": provenance })
             };
 
             let other_conditions_options = if is_view {
@@ -4489,8 +5764,8 @@ impl OfflineDatabase {
                     "survey_district": station_cfg.district_name,
                     "survey_state": station_cfg.state_name,
                     "is_demo_project": false,
-                    "project_mode": "unmasked_doris",
-                    "icd_classification": "icd11",
+                    "project_mode": project_mode,
+                    "icd_classification": icd_classification,
                     "workflow_state": workflow_state,
                     "narrative_qa_enabled": !is_view,
                     "social_autopsy_enabled": !is_view
@@ -4588,7 +5863,7 @@ impl OfflineDatabase {
                     "list",
                     vec![
                         ("Id10019", json!({ "label": "Sex of deceased (Id10019)", "value": get_str("Id10019"), "flip": false, "info": true })),
-                        ("Id10051", json!({ "label": "Age in years (Id10051)", "value": get_str("Id10051"), "flip": false, "info": true })),
+                        ("age_years", json!({ "label": "Age in years", "value": who_age_years(&payload).unwrap_or_else(|| "Not recorded".to_string()), "flip": false, "info": true })),
                         ("Id10023", json!({ "label": "Date of death (Id10023)", "value": get_str("Id10023"), "flip": false, "info": true })),
                         ("Id10058", json!({ "label": "Place of death (Id10058)", "value": get_str("Id10058"), "flip": false, "info": true })),
                     ],
@@ -4735,13 +6010,12 @@ impl OfflineDatabase {
         ass_obj.insert("created_at".to_string(), Value::String(now.clone()));
 
         let ass_str = serde_json::to_string(&Value::Object(ass_obj.clone())).unwrap_or_else(|_| "{}".to_string());
+        // Read server-side, never from the client body: the mode this coding was made in.
+        let coding_mode = self.coding_mode_for_va(va_sid);
 
         let (col, new_state, id_key) = match stage {
-            "initial" => (
-                "initial_assessment_json",
-                "initial_coded",
-                "initial_assessment_id",
-            ),
+            // Station modes are unmasked only: no coder Step 1 (server: 409 not_masked).
+            "initial" => return Err("This project codes in one step; there is no Step 1 to save.".to_string()),
             "final" => ("final_assessment_json", "coded", "final_assessment_id"),
             "not_codeable" => (
                 "not_codeable_json",
@@ -4799,6 +6073,13 @@ impl OfflineDatabase {
                 .map_err(|e| e.to_string())?;
 
             if matches!(stage, "final" | "not_codeable") {
+                let (history_unique_id, history_form_type): (Option<String>, Option<String>) = conn
+                    .query_row(
+                        "SELECT unique_id, form_type_code FROM loc_va_submissions WHERE va_sid = ?1",
+                        params![va_sid],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .unwrap_or((None, None));
                 let client_draft_id = draft_id_opt.unwrap_or_else(|| Uuid::new_v4().to_string());
                 let init_val = init_raw
                     .and_then(|s| serde_json::from_str::<Value>(&s).ok())
@@ -4822,8 +6103,9 @@ impl OfflineDatabase {
                 conn.execute(
                     "INSERT OR REPLACE INTO loc_coding_results (
                         client_id, va_sid, client_draft_id, project_id, site_id, org_unit_id,
-                        actor_user_id, actor_member_id, acting_role, payload_json, sync_state, created_at
-                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'pending', ?11)",
+                        actor_user_id, actor_member_id, acting_role, payload_json, sync_state, created_at,
+                        coding_mode, unique_id, form_type_code
+                     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'pending', ?11, ?12, ?13, ?14)",
                     params![
                         ass_id,
                         va_sid,
@@ -4835,7 +6117,10 @@ impl OfflineDatabase {
                         active_actor.member_id,
                         active_actor.acting_role,
                         serde_json::to_string(&cr_payload).unwrap_or_else(|_| "{}".to_string()),
-                        now
+                        now,
+                        coding_mode,
+                        history_unique_id,
+                        history_form_type
                     ],
                 )
                 .ok();
@@ -4858,7 +6143,6 @@ impl OfflineDatabase {
                 Value::String(new_state.to_string()),
             );
             reply.insert(id_key.to_string(), Value::String(ass_id));
-            reply.insert("odk_synced".to_string(), Value::Bool(true));
             Ok(Value::Object(reply))
         })
     }
@@ -4893,145 +6177,15 @@ impl OfflineDatabase {
         })
     }
 
-    pub fn doris_terms(&self, query: &str, limit: usize) -> Value {
-        let items: Vec<Value> = self.with_conn(|conn| {
-            let rows = search_icd_catalog(conn, "icd11", query, limit).unwrap_or_default();
-            rows.into_iter()
-                .map(|r| {
-                    json!({
-                        "code": r.code,
-                        "title": r.title,
-                        "uri": format!("http://id.who.int/icd/release/11/mms/{}", r.code),
-                        "release": "2026-01",
-                        "matching_text": r.matched_synonym.unwrap_or_else(|| r.title.clone()),
-                        "postcoordination": false,
-                        "postcoordination_availability": null,
-                        "related_maternal": false,
-                        "related_perinatal": false,
-                        "has_coding_note": false
-                    })
-                })
-                .collect()
-        });
-
-        json!({
-            "schema_version": 1,
-            "items": items,
-            "truncated": false,
-            "next_cursor": null
-        })
-    }
-
-    pub fn doris_codeinfo(&self, code: &str) -> Value {
-        let norm = code.trim().to_uppercase();
-        let title = self.with_conn(|conn| {
-            conn.query_row(
-                "SELECT title FROM cat_icd_entries WHERE classification = 'icd11' AND UPPER(code) = ?1 LIMIT 1",
-                params![norm],
-                |r| r.get::<_, String>(0),
-            )
-            .unwrap_or_else(|_| format!("ICD-11 entity {norm}"))
-        });
-
-        json!({
-            "schema_version": 1,
-            "item": {
-                "code": norm,
-                "title": title,
-                "uri": format!("http://id.who.int/icd/release/11/mms/{}", norm),
-                "release": "2026-01",
-                "postcoordination": false
-            }
-        })
-    }
-
-    pub fn doris_process(&self, va_sid: &str, body: &Value) -> Result<Value, String> {
-        let client_revision = body
-            .get("client_revision")
-            .and_then(Value::as_i64)
-            .unwrap_or(1)
-            .max(0);
-        let cert = body
-            .get("certificate")
-            .and_then(Value::as_object)
-            .cloned()
-            .unwrap_or_default();
-
-        // Select lowest non-empty Part 1 line (1d -> 1c -> 1b -> 1a) per WHO mortality rules SP3/SP4
-        let pick_line = |keys: &[&str]| -> Option<String> {
-            for k in keys {
-                if let Some(s) = cert
-                    .get(*k)
-                    .and_then(Value::as_str)
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                {
-                    return Some(s.to_uppercase());
-                }
-            }
-            None
-        };
-
-        let underlying_code = pick_line(&[
-            "line_1d_code",
-            "cause_d_code",
-            "line_1c_code",
-            "cause_c_code",
-            "line_1b_code",
-            "cause_b_code",
-            "line_1a_code",
-            "cause_a_code",
-        ])
-        .unwrap_or_else(|| "MB2Y".to_string());
-
-        let cert_str = serde_json::to_string(&Value::Object(cert.clone())).unwrap_or_default();
-        let mut h1 = Sha256::new();
-        h1.update(cert_str.as_bytes());
-        let cert_digest = format!("{:x}", h1.finalize());
-
-        let doris_res = json!({
-            "underlying_cause_code": underlying_code,
-            "reject": false,
-            "selection_rule": "SP3",
-            "report": format!("Selected underlying cause {underlying_code} by WHO mortality sequence rule.")
-        });
-        let res_str = serde_json::to_string(&doris_res).unwrap_or_default();
-        let mut h2 = Sha256::new();
-        h2.update(res_str.as_bytes());
-        let res_digest = format!("{:x}", h2.finalize());
-
-        let reply = json!({
-            "schema_version": 1,
-            "client_revision": client_revision,
-            "icd_release": "2026-01",
-            "certificate": cert,
-            "certificate_digest": cert_digest,
-            "result_digest": res_digest,
-            "doris": {
-                "status": "completed",
-                "result": doris_res
-            },
-            "codedit": {
-                "status": "completed",
-                "result": {
-                    "warnings": [],
-                    "valid": true
-                }
-            },
-            "process_token": Uuid::new_v4().to_string()
-        });
-
-        let now = Utc::now().to_rfc3339();
-        let reply_str = serde_json::to_string(&reply).unwrap_or_else(|_| "{}".to_string());
+    /// Whether a VA submission with this `va_sid` exists on the station.
+    pub fn has_va_submission(&self, va_sid: &str) -> bool {
         self.with_conn(|conn| {
-            conn.execute(
-                "UPDATE loc_va_submissions SET doris_json = ?1, updated_at = ?2 WHERE va_sid = ?3",
-                params![reply_str, now, va_sid],
-            )
-            .ok();
-        });
-
-        Ok(reply)
+            conn.query_row("SELECT 1 FROM loc_va_submissions WHERE va_sid = ?1", params![va_sid], |_| Ok(()))
+                .optional()
+                .ok()
+                .flatten()
+                .is_some()
+        })
     }
 
     pub fn get_workflow_events(&self, va_sid: &str, limit: usize) -> Value {
@@ -5072,20 +6226,25 @@ impl OfflineDatabase {
         })
     }
 
+    /// Cases waiting for a coder, newest first; projects the config locks out of station coding
+    /// are left out. `va_data_collector` is the roster member who submitted the interview.
     pub fn get_coder_queue(&self, limit: usize, offset: usize) -> Value {
+        let provisioned = self.get_station_config().mode == "provisioned";
         self.with_conn(|conn| {
             let mut stmt = conn
-                .prepare(
-                    "SELECT va_sid, unique_id, form_type_code, project_id, site_id,
-                            submitted_at, deceased_age, deceased_gender
-                     FROM loc_va_submissions
-                     WHERE workflow_state NOT IN ('coded', 'not_codeable', 'reviewed')
-                     ORDER BY submitted_at DESC
-                     LIMIT ?1 OFFSET ?2",
-                )
+                .prepare(&format!(
+                    "SELECT s.va_sid, s.unique_id, s.form_type_code, s.project_id, s.site_id,
+                            s.submitted_at, s.deceased_age, s.deceased_gender,
+                            (SELECT m.name FROM loc_station_roster m WHERE m.member_id = s.actor_member_id)
+                     FROM loc_va_submissions s
+                     WHERE s.workflow_state NOT IN ('coded', 'not_codeable', 'reviewed')
+                       AND s.{CODED_PROJECT_FILTER}
+                     ORDER BY s.submitted_at DESC
+                     LIMIT ?2 OFFSET ?3"
+                ))
                 .unwrap();
             let forms: Vec<Value> = stmt
-                .query_map(params![limit as i64, offset as i64], |r| {
+                .query_map(params![provisioned, limit as i64, offset as i64], |r| {
                     Ok(json!({
                         "va_sid": r.get::<_, String>(0)?,
                         "va_uniqueid_masked": r.get::<_, String>(1)?,
@@ -5093,7 +6252,7 @@ impl OfflineDatabase {
                         "project_id": r.get::<_, String>(3)?,
                         "site_id": r.get::<_, String>(4)?,
                         "va_submission_date": r.get::<_, String>(5)?,
-                        "va_data_collector": "PHC Health Worker",
+                        "va_data_collector": r.get::<_, Option<String>>(8)?,
                         "va_deceased_age": r.get::<_, Option<String>>(6)?,
                         "va_deceased_gender": r.get::<_, Option<String>>(7)?
                     }))
@@ -5113,21 +6272,54 @@ impl OfflineDatabase {
         })
     }
 
+    /// Coded cases, newest first, each with the server's answer to its latest coding result
+    /// (`server_status`: `pending` while the server holds it, `refused` with `server_code`, null
+    /// while not yet sent or once accepted and deleted). Locked-out projects are left out.
+    /// A result whose interview a receipt already deleted stays listed from the display fields
+    /// on its coding row (case id, form, project, site, coded time, stage) until a later receipt
+    /// accepts it and deletes the row; no age, sex or answers are kept.
     pub fn get_coder_history(&self, limit: usize, offset: usize) -> Value {
+        let provisioned = self.get_station_config().mode == "provisioned";
         self.with_conn(|conn| {
             let mut stmt = conn
-                .prepare(
-                    "SELECT va_sid, unique_id, form_type_code, project_id, site_id,
-                            submitted_at, deceased_age, deceased_gender, COALESCE(coded_at, updated_at), workflow_state
-                     FROM loc_va_submissions
-                     WHERE workflow_state IN ('coded', 'not_codeable', 'reviewed')
-                     ORDER BY updated_at DESC
-                     LIMIT ?1 OFFSET ?2",
-                )
+                .prepare(&format!(
+                    "SELECT s.va_sid, s.unique_id, s.form_type_code, s.project_id, s.site_id,
+                            s.submitted_at, s.deceased_age, s.deceased_gender,
+                            COALESCE(s.coded_at, s.updated_at), s.workflow_state,
+                            c.sync_state, c.sync_error_code, s.updated_at
+                     FROM loc_va_submissions s
+                     LEFT JOIN loc_coding_results c ON c.client_id = (
+                         SELECT client_id FROM loc_coding_results
+                         WHERE va_sid = s.va_sid ORDER BY created_at DESC LIMIT 1)
+                     WHERE s.workflow_state IN ('coded', 'not_codeable', 'reviewed')
+                       AND s.{CODED_PROJECT_FILTER}
+                     UNION ALL
+                     SELECT c.va_sid, COALESCE(c.unique_id, c.va_sid), COALESCE(c.form_type_code, ''),
+                            c.project_id, COALESCE(c.site_id, ''), '', NULL, NULL,
+                            c.created_at,
+                            CASE json_extract(c.payload_json, '$.stage')
+                                WHEN 'not_codeable' THEN 'not_codeable' ELSE 'coded' END,
+                            c.sync_state, c.sync_error_code, c.created_at
+                     FROM loc_coding_results c
+                     WHERE c.client_id = (
+                            SELECT client_id FROM loc_coding_results
+                            WHERE va_sid = c.va_sid ORDER BY created_at DESC LIMIT 1)
+                       AND NOT EXISTS (SELECT 1 FROM loc_va_submissions s WHERE s.va_sid = c.va_sid)
+                       AND c.{CODED_PROJECT_FILTER}
+                     ORDER BY 13 DESC
+                     LIMIT ?2 OFFSET ?3"
+                ))
                 .unwrap();
             let history: Vec<Value> = stmt
-                .query_map(params![limit as i64, offset as i64], |r| {
+                .query_map(params![provisioned, limit as i64, offset as i64], |r| {
+                    let server_status = match r.get::<_, Option<String>>(10)?.as_deref() {
+                        Some("server_pending") => Some("pending"),
+                        Some("rejected") => Some("refused"),
+                        _ => None,
+                    };
                     Ok(json!({
+                        "server_status": server_status,
+                        "server_code": server_status.and(r.get::<_, Option<String>>(11)?),
                         "va_sid": r.get::<_, String>(0)?,
                         "va_uniqueid_masked": r.get::<_, String>(1)?,
                         "va_form_id": r.get::<_, String>(2)?,
@@ -5180,15 +6372,36 @@ impl OfflineDatabase {
             let mut date_of_death = String::new();
             let mut crs_number = String::new();
             let mut mccd_number = format!("MCCD-{va_sid}");
+            // Sandbox defaults; a registered case carries its own project, site and unit path.
+            let mut project_id = "1".to_string();
+            let mut site_code = "PHC01".to_string();
+            let mut site_name = station_cfg.facility_name.clone();
+            let mut unit_path: Option<String> = None;
 
             if let Some(did) = death_id_opt {
-                if let Ok((dname, dod)) = conn.query_row(
-                    "SELECT deceased_name, date_of_death FROM loc_death_register WHERE death_id = ?1",
+                if let Ok((dname, dod, pid, sid, sname, ou_name)) = conn.query_row(
+                    "SELECT deceased_name, date_of_death, CAST(project_id AS TEXT), site_id,
+                            site_name, org_unit_name
+                     FROM loc_death_register WHERE death_id = ?1",
                     params![did],
-                    |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
+                    |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, String>(2)?,
+                            r.get::<_, String>(3)?,
+                            r.get::<_, String>(4)?,
+                            r.get::<_, String>(5)?,
+                        ))
+                    },
                 ) {
                     deceased_name = dname;
                     date_of_death = dod;
+                    project_id = pid;
+                    site_code = sid;
+                    site_name = sname;
+                    unit_path =
+                        Some(ou_name).filter(|p| !p.trim().is_empty() && project_id != "1");
                 }
                 let ids = Self::load_case_identifiers(conn, did);
                 if let Some(crs) = ids.get("crs_reg_no") {
@@ -5227,10 +6440,11 @@ impl OfflineDatabase {
                 } else {
                     Some(crs_number)
                 },
-                project_id: "1".to_string(),
-                project_name: Some(format!("{} Mortality Surveillance", station_cfg.facility_name)),
-                site_code: "PHC01".to_string(),
-                site_name: Some(station_cfg.facility_name.clone()),
+                project_name: (project_id == "1")
+                    .then(|| format!("{} Mortality Surveillance", station_cfg.facility_name)),
+                project_id,
+                site_code,
+                site_name: Some(site_name),
                 station_id: Some(station_cfg.station_id.clone()),
                 deceased_name: Some(deceased_name),
                 sex: sex_opt,
@@ -5241,7 +6455,10 @@ impl OfflineDatabase {
                     Some(date_of_death)
                 },
                 age_at_death: age_opt,
-                place_of_death: Some("Reported via Verbal Autopsy".to_string()),
+                place_of_death: Some(match unit_path {
+                    Some(path) => format!("Reported via Verbal Autopsy; {path}"),
+                    None => "Reported via Verbal Autopsy".to_string(),
+                }),
                 part1_lines: vec![
                     MccdConditionLine {
                         condition_text: immediate_cod.clone(),
@@ -5353,21 +6570,242 @@ impl OfflineDatabase {
         })
     }
 
-    pub fn form_options(&self, project_id: &str) -> Value {
-        default_form_options(project_id)
+    /// The project's stored form policy: `(form-options body, {locale: translations body})`.
+    /// The sandbox project "1" has no server policy and gets `instrument::sandbox_form_options`.
+    /// Err is `(status, body)`: 404 `form_policy_missing` for a project the imported config
+    /// gives no form policy (or no config imported yet).
+    fn form_policy(&self, project_id: &str) -> Result<(Value, Value), (u16, Value)> {
+        if project_id == "1" {
+            let (modules, _) = self.local_station_choices();
+            return Ok((instrument::sandbox_form_options(project_id, &modules), json!({})));
+        }
+        let row: Option<(String, String)> = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT form_options_json, translations_json FROM loc_project_form_policy WHERE project_id = ?1",
+                params![project_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .ok()
+            .flatten()
+        });
+        let Some((options, translations)) = row else {
+            return Err((
+                404,
+                json!({
+                    "error": "This station has no form for this project yet. Import a station config issued by the server.",
+                    "code": "form_policy_missing"
+                }),
+            ));
+        };
+        let mut options: Value = serde_json::from_str(&options).unwrap_or(Value::Null);
+        // A policy without `enabled_extensions` leaves the modules to the station's selection.
+        if options.is_object() && !options["enabled_extensions"].is_array() {
+            let (modules, _) = self.local_station_choices();
+            let local = instrument::sandbox_form_options(project_id, &modules);
+            options["enabled_extensions"] = local["enabled_extensions"].clone();
+            options["definition_sha256"] = local["definition_sha256"].clone();
+        }
+        Ok((options, serde_json::from_str(&translations).unwrap_or_else(|_| json!({}))))
     }
 
-    pub fn instrument_definition(&self) -> (Value, String) {
-        (
-            default_who_2022_va_definition(),
-            default_who_2022_va_definition_sha256(),
-        )
+    /// `GET /organization/<project>/form-options`: the body the server issued in the config.
+    pub fn form_options(&self, project_id: &str) -> Result<Value, (u16, Value)> {
+        self.form_policy(project_id).map(|(options, _)| options)
+    }
+
+    /// `GET /instruments/<code>/definition?project_id=[&version=&extensions=]`: the project's
+    /// slice of the embedded composed definition (the bytes the server serves), or the exact
+    /// earlier slice a draft names.
+    pub fn instrument_definition(
+        &self,
+        code: &str,
+        project_id: &str,
+        slice: Option<(&str, Vec<String>)>,
+    ) -> Result<std::sync::Arc<ServedDefinition>, (u16, Value)> {
+        let not_found = || (404, json!({ "error": "Definition not found.", "code": "not_found" }));
+        let (options, _) = self.form_policy(project_id)?;
+        let served_code = options["form_types"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|ft| ft["is_default"].as_bool() == Some(true))
+            .and_then(|ft| ft["instrument_code"].as_str())
+            .unwrap_or(instrument::INSTRUMENT_CODE);
+        if !code.eq_ignore_ascii_case(instrument::INSTRUMENT_CODE) || served_code != instrument::INSTRUMENT_CODE {
+            return Err(not_found());
+        }
+        match slice {
+            None => Ok(instrument::served_definition(instrument::enabled_extensions(&options))),
+            Some((version, extensions)) => instrument::definition_slice(version, &extensions).map_err(|e| match e {
+                instrument::DefinitionError::UnknownVersion => {
+                    (404, json!({ "error": "Form version not found.", "code": "version_unknown" }))
+                }
+                instrument::DefinitionError::InvalidExtensions(_) => (
+                    422,
+                    json!({ "error": "Unknown extensions for that form version.", "code": "invalid_extensions" }),
+                ),
+            }),
+        }
+    }
+
+    /// `GET /instruments/<code>/translations/<locale>[?project_id=]`: the body the server issued
+    /// in the config for that locale; "en" is the base body. Without `project_id` (the browser
+    /// form's call) any project's copy serves, as the server serves any servable locale.
+    pub fn instrument_translations(
+        &self,
+        code: &str,
+        locale: &str,
+        project_id: Option<&str>,
+    ) -> Result<Value, (u16, Value)> {
+        let not_found = || (404, json!({ "error": "Translation not found.", "code": "not_found" }));
+        let code = code.trim().to_ascii_uppercase();
+        if let Some(pid) = project_id {
+            let (options, translations) = self.form_policy(pid).map_err(|_| not_found())?;
+            let offered = options["available_locales"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|l| l["code"].as_str() == Some(locale));
+            if !offered || code != instrument::INSTRUMENT_CODE {
+                return Err(not_found());
+            }
+            if locale == instrument::BASE_LOCALE {
+                return Ok(instrument::base_translations(&code));
+            }
+            return translations.get(locale).cloned().ok_or_else(not_found);
+        }
+        if locale == instrument::BASE_LOCALE {
+            return Ok(instrument::base_translations(&code));
+        }
+        let rows: Vec<String> = self.with_conn(|conn| {
+            conn.prepare("SELECT translations_json FROM loc_project_form_policy ORDER BY project_id")
+                .and_then(|mut stmt| stmt.query_map([], |r| r.get(0))?.collect())
+                .unwrap_or_default()
+        });
+        rows.iter()
+            .filter_map(|raw| serde_json::from_str::<Value>(raw).ok())
+            .find_map(|t| t.get(locale).filter(|body| body["instrument_code"].as_str() == Some(code.as_str())).cloned())
+            .ok_or_else(not_found)
+    }
+
+    /// `GET /me/home` from the station's own register (the server's `get_home_blocks` shape:
+    /// `{roles, blocks}`, one block per device-projected role, counts only). Station counts are
+    /// station-wide: the register here is the station's own.
+    pub fn home_blocks(&self) -> Result<Value, String> {
+        let summary = self.build_access_summary()?;
+        let mut roles: Vec<String> = summary["roles"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|r| r.as_str().map(ToString::to_string))
+            .collect();
+        roles.sort();
+        let has = |role: &str| roles.iter().any(|r| r == role);
+        let (registered, awaiting, drafts, ready, completed) = self.with_conn(|conn| {
+            conn.query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM loc_death_register WHERE status NOT IN ('duplicate', 'cancelled')),
+                    (SELECT COUNT(*) FROM loc_death_register
+                      WHERE status NOT IN ('duplicate', 'cancelled') AND va_sid IS NULL),
+                    (SELECT COUNT(*) FROM loc_va_drafts WHERE status != 'submitted'),
+                    (SELECT COUNT(*) FROM loc_va_submissions
+                      WHERE workflow_state NOT IN ('coded', 'not_codeable', 'reviewed')),
+                    (SELECT COUNT(*) FROM loc_va_submissions
+                      WHERE workflow_state IN ('coded', 'not_codeable', 'reviewed'))",
+                [],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?, r.get::<_, i64>(4)?)),
+            )
+            .map_err(|e| e.to_string())
+        })?;
+        let mut blocks = serde_json::Map::new();
+        if has("death_reporter") {
+            blocks.insert("death_reporter".into(), json!({ "registered": registered, "awaiting_interview": awaiting }));
+        }
+        if has("interviewer") {
+            blocks.insert("interviewer".into(), json!({ "drafts_in_progress": drafts, "needing_visit": awaiting }));
+        }
+        if has("coder") {
+            // Every coded case stays recodeable on the station (its coding history marks them so).
+            blocks.insert(
+                "coder".into(),
+                json!({ "ready": ready, "practice": false, "completed": completed, "recodeable": completed }),
+            );
+        } else if has("coding_tester") {
+            blocks.insert("coder".into(), json!({ "ready": ready, "practice": true }));
+        }
+        if has("reviewer") {
+            // The station's reviewing queue is empty (its /reviewing/stats reports 0).
+            blocks.insert("reviewer".into(), json!({ "available": 0, "completed": 0 }));
+        }
+        Ok(json!({ "roles": roles, "blocks": blocks }))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_update_facility_details_validates_persists_and_renames_the_sandbox_project() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        assert!(db.update_facility_details("  ", "", "", "", "", "").is_err());
+        assert!(db.update_facility_details(&"x".repeat(201), "", "", "", "", "").is_err());
+        assert!(db.update_facility_details("A", "", "", &"x".repeat(501), "", "").is_err());
+        assert_eq!(db.get_station_config().facility_name, "Model Primary Health Centre");
+
+        let cfg = db
+            .update_facility_details(" Rampur PHC ", "RP01", "PHC", "Main Rd", "Rampur", "UP")
+            .unwrap();
+        assert_eq!(cfg.facility_name, "Rampur PHC");
+        let read = db.get_station_config();
+        assert_eq!(
+            (read.facility_code.as_str(), read.facility_type.as_str(), read.facility_address.as_str()),
+            ("RP01", "PHC", "Main Rd")
+        );
+        assert_eq!((read.district_name.as_str(), read.state_name.as_str()), ("Rampur", "UP"));
+        assert_eq!(db.station_projects()[0].1, "Rampur PHC Mortality Surveillance");
+    }
+
+    #[test]
+    fn test_grant_targets_null_org_unit_grant_is_limited_to_its_sites_units() {
+        let grant = |site: &str| RosterRoleGrant {
+            role: ActingRole::DeathReporter,
+            project_id: "P1".to_string(),
+            site_id: site.to_string(),
+            org_unit_id: None,
+        };
+        let mut project = StationProjectConfig {
+            project_id: "P1".to_string(),
+            project_name: None,
+            sites: vec!["A".to_string(), "B".to_string()],
+            org_units: vec!["ou-a".to_string(), "ou-b".to_string()],
+            site_names: BTreeMap::new(),
+            org_unit_paths: BTreeMap::new(),
+            org_unit_sites: BTreeMap::from([
+                ("ou-a".to_string(), "A".to_string()),
+                ("ou-b".to_string(), "B".to_string()),
+            ]),
+            sealed_field_ids: vec![],
+            instrument_versions: vec![],
+            consent: None,
+            form_options: None,
+            translations: BTreeMap::new(),
+            coding_mode: None,
+        };
+        let roles = [ActingRole::DeathReporter];
+        let units = |t: &[GrantTarget]| -> Vec<String> {
+            t.iter().flat_map(|t| t.org_units.iter().map(|(id, _)| id.clone())).collect()
+        };
+
+        let targets = grant_targets(&project, &[grant("A")], &roles);
+        assert_eq!(units(&targets), vec!["ou-a"]);
+
+        // Older config without the map: the grant still covers every project unit.
+        project.org_unit_sites.clear();
+        let targets = grant_targets(&project, &[grant("A")], &roles);
+        assert_eq!(units(&targets), vec!["ou-a", "ou-b"]);
+    }
 
     #[test]
     fn test_standalone_mode_device_projection_and_canonical_roles() {
@@ -5489,8 +6927,9 @@ mod tests {
         });
         let (status, err_body) = db.register_death(&bad_reg, "standalone-phc").unwrap_err();
         assert_eq!(status, 422);
-        assert_eq!(err_body["code"], "invalid_registration");
+        assert_eq!(err_body["code"], "consent_required_for_informant");
         assert!(err_body["fields"]["consent"].is_string());
+        assert_eq!(err_body["informant_fields"], json!(["informant_name", "informant_phone"]));
 
         // 2. Refusal path: informant contact fields are omitted/cleared, registration succeeds
         let refusal_reg = json!({
@@ -5503,8 +6942,9 @@ mod tests {
             "informant_phone": "9876543210",
             "consent": {
                 "decision": "refused",
-                "notice_version_id": "0.1",
+                "notice_version_id": crate::consent::DEFAULT_NOTICE_VERSION_ID_EN,
                 "notice_language": "en",
+                "notice_sha256": sandbox_en_notice_sha(),
                 "mode": "spoken",
                 "purposes": []
             }
@@ -5532,8 +6972,9 @@ mod tests {
             "consent": {
                 "client_id": consent_cid.to_string(),
                 "decision": "granted",
-                "notice_version_id": "0.1",
+                "notice_version_id": crate::consent::DEFAULT_NOTICE_VERSION_ID_EN,
                 "notice_language": "en",
+                "notice_sha256": sandbox_en_notice_sha(),
                 "mode": "tap",
                 "witness_present": true,
                 "purposes": [
@@ -5605,7 +7046,7 @@ mod tests {
             "date_of_death": "2026-10-18"
         });
         db.register_death(&reg, "roster-mo-1").unwrap();
-        assert_eq!(db.list_cases()["counts"]["total"], 1);
+        assert_eq!(db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"], 1);
 
         // Lock store -> switching role without PIN fails with 423
         db.lock_store();
@@ -5624,7 +7065,111 @@ mod tests {
         let (status5, body5) = db.unlock_user_store("roster-mo-1", "999999").unwrap_err();
         assert_eq!(status5, 403);
         assert_eq!(body5["code"], "store_wiped_max_pin_attempts");
-        assert_eq!(db.list_cases()["counts"]["total"], 0);
+        assert_eq!(db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"], 0);
+    }
+
+    fn case_query(limit: Option<&str>, cursor: Option<&str>, registered: Option<&str>) -> CaseListQuery {
+        CaseListQuery {
+            limit: limit.map(str::to_string),
+            cursor: cursor.map(str::to_string),
+            registered: registered.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn test_case_list_query_follows_server_limits() {
+        let page = |l: Option<&str>| case_query(l, None, None).parse().map(|p| p.limit);
+        assert_eq!(page(None), Ok(CASE_PAGE_DEFAULT));
+        assert_eq!(page(Some("")), Ok(CASE_PAGE_DEFAULT));
+        assert_eq!(page(Some("10")), Ok(10));
+        assert_eq!(page(Some(" 7 ")), Ok(7));
+        assert_eq!(page(Some("0")), Ok(1));
+        assert_eq!(page(Some("-5")), Ok(1));
+        assert_eq!(page(Some("5000")), Ok(CASE_PAGE_MAX));
+        assert_eq!(page(Some("ten")), Err("limit must be a whole number.".to_string()));
+        assert_eq!(page(Some("  ")), Err("limit must be a whole number.".to_string()));
+
+        let cursor = |c: &str| case_query(None, Some(c), None).parse().map(|p| p.after);
+        assert_eq!(cursor(""), Ok(None));
+        assert_eq!(cursor("42"), Ok(Some(42)));
+        for bad in ["0", "-1", "abc", "1_2"] {
+            assert_eq!(cursor(bad), Err("Invalid cursor.".to_string()), "{bad}");
+        }
+
+        let mine = |r: &str| case_query(None, None, Some(r)).parse().map(|p| p.registered_mine);
+        assert_eq!(mine(""), Ok(false));
+        assert_eq!(mine("mine"), Ok(true));
+        assert_eq!(mine("all"), Err("registered must be mine.".to_string()));
+    }
+
+    #[test]
+    fn test_list_cases_pages_with_keyset_cursor_and_registered_mine() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let register = |name: &str| {
+            let reg = json!({
+                "project_id": "1",
+                "site_id": "PHC01",
+                "deceased_name": name,
+                "deceased_sex": "female",
+                "date_of_death": "2026-10-18"
+            });
+            db.register_death(&reg, "test").unwrap();
+        };
+        // Empty register: an empty page, no cursor.
+        let empty = db.list_cases(&CaseListQuery::default()).unwrap();
+        assert_eq!(empty["cases"], json!([]));
+        assert!(empty["next_cursor"].is_null());
+        assert_eq!(empty["counts"]["total"], 0);
+
+        for n in 0..3 {
+            register(&format!("Mine {n}"));
+        }
+        db.switch_acting_role("roster-hs-1", None).unwrap();
+        for n in 0..2 {
+            register(&format!("Theirs {n}"));
+        }
+
+        let ids = |page: &Value| -> Vec<String> {
+            page["cases"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|c| c["death_id"].as_str().unwrap().to_string())
+                .collect()
+        };
+
+        // Whole register, two at a time, newest first; counts cover all five.
+        let first = db.list_cases(&case_query(Some("2"), None, None)).unwrap();
+        assert_eq!(ids(&first), vec!["5", "4"]);
+        assert_eq!(first["deaths"], first["cases"]);
+        assert_eq!(first["counts"]["total"], 5);
+        assert_eq!(first["next_cursor"], "4");
+        let second = db.list_cases(&case_query(Some("2"), Some("4"), None)).unwrap();
+        assert_eq!(ids(&second), vec!["3", "2"]);
+        let last = db
+            .list_cases(&case_query(Some("2"), second["next_cursor"].as_str(), None))
+            .unwrap();
+        assert_eq!(ids(&last), vec!["1"]);
+        assert!(last["next_cursor"].is_null());
+
+        // registered=mine: the active actor's own registrations only.
+        let theirs = db.list_cases(&case_query(None, None, Some("mine"))).unwrap();
+        assert_eq!(ids(&theirs), vec!["5", "4"]);
+        assert_eq!(theirs["counts"]["total"], 2);
+        assert!(theirs["next_cursor"].is_null());
+        db.switch_acting_role("roster-mo-1", None).unwrap();
+        let mine_first = db.list_cases(&case_query(Some("1"), None, Some("mine"))).unwrap();
+        assert_eq!(ids(&mine_first), vec!["3"]);
+        assert_eq!(mine_first["counts"]["total"], 3);
+        let mine_next = db
+            .list_cases(&case_query(Some("5"), mine_first["next_cursor"].as_str(), Some("mine")))
+            .unwrap();
+        assert_eq!(ids(&mine_next), vec!["2", "1"]);
+
+        // Malformed input is refused, never echoed.
+        let err = db.list_cases(&case_query(Some("x"), None, None)).unwrap_err();
+        assert_eq!(err, "limit must be a whole number.");
+        assert_eq!(db.case_counts().unwrap()["total"], 5);
     }
 
     #[test]
@@ -5671,19 +7216,40 @@ mod tests {
         let smartva = db.run_smartva_for_submission(va_sid).unwrap();
         assert_eq!(smartva["status"], "done");
 
-        // Save initial and final coding + generate MCCD PDF
-        db.save_coding_assessment(
-            va_sid,
-            "initial",
-            &json!({ "immediate_cod": "CA40", "antecedent_cod": "CA40", "conclusive_cod": "CA40" }),
-        )
-        .unwrap();
-        db.save_coding_assessment(
-            va_sid,
-            "final",
-            &json!({ "immediate_cod": "CA40", "antecedent_cod": "CA40", "conclusive_cod": "CA40" }),
-        )
-        .unwrap();
+        // Station modes are unmasked: no Step 1 is saved, and both modes open on the final step.
+        assert!(db
+            .save_coding_assessment(
+                va_sid,
+                "initial",
+                &json!({ "immediate_cod": "CA40", "antecedent_cod": "CA40", "conclusive_cod": "CA40" }),
+            )
+            .is_err());
+        // ICD-11 + DORIS by default; ICD-10 is the server's simple workspace on ICD-10.
+        let ws = db.get_va_workspace(va_sid, "coding").unwrap();
+        assert_eq!((ws["case"]["project_mode"].as_str(), ws["case"]["icd_classification"].as_str()), (Some("unmasked_doris"), Some("icd11")));
+        assert_eq!(ws["step"], "final");
+        assert!(ws["assessments"]["initial"].is_null());
+        assert!(ws["doris"].is_object());
+        db.update_station_settings(None, Some(CODING_MODE_ICD10)).unwrap();
+        let ws = db.get_va_workspace(va_sid, "coding").unwrap();
+        assert_eq!((ws["case"]["project_mode"].as_str(), ws["case"]["icd_classification"].as_str()), (Some("unmasked_simple"), Some("icd10")));
+        assert_eq!(ws["step"], "final");
+        assert!(ws["doris"].is_null());
+        let saved = db
+            .save_coding_assessment(
+                va_sid,
+                "final",
+                &json!({ "immediate_cod": "CA40", "antecedent_cod": "CA40", "conclusive_cod": "CA40" }),
+            )
+            .unwrap();
+        // No ODK on the station: the reply makes no ODK claim.
+        assert!(saved.get("odk_synced").is_none());
+        assert_eq!(db.get_va_workspace(va_sid, "coding").unwrap()["step"], "done");
+        let saved_mode: Option<String> = db.with_conn(|conn| {
+            conn.query_row("SELECT coding_mode FROM loc_coding_results WHERE va_sid = ?1", params![va_sid], |r| r.get(0))
+                .unwrap()
+        });
+        assert_eq!(saved_mode.as_deref(), Some(CODING_MODE_ICD10));
 
         let pdf_bytes = db.generate_mccd_pdf_for_va(va_sid).unwrap();
         assert!(pdf_bytes.starts_with(b"%PDF-1.4"));
@@ -5692,6 +7258,39 @@ mod tests {
         let (exp_status, exp_err) = db.export_dvb_bundle().unwrap_err();
         assert_eq!(exp_status, 403);
         assert_eq!(exp_err["code"], "sandbox_not_exportable");
+    }
+
+    #[test]
+    fn test_doris_seed_is_the_servers_unmasked_shape() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let draft = db.start_draft(&json!({ "project_id": "1", "site_id": "PHC01" })).unwrap();
+        let draft_id = draft["draft"]["draft_id"].as_str().unwrap().to_string();
+        let data = json!({ "Id10019": "female", "Id10022": "yes", "Id10023": "2026-10-15",
+                           "age_group": "adult", "age_adult": "34", "Id10310": "yes", "Id10077": "no" });
+        let (_, submitted) = db
+            .submit_draft(&draft_id, &json!({ "completion": { "valid": true, "issues": [], "data": data } }))
+            .unwrap();
+        let va_sid = submitted["va_sid"].as_str().unwrap();
+
+        let ws = db.get_va_workspace(va_sid, "coding").unwrap();
+        let keys: Vec<&String> = ws["doris"].as_object().unwrap().keys().collect();
+        assert_eq!(keys, vec!["initial_certificate", "prefill_provenance"]);
+        assert_eq!(
+            ws["doris"]["initial_certificate"],
+            json!({
+                "AdministrativeData": { "Sex": 2, "DateDeath": "2026-10-15", "EstimatedAge": "P34Y" },
+                "MaternalDeath": { "WasPregnant": 0 },
+                "MannerOfDeath": { "MannerOfDeath": 0 }
+            })
+        );
+        assert_eq!(ws["doris"]["prefill_provenance"]["AdministrativeData.Sex"], json!({ "sources": ["Id10019"] }));
+
+        // A saved final certificate seeds the editor as it is, with no prefill markers.
+        let saved = json!({ "ICDVersion": "ICD11", "AdministrativeData": { "Sex": 2 }, "Part1": [] });
+        db.save_coding_assessment(va_sid, "final", &json!({ "conclusive_cod": "BA41.Z", "doris_certificate": saved }))
+            .unwrap();
+        let ws = db.get_va_workspace(va_sid, "coding").unwrap();
+        assert_eq!((&ws["doris"]["initial_certificate"], &ws["doris"]["prefill_provenance"]), (&saved, &json!({})));
     }
 
     #[test]
@@ -5811,38 +7410,122 @@ mod tests {
         assert_eq!(put_after_complete["case"]["identifiers"].as_array().unwrap().len(), 2);
     }
 
-    #[test]
-    fn test_signed_station_config_import_bundle_export_and_receipt_import() {
+    const TEST_NOTICE_TEXT: &str = "DPDP Notice v1 for Project TST001";
+
+    fn test_notice_vid() -> Uuid {
+        Uuid::parse_str("00000000-0000-4000-8000-000000000010").unwrap()
+    }
+
+    fn test_server_signing_key() -> StationSigningKey {
+        StationSigningKey::from_secret_bytes(&[0x41u8; 32])
+    }
+
+    /// A config for `device_id` in server project TST001, signed by `test_server_signing_key`,
+    /// with one active death reporter + interviewer per `roster_user_ids` entry.
+    fn signed_test_station_config(
+        device_id: &str,
+        config_id: &str,
+        issued_at: &str,
+        roster_user_ids: &[i64],
+    ) -> String {
+        signed_test_station_config_with(device_id, config_id, issued_at, roster_user_ids, test_form_options())
+    }
+
+    /// TST001's form policy as the server issues it: the typical project's modules (social
+    /// autopsy disabled), English and Hindi offered, a version and SHA-256 of the embedded
+    /// composed definition (`served_definition_vectors.json`, case `typical_project`).
+    fn test_form_options() -> Value {
+        json!({
+            "project_id": "TST001",
+            "config_version": "2026-09-30T19:16:47.583260",
+            "enabled_extensions": ["digitva_core", "doris_support_whova_2022", "intake_screen", "death_summary",
+                                   "medical_records", "geography", "narration_language", "abha"],
+            "form_types": [{ "form_type_code": "WHO_2022_VA", "instrument_code": "WHO_2022_VA",
+                             "title": "WHO 2022 VA Form", "is_default": true }],
+            "intake_note": null,
+            "default_locale": "en",
+            "available_locales": [{ "code": "en", "label": "English", "under_review": false },
+                                  { "code": "hi", "label": "Hindi", "under_review": true }],
+            "translation_versions": { "en": 0, "hi": 6, "ta": 2 },
+            "narration_languages": [{ "code": "english", "label": "English" }, { "code": "hindi", "label": "Hindi" }],
+            "show_guidance": false,
+            "web_intake_mode": "both",
+            "instrument_version": instrument::composed_version(),
+            "definition_sha256": "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291"
+        })
+    }
+
+    fn signed_test_station_config_with(
+        device_id: &str,
+        config_id: &str,
+        issued_at: &str,
+        roster_user_ids: &[i64],
+        form_options: Value,
+    ) -> String {
+        signed_test_station_config_consent(device_id, config_id, issued_at, roster_user_ids, form_options, true)
+    }
+
+    fn signed_test_station_config_consent(
+        device_id: &str,
+        config_id: &str,
+        issued_at: &str,
+        roster_user_ids: &[i64],
+        form_options: Value,
+        consent_required: bool,
+    ) -> String {
+        signed_test_station_config_full(
+            device_id, config_id, issued_at, roster_user_ids, form_options, consent_required, None,
+        )
+    }
+
+    /// A signed config whose project carries `coding_mode` (None = the key absent).
+    fn signed_test_station_config_coding(device_id: &str, coding_mode: Option<Option<&str>>) -> String {
+        signed_test_station_config_full(
+            device_id,
+            CONFIG_A,
+            "2026-10-20T00:00:00Z",
+            &[101],
+            test_form_options(),
+            true,
+            coding_mode.map(|m| m.map(str::to_string)),
+        )
+    }
+
+    fn signed_test_station_config_full(
+        device_id: &str,
+        config_id: &str,
+        issued_at: &str,
+        roster_user_ids: &[i64],
+        form_options: Value,
+        consent_required: bool,
+        coding_mode: Option<Option<String>>,
+    ) -> String {
         use digitva_bundle::{
-            format_signed_receipt, format_signed_station_config, BundleReceiptReport,
-            DesignationSpec, ReceiptRecordOutcome, RecordIngestOutcome, RecordType, RosterMember,
-            RosterRoleGrant, ServerSigningKeyConfig, StationCustodian, StationKemPublicKeyConfig,
-            StationProjectConfig,
+            format_signed_station_config, DesignationSpec, RosterMember, RosterRoleGrant,
+            ServerSigningKeyConfig, StationConfigPayload, StationCustodian,
+            StationKemPublicKeyConfig, StationProjectConfig,
         };
-
-        let db = OfflineDatabase::open_in_memory().unwrap();
-
-        // Load tv1 KEM public key from server test vectors
         let vec_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/from-server/2026-10-21/vectors/pii_envelope_vectors.json");
+            .join("../../../tests/fixtures/pii_envelope_vectors.json");
         let vec_data: Value =
             serde_json::from_str(&std::fs::read_to_string(vec_path).unwrap()).unwrap();
         let tv1_pub_cfg = vec_data["deterministic"]["test_keys"]["kem_keys"][0]["public_key_config"]
             .as_str()
             .unwrap()
             .to_string();
-
-        let server_signing_key = StationSigningKey::from_secret_bytes(&[0x41u8; 32]);
-        let notice_vid = Uuid::parse_str("00000000-0000-4000-8000-000000000010").unwrap();
-        let notice_text = "DPDP Notice v1 for Project 2";
-        let notice_sha = sha256_hex(notice_text.as_bytes());
-
-        let cfg_payload = StationConfigPayload {
+        let server_signing_key = test_server_signing_key();
+        let grant = |role| RosterRoleGrant {
+            role,
+            project_id: "TST001".to_string(),
+            site_id: "PHC01".to_string(),
+            org_unit_id: None,
+        };
+        let payload = StationConfigPayload {
             station_config_format_version: 1,
-            config_id: Uuid::parse_str("a1000000-0000-4000-8000-000000000001").unwrap(),
-            issued_at: "2026-10-20T00:00:00Z".to_string(),
+            config_id: Uuid::parse_str(config_id).unwrap(),
+            issued_at: issued_at.to_string(),
             expires_at: "2027-04-18T00:00:00Z".to_string(),
-            device_id: "station-phc-01".to_string(),
+            device_id: device_id.to_string(),
             server_url: "https://digitva.example.org".to_string(),
             kem_public_key: StationKemPublicKeyConfig {
                 key_id: "tv1".to_string(),
@@ -5853,9 +7536,13 @@ mod tests {
                 public: server_signing_key.public_key_base64url(),
             },
             projects: vec![StationProjectConfig {
-                project_id: "2".to_string(),
+                project_id: "TST001".to_string(),
+                project_name: Some("Test Project".to_string()),
                 sites: vec!["PHC01".to_string()],
                 org_units: vec!["ou-sc-1".to_string()],
+                site_names: BTreeMap::new(),
+                org_unit_paths: BTreeMap::new(),
+                org_unit_sites: BTreeMap::new(),
                 sealed_field_ids: vec![
                     "Id10007".to_string(),
                     "Id10017".to_string(),
@@ -5864,14 +7551,14 @@ mod tests {
                 ],
                 instrument_versions: vec!["2022_v1".to_string()],
                 consent: Some(json!({
-                    "consent_required": true,
+                    "consent_required": consent_required,
                     "notice_versions": [
                         {
-                            "notice_version_id": notice_vid.to_string(),
+                            "notice_version_id": test_notice_vid().to_string(),
                             "version": 1,
                             "language": "en",
-                            "text": notice_text,
-                            "text_sha256": notice_sha,
+                            "text": TEST_NOTICE_TEXT,
+                            "text_sha256": sha256_hex(TEST_NOTICE_TEXT.as_bytes()),
                             "allowed_modes": ["spoken", "tap", "signed"],
                             "witness_allowed": true,
                             "purposes": [
@@ -5883,6 +7570,13 @@ mod tests {
                         }
                     ]
                 })),
+                form_options: Some(form_options).filter(|o| !o.is_null()),
+                translations: BTreeMap::from([(
+                    "hi".to_string(),
+                    json!({ "instrument_code": "WHO_2022_VA", "locale": "hi", "version": 6,
+                            "questions": { "Id10007": { "label": "उत्तरदाता का नाम" } }, "choices": {} }),
+                )]),
+                coding_mode,
             }],
             custodian: Some(StationCustodian {
                 name: "Dr. Meera Nair".to_string(),
@@ -5896,78 +7590,110 @@ mod tests {
                 code: "medical_officer".to_string(),
                 label: "Medical Officer".to_string(),
             }],
-            roster: vec![RosterMember {
-                user_id: 101,
-                name: "Dr. Meera Nair".to_string(),
-                designation: "medical_officer".to_string(),
-                roles: vec![
-                    RosterRoleGrant {
-                        role: ActingRole::DeathReporter,
-                        project_id: "2".to_string(),
-                        site_id: "PHC01".to_string(),
-                        org_unit_id: None,
-                    },
-                    RosterRoleGrant {
-                        role: ActingRole::Interviewer,
-                        project_id: "2".to_string(),
-                        site_id: "PHC01".to_string(),
-                        org_unit_id: None,
-                    },
-                ],
-                active: true,
-            }],
+            roster: roster_user_ids
+                .iter()
+                .map(|&user_id| RosterMember {
+                    user_id,
+                    name: format!("Member {user_id}"),
+                    designation: "medical_officer".to_string(),
+                    roles: vec![grant(ActingRole::DeathReporter), grant(ActingRole::Interviewer)],
+                    active: true,
+                })
+                .collect(),
             purge: vec![],
         };
+        format_signed_station_config(&payload, &server_signing_key).unwrap()
+    }
 
-        let signed_cfg = format_signed_station_config(&cfg_payload, &server_signing_key).unwrap();
+    fn active_roster_user_ids(db: &OfflineDatabase) -> Vec<i64> {
+        db.get_roster()
+            .members
+            .iter()
+            .filter(|m| m.active && m.source == "provisioned")
+            .filter_map(|m| m.user_id)
+            .collect()
+    }
+
+    /// The served text hash of the sandbox default config's English notice.
+    fn sandbox_en_notice_sha() -> String {
+        crate::consent::default_project_consent_config("1").notices[0].text_sha256.clone()
+    }
+
+    fn granted_consent(consent_cid: Uuid) -> Value {
+        json!({
+            "client_id": consent_cid.to_string(),
+            "decision": "granted",
+            "notice_version_id": test_notice_vid().to_string(),
+            "notice_language": "en",
+            "notice_sha256": sha256_hex(TEST_NOTICE_TEXT.as_bytes()),
+            "mode": "spoken",
+            "purposes": [
+                { "code": "record_and_interview", "granted": true },
+                { "code": "contact_followup", "granted": true },
+                { "code": "cause_of_death_coding", "granted": true },
+                { "code": "statistical_reports", "granted": true }
+            ]
+        })
+    }
+
+    const CONFIG_A: &str = "a1000000-0000-4000-8000-000000000001";
+    const CONFIG_B: &str = "a1000000-0000-4000-8000-000000000002";
+    const CONFIG_C: &str = "a1000000-0000-4000-8000-000000000003";
+
+    #[test]
+    fn test_signed_station_config_import_bundle_export_and_receipt_import() {
+        use digitva_bundle::{
+            format_signed_receipt, BundleReceiptReport, ReceiptRecordOutcome,
+            RecordIngestOutcome, RecordType,
+        };
+
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        let signed_cfg =
+            signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]);
         let import_res = db.import_signed_station_config(&signed_cfg).unwrap();
         assert_eq!(import_res["mode"], "provisioned");
-        assert_eq!(import_res["device_id"], "station-phc-01");
+        assert_eq!(import_res["device_id"], device_id.as_str());
 
-        // Register a death + consent in project 2
+        // The UI learns the server's project id, not the sandbox "1".
+        let access = db.build_access_summary().unwrap();
+        assert_eq!(access["projects"].as_array().unwrap().len(), 1);
+        assert_eq!(access["projects"][0]["project_id"], "TST001");
+
+        // Register a death + consent in the server's string project id
         let death_cid = Uuid::new_v4();
         let consent_cid = Uuid::new_v4();
-        db.register_death(
-            &json!({
-                "project_id": 2,
-                "site_id": "PHC01",
-                "org_unit_id": "ou-sc-1",
-                "client_death_id": death_cid.to_string(),
-                "deceased_name": "Provisioned Case",
-                "deceased_sex": "female",
-                "date_of_death": "2026-10-20",
-                "informant_name": "Lakshmi",
-                "informant_phone": "9876543210",
-                "consent": {
-                    "client_id": consent_cid.to_string(),
-                    "decision": "granted",
-                    "notice_version_id": notice_vid.to_string(),
-                    "notice_language": "en",
-                    "notice_sha256": notice_sha,
-                    "mode": "spoken",
-                    "purposes": [
-                        { "code": "record_and_interview", "granted": true },
-                        { "code": "contact_followup", "granted": true },
-                        { "code": "cause_of_death_coding", "granted": true },
-                        { "code": "statistical_reports", "granted": true }
-                    ]
-                }
-            }),
-            "user-101",
-        )
-        .unwrap();
+        let registered = db
+            .register_death(
+                &json!({
+                    "project_id": "TST001",
+                    "site_id": "PHC01",
+                    "org_unit_id": "ou-sc-1",
+                    "client_death_id": death_cid.to_string(),
+                    "deceased_name": "Provisioned Case",
+                    "deceased_sex": "female",
+                    "date_of_death": "2026-10-20",
+                    "informant_name": "Lakshmi",
+                    "informant_phone": "9876543210",
+                    "consent": granted_consent(consent_cid)
+                }),
+                "user-101",
+            )
+            .unwrap();
+        assert_eq!(registered["case"]["project_id"], "TST001");
 
-        // Export .dvb bundle
-        let (built, filename) = db.export_dvb_bundle().unwrap();
-        assert!(filename.starts_with("digitva-station-phc-01-000001-"));
+        // Export .dvb bundle: every record and the manifest carry the server's id
+        let (built, filename, _) = db.export_dvb_bundle().unwrap();
+        assert!(filename.starts_with(&format!("digitva-{device_id}-000001-")));
         assert_eq!(built.items.len(), 2);
+        assert_eq!(built.manifest.project_ids, vec!["TST001".to_string()]);
 
         // Import signed .dvb.receipt that accepts both records
         let mut counts = BTreeMap::new();
         counts.insert("accepted".to_string(), 2);
         let receipt_report = BundleReceiptReport {
             bundle_id: built.manifest.bundle_id,
-            device_id: "station-phc-01".to_string(),
+            device_id: device_id.clone(),
             kem_key_id: "tv1".to_string(),
             status: "completed".to_string(),
             counts,
@@ -5994,9 +7720,1130 @@ mod tests {
             ],
             purge: vec![],
         };
-        let signed_receipt = format_signed_receipt(&receipt_report, &server_signing_key).unwrap();
+        let signed_receipt =
+            format_signed_receipt(&receipt_report, &test_server_signing_key()).unwrap();
         let rec_res = db.import_dvb_receipt(&signed_receipt).unwrap();
         assert_eq!(rec_res["deleted_count"], 2);
-        assert_eq!(db.list_cases()["counts"]["total"], 0);
+        assert_eq!(db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"], 0);
+    }
+
+    #[test]
+    fn test_provisioned_export_leaves_sandbox_records_behind() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        // Sandbox practice cases recorded before onboarding. No project id is the sandbox
+        // "1"; a numeric 1 is the same project.
+        for project_id in [Value::Null, json!(1)] {
+            let case = db
+                .register_death(
+                    &json!({
+                        "project_id": project_id,
+                        "deceased_name": "Sandbox Case",
+                        "deceased_sex": "male",
+                        "date_of_death": "2026-10-20"
+                    }),
+                    "user-101",
+                )
+                .unwrap();
+            assert_eq!(case["case"]["project_id"], "1");
+        }
+        db.import_signed_station_config(&signed_test_station_config(
+            &device_id,
+            CONFIG_A,
+            "2026-10-20T00:00:00Z",
+            &[101],
+        ))
+        .unwrap();
+        db.register_death(
+            &json!({
+                "project_id": "TST001", "site_id": "PHC01", "org_unit_id": "ou-sc-1",
+                "client_death_id": Uuid::new_v4().to_string(),
+                "deceased_name": "Real Case", "deceased_sex": "female", "date_of_death": "2026-10-20"
+            }),
+            "user-101",
+        )
+        .unwrap();
+        assert_eq!(db.count_pending_sandbox_records(), 2);
+        let (built, _, _) = db.export_dvb_bundle().unwrap();
+        assert_eq!(built.items.len(), 1);
+        assert_eq!(built.manifest.project_ids, vec!["TST001".to_string()]);
+        assert_eq!(db.count_pending_sandbox_records(), 2, "sandbox data stays");
+    }
+
+    #[test]
+    fn test_informant_fields_need_consent_even_when_project_does_not_require_it() {
+        for (consent_required, config_id) in [(false, CONFIG_A), (true, CONFIG_B)] {
+            let db = OfflineDatabase::open_in_memory().unwrap();
+            let device_id = db.get_station_config().station_id;
+            db.import_signed_station_config(&signed_test_station_config_consent(
+                &device_id, config_id, "2026-10-20T00:00:00Z", &[101], test_form_options(), consent_required,
+            ))
+            .unwrap();
+            let cdid = Uuid::new_v4().to_string();
+            let mut body = json!({
+                "project_id": "TST001", "site_id": "PHC01", "org_unit_id": "ou-sc-1",
+                "client_death_id": cdid,
+                "deceased_name": "Case", "deceased_sex": "female", "date_of_death": "2026-10-20",
+                "informant_name": "Lakshmi"
+            });
+            let (status, err) = db.register_death(&body, "user-101").unwrap_err();
+            assert_eq!(status, 422, "consent_required={consent_required}");
+            assert_eq!(err["code"], "consent_required_for_informant");
+            assert_eq!(err["informant_fields"], json!(["informant_name"]));
+
+            body["consent"] = granted_consent(Uuid::new_v4());
+            db.register_death(&body, "user-101").unwrap();
+            let (built, _, _) = db.export_dvb_bundle().unwrap();
+            assert_eq!(built.items.len(), 2, "death + consent export");
+        }
+    }
+
+    /// A provisioned TST001 station (roster user 101) whose project consent config is what the
+    /// server serves before any notice exists: `notice_versions: []`.
+    fn provisioned_db_without_consent_notice() -> OfflineDatabase {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE consent_configs SET config_json = ?1 WHERE project_id = 'TST001'",
+                params![json!({ "consent_required": true, "notice_versions": [], "purposes": [] }).to_string()],
+            )
+            .unwrap();
+        });
+        db
+    }
+
+    fn tst001_registration(informant_name: Option<&str>) -> Value {
+        let mut body = json!({
+            "project_id": "TST001", "site_id": "PHC01", "org_unit_id": "ou-sc-1",
+            "client_death_id": Uuid::new_v4().to_string(),
+            "deceased_name": "Case", "deceased_sex": "female", "date_of_death": "2026-10-20"
+        });
+        if let Some(name) = informant_name {
+            body["informant_name"] = json!(name);
+        }
+        body
+    }
+
+    #[test]
+    fn test_no_consent_notice_refuses_consent_and_informant_details_without_fallback() {
+        let db = provisioned_db_without_consent_notice();
+
+        // A consent cannot be taken against a notice the project does not have.
+        let mut body = tst001_registration(Some("Lakshmi"));
+        body["consent"] = granted_consent(Uuid::new_v4());
+        let (status, err) = db.register_death(&body, "user-101").unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (422, Some(crate::consent::CONSENT_NOTICE_UNAVAILABLE)));
+        // Informant details without a consent get the same answer, not "record a consent".
+        let (status, err) = db.register_death(&tst001_registration(Some("Lakshmi")), "user-101").unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (422, Some(crate::consent::CONSENT_NOTICE_UNAVAILABLE)));
+        assert_eq!(err["informant_fields"], json!(["informant_name"]));
+        let stored: i64 = db.with_conn(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM consent_records", [], |r| r.get(0)).unwrap()
+        });
+        assert_eq!(stored, 0, "nothing is stored on a fallback notice");
+
+        // Without informant details the registration goes through and exports.
+        db.register_death(&tst001_registration(None), "user-101").unwrap();
+        let (built, _, held_back) = db.export_dvb_bundle().unwrap();
+        assert_eq!((built.items.len(), held_back.len()), (1, 0));
+    }
+
+    #[test]
+    fn test_consent_must_match_the_served_notice_version() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+
+        let mismatches = [
+            ("notice_version_id", json!("1")),
+            ("notice_version_id", json!(Uuid::new_v4().to_string())),
+            ("notice_language", json!("hi")),
+            ("notice_language", Value::Null),
+            ("notice_sha256", json!("0".repeat(64))),
+            ("notice_sha256", Value::Null),
+            ("purposes", json!([{ "code": "record_and_interview", "granted": true },
+                               { "code": "contact_followup", "granted": true },
+                               { "code": "cause_of_death_coding", "granted": true },
+                               { "code": "statistical_reports", "granted": true },
+                               { "code": "research_sharing", "granted": true }])),
+        ];
+        for (key, value) in mismatches {
+            let mut body = tst001_registration(Some("Lakshmi"));
+            let mut consent = granted_consent(Uuid::new_v4());
+            consent[key] = value.clone();
+            body["consent"] = consent;
+            let (status, err) = db.register_death(&body, "user-101").unwrap_err();
+            assert_eq!((status, err["code"].as_str()), (422, Some("invalid_registration")), "{key} = {value}");
+        }
+
+        let mut body = tst001_registration(Some("Lakshmi"));
+        body["consent"] = granted_consent(Uuid::new_v4());
+        db.register_death(&body, "user-101").unwrap();
+        let (vid, sha): (String, String) = db.with_conn(|conn| {
+            conn.query_row("SELECT notice_version_id, notice_sha256 FROM consent_records", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap()
+        });
+        assert_eq!((vid, sha), (test_notice_vid().to_string(), sha256_hex(TEST_NOTICE_TEXT.as_bytes())));
+        let (built, _, held_back) = db.export_dvb_bundle().unwrap();
+        assert_eq!((built.items.len(), held_back.len()), (2, 0));
+    }
+
+    #[test]
+    fn test_export_holds_back_an_invalid_record_and_sends_the_rest() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+        let consent_id = Uuid::new_v4();
+        let mut with_informant = tst001_registration(Some("Lakshmi"));
+        with_informant["consent"] = granted_consent(consent_id);
+        let death_with_informant = with_informant["client_death_id"].as_str().unwrap().to_string();
+        db.register_death(&with_informant, "user-101").unwrap();
+        let plain = tst001_registration(None);
+        db.register_death(&plain, "user-101").unwrap();
+        // A consent row written before capture was strict: no served notice behind it.
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE consent_records SET notice_sha256 = ?1, purposes_json = '[]' WHERE consent_id = ?2",
+                params!["ab".repeat(32), consent_id.to_string()],
+            )
+            .unwrap();
+        });
+
+        let (built, _, held_back) = db.export_dvb_bundle().unwrap();
+        let sent: Vec<String> = built.items.iter().map(|i| i.client_id.to_string()).collect();
+        assert_eq!(sent, vec![plain["client_death_id"].as_str().unwrap().to_string()]);
+        let held: Vec<(&str, &str)> = held_back
+            .iter()
+            .map(|h| (h["client_id"].as_str().unwrap(), h["reason"].as_str().unwrap()))
+            .collect();
+        assert_eq!(held.len(), 2);
+        assert_eq!(held[0].0, consent_id.to_string());
+        assert!(held[0].1.contains("Consent notice_language, notice_sha256, or purposes invalid"), "{}", held[0].1);
+        // Its registration leans on the held-back consent, so it waits with it.
+        assert_eq!(held[1].0, death_with_informant);
+        assert!(held[1].1.contains("without a granted registration consent"), "{}", held[1].1);
+        // Held back is not dropped: both stay pending for a later export.
+        let pending: i64 = db.with_conn(|conn| {
+            conn.query_row(
+                "SELECT (SELECT COUNT(*) FROM consent_records WHERE sync_state = 'pending')
+                      + (SELECT COUNT(*) FROM loc_death_register WHERE sync_state = 'pending')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+        });
+        assert_eq!(pending, 3);
+    }
+
+    #[test]
+    fn test_export_with_every_record_held_back_is_refused_and_keeps_the_sequence() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+        let consent_id = Uuid::new_v4();
+        let mut body = tst001_registration(Some("Lakshmi"));
+        body["consent"] = granted_consent(consent_id);
+        db.register_death(&body, "user-101").unwrap();
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE consent_records SET notice_version_id = '0.1' WHERE consent_id = ?1",
+                params![consent_id.to_string()],
+            )
+            .unwrap();
+        });
+        let seq_before: i64 = db.with_conn(|conn| {
+            conn.query_row("SELECT bundle_seq FROM loc_station_config WHERE id = 1", [], |r| r.get(0)).unwrap()
+        });
+
+        let (status, err) = db.export_dvb_bundle().unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (422, Some("records_held_back")));
+        let held = err["records_held_back"].as_array().unwrap();
+        assert_eq!(held.len(), 2);
+        assert_eq!(held[0]["client_id"], consent_id.to_string());
+        assert_eq!(held[0]["reason"], "Consent notice_version_id is not a notice version id.");
+        let seq_after: i64 = db.with_conn(|conn| {
+            conn.query_row("SELECT bundle_seq FROM loc_station_config WHERE id = 1", [], |r| r.get(0)).unwrap()
+        });
+        assert_eq!(seq_after, seq_before);
+    }
+
+    #[test]
+    fn test_coding_result_never_carries_a_step_one() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+        // An older row may still hold a Step 1; the bundle must not carry it.
+        let payload = json!({
+            "stage": "final",
+            "initial_assessment": { "immediate_cod": "CA40" },
+            "final_assessment": { "immediate_cod": "CA40" }
+        });
+        db.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO loc_coding_results (client_id, va_sid, client_draft_id, project_id, actor_user_id,
+                        acting_role, payload_json, created_at)
+                 VALUES (?1, 'va-1', ?2, 'TST001', 101, 'coder', ?3, '2026-10-21T00:00:00Z')",
+                params![Uuid::new_v4().to_string(), Uuid::new_v4().to_string(), payload.to_string()],
+            )
+            .unwrap();
+        });
+        let (records, _) = db.pending_bundle_records(101).unwrap();
+        let coding: Vec<&CodingResultRecord> = records
+            .iter()
+            .filter_map(|r| match &r.payload {
+                BundleRecordPayload::CodingResult(c) => Some(c),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(coding.len(), 1);
+        assert!(coding[0].final_cod.is_some());
+        assert!(coding[0].initial.is_none());
+    }
+
+    #[test]
+    fn test_station_config_import_refuses_another_device_and_an_older_config() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+
+        // A config issued to another device is refused even on a never-provisioned station.
+        let other = signed_test_station_config(
+            "00000000-0000-4000-8000-000000000000",
+            CONFIG_A,
+            "2026-10-20T00:00:00Z",
+            &[101],
+        );
+        let (status, err) = db.import_signed_station_config(&other).unwrap_err();
+        assert_eq!(status, 422);
+        assert_eq!(err["code"], "invalid_station_config");
+        assert_eq!(db.get_station_config().mode, "standalone");
+
+        let current = signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101, 102]);
+        db.import_signed_station_config(&current).unwrap();
+        let mut active = active_roster_user_ids(&db);
+        active.sort_unstable();
+        assert_eq!(active, vec![101, 102]);
+
+        // Replaying an older config (102 removed) must not take effect, nor one issued at
+        // the same moment under another id.
+        for (config_id, issued_at) in [(CONFIG_B, "2026-10-19T00:00:00Z"), (CONFIG_B, "2026-10-20T00:00:00Z")] {
+            let older = signed_test_station_config(&device_id, config_id, issued_at, &[101]);
+            let (status, err) = db.import_signed_station_config(&older).unwrap_err();
+            assert_eq!(status, 409);
+            assert_eq!(err["code"], "station_config_superseded");
+            let mut active = active_roster_user_ids(&db);
+            active.sort_unstable();
+            assert_eq!(active, vec![101, 102]);
+        }
+
+        // Re-importing the config in force is idempotent; a newer one replaces it.
+        db.import_signed_station_config(&current).unwrap();
+        let newer = signed_test_station_config(&device_id, CONFIG_C, "2026-10-21T00:00:00Z", &[101]);
+        db.import_signed_station_config(&newer).unwrap();
+        assert_eq!(active_roster_user_ids(&db), vec![101]);
+    }
+
+    #[test]
+    fn test_server_station_config_fixture_imports_with_its_string_project_id() {
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/station_config");
+        let signed = std::fs::read_to_string(fixture_dir.join("station_config.signed")).unwrap();
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE loc_station_config SET station_id = '0b8d6c2e-1f3a-4c5b-9d7e-8f9a0b1c2d3e' WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        });
+
+        let res = db.import_signed_station_config(&signed).unwrap();
+        assert_eq!(res["station_config_id"], "6f1c2b3a-4d5e-4f60-8a71-92b3c4d5e6f7");
+        let provisioned: Vec<_> =
+            db.get_roster().members.into_iter().filter(|m| m.source == "provisioned").collect();
+        assert_eq!(provisioned.len(), 2);
+        assert_eq!(provisioned.iter().filter(|m| !m.active).count(), 1);
+        assert!(db.with_conn(|conn| crate::consent::get_project_consent_config(conn, "TST001")).is_ok());
+        let access = db.build_access_summary().unwrap();
+        assert_eq!(access["projects"][0]["project_id"], "TST001");
+        // The server fixture carries site_names / org_unit_paths, so units are labelled by name.
+        assert_eq!(
+            access["projects"][0]["actions"]["register_death"],
+            json!([{
+                "site_id": "TS01",
+                "site_name": "Test PHC Site",
+                "web_intake_mode": "both",
+                "org_units": [{
+                    "org_unit_id": FIXTURE_OU,
+                    "unit_code": FIXTURE_OU,
+                    "unit_name": "Solan, Kandaghat, PHC Chail",
+                    "path": FIXTURE_OU
+                }]
+            }])
+        );
+    }
+
+    const FIXTURE_DEVICE_ID: &str = "0b8d6c2e-1f3a-4c5b-9d7e-8f9a0b1c2d3e";
+    const FIXTURE_OU: &str = "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b";
+    const FIXTURE_OTHER_OU: &str = "7e1d2c3b-4a59-4687-9a0b-1c2d3e4f5a6b";
+    const FIXTURE_OU_PATH: &str = "Test District, Test Block, Test PHC";
+
+    /// The server fixture payload with `site_names` / `org_unit_paths` added and a third
+    /// roster member (user 8) granted only another org unit, re-signed with the fixture key.
+    fn labelled_fixture_station_config() -> String {
+        use digitva_bundle::format_signed_station_config;
+        let fixture_dir =
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/station_config");
+        let mut payload: Value = serde_json::from_str(
+            &std::fs::read_to_string(fixture_dir.join("payload.json")).unwrap(),
+        )
+        .unwrap();
+        payload["projects"][0]["site_names"] = json!({ "TS01": "Test Site One" });
+        payload["projects"][0]["org_unit_paths"] = json!({ FIXTURE_OU: FIXTURE_OU_PATH });
+        let other_grant = |role: &str| json!({
+            "role": role, "project_id": "TST001", "site_id": "TS01", "org_unit_id": FIXTURE_OTHER_OU
+        });
+        payload["roster"].as_array_mut().unwrap().push(json!({
+            "user_id": 8,
+            "name": "Other Unit Worker",
+            "designation": "health_worker",
+            "active": true,
+            "roles": [other_grant("death_reporter"), other_grant("interviewer")]
+        }));
+        let typed: StationConfigPayload = serde_json::from_value(payload).unwrap();
+        let key = StationSigningKey::from_base64url_secret(
+            std::fs::read_to_string(fixture_dir.join("test_server_signing_key")).unwrap().trim(),
+        )
+        .unwrap();
+        format_signed_station_config(&typed, &key).unwrap()
+    }
+
+    #[test]
+    fn test_provisioned_station_registers_under_granted_site_and_unit_from_signed_config() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+
+        // Sandbox before onboarding: the demo PHC01 tree.
+        let sandbox = db.build_access_summary().unwrap();
+        let sandbox_reg = &sandbox["projects"][0]["actions"]["register_death"][0];
+        assert_eq!(sandbox["projects"][0]["project_id"], "1");
+        assert_eq!(sandbox_reg["site_id"], "PHC01");
+        assert_eq!(sandbox_reg["org_units"][1]["org_unit_id"], "ou-sc-1");
+
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE loc_station_config SET station_id = ?1 WHERE id = 1",
+                params![FIXTURE_DEVICE_ID],
+            )
+            .unwrap();
+        });
+        db.import_signed_station_config(&labelled_fixture_station_config()).unwrap();
+        // The server fixture's form policy passed the station's version and SHA-256 check.
+        assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"],
+                   "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_eq!(db.instrument_translations("WHO_2022_VA", "hi", Some("TST001")).unwrap()["version"], 6);
+
+        // Active actor is user 7 acting as death reporter: offered exactly TS01 + its unit.
+        let actor = db.get_active_actor_context();
+        assert_eq!((actor.member_id.as_str(), actor.acting_role.as_str()), ("user-7", "death_reporter"));
+        let access = db.build_access_summary().unwrap();
+        let project = &access["projects"][0];
+        assert_eq!(project["project_id"], "TST001");
+        assert_eq!(
+            project["actions"]["register_death"],
+            json!([{
+                "site_id": "TS01",
+                "site_name": "Test Site One",
+                "web_intake_mode": "both",
+                "org_units": [{
+                    "org_unit_id": FIXTURE_OU,
+                    "unit_code": FIXTURE_OU,
+                    "unit_name": FIXTURE_OU_PATH,
+                    "path": FIXTURE_OU
+                }]
+            }])
+        );
+        // Interviews need the interviewer acting role.
+        assert_eq!(project["actions"]["interview"], json!([]));
+        assert_eq!(project["sites"], json!([{ "site_id": "TS01", "site_name": "Test Site One", "roles": project["roles"] }]));
+        assert_eq!(project["units"][0]["unit_name"], FIXTURE_OU_PATH);
+        assert_eq!(project["units"].as_array().unwrap().len(), 1);
+
+        let registration = |org_unit_id: &str| {
+            json!({
+                "project_id": "TST001",
+                "site_id": "TS01",
+                "org_unit_id": org_unit_id,
+                "client_death_id": Uuid::new_v4().to_string(),
+                "deceased_name": "Fixture Case",
+                "deceased_sex": "female",
+                "date_of_death": "2026-10-20"
+            })
+        };
+        let case = db.register_death(&registration(FIXTURE_OU), "user-7").unwrap();
+        assert_eq!(case["case"]["site_id"], "TS01");
+        assert_eq!(case["case"]["site_name"], "Test Site One");
+        assert_eq!(case["case"]["org_unit_id"], FIXTURE_OU);
+        assert_eq!(case["case"]["org_unit_name"], FIXTURE_OU_PATH);
+
+        // A unit outside user 7's grants is refused before anything is stored.
+        let (status, err) = db.register_death(&registration(FIXTURE_OTHER_OU), "user-7").unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (403, Some("forbidden")));
+
+        // The bundle's roster check accepts the registration.
+        let (built, _, _) = db.export_dvb_bundle().unwrap();
+        assert_eq!(built.items.len(), 1);
+
+        // Acting as interviewer opens interviews at the same unit only.
+        db.switch_acting_role("user-7", Some("interviewer")).unwrap();
+        let interview = &db.build_access_summary().unwrap()["projects"][0]["actions"]["interview"];
+        assert_eq!(interview[0]["org_units"][0]["org_unit_id"], FIXTURE_OU);
+        assert_eq!(interview.as_array().unwrap().len(), 1);
+
+        // User 8 holds no grant on the fixture unit: not offered, and refused.
+        db.switch_acting_role("user-8", Some("death_reporter")).unwrap();
+        let other = db.build_access_summary().unwrap();
+        assert_eq!(
+            other["projects"][0]["actions"]["register_death"][0]["org_units"],
+            json!([{
+                "org_unit_id": FIXTURE_OTHER_OU,
+                "unit_code": FIXTURE_OTHER_OU,
+                "unit_name": FIXTURE_OTHER_OU,
+                "path": FIXTURE_OTHER_OU
+            }])
+        );
+        let (status, _) = db.register_death(&registration(FIXTURE_OU), "user-8").unwrap_err();
+        assert_eq!(status, 403);
+        db.switch_acting_role("user-8", Some("interviewer")).unwrap();
+        let draft_err = db
+            .start_draft(&json!({ "project_id": "TST001", "site_id": "TS01", "org_unit_id": FIXTURE_OU }))
+            .unwrap_err();
+        assert!(draft_err.contains("not assigned"));
+    }
+
+    fn temp_db_path(tag: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("digitva-db-test-{tag}-{}.sqlite", Uuid::new_v4()))
+    }
+
+    fn remove_db_files(path: &Path) {
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+        }
+    }
+
+    #[test]
+    fn test_station_enrolment_file_has_exactly_the_server_keys_and_a_stable_device_id() {
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+
+        let path = temp_db_path("enrolment");
+        let first = OfflineDatabase::open_file(&path, None).unwrap().station_enrolment_file().unwrap();
+        let again = OfflineDatabase::open_file(&path, None).unwrap().station_enrolment_file().unwrap();
+
+        let obj = first.as_object().unwrap();
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["app_version", "device_id", "signing_public_key"]);
+        assert!(first["app_version"].as_str().unwrap().len() <= 32);
+        let device_id = first["device_id"].as_str().unwrap();
+        assert!(Uuid::parse_str(device_id).is_ok());
+        assert_eq!(first, again, "device id and key are created once per installation");
+
+        let raw: [u8; 32] = URL_SAFE_NO_PAD
+            .decode(first["signing_public_key"].as_str().unwrap())
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let db = OfflineDatabase::open_file(&path, None).unwrap();
+        let stored_key_id: String = db.with_conn(|conn| {
+            conn.query_row("SELECT station_signing_key_id FROM loc_station_config WHERE id = 1", [], |r| r.get(0))
+                .unwrap()
+        });
+        assert_eq!(digitva_bundle::compute_signing_key_id(&raw), stored_key_id);
+        drop(db);
+        remove_db_files(&path);
+    }
+
+    #[test]
+    fn test_legacy_station_store_gets_a_uuid_device_id_and_text_project_ids() {
+        let path = temp_db_path("legacy");
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE consent_configs (
+                     project_id INTEGER PRIMARY KEY,
+                     consent_required INTEGER NOT NULL DEFAULT 1,
+                     min_notice_version TEXT NOT NULL DEFAULT '0.1',
+                     config_json TEXT NOT NULL,
+                     synced_at TEXT NOT NULL
+                 );
+                 INSERT INTO consent_configs VALUES (1, 1, '0.1', '{}', '2026-10-01T00:00:00Z');",
+            )
+            .unwrap();
+        }
+        let db = OfflineDatabase::open_file(&path, None).unwrap();
+        db.with_conn(|conn| {
+            conn.execute("UPDATE loc_station_config SET station_id = 'phc-standalone-01' WHERE id = 1", [])
+                .unwrap();
+        });
+        drop(db);
+
+        let db = OfflineDatabase::open_file(&path, None).unwrap();
+        assert!(Uuid::parse_str(&db.get_station_config().station_id).is_ok());
+        db.with_conn(|conn| {
+            let (kind, id): (String, String) = conn
+                .query_row(
+                    "SELECT (SELECT type FROM pragma_table_info('consent_configs') WHERE name = 'project_id'),
+                            project_id FROM consent_configs",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .unwrap();
+            assert_eq!((kind.as_str(), id.as_str()), ("TEXT", "1"));
+        });
+        drop(db);
+        remove_db_files(&path);
+    }
+
+    #[test]
+    fn test_imported_config_serves_the_projects_form_modules_and_languages() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        // Before any config: no form for a server project, the sandbox has its own.
+        let (status, err) = db.form_options("TST001").unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (404, Some("form_policy_missing")));
+        let sandbox = db.form_options("1").unwrap();
+        assert_eq!(sandbox["available_locales"].as_array().unwrap().len(), 1);
+        let sandbox_def = db.instrument_definition("WHO_2022_VA", "1", None).unwrap();
+        assert_eq!(sandbox_def.sha256, sandbox["definition_sha256"].as_str().unwrap());
+
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(
+            &device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101],
+        ))
+        .unwrap();
+
+        // form-options is the server's body as issued.
+        assert_eq!(db.form_options("TST001").unwrap(), test_form_options());
+
+        // The definition's bytes hash to the issued sha; the disabled module is absent.
+        let served = db.instrument_definition("WHO_2022_VA", "TST001", None).unwrap();
+        assert_eq!(served.sha256, "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_eq!(format!("{:x}", sha2::Sha256::digest(&served.body)), served.sha256);
+        let body: Value = serde_json::from_slice(&served.body).unwrap();
+        assert_eq!(body["extensions"], json!(["abha", "death_summary", "medical_records", "narration_language"]));
+        let with_sa = instrument::served_definition(["social_autopsy"]);
+        let sa_body: Value = serde_json::from_slice(&with_sa.body).unwrap();
+        let names = |b: &Value| -> BTreeSet<String> {
+            b["questions"].as_array().unwrap().iter().filter_map(|q| q["name"].as_str().map(String::from)).collect()
+        };
+        let sa_only: Vec<String> = names(&sa_body).difference(&names(&body)).cloned().collect();
+        assert!(!sa_only.is_empty(), "social autopsy questions are absent from the project's form");
+
+        // The exact slice a draft names; an unknown version or extension is refused.
+        let slice = db
+            .instrument_definition("WHO_2022_VA", "TST001", Some((instrument::composed_version(), vec!["social_autopsy".into()])))
+            .unwrap();
+        assert_eq!(slice.sha256, with_sa.sha256);
+        let (status, err) = db
+            .instrument_definition("WHO_2022_VA", "TST001", Some(("2022.1.5-offline", vec![])))
+            .unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (404, Some("version_unknown")));
+        assert_eq!(db.instrument_definition("OTHER", "TST001", None).unwrap_err().0, 404);
+
+        // Languages: only what the project offers.
+        let hi = db.instrument_translations("WHO_2022_VA", "hi", Some("TST001")).unwrap();
+        assert_eq!(hi["version"], 6);
+        assert!(hi["questions"]["Id10007"].is_object());
+        assert_eq!(db.instrument_translations("WHO_2022_VA", "hi", None).unwrap(), hi);
+        let en = db.instrument_translations("WHO_2022_VA", "en", Some("TST001")).unwrap();
+        assert_eq!((en["version"].as_i64(), en["questions"].clone()), (Some(0), json!({})));
+        // "ta" is servable on the server but not offered by the project: absent.
+        assert_eq!(db.instrument_translations("WHO_2022_VA", "ta", Some("TST001")).unwrap_err().0, 404);
+        assert_eq!(db.instrument_translations("WHO_2022_VA", "ta", None).unwrap_err().0, 404);
+    }
+
+    #[test]
+    fn test_station_settings_default_local_selection_and_policy_lock() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        // Default: every module enabled, ICD-11 + DORIS, nothing locked.
+        let settings = db.station_settings();
+        let modules = settings["modules"].as_array().unwrap();
+        assert_eq!(modules.len(), instrument::tag_vocabulary().len());
+        assert!(modules.iter().all(|m| m["enabled"] == true));
+        assert_eq!(modules.iter().find(|m| m["code"] == "social_autopsy").unwrap()["label"], "Social autopsy");
+        assert_eq!((settings["coding_mode"].as_str(), settings["modules_locked"].as_bool()), (Some("icd11_doris"), Some(false)));
+        assert_eq!(settings["coding_mode_locked"], false);
+        assert_eq!(settings["available_coding_modes"], json!(["icd11_doris", "icd10"]));
+        let all_sha = db.form_options("1").unwrap()["definition_sha256"].clone();
+
+        // The local selection drives the sandbox form: the `typical_project` vector's modules
+        // give its sha (the server's bytes).
+        let typical: Vec<String> = ["abha", "death_summary", "medical_records", "narration_language"].map(String::from).to_vec();
+        db.update_station_settings(Some(&typical), None).unwrap();
+        let options = db.form_options("1").unwrap();
+        assert_eq!(options["definition_sha256"], "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_ne!(options["definition_sha256"], all_sha);
+        let served = db.instrument_definition("WHO_2022_VA", "1", None).unwrap();
+        assert_eq!(served.sha256, options["definition_sha256"].as_str().unwrap());
+        let sa = db.station_settings()["modules"].as_array().unwrap().iter().find(|m| m["code"] == "social_autopsy").cloned().unwrap();
+        assert_eq!(sa["enabled"], false);
+
+        // Unknown module or mode: 400, nothing saved.
+        let (status, err) = db.update_station_settings(Some(&["nope".to_string()]), Some("icd10")).unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (400, Some("validation_error")));
+        assert_eq!(db.update_station_settings(None, Some("icd9")).unwrap_err().0, 400);
+        assert_eq!(db.station_settings()["coding_mode"], "icd11_doris");
+
+        // An imported project policy governs modules: read-only, its values shown, the local
+        // selection refused with 409. The coding mode stays local (the config carries none).
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+        db.with_conn(|conn| conn.execute("UPDATE loc_station_config SET enabled_modules_json = '[]' WHERE id = 1", []))
+            .unwrap();
+        let locked = db.station_settings();
+        assert_eq!(locked["modules_locked"], true);
+        let enabled: Vec<&str> = locked["modules"].as_array().unwrap().iter()
+            .filter(|m| m["enabled"] == true).filter_map(|m| m["code"].as_str()).collect();
+        assert_eq!(enabled, ["abha", "death_summary", "medical_records", "narration_language"]);
+        let (status, err) = db.update_station_settings(Some(&[]), None).unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (409, Some("policy_locked")));
+        assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"], "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_eq!(db.update_station_settings(None, Some("icd10")).unwrap()["coding_mode"], "icd10");
+    }
+
+    #[test]
+    fn test_config_naming_a_form_version_the_station_lacks_is_refused() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        let mut options = test_form_options();
+        options["instrument_version"] = json!("2099010101-ffffffffff");
+        let signed = signed_test_station_config_with(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101], options);
+        let (status, err) = db.import_signed_station_config(&signed).unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (422, Some("instrument_version_unsupported")));
+        assert!(err["error"].as_str().unwrap().contains("2099010101-ffffffffff"));
+        assert_eq!(db.get_station_config().mode, "standalone");
+
+        // A config issued before form policies existed is refused with its own code.
+        let no_policy = signed_test_station_config_with(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101], Value::Null);
+        let (status, err) = db.import_signed_station_config(&no_policy).unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (422, Some("form_policy_missing")));
+
+        // A sha that is not this binary's slice is refused alike.
+        let mut options = test_form_options();
+        options["definition_sha256"] = json!("0".repeat(64));
+        let signed = signed_test_station_config_with(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101], options);
+        assert_eq!(db.import_signed_station_config(&signed).unwrap_err().0, 422);
+    }
+
+    #[test]
+    fn test_draft_autosave_keeps_the_definition_pin_and_the_bundle_carries_it() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config(
+            &device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101],
+        ))
+        .unwrap();
+        let death_cid = Uuid::new_v4();
+        let registered = db
+            .register_death(
+                &json!({
+                    "project_id": "TST001", "site_id": "PHC01", "org_unit_id": "ou-sc-1",
+                    "client_death_id": death_cid.to_string(), "deceased_name": "Pinned Case",
+                    "deceased_sex": "female", "date_of_death": "2026-10-20",
+                    "consent": granted_consent(Uuid::new_v4())
+                }),
+                "user-101",
+            )
+            .unwrap();
+        let death_id = registered["case"]["death_id"].as_str().unwrap().to_string();
+        db.switch_acting_role("user-101", Some("interviewer")).unwrap();
+        let started = db
+            .start_draft(&json!({ "project_id": "TST001", "site_id": "PHC01", "org_unit_id": "ou-sc-1", "death_id": death_id }))
+            .unwrap();
+        let draft_id = started["draft"]["draft_id"].as_str().unwrap().to_string();
+        // A new draft has no pin and no stub section.
+        let fresh = db.get_draft(&draft_id).unwrap();
+        assert_eq!(fresh["envelope"]["instrumentVersion"], "");
+        assert!(fresh["envelope"].get("definitionSha256").is_none());
+        assert_eq!(fresh["envelope"]["translation_version"], 0);
+
+        let sha = "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291";
+        let pin = json!({
+            "instrumentVersion": instrument::composed_version(),
+            "definitionSha256": sha,
+            "definitionExtensions": ["abha", "death_summary", "medical_records", "narration_language"],
+            "locale": "hi",
+            "translation_version": 6
+        });
+        let (status, ack) = db
+            .save_draft_sections(&draft_id, &json!({ "sections": { "respondent_backgr": { "Id10007": "R" } }, "current_section": "respondent_backgr", "meta": pin }))
+            .unwrap();
+        assert_eq!((status, ack["saved_sections"].as_u64()), (200, Some(1)));
+        // An emptied section replaces its answers; another section keeps its own.
+        db.save_draft_sections(&draft_id, &json!({ "sections": { "info_on_deceased": { "Id10019": "female" } } })).unwrap();
+        db.save_draft_sections(&draft_id, &json!({ "sections": { "respondent_backgr": {} } })).unwrap();
+        let envelope = db.get_draft(&draft_id).unwrap()["envelope"].clone();
+        assert_eq!(envelope["data"], json!({ "Id10019": "female" }));
+        assert_eq!(envelope["definitionSha256"], sha);
+        assert_eq!(envelope["instrumentVersion"], instrument::composed_version());
+        assert_eq!((envelope["locale"].as_str(), envelope["translation_version"].as_i64()), (Some("hi"), Some(6)));
+        assert_eq!(envelope["currentSection"], "respondent_backgr");
+
+        let (status, _) = db
+            .save_draft_sections(&draft_id, &json!({ "sections": {}, "meta": { "definitionSha256": "XYZ" } }))
+            .unwrap();
+        assert_eq!(status, 422);
+
+        db.submit_draft(&draft_id, &json!({ "completion": { "valid": true, "issues": [], "data": { "Id10019": "female" } } }))
+            .unwrap();
+        let (status, _) = db.save_draft_sections(&draft_id, &json!({ "sections": {} })).unwrap();
+        assert_eq!(status, 409);
+        // The sealed record's draft meta is built from the same row (not decryptable here): the
+        // manifest lists the version the interview record names.
+        let (built, _, _) = db.export_dvb_bundle().unwrap();
+        assert_eq!(built.manifest.instrument_versions, vec![instrument::composed_version().to_string()]);
+    }
+
+    #[test]
+    fn test_me_home_counts_the_stations_own_register() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let empty = db.home_blocks().unwrap();
+        let roles: Vec<&str> = empty["roles"].as_array().unwrap().iter().filter_map(Value::as_str).collect();
+        assert!(roles.contains(&"interviewer"), "roles {roles:?}");
+        let before = empty["blocks"]["interviewer"]["drafts_in_progress"].as_i64().unwrap();
+        db.start_draft(&json!({ "project_id": "1", "site_id": "PHC01" })).unwrap();
+        let after = db.home_blocks().unwrap();
+        assert_eq!(after["blocks"]["interviewer"]["drafts_in_progress"].as_i64().unwrap(), before + 1);
+        if roles.contains(&"death_reporter") {
+            let block = &after["blocks"]["death_reporter"];
+            assert!(block["registered"].as_i64().unwrap() >= block["awaiting_interview"].as_i64().unwrap());
+        }
+        if roles.contains(&"coder") {
+            assert_eq!(after["blocks"]["coder"]["practice"], false);
+        }
+    }
+
+    /// A submission row in `project_id`, as `submit_draft` leaves it.
+    fn insert_test_submission(db: &OfflineDatabase, va_sid: &str, project_id: &str, workflow_state: &str) {
+        db.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO loc_va_submissions (va_sid, unique_id, project_id, payload_json,
+                    payload_fingerprint, workflow_state, submitted_at, updated_at)
+                 VALUES (?1, ?1, ?2, '{}', 'fp', ?3, '2026-10-21T10:00:00Z', '2026-10-21T10:00:00Z')",
+                params![va_sid, project_id, workflow_state],
+            )
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn test_config_coding_mode_locks_the_station_per_project() {
+        for (config, shown, locked) in [
+            (Some(Some("icd10")), json!("icd10"), true),
+            (Some(Some("icd11_doris")), json!("icd11_doris"), true),
+            (Some(None), Value::Null, true),
+            (None, json!("icd10"), false),
+        ] {
+            let db = OfflineDatabase::open_in_memory().unwrap();
+            // The local choice differs from the default, so a lock that ignored it would show.
+            db.update_station_settings(None, Some("icd10")).unwrap();
+            let device_id = db.get_station_config().station_id;
+            db.import_signed_station_config(&signed_test_station_config_coding(&device_id, config)).unwrap();
+
+            let settings = db.station_settings();
+            assert_eq!(settings["coding_mode"], shown, "{config:?}");
+            assert_eq!(settings["coding_mode_locked"], locked, "{config:?}");
+            assert_eq!(db.project_coding_mode("TST001"), shown.as_str().map(str::to_string), "{config:?}");
+            // The config's project name, not the code.
+            assert_eq!(db.station_projects(), vec![("TST001".to_string(), "Test Project".to_string())]);
+
+            let put = db.update_station_settings(None, Some("icd11_doris"));
+            if locked {
+                let (status, body) = put.unwrap_err();
+                assert_eq!((status, body["code"].as_str()), (409, Some("policy_locked")), "{config:?}");
+            } else {
+                assert_eq!(put.unwrap()["coding_mode"], "icd11_doris");
+            }
+        }
+    }
+
+    #[test]
+    fn test_null_coding_mode_hides_and_refuses_the_projects_coding() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(None))).unwrap();
+        insert_test_submission(&db, "VA-SERVER", "TST001", "available_for_coding");
+        insert_test_submission(&db, "VA-SANDBOX", "1", "available_for_coding");
+        insert_test_submission(&db, "VA-SERVER-DONE", "TST001", "coded");
+
+        let (status, body) = db.check_station_coding("VA-SERVER").unwrap_err();
+        assert_eq!((status, body["code"].as_str()), (409, Some("station_coding_not_enabled")));
+        assert_eq!(body["error"], "Coding for this project is done on the server.");
+        assert!(db.check_station_coding("VA-SANDBOX").is_ok());
+        assert!(db.check_station_coding("VA-UNKNOWN").is_ok());
+
+        let queue: Vec<String> = db.get_coder_queue(50, 0)["forms"].as_array().unwrap().iter()
+            .map(|f| f["va_sid"].as_str().unwrap().to_string()).collect();
+        assert_eq!(queue, ["VA-SANDBOX"]);
+        assert_eq!(db.get_coder_history(50, 0)["count"], 0);
+
+        // The same cases under an icd10 lock are listed and open in the simple workspace.
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(Some("icd10")))).unwrap();
+        insert_test_submission(&db, "VA-SERVER", "TST001", "available_for_coding");
+        assert!(db.check_station_coding("VA-SERVER").is_ok());
+        assert_eq!(db.get_coder_queue(50, 0)["count"], 1);
+        assert_eq!(db.coding_mode_for_va("VA-SERVER").as_deref(), Some("icd10"));
+    }
+
+    #[test]
+    fn test_receipt_keeps_pending_and_refused_coding_results_with_their_codes() {
+        use digitva_bundle::{
+            format_signed_receipt, BundleReceiptReport, ReceiptRecordOutcome, RecordIngestOutcome, RecordType,
+        };
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(Some("icd11_doris")))).unwrap();
+        let ids: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+        for (i, id) in ids.iter().enumerate() {
+            let va_sid = format!("VA-{i}");
+            insert_test_submission(&db, &va_sid, "TST001", "coded");
+            db.with_conn(|conn| {
+                conn.execute(
+                    "INSERT INTO loc_coding_results (client_id, va_sid, client_draft_id, project_id,
+                        payload_json, sync_state, created_at, coding_mode)
+                     VALUES (?1, ?2, ?3, 'TST001', '{}', 'pending', '2026-10-21T11:00:00Z', 'icd11_doris')",
+                    params![id.to_string(), va_sid, Uuid::new_v4().to_string()],
+                )
+            })
+            .unwrap();
+        }
+        let outcome = |client_id: Uuid, outcome, code: Option<&str>| ReceiptRecordOutcome {
+            client_id,
+            record_type: RecordType::CodingResult,
+            outcome,
+            code: code.map(str::to_string),
+            received_sha256: None,
+            death_id: None,
+            unique_id: None,
+        };
+        let report = BundleReceiptReport {
+            bundle_id: Uuid::new_v4(),
+            device_id: device_id.clone(),
+            kem_key_id: "tv1".to_string(),
+            status: "processed".to_string(),
+            counts: BTreeMap::new(),
+            missing_seq: vec![],
+            records: vec![
+                outcome(ids[0], RecordIngestOutcome::Accepted, None),
+                outcome(ids[1], RecordIngestOutcome::Pending, Some("doris_pending")),
+                outcome(ids[2], RecordIngestOutcome::Rejected, Some("coding_mode_mismatch")),
+            ],
+            purge: vec![],
+        };
+        let res = db.import_dvb_receipt(&format_signed_receipt(&report, &test_server_signing_key()).unwrap()).unwrap();
+        assert_eq!((res["accepted_count"].as_u64(), res["pending_count"].as_u64(), res["rejected_count"].as_u64()), (Some(1), Some(1), Some(1)));
+
+        let rows: Vec<(String, String, Option<String>)> = db.with_conn(|conn| {
+            conn.prepare("SELECT va_sid, sync_state, sync_error_code FROM loc_coding_results ORDER BY va_sid")
+                .unwrap()
+                .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+                .unwrap()
+                .collect::<Result<_, _>>()
+                .unwrap()
+        });
+        assert_eq!(rows, vec![
+            ("VA-1".to_string(), "server_pending".to_string(), Some("doris_pending".to_string())),
+            ("VA-2".to_string(), "rejected".to_string(), Some("coding_mode_mismatch".to_string())),
+        ]);
+        // Neither is sent again: the export takes only `pending` rows.
+        let unsent: i64 = db.with_conn(|conn| conn.query_row(
+            "SELECT COUNT(*) FROM loc_coding_results WHERE sync_state = 'pending'", [], |r| r.get(0)).unwrap());
+        assert_eq!(unsent, 0);
+
+        let history = db.get_coder_history(50, 0);
+        let status: BTreeMap<String, (Value, Value)> = history["history"].as_array().unwrap().iter()
+            .map(|h| (h["va_sid"].as_str().unwrap().to_string(), (h["server_status"].clone(), h["server_code"].clone())))
+            .collect();
+        assert_eq!(status["VA-0"], (Value::Null, Value::Null));
+        assert_eq!(status["VA-1"], (json!("pending"), json!("doris_pending")));
+        assert_eq!(status["VA-2"], (json!("refused"), json!("coding_mode_mismatch")));
+
+        // A later receipt that accepts the held result removes it.
+        let later = BundleReceiptReport {
+            records: vec![outcome(ids[1], RecordIngestOutcome::Accepted, None)],
+            ..report
+        };
+        db.import_dvb_receipt(&format_signed_receipt(&later, &test_server_signing_key()).unwrap()).unwrap();
+        let left: i64 = db.with_conn(|conn| conn.query_row("SELECT COUNT(*) FROM loc_coding_results", [], |r| r.get(0)).unwrap());
+        assert_eq!(left, 1);
+    }
+
+    #[test]
+    fn test_history_keeps_pending_coding_after_interview_purge_and_counts_from_receipt() {
+        use digitva_bundle::{
+            format_signed_receipt, BundleReceiptReport, ReceiptRecordOutcome, RecordIngestOutcome, RecordType,
+        };
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(Some("icd11_doris")))).unwrap();
+        let (interview_id, coding_id, gone_id) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        insert_test_submission(&db, "VA-1", "TST001", "coded");
+        db.with_conn(|conn| {
+            conn.execute("UPDATE loc_va_submissions SET draft_id = ?1 WHERE va_sid = 'VA-1'", params![interview_id.to_string()]).unwrap();
+            conn.execute(
+                "INSERT INTO loc_coding_results (client_id, va_sid, client_draft_id, project_id,
+                    payload_json, sync_state, created_at, coding_mode, unique_id, form_type_code)
+                 VALUES (?1, 'VA-1', ?2, 'TST001', '{\"stage\":\"final\"}', 'pending',
+                    '2026-10-21T11:00:00Z', 'icd11_doris', 'UID-1', 'WHO_2022_VA')",
+                params![coding_id.to_string(), interview_id.to_string()],
+            ).unwrap();
+        });
+        let outcome = |client_id: Uuid, record_type, outcome, code: Option<&str>| ReceiptRecordOutcome {
+            client_id, record_type, outcome, code: code.map(str::to_string),
+            received_sha256: Some(sha256_hex(b"{}")), death_id: None, unique_id: None,
+        };
+        let receipt = |records| {
+            let report = BundleReceiptReport {
+                bundle_id: Uuid::new_v4(), device_id: device_id.clone(), kem_key_id: "tv1".to_string(),
+                status: "processed".to_string(), counts: BTreeMap::new(), missing_seq: vec![], records, purge: vec![],
+            };
+            format_signed_receipt(&report, &test_server_signing_key()).unwrap()
+        };
+        // Interview accepted (deleted here), coding pending, one accepted record already gone.
+        let res = db.import_dvb_receipt(&receipt(vec![
+            outcome(interview_id, RecordType::InterviewSubmission, RecordIngestOutcome::Accepted, None),
+            outcome(gone_id, RecordType::Consent, RecordIngestOutcome::Duplicate, None),
+            outcome(coding_id, RecordType::CodingResult, RecordIngestOutcome::Pending, Some("doris_pending")),
+        ])).unwrap();
+        assert_eq!((res["accepted_count"].as_u64(), res["deleted_count"].as_u64(), res["pending_count"].as_u64()), (Some(2), Some(1), Some(1)));
+        let interviews: i64 = db.with_conn(|c| c.query_row("SELECT COUNT(*) FROM loc_va_submissions", [], |r| r.get(0)).unwrap());
+        assert_eq!(interviews, 0);
+
+        let history = db.get_coder_history(50, 0);
+        let rows = history["history"].as_array().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            (rows[0]["va_uniqueid_masked"].clone(), rows[0]["server_status"].clone(), rows[0]["server_code"].clone(), rows[0]["va_code_status"].clone()),
+            (json!("UID-1"), json!("pending"), json!("doris_pending"), json!("coded"))
+        );
+
+        db.import_dvb_receipt(&receipt(vec![
+            outcome(coding_id, RecordType::CodingResult, RecordIngestOutcome::Accepted, None),
+        ])).unwrap();
+        assert_eq!(db.get_coder_history(50, 0)["count"], 0);
+    }
+
+    #[test]
+    fn test_interview_prefill_uses_the_age_fields_and_never_id10051_for_age() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let case = db
+            .register_death(
+                &json!({
+                    "deceased_name": "Ram Kumar Singh",
+                    "deceased_sex": "male",
+                    "date_of_death": "2026-10-19",
+                    "age_years": 68,
+                    "place_of_death": "PHC Chail"
+                }),
+                "user-101",
+            )
+            .unwrap();
+        let death_id = case["case"]["death_id"].as_str().unwrap().to_string();
+        let draft = db.start_draft(&json!({ "project_id": "1", "site_id": "PHC01", "death_id": death_id })).unwrap();
+        let draft_id = draft["draft"]["draft_id"].as_str().unwrap().to_string();
+        let got = db.get_draft(&draft_id).unwrap();
+        let prefill = &got["prefill"];
+        assert_eq!(prefill["deceased"]["ageInYears"], 68);
+        assert_eq!(prefill["deceased"]["givenNames"], "Ram Kumar");
+        assert_eq!(prefill["deceased"]["surname"], "Singh");
+        assert_eq!(prefill["answers"]["age_group"], "adult");
+        assert_eq!(prefill["answers"]["age_adult"], 68);
+        assert_eq!(prefill["answers"]["Id10058"], "other_health_facility");
+        // Id10051 is the yes/no question that opens the residence questions, not an age.
+        assert_eq!(prefill["answers"]["Id10051"] == "yes", prefill["answers"]["Id10055"].is_string());
+        assert!(prefill["interviewer"]["name"].is_string());
+        // The draft's own answers start empty, as the server's do; the prefill is kept apart.
+        assert_eq!(got["envelope"]["data"], json!({}));
+
+        let child = interview_prefill(&db.get_active_actor_context(), &RegisterPrefill {
+            deceased_name: Some("Asha"),
+            deceased_sex: Some("female"),
+            date_of_death: Some("2026-10-19"),
+            age_years: Some(4.0),
+            address_parts: [None, Some("Ward 3"), None, Some("Main Road")],
+            ..RegisterPrefill::default()
+        });
+        assert_eq!(child["answers"]["Id10055"], "Ward 3, Main Road");
+        assert_eq!(child["answers"]["Id10057"], "Ward 3, Main Road");
+        assert_eq!(child["answers"]["age_child_years"], 4);
+        assert_eq!(child["answers"]["Id10020"], "no");
+        assert_eq!(child["answers"]["Id10051"], "yes");
+        assert!(child["deceased"].get("surname").is_none());
+        let newborn = interview_prefill(&db.get_active_actor_context(), &RegisterPrefill {
+            deceased_name: Some("Baby"),
+            deceased_sex: Some("male"),
+            date_of_death: Some("2026-10-19"),
+            age_years: Some(0.0),
+            ..RegisterPrefill::default()
+        });
+        assert_eq!(newborn["answers"], json!({}));
+
+        // At submit the case's age comes from the WHO age fields.
+        db.submit_draft(&draft_id, &json!({ "completion": { "valid": true, "issues": [], "data": {
+            "Id10013": "yes", "Id10019": "male", "Id10051": "yes", "isAdult": "1", "ageInYears": "68"
+        } } })).unwrap();
+        let age: Option<String> = db.with_conn(|conn| conn.query_row(
+            "SELECT deceased_age FROM loc_va_submissions WHERE draft_id = ?1", params![draft_id], |r| r.get(0)).unwrap());
+        assert_eq!(age.as_deref(), Some("68"));
+        assert_eq!(who_age_years(&json!({ "isChild": "1", "ageInMonths": "18" })).as_deref(), Some("1"));
+        assert_eq!(who_age_years(&json!({ "age_neonate_hours": 5 })).as_deref(), Some("0"));
+        assert_eq!(who_age_years(&json!({ "Id10051": "yes" })), None);
+    }
+
+    #[test]
+    fn test_queue_names_the_collector_and_submission_carries_the_drafts_meta() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let actor = db.get_active_actor_context();
+        let draft = db.start_draft(&json!({ "project_id": "1", "site_id": "PHC01" })).unwrap();
+        let draft_id = draft["draft"]["draft_id"].as_str().unwrap().to_string();
+        db.with_conn(|conn| conn.execute(
+            "UPDATE loc_va_drafts SET meta_json = ?1 WHERE draft_id = ?2",
+            params![json!({ "startedAt": "2026-10-21T09:00:00+05:30" }).to_string(), draft_id],
+        ))
+        .unwrap();
+
+        // Invalid and no outcome picked: refused as the server refuses it.
+        let (status, body) = db.submit_draft(&draft_id, &json!({ "completion": { "valid": false, "issues": [{ "q": "Id10019" }], "data": {} } })).unwrap();
+        assert_eq!((status, body["code"].as_str()), (422, Some("invalid_interview")));
+
+        let issues = json!([{ "q": "Id10120" }]);
+        let (status, _) = db.submit_draft(&draft_id, &json!({ "completion": { "valid": false, "issues": issues,
+            "data": { "Id10013": "yes", "interview_outcome": "partially_completed" } } })).unwrap();
+        assert_eq!(status, 201);
+        let row = &db.get_coder_queue(10, 0)["forms"][0];
+        assert_eq!(row["va_data_collector"], actor.name.as_str());
+
+        let meta: Value = db.with_conn(|conn| conn.query_row(
+            "SELECT meta_json FROM loc_va_drafts WHERE draft_id = ?1", params![draft_id],
+            |r| r.get::<_, String>(0)).unwrap()).parse::<Value>().unwrap();
+        assert_eq!(meta["startedAt"], "2026-10-21T09:00:00+05:30");
+        assert!(meta["completedAt"].is_string());
+        assert_eq!(meta["interviewOutcome"], "partially_completed");
+        assert_eq!(meta["completion"], json!({ "valid": false, "issues": issues }));
+        let payload: Value = db.with_conn(|conn| conn.query_row(
+            "SELECT payload_json FROM loc_va_submissions WHERE draft_id = ?1", params![draft_id],
+            |r| r.get::<_, String>(0)).unwrap()).parse::<Value>().unwrap();
+        assert_eq!(payload["interview_outcome"], "partially_completed");
+        assert_eq!(interview_outcome(&json!({ "Id10013": "No" }), true), Some("refused"));
+        assert_eq!(interview_outcome(&json!({}), true), Some("completed"));
     }
 }

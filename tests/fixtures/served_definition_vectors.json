@@ -1,0 +1,71 @@
+{
+ "rule": "app/services/served_form_service.py served_definition: filter_definition over the enabled extensions that are composed-file tags, top-level extensions sorted, then json.dumps(ensure_ascii=False, separators=(',', ':'), sort_keys=True) UTF-8; sha256 of those bytes.",
+ "version": "2026081401-503d5dd1bb",
+ "cases": [
+  {
+   "name": "none",
+   "enabled_extensions": [
+    "digitva_core",
+    "intake_screen"
+   ],
+   "extensions": [],
+   "sha256": "550d8547d1ad2ebf8ed67686a2fc52c1f231e94d639588b82f64c665fef92731",
+   "bytes": 593467
+  },
+  {
+   "name": "single_module",
+   "enabled_extensions": [
+    "social_autopsy"
+   ],
+   "extensions": [
+    "social_autopsy"
+   ],
+   "sha256": "0f628937bb13103febb0d5e0e57bd8b79881c3bc87f271af96659ee85d00a0b5",
+   "bytes": 625453
+  },
+  {
+   "name": "typical_project",
+   "enabled_extensions": [
+    "digitva_core",
+    "doris_support_whova_2022",
+    "intake_screen",
+    "death_summary",
+    "medical_records",
+    "geography",
+    "narration_language",
+    "abha"
+   ],
+   "extensions": [
+    "abha",
+    "death_summary",
+    "medical_records",
+    "narration_language"
+   ],
+   "sha256": "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291",
+   "bytes": 619714
+  },
+  {
+   "name": "all",
+   "enabled_extensions": [
+    "abha",
+    "death_summary",
+    "digitva_core",
+    "doris_support_whova_2022",
+    "geography",
+    "intake_screen",
+    "medical_records",
+    "narration_language",
+    "social_autopsy"
+   ],
+   "extensions": [
+    "abha",
+    "death_summary",
+    "medical_records",
+    "narration_language",
+    "social_autopsy"
+   ],
+   "sha256": "b2f455df14792f1327b9d49187fd8873a34753e6d6977a71450d245bcd5fca7a",
+   "bytes": 651701
+  }
+ ]
+}

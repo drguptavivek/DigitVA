@@ -746,12 +746,14 @@ pub enum IdentifierCharType {
 }
 
 impl IdentifierCharType {
-    pub fn from_code(code: &str) -> Self {
+    /// The character type a code names; `None` (no restriction, as the server's null) for any other code.
+    pub fn from_code(code: &str) -> Option<Self> {
         match code {
-            "digits" => Self::Digits,
-            "letters" => Self::Letters,
-            "letters_digits" => Self::LettersDigits,
-            _ => Self::LettersDigitsHyphenSlash,
+            "digits" => Some(Self::Digits),
+            "letters" => Some(Self::Letters),
+            "letters_digits" => Some(Self::LettersDigits),
+            "letters_digits_hyphen_slash" => Some(Self::LettersDigitsHyphenSlash),
+            _ => None,
         }
     }
 
@@ -780,7 +782,9 @@ impl IdentifierCharType {
 pub struct IdentifierValidationRule {
     pub code: String,
     pub label: String,
-    pub char_type: IdentifierCharType,
+    /// `None`: no character restriction (the server's null `char_type`).
+    #[serde(default)]
+    pub char_type: Option<IdentifierCharType>,
     pub min_length: usize,
     pub max_length: usize,
     pub pattern: Option<String>,
@@ -788,13 +792,25 @@ pub struct IdentifierValidationRule {
     pub example: Option<String>,
 }
 
-/// Normalise a registration identifier (`docs/policy/death-registration-identifiers.md`):
-/// Unicode NFKC -> trim -> collapse internal whitespace runs to a single ASCII space -> CAPITALS.
+/// Whitespace as Python's `str.isspace()` and `re` `\s` see it: Unicode `White_Space`
+/// plus U+001C..U+001F, which Rust's `char::is_whitespace` leaves out. The server's
+/// normalisers split and strip on this set, so the station must too.
+#[inline]
+pub fn is_python_space(ch: char) -> bool {
+    ch.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&ch)
+}
+
+/// Normalise a registration identifier as the server's `death_identifier_rules.normalise`:
+/// Unicode NFKC -> split on Python whitespace -> join with one ASCII space -> CAPITALS.
 /// Blank strings return `None`.
 pub fn normalise_identifier(raw: Option<&str>) -> Option<String> {
     let text = raw?;
     let nfkc: String = text.nfkc().collect();
-    let collapsed = nfkc.split_whitespace().collect::<Vec<&str>>().join(" ");
+    let collapsed = nfkc
+        .split(is_python_space)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<&str>>()
+        .join(" ");
     if collapsed.is_empty() {
         return None;
     }
@@ -811,8 +827,40 @@ fn format_identifier_error(rule: &IdentifierValidationRule, fallback: String) ->
     fallback
 }
 
-/// Validate and normalise a registration identifier against `rule` (Contract Section 6.1).
-/// Anchored full match on `pattern`; never echoes the raw or normalised value in error messages.
+/// The server's stored pattern in this crate's Unicode-mode syntax with RE2's ASCII Perl
+/// classes: `\d` `\w` `\s` (and negations) become explicit ASCII classes, so `.` still matches
+/// one character as re2 does while `\d` never matches a Devanagari digit.
+fn ascii_perl_classes(pattern: &str) -> String {
+    let mut out = String::with_capacity(pattern.len());
+    let mut chars = pattern.chars();
+    while let Some(ch) = chars.next() {
+        if ch != '\\' {
+            out.push(ch);
+            continue;
+        }
+        match chars.next() {
+            Some('d') => out.push_str("[0-9]"),
+            Some('D') => out.push_str("[^0-9]"),
+            Some('w') => out.push_str("[0-9A-Za-z_]"),
+            Some('W') => out.push_str("[^0-9A-Za-z_]"),
+            Some('s') => out.push_str(r"[\t\n\x0C\r ]"),
+            Some('S') => out.push_str(r"[^\t\n\x0C\r ]"),
+            // re2's word boundary is ASCII; Rust's is Unicode unless told otherwise.
+            Some('b') => out.push_str(r"(?-u:\b)"),
+            Some('B') => out.push_str(r"(?-u:\B)"),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+/// Validate and normalise a registration identifier against `rule` (Contract Section 6.1), in the
+/// server's order: length (code points), character type, then an anchored full match on `pattern`.
+/// Never echoes the raw or normalised value in error messages.
 pub fn validate_identifier(
     raw: Option<&str>,
     rule: &IdentifierValidationRule,
@@ -830,15 +878,17 @@ pub fn validate_identifier(
             ),
         ));
     }
-    if !norm.chars().all(|c| rule.char_type.allows_char(c)) {
-        return Err(format_identifier_error(
-            rule,
-            format!(
-                "{} contains characters not permitted for type '{}'.",
-                rule.label,
-                rule.char_type.as_str()
-            ),
-        ));
+    if let Some(char_type) = rule.char_type {
+        if !norm.chars().all(|c| char_type.allows_char(c)) {
+            return Err(format_identifier_error(
+                rule,
+                format!(
+                    "{} contains characters not permitted for type '{}'.",
+                    rule.label,
+                    char_type.as_str()
+                ),
+            ));
+        }
     }
     if let Some(pattern_str) = &rule.pattern {
         let trimmed = pattern_str.trim();
@@ -848,7 +898,7 @@ pub fn validate_identifier(
                 .unwrap_or(trimmed)
                 .strip_suffix('$')
                 .unwrap_or(trimmed.strip_prefix('^').unwrap_or(trimmed));
-            let anchored = format!("(?-u)^(?:{core})$");
+            let anchored = format!("^(?:{})$", ascii_perl_classes(core));
             let re = Regex::new(&anchored)
                 .map_err(|_| format!("Invalid validation pattern configured for {}.", rule.label))?;
             if !re.is_match(&norm) {
@@ -862,42 +912,24 @@ pub fn validate_identifier(
     Ok(Some(norm))
 }
 
-/// Normalise a phone number per Contract Section 6.5:
-/// Trim, remove spaces, hyphens, and parentheses; if `+91`, `91`, or `0` is followed by
-/// 10 ASCII digits, keep the 10 digits. Returns `None` if empty.
+/// Normalise a phone number exactly as the server's `app/utils/phone.py` (Contract Section 6.5):
+/// drop Python whitespace, hyphens and parentheses; then `+91`, `91` or `0` followed by exactly
+/// 10 ASCII digits, or 10 ASCII digits alone, gives those 10 digits. Anything else, including
+/// Devanagari or other non-ASCII digits, is `None`, so one number has one blind index.
 pub fn normalise_phone(raw: Option<&str>) -> Option<String> {
-    let text = raw?.trim();
-    if text.is_empty() {
-        return None;
+    let cleaned: String = raw?
+        .chars()
+        .filter(|&c| !(is_python_space(c) || matches!(c, '-' | '(' | ')')))
+        .collect();
+    let is_ten_digits = |s: &str| s.len() == 10 && s.bytes().all(|b| b.is_ascii_digit());
+    if is_ten_digits(&cleaned) {
+        return Some(cleaned);
     }
-    let mut cleaned = String::with_capacity(text.len());
-    for (idx, ch) in text.chars().enumerate() {
-        if matches!(ch, ' ' | '-' | '(' | ')' | '\u{00A0}') {
-            continue;
-        }
-        if idx == 0 && ch == '+' {
-            cleaned.push('+');
-        } else if let Some(d) = unicode_decimal_to_ascii(ch) {
-            cleaned.push(d);
-        } else {
-            cleaned.push(ch);
-        }
-    }
-    if cleaned.is_empty() || cleaned == "+" {
-        return None;
-    }
-    for prefix in ["+91", "91", "0"] {
-        if let Some(rest) = cleaned.strip_prefix(prefix) {
-            if rest.len() == 10 && rest.chars().all(|c| c.is_ascii_digit()) {
-                return Some(rest.to_string());
-            }
-        }
-    }
-    if cleaned.len() == 10 && cleaned.chars().all(|c| c.is_ascii_digit()) {
-        Some(cleaned)
-    } else {
-        None
-    }
+    ["+91", "91", "0"]
+        .iter()
+        .filter_map(|prefix| cleaned.strip_prefix(prefix))
+        .find(|rest| is_ten_digits(rest))
+        .map(str::to_string)
 }
 
 /// Filter a flat string map so that only clinical/demographic keys allowed into
@@ -1066,6 +1098,13 @@ fn write_jcs_value(value: &Value, parent_key: Option<&str>, buf: &mut String) ->
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn word_boundary_is_ascii_like_re2() {
+        let re = regex::Regex::new(&format!("^(?:{})$", ascii_perl_classes(r"É\bA"))).unwrap();
+        // 'É' is not an ASCII word char, so re2 sees a boundary before 'A'.
+        assert!(re.is_match("ÉA"));
+    }
 
     #[test]
     fn test_keeps_the_last_three_digits_at_fixed_width() {
@@ -1265,7 +1304,7 @@ mod tests {
         let crs_rule = IdentifierValidationRule {
             code: "crs_reg_no".to_string(),
             label: "CRS Registration Number".to_string(),
-            char_type: IdentifierCharType::LettersDigitsHyphenSlash,
+            char_type: Some(IdentifierCharType::LettersDigitsHyphenSlash),
             min_length: 3,
             max_length: 64,
             pattern: Some(r"CRS/[A-Z]{2}/\d{4}/\d{4}".to_string()),
@@ -1320,5 +1359,90 @@ mod tests {
         // Floats are rejected by JCS integer rule
         let bad_float = json!({ "score": 12.5 });
         assert!(to_jcs_string(&bad_float).is_err());
+    }
+
+    // Shared vectors (offline-api-contract.md 14): the server's Python tests and the
+    // Expo app's Jest tests read the same files from the repository's tests/fixtures.
+    fn shared_fixture(name: &str) -> Value {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../tests/fixtures")
+            .join(name);
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+        serde_json::from_str(&text).expect("valid vectors JSON")
+    }
+
+    fn cases<'a>(data: &'a Value, key: &str) -> &'a Vec<Value> {
+        let list = data[key].as_array().expect("case list");
+        assert!(!list.is_empty(), "{key} has no cases");
+        list
+    }
+
+    #[test]
+    fn test_shared_phone_vectors() {
+        let data = shared_fixture("phone_vectors.json");
+        for case in cases(&data, "cases") {
+            let input = case["input"].as_str().unwrap();
+            assert_eq!(
+                normalise_phone(Some(input)).as_deref(),
+                case["expected"].as_str(),
+                "phone {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_shared_identifier_vectors() {
+        let data = shared_fixture("identifier_vectors.json");
+        for case in cases(&data, "normalise") {
+            let input = case["input"].as_str().unwrap();
+            assert_eq!(
+                normalise_identifier(Some(input)).as_deref(),
+                case["expected"].as_str(),
+                "normalise {input:?}"
+            );
+        }
+        for case in cases(&data, "validate") {
+            let input = case["input"].as_str().unwrap();
+            let name = case["rule"].as_str().unwrap();
+            let rule: IdentifierValidationRule =
+                serde_json::from_value(data["rules"][name].clone()).expect("rule");
+            let got = match validate_identifier(Some(input), &rule) {
+                Ok(value) => json!({ "value": value }),
+                Err(msg) if msg.contains(" must be between ") => json!({ "error": "length" }),
+                Err(msg) if msg.contains(" not permitted ") => json!({ "error": "char_type" }),
+                Err(msg) if msg.contains(" does not match ") => json!({ "error": "pattern" }),
+                Err(msg) => panic!("{name} {input:?}: unexpected refusal {msg}"),
+            };
+            assert_eq!(got, case["expected"], "{name} {input:?}");
+        }
+    }
+
+    #[test]
+    fn test_shared_national_id_vectors() {
+        let data = shared_fixture("national_id_vectors.json");
+        for case in cases(&data, "cases") {
+            let input = case["input"].as_str().unwrap();
+            let (stored, needs_review) = reduce_national_id_flagged(input);
+            assert_eq!(stored.as_deref(), case["expected"].as_str(), "Id10073 {input:?}");
+            assert_eq!(
+                needs_review,
+                case["needs_review"].as_bool().unwrap(),
+                "Id10073 flag {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_shared_pii_fields_floor() {
+        let data = shared_fixture("pii_fields_floor.json");
+        let mut expected: Vec<&str> = cases(&data, "fields")
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        let mut ours = PII_FIELDS_FLOOR.to_vec();
+        expected.sort_unstable();
+        ours.sort_unstable();
+        assert_eq!(ours, expected);
     }
 }

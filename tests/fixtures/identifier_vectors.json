@@ -1,0 +1,336 @@
+{
+ "rule": "app/services/death_identifier_rules.py: normalise = NFKC, split on Python whitespace, join with one space, upper-case, empty -> null; validate_value checks length (code points), then char_type, then pattern (re2 fullmatch; \\d \\w \\s are ASCII). 'error' names the first failing rule.",
+ "rules": {
+  "digits_4_10": {
+   "code": "crs",
+   "label": "CRS number",
+   "char_type": "digits",
+   "min_length": 4,
+   "max_length": 10,
+   "pattern": null,
+   "example": null
+  },
+  "letters_digits_pattern": {
+   "code": "mccd",
+   "label": "MCCD number",
+   "char_type": "letters_digits",
+   "min_length": 8,
+   "max_length": 8,
+   "pattern": "[A-Z]{2}[0-9]{6}",
+   "example": null
+  },
+  "hyphen_slash_pattern": {
+   "code": "reg",
+   "label": "Registration",
+   "char_type": "letters_digits_hyphen_slash",
+   "min_length": 3,
+   "max_length": 20,
+   "pattern": "(?:CRS|MCCD)/\\d{4}-[0-9]+",
+   "example": null
+  },
+  "letters": {
+   "code": "ltr",
+   "label": "Letters",
+   "char_type": "letters",
+   "min_length": 1,
+   "max_length": 12,
+   "pattern": null,
+   "example": null
+  },
+  "free_dot_pattern": {
+   "code": "dot",
+   "label": "Dotted",
+   "char_type": null,
+   "min_length": 1,
+   "max_length": 3,
+   "pattern": "[A-Z].\\d",
+   "example": null
+  },
+  "free_text": {
+   "code": "free",
+   "label": "Free",
+   "char_type": null,
+   "min_length": 1,
+   "max_length": 3,
+   "pattern": null,
+   "example": null
+  }
+ },
+ "normalise": [
+  {
+   "input": "  ab  cd ",
+   "expected": "AB CD"
+  },
+  {
+   "input": "ab\tcd\n",
+   "expected": "AB CD"
+  },
+  {
+   "input": "ab\u00a0cd",
+   "expected": "AB CD"
+  },
+  {
+   "input": "ab\u3000cd",
+   "expected": "AB CD"
+  },
+  {
+   "input": "ab\u001ccd",
+   "expected": "AB CD"
+  },
+  {
+   "input": "ab\u0085cd",
+   "expected": "AB CD"
+  },
+  {
+   "input": "ab\u2028cd",
+   "expected": "AB CD"
+  },
+  {
+   "input": "\ufeffab",
+   "expected": "\ufeffAB"
+  },
+  {
+   "input": "stra\u00dfe",
+   "expected": "STRASSE"
+  },
+  {
+   "input": "\uff21\uff22",
+   "expected": "AB"
+  },
+  {
+   "input": "\ufb01x",
+   "expected": "FIX"
+  },
+  {
+   "input": "",
+   "expected": null
+  },
+  {
+   "input": " \u001f ",
+   "expected": null
+  },
+  {
+   "input": "x\u200by",
+   "expected": "X\u200bY"
+  }
+ ],
+ "validate": [
+  {
+   "rule": "digits_4_10",
+   "input": "1234",
+   "expected": {
+    "value": "1234"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": " 12 34 ",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "123",
+   "expected": {
+    "error": "length"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "12345678901",
+   "expected": {
+    "error": "length"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "12a4",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "\uff11\uff12\uff13\uff14",
+   "expected": {
+    "value": "1234"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "\u0967\u0968\u0969\u096a",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "letters_digits_pattern",
+   "input": "ab123456",
+   "expected": {
+    "value": "AB123456"
+   }
+  },
+  {
+   "rule": "letters_digits_pattern",
+   "input": "AB 123456",
+   "expected": {
+    "error": "length"
+   }
+  },
+  {
+   "rule": "letters_digits_pattern",
+   "input": "A1234567",
+   "expected": {
+    "error": "pattern"
+   }
+  },
+  {
+   "rule": "letters_digits_pattern",
+   "input": "AB12345",
+   "expected": {
+    "error": "length"
+   }
+  },
+  {
+   "rule": "hyphen_slash_pattern",
+   "input": "crs/2026-15",
+   "expected": {
+    "value": "CRS/2026-15"
+   }
+  },
+  {
+   "rule": "hyphen_slash_pattern",
+   "input": "MCCD/2026-1",
+   "expected": {
+    "value": "MCCD/2026-1"
+   }
+  },
+  {
+   "rule": "hyphen_slash_pattern",
+   "input": "XYZ/2026-1",
+   "expected": {
+    "error": "pattern"
+   }
+  },
+  {
+   "rule": "hyphen_slash_pattern",
+   "input": "CRS/26-1",
+   "expected": {
+    "error": "pattern"
+   }
+  },
+  {
+   "rule": "hyphen_slash_pattern",
+   "input": "CRS 2026-1",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "stra\u00dfe",
+   "expected": {
+    "value": "STRASSE"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "abc",
+   "expected": {
+    "value": "ABC"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "\ufeffabc",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "ab\u001ccd",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "ab\u0085cd",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "ab\u00a0cd",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "letters",
+   "input": "ab\u3000cd",
+   "expected": {
+    "error": "char_type"
+   }
+  },
+  {
+   "rule": "free_dot_pattern",
+   "input": "a-1",
+   "expected": {
+    "value": "A-1"
+   }
+  },
+  {
+   "rule": "free_dot_pattern",
+   "input": "a\u00e91",
+   "expected": {
+    "value": "A\u00c91"
+   }
+  },
+  {
+   "rule": "free_dot_pattern",
+   "input": "a-\u0967",
+   "expected": {
+    "error": "pattern"
+   }
+  },
+  {
+   "rule": "free_dot_pattern",
+   "input": "a1",
+   "expected": {
+    "error": "pattern"
+   }
+  },
+  {
+   "rule": "free_text",
+   "input": "\ud801\udc28\ud801\udc28",
+   "expected": {
+    "value": "\ud801\udc00\ud801\udc00"
+   }
+  },
+  {
+   "rule": "free_text",
+   "input": "\ud801\udc28\ud801\udc28\ud801\udc28\ud801\udc28",
+   "expected": {
+    "error": "length"
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "",
+   "expected": {
+    "value": null
+   }
+  },
+  {
+   "rule": "digits_4_10",
+   "input": "   ",
+   "expected": {
+    "value": null
+   }
+  }
+ ]
+}

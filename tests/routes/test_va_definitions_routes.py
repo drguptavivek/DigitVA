@@ -65,6 +65,7 @@ class VaDefinitionsRoutesTests(BaseTestCase):
         self.assertIn("<ul><li>", sepsis["definition_html"])
         self.assertIn("Inability to stand up", sepsis["definition_text"])
         self.assertNotIn("<", sepsis["definition_text"])
+        self.assertEqual(sepsis["source"], "digitva")
 
     def test_api_filters_on_q(self):
         self._login(str(self.base_coder_id))
@@ -173,6 +174,7 @@ class VaDefinitionsRoutesTests(BaseTestCase):
         self.assertEqual(payload["va_code"], "VAs-01.04")
         self.assertEqual(payload["title"], "Diarrhoeal diseases")
         self.assertIn("<ul>", payload["definition_html"])
+        self.assertEqual(payload["source"], "digitva")  # not WHO content (licence 1.2.4)
 
         icd11 = self.client.get(f"{API}/for-icd", query_string={"code": "1A00.1", "classification": "icd11"})
         self.assertEqual(icd11.get_json()["va_code"], "VAs-01.04")

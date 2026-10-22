@@ -23,6 +23,7 @@ from flask_login import current_user, login_required
 
 from app import limiter, talisman
 from app.services.authz import effective_roles
+from app.services.icd11_licence import ICD11_CITATION
 from app.services.cod_bucket_mapping_service import (
     default_reporting_scheme_code,
     export_public_cod_bucket_scheme,
@@ -535,8 +536,8 @@ def _mapping_page_ctx(template):
     )
 
 
-def _csv_response(header, rows, filename):
-    """Stream `rows` (lists of cells) as a CSV attachment."""
+def _csv_response(header, rows, filename, footer=None):
+    """Stream `rows` (lists of cells) as a CSV attachment; `footer` is one last single-cell row."""
     def generate():
         buffer = io.StringIO()
         writer = csv.writer(buffer)
@@ -546,6 +547,8 @@ def _csv_response(header, rows, filename):
             yield buffer.getvalue()
             buffer.seek(0)
             buffer.truncate(0)
+        if footer:
+            writer.writerow([footer])
         yield buffer.getvalue()
 
     return Response(
@@ -591,6 +594,7 @@ def va_code_mappings_csv():
         CSV_HEADERS,
         ([csv_cell(row[column]) for column in CSV_HEADERS] for row in matches),
         "who_2022_va_2026_icd_mappings.csv",
+        footer=f"# {ICD11_CITATION}",
     )
 
 
@@ -1092,7 +1096,9 @@ def _icd11_codes_browser_csv_response():
             handle = None
         if handle is not None:
             return send_file(handle, mimetype="text/csv", as_attachment=True, download_name=filename)
-    return _csv_response(ICD11_CSV_HEADERS, (icd11_state_csv_row(state) for state in states()), filename)
+    return _csv_response(
+        ICD11_CSV_HEADERS, (icd11_state_csv_row(state) for state in states()), filename, footer=f"# {ICD11_CITATION}"
+    )
 
 
 def _public_csv_dir():

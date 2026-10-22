@@ -234,6 +234,7 @@ def list_coder_va_definitions(query: str | None = None) -> dict:
             "title": row.title,
             "definition_html": row.definition_html,
             "definition_text": text,
+            "source": "digitva",  # not WHO ICD-11 content (licence 1.2.4)
         })
     return {"definitions": definitions, "total": len(definitions)}
 
@@ -309,6 +310,7 @@ def find_va_definition_for_icd(value: str | None, classification: str | None = N
         "va_code": row.va_code,
         "title": row.title,
         "definition_html": row.definition_html,
+        "source": "digitva",  # not WHO ICD-11 content (licence 1.2.4)
     }
 
 

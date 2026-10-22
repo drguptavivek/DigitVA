@@ -1,13 +1,15 @@
 """Sign-in routes for every client, under /api/v1/auth.
 
-Enrol a device, open and refresh a device session, end it. Rules live in
-``device_auth_service`` (enrolment, sessions, tokens); this layer parses and
+Enrol a device, open and refresh a device session, end it, set the device's
+bundle-signing key. Rules live in ``device_auth_service`` (enrolment, sessions,
+tokens) and ``device_signing_service`` (signing keys); this layer parses and
 serializes. Sign-in and refresh replies carry ``access`` with native worker
 grants, matching bearer ``GET /api/v1/me/access`` (docs/current-state/api-v1.md).
 Cookie requests to that endpoint retain full account access. Policy:
 docs/policy/field-data-collection.md, docs/policy/api-v1.md.
 
-Errors are ``{"error": ..., "code": ...}``. Request bodies are capped
+Errors are ``{"error": ..., "code": ...}`` plus ``fields`` when the refusal
+names the inputs to fix. Request bodies are capped
 (``_body_limit``) before anything reads them, the rate limiter's key functions
 included. Terms and maintenance gates are the app-level ones in app/__init__.py.
 """
@@ -23,6 +25,7 @@ from app.models import VaProjectMaster
 from app.routes.api.request_helpers import error as _error
 from app.routes.api.request_helpers import parse_body
 from app.services import device_auth_service as devices
+from app.services import device_signing_service as signing
 from app.services.access_summary_service import build_access_summary
 from app.services.user_account_service import canonical_mobile
 
@@ -85,7 +88,8 @@ def _too_large(_exc):
 @bp.errorhandler(devices.DeviceAuthError)
 def _device_auth_error(exc):
     db.session.rollback()
-    return _error(str(exc), exc.code, exc.status_code)
+    extra = {"fields": exc.fields} if exc.fields else {}
+    return _error(str(exc), exc.code, exc.status_code, **extra)
 
 
 # ---------------------------------------------------------------------------
@@ -109,16 +113,27 @@ def _session_body(issued, user) -> dict:
 @bp.post("/enroll")
 @limiter.limit("10 per minute")
 def enroll():
+    """Optional ``signing_public_key`` (base64url Ed25519, 32 bytes): checked
+    before the code is consumed, so a bad key never burns a single-use code;
+    the reply then adds ``signing_key_id``."""
     p = _body()
+    public_key = None
+    if p.get("signing_public_key") is not None:
+        public_key = signing.parse_public_key(p["signing_public_key"])
     device, secret = devices.enrol_device(
         p.get("code"), device_name=p.get("device_name"), platform=p.get("platform"),
         app_version=p.get("app_version"),
     )
+    reply = {
+        "device_id": str(device.device_id),
+        "device_secret": secret,
+    }
+    if public_key is not None:
+        reply["signing_key_id"] = signing.set_signing_key(device, public_key, via="enroll")
     project = db.session.get(VaProjectMaster, device.project_id)
     db.session.commit()
     return jsonify({
-        "device_id": str(device.device_id),
-        "device_secret": secret,
+        **reply,
         "project": {"project_id": project.project_id, "name": project.project_name},
         "server_time": datetime.now(UTC).isoformat(),
     }), 201
@@ -168,6 +183,21 @@ def refresh_session():
 # ---------------------------------------------------------------------------
 # Bearer-authenticated
 # ---------------------------------------------------------------------------
+
+
+@bp.post("/devices/current/signing-key")
+@login_required
+@limiter.limit("10 per minute")
+def set_device_signing_key():
+    """Set the calling device's Ed25519 bundle-signing key, once. The device
+    is the bearer session's, never named in the body; a browser cookie has
+    none: 403 ``device_session_required``."""
+    session = g.get("device_session")
+    if session is None:
+        return _error("Only a device session sets a signing key.", "device_session_required", 403)
+    key_id = signing.set_current_device_key(session.device_id, _body().get("signing_public_key"))
+    db.session.commit()
+    return jsonify({"signing_key_id": key_id}), 200
 
 
 @bp.delete("/sessions/current")

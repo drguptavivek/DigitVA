@@ -42,6 +42,12 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def _present(column: str):
+    """Column default of a presence flag: whether *column* is set in the same
+    INSERT, so a Core insert (which skips the mapper listener) stays right."""
+    return lambda context: context.get_current_parameters().get(column) is not None
+
+
 class VaDeathRegister(db.Model):
     """The case: one death, registered first or started directly as a VA.
 
@@ -81,7 +87,7 @@ class VaDeathRegister(db.Model):
         ),
         sa.CheckConstraint(
             "status IN ('draft_identity', 'cancelled') OR "
-            "(deceased_name IS NOT NULL AND date_of_death IS NOT NULL AND deceased_sex IS NOT NULL)",
+            "(has_deceased_name AND date_of_death IS NOT NULL AND deceased_sex IS NOT NULL)",
             name="identity",
         ),
         sa.CheckConstraint("pending_flag IN ('duplicate', 'cancel')", name="pending_flag"),
@@ -100,10 +106,13 @@ class VaDeathRegister(db.Model):
             "AND (longitude IS NULL OR longitude BETWEEN -180 AND 180)",
             name="location_range",
         ),
+        # ``has_location`` is true while the fix exists, plaintext or sealed
+        # (PII slice 2): the coordinates may be NULL once sealed.
         sa.CheckConstraint(
             "(latitude IS NULL) = (longitude IS NULL) "
-            "AND (latitude IS NULL) = (captured_at IS NULL) "
-            "AND (latitude IS NOT NULL OR accuracy_m IS NULL)",
+            "AND (has_location = (captured_at IS NOT NULL)) "
+            "AND (has_location OR accuracy_m IS NULL) "
+            "AND (latitude IS NULL OR has_location)",
             name="location_all_or_none",
         ),
         sa.CheckConstraint("accuracy_m IS NULL OR accuracy_m >= 0", name="location_accuracy"),
@@ -112,6 +121,28 @@ class VaDeathRegister(db.Model):
             "client_death_id",
             unique=True,
             postgresql_where=sa.text("client_death_id IS NOT NULL"),
+        ),
+        # Exact phone / ABHA lookups by blind index (PII slice 2).
+        sa.Index(
+            "ix_va_death_register_project_informant_phone_bidx", "project_id", "informant_phone_bidx",
+            postgresql_where=sa.text("informant_phone_bidx IS NOT NULL"),
+        ),
+        sa.Index(
+            "ix_va_death_register_project_informant_phone_2_bidx", "project_id", "informant_phone_2_bidx",
+            postgresql_where=sa.text("informant_phone_2_bidx IS NOT NULL"),
+        ),
+        sa.Index(
+            "ix_va_death_register_project_abha_number_bidx", "project_id", "abha_number_bidx",
+            postgresql_where=sa.text("abha_number_bidx IS NOT NULL"),
+        ),
+        sa.Index(
+            "ix_va_death_register_project_abha_address_bidx", "project_id", "abha_address_bidx",
+            postgresql_where=sa.text("abha_address_bidx IS NOT NULL"),
+        ),
+        # Key rotation walks the sealed rows by key id.
+        sa.Index(
+            "ix_va_death_register_pii_key", "pii_key_id",
+            postgresql_where=sa.text("pii_sealed IS NOT NULL"),
         ),
     )
 
@@ -190,6 +221,36 @@ class VaDeathRegister(db.Model):
     # The device app's UUID for a death registered offline (Path B
     # idempotency key); NULL for a web registration. Unique where present.
     client_death_id: so.Mapped[uuid.UUID | None] = so.mapped_column(sa.Uuid(as_uuid=True), nullable=True)
+    # Sealed personal columns (PII slice 2, docs/kb/pii-slice-2.md). With
+    # REGISTER_PII_SPLIT_ENABLED the sealed set lives in ``pii_sealed``
+    # (``{field: "v1:aes256gcm:..."}``, one DEK wrapped in ``pii_dek_wrapped``)
+    # and the plaintext columns are NULL. Only
+    # ``app.services.register_pii_accessor`` writes these.
+    pii_sealed: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    pii_dek_wrapped: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    pii_key_id: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
+    pii_blind_key_id: so.Mapped[str | None] = so.mapped_column(sa.String(8), nullable=True)
+    pii_sealed_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    informant_phone_bidx: so.Mapped[str | None] = so.mapped_column(sa.String(128), nullable=True)
+    informant_phone_2_bidx: so.Mapped[str | None] = so.mapped_column(sa.String(128), nullable=True)
+    abha_number_bidx: so.Mapped[str | None] = so.mapped_column(sa.String(128), nullable=True)
+    abha_address_bidx: so.Mapped[str | None] = so.mapped_column(sa.String(128), nullable=True)
+    # Presence of a value that may now be sealed. Kept by the mapper listener
+    # below (plaintext non-null), by the column default on a Core insert and
+    # by the seal writer; never test the
+    # plaintext column for presence.
+    has_deceased_name: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=_present("deceased_name"), server_default=sa.false()
+    )
+    has_informant_phone: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=_present("informant_phone"), server_default=sa.false()
+    )
+    has_informant_phone_2: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=_present("informant_phone_2"), server_default=sa.false()
+    )
+    has_location: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=_present("latitude"), server_default=sa.false()
+    )
     created_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow
     )
@@ -199,6 +260,30 @@ class VaDeathRegister(db.Model):
 
     def __repr__(self) -> str:
         return f"<VaDeathRegister {self.unique_id} {self.status}>"
+
+
+#: presence flag -> the plaintext column it mirrors (``has_location`` mirrors
+#: ``latitude``: a fix has all three coordinates or none).
+PRESENCE_FLAGS = {
+    "has_deceased_name": "deceased_name",
+    "has_informant_phone": "informant_phone",
+    "has_informant_phone_2": "informant_phone_2",
+    "has_location": "latitude",
+}
+
+
+@sa.event.listens_for(VaDeathRegister, "before_insert")
+@sa.event.listens_for(VaDeathRegister, "before_update")
+def _keep_presence_flags(mapper, connection, target) -> None:
+    """A plaintext writer keeps the flags right with no code of its own: a
+    non-null column sets its flag; a null one clears it only while the row is
+    not sealed (a sealed row's NULL plaintext says nothing about presence)."""
+    sealed = target.pii_sealed is not None
+    for flag, column in PRESENCE_FLAGS.items():
+        present = getattr(target, column) is not None
+        if present or not sealed:
+            if getattr(target, flag) != present:
+                setattr(target, flag, present)
 
 
 class MapCaseTransition(db.Model):
@@ -231,6 +316,11 @@ class MapCaseTransition(db.Model):
     # interview's identity copy; JSON-safe values (dates as ISO strings).
     # Personal data: never serialized to a client, never logged.
     changes: so.Mapped[dict | None] = so.mapped_column(JSONB, nullable=True)
+    # With REGISTER_PII_SPLIT_ENABLED the old/new values of the sealed register
+    # fields in ``changes`` are ``v1:aes256gcm:...`` ciphertexts under this one
+    # wrapped DEK (register_pii_accessor.seal_audit_changes).
+    changes_dek_wrapped: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
+    changes_key_id: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     actor_user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )

@@ -577,11 +577,28 @@ export async function importStationConfig(
   };
 }
 
+/** A pending record the station kept out of a data file, and why; it stays for a later one. */
+export interface HeldBackRecord {
+  client_id: string;
+  reason: string;
+}
+
 export interface BundleExportResult {
   bundle_id: string;
   filename: string;
   record_count: number;
   bundle_bytes_b64?: string;
+  records_held_back?: HeldBackRecord[];
+}
+
+/** The `records_held_back` list of an export reply or its 422 body; malformed entries are skipped. */
+export function heldBackRecords(value: unknown): HeldBackRecord[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) =>
+    entry && typeof entry === "object" && typeof entry.client_id === "string" && typeof entry.reason === "string"
+      ? [{ client_id: entry.client_id, reason: entry.reason }]
+      : [],
+  );
 }
 
 export async function exportStationBundle(
@@ -597,6 +614,10 @@ export async function exportStationBundle(
 export interface BundleReceiptImportResult {
   bundle_id: string;
   acknowledged_deleted_count: number;
+  /** The server's per-record answers: accepted (removed here), held pending, refused (kept). */
+  accepted_count: number;
+  pending_count: number;
+  rejected_count: number;
   purged_ids: string[];
 }
 
@@ -607,18 +628,22 @@ export async function importBundleReceipt(
   const res = await requestClientJson<{
     bundle_id?: string;
     acknowledged_deleted_count?: number;
+    accepted_count?: number;
+    pending_count?: number;
+    rejected_count?: number;
     purged_ids?: string[];
   }>("/api/v1/station/bundles/receipt", {
     method: "POST",
     json: { receipt: rawReceipt },
     csrf,
   });
+  const count = (value: unknown) => (typeof value === "number" ? value : 0);
   return {
     bundle_id: String(res.bundle_id ?? ""),
-    acknowledged_deleted_count:
-      typeof res.acknowledged_deleted_count === "number"
-        ? res.acknowledged_deleted_count
-        : 0,
+    acknowledged_deleted_count: count(res.acknowledged_deleted_count),
+    accepted_count: count(res.accepted_count),
+    pending_count: count(res.pending_count),
+    rejected_count: count(res.rejected_count),
     purged_ids: Array.isArray(res.purged_ids)
       ? res.purged_ids.map((id) => String(id))
       : [],

@@ -2,6 +2,7 @@ from app.models.auth_devices import (
     AuthDevice,
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
+    AuthDeviceSigningKey,
 )
 from app.models.auth_factors import (
     AuthMobileCode,
@@ -9,6 +10,11 @@ from app.models.auth_factors import (
     AuthSecurityEvent,
     AuthTotp,
     AuthWebauthnCredential,
+)
+from app.models.auth_station import (
+    AuthStationConfig,
+    AuthStationCustodian,
+    AuthStationRosterMember,
 )
 from app.models.cod_search_telemetry import CodSearchTelemetry
 from app.models.map_death_identifier import (
@@ -38,7 +44,6 @@ from app.models.mas_instrument_locales import (
     MasInstrumentLocales,
 )
 from app.models.mas_instrument_versions import MasInstrumentVersions
-from app.models.mas_ui_string_override import MasUiStringOverride
 from app.models.mas_languages import MapLanguageAliases, MasLanguages
 from app.models.mas_mentor_institute import (
     MapMentorInstituteOrgUnit,
@@ -55,11 +60,20 @@ from app.models.mas_organization import (
     MasOrgUnit,
     MasOrgUnitWorker,
 )
+from app.models.mas_ui_string_override import MasUiStringOverride
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.models.va_allocations import VaAllocations
+from app.models.va_bundle_ingest import MapBundleRecord, VaBundleIngest, VaBundlePendingCoding
 from app.models.va_cod_bucket_scheme_snapshots import VaCodBucketSchemeSnapshot
 from app.models.va_coder_review import VaCoderReview
 from app.models.va_coding_episodes import VaCodingEpisode
+from app.models.va_consent import (
+    MapConsentAudit,
+    MasConsentNoticeVersion,
+    MasProjectConsentSettings,
+    VaConsentRecord,
+    VaConsentRecordPurpose,
+)
 from app.models.va_daily_kpi_aggregates import VaDailyKpiAggregates
 from app.models.va_data_manager_review import VaDataManagerReview
 from app.models.va_db_backups import VaDbBackup
@@ -121,12 +135,20 @@ from app.models.va_web_intake import (
     MapCaseContactAttempt,
     MapCaseTransition,
     VaDeathRegister,
+    VaWebIntakeAttachment,
     VaWebIntakeDraft,
     VaWebIntakeDraftSection,
-    VaWebIntakeAttachment,
 )
 
 __all__ = [
+    "MapBundleRecord",
+    "VaBundleIngest",
+    "VaBundlePendingCoding",
+    "MapConsentAudit",
+    "MasConsentNoticeVersion",
+    "MasProjectConsentSettings",
+    "VaConsentRecord",
+    "VaConsentRecordPurpose",
     "MapDeathIdentifier",
     "MapIdentifierAudit",
     "MapPayloadVersionPii",
@@ -134,6 +156,10 @@ __all__ = [
     "AuthDevice",
     "AuthDeviceEnrolmentCode",
     "AuthDeviceSession",
+    "AuthDeviceSigningKey",
+    "AuthStationConfig",
+    "AuthStationCustodian",
+    "AuthStationRosterMember",
     "AuthWebauthnCredential",
     "AuthTotp",
     "AuthMobileCode",

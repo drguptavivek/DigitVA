@@ -741,6 +741,13 @@ class DmSubmissionsExportStaffIdentityTests(BaseTestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["coder_name"], self.coder_user.name)
 
+    def test_snapshot_keeps_icd11_uri_columns_and_ends_with_the_who_citation(self):
+        csv_text, _rows = self._snapshot_rows()
+        header = csv_text.lstrip("\ufeff").splitlines()[0]
+        for column in ("coder_final_icd11_stem_uri", "reviewer_final_icd11_stem_uri", "authoritative_icd11_stem_uri"):
+            self.assertIn(column, header)
+        self.assertIn("CC BY-ND 3.0 IGO", csv_text.strip().splitlines()[-1])
+
     @patch("app.services.data_management_service.should_redact_pii", return_value=True)
     def test_redacted_snapshot_blanks_every_staff_name(self, _mock):
         csv_text, rows = self._snapshot_rows()

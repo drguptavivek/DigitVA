@@ -20,12 +20,12 @@ pub const OPTIONAL_PURPOSE_CODES: &[&str] = &[
     "research_sharing",
 ];
 
+/// Notice ids of the sandbox-only default config (`default_project_consent_config`); never a fallback.
 pub const DEFAULT_NOTICE_VERSION_ID_EN: &str = "00000000-0000-4000-8000-000000000001";
 pub const DEFAULT_NOTICE_VERSION_ID_HI: &str = "00000000-0000-4000-8000-000000000002";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsentNoticeLocale {
-    #[serde(default = "default_notice_version_id")]
     pub notice_version_id: String,
     #[serde(default = "default_version_num")]
     pub version: i64,
@@ -36,10 +36,6 @@ pub struct ConsentNoticeLocale {
     #[serde(default)]
     pub text_sha256: String,
     pub updated_at: String,
-}
-
-fn default_notice_version_id() -> String {
-    DEFAULT_NOTICE_VERSION_ID_EN.to_string()
 }
 
 fn default_version_num() -> i64 {
@@ -109,9 +105,20 @@ impl Default for ConsentRefusalBehaviour {
     }
 }
 
+/// A server project id ("TST001"; the sandbox is "1"). Accepts a JSON number too, as
+/// configs stored or sent before project ids became strings carried one.
+pub fn deserialize_project_id<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+    match Value::deserialize(d)? {
+        Value::String(s) => Ok(s),
+        Value::Number(n) => Ok(n.to_string()),
+        _ => Err(serde::de::Error::custom("project_id must be a string or number")),
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConsentConfig {
-    pub project_id: i64,
+    #[serde(deserialize_with = "deserialize_project_id")]
+    pub project_id: String,
     pub consent_required: bool,
     #[serde(default = "default_version_num")]
     pub min_version: i64,
@@ -189,7 +196,7 @@ impl ProjectConsentConfig {
             );
         }
         serde_json::json!({
-            "project_id": self.project_id.to_string(),
+            "project_id": self.project_id,
             "consent_required": self.consent_required,
             "min_version": self.min_version,
             "min_notice_version": self.min_notice_version,
@@ -327,7 +334,8 @@ pub fn normalise_consent_mode(raw: &str) -> Option<&'static str> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsentRecordRow {
     pub client_id: String,
-    pub project_id: i64,
+    #[serde(deserialize_with = "deserialize_project_id")]
+    pub project_id: String,
     pub client_death_id: Option<String>,
     pub client_draft_id: Option<String>,
     pub death_id: Option<i64>,
@@ -360,9 +368,9 @@ impl ConsentRecordRow {
     }
 }
 
-/// Sandbox-only default consent configuration for `project_id == 1` (`PHC-STANDALONE`).
-/// Never returned for provisioned projects (`project_id != 1` or `mode == "provisioned"`).
-pub fn default_project_consent_config(project_id: i64) -> ProjectConsentConfig {
+/// Sandbox-only default consent configuration for `project_id == "1"` (`PHC-STANDALONE`).
+/// Never returned for provisioned projects (`project_id != "1"` or `mode == "provisioned"`).
+pub fn default_project_consent_config(project_id: &str) -> ProjectConsentConfig {
     let now = Utc::now().to_rfc3339();
     let en_body = concat!(
         "We are sorry for your loss. Before we write down your name, phone number or address, ",
@@ -389,7 +397,7 @@ pub fn default_project_consent_config(project_id: i64) -> ProjectConsentConfig {
     let hi_sha = sha256_hex(hi_body.as_bytes());
 
     ProjectConsentConfig {
-        project_id,
+        project_id: project_id.to_string(),
         consent_required: true,
         min_version: 1,
         min_notice_version: "0.1".to_string(),
@@ -481,7 +489,7 @@ pub fn default_project_consent_config(project_id: i64) -> ProjectConsentConfig {
 /// Parse a Contract 5.2 consent config JSON object (or `ProjectConsentConfig` JSON) into `ProjectConsentConfig`,
 /// verifying `text_sha256` over UTF-8 notice text and checking `refusal_behaviour`.
 pub fn parse_contract_consent_config(
-    project_id: i64,
+    project_id: &str,
     val: &Value,
 ) -> Result<ProjectConsentConfig, String> {
     if let Some(obj) = val.as_object() {
@@ -628,7 +636,7 @@ pub fn parse_contract_consent_config(
             }
 
             return Ok(ProjectConsentConfig {
-                project_id,
+                project_id: project_id.to_string(),
                 consent_required,
                 min_version: min_ver,
                 min_notice_version: min_ver.to_string(),
@@ -651,13 +659,13 @@ pub fn parse_contract_consent_config(
 /// Load the project consent configuration.
 ///
 /// Contract 5.6 rule:
-/// - `default_project_consent_config(1)` is ONLY returned when `project_id == 1` AND the station
+/// - `default_project_consent_config("1")` is ONLY returned when `project_id == "1"` AND the station
 ///   is in `"standalone"` sandbox mode.
-/// - When `project_id != 1` or the station is in `"provisioned"` mode and no consent config has been
+/// - When `project_id != "1"` or the station is in `"provisioned"` mode and no consent config has been
 ///   imported for `project_id`, returns `Err(rusqlite::Error::QueryReturnedNoRows)`.
 pub fn get_project_consent_config(
     conn: &Connection,
-    project_id: i64,
+    project_id: &str,
 ) -> rusqlite::Result<ProjectConsentConfig> {
     let raw: Option<String> = conn
         .query_row(
@@ -683,8 +691,8 @@ pub fn get_project_consent_config(
         )
         .unwrap_or_else(|_| "standalone".to_string());
 
-    if project_id == 1 && station_mode == "standalone" {
-        Ok(default_project_consent_config(1))
+    if project_id == "1" && station_mode == "standalone" {
+        Ok(default_project_consent_config("1"))
     } else {
         Err(rusqlite::Error::QueryReturnedNoRows)
     }
@@ -716,21 +724,61 @@ pub fn upsert_project_consent_config(
     Ok(())
 }
 
-fn parse_version_int(s: &str) -> Option<i64> {
-    s.trim().parse::<i64>().ok()
+/// Code of a consent or informant write refused because the project has no consent notice
+/// (contract 5.6: no silent fallback to a default notice).
+pub const CONSENT_NOTICE_UNAVAILABLE: &str = "consent_notice_unavailable";
+
+/// Why a consent could not be captured, or informant details not written. `code` is set only
+/// when the caller's own validation code would hide the reason (no notice to consent against).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConsentRefusal {
+    pub code: Option<&'static str>,
+    pub message: String,
 }
 
+impl ConsentRefusal {
+    pub fn notice_unavailable() -> Self {
+        Self {
+            code: Some(CONSENT_NOTICE_UNAVAILABLE),
+            message: "This project has no consent notice yet, so informant details cannot be recorded offline."
+                .to_string(),
+        }
+    }
+}
+
+impl From<String> for ConsentRefusal {
+    fn from(message: String) -> Self {
+        Self { code: None, message }
+    }
+}
+
+impl ProjectConsentConfig {
+    /// A notice version and its purposes are loaded, so a consent can be taken against them.
+    pub fn has_usable_notice(&self) -> bool {
+        !self.notices.is_empty() && !self.purposes.is_empty()
+    }
+}
+
+/// Record a respondent consent taken against a notice version of the imported config.
+///
+/// The envelope must name a served `notice_version_id` (a UUID), its `language` and its
+/// `text_sha256`, and only that config's purpose codes (contract 5.3). Fails with
+/// `ConsentRefusal::notice_unavailable` when the project has no notice or purposes loaded;
+/// nothing is defaulted.
 pub fn append_consent_record(
     conn: &Connection,
-    project_id: i64,
+    project_id: &str,
     client_death_id: Option<&str>,
     death_id: Option<i64>,
     input: &ConsentEnvelopeInput,
     recorded_by: &str,
     default_device_id: &str,
-) -> Result<ConsentRecordRow, String> {
+) -> Result<ConsentRecordRow, ConsentRefusal> {
     let cfg = get_project_consent_config(conn, project_id)
-        .map_err(|_| "Consent configuration has not been loaded for this project.".to_string())?;
+        .map_err(|_| ConsentRefusal::notice_unavailable())?;
+    if !cfg.has_usable_notice() {
+        return Err(ConsentRefusal::notice_unavailable());
+    }
 
     let client_id = input
         .client_id
@@ -757,85 +805,49 @@ pub fn append_consent_record(
             .iter()
             .any(|m| normalise_consent_mode(m) == Some(mode.as_str()))
     {
-        return Err(format!(
-            "Consent capture mode '{mode}' is not allowed for this project."
-        ));
+        return Err(format!("Consent capture mode '{mode}' is not allowed for this project.").into());
     }
 
     if input.witness_present && !cfg.witness_allowed {
-        return Err("witness_present cannot be true when witness_allowed is false.".to_string());
+        return Err("witness_present cannot be true when witness_allowed is false.".to_string().into());
     }
 
-    let notice_language = input
-        .notice_language
-        .clone()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| "en".to_string());
-
-    let raw_nv = input
-        .notice_version_id
-        .clone()
-        .filter(|s| !s.trim().is_empty())
-        .unwrap_or_else(|| cfg.min_notice_version.clone());
-
-    // Match notice in cfg.notices by notice_version_id or notice_version + language
-    let matched_notice = cfg
+    let requested_id = input.notice_version_id.as_deref().map(str::trim).unwrap_or("");
+    let notice = cfg
         .notices
         .iter()
-        .find(|n| n.notice_version_id == raw_nv || (n.notice_version == raw_nv && n.locale == notice_language))
-        .or_else(|| cfg.notices.iter().find(|n| n.notice_version == raw_nv))
-        .or_else(|| cfg.notices.iter().find(|n| n.locale == notice_language))
-        .or_else(|| cfg.notices.first());
-
-    // Integer version comparison (Contract 5.2 / 5.6)
-    if let Some(req_v) = parse_version_int(&raw_nv) {
-        if req_v < cfg.min_version {
-            return Err(format!(
-                "Consent notice version {} is older than project minimum {}; please re-capture consent.",
-                req_v, cfg.min_version
-            ));
-        }
-    } else if raw_nv < cfg.min_notice_version && Uuid::parse_str(&raw_nv).is_err() {
-        return Err(format!(
-            "Consent notice version '{}' is older than project minimum '{}'; please re-capture consent.",
-            raw_nv, cfg.min_notice_version
-        ));
+        .find(|n| n.notice_version_id == requested_id)
+        .ok_or_else(|| "Consent notice_version_id is not a notice version of this project.".to_string())?;
+    if Uuid::parse_str(&notice.notice_version_id).is_err() {
+        return Err("Consent notice_version_id must be a UUID.".to_string().into());
     }
-
-    let notice_version_id = if Uuid::parse_str(&raw_nv).is_ok() {
-        raw_nv.clone()
-    } else if let Some(n) = matched_notice {
-        if Uuid::parse_str(&n.notice_version_id).is_ok() {
-            n.notice_version_id.clone()
-        } else {
-            DEFAULT_NOTICE_VERSION_ID_EN.to_string()
-        }
+    if input.notice_language.as_deref().map(str::trim) != Some(notice.locale.as_str()) {
+        return Err("Consent notice_language does not match the notice version's language.".to_string().into());
+    }
+    let expected_sha = if notice.text_sha256.len() == 64 {
+        notice.text_sha256.to_ascii_lowercase()
     } else {
-        DEFAULT_NOTICE_VERSION_ID_EN.to_string()
+        sha256_hex(notice.body_markdown.as_bytes())
     };
-
-    let expected_sha = matched_notice
-        .map(|n| {
-            if !n.text_sha256.is_empty() {
-                n.text_sha256.clone()
-            } else {
-                sha256_hex(n.body_markdown.as_bytes())
-            }
-        })
-        .unwrap_or_else(|| sha256_hex(raw_nv.as_bytes()));
-
-    let notice_sha256 = match input.notice_sha256.as_deref().map(str::trim) {
-        Some(provided) if !provided.is_empty() => {
-            if provided.len() != 64 || !provided.bytes().all(|b| b.is_ascii_hexdigit()) {
-                return Err("Consent notice_sha256 must be 64 hex characters.".to_string());
-            }
-            if matched_notice.is_some() && !provided.eq_ignore_ascii_case(&expected_sha) {
-                return Err("Consent notice_sha256 does not match the served notice text.".to_string());
-            }
-            provided.to_ascii_lowercase()
-        }
-        _ => expected_sha,
-    };
+    let provided_sha = input.notice_sha256.as_deref().map(str::trim).unwrap_or("");
+    if !provided_sha.eq_ignore_ascii_case(&expected_sha) {
+        return Err("Consent notice_sha256 does not match the served notice text.".to_string().into());
+    }
+    if let Some(unknown) = input
+        .purposes
+        .iter()
+        .find(|pg| !cfg.purposes.iter().any(|p| p.code == pg.code))
+    {
+        return Err(format!(
+            "Consent purpose '{}' is not a purpose of this notice version.",
+            unknown.code
+        )
+        .into());
+    }
+    let notice_version_id = notice.notice_version_id.clone();
+    let notice_version = notice.notice_version.clone();
+    let notice_language = notice.locale.clone();
+    let notice_sha256 = expected_sha;
 
     // Build canonical sorted purposes list
     let mut purposes_map: BTreeMap<String, bool> = BTreeMap::new();
@@ -865,7 +877,8 @@ pub fn append_consent_record(
     if decision == "granted" && !all_required_granted {
         return Err(
             "All required respondent consent purposes must be granted to store informant personal data, or record a refusal instead."
-                .to_string(),
+                .to_string()
+                .into(),
         );
     }
 
@@ -918,7 +931,7 @@ pub fn append_consent_record(
             death_id,
             decision,
             notice_version_id,
-            raw_nv,
+            notice_version,
             notice_language,
             notice_sha256,
             mode,
@@ -936,11 +949,11 @@ pub fn append_consent_record(
             device_id,
         ],
     )
-    .map_err(|e| format!("Failed to store consent record: {e}"))?;
+    .map_err(|e| ConsentRefusal::from(format!("Failed to store consent record: {e}")))?;
 
     Ok(ConsentRecordRow {
         client_id,
-        project_id,
+        project_id: project_id.to_string(),
         client_death_id: client_death_id.map(ToString::to_string),
         client_draft_id: input.client_draft_id.clone(),
         death_id,
@@ -980,12 +993,12 @@ pub fn parse_stored_purposes(purposes_str: &str) -> Vec<ConsentPurposeGrant> {
 
 pub fn get_latest_consent_for_case(
     conn: &Connection,
-    project_id: i64,
+    project_id: &str,
     client_death_id: Option<&str>,
     death_id: Option<i64>,
 ) -> rusqlite::Result<Option<ConsentRecordRow>> {
     let mut stmt = conn.prepare(
-        "SELECT consent_id, project_id, client_death_id, client_draft_id, death_id,
+        "SELECT consent_id, CAST(project_id AS TEXT), client_death_id, client_draft_id, death_id,
                 action_type, notice_version_id, locale, notice_sha256, mode,
                 witness_present, supersedes_client_id, purposes_json,
                 all_required_granted, sms_whatsapp_granted, research_sharing_granted,
@@ -1048,11 +1061,11 @@ pub fn has_non_empty_informant_pii(fields: &[Option<&str>]) -> bool {
 /// granted `consent_records` row exists for this case, and a consent configuration is loaded for the project.
 pub fn assert_informant_consent_before_write(
     conn: &Connection,
-    project_id: i64,
+    project_id: &str,
     client_death_id: Option<&str>,
     death_id: Option<i64>,
     informant_fields: &[Option<&str>],
-) -> Result<String, String> {
+) -> Result<String, ConsentRefusal> {
     let cfg = get_project_consent_config(conn, project_id)
         .map_err(|_| "Consent configuration has not been loaded for this project.".to_string())?;
 
@@ -1071,29 +1084,27 @@ pub fn assert_informant_consent_before_write(
         }
     };
 
-    if !cfg.consent_required {
+    // Offline always needs consent for informant details, whatever `consent_required` says
+    // (owner decision, contract 5.5); the server refuses such a registration at ingest.
+    if !has_non_empty_informant_pii(informant_fields) || status == "granted" {
         return Ok(status.to_string());
     }
-
-    if !has_non_empty_informant_pii(informant_fields) {
-        return Ok(status.to_string());
+    // Without a notice no consent can be taken, so say so instead of asking for one.
+    if !cfg.has_usable_notice() {
+        return Err(ConsentRefusal::notice_unavailable());
     }
-
-    let Some(record) = latest else {
+    if latest.is_none() {
         return Err(
             "Respondent consent is required before saving informant name, phone, or address."
-                .to_string(),
-        );
-    };
-
-    if record.decision != "granted" || !record.all_required_granted {
-        return Err(
-            "Respondent refused or did not grant required consent; clear informant personal data before saving."
-                .to_string(),
+                .to_string()
+                .into(),
         );
     }
-
-    Ok("granted".to_string())
+    Err(
+        "Respondent refused or did not grant required consent; clear informant personal data before saving."
+            .to_string()
+            .into(),
+    )
 }
 
 /// Internal helper used when applying server `purge` lists (`apply_purge_list`):

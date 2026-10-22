@@ -22,7 +22,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from app import db, limiter, talisman
 from app.decorators import role_required
-from app.models import AuthDevice, VaSubmissionPayloadVersion, VaSubmissions
+from app.models import AuthDevice, VaDeathRegister, VaSubmissionPayloadVersion, VaSubmissions
 from app.routes.api.request_helpers import (
     error,
     identifier_rate_limit,
@@ -32,8 +32,9 @@ from app.routes.api.request_helpers import (
     request_project_id,
     require_project,
 )
-from app.services import attachment_service
+from app.services import attachment_service, register_pii_accessor
 from app.services import case_transition_service as case_svc
+from app.services import consent_service as consent_svc
 from app.services import death_identifier_service as identifiers_svc
 from app.services import death_identifier_write as identifier_write_svc
 from app.services import device_auth_service as devices
@@ -113,6 +114,17 @@ def _project_or_client_error(exc):
 def _intake_error(exc):
     db.session.rollback()
     return intake_error(exc)
+
+
+@bp.errorhandler(consent_svc.ConsentError)
+def _consent_error(exc):
+    db.session.rollback()
+    return error(str(exc), exc.code, exc.status_code, **({"fields": exc.fields} if exc.fields else {}))
+
+
+def _consent_channel() -> str:
+    """``device`` for a bearer request, ``web`` for a browser cookie."""
+    return "device" if g.get("device_session") is not None else "web"
 
 
 def _client_id(p: dict, name: str) -> uuid.UUID | None:
@@ -202,6 +214,24 @@ def identifier_types():
             for t in identifier_types_svc.active_types(project_id)
         ],
     })
+
+
+@bp.get("/consent-config")
+@role_required("admin", "interviewer", "interview_supervisor", "data_manager", "death_reporter")
+@limiter.limit("120 per minute")
+def consent_config():
+    """The project's respondent consent settings and current notice versions
+    (docs/policy/offline-api-contract.md 5.2). Query: ``project_id``
+    (required). Who: as ``identifier_types``; anything else is 403
+    ``project_forbidden``. A project without consent settings answers
+    ``consent_required: false`` and no notice versions. Either credential."""
+    project_id = identifier_types_svc.normalise_project_id(request.args.get("project_id"))
+    if not project_id:
+        raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
+    if not (resolve_grants(current_user).is_admin
+            or identifier_types_svc.supervises_project(current_user, project_id)):
+        require_project(project_id, DEATH_REGISTERING_ROLES)
+    return jsonify(consent_svc.get_consent_config(project_id))
 
 
 # ---------------------------------------------------------------------------
@@ -428,8 +458,13 @@ def list_deaths():
     visible = intake_svc.gps_projects(current_user, {project_id}) if deaths else set()
     identifiers = identifiers_svc.identifier_payloads(current_user, deaths)
     editable = intake_svc.can_edit_identifiers(current_user, deaths)
+    gps = {d.death_id: intake_svc.shows_gps(current_user, d, visible) for d in deaths}
+    # A fix the viewer may not see is never opened (no coordinates decrypted).
+    opened = register_pii_accessor.open_register_pii([d for d in deaths if gps[d.death_id]])
+    opened |= register_pii_accessor.open_register_pii(
+        [d for d in deaths if not gps[d.death_id]], only=intake_svc._without_location())
     return jsonify({"deaths": [
-        dict(intake_svc.serialize_death(d, show_gps=intake_svc.shows_gps(current_user, d, visible)),
+        dict(intake_svc.serialize_death(d, show_gps=gps[d.death_id], register=opened[d.death_id]),
              identifiers=identifiers[d.death_id], can_edit_identifiers=editable[d.death_id])
         for d in deaths
     ]})
@@ -446,7 +481,12 @@ def register_death():
     registration is idempotent on it, a resend returns the same case with 200
     (the numbers are stored once and not warned about again). Replies
     ``{"case": <detail>, "warnings": [...]}`` as ``GET /cases/<id>``;
-    ``warnings`` only when a number is already on another case."""
+    ``warnings`` only when a number is already on another case. Optional
+    ``consent`` (contract 5.3, ``client_draft_id: null``): the informant's
+    registration consent, stored with the case in one transaction; where the
+    project requires consent, informant fields need a granted one (422
+    ``consent_required``; ``consent_conflict`` when refused,
+    ``consent_invalid`` for a bad object, 409 ``conflict`` for a reused id)."""
     p = parse_body()
     client_death_id = _client_id(p, "client_death_id")
     site_id = _site_id(p)
@@ -471,6 +511,9 @@ def register_death():
                 warnings=warnings,
                 **{k: p.get(k) for k in _REGISTER_FIELDS},
             )
+        db.session.flush()
+        consent_svc.apply_registration_consent(
+            current_user, death, p.get("consent"), fields=p, channel=_consent_channel())
         db.session.commit()
     except IntegrityError:
         # A concurrent resend of the same client_death_id won the unique index.
@@ -501,10 +544,15 @@ def update_death(death_id):
     cancelled or confirmed-duplicate case by anyone but a supervisor (register
     fields of a closed case are unchanged); 422 ``invalid_death`` (a bad
     number names ``identifiers.<code>`` in ``fields``); 429 past the budget
-    of requests that carry numbers."""
+    of requests that carry numbers. Optional ``consent`` (contract 5.3,
+    ``client_draft_id: null``): a registration consent stored with the
+    change; where the project requires consent, an informant field the patch
+    fills needs it granted, or a granted registration consent on file (422
+    ``consent_required`` / ``consent_conflict`` / ``consent_invalid``, 409
+    ``conflict``; contract 5.5)."""
     p = parse_body()
     # Every other key goes on: the service refuses an unknown field by name.
-    changes = {k: v for k, v in p.items() if k not in ("if_updated_at", "identifiers")}
+    changes = {k: v for k, v in p.items() if k not in ("if_updated_at", "identifiers", "consent")}
     warnings = []
     with _content_refusals("invalid_death"):
         if any(isinstance(v, (dict, list)) for v in changes.values()):
@@ -513,6 +561,8 @@ def update_death(death_id):
             current_user, death_id, changes, if_updated_at=p.get("if_updated_at"),
             identifiers=_identifiers_arg(p), warnings=warnings,
         )
+    consent_svc.apply_registration_consent(
+        current_user, death, p.get("consent"), fields=changes, channel=_consent_channel())
     db.session.commit()
     # ponytail: the full detail (incl. informant contact) is kept for a
     # supervisor, as before; trimming it here is a separate change.
@@ -777,6 +827,15 @@ def _correction_reply(draft, reply):
 def submit_draft(draft_id):
     p = parse_body()
     draft = intake_svc.get_draft(current_user, draft_id)
+    completion = p.get("completion")
+    if isinstance(completion, dict) and isinstance(completion.get("data"), dict):
+        # Every branch below stores these answers; the browser cannot take a
+        # consent yet (digitva-athy), so only one on file can cover them.
+        consent_svc.apply_interview_consent(
+            current_user, project_id=draft.project_id,
+            death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
+            client_draft_id=draft.client_draft_id, consent=None, answers=completion["data"], channel="web",
+        )
     if draft.status == "submitted":
         # A stale tab, or a second completion of an interview the phone or
         # this page already submitted: the later completion is a correction
@@ -881,7 +940,13 @@ def submit_interview():
     it is kept as history. Never a hash conflict. Reply: the upload result
     plus ``kept`` (``incoming`` or ``server``), ``received_sha256`` and
     ``locked`` (coding final or case closed). A bearer request records its
-    device on the interview; a cookie request has none."""
+    device on the interview; a cookie request has none. Optional ``consent``
+    (contract 5.3, naming this ``client_draft_id``): a consent taken for this
+    attempt, stored with the upload; where the project requires consent,
+    covered answers need it granted or, without one, a granted registration
+    consent on the case (422 ``consent_required`` / ``consent_conflict`` /
+    ``consent_invalid``, 409 ``conflict``). A resend of the same answers
+    returns the first result unchecked."""
     p = parse_body()
     try:
         client_draft_id = uuid.UUID(str(p.get("client_draft_id")))
@@ -905,6 +970,13 @@ def submit_interview():
     except intake_svc.WebIntakeError as exc:
         return error(str(exc), "invalid_interview", 422)
 
+    def _apply_interview_consent(draft):
+        # On the case the upload landed on, gating the answers as received.
+        consent_svc.apply_interview_consent(
+            current_user, project_id=project_id, death=db.session.get(VaDeathRegister, draft.death_id),
+            client_draft_id=client_draft_id, consent=p.get("consent"), answers=data, channel=_consent_channel(),
+        )
+
     def resend(existing):
         # The same hash is the first result again; other answers are a later
         # version of the interview.
@@ -916,6 +988,7 @@ def submit_interview():
         kept, locked = intake_svc.resubmit_device_interview(
             current_user, existing, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
         )
+        _apply_interview_consent(existing)
         db.session.commit()
         return _upload_reply(existing, kept=kept, received_sha256=answers_sha256, locked=locked, status=200)
 
@@ -938,6 +1011,7 @@ def submit_interview():
             completion=completion,
             device_id=device.device_id if device else None,
         )
+        _apply_interview_consent(draft)
         db.session.commit()
     except IntegrityError:
         # A concurrent resend of the same client_draft_id won the unique index.
@@ -968,7 +1042,10 @@ def revise_submission(va_sid):
     ``case_closed`` / ``case_state_conflict``; 422 ``invalid_reason`` /
     ``answers_hash_*`` / ``invalid_interview``. A completed interview revised
     to a refusal or partial one is allowed: the case leaves coding. The
-    server's own reason ``resubmitted`` is not accepted here."""
+    server's own reason ``resubmitted`` is not accepted here. Optional
+    ``consent`` and the consent gate as ``/submissions``, the attempt being
+    the submission's own ``client_draft_id`` (null for a browser interview:
+    then the consent is the case's registration consent)."""
     p = parse_body()
     reason_code = p.get("reason_code")
     envelope = p.get("draft")
@@ -982,6 +1059,16 @@ def revise_submission(va_sid):
         intake_svc.check_device_times(envelope)
     except intake_svc.WebIntakeError as exc:
         return error(str(exc), "invalid_interview", 422)
+    # Before the revision writes (it queues SmartVA); not the caller's own
+    # submission: the service's 404, never a consent refusal.
+    draft = intake_svc.find_own_submission(current_user, va_sid)
+    if draft is not None:
+        consent_svc.apply_interview_consent(
+            current_user, project_id=draft.project_id,
+            death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
+            client_draft_id=draft.client_draft_id, consent=p.get("consent"), answers=data,
+            channel=_consent_channel(),
+        )
     reply = intake_svc.revise_submission(
         current_user, va_sid, reason_code=reason_code, data=data, answers_sha256=answers_sha256,
         completion={"valid": completion.get("valid") is True,
@@ -1055,7 +1142,9 @@ def _supervised_rows(rows) -> list[dict]:
     """The supervision list's rows, the page's ``identifiers`` loaded once."""
     identifiers = identifiers_svc.identifier_payloads(current_user, [row[0] for row in rows])
     editable = intake_svc.can_edit_identifiers(current_user, [row[0] for row in rows])
-    return [dict(intake_svc.serialize_supervised_row(current_user, *row), identifiers=identifiers[row[0].death_id],
+    names = register_pii_accessor.open_register_pii([row[0] for row in rows], only=("deceased_name",))
+    return [dict(intake_svc.serialize_supervised_row(current_user, *row, register=names[row[0].death_id]),
+                 identifiers=identifiers[row[0].death_id],
                  can_edit_identifiers=editable[row[0].death_id])
             for row in rows]
 

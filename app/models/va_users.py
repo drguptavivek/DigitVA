@@ -30,6 +30,12 @@ class VaUsers(UserMixin, db.Model):
     user_id: so.Mapped[uuid.UUID] = so.mapped_column(
         sa.Uuid(as_uuid=True), default=uuid.uuid4, index=True, primary_key=True
     )
+    # A stable integer id for clients that carry an integer user id: the
+    # offline station roster and bundle ``actor_user_id``
+    # (docs/policy/offline-api-contract.md 4.1). Database-assigned; never reused.
+    user_number: so.Mapped[int] = so.mapped_column(
+        sa.BigInteger, sa.Identity(), unique=True, nullable=False
+    )
     name: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
     # Null for a mobile-only account (docs/policy/mobile-sign-in.md).
     email: so.Mapped[str | None] = so.mapped_column(

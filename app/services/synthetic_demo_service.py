@@ -41,6 +41,7 @@ from app.models import (
     VaUsers,
 )
 from app.services.db_backup_service import create_db_backup
+from app.services import register_pii_accessor
 from app.services.submission_payload_version_service import write_payload_version
 
 log = logging.getLogger(__name__)
@@ -59,6 +60,10 @@ DELETE_TABLES = (
     "map_case_contact_attempts",
     "map_case_transitions",
     "map_death_identifier",
+    "va_bundle_pending_coding",
+    "map_bundle_records",
+    "va_consent_record_purposes",
+    "va_consent_records",
     "va_death_register",
     "va_final_cod_authority",
     "va_submission_notifications",
@@ -176,6 +181,11 @@ def _scope_predicates():
             parent = tables["va_social_autopsy_analyses"]
             predicate = table.c.va_saa_id.in_(
                 sa.select(parent.c.va_saa_id).where(parent.c.va_sid.in_(sids))
+            )
+        elif name == "va_consent_record_purposes":
+            parent = tables["va_consent_records"]
+            predicate = table.c.consent_id.in_(
+                sa.select(parent.c.consent_id).where(parent.c.death_id.in_(deaths))
             )
         elif name == "va_smartva_run_outputs":
             parent = tables["va_smartva_runs"]
@@ -563,6 +573,7 @@ def _seed_cases(session):
             source="register",
             remarks="Synthetic demonstration only; no real person.",
         )
+        register_pii_accessor.seal_new_row(death)
         if number == 1:
             session.add(death)
             continue

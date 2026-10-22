@@ -24,6 +24,8 @@ from app.models import (
     VaUserAccessGrants,
 )
 from app.models.mas_organization import MasOrgLevel, MasOrgUnit
+from app.services import register_duplicate_service as dup
+from app.services import register_pii_accessor as register_pii
 from app.services import web_intake_service as intake_svc
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
@@ -190,13 +192,9 @@ class PossibleDuplicateTests(BaseTestCase):
         self.assertEqual(self._matches(other_project), [])
 
     def test_names_are_normalised_before_comparing(self):
-        normalised = db.session.scalar(
-            sa.select(intake_svc._normalised_name(sa.literal("Late Smt. Kamla-Devi  ")))
-        )
-        self.assertEqual(normalised, "kamla devi")
+        self.assertEqual(dup.normalised_name("Late Smt. Kamla-Devi  "), "kamla devi")
         # A title inside a word stays: only whole words are dropped.
-        self.assertEqual(db.session.scalar(sa.select(intake_svc._normalised_name(sa.literal("Srinivas")))),
-                         "srinivas")
+        self.assertEqual(dup.normalised_name("Srinivas"), "srinivas")
 
     def test_a_flagged_case_gets_no_hint(self):
         subject = self._case()
@@ -223,10 +221,10 @@ class PossibleDuplicateTests(BaseTestCase):
     def test_an_in_scope_candidate_carries_its_details_and_an_out_of_scope_one_leaves_no_trace(self):
         subject = self._case(unit="PDB3", name="Sita Rani")
         near = self._case(unit="PDB3", name="Sita Rani", user=self.alice)
-        near.age_years, near.informant_name, near.started_by_user_id = 61, "Mohan Rani", self.carol.user_id
-        near.address_village_ward = "Kandaghat"
+        near.age_years, near.started_by_user_id = 61, self.carol.user_id
+        register_pii.write_fields(near, {"informant_name": "Mohan Rani", "address_village_ward": "Kandaghat"})
         far = self._case(unit="PDD2", name="Sita Rani", sex="female")
-        far.informant_name = "Hidden Informant"
+        register_pii.write_fields(far, {"informant_name": "Hidden Informant"})
         db.session.flush()
 
         hints = intake_svc.possible_duplicates(self.carol, subject)
@@ -315,7 +313,7 @@ class PossibleDuplicateTests(BaseTestCase):
 
     # ── worklist batch ─────────────────────────────────────────────────────
 
-    def test_the_worklist_page_check_is_one_statement(self):
+    def test_the_worklist_page_check_costs_a_constant_number_of_statements(self):
         subject = self._case()
         twin = self._case(name="Kamla Devii")
         lone = self._case(name="Ramesh Singh", sex="male")
@@ -330,10 +328,12 @@ class PossibleDuplicateTests(BaseTestCase):
 
         sa.event.listen(db.engine, "before_cursor_execute", record)
         try:
-            rows = intake_svc._possible_duplicate_rows(ids, scope, per_case=3)
+            rows = dup.possible_duplicate_rows(ids, scope, per_case=3)
         finally:
             sa.event.remove(db.engine, "before_cursor_execute", record)
-        self.assertEqual(len(statements), 1, statements)
+        # The candidate pairs, then the opened rows of the candidates (a sealed
+        # register has the blobs there): two, whatever the page size.
+        self.assertLessEqual(len(statements), 2, statements)
         pairs = {(r.subject_id, r.death_id) for r in rows}
         self.assertIn((subject.death_id, twin.death_id), pairs)
         self.assertIn((twin.death_id, subject.death_id), pairs)

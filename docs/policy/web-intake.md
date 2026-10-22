@@ -1437,8 +1437,9 @@ Migration `e5b2c8d4a1f7`; `app/services/web_intake_service.py` (`set_visit`,
 
 ### Built in phase 6 (digitva-vzk.11, 2026-09-30)
 
-No migration. `app/services/web_intake_service.py`
-(`_possible_duplicate_rows`, `possible_duplicates`); computed on read, never
+No migration. `app/services/register_duplicate_service.py`
+(`possible_duplicate_rows`; since PII slice 2 the scoring is in Python, see
+`docs/kb/pii-slice-2.md`, "T3") and `web_intake_service.possible_duplicates`; computed on read, never
 stored, so a case gets the check whichever route (web, device upload) gave it
 its name and date of death.
 
@@ -1447,7 +1448,8 @@ its name and date of death.
   kept case), with a name and a date of death, where
   - the dates of death are at most 3 days apart (inclusive);
   - the sex is the same, or either is missing, `unknown` or `undetermined`;
-  - the normalised names have a pg_trgm `similarity()` of at least 0.5.
+  - the normalised names have a pg_trgm `similarity()` of at least 0.5 (a
+    Python port of the function when the register is sealed; same result).
     Normalised: lowercase, punctuation to spaces, the titles late, lt, mr,
     mrs, ms, miss, smt, shrimati, shri, sri, dr, master, baby, kumari and km
     dropped as whole words, spaces collapsed;

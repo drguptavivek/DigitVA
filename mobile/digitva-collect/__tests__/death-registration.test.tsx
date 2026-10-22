@@ -64,6 +64,13 @@ jest.mock("../src/web/LocationCapture", () => {
     MapsPinButton: () => null
   };
 });
+jest.mock("../src/web/StationConsentPanel", () => {
+  const React = require("react") as typeof import("react");
+  return {
+    StationConsentPanel: ({ onChange }: { onChange: (envelope: unknown) => void }) =>
+      React.createElement("button", { "data-consent-panel": "true", onClick: () => onChange({ client_id: "c1", decision: "granted" }) } as Record<string, unknown>)
+  };
+});
 jest.mock("../src/client/api", () => ({
   INTAKE_API: "/api/v1/intake",
   getCases: jest.fn(),
@@ -135,6 +142,65 @@ describe("DeathRegistrationScreen", () => {
     await settle();
     expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
     await act(async () => tree!.unmount());
+  });
+
+  it("on a station, blocks saving informant details until consent is granted, then sends it", async () => {
+    (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "tok";
+    let tree: ReturnType<typeof create>;
+    try {
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      const findField = (field: string) => tree!.root.findByProps({ "data-field": field });
+      expect(tree!.root.findAllByProps({ "data-consent-panel": "true" })).toHaveLength(0);
+      await act(async () => {
+        findField("deceased_name").props.onClick("Asha");
+        findField("date_of_death").props.onClick("2026-09-30");
+        findField("date_of_birth").props.onClick("1987-04-12");
+        findField("informant_name").props.onClick("Lakshmi");
+      });
+      await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+      expect(tree!.root.findByProps({ testID: "station-consent-blocked" })).toBeDefined();
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath).not.toHaveBeenCalled();
+
+      await act(async () => tree!.root.findByProps({ "data-consent-panel": "true" }).props.onClick());
+      expect(tree!.root.findAllByProps({ testID: "station-consent-blocked" })).toHaveLength(0);
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+      expect(mockRegisterDeath.mock.calls[0][1].consent).toEqual({ client_id: "c1", decision: "granted" });
+      await act(async () => tree!.unmount());
+    } finally {
+      delete (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__;
+    }
+  });
+
+  it("on a station, tells the user to leave informant details empty when the project has no consent notice", async () => {
+    (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "tok";
+    mockRegisterDeath.mockRejectedValue(new sharedApi.ApiError(422, "consent_notice_unavailable"));
+    let tree: ReturnType<typeof create>;
+    try {
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      const findField = (field: string) => tree!.root.findByProps({ "data-field": field });
+      await act(async () => {
+        findField("deceased_name").props.onClick("Asha");
+        findField("date_of_death").props.onClick("2026-09-30");
+        findField("date_of_birth").props.onClick("1987-04-12");
+        findField("informant_name").props.onClick("Lakshmi");
+      });
+      await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+      await act(async () => tree!.root.findByProps({ "data-consent-panel": "true" }).props.onClick());
+      expect(JSON.stringify(tree!.toJSON())).not.toContain("stationConsentNoNotice");
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(tree!.toJSON())).toContain("stationConsentNoNotice");
+      await act(async () => tree!.unmount());
+    } finally {
+      delete (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__;
+    }
   });
 
   it("shows localized required errors and never calls the API for an invalid form", async () => {

@@ -32,7 +32,7 @@ from app.models import (
     VaUsers,
 )
 from app.models.va_web_intake import CASE_FLAGS, VaWebIntakeDraft
-from app.services import notification_service
+from app.services import notification_service, register_pii_accessor
 from app.services.authz import supervision
 from app.services.workflow.definition import CODING_BUCKET_CODED, coding_bucket
 
@@ -195,7 +195,9 @@ def _data_manager_grant(actor: VaUsers, case: VaDeathRegister):
 
 def identity_complete(case: VaDeathRegister) -> bool:
     """The minimum identity (decision 4): name, date of death and sex."""
-    return bool(case.deceased_name and case.date_of_death and case.deceased_sex)
+    # has_deceased_name outlives the sealed name (PII slice 2); the column is
+    # still read for an object built but not yet flushed (flags set at flush).
+    return bool((case.has_deceased_name or case.deceased_name) and case.date_of_death and case.deceased_sex)
 
 
 def lock_case(case: VaDeathRegister) -> VaDeathRegister:
@@ -231,14 +233,23 @@ def _audit(case: VaDeathRegister, *, actor: VaUsers, action: str, from_state: st
     """One audit row; *grant* (``(grant_id, cadre_id)``) is the supervisor
     grant relied on, None for a team, starter or registrant move. *changes*
     is the personal-data ``{field: {"old", "new"}}`` of a details change."""
+    transition_id = uuid.uuid4()
+    changes_dek_wrapped = changes_key_id = None
+    if changes and register_pii_accessor.split_enabled():
+        # The sealed register fields' old/new values leave as ciphertext.
+        changes, changes_dek_wrapped, changes_key_id = register_pii_accessor.seal_audit_changes(
+            changes, transition_id)
     db.session.add(
         MapCaseTransition(
+            transition_id=transition_id,
             death_id=case.death_id,
             action=action,
             from_state=from_state,
             to_state=to_state,
             reason=reason,
             changes=changes,
+            changes_dek_wrapped=changes_dek_wrapped,
+            changes_key_id=changes_key_id,
             actor_user_id=actor.user_id,
             authorizing_grant_id=grant.grant_id if grant else None,
             authorizing_cadre_id=grant.cadre_id if grant else None,

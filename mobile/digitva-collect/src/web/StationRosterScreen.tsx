@@ -14,6 +14,8 @@ import {
   type StationRosterMember,
   type StationRosterSnapshot,
 } from "../roster";
+import { t } from "../i18n";
+import { phoneDisplay } from "../phoneFormat";
 import { fontSize, palette, radius, ui } from "../theme";
 
 const webTheme = {
@@ -107,9 +109,7 @@ export function StationActorBar({
       setPendingMemberId(null);
       onActorSwitched?.();
     } catch {
-      setPinError(
-        "PIN unlock failed. Warning: 5 wrong PIN attempts wipe that user's local store.",
-      );
+      setPinError(t("stationPinUnlockFailed"));
     } finally {
       setBusy(false);
     }
@@ -143,14 +143,12 @@ export function StationActorBar({
           ]}
         >
           <Text style={styles.modeBadgeText}>
-            {isProvisioned
-              ? "Onboarded Provisioned Station"
-              : "Standalone Sandbox"}
+            {t(isProvisioned ? "stationModeProvisioned" : "stationModeSandbox")}
           </Text>
         </View>
 
         <View style={styles.actorGroup}>
-          <Text style={styles.actorLabel}>Who am I now:</Text>
+          <Text style={styles.actorLabel}>{t("stationWhoAmI")}</Text>
           <View style={styles.pillRow}>
             {activeMembers.map((m) => {
               const selected = m.member_id === currentActor.member_id;
@@ -180,7 +178,7 @@ export function StationActorBar({
         </View>
 
         <View style={styles.actorGroup}>
-          <Text style={styles.actorLabel}>Acting as:</Text>
+          <Text style={styles.actorLabel}>{t("stationActingAs")}</Text>
           <View style={styles.pillRow}>
             {currentActor.allowed_acting_roles.map((role) => {
               const selected = role === currentActor.acting_role;
@@ -211,21 +209,19 @@ export function StationActorBar({
 
         {onOpenRosterSettings ? (
           <Pressable onPress={onOpenRosterSettings} style={styles.rosterButton}>
-            <Text style={styles.rosterButtonText}>Station Roster</Text>
+            <Text style={styles.rosterButtonText}>{t("stationRosterButton")}</Text>
           </Pressable>
         ) : null}
       </View>
 
       {pendingMemberId && isProvisioned ? (
         <View style={styles.pinUnlockBox} testID="pin-unlock-prompt">
-          <Text style={styles.pinWarningText}>
-            Enter your 6–16 digit PIN to unlock this user&apos;s encrypted store. Warning: 5 wrong PIN attempts wipe that user&apos;s local store.
-          </Text>
+          <Text style={styles.pinWarningText}>{t("stationPinPrompt")}</Text>
           <View style={styles.formRow}>
             <TextInput
               value={pin}
               onChangeText={setPin}
-              placeholder="6–16 digit PIN"
+              placeholder={t("stationPinPlaceholder")}
               secureTextEntry
               keyboardType="numeric"
               maxLength={16}
@@ -236,7 +232,7 @@ export function StationActorBar({
               onPress={() => void handleConfirmPinSwitch()}
               style={styles.primaryBtn}
             >
-              <Text style={styles.primaryBtnText}>Unlock &amp; Switch</Text>
+              <Text style={styles.primaryBtnText}>{t("stationUnlockAndSwitch")}</Text>
             </Pressable>
             <Pressable
               disabled={busy}
@@ -247,7 +243,7 @@ export function StationActorBar({
               }}
               style={styles.closeBtn}
             >
-              <Text style={styles.closeBtnText}>Cancel</Text>
+              <Text style={styles.closeBtnText}>{t("cancel")}</Text>
             </Pressable>
           </View>
           {pinError ? <Text style={styles.errorText}>{pinError}</Text> : null}
@@ -255,9 +251,7 @@ export function StationActorBar({
       ) : null}
 
       {currentActor.acting_role === "coder" ? (
-        <Text style={styles.coderMaskNotice}>
-          Acting as Coder: Informant personal data, consent records, and sealed PII fields are masked/omitted for this task.
-        </Text>
+        <Text style={styles.coderMaskNotice}>{t("stationCoderMaskNotice")}</Text>
       ) : null}
     </View>
   );
@@ -299,7 +293,7 @@ export function StationRosterScreen({
   if (!snapshot) {
     return (
       <View style={styles.container}>
-        <Text style={styles.subtitle}>Loading station roster...</Text>
+        <Text style={styles.subtitle}>{t("stationRosterLoading")}</Text>
       </View>
     );
   }
@@ -330,7 +324,7 @@ export function StationRosterScreen({
       setSnapshot(res.roster);
       onActorSwitched?.();
     } catch {
-      setError("Could not update roster member. Ensure at least one role tick remains checked.");
+      setError(t("stationMemberUpdateFailed"));
     } finally {
       setBusy(false);
     }
@@ -339,7 +333,7 @@ export function StationRosterScreen({
   const handleAddMember = async () => {
     if (!editable || busy) return;
     if (!name.trim()) {
-      setError("Name is required.");
+      setError(t("stationNameRequired"));
       return;
     }
     setError(null);
@@ -361,7 +355,7 @@ export function StationRosterScreen({
       setName("");
       onActorSwitched?.();
     } catch {
-      setError("Could not add roster member. Check name and role ticks.");
+      setError(t("stationMemberAddFailed"));
     } finally {
       setBusy(false);
     }
@@ -399,7 +393,7 @@ export function StationRosterScreen({
       }
       setNewDesignation("");
     } catch {
-      setError("Failed to update designation list.");
+      setError(t("stationDesignationUpdateFailed"));
     } finally {
       setBusy(false);
     }
@@ -427,9 +421,7 @@ export function StationRosterScreen({
       setUnlockTargetId(null);
       onActorSwitched?.();
     } catch {
-      setError(
-        "Could not unlock roster user store. Warning: 5 wrong PIN attempts wipe that user's local store.",
-      );
+      setError(t("stationStoreUnlockFailed"));
     } finally {
       setBusy(false);
     }
@@ -439,36 +431,30 @@ export function StationRosterScreen({
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>PHC Station Roster &amp; Acting Roles</Text>
+          <Text style={styles.title}>{t("stationRosterTitle")}</Text>
           <Text style={styles.subtitle}>
-            {isProvisioned
-              ? "Onboarded Provisioned Station Mode: Roster is attested by the signed station config and is read-only on this station."
-              : "Standalone Sandbox Mode: Local editable roster for training and testing. No passwords required."}
+            {t(isProvisioned ? "stationRosterProvisionedSubtitle" : "stationRosterSandboxSubtitle")}
           </Text>
         </View>
         {onClose ? (
           <Pressable onPress={onClose} style={styles.closeBtn}>
-            <Text style={styles.closeBtnText}>Back to Workspace</Text>
+            <Text style={styles.closeBtnText}>{t("stationBackToWorkspace")}</Text>
           </Pressable>
         ) : null}
       </View>
 
       {!isProvisioned ? (
         <View style={styles.sandboxBanner} testID="sandbox-station-banner">
-          <Text style={styles.sandboxBannerTitle}>Unprovisioned Standalone Sandbox</Text>
-          <Text style={styles.sandboxBannerText}>
-            Sandbox data is local-only and never ingestable into a server project.
-          </Text>
+          <Text style={styles.sandboxBannerTitle}>{t("stationSandboxBannerTitle")}</Text>
+          <Text style={styles.sandboxBannerText}>{t("stationSandboxBannerText")}</Text>
         </View>
       ) : (
         <View style={styles.provisionedBanner} testID="provisioned-station-banner">
           <Text style={styles.provisionedBannerTitle}>
-            Onboarded Provisioned Station
-            {snapshot.station_config_id ? ` · Config ${snapshot.station_config_id}` : ""}
+            {t("stationModeProvisioned")}
+            {snapshot.station_config_id ? ` · ${t("stationProvisionedConfigId", { id: snapshot.station_config_id })}` : ""}
           </Text>
-          <Text style={styles.provisionedBannerText}>
-            Roster and project scope are verified from the signed station config and cannot be edited locally.
-          </Text>
+          <Text style={styles.provisionedBannerText}>{t("stationProvisionedBannerText")}</Text>
         </View>
       )}
 
@@ -476,30 +462,37 @@ export function StationRosterScreen({
         <View style={styles.expiryWarningBanner} testID="config-expiry-warning">
           <Text style={styles.expiryWarningText}>
             {expiryDays <= 0
-              ? `Station configuration expired (${snapshot.config_expires_at}). Import a renewed signed station config before starting new interviews.`
-              : `Station configuration expires in ${expiryDays} day${expiryDays === 1 ? "" : "s"} (${snapshot.config_expires_at}). Request and import a renewed station config soon.`}
+              ? t("stationConfigExpired", { date: String(snapshot.config_expires_at) })
+              : t(expiryDays === 1 ? "stationConfigExpiresOne" : "stationConfigExpiresMany", {
+                  days: expiryDays,
+                  date: String(snapshot.config_expires_at),
+                })}
           </Text>
         </View>
       ) : null}
 
       {isProvisioned && snapshot.custodian ? (
         <View style={styles.card} testID="station-custodian-card">
-          <Text style={styles.sectionTitle}>Verified Station Custodian</Text>
+          <Text style={styles.sectionTitle}>{t("stationCustodianTitle")}</Text>
           <Text style={styles.cellText}>
-            Name: {snapshot.custodian.name} (
-            {getDesignationLabel(snapshot.designations, snapshot.custodian.designation)})
+            {t("stationCustodianName", {
+              name: snapshot.custodian.name,
+              designation: getDesignationLabel(snapshot.designations, snapshot.custodian.designation),
+            })}
           </Text>
           <Text style={styles.subtitle}>
-            Onboarded on: {snapshot.custodian.onboarded_on}
+            {t("stationCustodianOnboarded", { date: snapshot.custodian.onboarded_on })}
             {snapshot.custodian.verified_by_user_id !== undefined
-              ? ` · Verified by Server User #${snapshot.custodian.verified_by_user_id}`
+              ? ` · ${t("stationCustodianVerifiedBy", { id: String(snapshot.custodian.verified_by_user_id) })}`
               : ""}
           </Text>
           <Text style={styles.subtitle}>
-            Contact:{" "}
-            {[snapshot.custodian.phone, snapshot.custodian.email]
-              .filter(Boolean)
-              .join(" · ") || "Recorded on server"}
+            {t("stationCustodianContact", {
+              contact:
+                [snapshot.custodian.phone ? phoneDisplay(snapshot.custodian.phone) : null, snapshot.custodian.email]
+                  .filter(Boolean)
+                  .join(" · ") || t("stationCustodianContactOnServer"),
+            })}
           </Text>
         </View>
       ) : null}
@@ -512,18 +505,18 @@ export function StationRosterScreen({
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>
-          Station Roster {isProvisioned ? "(Read-Only)" : "(Editable Sandbox)"}
+          {t(isProvisioned ? "stationRosterTableReadOnly" : "stationRosterTableEditable")}
         </Text>
         <View style={styles.tableHeader}>
-          <Text style={[styles.cellHeader, styles.nameCol]}>Name</Text>
-          <Text style={[styles.cellHeader, styles.desigCol]}>Designation</Text>
-          <Text style={[styles.cellHeader, styles.tickCol]}>Death Reporter</Text>
-          <Text style={[styles.cellHeader, styles.tickCol]}>Interviewer</Text>
-          <Text style={[styles.cellHeader, styles.tickCol]}>Station Supervisor</Text>
-          <Text style={[styles.cellHeader, styles.tickCol]}>Coder</Text>
-          <Text style={[styles.cellHeader, styles.tickCol]}>Active</Text>
+          <Text style={[styles.cellHeader, styles.nameCol]}>{t("stationColName")}</Text>
+          <Text style={[styles.cellHeader, styles.desigCol]}>{t("stationColDesignation")}</Text>
+          <Text style={[styles.cellHeader, styles.tickCol]}>{t("role_death_reporter")}</Text>
+          <Text style={[styles.cellHeader, styles.tickCol]}>{t("role_interviewer")}</Text>
+          <Text style={[styles.cellHeader, styles.tickCol]}>{t("stationRoleSupervisor")}</Text>
+          <Text style={[styles.cellHeader, styles.tickCol]}>{t("role_coder")}</Text>
+          <Text style={[styles.cellHeader, styles.tickCol]}>{t("stationColActive")}</Text>
           {isProvisioned ? (
-            <Text style={[styles.cellHeader, styles.tickCol]}>Store PIN</Text>
+            <Text style={[styles.cellHeader, styles.tickCol]}>{t("stationColStorePin")}</Text>
           ) : null}
         </View>
 
@@ -532,7 +525,7 @@ export function StationRosterScreen({
             <View style={styles.nameCol}>
               <Text style={styles.cellText}>{m.name}</Text>
               {m.user_id !== null ? (
-                <Text style={styles.subtitle}>Server ID #{m.user_id}</Text>
+                <Text style={styles.subtitle}>{t("stationServerId", { id: String(m.user_id) })}</Text>
               ) : null}
             </View>
             <Text style={[styles.cellText, styles.desigCol]}>
@@ -571,13 +564,11 @@ export function StationRosterScreen({
                     style={styles.secondaryBtn}
                   >
                     <Text style={styles.secondaryBtnText}>
-                      {snapshot.active_actor.member_id === m.member_id
-                        ? "Active"
-                        : "Switch (PIN)"}
+                      {t(snapshot.active_actor.member_id === m.member_id ? "stationColActive" : "stationSwitchWithPin")}
                     </Text>
                   </Pressable>
                 ) : (
-                  <Text style={styles.subtitle}>Inactive</Text>
+                  <Text style={styles.subtitle}>{t("stationMemberInactive")}</Text>
                 )}
               </View>
             ) : null}
@@ -586,14 +577,12 @@ export function StationRosterScreen({
 
         {isProvisioned && unlockTargetId ? (
           <View style={styles.pinUnlockBox}>
-            <Text style={styles.pinWarningText}>
-              Unlock SQLCipher store for selected roster user (6–16 digit PIN). 5 wrong PIN attempts wipe that user&apos;s local store only.
-            </Text>
+            <Text style={styles.pinWarningText}>{t("stationStoreUnlockPrompt")}</Text>
             <View style={styles.formRow}>
               <TextInput
                 value={unlockPin}
                 onChangeText={setUnlockPin}
-                placeholder="Enter 6–16 digit PIN"
+                placeholder={t("stationStorePinPlaceholder")}
                 secureTextEntry
                 keyboardType="numeric"
                 maxLength={16}
@@ -604,7 +593,7 @@ export function StationRosterScreen({
                 onPress={() => void handleUnlockProvisionedMember(unlockTargetId)}
                 style={styles.primaryBtn}
               >
-                <Text style={styles.primaryBtnText}>Unlock Store</Text>
+                <Text style={styles.primaryBtnText}>{t("stationUnlockStore")}</Text>
               </Pressable>
               <Pressable
                 disabled={busy}
@@ -614,7 +603,7 @@ export function StationRosterScreen({
                 }}
                 style={styles.closeBtn}
               >
-                <Text style={styles.closeBtnText}>Cancel</Text>
+                <Text style={styles.closeBtnText}>{t("cancel")}</Text>
               </Pressable>
             </View>
           </View>
@@ -623,19 +612,19 @@ export function StationRosterScreen({
 
       {editable ? (
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Add Person to Sandbox Roster</Text>
+          <Text style={styles.sectionTitle}>{t("stationAddPersonTitle")}</Text>
           <View style={styles.formRow}>
             <View style={styles.fieldBlock}>
-              <Text style={styles.label}>Full Name</Text>
+              <Text style={styles.label}>{t("stationFullName")}</Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
-                placeholder="e.g. Dr. Rajesh Verma"
+                placeholder={t("stationFullNamePlaceholder")}
                 style={styles.input}
               />
             </View>
             <View style={styles.fieldBlock}>
-              <Text style={styles.label}>Designation</Text>
+              <Text style={styles.label}>{t("stationColDesignation")}</Text>
               <View style={styles.pillRow}>
                 {snapshot.designations.map((d) => (
                   <Pressable
@@ -665,10 +654,10 @@ export function StationRosterScreen({
           <View style={styles.pillRow}>
             {(
               [
-                ["Death Reporter", isReporter, setIsReporter],
-                ["Interviewer", isInterviewer, setIsInterviewer],
-                ["Station Supervisor", isSupervisor, setIsSupervisor],
-                ["Coder", isCoder, setIsCoder],
+                [t("role_death_reporter"), isReporter, setIsReporter],
+                [t("role_interviewer"), isInterviewer, setIsInterviewer],
+                [t("stationRoleSupervisor"), isSupervisor, setIsSupervisor],
+                [t("role_coder"), isCoder, setIsCoder],
               ] as const
             ).map(([label, val, setter]) => (
               <Pressable
@@ -685,20 +674,20 @@ export function StationRosterScreen({
           </View>
 
           <Pressable onPress={() => void handleAddMember()} style={styles.primaryBtn}>
-            <Text style={styles.primaryBtnText}>Add to Station Roster</Text>
+            <Text style={styles.primaryBtnText}>{t("stationAddToRoster")}</Text>
           </Pressable>
 
           <View style={styles.divider} />
-          <Text style={styles.sectionTitle}>Editable Designation List Setting</Text>
+          <Text style={styles.sectionTitle}>{t("stationDesignationListTitle")}</Text>
           <View style={styles.formRow}>
             <TextInput
               value={newDesignation}
               onChangeText={setNewDesignation}
-              placeholder="Add custom designation (e.g. Block Nodal Officer)"
+              placeholder={t("stationDesignationPlaceholder")}
               style={[styles.input, { flex: 1 }]}
             />
             <Pressable onPress={() => void handleAddDesignation()} style={styles.secondaryBtn}>
-              <Text style={styles.secondaryBtnText}>Add Designation</Text>
+              <Text style={styles.secondaryBtnText}>{t("stationAddDesignation")}</Text>
             </Pressable>
           </View>
         </View>
@@ -741,6 +730,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
+    flexShrink: 1,
+    minWidth: 0,
     gap: 6,
   },
   actorLabel: {
@@ -751,6 +742,8 @@ const styles = StyleSheet.create({
   pillRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    flexShrink: 1,
+    minWidth: 0,
     gap: 6,
   },
   actorPill: {

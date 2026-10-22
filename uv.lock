@@ -1843,7 +1843,7 @@ wheels = [
 
 [[package]]
 name = "smartva"
-version = "3.0.0"
+version = "3.0.1"
 source = { directory = "vendor/smartva-analyze" }
 dependencies = [
     { name = "click" },

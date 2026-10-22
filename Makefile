@@ -13,6 +13,11 @@ endif
 PROD_PII_KEM_PRIVATE_KEY_PATH ?= /data/digitva-secrets/pii_kem_private_key
 PROD_PII_KEY_PATH = $(or $(PII_KEM_PRIVATE_KEY_PATH),$(shell sed -n 's/^PII_KEM_PRIVATE_KEY_PATH=//p' .env 2>/dev/null | tail -n1),$(PROD_PII_KEM_PRIVATE_KEY_PATH))
 COMPOSE_PROD := PII_KEM_PRIVATE_KEY_PATH=$(PROD_PII_KEY_PATH) $(COMPOSE_PROD)
+# The server Ed25519 key that signs station configs (and later receipts):
+# outside the checkout in production too, same rules as the PII key.
+PROD_BUNDLE_SERVER_SIGNING_KEY_PATH ?= /data/digitva-secrets/bundle_server_signing_key
+PROD_BUNDLE_KEY_PATH = $(or $(BUNDLE_SERVER_SIGNING_KEY_PATH),$(shell sed -n 's/^BUNDLE_SERVER_SIGNING_KEY_PATH=//p' .env 2>/dev/null | tail -n1),$(PROD_BUNDLE_SERVER_SIGNING_KEY_PATH))
+COMPOSE_PROD := BUNDLE_SERVER_SIGNING_KEY_PATH=$(PROD_BUNDLE_KEY_PATH) $(COMPOSE_PROD)
 APP_SERVICE  = minerva_app_service
 
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
@@ -80,12 +85,23 @@ help:
 
 ensure-secrets: PII_KEY_MODE := dev
 ensure-secrets: PII_KEY_FILE := private/pii_kem_private_key
+ensure-secrets: BUNDLE_KEY_FILE := $(or $(BUNDLE_SERVER_SIGNING_KEY_PATH),$(shell sed -n 's/^BUNDLE_SERVER_SIGNING_KEY_PATH=//p' .env 2>/dev/null | tail -n1),private/bundle_server_signing_key)
 ensure-secrets-prod: PII_KEY_MODE := prod
 ensure-secrets-prod: PII_KEY_FILE := $(PROD_PII_KEY_PATH)
+ensure-secrets-prod: BUNDLE_KEY_FILE := $(PROD_BUNDLE_KEY_PATH)
 
 ensure-secrets ensure-secrets-prod:
 	@test -f .env || { echo "ensure-secrets: .env not found; copy .env.example first" >&2; exit 1; }
 	@[ -z "$$(tail -c1 .env)" ] || echo >> .env
+	@# Station-config signing key: a base64url 32-byte Ed25519 seed, made once, never overwritten.
+	@if [ "$(PII_KEY_MODE)" = prod ]; then \
+		case "$(BUNDLE_KEY_FILE)" in */../*|*/./*|*//*) echo "ensure-secrets-prod: BUNDLE_SERVER_SIGNING_KEY_PATH must be a normalised path" >&2; exit 1;; /*) ;; *) echo "ensure-secrets-prod: BUNDLE_SERVER_SIGNING_KEY_PATH must be an absolute path outside the checkout" >&2; exit 1;; esac; \
+		case "$(BUNDLE_KEY_FILE)" in "$(CURDIR)"/*) echo "ensure-secrets-prod: $(BUNDLE_KEY_FILE) is inside the checkout; keep the key outside it" >&2; exit 1;; esac; \
+	fi; \
+	test -f "$(BUNDLE_KEY_FILE)" || { \
+		key_dir="$$(dirname "$(BUNDLE_KEY_FILE)")"; mkdir -p "$$key_dir" && \
+		{ [ "$(PII_KEY_MODE)" != prod ] || chmod 700 "$$key_dir"; } && (umask 077; openssl rand 32 | openssl base64 -A | tr '+/' '-_' | tr -d '=' > "$(BUNDLE_KEY_FILE)") && \
+		echo "ensure-secrets: generated the station-config signing key $(BUNDLE_KEY_FILE) -- back it up; stations pin its public key"; }
 	@grep -q '^CAPTCHA_HMAC_KEY=.' .env || { \
 		echo "CAPTCHA_HMAC_KEY=$$(openssl rand -hex 32)" >> .env; \
 		echo "ensure-secrets: generated CAPTCHA_HMAC_KEY in .env"; }
@@ -110,12 +126,12 @@ ensure-secrets ensure-secrets-prod:
 	elif [ "$(PII_KEY_MODE)" = prod ]; then \
 		test ! -e "$$key_file" || { echo "ensure-secrets-prod: $$key_file exists but .env has no PII_KEM_PUBLIC_KEY; restore .env or remove the file" >&2; exit 1; }; \
 		key_dir="$$(dirname "$$key_file")"; mkdir -p "$$key_dir" && chmod 700 "$$key_dir" && \
-		PII_KEM_PRIVATE_KEY_PATH=./Makefile $(COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" \
+		PII_KEM_PRIVATE_KEY_PATH=./Makefile BUNDLE_SERVER_SIGNING_KEY_PATH=./Makefile $(COMPOSE) run --rm --no-deps --user "$$(id -u):$$(id -g)" \
 			-v "$$key_dir:/pii-secret" --entrypoint python minerva_app_service \
 			scripts/generate_pii_keys.py --private-file "/pii-secret/$$(basename "$$key_file")" --env-file .env; \
 	else \
 		test ! -e private/pii_kem_private_key || { echo "ensure-secrets: private/pii_kem_private_key exists but .env has no PII_KEM_PUBLIC_KEY; restore .env or remove the file" >&2; exit 1; }; \
-		mkdir -p private && PII_KEM_PRIVATE_KEY_PATH=./Makefile $(COMPOSE) run --rm --no-deps --entrypoint python minerva_app_service \
+		mkdir -p private && PII_KEM_PRIVATE_KEY_PATH=./Makefile BUNDLE_SERVER_SIGNING_KEY_PATH=./Makefile $(COMPOSE) run --rm --no-deps --entrypoint python minerva_app_service \
 			scripts/generate_pii_keys.py --private-file private/pii_kem_private_key --env-file .env; \
 	fi
 

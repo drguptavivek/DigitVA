@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Runtime And Operations
@@ -95,7 +95,12 @@ Current behavior:
 
 - multi-stage build:
   - **Builder stage**: `python:3.13-slim` + `uv` binary, runs `uv sync --frozen --no-dev`
-  - **Runtime stage**: `python:3.13-slim`, copies `uv` and `.venv` from the build stages
+  - **SmartVA engine stage** (`smartva_rs`): `rust:1.90-slim-trixie`, runs
+    `cargo build --release --locked --bin smartva-rs` in
+    `vendor/smartva-analyze/rust`; only the binary leaves the stage
+  - **Runtime stage** (`runtime`): `python:3.13-slim`, copies `uv` and `.venv` from the build stages
+    and `smartva-rs` to `/usr/local/bin/smartva-rs` (outside the dev `.:/app` bind mount, so
+    the dev app, worker and beat containers built from the image all have it)
 - installs `postgresql-client`, `sox`, and `libsox-fmt-all` for audio conversion
 - SmartVA installed as a uv path dependency (`vendor/smartva-analyze`)
 - marks `boot.sh` executable
@@ -118,13 +123,13 @@ Current services:
 - `minerva_redis_service`
 - `minerva_celery_worker` (Celery worker)
 - `minerva_celery_beat` (Celery beat)
-- `icd_api_service` (optional WHO ICD-11 API, Coding Tool, Browser, and DORIS)
+- `icd_api_service` (optional WHO ICD-11 API, Coding Tool, Browser, and DORIS; Rust in-process host, see [WHO ICD-11 service](#who-icd-11-service))
 - `doris_public_service` and `digitva_ingress` (optional `icd11` profile; the public training service and same-origin path router)
 
 Current behavior:
 
 - local override (`docker-compose.override.yml`) runs Flask dev server on `0.0.0.0:5000`, mapped to host port `8051`
-- the optional `icd11` profile runs WHO ICD API 2.6.0 with MMS 2026-01 English and DORIS; it is bound only to `127.0.0.1:8382`, with analytics disabled and an MMS healthcheck (see [Local WHO ICD-11 API Runtime](../policy/icd11-local-api-runtime.md))
+- the optional `icd11` profile runs WHO ICD API 2.6.0 with MMS 2026-01 English and DORIS 1.2.0; it is bound only to `127.0.0.1:8382`, with analytics disabled and a DORIS healthcheck (see [Local WHO ICD-11 API Runtime](../policy/icd11-local-api-runtime.md) and [WHO ICD-11 service](#who-icd-11-service))
 - the same profile exposes its local public training entry at `127.0.0.1:8052` through `digitva_ingress`; production traffic must use this ingress for the DORIS Help route and API (see [DORIS COD Workflow](doris-cod-workflow.md))
 - the app reaches the WHO API at `ICD11_API_BASE_URL=http://icd_api_service` inside Compose; assessment browsers use the authenticated DigitVA route described in [ICD-11 Embedded Coding Tool in Assessments](../policy/icd11-ect-production.md)
 - the dev override now activates a dedicated development config via `FLASK_ENV=development`, which disables `Secure` session/remember cookies and strict HTTPS-only CSRF checks so login works on plain `http://localhost:8051`
@@ -151,6 +156,59 @@ Current health checks:
 
 - app: Python `urllib.request.urlopen('/health')` (no `curl`/`wget` in slim image)
 - db: `pg_isready -U minerva`
+- `icd_api_service`: `icd11-healthcheck` posts a one-line certificate to DORIS and needs `"stemCode":"BA41.Z"` back, so it is green only with the engine loaded
+- `doris_public_service`: its own `/health` and the same DORIS call through `ICD11_API_BASE_URL`, so it turns unhealthy when the ICD service is down (`digitva-cfb1`; the container it replaced was OOM-killed with no restart policy while this check stayed green)
+
+### WHO ICD-11 service
+
+Since 2026-10-22 (owner decision) `icd_api_service` is not the `whoicd/icd-api`
+container. It is `digitva-icd11-server` (`desktop/crates/digitva-icd11`), a Rust
+binary that loads the unmodified WHO ICD-API 2.6.0 and DORIS 1.2.0 assemblies
+through `libhostfxr` and starts WHO's own ASP.NET host in-process
+(`vendor/who-icd11-api`), so every endpoint, status code and body is WHO's.
+Service name, port 80, host binding `127.0.0.1:8382` and `ICD11_API_BASE_URL`
+are unchanged.
+
+- Image: [`docker/icd11/Dockerfile`](../../docker/icd11/Dockerfile), a pinned
+  Rust build stage (`cargo build --locked`) and the pinned
+  `mcr.microsoft.com/dotnet/aspnet:10.0.13` runtime (`Microsoft.NETCore.App` and
+  `Microsoft.AspNetCore.App`; WHO's own image ships 10.0.3). It contains only the
+  binary and the healthcheck script, and runs as the image's `app` user. The
+  build needs the whole `desktop` workspace to resolve, so a member manifest
+  edited without `Cargo.lock` breaks it.
+- WHO files: not in the image. On first start the binary downloads the
+  `/usr/share/icdapi` layer of `whoicd/icd-api:2.6.0` from Docker Hub and the
+  three WHO CDN archives (MMS 2026-01 English, its search index, DORIS 1.2.0)
+  into the `icd11_runtime` volume (`/var/lib/icd11`, about 560 MB), verifying
+  the image index, manifest and layer digests and the SHA-256 of all 79
+  assemblies and the data files. Every later start re-verifies the pins and
+  needs no network; the service then makes no outbound connections (checked on
+  an `--internal` Docker network). One process per volume: WHO extracts its
+  index into the data directory at start. If verification fails (for example
+  a first start killed mid-download) the server wipes `icdapi/` and `data/` and
+  downloads once more before giving up. A host without egress to Docker Hub
+  and the WHO CDNs needs the volume pre-seeded: start the image once on a host
+  with egress, then copy the volume contents across (`tar` in a throwaway
+  container).
+- Times on the dev host (Apple silicon, 2026-10-22): first start with the
+  download 23 s, warm start about 6.5 s.
+- Memory: about 540-680 MB idle, 1.1 GB peak after 1,200 distinct searches
+  (WHO caches searches for an hour); the WHO container measured 270-490 MB idle
+  and 0.9 GB peak on the same load, so the host uses more, not less. The 2 GB
+  cap stays (the container was OOM-killed at it once). Workstation GC
+  (`DOTNET_gcServer=0`) cut idle to 0.5 GB and the peak to 0.87 GB at 2-3x the
+  latency under concurrent load; `DOTNET_GCHeapCount=2` saved nothing. Neither
+  is enabled.
+- Rollback: the WHO container remains as `icd_api_container_service` under the
+  `icd11-container` profile with the network alias `icd_api_service`:
+  `docker compose stop icd_api_service`, then
+  `docker compose --profile icd11-container up -d icd_api_container_service`.
+  Do not run both: they share the hostname and host port.
+- `digitva-ke83.12`: the pinned amd64 layer's `ICD-API.dll`
+  (`8a901c52...`) differs from the arm64 build pinned first (`0ab8e927...`);
+  WHO compiles it per architecture. Both digests are accepted. The server
+  rewrites the embedded bridge DLL on every start, so a stale bridge no longer
+  fails its pin.
 
 ## Boot And Startup
 
@@ -242,6 +300,41 @@ Operational implication:
 - targeted operational repairs are also exposed through Flask CLI commands, including
   historical Step 1 reactivation after the old final-COD deactivation behavior
 
+## Station config signing key
+
+The server Ed25519 key that signs offline station configs
+(`app/services/station_config_service.py`; bundle spec 6.4) and the bundle
+ingest receipts (`app/services/bundle_ingest_service.py`, bundle spec 5.6;
+without it a real ingest answers 503 `station_config_unavailable` before
+any record is applied, a `/validate` still runs).
+
+| Setting | Where | Secret? |
+| --- | --- | --- |
+| `BUNDLE_SERVER_SIGNING_KEY_FILE` | app only: `/run/secrets/bundle_server_signing_key` (compose secret `bundle_server_signing_key`) | file is secret |
+| `BUNDLE_SERVER_SIGNING_KEY_PATH` | compose host path of the secret: default `./private/bundle_server_signing_key` (DEVELOPMENT, inside the checkout); the prod make targets pass `/data/digitva-secrets/bundle_server_signing_key` (or the absolute path in `.env`) | - |
+| `STATION_CONFIG_VALID_DAYS` | app (`.env`, optional, default 180): lifetime of an issued config | no |
+| `BUNDLE_MAX_AGE_DAYS` | app (`.env`, optional, default 90): oldest bundle `created_at` the ingest accepts; keep a retired `PII_KEM_*` private key in `PII_KEM_PREVIOUS_PRIVATE_KEY_FILES` at least this long after a rotation (bundle spec 3.4) | no |
+
+- Bundle ingest decrypts with the `PII_KEM_*` keyring of the app process
+  (AAD label `digitva_bundle`), in memory only; the uploaded file is not
+  kept (the 7-day ciphertext retention of bundle spec 5.6 is not built).
+
+- File: one line, the base64url (no padding) 32-byte Ed25519 seed. Read once
+  per process; never logged. Unset, unreadable or malformed, or (outside
+  `TESTING`) the published test key (`FIXTURE_SIGNING_KEY_ID`): issuing a
+  config answers 503 `station_config_unavailable` (logged without the key);
+  the app still starts. Issuing also needs `DEVICE_PUBLIC_URL` (the config's
+  `server_url`; empty: 503). `TestConfig` leaves it empty; tests point it at the
+  TEST-ONLY `tests/fixtures/station_config/test_server_signing_key`.
+- Generate: `make ensure-secrets` writes the development key (0600 via
+  `umask 077`) when missing; `make ensure-secrets-prod` writes it to
+  `PROD_BUNDLE_KEY_PATH` in a directory set to 0700 (as the PII key's),
+  refusing a relative path or one under the checkout.
+  Neither overwrites an existing file.
+- Back it up apart from the database. Stations pin its public key at first
+  import (bundle spec 6.4); a new key means re-importing a config on every
+  station by hand. Rotation is not built.
+
 ## Registration identifier keys
 
 Registration numbers (`map_death_identifier`, digitva-kzyp) are encrypted per
@@ -259,6 +352,7 @@ the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
 | `PII_KEM_PRIVATE_KEY_PATH` | compose host path of the secret. The compose default `./private/pii_kem_private_key` is the DEVELOPMENT key inside the checkout; the prod make targets pass `/data/digitva-secrets/pii_kem_private_key` (or the absolute path in `.env`), outside the checkout | - |
 | `PII_BACKUP_MAX_AGE_HOURS` | app (`.env`, optional, default 24): max age of the dump `--confirm-backup` names for `flask pii ... --apply` and `flask smartva scrub-runs --apply`; older needs `--allow-old-backup` (logged) | no |
 | `PAYLOAD_PII_SPLIT_ENABLED` | app and worker are passed it by `docker-compose.yml`, but a value in `.env` reaches every container that mounts the checkout (beat too) through `load_dotenv`; beat writes no payload. Optional, default `false`; `TestConfig` forces false. A process with it off refuses to read or write a payload version that has a side row (`PayloadSplitStateError`): payload writes store the sealed set in `map_payload_version_pii` and compare by `version_fingerprint` (PII slice 1b part II-A). **Keep false**: it is set true only in the release window right after `flask pii split-payloads --apply`, once the readers (part II-B, implemented) are deployed; see [pii-slice-1b.md](../kb/pii-slice-1b.md), "Release procedure" | no |
+| `REGISTER_PII_SPLIT_ENABLED` | app and worker, by `docker-compose.yml`. Optional, default `false`; `TestConfig` forces false. Register writes seal the personal columns of `va_death_register` into `pii_sealed` and NULL the plaintext (PII slice 2 T1); a process with it off refuses to write a sealed row (`RegisterSplitStateError`) but still reads it. **Keep false** until the readers and the register backfill ship; see [pii-slice-2.md](../kb/pii-slice-2.md) | no |
 | `IDENTIFIER_RATE_LIMIT` | app (`.env`, optional): per-user budget of requests that carry registration numbers (register, correct, write); a limiter string, default `30 per hour` | no |
 | `IDENTIFIER_SEARCH_RATE_LIMIT` | app (`.env`, optional): per-user budget of registration-number searches (`identifier_number`); a limiter string, default `120 per hour` | no |
 
@@ -312,9 +406,15 @@ the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
   `PII_KEM_PREVIOUS_PRIVATE_KEY_FILES`, set the new public key and key id, restart
   app, worker and beat, then run `flask pii rewrap` in the app container (keyset
   batches, idempotent, logs counts and row ids only; the data ciphertext is not
-  touched). When it reports zero failures and no rows on the old key id, drop the
+  touched; covers the identifier, payload side, death register and audit rows). When it reports zero failures and no rows on the old key id, drop the
   old private key after the backup retention. Rotating `PII_BLIND_INDEX_KEY`
   is a separate job that recomputes every index with writes paused (not built).
+- **Register seal CLI**: `flask pii seal-register` (app container) seals the
+  death register's personal columns and the audit rows' sealed values, with
+  `--apply`, `--verify`, `--strip` (after the 30-day hold), `--restore` and
+  `--recompute-digests`; dry run by default, counts only, backup gate on every
+  write, run with ODK sync paused. See [pii-slice-2.md](../kb/pii-slice-2.md),
+  "Backfill, verify, strip, restore (T4)".
 - **Record sealing** (PII slice 1b; part II-A wires the payload writers
   behind `PAYLOAD_PII_SPLIT_ENABLED`, off by default;
   [pii-slice-1b.md](../kb/pii-slice-1b.md)): `seal_record` / `open_record`
@@ -525,6 +625,32 @@ Rollback before step 7: set `ATTACHMENT_STORE=local`, move the quarantined
 files back, and restart. Rows marked `store_state='s3'` will need
 `local_path`/`store_state` restored, so a rollback after a large upload is a
 data operation, not a config change — which is why steps 4 and 6 exist.
+
+### SmartVA Engine
+
+SmartVA runs on the pure-Rust `smartva-rs` engine (owner decision
+2026-10-22), a drop-in for the Python `smartva` command line: same flags,
+same input CSV, same four-folder CSV output tree, so prep and result parsing
+are unchanged. Python SmartVA stays installed as the rollback.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `SMARTVA_ENGINE` | `rust` | `rust` or `python`. Any other value fails the batch with an `execution` failure row. |
+| `SMARTVA_RS_BIN` | `/usr/local/bin/smartva-rs` | Path of the binary built into the image. |
+
+- With `rust` and no executable at `SMARTVA_RS_BIN`, the run fails with a
+  failure detail naming the path and the rollback; it never falls back to
+  Python silently, so the engine recorded on the run is the one that ran.
+- Each `va_smartva_runs.run_metadata` records
+  `"smartva_engine": {"name": "rust"|"python", "version": ...}` (version from
+  `smartva-rs --version`, or the installed `smartva` package; `null` when it
+  cannot be read).
+- `SMARTVA_CHARTS=1` passes `--charts True` to `smartva-rs` (else
+  `--no-charts`). Charts are debug-only; the slim image ships no system fonts
+  for the Rust chart renderer, so expect chart drawing to need fonts added.
+- Rollback: set `SMARTVA_ENGINE=python` in `.env` and restart
+  `minerva_app_service`, `minerva_celery_worker` and `minerva_celery_beat`. No
+  data change is involved; results already generated stay as they are.
 
 ### SmartVA Run Archive
 
@@ -819,6 +945,28 @@ Current SmartVA background run:
   (a crashed batch, a result that already exists) gets the Redis key
   `smartva-sweep-skip:<sid>` for 10 minutes, so it is not re-run every 30 s.
   Occupies one worker slot while it runs.
+- `apply_bundle_pending_coding` (same module) applies offline bundle coding
+  results held `pending` (`va_bundle_pending_coding`, bundle spec 5.5) once
+  their case has left `smartva_pending` and `attachment_sync_pending`: beat
+  every 60 seconds (periodic task "Bundle pending coding applier — every 60
+  seconds", `expire_seconds=55`, seeded by `ensure_smartva_sweep_scheduled`
+  at celery start), under the Redis lock `digitva:lock:bundle-pending-coding`
+  (`SET NX EX 360`). One indexed query takes at most 50 held rows, oldest
+  first; each is applied as the ingest would (the coder's allocation, then
+  the coder writes; `bundle_ingest_service.apply_pending_coding`) and the
+  reports that named it pending are rewritten. The worker holds no server
+  signing key, so it clears those reports' stored receipts and
+  `GET .../receipt` signs the current report on request (deterministic, not
+  stored). An ICD-11 DORIS final (`doris_pending`) is reprocessed here first:
+  `process_certificate` against the WHO service and a process proof minted
+  for the actor's allocation, then the online DORIS final save. A coder busy
+  with another case, or the WHO service down or not configured, leaves it
+  pending; any other refusal ends it `rejected` with its code. An applied
+  row gets the ingest's `station_record` case audit row (first bundle's
+  device and config, the station's current custodian).
+- A bundle `/validate` dry run runs inside `smartva_service.queue_suppressed`:
+  no SmartVA marker or run for a case it touched, since everything is rolled
+  back. It can consume death-number sequence values (not transactional).
 
 Current ODK operational protection:
 

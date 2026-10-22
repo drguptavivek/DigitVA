@@ -1,16 +1,27 @@
 /**
  * The VA form's one phone format: exactly 10 digits, shown as 3-3-4
  * ("987 654 3210"), no country code, no restriction on the first digit. The
- * server stores and decides the plain 10 digits (web_intake_service._clean_phone).
+ * server stores and decides the plain 10 digits (app/utils/phone.py).
  */
 
 export const PHONE_PLACEHOLDER = "___ ___ ____";
 
-const PHONE = /^(?:\+91|91|0)?(\d{10})$/;
+const PHONE = /^(?:\+91|91|0)?([0-9]{10})$/;
 
-/** The 10 digits of a phone number, or null when it is not one. Spaces, hyphens and parentheses are ignored; a +91, 91 or 0 in front is dropped. */
+/**
+ * Whitespace as Python's `str.isspace()` / `re` `\s` sees it (the server's rule): JS `\s` differs
+ * (it adds U+FEFF and leaves out U+001C-U+001F and U+0085). Shared with identifiers.ts.
+ */
+export const PY_SPACE = "\\t-\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000";
+const PHONE_SEPARATORS = new RegExp(`[${PY_SPACE}()-]`, "g");
+
+/**
+ * The 10 digits of a phone number, or null when it is not one: exactly the server's
+ * app/utils/phone.py. Whitespace, hyphens and parentheses are ignored; a +91, 91 or 0 in front is
+ * dropped; only ASCII digits count (tests/fixtures/phone_vectors.json).
+ */
 export function normalisePhone(value: string): string | null {
-  return PHONE.exec(value.replace(/[\s()-]/g, ""))?.[1] ?? null;
+  return PHONE.exec(value.replace(PHONE_SEPARATORS, ""))?.[1] ?? null;
 }
 
 /**

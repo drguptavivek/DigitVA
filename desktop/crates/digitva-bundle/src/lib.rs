@@ -360,16 +360,52 @@ pub struct RosterMember {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StationProjectConfig {
     pub project_id: String,
+    /// The project's display name; configs that omit it show the id instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
     #[serde(default)]
     pub sites: Vec<String>,
     #[serde(default)]
     pub org_units: Vec<String>,
+    /// Optional display names, `{site_id: name}`; older configs omit it (labels fall back to ids).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub site_names: BTreeMap<String, String>,
+    /// Optional display paths, `{org_unit_id: "District, Block, PHC"}` (top of the project's
+    /// tree down to the unit, ", "-separated); older configs omit it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub org_unit_paths: BTreeMap<String, String>,
+    /// Optional `{org_unit_id: site_id}`; lets a roster grant without an org unit cover only that
+    /// site's units. Older configs omit it (such a grant then covers every project org unit).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub org_unit_sites: BTreeMap<String, String>,
     #[serde(default)]
     pub sealed_field_ids: Vec<String>,
     #[serde(default)]
     pub instrument_versions: Vec<String>,
     #[serde(default)]
     pub consent: Option<Value>,
+    /// The project's form-options body exactly as the server's
+    /// `GET /organization/<project>/form-options` serves it (enabled modules, locales, narration
+    /// languages, translation versions, `instrument_version`, `definition_sha256`). Older
+    /// configs omit it; the station then offers no form for the project.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub form_options: Option<Value>,
+    /// `{locale: body}` of `GET /instruments/<code>/translations/<locale>` for each non-English
+    /// locale the project offers.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub translations: BTreeMap<String, Value>,
+    /// The station coding mode the project's own mode locks the station to (contract 4.3):
+    /// `None` when the config predates the key (the station keeps its local choice),
+    /// `Some(None)` for `null` (the station does not code this project), else
+    /// `Some(Some("icd11_doris" | "icd10"))`.
+    #[serde(default, deserialize_with = "present_option", skip_serializing_if = "Option::is_none")]
+    pub coding_mode: Option<Option<String>>,
+}
+
+/// Wraps a present key in `Some`, so `null` reads as `Some(None)` and a missing key (serde
+/// `default`) stays `None`.
+fn present_option<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(d).map(Some)
 }
 
 /// Line 1 payload of the signed two-line station configuration file.
@@ -535,6 +571,8 @@ pub enum RecordType {
     InterviewSubmission,
     IdentifiersSet,
     CodingResult,
+    /// Reserved by the spec (digitva-jkvl): parsed in server receipts, never written or built here.
+    AttachmentChunk,
 }
 
 impl RecordType {
@@ -546,6 +584,7 @@ impl RecordType {
             Self::InterviewSubmission => "interview_submission",
             Self::IdentifiersSet => "identifiers_set",
             Self::CodingResult => "coding_result",
+            Self::AttachmentChunk => "attachment_chunk",
         }
     }
 }
@@ -644,8 +683,10 @@ pub struct IdentifiersSetRecord {
 pub struct InterviewDraftMeta {
     #[serde(rename = "instrumentVersion")]
     pub instrument_version: String,
-    #[serde(rename = "definitionSha256")]
-    pub definition_sha256: String,
+    /// SHA-256 of the served definition slice the answers were filled on; absent only for an
+    /// interview that recorded none (the server accepts absent, as from an older app).
+    #[serde(rename = "definitionSha256", default, skip_serializing_if = "Option::is_none")]
+    pub definition_sha256: Option<String>,
     #[serde(
         rename = "definitionExtensions",
         skip_serializing_if = "Option::is_none"
@@ -698,6 +739,10 @@ pub struct CodingResultRecord {
     pub final_cod: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub not_codeable: Option<Value>,
+    /// The station coding mode the result was made in: `icd11_doris` or `icd10` (absent from
+    /// records made before stations chose one).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coding_mode: Option<String>,
 }
 
 /// Typed payload variants for a bundle record.
@@ -912,6 +957,8 @@ fn validate_actor_on_roster(
         }
         RecordType::InterviewSubmission => record.acting_role == ActingRole::Interviewer,
         RecordType::CodingResult => record.acting_role == ActingRole::Coder,
+        // Reserved: the writer never emits it, so refuse any envelope that claims it.
+        RecordType::AttachmentChunk => false,
     };
     if !allowed_role_for_type {
         return Err(BundleError::InvalidActingRoleForRecord {
@@ -971,6 +1018,154 @@ fn validate_actor_on_roster(
     }
 
     Ok(())
+}
+
+/// Validate one record as `build_bundle` does: `recorded_at`, the actor's roster grant and the
+/// payload rules. `granted_registration_consents` holds the client ids of the granted
+/// registration consents travelling in the same bundle. Returns the parsed `recorded_at`.
+/// The station calls it per record to hold back an invalid one instead of failing the export.
+pub fn validate_bundle_record(
+    station_config: &StationConfigPayload,
+    rec: &BundleRecordEnvelope,
+    granted_registration_consents: &BTreeSet<Uuid>,
+) -> Result<DateTime<Utc>, BundleError> {
+    let recorded_dt = DateTime::parse_from_rfc3339(&rec.recorded_at)
+        .map_err(|_| BundleError::RecordInvalid {
+            client_id: rec.client_id,
+            reason: "recorded_at must be a valid RFC 3339 timestamp with offset.".to_string(),
+        })?
+        .with_timezone(&Utc);
+
+    validate_actor_on_roster(station_config, rec)?;
+
+    match &rec.payload {
+        BundleRecordPayload::DeathRegistration(reg) => {
+            if reg.site_id.trim().is_empty() {
+                return Err(BundleError::RecordInvalid {
+                    client_id: rec.client_id,
+                    reason: "site_id must not be empty.".to_string(),
+                });
+            }
+            // Offline always needs consent for informant details (owner decision, contract 5.5),
+            // whatever the project's `consent_required` says.
+            let has_informant_data = INFORMANT_REGISTER_FIELDS.iter().any(|&field_name| {
+                reg.fields
+                    .get(field_name)
+                    .map(value_is_non_empty)
+                    .unwrap_or(false)
+            });
+            if has_informant_data {
+                let Some(cid) = reg.consent_client_id else {
+                    return Err(BundleError::ConsentRequired {
+                        client_id: rec.client_id,
+                    });
+                };
+                if !granted_registration_consents.contains(&cid) {
+                    return Err(BundleError::ConsentRequired {
+                        client_id: rec.client_id,
+                    });
+                }
+            }
+        }
+        BundleRecordPayload::Consent(c) => {
+            if c.notice_language.trim().is_empty()
+                || c.notice_sha256.len() != 64
+                || !c.notice_sha256.bytes().all(|b| b.is_ascii_hexdigit())
+                || c.purposes.is_empty()
+            {
+                return Err(BundleError::RecordInvalid {
+                    client_id: rec.client_id,
+                    reason: "Consent notice_language, notice_sha256, or purposes invalid."
+                        .to_string(),
+                });
+            }
+        }
+        BundleRecordPayload::DeathCorrection(corr) => {
+            let reason_nfc: String = corr.reason.trim().nfc().collect();
+            let char_len = reason_nfc.chars().count();
+            if !(1..=500).contains(&char_len) {
+                return Err(BundleError::InvalidCorrectionReason {
+                    client_id: rec.client_id,
+                });
+            }
+            if corr.changes.is_empty() || corr.changes.contains_key("identifiers") {
+                return Err(BundleError::RecordInvalid {
+                    client_id: rec.client_id,
+                    reason: "death_correction changes must be non-empty and must not contain 'identifiers'.".to_string(),
+                });
+            }
+        }
+        BundleRecordPayload::IdentifiersSet(id_set) => {
+            let reason_nfc: String = id_set.reason.trim().nfc().collect();
+            let char_len = reason_nfc.chars().count();
+            if !(1..=500).contains(&char_len) {
+                return Err(BundleError::InvalidCorrectionReason {
+                    client_id: rec.client_id,
+                });
+            }
+            if !(1..=50).contains(&id_set.identifiers.len()) {
+                return Err(BundleError::RecordInvalid {
+                    client_id: rec.client_id,
+                    reason: "identifiers_set must contain between 1 and 50 identifier codes."
+                        .to_string(),
+                });
+            }
+            for val in id_set.identifiers.values().flatten() {
+                if val.chars().count() > 256 {
+                    return Err(BundleError::RecordInvalid {
+                        client_id: rec.client_id,
+                        reason: "identifier value exceeds 256 characters.".to_string(),
+                    });
+                }
+            }
+        }
+        BundleRecordPayload::InterviewSubmission(sub) => {
+            if sub.answers_json.len() > ANSWERS_JSON_MAX_BYTES {
+                return Err(BundleError::SizeLimitExceeded(format!(
+                    "Interview submission {} answers_json exceeds 1 MiB.",
+                    rec.client_id
+                )));
+            }
+            let actual_hash = sha256_hex(sub.answers_json.as_bytes());
+            if !sub.answers_sha256.eq_ignore_ascii_case(&actual_hash) {
+                return Err(BundleError::AnswersHashMismatch {
+                    client_id: rec.client_id,
+                });
+            }
+            let parsed_answers: Value =
+                serde_json::from_str(&sub.answers_json).map_err(|_| {
+                    BundleError::RecordInvalid {
+                        client_id: rec.client_id,
+                        reason: "answers_json is not valid JSON.".to_string(),
+                    }
+                })?;
+            if !parsed_answers.is_object() {
+                return Err(BundleError::RecordInvalid {
+                    client_id: rec.client_id,
+                    reason: "answers_json must be a JSON object.".to_string(),
+                });
+            }
+            if !check_id10073_recursive(&parsed_answers) {
+                return Err(BundleError::UnreducedNationalId {
+                    client_id: rec.client_id,
+                });
+            }
+        }
+        BundleRecordPayload::CodingResult(coding) => {
+            if coding.coded_answers_sha256.len() != 64
+                || !coding
+                    .coded_answers_sha256
+                    .bytes()
+                    .all(|b| b.is_ascii_hexdigit())
+            {
+                return Err(BundleError::RecordInvalid {
+                    client_id: rec.client_id,
+                    reason: "coded_answers_sha256 must be 64 hex characters.".to_string(),
+                });
+            }
+        }
+    }
+    Ok(recorded_dt)
 }
 
 /// Build and sign a `.dvb` bundle using fresh OS CSPRNG keys and nonces.
@@ -1114,141 +1309,8 @@ fn build_bundle_inner(
         Vec::with_capacity(records.len());
 
     for (idx, rec) in records.iter().enumerate() {
-        let recorded_dt = DateTime::parse_from_rfc3339(&rec.recorded_at)
-            .map_err(|_| BundleError::RecordInvalid {
-                client_id: rec.client_id,
-                reason: "recorded_at must be a valid RFC 3339 timestamp with offset.".to_string(),
-            })?
-            .with_timezone(&Utc);
-
-        validate_actor_on_roster(&station_config.config, rec)?;
-
-        match &rec.payload {
-            BundleRecordPayload::DeathRegistration(reg) => {
-                if reg.site_id.trim().is_empty() {
-                    return Err(BundleError::RecordInvalid {
-                        client_id: rec.client_id,
-                        reason: "site_id must not be empty.".to_string(),
-                    });
-                }
-                let has_informant_data = INFORMANT_REGISTER_FIELDS.iter().any(|&field_name| {
-                    reg.fields
-                        .get(field_name)
-                        .map(value_is_non_empty)
-                        .unwrap_or(false)
-                });
-                if has_informant_data {
-                    let Some(cid) = reg.consent_client_id else {
-                        return Err(BundleError::ConsentRequired {
-                            client_id: rec.client_id,
-                        });
-                    };
-                    if !granted_registration_consents.contains(&cid) {
-                        return Err(BundleError::ConsentRequired {
-                            client_id: rec.client_id,
-                        });
-                    }
-                }
-            }
-            BundleRecordPayload::Consent(c) => {
-                if c.notice_language.trim().is_empty()
-                    || c.notice_sha256.len() != 64
-                    || !c.notice_sha256.bytes().all(|b| b.is_ascii_hexdigit())
-                    || c.purposes.is_empty()
-                {
-                    return Err(BundleError::RecordInvalid {
-                        client_id: rec.client_id,
-                        reason: "Consent notice_language, notice_sha256, or purposes invalid."
-                            .to_string(),
-                    });
-                }
-            }
-            BundleRecordPayload::DeathCorrection(corr) => {
-                let reason_nfc: String = corr.reason.trim().nfc().collect();
-                let char_len = reason_nfc.chars().count();
-                if !(1..=500).contains(&char_len) {
-                    return Err(BundleError::InvalidCorrectionReason {
-                        client_id: rec.client_id,
-                    });
-                }
-                if corr.changes.is_empty() || corr.changes.contains_key("identifiers") {
-                    return Err(BundleError::RecordInvalid {
-                        client_id: rec.client_id,
-                        reason: "death_correction changes must be non-empty and must not contain 'identifiers'.".to_string(),
-                    });
-                }
-            }
-            BundleRecordPayload::IdentifiersSet(id_set) => {
-                let reason_nfc: String = id_set.reason.trim().nfc().collect();
-                let char_len = reason_nfc.chars().count();
-                if !(1..=500).contains(&char_len) {
-                    return Err(BundleError::InvalidCorrectionReason {
-                        client_id: rec.client_id,
-                    });
-                }
-                if !(1..=50).contains(&id_set.identifiers.len()) {
-                    return Err(BundleError::RecordInvalid {
-                        client_id: rec.client_id,
-                        reason: "identifiers_set must contain between 1 and 50 identifier codes."
-                            .to_string(),
-                    });
-                }
-                for val in id_set.identifiers.values().flatten() {
-                    if val.chars().count() > 256 {
-                        return Err(BundleError::RecordInvalid {
-                            client_id: rec.client_id,
-                            reason: "identifier value exceeds 256 characters.".to_string(),
-                        });
-                    }
-                }
-            }
-            BundleRecordPayload::InterviewSubmission(sub) => {
-                if sub.answers_json.len() > ANSWERS_JSON_MAX_BYTES {
-                    return Err(BundleError::SizeLimitExceeded(format!(
-                        "Interview submission {} answers_json exceeds 1 MiB.",
-                        rec.client_id
-                    )));
-                }
-                let actual_hash = sha256_hex(sub.answers_json.as_bytes());
-                if !sub.answers_sha256.eq_ignore_ascii_case(&actual_hash) {
-                    return Err(BundleError::AnswersHashMismatch {
-                        client_id: rec.client_id,
-                    });
-                }
-                let parsed_answers: Value =
-                    serde_json::from_str(&sub.answers_json).map_err(|_| {
-                        BundleError::RecordInvalid {
-                            client_id: rec.client_id,
-                            reason: "answers_json is not valid JSON.".to_string(),
-                        }
-                    })?;
-                if !parsed_answers.is_object() {
-                    return Err(BundleError::RecordInvalid {
-                        client_id: rec.client_id,
-                        reason: "answers_json must be a JSON object.".to_string(),
-                    });
-                }
-                if !check_id10073_recursive(&parsed_answers) {
-                    return Err(BundleError::UnreducedNationalId {
-                        client_id: rec.client_id,
-                    });
-                }
-            }
-            BundleRecordPayload::CodingResult(coding) => {
-                if coding.coded_answers_sha256.len() != 64
-                    || !coding
-                        .coded_answers_sha256
-                        .bytes()
-                        .all(|b| b.is_ascii_hexdigit())
-                {
-                    return Err(BundleError::RecordInvalid {
-                        client_id: rec.client_id,
-                        reason: "coded_answers_sha256 must be 64 hex characters.".to_string(),
-                    });
-                }
-            }
-        }
-
+        let recorded_dt =
+            validate_bundle_record(&station_config.config, rec, &granted_registration_consents)?;
         indexed_records.push((recorded_dt, idx, rec));
     }
 
@@ -1502,8 +1564,9 @@ pub struct ReceiptPlan {
     /// Interview `client_id`s whose receipt outcome was `accepted`/`duplicate`/`superseded`
     /// but whose `received_sha256` did NOT match the station's local `answers_sha256` (must NOT be deleted).
     pub hash_mismatched_interviews: Vec<Uuid>,
-    /// Records held as `pending` on the server (must be kept locally until final outcome).
-    pub pending_client_ids: Vec<Uuid>,
+    /// Records held as `pending` on the server (`(client_id, code)`, e.g. `doris_pending`); kept
+    /// locally until a later receipt gives the final outcome.
+    pub pending_records: Vec<(Uuid, Option<String>)>,
     /// Records rejected by the server (`(client_id, error_code)`).
     pub rejected_records: Vec<(Uuid, Option<String>)>,
     /// Sorted, unique `client_id`s from `purge` that the station must purge immediately.
@@ -1541,7 +1604,7 @@ pub fn verify_and_plan_receipt(
 
     let mut deletable_client_ids = Vec::new();
     let mut hash_mismatched_interviews = Vec::new();
-    let mut pending_client_ids = Vec::new();
+    let mut pending_records = Vec::new();
     let mut rejected_records = Vec::new();
 
     for rec in &report.records {
@@ -1569,7 +1632,7 @@ pub fn verify_and_plan_receipt(
                 }
             }
             RecordIngestOutcome::Pending => {
-                pending_client_ids.push(rec.client_id);
+                pending_records.push((rec.client_id, rec.code.clone()));
             }
             RecordIngestOutcome::Rejected => {
                 rejected_records.push((rec.client_id, rec.code.clone()));
@@ -1585,7 +1648,7 @@ pub fn verify_and_plan_receipt(
         report,
         deletable_client_ids,
         hash_mismatched_interviews,
-        pending_client_ids,
+        pending_records,
         rejected_records,
         purge_client_ids,
     })
@@ -1615,7 +1678,7 @@ mod tests {
 
     fn load_test_kem_keys() -> (KemPublicKey, BTreeMap<String, KemPrivateKey>) {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../docs/from-server/2026-10-21/vectors/pii_envelope_vectors.json");
+            .join("../../../tests/fixtures/pii_envelope_vectors.json");
         let data: Value =
             serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
         let kem_keys = data["deterministic"]["test_keys"]["kem_keys"]
@@ -1665,14 +1728,21 @@ mod tests {
             },
             projects: vec![StationProjectConfig {
                 project_id: "P1".to_string(),
+                project_name: None,
                 sites: vec!["PHC01".to_string()],
                 org_units: vec!["ou-sc-1".to_string()],
+                site_names: BTreeMap::new(),
+                org_unit_paths: BTreeMap::new(),
+                org_unit_sites: BTreeMap::new(),
                 sealed_field_ids: digitva_text::PII_FIELDS_FLOOR
                     .iter()
                     .map(|s| (*s).to_string())
                     .collect(),
                 instrument_versions: vec!["2022_v1".to_string()],
-                consent: None,
+                consent: Some(serde_json::json!({ "consent_required": true })),
+                form_options: None,
+                translations: BTreeMap::new(),
+                coding_mode: None,
             }],
             custodian: Some(StationCustodian {
                 name: "Dr. Meera Nair".to_string(),
@@ -1856,6 +1926,7 @@ mod tests {
                     initial: Some(json!({"immediate_cod": "BA40"})),
                     final_cod: Some(json!({"conclusive_cod": "BA40"})),
                     not_codeable: None,
+                    coding_mode: Some("icd10".to_string()),
                 }),
             },
             BundleRecordEnvelope {
@@ -1884,7 +1955,7 @@ mod tests {
                     death_ref: DeathRef::client_death(death_id),
                     draft: InterviewDraftMeta {
                         instrument_version: "2022_v1".to_string(),
-                        definition_sha256: "a".repeat(64),
+                        definition_sha256: Some("a".repeat(64)),
                         definition_extensions: None,
                         started_at: "2026-10-21T10:00:00Z".to_string(),
                         completed_at: Some("2026-10-21T10:04:00Z".to_string()),
@@ -2058,6 +2129,9 @@ mod tests {
                 // Outside answers_json, strings are NFC-normalised ("e\u{0301}clair" -> "\u{00e9}clair")
                 assert_eq!(pt_json["deceased_name"], "\u{00e9}clair");
             }
+            if rec_line.record_type == RecordType::CodingResult {
+                assert_eq!(pt_json["coding_mode"], "icd10");
+            }
             if rec_line.record_type == RecordType::InterviewSubmission {
                 // Inside answers_json, exact bytes are preserved without NFC normalisation!
                 let got_answers = pt_json["answers_json"].as_str().unwrap();
@@ -2107,7 +2181,7 @@ mod tests {
                 1,
                 "0.1.0",
                 now_utc,
-                &[reg_no_consent]
+                &[reg_no_consent.clone()]
             )
             .unwrap_err(),
             BundleError::ConsentRequired {
@@ -2130,7 +2204,7 @@ mod tests {
                 death_ref: DeathRef::client_death(death_id),
                 draft: InterviewDraftMeta {
                     instrument_version: "2022_v1".to_string(),
-                    definition_sha256: "a".repeat(64),
+                    definition_sha256: Some("a".repeat(64)),
                     definition_extensions: None,
                     started_at: "2026-10-21T10:00:00Z".to_string(),
                     completed_at: Some("2026-10-21T10:04:00Z".to_string()),
@@ -2259,7 +2333,7 @@ mod tests {
                     client_id: coding_pending_id,
                     record_type: RecordType::CodingResult,
                     outcome: RecordIngestOutcome::Pending,
-                    code: None,
+                    code: Some("not_ready".to_string()),
                     received_sha256: None,
                     death_id: None,
                     unique_id: None,
@@ -2288,12 +2362,46 @@ mod tests {
 
         assert_eq!(plan.deletable_client_ids, vec![reg_id, interview_ok_id]);
         assert_eq!(plan.hash_mismatched_interviews, vec![interview_bad_hash_id]);
-        assert_eq!(plan.pending_client_ids, vec![coding_pending_id]);
+        assert_eq!(plan.pending_records, vec![(coding_pending_id, Some("not_ready".to_string()))]);
         assert_eq!(
             plan.rejected_records,
             vec![(corr_rejected_id, Some("death_stale".to_string()))]
         );
         assert_eq!(plan.purge_client_ids, vec![purge_id]);
+    }
+
+    #[test]
+    fn test_receipt_with_attachment_chunk_outcome_verifies_and_plans() {
+        let server_key = StationSigningKey::generate();
+        let chunk_id = Uuid::parse_str("a0000000-0000-4000-8000-000000000001").unwrap();
+        let report = BundleReceiptReport {
+            bundle_id: Uuid::new_v4(),
+            device_id: "station-phc-01".to_string(),
+            kem_key_id: "tv1".to_string(),
+            status: "processed".to_string(),
+            counts: BTreeMap::new(),
+            missing_seq: vec![],
+            records: vec![ReceiptRecordOutcome {
+                client_id: chunk_id,
+                record_type: RecordType::AttachmentChunk,
+                outcome: RecordIngestOutcome::Accepted,
+                code: None,
+                received_sha256: None,
+                death_id: None,
+                unique_id: None,
+            }],
+            purge: vec![],
+        };
+        let signed = format_signed_receipt(&report, &server_key).unwrap();
+        assert!(signed.contains("\"attachment_chunk\""));
+        let plan = verify_and_plan_receipt(
+            &signed,
+            "station-phc-01",
+            &server_key.public_key_bytes(),
+            &BTreeMap::new(),
+        )
+        .unwrap();
+        assert_eq!(plan.deletable_client_ids, vec![chunk_id]);
     }
 
     #[test]

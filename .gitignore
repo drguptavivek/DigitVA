@@ -79,3 +79,9 @@ dailybackups/
 # Sources: docs/kb/icd-11-who-downloads.md
 docs/kb/*.zip
 .pnpm-store/
+
+# Rust build output (desktop workspace)
+desktop/target/
+
+# Expo web export copy served by the app (build output)
+app/static/expo-client/

@@ -132,6 +132,17 @@ def sweep_national_ids(*, apply: bool = False, tables: tuple[str, ...] | None = 
     """
     batch_size = max(1, min(int(batch_size), MAX_BATCH_SIZE))
     selected = [t for t in TARGETS if tables is None or t.table in tables]
+    if any(t.model is VaDeathRegister for t in selected):
+        # Sealed rows hold NULL plaintext, so the scan would call them clean.
+        # Their free text is reduced at write and by the register backfill.
+        sealed = db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaDeathRegister).where(VaDeathRegister.pii_sealed.is_not(None))
+        )
+        if sealed:
+            raise SweepRefused(
+                f"{sealed} sealed register row(s) cannot be swept (their free text is sealed; it is reduced "
+                "when written and by the register backfill). Sweep the other tables with --table."
+            )
     report = {"tables": {}, "redacted": Counter(), "flagged": Counter()}
     for target in selected:
         report["tables"][target.table] = _sweep_table(

@@ -2,6 +2,7 @@ import csv
 import logging
 import math
 import os
+import re
 
 import sqlalchemy as sa
 
@@ -12,36 +13,14 @@ from app.services.pii_field_registry import PII_FIELDS, sealed_field_ids
 log = logging.getLogger(__name__)
 
 
-# Columns that SmartVA does not understand and must be excluded from input.
-# Social-autopsy (sa*) modules and telephonic-consent fields added by some
-# ICMR training forms cause SmartVA's header mapper to fail with
-# "Cannot process data without: gen_5_4*".
-_SMARTVA_DROP_PREFIXES = (
-    "sa01",
-    "sa02",
-    "sa03",
-    "sa04",
-    "sa05",
-    "sa06",
-    "sa07",
-    "sa08",
-    "sa09",
-    "sa10",
-    "sa11",
-    "sa12",
-    "sa13",
-    "sa14",
-    "sa15",
-    "sa16",
-    "sa17",
-    "sa18",
-    "sa19",
-    "sa_",
-    "sa_note",
-    "sa_tu",
-    "survey_block",
-    "telephonic_consent",
-)
+# SmartVA reads only Id####[_tag], age* and is* columns (plus sid) from a WHO
+# input (vendor smartva/who_prep.py and data/who_data.py). It also classifies
+# the file as WHO only when more than 80% of the headers match this pattern
+# (workerthread.who_questionaire_test), so any other column, such as intake
+# metadata or sa* modules, is excluded rather than denylisted: the next
+# metadata key must not push a web or ingested payload over the threshold.
+_SMARTVA_COLUMN = re.compile(r"^[Ii]d\d+(_\w+)?$|^age|^is")
+
 
 _NAN_CHECK_COLUMNS = (
     "ageInDays",
@@ -53,10 +32,10 @@ _NAN_CHECK_COLUMNS = (
 )
 
 
-def _should_drop(header: str) -> bool:
-    clean_header = header.strip()
-    return any(clean_header == prefix or clean_header.startswith(prefix)
-               for prefix in _SMARTVA_DROP_PREFIXES)
+def _smartva_reads(header: str) -> bool:
+    # SmartVA keeps only the last "-"-separated segment of a header.
+    name = header.strip().replace(":", "-").replace("/", "-").split("-")[-1]
+    return name == "sid" or bool(_SMARTVA_COLUMN.match(name))
 
 
 def _is_blank(value) -> bool:
@@ -215,7 +194,7 @@ def _clean_payload_for_smartva(payload_data: dict, *, va_sid: str,
     filtered_row = {
         key: _stringify(value)
         for key, value in row.items()
-        if not _should_drop(key)
+        if _smartva_reads(key)
     }
     filtered_row["sid"] = va_sid
     return filtered_row

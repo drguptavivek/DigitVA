@@ -1,4 +1,4 @@
-import { parseCategory, parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
+import { parseCategory, parseCoderHistory, parseCoderProjects, parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -53,4 +53,31 @@ test("accepts additive evidence provenance and rejects a malformed source", () =
   expect(parseCategory(category, "coding").subcategories[0].source_category).toBe("diagnoses");
   expect(() => parseCategory({ ...category, subcategories: [{ ...category.subcategories[0], source_category: 3 }] }, "coding")).toThrow(WorkspaceContractError);
   expect(parseCategory({ ...category, subcategories: [{ code: "old", label: "Old", render_mode: "default", items: [] }] }, "coding").subcategories[0].source_category).toBeUndefined();
+});
+
+describe("offline station coding fields", () => {
+  const row = {
+    va_sid: "VA-1", va_uniqueid_masked: "U-1", va_form_id: "WHO_2022_VA", project_id: "P1", site_id: "S1",
+    va_submission_date: "2026-10-21", va_deceased_age: "68", va_deceased_gender: "male",
+    va_coding_date: "2026-10-21", va_code_status: "coded", recodeable: true,
+  };
+  const page = (history: unknown[]) => ({ history, count: history.length, limit: 50, offset: 0, has_more: false });
+
+  it("keeps the server's status and code, and drops an unknown status", () => {
+    const parsed = parseCoderHistory(page([
+      { ...row, server_status: "refused", server_code: "invalid_doris" },
+      { ...row, va_sid: "VA-2", server_status: null, server_code: null },
+      { ...row, va_sid: "VA-3", server_status: "accepted", server_code: "x" },
+    ]), 50, 0).history;
+    expect([parsed[0].server_status, parsed[0].server_code]).toEqual(["refused", "invalid_doris"]);
+    expect("server_status" in parsed[1]).toBe(false);
+    expect("server_status" in parsed[2]).toBe(false);
+    expect(() => parseCoderHistory(page([{ ...row, server_status: "pending", server_code: 5 }]), 50, 0)).toThrow(WorkspaceContractError);
+  });
+
+  it("reads station_coding_disabled only when true", () => {
+    const base = { projects: [], project_options: [], last_project_id: null };
+    expect(parseCoderProjects({ ...base, station_coding_disabled: true }).station_coding_disabled).toBe(true);
+    expect("station_coding_disabled" in parseCoderProjects({ ...base, station_coding_disabled: false })).toBe(false);
+  });
 });

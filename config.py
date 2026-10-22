@@ -278,6 +278,11 @@ class Config:
     # SmartVA charts are for debugging only: off, SmartVA runs without
     # matplotlib at all (app/utils/va_smartva/smartva_cli_no_charts.py).
     SMARTVA_CHARTS = os.environ.get("SMARTVA_CHARTS", "0") == "1"
+    # SmartVA engine: "rust" runs the pure-Rust smartva-rs binary (built into
+    # the image at SMARTVA_RS_BIN); "python" is the rollback to Python SmartVA.
+    # Both write the same CSV tree. Owner decision 2026-10-22.
+    SMARTVA_ENGINE = os.environ.get("SMARTVA_ENGINE", "rust").strip().lower()
+    SMARTVA_RS_BIN = os.environ.get("SMARTVA_RS_BIN", "/usr/local/bin/smartva-rs")
 
     # --- Database backups ----------------------------------------------
     # The nightly ``pg_dump -Fc`` of the application database. With
@@ -454,6 +459,19 @@ class Config:
     PII_KEM_PRIVATE_KEY_FILE = os.environ.get("PII_KEM_PRIVATE_KEY_FILE", "")
     PII_KEM_PREVIOUS_PRIVATE_KEY_FILES = os.environ.get("PII_KEM_PREVIOUS_PRIVATE_KEY_FILES", "")
     PII_BLIND_INDEX_KEY = os.environ.get("PII_BLIND_INDEX_KEY", "")
+    # --- Station config signing (app/services/station_config_service.py) ---
+    # A mounted file holding the server Ed25519 private key as a base64url
+    # 32-byte seed (mode 0600, outside the checkout in production; `make
+    # ensure-secrets`). Signs the offline station config; unset, issuing a
+    # config answers 503. docs/current-state/runtime-and-operations.md,
+    # "Station config signing key".
+    BUNDLE_SERVER_SIGNING_KEY_FILE = os.environ.get("BUNDLE_SERVER_SIGNING_KEY_FILE", "")
+    # Days a signed station config stays valid (bundle spec 6.4).
+    STATION_CONFIG_VALID_DAYS = int(os.environ.get("STATION_CONFIG_VALID_DAYS", "180"))
+    # Oldest offline bundle (.dvb) the ingest accepts, by its manifest
+    # created_at (bundle spec 3.3, owner decision Q3). Keep a retired KEM
+    # private key at least this long after a rotation.
+    BUNDLE_MAX_AGE_DAYS = int(os.environ.get("BUNDLE_MAX_AGE_DAYS", "90"))
     # PII slice 1b part II-A (docs/kb/pii-slice-1b.md): payload writes store
     # the sealed set in map_payload_version_pii and compare by
     # version_fingerprint. Off until the readers are switched (part II-B);
@@ -462,6 +480,19 @@ class Config:
     PAYLOAD_PII_SPLIT_ENABLED = os.environ.get(
         "PAYLOAD_PII_SPLIT_ENABLED", "false"
     ).lower() in ("true", "1", "yes")
+    # PII slice 2 (docs/kb/pii-slice-2.md): register writes seal the personal
+    # columns of va_death_register into pii_sealed. Off until the readers and
+    # the backfill ship; flipped only in the release window.
+    REGISTER_PII_SPLIT_ENABLED = os.environ.get(
+        "REGISTER_PII_SPLIT_ENABLED", "false"
+    ).lower() in ("true", "1", "yes")
+    # Most sealed name candidates of one subject the duplicate check opens and
+    # scores (nearest first); the rest of a crowded window is not decrypted.
+    # Candidates with a plaintext name are not capped.
+    DUPLICATE_PREFILTER_MAX = int(os.environ.get("DUPLICATE_PREFILTER_MAX", "50"))
+    # Most candidates one subject takes from each score-1 branch (registration
+    # number, phone, ABHA), nearest first, so a shared number cannot fan out.
+    DUPLICATE_STRONG_MAX = int(os.environ.get("DUPLICATE_STRONG_MAX", "50"))
     # The backup gate of every bulk personal-data rewrite (`flask pii
     # sweep-national-id/split-payloads/strip-upstream-copies --apply`, `flask
     # smartva scrub-runs --apply`): the named dump must be at most this old
@@ -528,6 +559,7 @@ class TestConfig(Config):
     ODK_CREDENTIAL_PEPPER = "test-pepper-do-not-use-in-production"
     # Off whatever .env holds; the split tests turn it on per test.
     PAYLOAD_PII_SPLIT_ENABLED = False
+    REGISTER_PII_SPLIT_ENABLED = False
     # Throwaway in-process keys (app/utils/pii_crypto.py), whatever the
     # developer's .env holds: tests must read what they write.
     PII_KEM_PUBLIC_KEY = ""
@@ -535,6 +567,8 @@ class TestConfig(Config):
     PII_KEM_PRIVATE_KEY_FILE = ""
     PII_KEM_PREVIOUS_PRIVATE_KEY_FILES = ""
     PII_BLIND_INDEX_KEY = ""
+    # Tests point this at tests/fixtures/station_config/ when they sign.
+    BUNDLE_SERVER_SIGNING_KEY_FILE = ""
     # Use in-memory storage for the rate limiter during tests.
     RATELIMIT_STORAGE_URI = "memory://"
     # Keep test sessions out of SQLAlchemy metadata/schema lifecycle.

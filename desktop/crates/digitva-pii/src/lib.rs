@@ -857,13 +857,7 @@ mod tests {
     use std::path::PathBuf;
 
     fn vectors_file_path() -> PathBuf {
-        let base = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let committed = base.join("../../../tests/fixtures/pii_envelope_vectors.json");
-        if committed.is_file() {
-            committed
-        } else {
-            base.join("../../../docs/from-server/2026-10-21/vectors/pii_envelope_vectors.json")
-        }
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/pii_envelope_vectors.json")
     }
 
     fn load_vectors_json() -> Value {

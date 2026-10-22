@@ -58,6 +58,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
+from types import SimpleNamespace
 
 import sqlalchemy as sa
 from sqlalchemy.orm import aliased
@@ -79,7 +80,7 @@ from app.models import (
 )
 from app.models.va_selectives import VaAllocation
 from app.models.va_web_intake import CASE_STATES, DEATH_SEX_VALUES
-from app.services import org_grant_service
+from app.services import org_grant_service, register_pii_accessor
 from app.services.authz import (
     Action,
     Lens,
@@ -564,7 +565,8 @@ def _row_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters, s
     return conditions
 
 
-def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | None, limit: int):
+def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | None, limit: int,
+                    with_names: bool = True):
     reach = _reach(user)
     status = combined_status_case()
     sort = f.sort or _PRESET_SORT[preset]
@@ -586,10 +588,15 @@ def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | No
         VaDeathRegister.org_unit_id, VaDeathRegister.deceased_sex, VaDeathRegister.age_years,
         VaDeathRegister.date_of_death, VaDeathRegister.source, VaDeathRegister.created_at,
         VaDeathRegister.updated_at, VaDeathRegister.registered_by, VaDeathRegister.started_by_user_id,
-        VaDeathRegister.latitude, VaDeathRegister.longitude,
+        VaDeathRegister.has_location,
         VaDeathRegister.status.label("register_state"), status.label("status"),
         # Hidden values never leave the database: the CASE is NULL for them.
+        # The sealed blob (name and fix) rides under the name's visibility
+        # (via_field, the only reach that shows the fix, implies can_name);
+        # ``list_cases`` opens it for the page's rows.
         sa.case((reach.can_name, VaDeathRegister.deceased_name)).label("deceased_name"),
+        sa.case((reach.via_field, VaDeathRegister.latitude)).label("latitude"),
+        sa.case((reach.via_field, VaDeathRegister.longitude)).label("longitude"),
         sa.case((reach.can_unit, sa.func.coalesce(MasOrgUnit.unit_name, VaSiteMaster.site_name))).label("unit_name"),
         sa.case((reach.can_staff, registrant.name)).label("reporter_name"),
         sa.case((reach.can_staff, starter.name)).label("interviewer_name"),
@@ -600,6 +607,11 @@ def _page_statement(user: VaUsers, preset: str, f: CaseFilters, cursor: str | No
         reach.can_identifiers.label("can_identifiers"),
         reach.can_edit_identifiers.label("can_edit_identifiers"),
     ]
+    if with_names:
+        columns += [
+            sa.case((reach.can_name, VaDeathRegister.pii_sealed)).label("pii_sealed"),
+            sa.case((reach.can_name, VaDeathRegister.pii_dek_wrapped)).label("pii_dek_wrapped"),
+        ]
     if preset == "supervision":
         attention_sql = supervision_attention_conditions()
         columns += [
@@ -652,7 +664,10 @@ def _iso(value) -> str | None:
     return value.isoformat() if value else None
 
 
-def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers: list) -> dict:
+def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers: list,
+               register: dict | None = None) -> dict:
+    # ``register``: the row's opened name and fix (``list_cases``); None when not opened.
+    register = register or {}
     mine_reported = row.registered_by == user.user_id
     mine_started = row.started_by_user_id == user.user_id
     out = {
@@ -676,8 +691,8 @@ def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers
     # created_at is the report time only for a register case (module docstring).
     if row.source == "register":
         out["reported_at"] = out["created_at"]
-    if row.can_name:
-        out["deceased_name"] = row.deceased_name
+    if row.can_name and "deceased_name" in register:
+        out["deceased_name"] = register["deceased_name"]
     if row.can_unit:
         out["org_unit_id"] = str(row.org_unit_id) if row.org_unit_id else None
         out["unit_name"] = row.unit_name
@@ -691,8 +706,8 @@ def _serialize(user: VaUsers, row, preset: str, show_location: bool, identifiers
             if mine:
                 out[key] = user.name
     if show_location:
-        out["latitude"] = row.latitude
-        out["longitude"] = row.longitude
+        out["latitude"] = register.get("latitude")
+        out["longitude"] = register.get("longitude")
     if preset == "supervision":
         out.update(
             reason=row.reason, pending_flag=row.pending_flag, next_visit_at=_iso(row.next_visit_at),
@@ -734,9 +749,27 @@ def case_in_scope(user: VaUsers, death_id: uuid.UUID) -> bool:
     ))
 
 
+def _open_page(page, show_location: dict) -> dict:
+    """``{death_id: {attr: value}}``: the deceased name of each row the caller
+    may see by name (``can_name``) and the fix of each row in *show_location*,
+    one unwrap per sealed row. A row is a query row, not an entity: it carries
+    the blob (``pii_sealed``, ``pii_dek_wrapped``) only when ``can_name``, so a
+    hidden row's blob never left the database and is not opened here."""
+    opened = {}
+    for with_fix in (False, True):
+        rows = [
+            SimpleNamespace(death_id=r.death_id, pii_sealed=r.pii_sealed, pii_dek_wrapped=r.pii_dek_wrapped,
+                            deceased_name=r.deceased_name, latitude=r.latitude, longitude=r.longitude)
+            for r in page if r.can_name and show_location[r.death_id] == with_fix
+        ]
+        only = ("deceased_name", "latitude", "longitude") if with_fix else ("deceased_name",)
+        opened.update(register_pii_accessor.open_register_pii(rows, only=only))
+    return opened
+
+
 def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str | None = None,
                limit: int = WORKLIST_PAGE_DEFAULT, with_identifiers: bool = True,
-               identifier_projects: set | None = None) -> dict:
+               identifier_projects: set | None = None, with_names: bool = True) -> dict:
     """``{"cases": [row, ...], "next_cursor": str | None}``: one page of the
     caller's cases for *preset*, hidden fields omitted per row. *limit* is
     clamped to ``WORKLIST_PAGE_MAX``. Empty scope is an empty page.
@@ -748,19 +781,21 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
     grants but code masked). Never on the supervision preset. *with_identifiers*
     False skips the registration numbers (no query, no decryption);
     *identifier_projects* limits the decrypted values to rows of those projects
-    (the export's audited set), the others stay badges.
+    (the export's audited set), the others stay badges. *with_names* False
+    skips the deceased name and the location (both sealed): the blob is not
+    selected and nothing is decrypted (the export has neither column).
     """
     if preset not in PRESETS:
         raise WebIntakeError("Unknown preset.")
     if _no_scope(user):
         return {"cases": [], "next_cursor": None}
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    statement, sort = _page_statement(user, preset, filters, cursor, limit)
+    statement, sort = _page_statement(user, preset, filters, cursor, limit, with_names)
     rows = db.session.execute(statement).all()
     page = rows[:limit]
     org_projects = set()
     redact = True
-    if preset != "supervision" and any(r.via_field and r.latitude is not None for r in page):
+    if with_names and preset != "supervision" and any(r.via_field and r.has_location for r in page):
         org_projects = org_grant_service.projects_with_org_tree({r.project_id for r in page})
         redact = should_redact_pii(user)
     # The export without number columns asks for none: nothing is decrypted.
@@ -768,11 +803,15 @@ def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str 
         user, page, values_for={r.death_id for r in page if r.can_identifiers
                     and (identifier_projects is None or r.project_id in identifier_projects)}
     ) if with_identifiers else {r.death_id: [] for r in page}
+    show_location = {
+        r.death_id: bool(with_names and r.via_field and r.has_location and r.project_id in org_projects
+                         and (not redact or r.registered_by == user.user_id))
+        for r in page
+    }
+    opened = _open_page(page, show_location) if with_names else {}
     cases = [
-        _serialize(user, row, preset, show_location=(
-            row.via_field and row.latitude is not None and row.project_id in org_projects
-            and (not redact or row.registered_by == user.user_id)
-        ), identifiers=identifiers[row.death_id])
+        _serialize(user, row, preset, show_location=show_location[row.death_id],
+                   identifiers=identifiers[row.death_id], register=opened.get(row.death_id))
         for row in page
     ]
     return {"cases": cases, "next_cursor": _encode_cursor(sort, page[-1]) if len(rows) > limit else None}

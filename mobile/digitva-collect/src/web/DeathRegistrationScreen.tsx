@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
-import { ApiError, SUPERVISION_ROLES, getCaseDetail, getRegisteredDeaths, hasInterviewRegistrationAccess, intakeContextFromAccess, requestClientJson, type CaseDetail, type CaseRow, type IntakeBootstrap, type RegistrationInput } from "../api";
+import { ApiError, SUPERVISION_ROLES, getLocalStationLaunchToken, getCaseDetail, getRegisteredDeaths, hasInterviewRegistrationAccess, intakeContextFromAccess, requestClientJson, type CaseDetail, type CaseRow, type IntakeBootstrap, type RegistrationInput } from "../api";
 import { INTAKE_API, registerDeath, startDraft } from "../client/api";
 import { useAppState } from "../AppState";
 import { localToday, registrationAgeInfoIssue, registrationNeedsAgeConfirmation, validateRegistration, type RegistrationFields } from "../cases";
@@ -20,6 +20,8 @@ import { RegistrationFieldControl, type RegistrationDateAppearance } from "./reg
 import { PhoneNumbers } from "../PhoneInput";
 import { IdentifierFields, identifierIssueText } from "../IdentifierFields";
 import { IdentifierFacts } from "./CaseIdentifiers";
+import { StationConsentPanel } from "./StationConsentPanel";
+import { INFORMANT_PII_FIELDS, type ConsentRecordEnvelope } from "../consent";
 import {
   identifierChanges, identifierFieldErrors, identifierIssues, identifiersToSend, identifierValues, identifierWarnings,
   isBadgeOnly, loadIdentifierTypes, type CaseIdentifier, type IdentifierType,
@@ -554,6 +556,15 @@ export default function DeathRegistrationScreen() {
   const phoneUnchanged = (key: "informant_phone" | "informant_phone_2") =>
     Boolean(editingDeathId) && String(fields[key] ?? "") === String(registrationBase.current?.[key] ?? "");
 
+  // The station (offline) always needs a granted consent to save informant details; on an edit, only
+  // for informant details changed to something non-empty.
+  const [consent, setConsent] = useState<ConsentRecordEnvelope | null>(null);
+  const informantNeedsConsent = Boolean(getLocalStationLaunchToken()) && INFORMANT_PII_FIELDS.some((key) => {
+    const next = String(fields[key] ?? "").trim();
+    return next !== "" && (!editingDeathId || next !== String(registrationBase.current?.[key] ?? "").trim());
+  });
+  const consentBlocked = informantNeedsConsent && !consent;
+
   const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => field.key === "informant_phone" ? (
     <PhoneNumbers
       key={field.key}
@@ -587,6 +598,10 @@ export default function DeathRegistrationScreen() {
     pendingSaveOnly.current = saveOnly;
     setMessage("");
     setNotice("");
+    if (consentBlocked) {
+      setMessage(t("stationConsentBlocked"));
+      return;
+    }
     const typed = Object.fromEntries(idTypes.map((type) => [type.code, idValues[type.code]]));
     const validationFields = {
       ...fields,
@@ -643,7 +658,7 @@ export default function DeathRegistrationScreen() {
         }
         const result = await requestClientJson<unknown>(`${INTAKE_API}/deaths/${encodeURIComponent(editingDeathId)}`, {
           method: "PATCH",
-          json: { ...changes, ...locationChanges, ...(Object.keys(idChanges).length ? { identifiers: idChanges } : {}), ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
+          json: { ...changes, ...(informantNeedsConsent && consent ? { consent } : {}), ...locationChanges, ...(Object.keys(idChanges).length ? { identifiers: idChanges } : {}), ...(registrationUpdatedAt.current ? { if_updated_at: registrationUpdatedAt.current } : {}) },
           csrf: bootstrap.csrf
         });
         if (!current()) return;
@@ -691,6 +706,7 @@ export default function DeathRegistrationScreen() {
                 !["deceased_name", "date_of_death"].includes(key) && !(key === "age_years" && birthMode !== "unknown") && typeof value === "string" && value.trim() !== ""
             )
           ),
+          ...(informantNeedsConsent && consent ? { consent } : {}),
           ...(location ? { latitude: location.latitude, longitude: location.longitude, accuracy_m: location.accuracy_m } : {}),
           ...(idShown && identifiersToSend(typed) ? { identifiers: identifiersToSend(typed) } : {})
         } as RegistrationInput,
@@ -754,6 +770,14 @@ export default function DeathRegistrationScreen() {
         setEditingReadOnly(true);
         setMessage(t("serverValidation"));
       } else {
+        if (error instanceof ApiError && error.status === 422 && error.code === "consent_required_for_informant") {
+          setMessage(t("stationConsentBlocked"));
+          return;
+        }
+        if (error instanceof ApiError && error.status === 422 && error.code === "consent_notice_unavailable") {
+          setMessage(t("stationConsentNoNotice"));
+          return;
+        }
         const refused = identifierFieldErrors(error);
         if (Object.keys(refused).length) setIdErrors(refused);
         setMessage(error instanceof ApiError && error.status === 422 ? t("serverValidation") : browserErrorText(error));
@@ -956,6 +980,10 @@ export default function DeathRegistrationScreen() {
               <LocationCapture value={location} onChange={setLocation} />
             </View>
           ) : renderField(field))}
+          {informantNeedsConsent && bootstrap ? (
+            <StationConsentPanel projectId={projectId} csrf={bootstrap.csrf} onChange={setConsent} />
+          ) : null}
+          {informantNeedsConsent && !consent ? <Text style={styles.error} accessibilityRole="alert" testID="station-consent-blocked">{t("stationConsentBlocked")}</Text> : null}
           {idShown ? (
             <IdentifierFields
               types={idTypes}
@@ -1003,9 +1031,9 @@ export default function DeathRegistrationScreen() {
               </View>
             </View>
           ) : null}
-          <Button loading={busy} disabled={busy || ageConfirmationPending || idHold} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
+          <Button loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
           {!editingDeathId && bootstrap?.capabilities.intake ? (
-            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold} label={t("save")} onPress={() => void submit(false, true)} />
+            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked} label={t("save")} onPress={() => void submit(false, true)} />
           ) : null}
           <Button kind="secondary" label={t("cancel")} onPress={() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {

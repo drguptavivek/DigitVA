@@ -338,23 +338,61 @@ not, by design, OD1); an identical web resubmission creates no version and keeps
 
 ## Register design (stage 2)
 
-Additive columns on `va_death_register`: `pii_sealed` (JSONB `{column:
-"v1:aes256gcm:..."}`), `pii_dek_wrapped`, `pii_key_id`,
-`informant_phone_bidx`, `informant_phone_2_bidx`, `abha_number_bidx`,
-`abha_address_bidx` (String(128), nullable) with blind key ids, and
-`has_deceased_name` (Boolean, not null). Indexes `(project_id, <bidx>)`,
-partial on not null. Plaintext columns stay until strip.
+**Decided 2026-10-21; task T1 implemented, uncommitted** (columns, accessor,
+writers, flag: [pii-slice-2.md](../kb/pii-slice-2.md)). Additive columns on
+`va_death_register`: `pii_sealed` (JSONB `{field: "v1:aes256gcm:..."}`),
+`pii_dek_wrapped`, `pii_key_id`, `pii_blind_key_id`, `pii_sealed_at`; blind
+indexes `informant_phone_bidx`, `informant_phone_2_bidx`, `abha_number_bidx`,
+`abha_address_bidx` (String(128), nullable; partial indexes `(project_id,
+<bidx>) WHERE <bidx> IS NOT NULL`); four presence flags, Boolean not null
+default false: `has_deceased_name`, `has_informant_phone`,
+`has_informant_phone_2`, `has_location`.
 
-- **One accessor**: `open_register_pii(rows, viewer)` opens only the page's
-  rows, only for viewers the existing checks allow, in the dict shape
-  `serialize_death`, `serialize_worklist_row` and the supervision serialisers
-  return. Writes go through `seal_register_pii(death, fields)`, called by
-  `_clean_death_fields` callers and `odk_case_service._insert_case`.
-- **Presence**: `case_transition_service.identity_complete`
-  (`case_transition_service.py:196-198`, `bool(case.deceased_name and ...)`)
-  turns false for every case once `deceased_name` is nulled; it reads
-  `has_deceased_name`, kept by the seal writer. The stage 2 review moves any
-  other truthiness test on a sealed column the same way.
+- **Sealed set (14 columns plus one field).** `deceased_name`, `father_name`,
+  `mother_name`, `informant_name`, `informant_phone`, `informant_phone_2`,
+  `abha_number`, `abha_address`, `address`, `address_house_street`,
+  `address_village_ward`, `address_landmark`, `place_of_death`, `remarks`,
+  and `latitude`, `longitude`, `accuracy_m` sealed as **one field**
+  `location` (JSON). Phones are sealed in full (shown and callable later);
+  no partial digits anywhere. Plaintext: `deceased_sex`, `date_of_death`,
+  `date_of_birth`, `date_of_birth_partial`, `age_years`, `captured_at`,
+  `status`, `pending_flag`, `source`, `next_visit_at`, `last_contact_at`
+  and every id. One DEK per record, AAD = `va_death_register`, field,
+  `death_id`.
+- **Flag `REGISTER_PII_SPLIT_ENABLED`** (default false; replaces the draft
+  names `PII_SEAL_REGISTER` and `PII_READ_SEALED`), 1b semantics. Off: every
+  writer runs its old code, and a writer meeting a sealed row raises
+  `RegisterSplitStateError` (as `PayloadSplitStateError`); reading sealed
+  rows still opens them. On: a write seals the record and **nulls the
+  plaintext columns in the same write**, sets `pii_sealed_at`, the presence
+  flags and the blind indexes. Strip is therefore not a separate step for
+  new writes; the backfill (T-later) seals existing rows the same way.
+- **One accessor**: `app/services/register_pii_accessor.py`.
+  `open_register_pii(rows, only=...)` returns `{death_id: {attr: value}}` in
+  the shape `serialize_death`, `serialize_worklist_row` and the supervision
+  serialisers use (plaintext columns for an unsealed row, so flag-off and
+  pre-backfill are identical); authorization stays with the caller. Writes go
+  through `seal_register_pii` / `write_fields` / `seal_new_row`.
+- **Presence**: the four flags are what filters, the worklist and
+  `case_transition_service.identity_complete` read, never the sealed column.
+  A mapper listener sets each flag from its plaintext column on insert and
+  update (a flag-off writer needs no code), and leaves a flag alone when the
+  plaintext is NULL because the row is sealed. CHECK
+  `ck_va_death_register_identity`: `status IN ('draft_identity',
+  'cancelled') OR (has_deceased_name AND date_of_death IS NOT NULL AND
+  deceased_sex IS NOT NULL)`. CHECK `ck_va_death_register_location_all_or_none`:
+  `(latitude IS NULL) = (longitude IS NULL) AND (has_location = (captured_at
+  IS NOT NULL)) AND (has_location OR accuracy_m IS NULL) AND (latitude IS NULL
+  OR has_location)`. Any other truthiness test on a sealed column moves to the
+  flag in the stage 2 review.
+- **Audit**: `map_case_transitions.changes_dek_wrapped` and `changes_key_id`;
+  with the flag on, the old and new values of sealed fields in `changes` are
+  ciphertexts (AAD = `map_case_transitions`, `<field>.old|new`,
+  `transition_id`), other fields stay plain.
+- **Rollback**: flag-off rollback is safe only before the first new sealed
+  write. After it, sealed rows exist nowhere else: restore from the verified
+  dump (or a restore-to-plaintext task), then downgrade; the migration's
+  downgrade refuses while any register or audit row is sealed.
 - **Duplicate matching on names**: `_possible_duplicate_rows`
   (`web_intake_service.py:4091-4255`; `similarity()` `:4124`, `by_number`
   `:4198`, union `:4236`, `rank <= per_case` `:4250`), called per worklist
@@ -373,6 +411,16 @@ partial on not null. Plaintext columns stay until strip.
   `by_number` branch is unaffected. The hint's `informant_name` and
   `address_village_ward` come from the same opened records.
 - **Phone and ABHA hints**: exact blind-index matches, score 1.
+  Built (T3, `register_duplicate_service.py`, 2026-10-21): design (a) with
+  the cap `DUPLICATE_PREFILTER_MAX` (default 50) applied per subject in SQL
+  to sealed candidates only (plaintext-name candidates are scored uncapped, as
+  before), before any decrypt, nearest first (same unit, closest date, id);
+  the score-1 branches are cut per subject at `DUPLICATE_STRONG_MAX` (default
+  50) the same way; no age band (it would change results). Phone (either column against either) and
+  ABHA number and address are separate equality branches of one UNION, each
+  on the `(project_id, bidx)` partial index, only for a subject that has the
+  index (unsealed rows have none and match nothing); they ignore the date,
+  sex and unit gates like the registration-number branch.
 
 ## Payload design (stage 3)
 
@@ -493,7 +541,7 @@ browser reduces too, and the server reduces again as the authority:
   client match on the masked phone).
 - Name search stays client-side over the page's opened names.
 - Duplicates: names per "Register design" (a); phones and ABHA by blind
-  index. No Aadhaar duplicate matching.
+  index (built, T3). No Aadhaar duplicate matching.
 
 ## Audit and logging
 
@@ -589,7 +637,7 @@ verify passes (decision 12).
 Every stage: migration chained onto a committed revision (`flask db heads`
 before and after), flag default off, writes first, readers behind the
 accessor, then backfill, verify, strip. Flags: `PII_SEAL_AADHAAR`,
-`PII_SEAL_REGISTER`, `PII_SEAL_PAYLOAD`, `PII_READ_SEALED`.
+`REGISTER_PII_SPLIT_ENABLED` (register) and `PAYLOAD_PII_SPLIT_ENABLED` (payload).
 
 0. **No keys — implemented, uncommitted (2026-10-21).** `mask_phone` gone;
    worklist rows carry `has_informant_phone` / `has_informant_phone_2`; the

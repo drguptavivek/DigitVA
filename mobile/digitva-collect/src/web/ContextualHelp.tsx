@@ -11,6 +11,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
+import { getLocalStationLaunchToken } from "../api";
 import {
   fontSize as themeFontSize,
   radius as themeRadius,
@@ -569,14 +570,15 @@ function normalizeHelpPayload(
 
 /**
  * Fetch contextual help for a screen from the dedicated `/api/v1/help/contextual/<screen>` API.
- * Falls back gracefully to `null` when offline or unauthenticated.
+ * Falls back gracefully to `null` when offline or unauthenticated. The offline station (a per-launch
+ * token is present) has no help route: it uses the static help without a request.
  */
 export async function fetchContextualHelp(
   screen: ContextualHelpScreen,
 ): Promise<ScreenHelpInfo | null> {
   const cached = remoteHelpCache.get(screen);
   if (cached) return cached;
-  if (typeof fetch !== "function") return null;
+  if (typeof fetch !== "function" || getLocalStationLaunchToken()) return null;
   try {
     const response = await fetch(
       `/api/v1/help/contextual/${encodeURIComponent(screen)}`,

@@ -59,6 +59,8 @@
     header.appendChild(close);
     panel.appendChild(header);
     panel.appendChild(el('div', 'card-body small py-2 px-2 overflow-auto va-def-float-body'));
+    // Licence 1.2.4: DigitVA-written text beside an ICD-11 entity is not WHO content.
+    panel.appendChild(el('div', 'card-footer small text-muted py-1 px-2 va-def-float-source', 'DigitVA addition \u2014 not from WHO'));
     document.body.appendChild(panel);
     return panel;
   }

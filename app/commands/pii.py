@@ -18,7 +18,13 @@ into ``map_payload_version_pii`` (dry run, ``--apply``, ``--verify``,
 copies written before the split; docs/kb/pii-slice-1b.md, "Release
 procedure" and "Blind-key rotation".
 
-Every ``--apply`` / ``--restore`` / ``--recompute-digests --apply`` takes the
+``flask pii seal-register`` seals the death register's personal columns
+(``--apply``, plaintext kept) and, at ``--strip`` after the hold, the audit
+rows' sealed values (dry run, ``--apply``, ``--verify``, ``--strip``, ``--restore``, ``--recompute-digests``); docs/kb/pii-slice-2.md,
+"Backfill, verify, strip, restore". ``rewrap`` also moves the register's and
+the audit rows' wrapped keys.
+
+Every ``--apply`` / ``--restore`` / ``--strip`` / ``--recompute-digests --apply`` takes the
 backup gate (``confirm_db_backup``: a successful dump at most
 ``PII_BACKUP_MAX_AGE_HOURS`` old, or ``--allow-old-backup``).
 """
@@ -29,28 +35,33 @@ import click
 import sqlalchemy as sa
 
 from app import db
-from app.models import MapDeathIdentifier, MapPayloadVersionPii
+from app.models import MapCaseTransition, MapDeathIdentifier, MapPayloadVersionPii, VaDeathRegister
 from app.services import national_id_sweep_service as sweep
 from app.services import payload_pii_backfill_service as split_backfill
+from app.services import register_pii_backfill_service as register_backfill
 from app.utils import pii_crypto
 
 log = logging.getLogger(__name__)
 
 
-# The tables whose wrapped data keys a rotation moves: (model, primary key).
-# A record table (map_payload_version_pii) wraps one DEK per record in the
-# same format, so the same loop re-wraps it and its field ciphertexts stay
-# byte-identical.
+# The tables whose wrapped data keys a rotation moves: (model, primary key,
+# wrapped-DEK attribute, key-id attribute, pin updated_at). A record table
+# (map_payload_version_pii, the register's pii_sealed, the audit rows'
+# sealed changes) wraps one DEK per record in the same format, so the same
+# loop re-wraps it and its field ciphertexts stay byte-identical. The register
+# pins updated_at: it has onupdate and drives keyset cursors and the worklist.
 REWRAP_TABLES = (
-    (MapDeathIdentifier, MapDeathIdentifier.death_identifier_id),
-    (MapPayloadVersionPii, MapPayloadVersionPii.payload_version_id),
+    (MapDeathIdentifier, MapDeathIdentifier.death_identifier_id, "dek_wrapped", "key_id", False),
+    (MapPayloadVersionPii, MapPayloadVersionPii.payload_version_id, "dek_wrapped", "key_id", False),
+    (VaDeathRegister, VaDeathRegister.death_id, "pii_dek_wrapped", "pii_key_id", True),
+    (MapCaseTransition, MapCaseTransition.transition_id, "changes_dek_wrapped", "changes_key_id", False),
 )
 
 
 def rewrap_pending(batch_size: int = 200) -> dict[str, int]:
     """Re-wrap every row of ``REWRAP_TABLES`` not on the current key id, in
-    keyset batches by primary key, one commit per batch. Only ``dek_wrapped``
-    and ``key_id`` change; the data ciphertext is untouched. Idempotent and
+    keyset batches by primary key, one commit per batch. Only the wrapped DEK
+    and key id columns change (``updated_at`` is pinned on the register); the data ciphertext is untouched. Idempotent and
     resumable (a rerun selects only rows still on an old key). A row that
     cannot be unwrapped is counted and skipped, named by id in the log; no
     value or key is logged. The update is conditional on ``dek_wrapped`` still
@@ -58,29 +69,29 @@ def rewrap_pending(batch_size: int = 200) -> dict[str, int]:
     counts as ``skipped`` and the next run sees it. Returns the totals over
     every table, ``{"rewrapped": n, "failed": n, "skipped": n}``."""
     totals = {"rewrapped": 0, "failed": 0, "skipped": 0}
-    for model, pk in REWRAP_TABLES:
-        counts = _rewrap_table(model, pk, batch_size)
+    for table in REWRAP_TABLES:
+        counts = _rewrap_table(*table, batch_size)
         for key, value in counts.items():
             totals[key] += value
     return totals
 
 
-def _rewrap_table(model, pk, batch_size: int) -> dict[str, int]:
+def _rewrap_table(model, pk, dek_attr: str, key_attr: str, pin_updated_at: bool, batch_size: int) -> dict[str, int]:
     current = pii_crypto.current_key_id()
     table = model.__tablename__
+    dek_col, key_col = getattr(model, dek_attr), getattr(model, key_attr)
     last_id = None
     counts = {"rewrapped": 0, "failed": 0, "skipped": 0}
     while True:
-        query = sa.select(model).where(model.key_id != current).order_by(pk).limit(batch_size)
+        # Only the three columns: a register row would otherwise load its sealed blob.
+        query = sa.select(pk, dek_col).where(key_col != current).order_by(pk).limit(batch_size)
         if last_id is not None:
             query = query.where(pk > last_id)
-        rows = db.session.scalars(query).all()
+        rows = db.session.execute(query).all()
         if not rows:
             return counts
-        for row in rows:
-            row_id = getattr(row, pk.key)
+        for row_id, read in rows:
             last_id = row_id
-            read = row.dek_wrapped
             try:
                 new_wrapped, new_key_id = pii_crypto.rewrap_dek(read, row_ref=str(row_id))
             except pii_crypto.PiiCryptoError as exc:
@@ -89,8 +100,9 @@ def _rewrap_table(model, pk, batch_size: int) -> dict[str, int]:
                 continue
             updated = db.session.execute(
                 sa.update(model)
-                .where(pk == row_id, model.dek_wrapped == read)
-                .values(dek_wrapped=new_wrapped, key_id=new_key_id)
+                .where(pk == row_id, dek_col == read)
+                .values(**{dek_attr: new_wrapped, key_attr: new_key_id},
+                        **({"updated_at": model.updated_at} if pin_updated_at else {}))
                 .execution_options(synchronize_session=False)
             )
             if updated.rowcount:
@@ -148,9 +160,12 @@ def sweep_national_id(apply_, confirm_backup, allow_old_backup, tables, batch_si
     runs in free text masked, Id10070 flagged only. Prints counts by table and
     field, never a value. Idempotent and resumable."""
     backup = _confirm_backup(confirm_backup, allow_old_backup) if apply_ else None
-    report = sweep.sweep_national_ids(
-        apply=apply_, tables=tuple(tables) or None, batch_size=batch_size, on_progress=click.echo,
-    )
+    try:
+        report = sweep.sweep_national_ids(
+            apply=apply_, tables=tuple(tables) or None, batch_size=batch_size, on_progress=click.echo,
+        )
+    except sweep.SweepRefused as exc:
+        raise click.ClickException(str(exc)) from exc
     mode = "apply" if apply_ else "dry-run"
     for table, counts in report["tables"].items():
         click.echo(
@@ -246,6 +261,104 @@ def split_payloads(apply_, verify_, restore_, recompute_, confirm_backup, allow_
         click.echo(
             "Now run `flask pii split-payloads --verify`. Do not set PAYLOAD_PII_SPLIT_ENABLED until the "
             "readers release (PII slice 1b part II-B) ships."
+        )
+
+
+@pii_group.command("seal-register")
+@click.option("--apply", "apply_", is_flag=True,
+              help="Seal in place, plaintext columns kept. Without it: a dry run, counts only.")
+@click.option("--verify", "verify_", is_flag=True, help="Check the stored state (counts and an opened sample).")
+@click.option("--after-strip", is_flag=True,
+              help="With --verify: also require the audit rows sealed (they are sealed by --strip).")
+@click.option("--strip", "strip_", is_flag=True,
+              help="NULL the sealed plaintext columns of verified rows past --hold-days, then seal the audit "
+                   "rows' sealed values and scrub the legacy `mask` (the point of no easy return).")
+@click.option("--restore", "restore_", is_flag=True,
+              help="Undo the seal: values back into the plaintext columns (REGISTER_PII_SPLIT_ENABLED off).")
+@click.option("--recompute-digests", "recompute_", is_flag=True,
+              help="After a PII_BLIND_INDEX_KEY rotation: recompute the four indexes (dry run unless --apply).")
+@click.option("--confirm-backup", default=None,
+              help="Object key or sha256 of a successful `flask backups db-dump`; required to write.")
+@allow_old_backup_option
+@click.option("--sample", default=register_backfill.DEFAULT_SAMPLE, show_default=True,
+              type=click.IntRange(0, register_backfill.MAX_SAMPLE), help="Rows opened by --verify and --strip.")
+@click.option("--hold-days", default=register_backfill.DEFAULT_HOLD_DAYS, show_default=True,
+              type=click.IntRange(0, 3650), help="--strip leaves rows sealed more recently than this.")
+@click.option("--batch-size", default=register_backfill.DEFAULT_BATCH_SIZE, show_default=True,
+              type=click.IntRange(1, register_backfill.MAX_BATCH_SIZE))
+def seal_register(apply_, verify_, after_strip, strip_, restore_, recompute_, confirm_backup, allow_old_backup,
+                  sample, hold_days, batch_size):
+    """Seal every death-register row (plaintext kept until --strip). --strip
+    also seals the sealed values in the audit rows of the cases it has
+    stripped and scrubs the legacy `mask` member there. Run with ODK sync paused (docs/kb/pii-slice-2.md). Prints
+    counts, never a value or a row id."""
+    if sum((apply_ and not recompute_, verify_, strip_, restore_, recompute_)) > 1:
+        raise click.UsageError(
+            "Pass at most one of --apply, --verify, --strip, --restore, --recompute-digests."
+        )
+    if after_strip and not verify_:
+        raise click.UsageError("--after-strip goes with --verify.")
+    if verify_:
+        report = register_backfill.verify_register(sample=sample, batch_size=batch_size, after_strip=after_strip)
+        click.echo(" ".join(f"{key}={value}" for key, value in report.items()))
+        if not report["ok"]:
+            raise click.ClickException("The register does not verify; see the counts above.")
+        return
+    backup = _confirm_backup(confirm_backup, allow_old_backup) if (apply_ or strip_ or restore_) else None
+    try:
+        if strip_:
+            counts = register_backfill.strip_register(
+                hold_days=hold_days, sample=sample, batch_size=batch_size, on_progress=click.echo)
+            log.warning(
+                "pii seal-register stripped | backup_key=%s | %s",
+                backup.object_key, " ".join(f"{key}={value}" for key, value in counts.items()),
+            )
+            click.echo("strip: " + " ".join(f"{key}={value}" for key, value in counts.items()))
+            click.echo("Now run `flask pii seal-register --verify --after-strip` and `flask pii flush-cache`.")
+            if counts["failed"]:
+                raise click.ClickException("Some rows did not open to their plaintext and were kept.")
+            if counts["audit_skipped"]:
+                raise click.ClickException("Some audit rows could not be sealed (unexpected shape); see the counts.")
+            return
+        if restore_:
+            counts = register_backfill.restore_register(batch_size=batch_size, on_progress=click.echo)
+            log.warning(
+                "pii seal-register restored | backup_key=%s | restored=%d failed=%d audit_restored=%d "
+                "audit_failed=%d", backup.object_key, counts["restored"], counts["failed"],
+                counts["audit_restored"], counts["audit_failed"],
+            )
+            click.echo("restore: " + " ".join(f"{key}={value}" for key, value in counts.items()))
+            if counts["failed"] or counts["audit_failed"]:
+                raise click.ClickException("Some rows did not open and were kept sealed.")
+            click.echo("Keep every register writer paused until this reports failed=0, then run `flask pii flush-cache`.")
+            return
+        if recompute_:
+            counts = register_backfill.recompute_digests(apply=apply_, batch_size=batch_size, on_progress=click.echo)
+            mode = "apply" if apply_ else "dry-run"
+            click.echo(f"recompute-digests {mode}: " + " ".join(f"{key}={value}" for key, value in counts.items()))
+            if apply_:
+                log.warning(
+                    "pii seal-register recompute-digests applied | backup_key=%s | recomputed=%d failed=%d",
+                    backup.object_key, counts["recomputed"], counts["failed"],
+                )
+            if counts["failed"]:
+                raise click.ClickException("Some rows did not open and were skipped.")
+            return
+        report = register_backfill.seal_register(apply=apply_, batch_size=batch_size, on_progress=click.echo)
+        if not apply_:  # what --strip will seal in the audit rows
+            report.update(register_backfill.seal_audit(apply=False, batch_size=batch_size))
+    except register_backfill.BackfillRefused as exc:
+        raise click.ClickException(str(exc)) from exc
+    mode = "apply" if apply_ else "dry-run"
+    click.echo(f"{mode}: " + " ".join(f"{key}={value}" for key, value in report.items()))
+    if apply_:
+        log.warning(
+            "pii seal-register applied | backup_key=%s | %s",
+            backup.object_key, " ".join(f"{key}={value}" for key, value in report.items()),
+        )
+        click.echo(
+            "Now run `flask pii seal-register --verify` and `flask pii flush-cache`. Do not set "
+            "REGISTER_PII_SPLIT_ENABLED until the readers release ships."
         )
 
 

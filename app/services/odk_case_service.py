@@ -26,6 +26,7 @@ from app.models import (
 from app.services.org_grant_service import projects_with_org_tree
 from app.services.payload_pii_accessor import get_pii_many, split_enabled
 from app.services.payload_pii_split import join_payload
+from app.services import register_pii_accessor
 from app.services.web_intake_service import (
     _allocate_unique_id,
     _birth_age_from_answers,
@@ -97,6 +98,7 @@ def _insert_case(*, va_sid, org_unit_id, project_id, site_id, payload, identity)
         **identity,
         **_birth_age_from_answers(payload, identity["date_of_death"]),
     )
+    register_pii_accessor.seal_new_row(case)
     db.session.add(case)
     db.session.flush()
     db.session.add(MapCaseTransition(

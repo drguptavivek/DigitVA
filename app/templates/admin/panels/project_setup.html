@@ -249,6 +249,18 @@
             </div>
             <div id="device-code-result" class="mb-3"></div>
             <div id="device-list"><div class="text-muted py-1">Loading…</div></div>
+            <h6 class="mt-3">Register an offline station</h6>
+            <p class="text-muted mb-2">For a station that has never been online: paste its enrolment file.
+              The station gets no sign-in secret; its signing key verifies the bundles it sends.</p>
+            <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+              <label class="form-label mb-0">Name
+                <input type="text" class="form-control form-control-sm" id="station-name" maxlength="64">
+              </label>
+              <button type="button" class="btn btn-sm btn-outline-primary" id="station-register">Register station</button>
+            </div>
+            <textarea class="form-control form-control-sm font-monospace" id="station-file" rows="3"
+              placeholder='{"device_id": "…", "signing_public_key": "…", "app_version": "…"}'></textarea>
+            <div id="station-result" class="mt-1"></div>
           </div>
         </div>
         {% endif %}
@@ -429,9 +441,14 @@
               return esc(s.user_name) + (s.outstanding_count ? ' (' + esc(s.outstanding_count) + ' unsent)' : '');
             }).join(', ');
             var action = d.revoked_at
-              ? '<span class="badge text-bg-secondary">Revoked</span>'
+              ? '<span class="badge text-bg-secondary">' + (d.revoked_compromised ? 'Revoked (compromised)' : 'Revoked') + '</span>'
               : '<button type="button" class="btn btn-sm btn-outline-danger" data-revoke-device="' + esc(d.device_id) + '">Revoke</button>';
-            return '<tr><td>' + esc(d.name) + '<div class="text-muted">' + esc(d.app_version) + '</div></td>' +
+            var key = d.signing_key_id ? '<div class="text-muted">Key <code>' + esc(d.signing_key_id) + '</code></div>' : '';
+            if (d.signing_key_id && !d.revoked_at) {
+              key += '<button type="button" class="btn btn-sm btn-link p-0" data-station="' + esc(d.device_id) + '">Station config</button>' +
+                '<div class="small" data-station-detail="' + esc(d.device_id) + '"></div>';
+            }
+            return '<tr><td>' + esc(d.name) + '<div class="text-muted">' + esc(d.app_version) + '</div>' + key + '</td>' +
               '<td>' + esc(fmt(d.enrolled_at)) + '</td><td>' + esc(fmt(d.last_seen_at)) + '</td>' +
               '<td>' + (who || '<span class="text-muted">—</span>') + '</td><td>' + action + '</td></tr>';
           }).join('');
@@ -465,12 +482,70 @@
         .catch(function () { out.innerHTML = '<div class="text-danger">Network error.</div>'; });
     });
 
+    // Station onboarding (digitva-gb8w.4/.8): custodian and roster are shown
+    // here and set through the JSON API (PUT .../custodian, .../roster).
+    var stationBase = '/api/v1/projects/' + encodeURIComponent(projectId);
+    var showStation = function (deviceId) {
+      var box = document.querySelector('[data-station-detail="' + CSS.escape(deviceId) + '"]');
+      fetch(stationBase + '/stations/' + encodeURIComponent(deviceId))
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { box.innerHTML = '<div class="text-danger">' + esc(res.data.error || 'Could not load.') + '</div>'; return; }
+          var st = res.data, c = st.custodian;
+          var roster = (st.roster || []).map(function (m) {
+            return '<li>' + esc(m.name) + ' (' + esc(m.designation) + ')' + (m.active ? '' : ' inactive') + ': ' +
+              esc((m.roles || []).map(function (r) { return r.role + '@' + r.site_id; }).join(', ')) + '</li>';
+          }).join('');
+          var dl = stationBase + '/station-config?device_id=' + encodeURIComponent(deviceId);
+          box.innerHTML = '<div>Custodian: ' + (c ? esc(c.name) + ' (' + esc(c.designation) + '), onboarded ' + esc(c.onboarded_on) : '<span class="text-muted">not recorded</span>') + '</div>' +
+            '<ul class="mb-1">' + (roster || '<li class="text-muted">No roster</li>') + '</ul>' +
+            (st.config ? '<div>Config issued ' + esc(fmt(st.config.issued_at)) + ', expires ' + esc(fmt(st.config.expires_at)) +
+              ' <a href="' + esc(dl) + '">Download</a></div>' : '<div class="text-muted">No config issued.</div>') +
+            '<button type="button" class="btn btn-sm btn-outline-primary mt-1" data-station-issue="' + esc(deviceId) + '">Issue new config</button>';
+        })
+        .catch(function () { box.innerHTML = '<div class="text-danger">Network error.</div>'; });
+    };
+
     document.getElementById('device-list').addEventListener('click', function (e) {
+      var station = e.target.closest('[data-station]');
+      if (station) { showStation(station.getAttribute('data-station')); return; }
+      var issue = e.target.closest('[data-station-issue]');
+      if (issue) {
+        var id = issue.getAttribute('data-station-issue');
+        fetch(stationBase + '/station-config?device_id=' + encodeURIComponent(id), { method: 'POST', headers: deviceHeaders() })
+          .then(function (r) { return r.json().then(function (d) {
+            if (!r.ok) { window.alert(d.error || 'Could not issue the config.'); }
+            showStation(id);
+          }); });
+        return;
+      }
       var btn = e.target.closest('[data-revoke-device]');
       if (!btn || !window.confirm('Revoke this device? Everyone signed in on it is signed out.')) return;
+      var compromised = window.confirm('Was it lost or stolen? OK refuses every bundle it ever signed; ' +
+        'Cancel still accepts bundles it made before now.');
       fetch('/admin/api/devices/' + encodeURIComponent(btn.getAttribute('data-revoke-device')) + '/revoke', {
-        method: 'POST', headers: deviceHeaders(), body: '{}'
+        method: 'POST', headers: deviceHeaders(), body: JSON.stringify({ revoked_compromised: compromised })
       }).then(loadDevices, loadDevices);
+    });
+
+    document.getElementById('station-register').addEventListener('click', function () {
+      var out = document.getElementById('station-result');
+      var file;
+      try { file = JSON.parse(document.getElementById('station-file').value); }
+      catch (err) { out.innerHTML = '<div class="text-danger">The enrolment file is not valid JSON.</div>'; return; }
+      fetch(deviceBase + '/station-registrations', {
+        method: 'POST',
+        headers: deviceHeaders(),
+        body: JSON.stringify({ name: document.getElementById('station-name').value, enrolment_file: file })
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { out.innerHTML = '<div class="text-danger">' + esc(res.data.error || 'Could not register the station.') + '</div>'; return; }
+          out.innerHTML = '<div class="text-success">Registered. Key <code>' + esc(res.data.signing_key_id) + '</code></div>';
+          document.getElementById('station-file').value = '';
+          loadDevices();
+        })
+        .catch(function () { out.innerHTML = '<div class="text-danger">Network error.</div>'; });
     });
 
     loadDevices();

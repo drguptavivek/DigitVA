@@ -437,6 +437,7 @@ def create_app(config_class=None):
 
     @app.context_processor
     def inject_template_globals():
+        from app.services.icd11_licence import DIGITVA_ADDITION_LABEL, ICD11_CITATION
         from app.services.site_maintenance_service import get_site_maintenance_banner_context
 
         is_authenticated = bool(current_user and current_user.is_authenticated)
@@ -455,6 +456,8 @@ def create_app(config_class=None):
                 is_authenticated=is_authenticated,
                 is_admin=is_admin,
             ),
+            "icd11_citation": ICD11_CITATION,
+            "digitva_addition_label": DIGITVA_ADDITION_LABEL,
             "site_maintenance_watcher_enabled": is_authenticated,
             "site_maintenance_user_is_admin": is_admin,
         }

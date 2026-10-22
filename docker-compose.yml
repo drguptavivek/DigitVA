@@ -1,7 +1,43 @@
 services:
+  # WHO ICD-11 API 2.6.0 + DORIS 1.2.0 hosted in-process by the Rust binary
+  # digitva-icd11-server (docker/icd11/Dockerfile). Same name, port and HTTP API
+  # as the whoicd/icd-api container it replaces, so ICD11_API_BASE_URL is
+  # unchanged. First start downloads the unmodified WHO files into the
+  # icd11_runtime volume and verifies their SHA-256 pins; later starts re-verify.
   icd_api_service:
-    image: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
+    build:
+      context: .
+      dockerfile: docker/icd11/Dockerfile
     profiles: [icd11]
+    volumes:
+      - icd11_runtime:/var/lib/icd11
+    ports:
+      - "127.0.0.1:8382:80"
+    restart: always
+    # Measured 2026-10-22: ~540-680 MB idle, ~1.1 GB peak after 1,200 distinct
+    # searches (WHO caches searches for an hour). .NET caps its heap below the
+    # limit, so the cap leaves headroom for the app and worker on a 4 GB host.
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    healthcheck:
+      # Runs a real DORIS certificate: green only when the engine is loaded.
+      test: ["CMD", "icd11-healthcheck"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 3m
+
+  # Rollback to the WHO container (digitva-cfb1 era): stop the service above,
+  # then `docker compose --profile icd11-container up -d icd_api_container_service`.
+  # The alias keeps the same hostname (and it takes the same host port).
+  icd_api_container_service:
+    image: whoicd/icd-api:2.6.0@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c
+    profiles: [icd11-container]
+    networks:
+      default:
+        aliases: [icd_api_service]
     environment:
       acceptLicense: "true"
       saveAnalytics: "false"
@@ -9,8 +45,7 @@ services:
       include: 2026-01_en
     ports:
       - "127.0.0.1:8382:80"
-    # About 735 MB idle with one English release loaded; capped so a spike
-    # cannot starve the app and worker on a 4 GB host.
+    restart: always
     deploy:
       resources:
         limits:
@@ -37,8 +72,10 @@ services:
       - PII_BLIND_INDEX_KEY=${PII_BLIND_INDEX_KEY:-}
       - PII_KEM_PRIVATE_KEY_FILE=/run/secrets/pii_kem_private_key
       - PII_KEM_PREVIOUS_PRIVATE_KEY_FILES=${PII_KEM_PREVIOUS_PRIVATE_KEY_FILES:-}
+      - BUNDLE_SERVER_SIGNING_KEY_FILE=/run/secrets/bundle_server_signing_key
       # PII slice 1b part II-A; keep false (docs/kb/pii-slice-1b.md, "Release procedure").
       - PAYLOAD_PII_SPLIT_ENABLED=${PAYLOAD_PII_SPLIT_ENABLED:-false}
+      - REGISTER_PII_SPLIT_ENABLED=${REGISTER_PII_SPLIT_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
@@ -46,6 +83,7 @@ services:
       - ICD11_API_BASE_URL=http://icd_api_service
     secrets:
       - pii_kem_private_key
+      - bundle_server_signing_key
     depends_on:
       - minerva_db_service
       - minerva_redis_service
@@ -90,7 +128,9 @@ services:
     healthcheck:
       # X-Forwarded-Proto: Talisman would otherwise redirect this plain-HTTP
       # probe to HTTPS in production and the check would never pass.
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen(urllib.request.Request('http://localhost:5001/health', headers={'X-Forwarded-Proto': 'https'}), timeout=5)"]
+      # The second request runs DORIS on the ICD service: this service is
+      # useless without it, so its health must follow it (digitva-cfb1).
+      test: ["CMD", "python", "-c", "import os, urllib.request as u; u.urlopen(u.Request('http://localhost:5001/health', headers={'X-Forwarded-Proto': 'https'}), timeout=3); u.urlopen(u.Request(os.environ['ICD11_API_BASE_URL'] + '/icd/release/11/2026-01/doris', data=b'{\"ICDVersion\":\"ICD11\",\"AdministrativeData\":{\"Sex\":1,\"EstimatedAge\":\"P62Y\"},\"Part1\":[{\"Conditions\":[{\"Code\":\"BA41.Z\"}]}]}', headers={'API-Version': 'v2', 'Accept-Language': 'en', 'Content-Type': 'application/json'}), timeout=6)"]
       interval: 2m
       timeout: 10s
       retries: 3
@@ -131,6 +171,7 @@ services:
       - PII_KEM_PREVIOUS_PRIVATE_KEY_FILES=${PII_KEM_PREVIOUS_PRIVATE_KEY_FILES:-}
       # PII slice 1b part II-A; keep false (docs/kb/pii-slice-1b.md, "Release procedure").
       - PAYLOAD_PII_SPLIT_ENABLED=${PAYLOAD_PII_SPLIT_ENABLED:-false}
+      - REGISTER_PII_SPLIT_ENABLED=${REGISTER_PII_SPLIT_ENABLED:-false}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@minerva_db_service:5432/${POSTGRES_DB}
       - REDIS_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
@@ -257,7 +298,14 @@ services:
 secrets:
   pii_kem_private_key:
     file: ${PII_KEM_PRIVATE_KEY_PATH:-./private/pii_kem_private_key}
+  # The server Ed25519 key that signs station configs
+  # (app/services/station_config_service.py): app only, same custody as the
+  # KEM key (`make ensure-secrets` / `ensure-secrets-prod`). Stations pin its
+  # public key at first import; losing it means re-pinning every station.
+  bundle_server_signing_key:
+    file: ${BUNDLE_SERVER_SIGNING_KEY_PATH:-./private/bundle_server_signing_key}
 
 volumes:
   pgdata_minerva:
+  icd11_runtime:
   minerva_venv:

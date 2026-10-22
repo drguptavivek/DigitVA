@@ -1,0 +1,263 @@
+{
+  "station_config_format_version": 1,
+  "config_id": "6f1c2b3a-4d5e-4f60-8a71-92b3c4d5e6f7",
+  "issued_at": "2026-10-21T09:30:00Z",
+  "expires_at": "2027-04-19T09:30:00Z",
+  "device_id": "0b8d6c2e-1f3a-4c5b-9d7e-8f9a0b1c2d3e",
+  "server_url": "https://digitva.example.test",
+  "kem_public_key": {
+    "key_id": "tv1",
+    "public": "Y6K5xClNpXSqnva5sod71AM6CLZRucsVaisVIPGEcNYis4SfExMYqyV2mSoVKql2GAxb8XUm_atyvyyjUUFh2qagMwdGxBA0PTmQNVsdFsJ6t3xCarAcSitH8XuIL9mjNLE2mHdfWIC99Uar9woSWIWKIwt7j7FYwwhv0hyO3zuQ-0QhWdBLdSK1w0SXBZpdjrmW6UCAQOQHxfcSk0eU-Va0h4kVmHyW15V4erQCj0ghZvkouxKByvWdrNOekbWmYmdemkCEuFDLhuawQPahdbsIutyqI3yIxqOesTCdopOXybmFi5XCubXCuUxc7GLHNWBJvnGk55G_AeCPvUy2SGNwC5KVk9iFBkw5IQOO_dkt7qWVKMN2yqU1c8JBkecfJmxQSOqKUfCAbTNQ_Oq9y3IQvLeQT-CYastSweG6JIcY0gfOyjIMVIfCbim5InhB1KtM1CzJ3Vi1dpJmSNk_2RGMvTuGiyywG0kDuMpRJaSWKtak4pa5uQosD1y3zhKfO4qWiuUcQfJ-DRx5C2oZbRCKfgh9I3q6rtoh9uRh_SMpAYpNsSxj0fxc6Hlqe0w4mkKKVYMDWgCv2kvFXOtRuFBGnRq9hHIyoXRptvWKiatobwVKyJuXAelfcTeB25kObVWB8auNiGkMBEsjdYMgTgmehEOhPKJ8wSKTa4E2C5EDslM6CLIYdZcsWLKWHZeiUHc23nWLqmpjtsh8WRmwIuQoHDs3JvUt-jmCxAcdpeuDlHRvTHl27ckAXVRma3y0U7dppsMOa6tBqGXKGFthXHg1DSmCnNorl5IS-QmkSfTEQTNwjNetTFc_twLOaPScl0o2cWuJIuY_0HK3ZqF0CrkYEpuK72VqYGke0TB-4mzEJqqbuZwxjJpBr4EDOXjMOBhGy6yLRrYw2iN97MRfimSVlmkwS3kHSpQElYaOedR4IvEBAmeXazV-zsBvPxvNcHZq2QCVBbpoO1S5OszMiEZS4uw1RfdRvdoUJbWVv4FXJdwbJJehgPwMouE5wQFfaBCWpSOYE9fD_4C4-KEZ5lbNHEeweakecrcAarW68rm1IAmKzrME0HQTDPVgfIU7oJQm8mEg89iO3agM5Pssn1DOA6MfG3uNm7RyADoesTqRjNTHPMVjBRJoT6ZARWTLZ8FsFotITot-xUtC-ZU7nsFukWwm0jwR1GFRcAsR5_p5RSIfY0N18-Er_eaCMbARa3YMrch9n6BhBEcbQzVZzucO4hKGd5m5TvR6-eNbaFxj7JxlvcqVO4xnqkgYEnEA8AgU01Z8yaktwiV46uIi8odDOkcJW2w4r1Y92-fHsdVLgCwUcQEwWfvNkkSAjQnKQROiKWQwCSXM6nNG8Cln-pip3BtSJ1CSRnN35IwUxroBWZtkGGUhtqCKBCmepNFmrEuLu6LClNmzzDkR_kQ4_WlKLZuQT6Y3R9OJLscV5NmpRnAkFvKprDZV-QA-rXA9hfWW0FJayfxmgyYHL3kHzJqEnJIqQ9yCw-MgnrUWG8wV4DMYY1u9qKYJk5Wu5UyvipSgakvi6LRq6d8c-w-bVqDkHJL-MvxivvQ0OYm6e58.l4x6-yV09cQ7baaRvBPkfgECi7o42jKymNzoZTj0Alo"
+  },
+  "server_signing_key": {
+    "signing_key_id": "334b2b6b54b0d965",
+    "public": "EcQQipaDWNygGFWBY1m4O0CV8N9_wrmMHiPC_7J9fDA"
+  },
+  "projects": [
+    {
+      "project_id": "TST001",
+      "sites": [
+        "TS01"
+      ],
+      "site_names": {
+        "TS01": "Test PHC Site"
+      },
+      "org_units": [
+        "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b"
+      ],
+      "org_unit_paths": {
+        "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b": "Solan, Kandaghat, PHC Chail"
+      },
+      "org_unit_sites": {
+        "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b": "TS01"
+      },
+      "identifier_types": [
+        {
+          "code": "crs_reg_no",
+          "label": "CRS registration number",
+          "min_length": 6,
+          "max_length": 20,
+          "char_type": "alphanumeric",
+          "pattern": null,
+          "example": "CRS123456",
+          "required_at_report": false,
+          "sort_order": 10
+        }
+      ],
+      "consent": {
+        "project_id": "TST001",
+        "consent_required": true,
+        "notice_versions": [
+          {
+            "notice_version_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+            "version": 1,
+            "language": "hi",
+            "text": "सूचना: मृत्यु का विवरण दर्ज करने के लिए सहमति।\n**Required**: record the death.",
+            "text_sha256": "f9e7f8bfa6527fc40a4b97b5e8ad528c39240ba732ce4126dd1ae0e63e89154c",
+            "purposes": [
+              {
+                "code": "record_interview",
+                "label": "साक्षात्कार दर्ज करें",
+                "required": true
+              }
+            ],
+            "covered_fields": [
+              "informant_name",
+              "informant_phone",
+              "informant_phone_2",
+              "address",
+              "Id10007"
+            ],
+            "allowed_modes": [
+              "spoken",
+              "tap"
+            ],
+            "witness_allowed": false
+          }
+        ],
+        "contacts": {
+          "deletion": {
+            "email": "privacy@example.test",
+            "phone": "9000000001"
+          },
+          "mentor_institution": {
+            "name": "Mentor Institute",
+            "email": "",
+            "phone": ""
+          },
+          "central_team": {
+            "email": "central@example.test",
+            "phone": ""
+          },
+          "dpo": null,
+          "districts": {}
+        },
+        "retention": {
+          "period_days": 1825,
+          "expiry_action": "erase"
+        },
+        "refusal_behaviour": "interview_without_informant_data"
+      },
+      "sealed_field_ids": [
+        "Id10007",
+        "Id10010",
+        "Id10010a",
+        "Id10010b",
+        "Id10010c",
+        "Id10017",
+        "Id10018",
+        "Id10055",
+        "Id10057",
+        "Id10061",
+        "Id10062",
+        "Id10070",
+        "Id10071",
+        "Id10072",
+        "Id10073",
+        "abha_address",
+        "abha_number",
+        "visit_address",
+        "visit_remarks"
+      ],
+      "project_name": "Test Project TST001",
+      "coding_mode": "icd11_doris",
+      "form_options": {
+        "project_id": "TST001",
+        "config_version": "2026-09-30T19:16:47.583260",
+        "enabled_extensions": [
+          "digitva_core",
+          "doris_support_whova_2022",
+          "intake_screen",
+          "death_summary",
+          "medical_records",
+          "geography",
+          "narration_language",
+          "abha"
+        ],
+        "form_types": [
+          {
+            "form_type_code": "WHO_2022_VA",
+            "instrument_code": "WHO_2022_VA",
+            "title": "WHO 2022 VA Form",
+            "is_default": true
+          }
+        ],
+        "intake_note": "Before you begin: confirm the respondent has consented.",
+        "default_locale": "en",
+        "available_locales": [
+          {
+            "code": "en",
+            "label": "English",
+            "under_review": false
+          },
+          {
+            "code": "hi",
+            "label": "Hindi",
+            "under_review": true
+          }
+        ],
+        "translation_versions": {
+          "en": 0,
+          "hi": 6,
+          "ta": 2
+        },
+        "narration_languages": [
+          {
+            "code": "english",
+            "label": "English"
+          },
+          {
+            "code": "hindi",
+            "label": "Hindi"
+          }
+        ],
+        "show_guidance": false,
+        "web_intake_mode": "both",
+        "instrument_version": "2026081401-503d5dd1bb",
+        "definition_sha256": "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291"
+      },
+      "translations": {
+        "hi": {
+          "instrument_code": "WHO_2022_VA",
+          "locale": "hi",
+          "version": 6,
+          "questions": {
+            "Interviewer": {
+              "label": "वीए साक्षात्कारकर्ता"
+            }
+          },
+          "choices": {
+            "units/months": {
+              "label": "महीने"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "custodian": {
+    "name": "Dr. Renée Sharma",
+    "designation": "medical_officer",
+    "phone": "9876543210",
+    "email": null,
+    "onboarded_on": "2026-10-20",
+    "verified_by_user_id": 1
+  },
+  "designations": [
+    {
+      "code": "medical_officer",
+      "label": "Medical Officer"
+    },
+    {
+      "code": "health_supervisor",
+      "label": "Health Supervisor"
+    },
+    {
+      "code": "health_worker",
+      "label": "Health Worker / ANM / MPW"
+    },
+    {
+      "code": "other",
+      "label": "Other"
+    }
+  ],
+  "roster": [
+    {
+      "user_id": 7,
+      "name": "Asha Devi",
+      "designation": "health_worker",
+      "active": true,
+      "roles": [
+        {
+          "role": "death_reporter",
+          "project_id": "TST001",
+          "site_id": "TS01",
+          "org_unit_id": "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b"
+        },
+        {
+          "role": "interviewer",
+          "project_id": "TST001",
+          "site_id": "TS01",
+          "org_unit_id": "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b"
+        }
+      ]
+    },
+    {
+      "user_id": 12,
+      "name": "Ravi Kumar",
+      "designation": "health_supervisor",
+      "active": false,
+      "roles": [
+        {
+          "role": "station_supervisor",
+          "project_id": "TST001",
+          "site_id": "TS01",
+          "org_unit_id": "3c9e1f2a-5b6d-4e7f-8a9b-0c1d2e3f4a5b"
+        }
+      ]
+    }
+  ],
+  "purge": [
+    "11111111-2222-4333-8444-555555555555"
+  ]
+}

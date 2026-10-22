@@ -38,7 +38,7 @@ def _authorise(user: VaUsers, death: VaDeathRegister) -> None:
 
 
 def put_identifiers(user: VaUsers, death_id: object, values: dict, *, if_updated_at: object | None = None,
-                    warnings: list | None = None) -> VaDeathRegister:
+                    warnings: list | None = None, station_roster: bool = False) -> VaDeathRegister:
     """Set, change or clear the listed identifier values of a case, in the
     caller's transaction (the route commits). *values* is ``{type code: text
     | None}``. *if_updated_at* (``updated_at`` of the last reply seen) guards a
@@ -48,6 +48,11 @@ def put_identifiers(user: VaUsers, death_id: object, values: dict, *, if_updated
     400 ``fields`` ``identifiers.<code>`` for a value the type's rules
     refuse. Authorised before and after the case lock, because the state may
     have moved while the request waited for it.
+
+    *station_roster*: a station supervisor's ``identifiers_set`` from a
+    bundle; the caller authorized *user* from the station's signed roster
+    (offline-api-contract.md 4.1, 4.2), so ``_authorise`` is replaced by one
+    rule: a cancelled or confirmed-duplicate case is 409 ``case_closed``.
     """
     try:
         death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
@@ -55,9 +60,14 @@ def put_identifiers(user: VaUsers, death_id: object, values: dict, *, if_updated
         death = None
     if death is None:
         raise WebIntakeError("Case not found.", 404)
-    _authorise(user, death)
+    if not station_roster:
+        _authorise(user, death)
     death = cases.lock_case(death)
-    _authorise(user, death)
+    if station_roster:
+        if death.status in intake.IDENTIFIER_CLOSED_STATES:
+            raise WebIntakeError("This case is closed; correct it on the web.", 409, "case_closed")
+    else:
+        _authorise(user, death)
     if if_updated_at is not None and intake.draft_is_stale(death, if_updated_at):
         raise WebIntakeError("This case was changed since you opened it; reload it.", 409, "death_stale")
     _, found = death_identifiers.set_identifiers(

@@ -59,7 +59,8 @@ and the API contract the app is built against:
 | Table | Holds |
 |---|---|
 | `auth_device_enrolment_codes` | project, `code_hash` (unique), `expires_at`, `max_uses`, `use_count`, `created_by`, `revoked_at` |
-| `auth_devices` | `device_id`, project, name, platform, app version, `secret_hash`, `enrolled_at`, `enrolled_via` (code id), `revoked_at`, `revoked_by`, `last_seen_at` |
+| `auth_devices` | `device_id`, project, name, platform, app version, `secret_hash`, `enrolled_at`, `enrolled_via` (code id), `revoked_at`, `revoked_by`, `last_seen_at`; migration `b9e4f2a7c1d3` adds `revoked_compromised`, `signing_public_key`, `signing_key_id`, `signing_key_set_at` (below) |
+| `auth_device_signing_keys` | every Ed25519 bundle-signing key a device has held (migration `b9e4f2a7c1d3`): `signing_public_key` (raw 32 bytes), `signing_key_id`, `set_at`, `retired_at` (NULL for the current key); unique `(device_id, signing_key_id)` |
 | `auth_device_sessions` | one per (device, interviewer) sign-in: `access_hash` / `refresh_hash` (unique) and expiries, `previous_refresh_hash` (reuse detection), `user_session_version`, `last_seen_at`, `revoked_at` + `revoked_reason`, `outstanding_count`, `outstanding_unique_ids` (JSONB), `outstanding_reported_at` |
 | `va_web_intake_drafts.client_draft_id` | the app's draft UUID, unique where not null (`uq_va_web_intake_drafts_client_draft_id`) |
 
@@ -88,8 +89,10 @@ values). The device secret is compared with `hmac.compare_digest`.
   are excluded. Account-security, area, people/roles and translation-suggestion
   APIs require a browser session. A bearer request is exempt from CSRF and
   sets no cookie; outside `/api/v1/` a device token is ignored.
-- Only `DELETE /auth/sessions/current` needs the device session the loader
-  stamped on `g.device_session` (a cookie: 401); the sign-in calls are
+- `DELETE /auth/sessions/current` (a cookie: 401) and `POST
+  /auth/devices/current/signing-key` (a cookie: 403
+  `device_session_required`) need the device session the loader
+  stamped on `g.device_session`; the sign-in calls are
   exempt from the bearer pre-step (`UNAUTHENTICATED_ENDPOINTS`, full
   endpoint names). The auth blueprint is CSRF-exempt, which is safe because
   nothing in it acts on a cookie. Bearer responses set no cookie.
@@ -120,7 +123,28 @@ values). The device secret is compared with `hmac.compare_digest`.
   reason only (`invalid_credentials`, `email_unverified`, `maintenance`,
   `no_interviewer_grant`).
   Other security events: `device_enrolment_code_created`, `device_enrolled`,
-  `device_session_opened`, `device_session_revoked`, `device_revoked`.
+  `device_session_opened`, `device_session_revoked`, `device_revoked`
+  (detail `compromised`), `device_signing_key_set` (detail `signing_key_id`,
+  `via`: `enroll`, `device` or `enrolment_file`; never the key),
+  `device_registered_from_file`.
+- **Bundle-signing keys** (digitva-gb8w.5,
+  `app/services/device_signing_service.py`; policy
+  `docs/policy/offline-bundle-and-transfer.md` 3.2). An offline station sends
+  its raw Ed25519 public key as base64url: at enrolment (`signing_public_key`
+  on `POST /auth/enroll`), once later from its own bearer session (`POST
+  /auth/devices/current/signing-key`), or, never online, through an admin
+  who pastes its enrolment file in Project Setup > Devices (`POST
+  /admin/api/projects/<id>/station-registrations`; the row gets an unusable
+  secret hash, so it never signs in). A key must decode to 32 bytes on the
+  Ed25519 curve. `signing_key_id` is the first 16 lowercase hex characters
+  of its SHA-256 (as `compute_signing_key_id` in
+  `desktop/crates/digitva-bundle`). The current key is on `auth_devices`;
+  every key, the current one included, is in `auth_device_signing_keys`. Set
+  once: there is no re-key call yet. Bundle ingest (digitva-gb8w.2) calls
+  `bundle_signing_key(device_id, signing_key_id, created_at)`, which refuses
+  `device_unknown`, `device_revoked` (compromised, or `created_at` not before
+  `revoked_at`) or `signing_key_unknown`, and `verify_bundle_signature`
+  (Ed25519 over `b"digitva-bundle-v1\x00"` and the manifest line).
 - **Pending terms do not refuse sign-in** (digitva-9an9; onboarding policy
   5.4). The session opens and the token body carries `terms_required: true`
   (refresh too); until `POST /api/v1/me/terms` with `{"accept_terms": true}` records

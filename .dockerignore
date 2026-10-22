@@ -17,6 +17,8 @@ node_modules/
 tasks/
 backup/
 resource/smartva
+vendor/smartva-analyze/rust/target/
+vendor/smartva-analyze/rust/evidence/
 resource/pyodk
 security-audit/
 bin/

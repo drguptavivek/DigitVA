@@ -82,3 +82,57 @@ class TestSmartvaPrepdataDropsSealedFields(TestCase):
                                   flagged={"Id10023", "custom_name"})
         self.assertEqual(rows[0]["Id10023"], "2024-01-05")
         self.assertNotIn("custom_name", rows[0])
+
+
+class TestSmartvaPrepdataEmitsOnlyColumnsSmartvaReads(TestCase):
+    """digitva-omn4: intake/bundle payload metadata must not push the header
+    below SmartVA's WHO-questionnaire threshold (>80% Id####/age*/is*)."""
+
+    WHO_RULE = r"^[Ii]d\d+(_\w+)?$|^age|^is"  # same as workerthread.who_questionaire_test
+
+    def _headers(self, payload):
+        import csv
+        import os
+        import re
+
+        from app.utils.va_smartva.va_smartva_02_prepdata import va_smartva_prepdata
+
+        va_form = SimpleNamespace(form_id="FORM01", form_type_id=None, form_type=None)
+        with tempfile.TemporaryDirectory() as workspace_dir:
+            with patch(
+                "app.utils.va_smartva.va_smartva_02_prepdata._prepared_payload_rows",
+                return_value=[("sid-1", payload)],
+            ), patch(
+                "app.services.field_mapping_service.FieldMappingService.get_pii_field_ids",
+                return_value=set(),
+            ):
+                va_smartva_prepdata(va_form, workspace_dir, pending_sids={"sid-1"})
+            with open(os.path.join(workspace_dir, "smartva_input.csv"), newline="") as handle:
+                headers = next(csv.reader(handle))
+        matches = sum(bool(re.match(self.WHO_RULE, h)) for h in headers)
+        return headers, matches / len(headers)
+
+    def test_web_style_metadata_is_dropped_and_header_passes_who_rule(self):
+        payload = {f"Id{10000 + i}": "yes" for i in range(40)}
+        payload.update({"Id10019": "female", "ageInYears": "52", "isAdult": "1", "Id10219_a": "1"})
+        payload.update({f"org_{i}": "x" for i in range(10)})
+        payload.update({f"survey_{i}": "x" for i in range(10)})
+        payload.update({f"intake_{i}": "x" for i in range(10)})
+        payload.update({"death_register_id": "D1", "interview_outcome": "done", "SubmitterName": "n", "KEY": "k"})
+        headers, ratio = self._headers(payload)
+        self.assertGreater(ratio, 0.8)
+        self.assertIn("sid", headers)
+        for kept in ("Id10019", "ageInYears", "isAdult", "Id10219_a"):
+            self.assertIn(kept, headers)
+        self.assertNotIn("org_0", headers)
+        self.assertNotIn("SubmitterName", headers)
+
+    def test_odk_style_payload_keeps_its_id_and_age_columns(self):
+        payload = {"Id10019": "x", "Id10013": "yes", "Id10120_1": "3", "ageInDays": "10",
+                   "age_neonate_days": "10", "isNeonatal1": "1", "sa01_1": "x", "survey_block": "x"}
+        headers, ratio = self._headers(payload)
+        self.assertEqual(
+            sorted(headers),
+            sorted(["Id10019", "Id10013", "Id10120_1", "ageInDays", "age_neonate_days", "isNeonatal1", "sid"]),
+        )
+        self.assertGreater(ratio, 0.8)

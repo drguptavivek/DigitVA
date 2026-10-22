@@ -1,0 +1,808 @@
+[
+ {
+  "name": "empty",
+  "payload": {},
+  "certificate": {},
+  "provenance": {}
+ },
+ {
+  "name": "adult_male_exact_dates",
+  "payload": {
+   "Id10019": "male",
+   "Id10020": "yes",
+   "Id10021": "1960-03-15",
+   "Id10022": "yes",
+   "Id10023": "2026-10-15T00:00:00+05:30",
+   "age_group": "adult",
+   "age_adult": "66",
+   "Id10077": "no",
+   "doris_surgery_performed": "no",
+   "doris_autopsy_requested": "no"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "DateBirth": "1960-03-15",
+    "DateDeath": "2026-10-15",
+    "EstimatedAge": "P66Y"
+   },
+   "MannerOfDeath": {
+    "MannerOfDeath": 0
+   },
+   "Surgery": {
+    "WasPerformed": 0
+   },
+   "Autopsy": {
+    "WasRequested": 0
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.DateBirth": {
+    "sources": [
+     "Id10021"
+    ]
+   },
+   "AdministrativeData.DateDeath": {
+    "sources": [
+     "Id10023"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10077"
+    ]
+   },
+   "Surgery.WasPerformed": {
+    "sources": [
+     "doris_surgery_performed"
+    ]
+   },
+   "Autopsy.WasRequested": {
+    "sources": [
+     "doris_autopsy_requested"
+    ]
+   }
+  }
+ },
+ {
+  "name": "year_only_birth_over_50",
+  "payload": {
+   "Id10019": "female",
+   "Id10020": "yes",
+   "Id10021": "1950-01-01",
+   "Id10022": "yes",
+   "Id10023": "2026-02-01",
+   "age_group": "adult",
+   "age_adult": 76.0,
+   "Id10310": "yes"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2,
+    "DateBirth": "1950",
+    "DateDeath": "2026-02-01",
+    "EstimatedAge": "P76Y"
+   },
+   "MaternalDeath": {
+    "WasPregnant": 0
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.DateBirth": {
+    "sources": [
+     "Id10021"
+    ]
+   },
+   "AdministrativeData.DateDeath": {
+    "sources": [
+     "Id10023"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MaternalDeath.WasPregnant": {
+    "sources": [
+     "Id10310"
+    ]
+   }
+  }
+ },
+ {
+  "name": "partial_birth_and_death_year",
+  "payload": {
+   "Id10019": "Male",
+   "Id10020": "no",
+   "dob_precision": "month_year",
+   "dob_month_year": "1980-07-01",
+   "Id10022": "ref",
+   "Id10024": "2025-01-01",
+   "age_group": "adult",
+   "age_adult": "9.5"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "DateBirth": "1980-07",
+    "DateDeath": "2025"
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.DateBirth": {
+    "sources": [
+     "dob_month_year"
+    ]
+   },
+   "AdministrativeData.DateDeath": {
+    "sources": [
+     "Id10024"
+    ]
+   }
+  }
+ },
+ {
+  "name": "maternal_within_42_days",
+  "payload": {
+   "Id10019": "female",
+   "age_group": "adult",
+   "age_adult": "28",
+   "Id10305": "no",
+   "Id10312": "no",
+   "Id10314": "yes",
+   "doris_surgery_performed": "yes",
+   "doris_surgery_when": "10",
+   "doris_surgery_when_unit": "days",
+   "doris_surgery_type": "Caesarean section",
+   "doris_surgery_reason": "obstructed labour"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2,
+    "EstimatedAge": "P28Y"
+   },
+   "MaternalDeath": {
+    "WasPregnant": 1,
+    "TimeFromPregnancy": 1
+   },
+   "Surgery": {
+    "WasPerformed": 1,
+    "Reason": "Caesarean section for obstructed labour"
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MaternalDeath.WasPregnant": {
+    "sources": [
+     "Id10314"
+    ]
+   },
+   "MaternalDeath.TimeFromPregnancy": {
+    "sources": [
+     "Id10314"
+    ]
+   },
+   "Surgery.WasPerformed": {
+    "sources": [
+     "doris_surgery_performed",
+     "doris_surgery_when"
+    ]
+   },
+   "Surgery.Reason": {
+    "sources": [
+     "doris_surgery_type",
+     "doris_surgery_reason"
+    ]
+   }
+  }
+ },
+ {
+  "name": "maternal_unknown_timing",
+  "payload": {
+   "Id10019": "female",
+   "age_group": "adult",
+   "age_adult": "31",
+   "Id10313": "yes",
+   "Id10314": "dk",
+   "Id10306": "ref"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2,
+    "EstimatedAge": "P31Y"
+   },
+   "MaternalDeath": {
+    "WasPregnant": 1,
+    "TimeFromPregnancy": 9
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MaternalDeath.WasPregnant": {
+    "sources": [
+     "Id10313"
+    ]
+   },
+   "MaternalDeath.TimeFromPregnancy": {
+    "sources": [
+     "Id10313",
+     "Id10314",
+     "Id10306"
+    ]
+   }
+  }
+ },
+ {
+  "name": "maternal_all_unknown_for_male",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "40",
+   "Id10305": "dk",
+   "Id10312": "ref"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P40Y"
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   }
+  }
+ },
+ {
+  "name": "neonate_hours",
+  "payload": {
+   "Id10019": "female",
+   "age_group": "neonate",
+   "age_neonate_days": "0",
+   "age_neonate_hours": "5",
+   "isNeonatal": "1",
+   "Id10104": "yes",
+   "Id10354": "no",
+   "Id10366": "2500",
+   "doris_pregnancy_weeks": "38",
+   "doris_mother_age": "24"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2,
+    "EstimatedAge": "PT5H"
+   },
+   "FetalOrInfantDeath": {
+    "Stillborn": 0,
+    "DeathWithin24h": 5,
+    "MultiplePregnancy": 0,
+    "BirthWeight": 2500,
+    "PregnancyWeeks": 38,
+    "AgeMother": 24
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_neonate_hours"
+    ]
+   },
+   "FetalOrInfantDeath.Stillborn": {
+    "sources": [
+     "Id10104"
+    ]
+   },
+   "FetalOrInfantDeath.DeathWithin24h": {
+    "sources": [
+     "age_neonate_hours"
+    ]
+   },
+   "FetalOrInfantDeath.MultiplePregnancy": {
+    "sources": [
+     "Id10354"
+    ]
+   },
+   "FetalOrInfantDeath.BirthWeight": {
+    "sources": [
+     "Id10366"
+    ]
+   },
+   "FetalOrInfantDeath.PregnancyWeeks": {
+    "sources": [
+     "doris_pregnancy_weeks"
+    ]
+   },
+   "FetalOrInfantDeath.AgeMother": {
+    "sources": [
+     "doris_mother_age"
+    ]
+   }
+  }
+ },
+ {
+  "name": "neonate_stillborn_months",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "neonate",
+   "age_neonate_days": 3,
+   "isNeonatal": 1,
+   "Id10114": "yes",
+   "Id10367": "8",
+   "Id10366": "3",
+   "doris_hours_survived": "4"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P3D"
+   },
+   "FetalOrInfantDeath": {
+    "Stillborn": 1,
+    "PregnancyWeeks": 34
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_neonate_days"
+    ]
+   },
+   "FetalOrInfantDeath.Stillborn": {
+    "sources": [
+     "Id10114"
+    ]
+   },
+   "FetalOrInfantDeath.PregnancyWeeks": {
+    "sources": [
+     "Id10367"
+    ],
+    "note": "converted from months"
+   }
+  }
+ },
+ {
+  "name": "child_months_injury",
+  "payload": {
+   "Id10019": "undetermined",
+   "age_group": "child",
+   "age_child_unit": "months",
+   "age_child_months": "7",
+   "isChild": "1",
+   "ageInMonthsByYear": "7",
+   "Id10077": "yes",
+   "Id10099": "yes",
+   "doris_injury_date_known": "month_year",
+   "doris_injury_month_year": "2026-09-01",
+   "doris_injury_place": "3",
+   "Id10083": "yes",
+   "Id10089": "yes"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 9,
+    "EstimatedAge": "P7M"
+   },
+   "MannerOfDeath": {
+    "MannerOfDeath": 2,
+    "DateOfExternalCauseOrPoisoning": "2026-09",
+    "PlaceOfOccuranceExternalCause": 3,
+    "DescriptionExternalCause": "Fall; Burns or fire"
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_child_months"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10099"
+    ]
+   },
+   "MannerOfDeath.DateOfExternalCauseOrPoisoning": {
+    "sources": [
+     "doris_injury_month_year"
+    ]
+   },
+   "MannerOfDeath.PlaceOfOccuranceExternalCause": {
+    "sources": [
+     "doris_injury_place"
+    ]
+   },
+   "MannerOfDeath.DescriptionExternalCause": {
+    "sources": [
+     "Id10083",
+     "Id10089"
+    ]
+   }
+  }
+ },
+ {
+  "name": "injury_unknown_intent",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "45",
+   "Id10077": "yes",
+   "Id10098": "no",
+   "Id10099": "dk",
+   "doris_injury_date_known": "full",
+   "doris_injury_date": "2026-10-01"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P45Y"
+   },
+   "MannerOfDeath": {
+    "MannerOfDeath": 9
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10098",
+     "Id10099"
+    ]
+   }
+  }
+ },
+ {
+  "name": "injury_force_of_nature_and_war",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "50",
+   "Id10077": "yes",
+   "Id10095": "yes",
+   "doris_injury_legal_war": "war"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P50Y"
+   },
+   "MannerOfDeath": {
+    "MannerOfDeath": 5,
+    "DescriptionExternalCause": "Force of nature"
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "doris_injury_legal_war"
+    ]
+   },
+   "MannerOfDeath.DescriptionExternalCause": {
+    "sources": [
+     "Id10095"
+    ]
+   }
+  }
+ },
+ {
+  "name": "injury_no_intent_answers",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "50",
+   "Id10077": "yes"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P50Y"
+   },
+   "MannerOfDeath": {
+    "MannerOfDeath": 6
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10077"
+    ]
+   }
+  }
+ },
+ {
+  "name": "surgery_long_ago_and_autopsy",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "70",
+   "doris_surgery_performed": "yes",
+   "doris_surgery_when": "2",
+   "doris_surgery_when_unit": "months",
+   "doris_autopsy_requested": "yes",
+   "doris_autopsy_findings": "dk"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P70Y"
+   },
+   "Surgery": {
+    "WasPerformed": 0
+   },
+   "Autopsy": {
+    "WasRequested": 1,
+    "Findings": 9
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "Surgery.WasPerformed": {
+    "sources": [
+     "doris_surgery_performed",
+     "doris_surgery_when"
+    ]
+   },
+   "Autopsy.WasRequested": {
+    "sources": [
+     "doris_autopsy_requested"
+    ]
+   },
+   "Autopsy.Findings": {
+    "sources": [
+     "doris_autopsy_findings"
+    ]
+   }
+  }
+ },
+ {
+  "name": "surgery_when_unknown",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "70",
+   "doris_surgery_performed": "yes",
+   "doris_surgery_when": "99",
+   "doris_surgery_when_unit": "days"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P70Y"
+   },
+   "Surgery": {
+    "WasPerformed": 9
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "Surgery.WasPerformed": {
+    "sources": [
+     "doris_surgery_performed",
+     "doris_surgery_when"
+    ]
+   }
+  }
+ },
+ {
+  "name": "odk_hysterectomy",
+  "payload": {
+   "Id10019": "female",
+   "age_group": "adult",
+   "age_adult": "35",
+   "Id10340": "yes",
+   "Id10305": "yes"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2,
+    "EstimatedAge": "P35Y"
+   },
+   "MaternalDeath": {
+    "WasPregnant": 1,
+    "TimeFromPregnancy": 0
+   },
+   "Surgery": {
+    "WasPerformed": 1,
+    "Reason": "Hysterectomy"
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "MaternalDeath.WasPregnant": {
+    "sources": [
+     "Id10305"
+    ]
+   },
+   "MaternalDeath.TimeFromPregnancy": {
+    "sources": [
+     "Id10305"
+    ]
+   },
+   "Surgery.WasPerformed": {
+    "sources": [
+     "Id10340"
+    ]
+   },
+   "Surgery.Reason": {
+    "sources": [
+     "Id10340"
+    ]
+   }
+  }
+ },
+ {
+  "name": "odk_surgery_within_month",
+  "payload": {
+   "Id10019": "male",
+   "age_group": "adult",
+   "age_adult": "60",
+   "Id10426": "ref"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 1,
+    "EstimatedAge": "P60Y"
+   },
+   "Surgery": {
+    "WasPerformed": 9
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   },
+   "AdministrativeData.EstimatedAge": {
+    "sources": [
+     "age_adult"
+    ]
+   },
+   "Surgery.WasPerformed": {
+    "sources": [
+     "Id10426"
+    ]
+   }
+  }
+ },
+ {
+  "name": "out_of_range_values",
+  "payload": {
+   "Id10019": "female",
+   "Id10020": "yes",
+   "Id10021": "2026-02-30",
+   "Id10022": "yes",
+   "Id10023": "not-a-date",
+   "age_group": "adult",
+   "age_adult": "151",
+   "Id10077": "maybe"
+  },
+  "certificate": {
+   "AdministrativeData": {
+    "Sex": 2
+   }
+  },
+  "provenance": {
+   "AdministrativeData.Sex": {
+    "sources": [
+     "Id10019"
+    ]
+   }
+  }
+ }
+]

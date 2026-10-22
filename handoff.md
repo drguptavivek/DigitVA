@@ -3,97 +3,124 @@
 ## Start here
 
 Read `AGENTS.md`, `docs/current-state/README.md`, then the policy for the piece
-you take: `docs/policy/pii-encryption-at-rest.md` (+ `docs/kb/pii-slice-1a.md`,
-`pii-slice-1b.md`), `docs/policy/offline-api-contract.md`,
-`docs/policy/offline-bundle-and-transfer.md`,
-`docs/policy/death-registration-identifiers.md`,
-`docs/policy/respondent-consent-notice-draft.md`. Stage explicit paths
-(`grep -Ev` filters, check the staged list), never stash (not even
-`--autostash`), one full parallel run (`-n 4`) on a database of your own, one
-test database per concurrent agent. The owner decides commit timing. The
-offline PHC app is a separate agent in worktree `feat/offline-phc-desktop`
-(bead `digitva-ke83`); the owner relays messages. The owner owns
-`vendor/who-va-2022`. Owners may edit accounts and translations: reread live
-state. Staging Hindi 40 in_review is the owner's live state: never overwrite
-(the 36 saved edits already matched live; no restore needed).
+you take: `docs/policy/offline-api-contract.md`,
+`docs/policy/offline-bundle-and-transfer.md`, `docs/policy/pii-envelope-format.md`,
+`docs/policy/offline-phc-desktop-edition.md`, `docs/policy/icd11-local-api-runtime.md`,
+`docs/policy/pii-encryption-at-rest.md` (+ `docs/kb/pii-slice-*.md`),
+`docs/policy/death-registration-identifiers.md`. Stage explicit paths (`grep -Ev`
+filters, check the staged list), never stash, one full parallel run (`-n 4`) on a
+database of your own, one test database per concurrent agent. **The owner decides
+commit timing: hold all commits until the owner says go, then one commit.** The
+owner owns `vendor/who-va-2022`. Owners may edit accounts and translations: reread
+live state. Staging Hindi 40 in_review is the owner's live state: never overwrite.
 
-## State (2026-10-21)
+## State (2026-10-22)
 
-Staging runs `1bfdb8fdb` (supervision tab + shared case list), healthy; its Expo
-export was built on the host (no Node there: node:22 container, vendor package
-built first, see `bd memories staging-expo-export-build`). The commit after it
-adds, with `PAYLOAD_PII_SPLIT_ENABLED` OFF everywhere: identifiers epic (stages
-1-5), cryptography 50.0.2 + google-re2, PII stage 0, slice 1a, slice 1b parts I
-and II-A, the offline specs. Two new migrations, `c7e3a9d1f5b2` (identifiers)
-and `d4f1b8c2a6e9` (payload PII side table); single head `d4f1b8c2a6e9`. Last
-full run: pytest -n 4 4725 passed, 2 failed (one fixed in the commit; one
-parallel-only worker crash in `test_migrate_who_2026_annex`, passes alone),
-jest 105 suites / 1598 tests, tsc clean.
+`main` = `origin/main` = `c8a20edf6`. The main checkout holds one large
+UNCOMMITTED, tested change set (offline PHC landing). If it is still uncommitted
+when you start, the owner has not said go yet. It contains:
+
+- gb8w.2/.3/.4/.5/.8, ke83.10, PII slice 2 (from 2026-10-21) and six migrations:
+  `d4f1b8c2a6e9 → e5a2c7b9d3f1 → b9e4f2a7c1d3 → e8c4f2a7b913 → f3a9c6d2e1b7 →
+  a7d3e9b2c4f6 → c5e8a1f4b2d9` (dev is at the head; do not reorder).
+- Station serves the real composed WHO VA form (byte-identical to the server,
+  shared vectors), modules and languages from the signed config (7o4h); Settings:
+  Facility details, interview modules, coding mode (locked by project policy).
+- Station ICD-11 + DORIS in-process via `digitva-icd11` (r7gr): lazy engine
+  (~13 s, ~0.65 GB with `DOTNET_gcServer=0`, set at startup), server-shaped
+  DORIS seed, unmasked workspaces go straight to final.
+- Offline consent: informant fields always need a granted consent against a
+  notice version in the config (owner); `consent_notice_unavailable` when the
+  project has none (no project has one yet). Bad records are held back and listed.
+- Ingest accepts station coding (lmxr): station registered+active for the
+  project, coder on its roster, `coding_mode` = project mode (config carries it;
+  null = no station coding, incl. masked projects); icd11_doris held
+  `doris_pending`, server re-runs DORIS in the Celery applier.
+- Server SmartVA on the Rust engine `smartva-rs` (fy14; `SMARTVA_ENGINE=python`
+  rolls back; engine recorded in `va_smartva_runs.run_metadata`); SmartVA
+  metadata-column bug fixed (omn4).
+- Server ICD-11 + DORIS via the Rust host `digitva-icd11-server` (cr3l) under the
+  same service name/port; WHO container kept as profile `icd11-container`.
+- ICD-11 licence: citation everywhere ICD-11 is used, URIs kept, DigitVA
+  additions labelled, inventory `docs/kb/icd11-licence-inventory.md` (zde8).
+- Bundle conformance vectors `tests/fixtures/bundles/vectors/` (gb8w.6/.7).
+- `.gitmodules` points `vendor/smartva-analyze` at `drguptavivek/SmartVA-Analyze`.
+- `desktop/scripts/package-macos.sh` (trial unsigned DigitVA.app).
+
+End-to-end 2026-10-22: server flow and station flow (register → interview →
+SmartVA → ICD-11/DORIS → .dvb → ingest → receipt → applier) both pass on GUJ026.
+ICD-10 station flow not run (needs a second station; DEMO01).
+
+## The commit (when the owner says go)
+
+1. Commit and push the `vendor/who-icd11-api` working-tree change
+   (`src/bootstrap.rs` second ICD-API.dll pin for linux/amd64,
+   `tests/icd11_integration.rs`) to `drguptavivek/who-icd11-api`, then include
+   the submodule pointer bump. Without it a fresh clone's ICD service crash-loops.
+2. One commit in the repo's voice; build the list from `git diff` and untracked
+   files. Exclude `docs/from-server/`, `resource/smartva-phmrc-dataset/`, build
+   output (`app/static/expo-client/` is gitignored, `desktop/target/`).
+3. `git pull --rebase && git push`; close gb8w.2/.3/.4/.5/.6/.7/.8, ke83.10,
+   7o4h, r7gr, lmxr, omn4, r6fj, gmnm, pwh8, gxs0, fy14, cr3l, cfb1, ke83.12,
+   zde8 (inventory decisions stay with the owner).
+4. Drop test DBs `minerva_test_gb8w*`, `minerva_test_ke8310`,
+   `minerva_test_consentfix`, `minerva_test_gapfix`, `minerva_test_stationforms`,
+   `minerva_test_smartvafix`, `minerva_test_smartvars`, `minerva_test_lmxr`,
+   `minerva_test_gb8wtests`, `minerva_test_zde8`; remove agent worktrees (delete
+   the integration worktree's `node_modules` / `vendor/who-va-2022/dist`
+   symlinks first). Revoke the e2e test station `87253e1c-…` in GUJ026 if unwanted.
 
 ## Ranked next steps
 
-1. Deploy to staging when the owner says. In order: PII keys at
-   `/data/digitva-secrets/` (`make ensure-secrets-prod` refuses a key inside the
-   checkout on purpose, see `split-production-deploy.md`), beat limit 384m (done
-   in compose, check staging free memory), image rebuild (cryptography,
-   google-re2), Expo export, both migrations, verified dump. Then the ONE
-   controlled Aadhaar sweep `digitva-ddfx`: `flask pii sweep-national-id
-   --apply --confirm-backup <dump>`; mask every non-empty `Id10073`; dry-run first.
-2. PII part II-B readers are done and committed (bead `digitva-asj0`, closed; flag
-   still OFF). Next: release procedure in `docs/kb/pii-slice-1b.md` (backfill,
-   verify, flip `PAYLOAD_PII_SPLIT_ENABLED`) with the staging deploy, then the
-   client stage (vendor form engine + Expo reduce `Id10073` at capture, hash the
-   reduced text), then slice 2 (register columns encrypted; phones shown/callable;
-   exact blind index only). Never-sealed list is in `pii_field_registry.py`.
-   Accepted: a viewer without PII access triggers a key unwrap for category
-   visibility, so a bad key or tampered row is a 500 on those pages.
-3. Offline server side, epic `digitva-gb8w` (.2-.8): bundle ingest
-   `POST /api/v1/intake/bundles`, consent tables + `GET /intake/consent-config`
-   + `consent` on submissions and registration (`digitva-athy`), signed station
-   config (purge list, roster, custodian), device signing key enrolment,
-   station_supervisor authorization path (needs a server interview_supervisor
-   grant), vectors under `tests/fixtures/bundles/`, tests. The offline team builds
-   to `offline-api-contract.md`.
-4. `digitva-9ffj`: stop using ODK `unique_id` / `unique_id2` / `instanceName`
-   (name fragments possible); `va_sid` already uses the stable `__id`. Policy
-   baseline first. `digitva-fx2c`: research export (district, rural/urban, month
-   and year of death, age group, GPS jitter 2 km fixed per case, nothing identifying).
-5. Case list `digitva-pt0s`: Expo `CaseListScreen` on `GET /api/v1/cases`; counts
-   are a seq scan (~250 ms at 200k rows with JIT off; no index helps).
-6. Older: `digitva-p6fs.5` physical auth acceptance, `digitva-jkvl` offline
-   attachments, `digitva-gyt9` sync chip, translation review (owner),
-   `digitva-xzdm`, vendor lockfile out of sync + Dockerfile Expo step (bead filed).
+1. `digitva-i3dl` Fable review of all Expo web screens and server paths (owner).
+2. `digitva-qfh8` simplest dashboard for district offices and mentoring
+   institutions: Fable design, owner approves before build.
+3. `digitva-tz7b` station: five DORIS guidance routes (postcoordination offline),
+   picker assets in the export, Mac app shipping .NET 10 + WHO data, SIGTERM.
+4. `digitva-hs7e` ICD-11 + DORIS on the Expo Android app: NativeAOT library
+   proven in-app on an emulator (12/12 parity, ~0.9 GB peak); ~2–3 weeks to
+   integrate. Awaiting WHO's reply to the owner's email.
+5. Staging deploy (owner's word): PII + bundle signing keys
+   (`make ensure-secrets-prod`), image rebuild (now includes `smartva-rs`),
+   ICD service image + `icd11_runtime` volume, Expo export, migrations in a
+   maintenance window, verified dump; then `digitva-ddfx` Aadhaar sweep.
+6. Older: `9ffj`, `fx2c`, `pt0s`, `jkvl`, `athy` web consent UI, `ke83.11` Hindi
+   for ~100 station strings (English copies in `hi.json`), Tauri app, Android
+   release signing and per-ABI APK split, `ke83.9` SmartVA whitepaper fixes.
 
 ## Open owner decisions
 
-- Retention of pre-split database dumps and SmartVA run archives (they hold full
-  national IDs; ODK Central does too). Legal review: Aadhaar Data Vault rule,
-  DPDP scope (deceased data, research exemption, sharing abroad).
-- SmartVA run scrub: a DB dump does not prove run files were archived; archive
-  them first (assumed acceptable, confirm).
-- Seal `Id10021` exact date of birth? Keep `Id10022` + derived age flags on the
-  never-sealed list (judgement call)? Check each XLSForm `unique_id` /
-  `instance_name` calculation.
+- ICD-11 licence inventory (`docs/kb/icd11-licence-inventory.md`): crosswalks
+  and their public serving, WHO map tables in the repo, labelling policy
+  columns, citation on bucket exports.
+- Server accepts a bundle made under an expired (but issued) station config;
+  refuse it? Related: grace period for superseded configs' rosters.
+- Server ICD host uses more memory than the WHO container (535–680 MB idle,
+  1.13 GB peak, 2 GB cap); `DOTNET_gcServer=0` trades 2–3x latency under load.
+- Masked projects get no station coding (no Step 1 on the station).
+- Revoke dialog second confirm; parents' names consent coverage; retention and
+  legal review (Aadhaar vault, DPDP); seal `Id10021`?
 
 ## Decisions already made (do not reopen)
 
-Supervision only in the Deaths tab; admin is a PII holder, no scope bypass;
-Aadhaar last 3 digits only, no hash or index, devices reduce at capture; no
-partial phone digits anywhere; phones encrypted but shown and callable; per-record
-data keys; key custody simple (app-host files outside the repo, never on the DB
-host or in beat/DORIS); consent at registration (web, Expo, station), interview
-reuses it, withdrawal web-only; the offline app has a local server but no
-central-server duties; offline-coded MCCD PDF not watermarked; station
-supervisor corrections accepted with the user id in the audit log (identifiers
-only after the interview, closed cases need the web); date of death stays
-readable for staff, research release keeps month and year only.
+Supervision only in the Deaths tab; admin is a PII holder; Aadhaar last 3
+digits; phones encrypted but shown; key files outside the repo; offline
+informant fields always need consent; station coding mode = project mode;
+station coding gate = registered station + rostered coder; Python is the rule
+authority (Rust/TS follow via shared vectors); server runs SmartVA and ICD-11 on
+Rust; ICD service stays a separate container (one engine copy for all workers);
+station runs the engine in-process.
 
 ## Caveats
 
-`app/static/expo-client/` is a stale untracked export and `resource/smartva-phmrc-dataset/`
-(49 MB) is untracked and not part of this work. Dev: testadmin has extra grants on
-ICMR01/HP2026/GUJ026; dev `.env` holds throwaway PII keys under `private/`. Beat
-sits near its old memory limit until the new one is deployed. The offline worktree
-holds a read-only copy of the specs in `docs/from-server/2026-10-21/`; refresh it
-after the commit. Deployment details: `runtime-and-operations.md`,
-`split-production-deploy.md`.
+- Station needs `DIGITVA_ICD11_BUNDLE_DIR` (and .NET 10) for ICD-11 + DORIS;
+  `/tmp/icdapi_portable` works on this Mac. After the engine loads, the station
+  ignores SIGTERM: stop it with SIGKILL.
+- Fixture generators: `python -m tests.test_station_config_fixture --write` hits
+  a pre-existing circular import; run it through `runpy` after `import app.utils`
+  (see the command in the station-config fixture test history) or the env-gated
+  pytest for bundle vectors (`DIGITVA_WRITE_BUNDLE_VECTORS=1`).
+- `cargo` is at `~/.cargo/bin` only. Other people's stations may run on
+  18420/18421; use another port.
+- `resource/smartva-phmrc-dataset/` (49 MB) is untracked and not part of this
+  work. Dev `.env` holds throwaway keys under `private/`.

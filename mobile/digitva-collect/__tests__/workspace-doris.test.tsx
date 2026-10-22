@@ -807,6 +807,21 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     await act(async () => tree.unmount());
   });
 
+  it("shows the WHO ICD-11 citation and labels the VA definition as a DigitVA addition", async () => {
+    const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => ({ icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Definition</p>" })) });
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    expect(allText(tree)).toContain("https://icd.who.int/browse11");
+    expect(allText(tree)).toContain("CC BY-ND 3.0 IGO");
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+    await act(async () => flush());
+    expect(tree.root.findAllByProps({ testID: "digitva-addition" })).toHaveLength(0);
+    await act(async () => tree.root.findAllByProps({ accessibilityLabel: "Details for CA40" })[0].props.onPress());
+    await act(async () => flush());
+    expect(allText(tree)).toContain("DigitVA addition — not from WHO");
+    await act(async () => tree.unmount());
+  });
+
   it("refuses a quick-add the WHO codeinfo does not confirm, without choosing it", async () => {
     const api = apiFor({ getDorisCodeInfo: jest.fn(async () => { throw new Error("not found"); }) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);

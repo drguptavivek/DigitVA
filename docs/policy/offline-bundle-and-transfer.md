@@ -3,7 +3,7 @@ title: Offline PHC App, Bundle Format and Transfer
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Offline PHC App, Bundle Format and Transfer
@@ -246,19 +246,95 @@ engine produced and hashed, as the existing upload ("Exact text and hash",
 field-data-collection.md). JCS escapes it as a string; the server hashes the
 decoded string's UTF-8 bytes.
 
-**`coding_result`** (masked coder): `client_id` is a new UUID per result.
+**`coding_result`** (station coder): `client_id` is a new UUID per result.
 
 | Field | Rule |
 | --- | --- |
 | `client_draft_id` | the interview coded (no `va_sid` exists offline) |
 | `coded_answers_sha256` | the `answers_sha256` of the version the coder saw |
 | `kind` | `final` or `not_codeable` |
-| `initial` | for masked projects: `{immediate_cod, antecedent_cod, other_conditions}` as `POST /coding/initial` |
-| `final` | `{conclusive_cod, remark, cod_search_id, cod_chosen_code, cod_chosen_rank}` as `POST /coding/finalize` |
+| `initial` | for a masked simple project: `{immediate_cod, antecedent_cod, other_conditions}` as `POST /coding/initial` |
+| `final` | the `POST /coding/finalize` body of the mode (below); `cod_search_id`, `cod_chosen_code`, `cod_chosen_rank` optional |
 | `not_codeable` | `{reason, other}` as `POST /coding/not-codeable` |
+| `coding_mode` | `icd11_doris` or `icd10`: the station's coding mode when the result was saved (contract 4.3); absent on records from stations before it |
 
-Only `masked_simple` projects in v1: DORIS needs a server-issued process
-token and cannot run offline (refused `coding_mode_unsupported`).
+`final` in mode `icd10` is the `POST /coding/finalize` body of an unmasked
+simple project: `{conclusive_cod, remark, immediate_cod, other_conditions}`
+(`other_conditions` one text joined by ` | `); in mode `icd11_doris` the body
+of an unmasked DORIS project: `{conclusive_cod, doris_certificate,
+doris_result, codedit_result, doris_process_token, doris_result_digest,
+doris_client_revision}`. `initial` only for a masked simple project (below).
+
+**Q5 (owner decisions 2026-10-21 and 2026-10-22, `digitva-lmxr`): which
+projects take a station's coding.** A project accepts a `coding_result` when
+the bundle comes from a station **registered and active for that project**
+(the `auth_devices` registration the bundle is verified against: enrolled in
+the project, not revoked) and the actor is on that station's **signed
+roster** (the config the bundle names) with the `coder` role on the case's
+project and site (and unit), still backed by a server `coder` grant. The
+project's `self_coding_enabled` is **not** the gate (it governs the web
+"Code this case now" offer only). A station revoked after it made the bundle
+(the only way a verified bundle reaches a record from an inactive station; a
+bundle of another project or a compromised station is refused whole, 5.2) is
+`offline_coding_disabled`; an actor whose roster entry names no `coder` role
+there, or whose grant has gone, is `actor_not_station_coder`; an `acting_role`
+other than `coder` is `forbidden`. When a held result is applied (5.5) the
+station check runs again (against the station of the first bundle that
+carried it) with the mode rule; the roster was checked at ingest against the
+config the bundle named, and the coder save checks the server `coder` grant
+again.
+
+**Only the station's own interviews.** The interview coded
+(`client_draft_id`) must have been uploaded by the same station (the server
+records the uploading device on the interview when it is stored, bundle or
+HTTPS); any other is `not_available`, as an unknown one. So the roster cannot
+widen a station coder's reach: the coder codes only cases the station itself
+interviewed, in the version its `coded_answers_sha256` names. The ingest then
+takes the coder's allocation as "Code this case now" does (pick-mode check
+relaxed, 5.5), and the coder save checks the coder grant on the site again.
+
+**The station's mode is locked to the project's.** The signed station config
+carries, per project, `coding_mode` (6.4): the station mode the project's
+coding mode maps to, or null when the station must not code that project.
+Both station modes are accepted, but **the record's mode must match the
+project's own coding mode**, because the server keeps one classification per
+project (`icd_classification`; the coder save checks every code against it,
+and the reviewer screens, certificate, authority and exports read the final
+by the project's mode). Ingest keeps this check as the safety net:
+
+| Project mode | Config `coding_mode` | Record `coding_mode` it takes |
+| --- | --- | --- |
+| `unmasked_doris` (ICD-11, DORIS) | `icd11_doris` | `icd11_doris` |
+| `unmasked_simple` (ICD-10, simple) | `icd10` | `icd10` |
+| `masked_simple` (ICD-10, masked) | null | `icd10` only when the record carries `initial` (Step 1; a station before `coding_mode` always sent it). The station's workspaces are unmasked and make no Step 1, so the config names no mode and the station does not code the project |
+| `masked_doris` (ICD-11, masked) | null | none |
+
+ICD-11 always means DORIS on the server (a database check), so there is no
+ICD-11 project without DORIS. Any other pair (a masked DORIS project, an
+ICD-10 result for an ICD-11 project, an `icd10` final without `initial` for a
+masked project) is refused `coding_mode_mismatch`; nothing is converted or
+synthesised (no Step 1 is made up for a masked project). An unknown
+`coding_mode` is `coding_mode_unsupported`. **A record without
+`coding_mode`** (a station before this field) keeps the v1 rule: accepted
+only by a `masked_simple` project, else `coding_mode_unsupported`.
+
+Validation is the online coder save's, unchanged: the same
+`submit_coder_initial_cod` / `submit_coder_final_cod` /
+`submit_coder_not_codeable` calls, so the same codes (`final_blocked` for an
+invalid code or Narrative QA / Social Autopsy not done, `invalid_doris` for a
+certificate the DORIS rules refuse). **DORIS is reprocessed on the server.**
+The station runs its own DORIS engine and holds no server process token, and
+processing a certificate calls the WHO ICD-11 service the server pins. So an
+`icd11_doris` final is never applied during the ingest: it is held
+`pending` (code `doris_pending`) and the Celery applier (5.5) processes the
+station's certificate itself (`process_certificate`), mints the proof the
+online client would hold for the actor's allocation, and saves through the
+online DORIS final path. The station's own `doris_result`, `codedit_result`,
+token and digest are advisory: the held row keeps the record as sent, but
+the final assessment stores the server's engine results, never the
+station's. A WHO service outage (`who_unavailable`, `who_not_configured`) leaves the
+result `pending` for the next run. A `not_codeable` result in either mode
+needs no WHO call and is applied at once.
 
 **`attachment_chunk`** (shape reserved, **not built**; `digitva-jkvl`):
 `attachment_id` (uuid, the `client_attachment_id`), `client_draft_id`,
@@ -527,9 +603,15 @@ no personal data) with outcome `pending`, applied by a Celery task when the
 case reaches `ready_for_coding`, final outcome on
 `GET /intake/bundles/<id>`. Rejections: `coded_version_superseded`
 (`coded_answers_sha256` differs from the coder version), `held_by_another`,
-`not_available`, `coding_mode_unsupported`, `invalid_cod`, `final_blocked`
+`not_available` (also an interview another device uploaded),
+`offline_coding_disabled` (station not registered and active for the
+project), `actor_not_station_coder`, `coding_mode_unsupported`,
+`coding_mode_mismatch`, `invalid_cod`, `invalid_doris`, `final_blocked`
 (Narrative QA or Social Autopsy on in the project and not in the record).
-Q5: whether offline coding requires a self-coding project.
+An `icd11_doris` final is held whatever the case state (`doris_pending`,
+2.4 Q5) and applied by the same task; the task leaves a result pending while
+the WHO service is down. The station gate and mode rule (2.4 Q5) are checked
+again when a held result is applied.
 
 ### 5.6 Report, audit, retention
 
@@ -556,6 +638,24 @@ KEM key) over `b"digitva-receipt-v1\x00" || line1`. The courier carries it
 back; the station deletes a record only when the receipt names it
 `accepted`, `duplicate` or `superseded` and, for an interview,
 `received_sha256` equals the hash it sent (the HTTPS acknowledgement rule).
+
+Station receipt import reports `accepted_count` from the receipt's own
+outcomes (`accepted`, `duplicate`, `superseded`), plus `pending_count` and
+`rejected_count`; `deleted_count` is the number of local records actually
+removed (an already deleted record counts in `accepted_count` only). A coding
+result the receipt names `pending` (`doris_pending`, `not_ready`) or
+`rejected` stays on the station and in the coder history, which reads the case
+unique id and form code kept on the coding row, not the interview; a later
+accepting receipt deletes it.
+
+**Station export (2026-10-22)**: a pending record that fails the bundle rules
+(for example a consent that does not match the config's notice) is held back,
+stays pending, and is reported as `records_held_back` (JSON reply; header
+`x-bundle-records-held-back` on the download), with the registration of a
+held-back consent held with it. Pending sandbox records are never exported and
+are counted as `sandbox_records_excluded`. If nothing can be sent, 422
+`records_held_back`. A consent is captured only against a notice version in the
+config; none loaded gives 422 `consent_notice_unavailable` (contract 5.6).
 
 **Audit**: `va_bundle_ingests` (`bundle_id` unique, `device_id`, `bundle_seq`,
 `manifest_sha256`, `uploader_user_id`, `channel` (browser or device),
@@ -650,7 +750,7 @@ signed by the old key.
 | `server_url` | for the HTTPS path |
 | `kem_public_key` | `{key_id, public}` (reference item 5) |
 | `server_signing_key` | `{signing_key_id, public}` |
-| `projects` | per project: sites and org units the roster may use, `form_options`, `prefill_policy`, `identifier_types`, the consent config of 6.2, the instrument definition hash and versions, `sealed_field_ids` (the server's sealed set for the project's form type, contract 6.6; the app never hardcodes it) |
+| `projects` | per project: sites and org units the roster may use, `form_options` (the project's `GET /organization/<project>/form-options` body as the server serves it, with `instrument_version` and `definition_sha256`), `translations` (`{locale: body}` of `GET /instruments/<code>/translations/<locale>` for each non-English locale the project offers), `identifier_types`, the consent config of 6.2, `sealed_field_ids` (the server's sealed set for the project's form type, contract 6.6; the app never hardcodes it), `coding_mode` (`icd11_doris`, `icd10` or null: the station's coding mode locked to the project's, 2.4 Q5; null means the station does not code that project) |
 | `custodian` | `{name, designation, phone, email, onboarded_on, verified_by_user_id}`: the responsible person identified at onboarding (contract 4.1) |
 | `designations` | `[{code, label}]`: default Medical Officer, Health Supervisor, Health Worker / ANM / MPW, Other |
 | `roster` | `[{user_id, name, designation, roles: [{role, project_id, site_id, org_unit_id}], active}]`, `role` one of `death_reporter`, `interviewer`, `station_supervisor`, `coder`: who may act on this station, read-only on the station; no email, phone, password or PIN (contract 4.1) |
@@ -661,8 +761,12 @@ The same signed file is served to the station's own device bearer at
 purge channel, contract section 7), fetched at sign-in and at least daily
 while online.
 
-Large parts (form definition, translations) are fetched by `definition_sha256`
-from a sibling file the same endpoint serves, so the signed line stays small.
+The form definition is not in the file: the station binary embeds the
+server's composed definition (`app/data/who-va-2022.composed.json`) and
+serves each project's slice of it, whose SHA-256 must equal
+`form_options.definition_sha256` (contract 4.3). Translations ride in the
+signed line (about 85-225 KB per locale), so a project offering every
+language makes a config of a few MB.
 
 ## 7. Client crate spec (the offline team builds)
 
@@ -776,7 +880,15 @@ interview; (5) coding results; (6) attachments with `digitva-jkvl`.
   rejection.
 - Newer vs older version of the same interview across two bundles.
 - Coding: masked result applied, `pending` until ready, superseded version
-  refused, the report and the pending row hold no personal data.
+  refused, the report and the pending row hold no personal data; both
+  station modes land (`icd10` at once, `icd11_doris` through the applier),
+  an invalid certificate is `invalid_doris`, a WHO outage stays pending, a
+  mode the project does not take is `coding_mode_mismatch`, an unknown one
+  `coding_mode_unsupported`; a project without self-coding accepts a
+  rostered coder's result, a station revoked since the bundle was made is
+  `offline_coding_disabled`, an actor without the roster `coder` role
+  `actor_not_station_coder`, an interview another station uploaded
+  `not_available`.
 - Size limit 413 before reading; line limit; record count.
 - Report and logs never contain a value (a sentinel phone and name in the
   records never appear in the report, logs or audit).
@@ -792,8 +904,11 @@ interview; (5) coding results; (6) attachments with `digitva-jkvl`.
    previous KEM private key at least that long after rotation]
 4. Q4. Actor trust: roster plus a prior device session, no per-user keys in
    v1? [yes; per-user signing keys later if impersonation becomes a concern]
-5. Q5. Offline coding only in self-coding, `masked_simple` projects, and the
-   PHC coder needs a `coder` grant on the site? [yes]
+5. Q5. Offline coding only in self-coding projects, and the PHC coder needs a
+   `coder` grant on the site? [yes; revised 2026-10-21: either station mode,
+   `icd11_doris` or `icd10`, matching the project's coding mode (2.4);
+   revised 2026-10-22: the gate is the station's registration and its roster
+   `coder` role, not self-coding, and the config locks the station's mode]
 6. Q6. Should the station config carry a case list for cases registered on the
    web (with informant contacts, which would need a station KEM key)? [no in
    v1: stations register their own cases; supervisors resolve duplicates]
@@ -860,7 +975,11 @@ separately. Recorded as decisions:
    signing keys for now. Paste-enrolled stations, which cannot have a device
    session, rely on onboarding and the signed roster instead (section 5.3
    "Actor trust", contract decision 1).
-5. Q5: offline coding only in self-coding projects with `masked_simple`.
+5. Q5: offline coding by a station registered and active for the project, by
+   a coder on its signed roster, of interviews that station uploaded, in the
+   mode the station config locks to the project's coding mode (`icd11_doris`
+   or `icd10`, null for a masked project); DORIS results are reprocessed on
+   the server (2.4, `digitva-lmxr`).
 6. Q6: no server-provided case list in the station config. The offline app
    keeps its own **local case list** of the cases the station registered,
    interviewed or is coding; the bundle carries them. A server-to-station case

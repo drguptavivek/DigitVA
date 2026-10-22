@@ -436,6 +436,12 @@ impl PdfCanvas {
 
 /// Render a standalone A4 PDF document (`595.28 x 841.89 pt`) in the WHO International Form of
 /// Medical Certificate of Cause of Death (MCCD) layout.
+/// WHO ICD-11 citation (CC BY-ND 3.0 IGO), one entry per printed line.
+const ICD11_CITATION_LINES: [&str; 2] = [
+    "International Classification of Diseases, Eleventh Revision (ICD-11), World Health Organization (WHO) 2019/2021 https://icd.who.int/browse11.",
+    "Licensed under Creative Commons Attribution-NoDerivatives 3.0 IGO licence (CC BY-ND 3.0 IGO).",
+];
+
 pub fn render_who_mccd_pdf(data: &WhoMccdCertificateData) -> Result<Vec<u8>> {
     let mut c = PdfCanvas::new();
     let left = 32.0_f32;
@@ -991,6 +997,14 @@ pub fn render_who_mccd_pdf(data: &WhoMccdCertificateData) -> Result<Vec<u8>> {
         "Medical Officer Signature & PHC Stamp",
     );
 
+    // WHO ICD-11 licence notice (digitva-zde8); the same wording as
+    // app/services/icd11_licence.py, split to fit the page width.
+    if data.icd_version.to_ascii_uppercase().contains("ICD11") {
+        for (i, line) in ICD11_CITATION_LINES.iter().enumerate() {
+            c.text("F1", 6.0, left, 26.0 - 8.0 * i as f32, 0.35, line);
+        }
+    }
+
     // assemble valid PDF 1.4 byte buffer
     Ok(assemble_single_page_pdf(&c.stream))
 }
@@ -1146,5 +1160,7 @@ mod tests {
         assert!(pdf_text.contains(r"Dr. Ananya Sharma \(test.coder.nc01@gmail.com\)"));
         assert!(pdf_text.contains("2026-10-20 21:15 IST"));
         assert!(pdf_text.contains("5A11 - Type 2 diabetes mellitus"));
+        assert!(pdf_text.contains("https://icd.who.int/browse11"));
+        assert!(pdf_text.contains("CC BY-ND 3.0 IGO"));
     }
 }

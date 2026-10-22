@@ -73,6 +73,40 @@ class AuthDevice(db.Model):
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
     )
     last_seen_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    # A lost or stolen device: every bundle it signed is refused, not only
+    # those created after revoked_at (docs/policy/offline-bundle-and-transfer.md 3.2).
+    revoked_compromised: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
+    # The current Ed25519 bundle-signing key, raw 32 bytes; every key it has
+    # held, this one included, is in auth_device_signing_keys.
+    signing_public_key: so.Mapped[bytes | None] = so.mapped_column(sa.LargeBinary, nullable=True)
+    signing_key_id: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True, index=True)
+    signing_key_set_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+
+
+class AuthDeviceSigningKey(db.Model):
+    """Every Ed25519 signing key a device has held, so a bundle signed before
+    a re-key still verifies. The current key has ``retired_at`` NULL.
+    Rules: app/services/device_signing_service.py."""
+
+    __tablename__ = "auth_device_signing_keys"
+    __table_args__ = (
+        sa.UniqueConstraint("device_id", "signing_key_id", name="uq_auth_device_signing_keys_device_key"),
+    )
+
+    id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    device_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("auth_devices.device_id"), nullable=False
+    )
+    signing_public_key: so.Mapped[bytes] = so.mapped_column(sa.LargeBinary, nullable=False)
+    signing_key_id: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    set_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    retired_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
 
 
 class AuthDeviceSession(db.Model):

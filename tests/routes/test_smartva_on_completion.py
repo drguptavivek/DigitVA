@@ -768,7 +768,7 @@ class SmartvaOnCompletionTests(BaseTestCase):
                 if "SELECT id FROM public.celery_intervalschedule" in sql:
                     result.scalar.return_value = 7
                 elif "SELECT id FROM public.celery_periodictask" in sql:
-                    result.scalar.return_value = 1 if inserted else None
+                    result.scalar.return_value = 1 if any(i["name"] == params["name"] for i in inserted) else None
                 return result
 
         @contextmanager
@@ -778,10 +778,12 @@ class SmartvaOnCompletionTests(BaseTestCase):
         with mock.patch("app.db", mock.Mock(engine=mock.Mock(begin=begin))):
             ensure_smartva_sweep_scheduled()
             ensure_smartva_sweep_scheduled()
-        self.assertEqual(len(inserted), 1)
-        self.assertEqual(inserted[0]["task"], "app.tasks.sync_tasks.sweep_smartva_pending")
-        self.assertEqual(inserted[0]["schedule_id"], 7)
-        self.assertEqual(inserted[0]["expire_seconds"], 25)
+        # The sweep and the bundle pending-coding applier that follows it, once each.
+        by_task = {i["task"]: i for i in inserted}
+        self.assertEqual(len(inserted), 2)
+        sweep = by_task["app.tasks.sync_tasks.sweep_smartva_pending"]
+        self.assertEqual((sweep["schedule_id"], sweep["expire_seconds"]), (7, 25))
+        self.assertEqual(by_task["app.tasks.sync_tasks.apply_bundle_pending_coding"]["expire_seconds"], 55)
 
     def test_data_manager_accept_queues_through_enqueue_smartva(self):
         _death, va_sid = self._submitted()

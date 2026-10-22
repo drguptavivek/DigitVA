@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Offline API Contract v1
@@ -45,7 +45,7 @@ credential may use it; browser only).
 | --- | --- | --- |
 | Death reporter | station | registers a death; takes DPDP consent **at registration** when informant name, phone or address are entered (5.4) |
 | Interviewer | station | registers a death (optional), takes consent at registration, or at the interview start when none is on file or the informant is a different person; interviews |
-| Coder (masked) | station | codes completed interviews without seeing personal data (`masked_simple`, self-coding projects only; bundle spec Q5) |
+| Coder | station | on the station's signed roster with the `coder` role; codes completed interviews that station uploaded, in the coding mode the station config locks to the project's (`icd11_doris` or `icd10`, 4.3; bundle spec 2.4 Q5) |
 | Station supervisor | station, provisioned only | a **station roster role** (4.1), not a server grant: corrects death details and registration numbers of cases in its roster scope (4.2, 3.4, 3.5) |
 | Station custodian | station | the responsible person identified at onboarding; named in the enrolment and the signed station config (4.1) |
 | Local server (`digitva-server`) | station | **the app's own backend**, accepted by the owner (2026-10-21: "the local app will need a local server"); limits in section 9 |
@@ -111,7 +111,7 @@ not list.
 | Idempotency | none; refresh rotates both tokens |
 | Limits | enrol 10/min per IP; sign-in 10/min per IP, 10/min per device, 20/hour per account; refresh 30/min per IP (`app/routes/api/auth.py:109-148`) |
 | Status | `implemented today` |
-| Addition | optional `signing_public_key` (b64url, 32 bytes) on `POST /auth/enroll`, and `POST /auth/devices/current/signing-key` (device bearer, set once): `specified, not built (digitva-gb8w.5)`; bundle spec 3.2 |
+| Addition | optional `signing_public_key` (b64url, 32 bytes) on `POST /auth/enroll`, and `POST /auth/devices/current/signing-key` (device bearer, set once): `implemented today` (digitva-gb8w.5, `app/routes/api/auth.py` `enroll` and `set_device_signing_key`, `app/services/device_signing_service.py`); a bad key is 400 `invalid_request` with `fields: ["signing_public_key"]`; bundle spec 3.2 |
 
 ### 3.2 Reference data
 
@@ -122,7 +122,7 @@ not list.
 | Response (identifier types) | `{"project_id", "identifier_types": [{code, label, min_length, max_length, char_type, pattern, example, required_at_report, sort_order}]}`, active types only, by `sort_order` (`intake.py:181-204`, `api-v1.md:809-817`) |
 | Errors | 400 `invalid_request` (missing `project_id`), 403 `project_forbidden` |
 | Limits | identifier types 120/min (`intake.py:183`); definition 120/min, `ETag` / 304 (`api-v1.md:139`) |
-| Status | `implemented today` |
+| Status | `implemented today`; the station serves these from the signed config (4.3) |
 
 ### 3.3 Register a death: `POST /intake/deaths`
 
@@ -134,19 +134,19 @@ not list.
 | Errors | 400 `invalid_request` (malformed: bad UUID, no `site_id`); 403 `project_forbidden` / `forbidden`; 409 `conflict` (the `client_death_id` belongs to another user's registration, `web_intake_service.py:3633-3643`); 422 `invalid_registration` for every content refusal, with `fields: ["identifiers.<code>", ...]` for a number (`intake.py:461`, `:129-142`); 429 `rate_limited` when `identifiers` is sent past the budget |
 | Idempotency | `client_death_id`: a resend returns the stored case with 200, no warnings, and **ignores a different `identifiers` payload** (`intake.py:455-458`) |
 | Limits | 16 KB body; `IDENTIFIER_RATE_LIMIT` 30/hour per user on requests carrying `identifiers` (`config.py:469`) |
-| Status | `implemented today`; the `consent` object on this endpoint (section 5.4): `specified, not built (digitva-athy, digitva-gb8w.3)` |
+| Status | `implemented today`; the `consent` object on this endpoint (section 5.4): server `implemented today` (uncommitted, digitva-gb8w.3); web and Expo capture `specified, not built (digitva-athy)` |
 
 ### 3.4 Correct a registration: `PATCH /intake/deaths/<death_id>`
 
 | Item | Value |
 | --- | --- |
 | Device caller | interviewer whose reach opens the case, or the `death_reporter` who registered it; with `identifiers` only the identifier writer of section 6.3. **Station roster path** (owner decision 6): a roster user of a provisioned station acting as `station_supervisor` (section 6.3) |
-| Request | only the register fields to change, optional `if_updated_at`, optional `identifiers` (may be the only key). Station roster path adds (additive, 13): `acting_role: "station_supervisor"`, `reason` (text, 1..500 characters), `client_id` (UUID v4, the same id as the `death_correction` record of 4.2) |
+| Request | only the register fields to change, optional `if_updated_at`, optional `identifiers` (may be the only key), optional `consent` (5.3, `client_draft_id: null`: a registration consent; an informant field the patch fills needs it granted, or a granted registration consent on file, 5.5). Station roster path adds (additive, 13): `acting_role: "station_supervisor"`, `reason` (text, 1..500 characters), `client_id` (UUID v4, the same id as the `death_correction` record of 4.2) |
 | Response | 200 `{"case": <detail>, "warnings": [...]}` |
-| Errors | 403 `forbidden` (also: station roster path without a station config in force, roster role, custodian or reach); 404 `not_found`; 409 `case_completed` (an interview is complete: this holds for every caller, web supervisors included, `web_intake_service.py:1177-1178`), `details_pending`, `death_stale` (`if_updated_at` is not current), `case_closed` (identifiers on a cancelled or confirmed-duplicate case; on the station roster path **any** change to a closed case); 409 `conflict` (a `client_id` reused with other content); 422 `invalid_death` (`intake.py:509`; unknown key, a list or object in a field, bad number with `fields: ["identifiers.<code>"]`, nothing to change) |
+| Errors | 403 `forbidden` (also: station roster path without a station config in force, roster role, custodian or reach); 404 `not_found`; 409 `case_completed` (an interview is complete: this holds for every caller, web supervisors included, `web_intake_service.py:1177-1178`), `details_pending`, `death_stale` (`if_updated_at` is not current), `case_closed` (identifiers on a cancelled or confirmed-duplicate case; on the station roster path **any** change to a closed case); 409 `conflict` (a `client_id` reused with other content); 422 `invalid_death` (`intake.py:509`; unknown key, a list or object in a field, bad number with `fields: ["identifiers.<code>"]`, nothing to change); 422 `consent_required` / `consent_conflict` / `consent_invalid` as 5.3 |
 | Idempotency | none today; without `if_updated_at` last write wins. Station roster path: `client_id` (same content returns the stored result) |
 | Limits | 16 KB; identifier budget as 3.3 |
-| Status | `implemented today` for interviewer and reporter; the station roster path, `acting_role`, `reason`, `client_id`: `specified, not built (digitva-gb8w.2, digitva-gb8w.8)` |
+| Status | `implemented today` for interviewer and reporter; the station roster path: `implemented today` for the bundle `death_correction` record (uncommitted, digitva-gb8w.2: `update_death(..., station_roster=True)`); the HTTPS request keys `acting_role`, `reason`, `client_id`: `specified, not built (digitva-gb8w.8)` |
 
 ### 3.5 Registration numbers at any time: `PUT /intake/cases/<death_id>/identifiers`
 
@@ -158,7 +158,7 @@ not list.
 | Errors | 400 `invalid_request` with `fields: ["identifiers.<code>"]` for a rule refusal (note: **400 here**, 422 on POST and PATCH); 403 `forbidden`; 404 `not_found`; 409 `case_closed` (any device writer on a closed case, the station roster path included), `death_stale`, `conflict` (`client_id` reused with other content); 413; 429 `rate_limited` |
 | Idempotency | a value equal to the stored one (blind index) is a no-op; station roster path also `client_id` |
 | Limits | 16 KB; identifier budget |
-| Status | `implemented today` for interviewer and reporter; the station roster path: `specified, not built (digitva-gb8w.2, digitva-gb8w.8)` |
+| Status | `implemented today` for interviewer and reporter; the station roster path: `implemented today` for the bundle `identifiers_set` record (uncommitted, digitva-gb8w.2: `put_identifiers(..., station_roster=True)`); the HTTPS request keys: `specified, not built (digitva-gb8w.8)` |
 
 ### 3.6 Upload an interview: `POST /intake/submissions`
 
@@ -170,7 +170,7 @@ not list.
 | Errors | 400 `invalid_request` (`client_draft_id` not a UUID); 409 `conflict` (another interviewer's `client_draft_id`, `web_intake_service.py:3140-3148`); 422 `answers_hash_required`, `answers_hash_invalid`, `invalid_interview` (over 1 MiB of answers, `web_intake_service.py:3097`; not an object; deeper than 6; a bad time or definition identity, `:3129-3138`) |
 | Idempotency | `client_draft_id`; same hash returns the first result, other answers are a later version (last completed wins) |
 | Limits | 2 MiB body, 1 MiB `answers_json` |
-| Status | `implemented today`; the optional `consent` object (5.3), the reuse of a registration consent (5.4) and 422 `consent_required` / `consent_invalid`: `specified, not built (digitva-gb8w.3)` |
+| Status | `implemented today`; the optional `consent` object (5.3), the reuse of a registration consent (5.4) and 422 `consent_required` / `consent_invalid` / `consent_conflict`: `implemented today` (uncommitted, digitva-gb8w.3) |
 
 ### 3.7 Other intake calls
 
@@ -185,11 +185,11 @@ not list.
 
 | Endpoint | Device caller | Request / response | Errors | Idempotency / limits | Status |
 | --- | --- | --- | --- | --- | --- |
-| `GET /intake/consent-config?project_id=` | a roster user who may interview or register in the project | section 5.2 | 400 `invalid_request`, 403 `project_forbidden` | `no-store`; 120/min | `specified, not built (digitva-gb8w.3)` |
-| `GET /intake/station-config` | the station's **own device bearer** only (device id from the session) | the signed two-line station config file of bundle spec 6.4, same bytes as the browser export; carries `roster`, `custodian`, `designations` (4.1) and `purge` (section 7) | 401; 403 `device_revoked`; 404 `not_found` (no config issued) | `ETag`; 60/hour per device | `specified, not built (digitva-gb8w.4)` (owner decision 5) |
-| `POST /auth/devices/current/signing-key` | station bearer | `{signing_public_key}`; 200 `{signing_key_id}` | 409 `conflict` (already set) | set once | `specified, not built (digitva-gb8w.5)` |
-| `POST /intake/bundles`, `POST /intake/bundles/validate`, `GET /intake/bundles/<bundle_id>`, `GET .../receipt` | the station's own bearer (`device_id` equal to the manifest's) or a browser uploader | bundle spec 5.1-5.6 | bundle spec 5.2 codes (section 8) | `bundle_id`; 50 MiB; 10/hour per device and per uploader | `specified, not built (digitva-gb8w.2)` |
-| `GET /projects/<project_id>/station-config?device_id=` | none | admin or project data manager, browser | | | `not for devices` (`digitva-gb8w.4`) |
+| `GET /intake/consent-config?project_id=` | a roster user who may interview or register in the project | section 5.2 | 400 `invalid_request`, 403 `project_forbidden` | `no-store`; 120/min | `implemented today` (uncommitted, digitva-gb8w.3) |
+| `GET /intake/station-config` | the station's **own device bearer** only (device id from the session) | the signed two-line station config file of bundle spec 6.4, same bytes as the browser export; carries `roster`, `custodian`, `designations` (4.1) and `purge` (section 7) | 401; 403 `device_revoked`; 404 `not_found` (no config issued) | `ETag` / 304; 60/hour per device | `implemented today` (uncommitted, digitva-gb8w.4; `app/routes/api/station_config.py`; "issued" = a custodian and an active roster member set and a config issued; owner decision 5) |
+| `POST /auth/devices/current/signing-key` | station bearer | `{signing_public_key}`; 200 `{signing_key_id}` | 409 `conflict` (already set) | set once | `implemented today` (digitva-gb8w.5; a cookie gets 403 `device_session_required`, a bad key 400 `invalid_request` with `fields`; 10/min per IP) |
+| `POST /intake/bundles`, `POST /intake/bundles/validate`, `GET /intake/bundles/<bundle_id>`, `GET .../receipt` | the station's own bearer (`device_id` equal to the manifest's) or a browser uploader | bundle spec 5.1-5.6 | bundle spec 5.2 codes (section 8) | `bundle_id`; 50 MiB; 10/hour per device and per uploader | `implemented today` (uncommitted, digitva-gb8w.2; `app/routes/api/bundles.py`, `app/services/bundle_ingest_service.py`; [api-v1.md](../current-state/api-v1.md) "Offline bundle ingest") |
+| `GET /projects/<project_id>/station-config?device_id=` | none | admin, project PI or project data manager, browser: downloads the config in force. Issuing is a separate `POST` on the same path (CSRF, audited), so a GET never mints a config; custodian and roster: `PUT /projects/<id>/stations/<device_id>/custodian|roster` ([api-v1.md](../current-state/api-v1.md)) | 404 `not_found` (none issued) | | `not for devices`; `implemented today` (uncommitted, `digitva-gb8w.4`, `.8`) |
 
 `not for devices` also: every `/intake/supervision/*` route, identifier-type
 configuration (`/projects/<id>/identifier-types`), `GET /cases/export.csv`,
@@ -203,8 +203,9 @@ By reference, not repeated: container, limits and manifest (bundle spec 2.1,
 `death_correction`, `interview_submission`, `identifiers_set`,
 `coding_result`, `attachment_chunk` (reserved, not built, `digitva-jkvl`)
 (2.4), what never goes in a bundle (2.5), signature (3.2), replay and age
-(3.3), receipt (5.6), station config fields (6.4). Status of all of it:
-`specified, not built (digitva-gb8w.2, .4, .5, .8)`.
+(3.3), receipt (5.6), station config fields (6.4). Status: the station
+config (6.4) and the device key (3.2) `implemented today` (digitva-gb8w.4,
+.5, .8, uncommitted); the ingest of every record type but `attachment_chunk`, the report and the receipt `implemented today` (uncommitted, digitva-gb8w.2).
 
 Fixed by this contract on top of the bundle spec:
 
@@ -217,7 +218,21 @@ Fixed by this contract on top of the bundle spec:
   served sealed set, section 6.6) and `consent` is exactly the consent-config
   object of 5.2; the config carries `roster`, `custodian` and `designations`
   (4.1).
+- `projects[]` entries also carry display maps (additive, optional for a
+  reader; `implemented today`, uncommitted, digitva-gb8w.4): `site_names`
+  `{site_id: name}` for `sites`; `org_unit_paths` `{org_unit_id: "District,
+  Block, PHC"}` for `org_units` (active unit names from the top of the
+  project tree down to the unit, `", "` joined); `org_unit_sites`
+  `{org_unit_id: site_id}`, the site of the roster role naming the unit. A
+  roster grant with a null org unit covers the org units of its site. The
+  server keeps no site per unit (a site grant reaches the whole tree), so the
+  roster is the source of this map.
 - The receipt body gains `purge` (section 7).
+- `projects[]` entries carry the project's form policy (additive; 4.3):
+  `form_options` and `translations`.
+- `projects[]` entries carry `coding_mode` (additive, so
+  `station_config_format_version` stays 1 under section 13: a reader ignores
+  it; 4.3): `icd11_doris`, `icd10` or `null`.
 
 ### 4.1 Station roster, custodian and acting role (`digitva-gb8w.8`)
 
@@ -229,7 +244,7 @@ The custodian is recorded in the enrolment (server side, audited) and in
 every signed station config. Only an onboarded station's bundles are ingested
 (bundle spec 5.2, `station_not_onboarded`).
 
-Station config keys (`specified, not built (digitva-gb8w.4, digitva-gb8w.8)`):
+Station config keys (`implemented today`, uncommitted, digitva-gb8w.4, digitva-gb8w.8; `app/services/station_config_service.py`; `user_id` and `verified_by_user_id` are `va_users.user_number`, an integer column added for this because `va_users.user_id` is a UUID):
 
 | Key | Shape |
 | --- | --- |
@@ -282,7 +297,8 @@ provisioned station; the server applies them through the **same services** as
 `PATCH /intake/deaths/<id>` (`update_death`) and
 `PUT /intake/cases/<id>/identifiers` (`put_identifiers`), with the
 authorization of 4.1 in place of the device writer rule.
-`specified, not built (digitva-gb8w.2, digitva-gb8w.8)`.
+Bundle records: `implemented today` (uncommitted, digitva-gb8w.2); the HTTPS
+station roster keys: `specified, not built (digitva-gb8w.8)`.
 
 Common fields (plus the envelope `record_type`, `client_id`, `project_id`,
 `actor_user_id`, `acting_role` = `station_supervisor`, `recorded_at`):
@@ -328,6 +344,117 @@ Server rules (all server validation still applies):
   `bundle_id` (`null` on HTTPS), `client_id` and
   `authorized_by: "station_roster"`.
 - Consent withdrawal is **not** a correction: web only (section 7).
+
+### 4.3 Forms, modules and languages on the station
+
+`implemented today` (uncommitted). The station offers exactly the
+instruments, modules and languages the project offers on the server, under
+the same per-project policy. Where no policy governs a choice, the station's
+Settings decide it (below, "Station Settings").
+
+- **What the config carries.** Each `projects[]` entry has `form_options`:
+  the body `GET /organization/<project>/form-options` serves
+  (`form_types`, `enabled_extensions`, `default_locale`, `available_locales`,
+  `narration_languages`, `translation_versions`, `instrument_version`,
+  `definition_sha256`, ...), built by `form_options_payload`; and
+  `translations`: `{locale: body}`, the body
+  `GET /instruments/<code>/translations/<locale>` serves (`export_translations`)
+  for each non-English locale in `available_locales` that is servable
+  (active or `in_review`, the `translations_response` gate). Built by
+  `station_config_service._form_policy`. Canonical JSON makes those strings
+  NFC; nothing hashes them.
+- **The definition.** The station binary embeds
+  `app/data/who-va-2022.composed.json` and serves a project's slice exactly as
+  `served_form_service` does: the items of disabled modules dropped,
+  top-level `extensions` = the sorted enabled names that are composed-file
+  tags, Python `json.dumps(ensure_ascii=False, separators=(",", ":"),
+  sort_keys=True)` bytes, so the SHA-256 is the server's. Pinned by
+  `tests/fixtures/served_definition_vectors.json` (Python authority
+  `tests/test_served_definition_vectors.py`, Rust
+  `digitva-db` `instrument::tests::served_definition_vectors`).
+- **Import.** A config whose `form_options` names an instrument other than the
+  composed one, an `instrument_version` the binary does not carry, or a
+  `definition_sha256` its slice does not match is refused whole: 422
+  `instrument_version_unsupported`, the message naming both versions. A
+  config with a project lacking `form_options` (issued before this change) is
+  refused alike: 422 `form_policy_missing`, issue a new one. The import
+  accepts files up to 16 MB (translations make a config of a few MB).
+- **Serving** (`digitva-server`): `GET /organization/<project>/form-options`
+  returns the stored body; `GET /instruments/<code>/definition?project_id=`
+  returns the slice with `ETag` = `X-Definition-SHA256` and 304 on
+  `If-None-Match`, and `?version=&extensions=` the exact earlier slice (404
+  `version_unknown` for another version, 422 `invalid_extensions`);
+  `GET /instruments/<code>/translations/<locale>` returns the stored body
+  (`en`: version 0, empty maps), with `?project_id=` only an offered locale,
+  else 404. The interviewer picks the interview language from
+  `available_locales` in the shared UI, as online.
+- **Drafts.** The station accepts the app's autosave
+  `PATCH /intake/drafts/<id>` (`{sections, current_section, meta}`) and keeps
+  the definition pin from `meta`; the `interview_submission` record's `draft`
+  carries that `instrumentVersion`, `definitionSha256` and
+  `definitionExtensions` (`definitionSha256` absent only for a draft that
+  recorded none).
+- **Sandbox.** Before any config (project `1`, never exported) the station
+  serves the composed form with the modules chosen in Settings (default every
+  module) and English only; it is not a server project, so this overrides no
+  policy. The served bytes and SHA-256 equal the server's for the same set
+  (`instrument::tests::sandbox_selection_equal_to_a_vector_set_yields_its_sha`).
+- **Station Settings** (owner decision 2026-10-21, `digitva-7o4h`,
+  `digitva-r7gr`). `GET /api/v1/station/settings` returns
+  `{modules: [{code, label, enabled}], modules_locked, coding_mode,
+  coding_mode_locked, available_coding_modes: ["icd11_doris", "icd10"]}`;
+  `modules` lists every tag of the composed file (`abha`, `death_summary`,
+  `medical_records`, `narration_language`, `social_autopsy`) with a fixed
+  English label (the composed file carries none). `PUT` takes
+  `{enabled_modules?: [code], coding_mode?}` (at least one): 400
+  `validation_error` for an unknown module or mode, 409 `policy_locked` for a
+  field a policy governs; nothing is saved unless the whole request is valid.
+  Precedence: a provisioned project's `form_options.enabled_extensions` wins
+  (`modules_locked` true; the GET shows the union over the config's projects);
+  a project whose `form_options` lacks `enabled_extensions` is served the local
+  selection. Coding mode `icd11_doris` sets the
+  workspace's `project_mode: "unmasked_doris"`, `icd_classification: "icd11"`;
+  `icd10` sets `project_mode: "unmasked_simple"`, `icd_classification:
+  "icd10"`, `doris: null` (search `GET /icd10/2019-2/coding-search/<va_sid>`).
+- **Coding mode in the config** (owner decision 2026-10-22, `digitva-lmxr`).
+  Each `projects[]` entry carries `coding_mode`, the station mode the
+  project's own coding mode locks the station to: `icd11_doris` for an
+  unmasked DORIS (ICD-11) project, `icd10` for an unmasked simple (ICD-10)
+  project, and **`null` when the project's mode has no station equivalent**:
+  masked DORIS (no station workspace), and masked simple (its final needs
+  the coder's Step 1 `initial`, which the station's unmasked workspaces never
+  make, so ingest could not land it). For a project with `null` the station
+  does not code at all: no coding queue or workspace for it, and no
+  `coding_result` for it. A provisioned station shows the mode as locked
+  (`coding_mode_locked` true, `PUT` of `coding_mode` 409 `policy_locked`); a
+  config before this key (absent) leaves the local choice. With `null`,
+  `GET /coding/projects` leaves the project out (`station_coding_disabled`
+  true when none is left), the coding queue and history leave its cases out,
+  and the workspace (other than `mode=view`), allocation, code-now and the
+  initial, final and not-codeable saves answer 409
+  `station_coding_not_enabled` ("Coding for this project is done on the
+  server."). Settings shows the first project's (by id) mode with `coding_mode`
+  null when that project is not coded on the station. Station side
+  `implemented today` (uncommitted, `digitva-db` `project_coding_mode`); server
+  `implemented today` (uncommitted, `station_config_service._project_entry`).
+- **Coding mode on the record.** A `coding_result` record carries
+  `coding_mode` (`icd11_doris` | `icd10`), the mode the station was in when the
+  final or not-codeable result was saved (absent on records saved before this
+  field). Server ingest (`digitva-lmxr`, bundle spec 2.4 Q5) accepts a result
+  from a station registered and active for the project (else
+  `offline_coding_disabled`; `self_coding_enabled` is not required) whose
+  actor is on the bundle's signed roster with the `coder` role on the case's
+  site (else `actor_not_station_coder`), for an interview that station
+  uploaded (else `not_available`), when the mode matches the project's coding
+  mode:
+  `icd11_doris` an unmasked DORIS project, `icd10` an unmasked simple project
+  or a masked simple one when the record carries `initial`; another pair is
+  `coding_mode_mismatch`, an unknown mode `coding_mode_unsupported`, and a
+  record without `coding_mode` keeps the v1 rule (masked simple only). The
+  server validates as the online coder save does; an `icd11_doris` final is
+  held `pending` (`doris_pending`) and the server reprocesses its certificate
+  with the WHO engines it pins (the station's own engine results are
+  advisory), so a receipt names it applied only after that run.
 
 ## 5. Consent
 
@@ -414,7 +541,9 @@ In a bundle the record also carries `death_ref` (`{"client_death_id"}` or
 `{"death_id"}`) and the record envelope keys (`record_type`, `project_id`,
 `actor_user_id`; bundle spec 2.4); on HTTPS the case comes from the body.
 
-Server checks (`specified, not built (digitva-gb8w.3)`): 422 `consent_required`
+Server checks (`implemented today`, uncommitted, digitva-gb8w.3; one gate for `POST`
+and `PATCH /intake/deaths`, `/intake/submissions`, its `/revisions` and the browser's
+`/intake/drafts/<id>/submit`, which carries no consent and relies on one on file): 422 `consent_required`
 with `fields: ["consent"]` when the project requires consent, the answers or
 register fields carry a non-empty covered field, and no granted consent with
 every required purpose granted is given or on file for that interview attempt
@@ -423,7 +552,9 @@ case (5.4);
 422 `consent_invalid` with `fields: ["consent"]` for an unknown or retired
 notice version, a language mismatch, a hash mismatch, a missing or extra
 purpose, a mode not allowed, `witness_present: true` where not allowed, or a
-`client_draft_id` other than the body's; 409 `conflict` when a `client_id`
+`client_draft_id` other than the body's, or a granted consent whose notice
+version's `covered_fields` lack a filled covered field (`fields` then names those
+fields, never values); 409 `conflict` when a `client_id`
 is reused with different content (same content is a duplicate, 200); 422
 `consent_conflict` for a refused consent with a covered field filled. Body
 `{error, code, fields}`, no `reason` key. Append-only: a correction is a new
@@ -440,7 +571,7 @@ informant is a different person, in which case the app takes a new one for
 that attempt (with its `client_draft_id`). The server accepts an interview's
 covered data when a granted consent exists for that `client_draft_id`, or a
 granted registration consent exists on the case and the submission does not
-carry a new one. `specified, not built (digitva-athy, digitva-gb8w.3)`.
+carry a new one. Server: `implemented today` (uncommitted, digitva-gb8w.3); web and Expo capture: `specified, not built (digitva-athy)`.
 
 ### 5.5 Informant fields on a station registration
 
@@ -469,6 +600,13 @@ phone question, so the register is the only place the phone travels.
   unknown `refusal_behaviour`, a hash mismatch or an expired station config
   the app blocks new interviews in that project. **No silent fallback** to
   hardcoded defaults or an older version.
+- **Strict capture (station, 2026-10-22)**: a consent is captured only against
+  a notice version served in the project's consent config (`notice_version_id`,
+  `language`, `text_sha256`, purpose codes all from that config). When the
+  project has no usable notice or purposes loaded, the station records no
+  consent and writes no informant fields, with no fallback to a default
+  notice: 422 `consent_notice_unavailable` ("This project has no consent
+  notice yet, so informant details cannot be recorded offline.").
 - Notice version choice compares `version` as an integer.
 - A `client_id` is never reused for different content; a correction is a new
   record with `supersedes_client_id`.
@@ -511,8 +649,9 @@ Registration: whoever may register. Later (`PATCH` with `identifiers`, `PUT`):
 the interviewer who registered, started or interviewed the case, or the
 reporter who registered it (3.5), `implemented today`; or a roster user acting
 as `station_supervisor` on a provisioned station, under the authorization
-basis of 4.1, never on a closed case: `specified, not built
-(digitva-gb8w.2, digitva-gb8w.8)`. Server supervisor, In-charge, PI and data
+basis of 4.1, never on a closed case: in a bundle `implemented today`
+(uncommitted, digitva-gb8w.2), over HTTPS `specified, not built
+(digitva-gb8w.8)`. Server supervisor, In-charge, PI and data
 manager writes are browser only.
 
 ### 6.4 Warnings
@@ -557,8 +696,8 @@ server's sealed set, which is `PII_FIELDS` plus the form type's admin-flagged
 lists reviewed on 2026-10-21 miss `Id10055`, `Id10057`, `Id10071`, `Id10072`,
 `Id10010a/b/c`, `visit_address` and `visit_remarks`. The app MUST NOT
 hardcode the list: it reads `projects[].sealed_field_ids` from the station
-config (`specified, not built (digitva-gb8w.4)`); until then the list above is
-the floor.
+config (`implemented today`, uncommitted, digitva-gb8w.4: the union over the
+project's active forms' form types); the list above is the floor.
 
 **Open check.** The narrative `Id10476` is not in `PII_FIELDS` and coders see
 it today (`app/utils/va_mapping/va_mapping_02_fieldcoder.py`). Whether the
@@ -581,8 +720,8 @@ paths** (owner decision 5):
 
 | Channel | Carrier | Status |
 | --- | --- | --- |
-| Bundle path | `purge` in the signed station config (bundle spec 6.4) and in every receipt body | `specified, not built (digitva-gb8w.4, digitva-gb8w.2)` |
-| HTTPS path | the same signed station config served to the station's device bearer, `GET /intake/station-config` (3.8); the app fetches it at sign-in and at least daily while online | `specified, not built (digitva-gb8w.4)` |
+| Bundle path | `purge` in the signed station config (bundle spec 6.4) and in every receipt body | station config: `implemented today` (uncommitted, digitva-gb8w.4; always `[]` until withdrawal exists, hook `station_config_service.purge_client_ids`, digitva-athy, which must issue a new config on a withdrawal); receipt: `implemented today` (uncommitted, digitva-gb8w.2; the same hook) |
+| HTTPS path | the same signed station config served to the station's device bearer, `GET /intake/station-config` (3.8); the app fetches it at sign-in and at least daily while online | `implemented today` (uncommitted, digitva-gb8w.4) |
 
 Rejected alternative for HTTPS: a purge list on the refresh reply. The
 refresh is per user session while purge is per station, and the signed file
@@ -599,7 +738,7 @@ HTTP shape: `{"error", "code"}` (+ `fields`). Codes a device can receive:
 | 401 | `unauthorized`, `device_invalid`, `invalid_credentials`, `refresh_reused`, `session_revoked`, `session_ended`, `session_expired`, `refresh_invalid` |
 | 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` |
 | 404 | `not_found` |
-| 409 | `conflict` (client id of another user, consent id reuse), `case_closed`, `death_stale`, `case_completed`, `details_pending`, `refresh_retry_race`, `revision_locked`, `case_already_submitted`, `case_state_conflict` |
+| 409 | `conflict` (client id of another user, consent id reuse), `case_closed`, `death_stale`, `case_completed`, `details_pending`, `refresh_retry_race`, `revision_locked`, `case_already_submitted`, `case_state_conflict`; station only: `policy_locked`, `station_coding_not_enabled` (4.3) |
 | 411 / 413 | `length_required`, `payload_too_large` |
 | 422 | `invalid_registration`, `invalid_death`, `invalid_interview`, `answers_hash_required`, `answers_hash_invalid`, `invalid_reason`, `invalid_attempt`, `invalid_visit`; new: `consent_required`, `consent_invalid`, `consent_conflict` (`digitva-gb8w.3`) |
 | 429 | `rate_limited` |
@@ -614,10 +753,20 @@ this device). Per-record outcomes `accepted`, `duplicate`, `superseded`,
 `pending`, `rejected`, `not_processed`, with reasons `record_invalid`,
 `conflict`, `depends_on_rejected`, `actor_unknown_on_device`, `forbidden`,
 `consent_required`, `consent_invalid`, `consent_conflict`,
-`coding_mode_unsupported`, `coded_version_superseded`, `held_by_another`,
-`not_available`, `invalid_cod`, `final_blocked`, `attachments_incomplete`,
+`offline_coding_disabled` (the station is not registered and active for the
+project: revoked since it made the bundle), `actor_not_station_coder` (the
+actor's roster entry in the bundle's config names no `coder` role for the
+case's project and site, or its server grant has gone),
+`coding_mode_unsupported`, `coding_mode_mismatch`,
+`coded_version_superseded`, `held_by_another`, `not_available`, `invalid_cod`,
+`invalid_doris`, `final_blocked`, `attachments_incomplete`,
 `death_stale`, `case_completed`, `case_closed`, plus every HTTPS content code
-above. All `specified, not built (digitva-gb8w.2)`.
+above. `implemented today` (uncommitted, digitva-gb8w.2); also 403
+`forbidden` for a bundle whose `project_ids` is not the station's project or
+an uploader who may not upload, 409 `conflict` for a bundle still being
+ingested, 413 for a record line or record count over its limit, and the
+per-record `not_ready`, `allocation_exists` or `doris_pending` code on a
+`pending` coding result.
 
 A client branches on `code`, never on `error` text, and treats an unknown
 code by its HTTP status class.
@@ -649,6 +798,38 @@ Accepted as the app's own backend. It MUST:
    role enables only the local correction screens of 4.2 under that acting
    role; it is never presented as a server supervisor grant.
 8. Do none of the central duties of section 1.
+
+### 9.1 Station behaviour (2026-10-22)
+
+- **Bundle export** (`.dvb` download and its JSON form): a pending record that
+  fails the bundle rules is held back, not dropped; it stays pending and is
+  listed as `{client_id, reason}`. A registration whose consent is held back
+  is held back with it. The JSON reply carries `records_held_back` (the list)
+  and `sandbox_records_excluded` (count of pending sandbox records, which are
+  never exportable, 4.1); the binary download carries the header
+  `x-bundle-records-held-back` (the count) beside `x-bundle-record-count`.
+  When every pending record is held back no bundle is built: 422
+  `records_held_back` with the list in `records_held_back`.
+- **Coder Step 1**: station workspaces are unmasked only, so
+  `POST` of an initial (Step 1) coding returns 409 `not_masked` and the
+  station goes straight to the final (single-step) coding save. The final
+  reply is `{va_sid, workflow_state, <assessment id>}` and has no
+  `odk_synced` (no ODK on a station).
+- **Receipt import** reply: `accepted_count` is the number of receipt records
+  whose outcome is `accepted`, `duplicate` or `superseded`; `pending_count` those
+  `pending` (kept, with the server code such as `doris_pending`);
+  `rejected_count` those `rejected` (kept, `sync_state = rejected`).
+  `deleted_count` (also `acknowledged_deleted_count`) is the number of local
+  records actually deleted, which can be lower than `accepted_count` when a
+  record was already deleted earlier. `purged_count` and `purged_ids` as
+  section 7.
+- **Coding history** keeps a coding result the server holds as `pending` or
+  refused after a receipt deletes its accepted interview. The coding row
+  stores the case unique id and form code at coding time (no age, sex or
+  answers); the history reads from them with the server status and code, and
+  drops the row when a later receipt accepts the result and the row is
+  deleted.
+
 
 ## 10. Station modes and data protection
 
@@ -762,9 +943,20 @@ Accepted as the app's own backend. It MUST:
 
 | Vector set | Where | Status |
 | --- | --- | --- |
+| Signed station config: test server key, payload, signed file (bundle spec 6.4; authority `app/services/station_config_service.py`) | `tests/fixtures/station_config/`, checked by `tests/test_station_config_fixture.py` and `desktop/crates/digitva-bundle/tests/station_config_fixture.rs` | `implemented today` (uncommitted) |
 | Sealed values and wrapped DEKs, both directions | `tests/fixtures/pii_envelope_vectors.json`, checker `scripts/check_pii_blob.py` (envelope spec section 10) | `implemented today` (uncommitted) |
-| Canonical JSON cases, a sample bundle with fixed DEK and nonces and every intermediate, expected reports for tampered, replayed, expired, unknown-key and consent-missing variants, test KEM and station keys | `tests/fixtures/bundles/` (does not exist yet; bundle spec section 7) | `specified, not built (digitva-gb8w.6)` |
-| Server tests | bundle spec section 9 list | `specified, not built (digitva-gb8w.7)` |
+| Phone normalisation (6.5; authority `app/utils/phone.py`) | `tests/fixtures/phone_vectors.json` | `implemented today` |
+| Identifier normalisation and validation against a rule (6.1; authority `app/services/death_identifier_rules.py`) | `tests/fixtures/identifier_vectors.json` | `implemented today` |
+| `Id10073` reduction and its review flag (6.5; authority `app/utils/national_id.py`) | `tests/fixtures/national_id_vectors.json` | `implemented today` |
+| The sealed set's floor, `PII_FIELDS` (6.6; authority `app/services/pii_field_registry.py`) | `tests/fixtures/pii_fields_floor.json` | `implemented today` |
+
+The four rule files are read by `tests/test_offline_shared_vectors.py`, the
+`digitva-text` Rust tests and `mobile/digitva-collect/__tests__/offline-shared-vectors.test.ts`.
+The Python functions are the authority: a client that disagrees changes, the
+vector does not.
+| A sample bundle (registration, consent, interview) written by `build_bundle_deterministic` with the test KEM key `tv1` and station seed `0x52 * 32`, and the server's signed receipt for it | `tests/fixtures/bundles/sample_bundle.dvb`, `sample_receipt.dvr`; checked by `tests/test_bundle_fixture.py` and `desktop/crates/digitva-bundle/tests/bundle_fixture.rs` | `implemented today` (uncommitted, digitva-gb8w.2) |
+| Canonical JSON cases, every intermediate of the sample, expected reports for tampered, replayed, expired, unknown-key and consent-missing variants | `tests/fixtures/bundles/` (bundle spec section 7) | `specified, not built (digitva-gb8w.6)` |
+| Server tests | bundle spec section 9 list | partly `implemented today` (uncommitted, `tests/routes/test_bundle_ingest_api.py`: idempotency, tamper, replay, previous and unknown KEM key, revocation, onboarding, actors, corrections, consent, partial acceptance, two versions of one interview, coding pending / applied / superseded / `coding_mode_unsupported`, both station coding modes, `coding_mode_mismatch`, `offline_coding_disabled` for a revoked station, `actor_not_station_coder`, another station's interview `not_available`, `invalid_doris`, dry run; `tests/routes/test_station_config_api.py`: `coding_mode` per project mode); the rest `specified, not built (digitva-gb8w.7)` |
 
 Procedure: (1) the crate passes the envelope vectors both ways; (2) it
 reproduces the bundle vectors byte for byte with the test hook; (3) bundles it
@@ -797,11 +989,11 @@ private key, or decide anything section 1 gives the central server.
 
 | Bead | Change |
 | --- | --- |
-| `digitva-gb8w.2` | `POST /intake/bundles` (+ validate, report, receipt with `purge`), per-record outcomes, `death_registration.consent_client_id`, paste-enrolled actor rule (decision 1), `station_not_onboarded`, `death_correction` / `identifiers_set` ingest and the station roster path on `PATCH /intake/deaths/<id>` and `PUT /intake/cases/<id>/identifiers` (4.2) |
-| `digitva-gb8w.3` | consent tables (keyed by case, `client_draft_id` optional), `GET /intake/consent-config` (5.2), `consent` on `/intake/submissions` and `/intake/deaths` (station included), `consent_required` / `consent_invalid` / `consent_conflict` |
-| `digitva-gb8w.4` | signed station config (browser export and `GET /intake/station-config` for the device bearer), `sealed_field_ids`, `purge`, `custodian`, `designations`, `roster` |
-| `digitva-gb8w.8` | roster issuing and audit, custodian record at onboarding, `acting_role` checks, `authorized_by: station_roster` audit (server); the roster screen (offline team) |
-| `digitva-gb8w.5` | device Ed25519 signing key on enrolment, `POST /auth/devices/current/signing-key`, admin paste path, `revoked_compromised` |
+| `digitva-gb8w.2` | `POST /intake/bundles` (+ validate, report, receipt with `purge`), per-record outcomes, `death_registration.consent_client_id`, paste-enrolled actor rule (decision 1), `station_not_onboarded`, `death_correction` / `identifiers_set` ingest: implemented (uncommitted; `va_bundle_ingests`, `map_bundle_records`). `va_bundle_pending_coding` and its Celery applier: implemented (uncommitted; a not-ready coding result is held `pending`, applied when the case is ready, and the stored report and its receipt (signed again on request) then carry its final outcome; the station keeps it until then). Not built: the station roster request keys on `PATCH /intake/deaths/<id>` and `PUT /intake/cases/<id>/identifiers` over HTTPS, the 7-day ciphertext retention, `IDENTIFIER_RATE_LIMIT` for `identifiers_set` |
+| `digitva-gb8w.3` | consent tables (keyed by case, `client_draft_id` optional), `GET /intake/consent-config` (5.2), `consent` on `/intake/submissions` and `/intake/deaths` (station included), `consent_required` / `consent_invalid` / `consent_conflict`: `implemented today` (uncommitted; `consent_service.record_consent` is the function bundle ingest reuses) |
+| `digitva-gb8w.4` | signed station config (browser export and `GET /intake/station-config` for the device bearer), `sealed_field_ids`, `purge`, `custodian`, `designations`, `roster`: implemented (uncommitted; server key `BUNDLE_SERVER_SIGNING_KEY_FILE`; fixture `tests/fixtures/station_config/`) |
+| `digitva-gb8w.8` | roster issuing and audit, custodian record at onboarding: implemented (uncommitted; `auth_station_custodians`, `auth_station_roster`, audit events `station_custodian_set`, `station_roster_set`); `acting_role` checks and the `authorized_by: station_roster` audit at ingest: with digitva-gb8w.2; the roster screen (offline team) |
+| `digitva-gb8w.5` | device Ed25519 signing key on enrolment, `POST /auth/devices/current/signing-key`, admin paste path, `revoked_compromised`: implemented (admin paste `POST /admin/api/projects/<id>/station-registrations`; revoke body `revoked_compromised`; ingest lookup `device_signing_service.bundle_signing_key` and `verify_bundle_signature` for gb8w.2; enrol `platform` also accepts `desktop`) |
 | `digitva-gb8w.6` | `tests/fixtures/bundles/` vectors; client crate support |
 | `digitva-gb8w.7` | server tests (bundle spec 9) and the bearer-acceptance check of `/coding/allocation` and the workspace read |
 | `digitva-athy` | registration consent on web and Expo, withdrawal on the web, purge emission |
@@ -813,3 +1005,33 @@ private key, or decide anything section 1 gives the central server.
   custodian, onboarded-only ingest, no provisional MCCD PDF, station consent
   at registration, purge via the station config on HTTPS, station supervisor
   corrections (`death_correction`, `identifiers_set`), station roster.
+- 2026-10-21: device signing keys built (`digitva-gb8w.5`): sections 3.1,
+  3.8 and 16 marked implemented.
+- 2026-10-21: signed station config, custodian and roster built
+  (`digitva-gb8w.4`, server half of `digitva-gb8w.8`): 3.8, 4.1, 6.6, 7, 14
+  and 16 marked implemented. Issuing is a `POST`; the contract's `GET` serves
+  the issued file. Roster and custodian user ids are the new integer
+  `va_users.user_number`.
+- 2026-10-21: bundle ingest built (`digitva-gb8w.2`): 3.4, 3.5, 3.8, 4, 4.2,
+  6.3, 7, 8, 14 and 16 marked implemented for the bundle path; the HTTPS
+  station roster keys stay with `digitva-gb8w.8`.
+- 2026-10-21: bundle coding results held `pending` server-side
+  (`va_bundle_pending_coding`, Celery applier; the report and a newly
+  signed receipt carry the final outcome), dry runs queue no SmartVA run, station
+  config `projects[]` display maps `site_names`, `org_unit_paths`,
+  `org_unit_sites` (4), roster places and inactive members checked (4.1).
+- 2026-10-21: station config `projects[]` carry `form_options` and
+  `translations`; the station embeds the composed definition and serves the
+  project's forms, modules and languages from them (4.3); `/me/home` and
+  draft autosave on the station.
+- 2026-10-22: station coding modes at ingest (`digitva-lmxr`): 4.3 and 8.
+  A `coding_result` in `icd11_doris` or `icd10` is accepted for a
+  self-coding project whose coding mode matches; new codes
+  `offline_coding_disabled`, `coding_mode_mismatch` and pending
+  `doris_pending`.
+- 2026-10-22: the station coding gate is the station's registration and its
+  roster `coder` role, not `self_coding_enabled` (`digitva-lmxr`): new code
+  `actor_not_station_coder`, `offline_coding_disabled` redefined, a station
+  codes only interviews it uploaded (`not_available`); station config
+  `projects[]` gain `coding_mode` (`icd11_doris`, `icd10` or null), format
+  version unchanged (additive) (1, 4, 4.3, 8).

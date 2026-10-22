@@ -4,6 +4,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
+import { t, type StringKey } from "../i18n";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import type { WorkspaceApi } from "./api";
 import type { QueueView } from "./viewState";
@@ -12,6 +13,7 @@ import type {
   CoderAvailableCase,
   CoderHistory,
   CoderHistoryCase,
+  CoderProjects,
   CoderQueue,
   CodingStats,
   ProjectOptions,
@@ -108,6 +110,21 @@ function formatQueueDate(raw: string | null | undefined): string {
   const match = /^(\d{4}-\d{2}-\d{2})T/.exec(trimmed);
   if (match) return match[1];
   return trimmed;
+}
+
+/**
+ * The offline station's line for a coded case the server has answered: held ("waiting for the
+ * server's DORIS") or refused with a plain reason per code. Null when there is nothing to say.
+ */
+export function codingServerStatusText(item: Pick<CoderHistoryCase, "server_status" | "server_code">): string | null {
+  if (item.server_status === "pending") return t("codingServerPending");
+  if (item.server_status !== "refused") return null;
+  const code = item.server_code ?? "";
+  const key = `codingRefused_${code}` as StringKey;
+  // t() answers the key itself for a code this release has no words for.
+  const known = /^[a-z_]+$/.test(code) ? t(key) : key;
+  const reason = known !== key ? known : t("codingRefused_unknown", { code: code || "?" });
+  return t("codingServerRefused", { reason });
 }
 
 function CaseCardDetails({ item }: { item: AnyQueueCase }) {
@@ -1033,6 +1050,7 @@ export function QueueScreen({
                 ) : null}
               </View>
               <CaseCardDetails item={item} />
+              {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               <View style={q.actions}>
                 <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
                 {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
@@ -1050,6 +1068,7 @@ export function QueueScreen({
               <Button label="Pick case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
             </View>
           ))}
+          {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
           {coderCount === 0 ? <Text style={styles.muted}>{showHistory ? "No coded cases yet." : pickMode ? "No cases to pick right now." : "No available cases on this page."}</Text> : null}
           {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
           <View style={q.pager}>

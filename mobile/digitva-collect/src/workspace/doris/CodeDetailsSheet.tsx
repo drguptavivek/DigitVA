@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Modal, Pressable, View } from "react-native";
 
+import { t as tr } from "../../i18n";
 import { errorText } from "../../ui";
 import type { WorkspaceApi } from "../api";
 import type { DorisCodeInfoItem, VaDefinition, WorkspaceIdentity } from "../contracts";
-import { Alert, Body, Button, Card, CardTitle, Muted, gap, useUi } from "./ui";
+import { Alert, Body, Button, Card, CardTitle, FieldHint, Muted, gap, useUi } from "./ui";
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&nbsp;": " " };
 
@@ -54,6 +55,7 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
             <View style={{ gap: gap.xs }}>
               <Body style={{ fontWeight: "600" }}>VA cause: {definition.va_code} — {definition.title}</Body>
               {definitionPlainText(definition.definition_html) ? <Body>{definitionPlainText(definition.definition_html)}</Body> : <Muted>No definition text for this VA cause.</Muted>}
+              <FieldHint testID="digitva-addition">{tr("digitvaAddition")}</FieldHint>
             </View>
           ) : null}
           {error ? <Alert variant="destructive">{error}</Alert> : null}

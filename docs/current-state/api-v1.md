@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # API v1 Reference
@@ -118,7 +118,8 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 
 | Call | Notes |
 |---|---|
-| `POST /auth/enroll` | Body `code`, `device_name`, `platform`, `app_version`. 201 `{device_id, device_secret, project, server_time}`. 10/min per IP. Code consumed atomically (`use_count < max_uses`). |
+| `POST /auth/enroll` | Body `code`, `device_name`, `platform` (`android`, `ios` or `desktop`, the offline station), `app_version`, optional `signing_public_key` (base64url raw Ed25519 public key, 32 bytes; digitva-gb8w.5). 201 `{device_id, device_secret, project, server_time}`, plus `signing_key_id` (first 16 hex of the key's SHA-256) when a key was sent. A bad key is 400 `invalid_request` with `fields: ["signing_public_key"]`, checked before the code is consumed. 10/min per IP. Code consumed atomically (`use_count < max_uses`). |
+| `POST /auth/devices/current/signing-key` | Device bearer only (the device is the session's, never the body; a cookie: 403 `device_session_required`; a revoked device's bearer: 401). Body `{signing_public_key}`. 200 `{signing_key_id}`. Set once: 409 `conflict` when the device has a key; 400 `invalid_request` with `fields` for a bad key. 10/min per IP. Audited `device_signing_key_set` (key id only). |
 | `POST /auth/sessions` | Body `device_id`, `device_secret`, `email` (an email or a mobile number), `password`. 201 `{access_token, access_expires_at, refresh_token, refresh_expires_at, user {user_id, name, email}, terms_required, access}`. `access` is the `GET /me/access` body for that user, shown even while terms are pending (it is display only; the terms gate is on requests). Refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` (no interviewer, coder, coding_tester or reviewer access in any active project; code kept for the app). Limits: 10/min per IP, 10/min per device, 20/hour per account. |
 | `POST /auth/sessions/refresh` | Body `refresh_token`, `device_id`, `device_secret` (else 401 `device_invalid`, nothing revoked); optional outstanding-work report `count`, `unique_ids`, `client_draft_ids`, `client_death_ids` (not recorded while terms are pending). 200, the same body as sign-in, `access` included. 401 `refresh_reused` / 409 `refresh_retry_race` (reuse; session revoked); 401 `session_revoked` (device or admin revoke, no active project left, signed out); 401 `session_ended` (account changed; keeps data); 401 `session_expired` and `refresh_invalid` revoke nothing. 30/min per IP. |
 | `DELETE /auth/sessions/current` | Bearer only (a cookie: 401 `unauthorized`). 204. `login_required`, not the interviewer role, so a withdrawn interviewer can still sign out; open while terms are pending. |
@@ -154,7 +155,7 @@ interview right.
 
 | Call | Notes |
 |---|---|
-| `POST /intake/submissions` | Body `client_draft_id` (UUID), `project_id`, `site_id`, `draft` (envelope: meta keys only, `draft.data` is not read; optional `startedAt`, `completedAt`, `deviceClockAt`, each ISO 8601 with a UTC offset), `answers_json` (string: the exact JSON text of the answers object) and `answers_sha256` (64 hex, SHA-256 of that text's UTF-8 bytes), optional `completion: {valid, issues}`, `death_id`, `org_unit_id`. The server hashes `answers_json` as received, then parses. 422 `answers_hash_required` (a field missing, not a string, or a malformed hash), 422 `answers_hash_invalid` (hash differs; nothing stored), 422 `invalid_interview` (not a JSON object, over 1 MB, nested deeper than 6, or one of the three times present but unparsable or offset-less). 201 on a new upload (also a second upload of a case the caller already submitted: a correction), 200 on a resend (the same hash, or other answers: no 409, the last completed version wins by completion time). Result: `{va_sid, case, outcome, superseded, answers_sha256, kept, received_sha256, locked, can_code_now}` (`can_code_now`: as on `/intake/drafts/<id>/submit`): `answers_sha256` is the coder version's hash, `received_sha256` the hash of the answers this request sent (the app deletes its copy when it equals what it sent), `kept` `incoming` (the coder has these answers) or `server` (they are history only), `locked` true when coding is final or the case closed. A cookie request stores no `meta.deviceId`. Detail: [Device Collection API](device-collection-api.md) "Uploads". |
+| `POST /intake/submissions` | Body `client_draft_id` (UUID), `project_id`, `site_id`, `draft` (envelope: meta keys only, `draft.data` is not read; optional `startedAt`, `completedAt`, `deviceClockAt`, each ISO 8601 with a UTC offset), `answers_json` (string: the exact JSON text of the answers object) and `answers_sha256` (64 hex, SHA-256 of that text's UTF-8 bytes), optional `completion: {valid, issues}`, `death_id`, `org_unit_id`. The server hashes `answers_json` as received, then parses. 422 `answers_hash_required` (a field missing, not a string, or a malformed hash), 422 `answers_hash_invalid` (hash differs; nothing stored), 422 `invalid_interview` (not a JSON object, over 1 MB, nested deeper than 6, or one of the three times present but unparsable or offset-less). 201 on a new upload (also a second upload of a case the caller already submitted: a correction), 200 on a resend (the same hash, or other answers: no 409, the last completed version wins by completion time). Result: `{va_sid, case, outcome, superseded, answers_sha256, kept, received_sha256, locked, can_code_now}` (`can_code_now`: as on `/intake/drafts/<id>/submit`): `answers_sha256` is the coder version's hash, `received_sha256` the hash of the answers this request sent (the app deletes its copy when it equals what it sent), `kept` `incoming` (the coder has these answers) or `server` (they are history only), `locked` true when coding is final or the case closed. A cookie request stores no `meta.deviceId`. Optional `consent` (respondent consent for this attempt; 422 `consent_required` / `consent_invalid` / `consent_conflict`, 409 `conflict`): "Respondent consent" below. Detail: [Device Collection API](device-collection-api.md) "Uploads". |
 | `POST /intake/submissions/<va_sid>/revisions` | The submitting interviewer revises their own submitted interview. Body `reason_code` (`interviewer_correction`, `respondent_correction`, `more_information`, `finish_partial`), `answers_json` + `answers_sha256` (as `/submissions`), `completion: {valid, issues}`, `draft` (meta; only `startedAt`/`completedAt` are taken). 200 `{changed, va_sid, payload_version_id, answers_sha256, outcome, workflow_state}`; `changed: false` writes nothing. 404 `not_found` (not the caller's), 409 `revision_locked` / `case_already_submitted` / `case_closed` / `case_state_conflict`, 422 `invalid_reason` (the server's own `resubmitted` is not accepted) / `answers_hash_*` / `invalid_interview`. A completed interview may be revised to a refused or partial one (the case leaves coding). Body cap 2 MB. Detail: [Device Collection API](device-collection-api.md) "Interviewer revisions". |
 | `POST /intake/supervision/submissions/<va_sid>/reopen-for-revision` | Reopen a finalised web or device interview for its interviewer to revise (`interview_supervisor`, `data_manager` or `admin`). Body `reason_code` (`cod_review_requested`, `new_information`, `data_correction`). 200 `{va_sid, workflow_state: "finalized_upstream_changed", reason_code}`. From `coder_finalized`, `reviewer_eligible`, `reviewer_finalized`. An admin, or a supervisor or data manager whose supervision reach covers the interview's case (404 otherwise); 409 `not_web_submission` / `case_closed` / `wrong_state`; 422 `invalid_reason`. The final COD stays until the interviewer's revision arrives. |
 | `POST /intake/outstanding` | Device session only (a cookie: 403 `device_session_required`). Stores count, sorted unique ids and sorted, normalised `client_draft_ids` and `client_death_ids` (UUIDs) on the session; the admin device list returns all three (`outstanding_client_death_ids` added in `digitva-kmk.4`). |
@@ -162,7 +163,7 @@ interview right.
 | `GET /intake/cases/<death_id>` | Case detail with full contacts, links and (when the caller may start or resume it) prefill, below. 600/min per user, so a device can fetch each active case's detail after the list; on 429 a client keeps its previous complete copy and retries after `Retry-After`. |
 | `POST /intake/cases/<death_id>/flags`, `/pause` | The browser worklist's calls, now for every client. Each replies `{"case": <detail>}`, the body of `GET /intake/cases/<id>` (below). |
 | `GET /intake/cases/<death_id>/possible-duplicates` reply | `{"possible_duplicates": [...]}`, up to 50, most similar first, only cases inside the caller's own worklist scope (a case outside it is never returned, no id and no detail). Each: `death_id`, `unique_id`, `unit_name`, `state`, `score`, and `deceased_name`, `date_of_death` (ISO date), `village` (the village or ward of the case's recorded address, `null` when empty; the org unit is `unit_name`), `age_years`, `sex`, `informant_name`, `previous_interviewer_name` (the user who started the interview, `null` when nobody did; new here, since the worklist and case detail never name another interviewer, and shown only for these in-scope candidates by the owner's 2026-10-01 rule) and `reported_by_name` (the user who registered the death, who may be a data manager or death reporter rather than an interviewer; owner, 2026-10-09). The detail keys are additive. No phone or address. The per-row `possible_duplicates` of `GET /intake/cases` and the device list stays `death_id` and `unique_id` only. |
-| `GET/POST /intake/deaths` | List (`project_id`, `site_id` required) and register (`project_id` required; `client_death_id` optional, idempotent), below. |
+| `GET/POST /intake/deaths` | List (`project_id`, `site_id` required) and register (`project_id` required; `client_death_id` optional, idempotent), below. Register takes optional `consent` (the informant's registration consent); where the project requires consent, informant name, phone or address need a granted one: "Respondent consent" below. |
 | `POST /intake/deaths` / `GET /intake/deaths` (death reporter) | A `death_reporter` registers a death as an interviewer does (same body, same 201 `{"case": <detail>}`, same `client_death_id` idempotency) in the unit subtree its grant reaches (403 outside it, or in a project whose `web_intake_mode` keeps no death register). The reply's `case` carries no `prefill` and `links` is only `{"update": "/api/v1/intake/deaths/<id>"}`: no start-interview, attempts or visit link. `GET /intake/deaths` serves a reporter (one with no interviewer right) **its own registered deaths** within reach, newest activity first: query `project_id`, `site_id` (optional narrowing; no reach there is 403), `limit` (default 50, clamped to 200), `cursor`; reply `{"deaths": [<death, as the interviewer's list, `va_sid` null>], "next_cursor": str \| null}`; malformed `limit`/`cursor` 400. Index-backed (`ix_va_death_register_registered_by`). A user who also holds `interviewer` gets the interviewer list unchanged (`project_id` and `site_id` required, no cursor) unless they ask `?registered=mine`, which serves any caller holding a `death_reporter` grant this same paged list (any other value is 400). A reply about a case is reporter-shaped (no `prefill`, `links` only `update`, no `other_draft_*`) for a caller with a `death_reporter` grant that no interviewer grant of theirs reaches the case through. Every other `/intake` route (case detail, drafts, attempts, visit, pause, flags, uploads, outstanding, prefill-policy, supervision) answers a reporter 403. |
 | `PATCH /intake/deaths/<death_id>` | Correct a registered death until an interview of it is completed (`interviewer`, `interview_supervisor`, `data_manager`, or the `death_reporter` who registered it and whose grant still reaches its unit; the caller must see or supervise the case, else 404). Body: only the register fields to change, optional `if_updated_at` (the `case.updated_at` last seen), optional `identifiers` (below; may be the only key). 200 `{"case": <detail>, "warnings": [...]}` (a caller whose interviewer or reporter reach does not open the case, e.g. a supervisor, gets the trimmed supervisor row instead: no informant, phones or address, no links or prefill) (`warnings` only when present); 403 `forbidden` / 409 `case_closed` when `identifiers` is sent by a caller who may not change this case's numbers now (the any-time write's own gate, `require_identifier_write`; reaching a case to correct its details is not permission to change its numbers, so a teammate interviewer who neither registered, started nor interviewed it, or a self-coding coder, gets 403 for the whole request), 409 `case_completed` (a completed interview exists) / `details_pending` / `death_stale`; 422 `invalid_death` (`register_death`'s validation, a list or object in a field, a bad number with `fields: ["identifiers.<code>"]`, nothing to change). Audited as `details_edited`: the audit's `reason` names the fields, its `changes` column keeps each one's old and new value (never returned by any API). Policy: [Web Intake](../policy/web-intake.md) "Correcting a registered death". |
 | Registration numbers (`identifiers`; `POST /intake/deaths`, `PATCH /intake/deaths/<id>`, reads) | digitva-kzyp stage 2; policy [Death Registration Identifiers](../policy/death-registration-identifiers.md), service `death_identifier_service`. **Write.** Optional body key `identifiers`: an object `{<type code>: <text>}` of the project's ACTIVE types ("Identifier types" below). It has its own parser (the register fields refuse objects, this key is one); a non-object or a non-text value is 422 `invalid_registration` / `invalid_death`. The server trims, collapses spaces, NFKC-normalises and upper-cases (`mccd/ab12` is stored `MCCD/AB12`), then checks length, character type and pattern of the type on the plaintext, then encrypts (AES-256-GCM, AAD `death_id || identifier_type_id`) and stores a keyed blind index. A refusal names the type label and example, never the value: 422 `invalid_registration` on registration (nothing is stored, the case is not created), 422 `invalid_death` on a correction (the PATCH route turns every content refusal into 422, so this is not the 400 the policy sketch names), body `{"error", "code", "fields": ["identifiers.<code>", ...]}`. An unknown or inactive code is refused alike. A registration always enforces the project's `required_at_report` types (422 naming `identifiers.<code>`), even when the key is absent; a correction does not, so the number may arrive later. On a correction only the listed codes change; `null` or an empty string deletes the row; a value equal to the stored one (compared by blind index) is a no-op that writes nothing. `client_death_id` idempotency covers it: a resend returns the stored case with 200, stores one set, writes one audit row and carries no `warnings`. Writers at registration are whoever may register (interviewer, death_reporter). A `PATCH` that carries `identifiers` has the any-time write's own gate, not just the right to correct the register fields: 403 `forbidden` for a caller who may not change this case's numbers now (the `can_edit_identifiers` rule below). The any-time write is `PUT /intake/cases/<id>/identifiers` below. A `PATCH` that carries `identifiers` for a cancelled or confirmed-duplicate case is 409 `case_closed` unless the caller is a supervisor, In-charge, project PI or admin of it (the whole request is refused; register-field edits of a closed case are unchanged). A `PATCH` with only `identifiers` and no `if_updated_at` is last-write-wins. A resend of a registration with the same `client_death_id` returns the stored case and IGNORES a different `identifiers` payload (the first write stands). An offline registration made before a type became `required_at_report` is refused 422 `invalid_registration` with `fields: ["identifiers.<code>"]` naming the type, so the client can ask for the number and resend. One `map_case_transitions` row per write: `action = identifiers_set`, state unchanged, `changes` keyed `identifier:<code>` with blind-index traces `{"bidx": first 16 hex of the blind index}` for `old` and `new` (null for none; no digits, older rows may still carry a legacy `mask`), `reason` the changed codes, and the supervisor grant and cadre as for any supervisor action. The case's `updated_at` moves. **Warnings.** A project-unique type whose number is already on another open case of the project (cancelled and confirmed duplicates excluded) answers 201/200 with `warnings: [{"code": "identifier_in_use", "field": "identifiers.<code>", "message": ...}]`; the write is kept. The message carries case id, unit and the reporter's name and designation (cadre, else job title) only when the writer supervises that other case (`supervised_case_condition`) or is admin; otherwise "This number is already on another case in this project." One query, reporter and cadre included. The same match makes the other case a `possible_duplicates` candidate (score 1, inside the caller's own scope only). **Read.** `identifiers` is on `case` (every single-case reply, incl. supervisor replies), on each row of `GET /intake/cases`, `GET /intake/deaths` (interviewer and reporter lists, for the edit form's prefill), `GET /intake/supervision/cases` and its detail, and `GET /api/v1/cases` rows, in the type `sort_order`. A viewer who reaches the case's project through admin, project_pi, site_pi, interview_supervisor, data_manager, interviewer, death_reporter or collaborator_pii and whose value-granting grant reaches THAT case (per case, not per project: a case reached only by coding, or by an implied self-coding interviewer grant, stays a badge whatever else the user holds in the project; `case_list_service.identifier_value_death_ids`) gets `[{"code", "label", "value"}]` for EVERY active type, `value: null` where nothing is stored (an inactive type shows only if it holds a value, so a new case reads `[{"code": "crs", "label": "CRS number", "value": null}, ...]`, not `[]`); everyone else (coder, coding_tester, reviewer, collaborator, even with a PII grant in another project) gets `[{"code", "label", "present": true|false}]` with the `value` key omitted, not null (`identifier_values_visible`, not `should_redact_pii`). The case list adds a per-row test (field reach, supervision, admin, PII lenses, collaborator_pii) so a row reached by coding alone is badge-only. Two queries per page whatever its size; only rows the viewer may see are decrypted; a value that cannot be decrypted degrades to `present: true` and is logged by row and key id only. **Edit flag.** The same places (case detail, `GET /intake/cases`, `GET /intake/deaths`, supervision rows and detail, `GET /api/v1/cases` rows) carry `can_edit_identifiers`: true only when the caller may change that case's numbers now (below); a closed case is false for everyone but a supervisor. Computed in the same query or one batch query per page (constant statement count). Values and the flag come from ASSIGNED grants only: the interviewer grant a self-coding project implies for a coder confers neither (badge only, `can_edit_identifiers: false`). Registration numbers in the CSV export: see `GET /cases/export.csv` under "Case list". Missing: native entry (stage 4). |
@@ -181,6 +182,8 @@ interview right.
 | `GET /intake/supervision/cases/<id>/possible-duplicates` | Cases in the caller's supervision reach that may be the same death as this one, a warning only (`interview_supervisor`, `data_manager` or `admin`; same rules as the interviewer's `GET /intake/cases/<id>/possible-duplicates`). Reply `{"possible_duplicates": [{death_id, unique_id, unit_name, state, score, deceased_name, date_of_death, age_years, sex}]}`, supervisor-row fields only: no `informant_name`, `village` or phone. A case outside the reach is never a candidate. 404 when the subject is outside the caller's reach; 403 for an interviewer-only caller. |
 | `POST /intake/supervision/cases/<id>/choose-interview` | Choose another interviewer's complete interview of a submitted case over the one it holds (`interview_supervisor`, `data_manager` or `admin`; [Web Intake Policy](../policy/web-intake.md), "Supervisors"). Body `draft_id` (a candidate), `reason_code` (`better_quality`, `more_complete`, `original_incorrect`, `switch_back`). 200 `{"case": <supervisor row>}`; the case keeps its `va_sid`, coding restarts from any stage (earlier COD kept as history), the other interview stays a candidate. 400 malformed `draft_id`; 404 outside reach or another case's draft; 409 `case_not_submitted` / `not_web_submission` / `not_a_candidate` / `form_mismatch` / `wrong_state` (a reviewer session is live); 422 `invalid_reason`. |
 | Admin `POST .../device-enrolments` | Also returns `qr_svg` (segno) and `max_uses`; `Cache-Control: no-store`. The QR server URL is `DEVICE_PUBLIC_URL` (default: scheme and host of `PUBLIC_BASE_URL`; set `http://10.0.2.2:8051` for an emulator). Outside debug/testing a plain-http URL other than localhost, 127.0.0.1 or 10.0.2.2 refuses the code (503, logged); checked when a code is issued, not at startup, so a bad value cannot stop the server. |
+| Admin `POST /admin/api/projects/<project_id>/station-registrations` | Register a never-online offline station from its enrolment file (digitva-gb8w.5). Body `name`, `enrolment_file` `{device_id, signing_public_key, app_version}` (no other keys). 201 `{device_id, signing_key_id}`. No device secret is issued (the stored secret hash matches nothing), so the station never signs in; its key verifies its bundles. 400 malformed file or bad key, 404 project, 409 `device_id` already registered. Admin only, CSRF. Audited `device_registered_from_file` and `device_signing_key_set`. |
+| Admin `POST /admin/api/devices/<device_id>/revoke` | Optional body `revoked_compromised` (boolean, default false; else 400): lost or stolen, so every bundle the device signed is refused, not only those created after `revoked_at`. A later revoke may set it on a revoked device, never clear it. Reply adds `revoked_compromised`; the `device_revoked` event carries `compromised`. The device list rows add `signing_key_id` and `revoked_compromised`. |
 | CLI `flask devices create-enrolment-code --project <id> --actor <admin email> [--minutes N] [--uses N]` | `app/commands/devices.py`: same `create_enrolment_code` service, bounds and `device_enrolment_code_created` event; the named active global admin is the recorded actor (`created_by` is not null). Prints the QR payload JSON only. For the emulator run it with `-e DEVICE_PUBLIC_URL=http://10.0.2.2:8051`. |
 
 Content refusals of a death, an
@@ -823,6 +826,278 @@ digitva-kzyp stage 1). Values are written at registration and correction and rea
   "Add registration number" only when it is true. Server refusals are read from
   `fields: ["identifiers.<code>"]` and `error`; `warnings` of kind `identifier_in_use` are shown
   inline with Continue and Edit.
+
+## Respondent consent (`GET /api/v1/intake/consent-config`, `/api/v1/projects/<project_id>/consent-settings|consent-notices`; `app/services/consent_service.py`)
+
+Contract: [Offline API Contract](../policy/offline-api-contract.md) section 5
+(digitva-gb8w.3). A project without consent settings, or with
+`consent_required` false, behaves exactly as before: the gate is off.
+
+- `GET /api/v1/intake/consent-config?project_id=`: the 5.2 reply
+  `{project_id, consent_required, notice_versions, contacts, retention,
+  refusal_behaviour}`, every key always present. `notice_versions` lists the
+  non-retired versions only when consent is required (else `[]`); each is
+  `{notice_version_id, version (int), language, text, text_sha256, purposes
+  [{code, label, required}], covered_fields, allowed_modes, witness_allowed}`.
+  Not configured: `contacts` with empty strings, `dpo: null`, `districts: {}`;
+  `retention: {period_days: null, expiry_action: "erase"}`. Who and errors as
+  `GET /intake/identifier-types` (400 `invalid_request` without `project_id`,
+  403 `project_forbidden`); either credential; `no-store`; 120/min.
+- `consent` on `POST /intake/deaths` and `PATCH /intake/deaths/<id>`
+  (`client_draft_id: null`), `POST /intake/submissions` (`client_draft_id`
+  equal to the body's) and `POST /intake/submissions/<va_sid>/revisions`
+  (equal to the submission's own `client_draft_id`, null for a browser
+  interview): the 5.3
+  object, validated against the stored notice version (the project's own, not
+  retired, language, `notice_sha256` equal to the stored text's hash, exactly
+  its purposes, `decision` granted exactly when every required purpose is,
+  an allowed `mode`, `witness_present` only where allowed, `supersedes_client_id`
+  a consent of the same case, `recorded_at` with an offset; no other key) and
+  stored in the request's transaction (registration: case row, then consent).
+  Validated whenever sent, also in a project that does not require consent.
+  Refusals, body `{error, code, fields: ["consent"]}`: 422 `consent_invalid`;
+  422 `consent_required` (consent required, a covered field filled, no granted
+  consent sent or on file: the attempt's own, else the case's registration
+  consent); 422 `consent_conflict` (a refused consent with a covered field
+  filled); 409 `conflict` (a `client_id` already used for other content; the
+  same content is a duplicate and stores nothing); 422 `consent_invalid` with
+  `fields` naming the covered fields (names only) that are filled but not in
+  the granted consent's notice version `covered_fields` (a v1 consent does
+  not cover a field only v2 adds). One gate (`consent_service.gate`) serves
+  every write of covered data: the register fields a `POST` or `PATCH`
+  `/intake/deaths` sets (the registration consent sent or on file), the
+  answers of an upload, a revision and `POST /intake/drafts/<id>/submit`, as
+  received, before prefill (the attempt's own consent, else the case's
+  registration consent; another attempt's never applies). The browser submit
+  cannot take a consent yet (digitva-athy): covered answers with none on file
+  are 422 `consent_required`. Draft autosave (`PATCH /intake/drafts/<id>`,
+  `/drafts/sync`) is not gated. A same-hash upload resend returns the first
+  result unchecked.
+- `GET|PUT /api/v1/projects/<project_id>/consent-settings` and
+  `POST .../consent-notices`: admin, project PI or project-scoped data manager
+  (the identifier-type rule: 404 unknown project or no grant, 403 other
+  role); browser session only, `X-CSRFToken` on writes, `no-store`; 30/min
+  for writes. `PUT` takes any of `consent_required` (true needs a current
+  notice version, else 400), `contacts` (the 5.2 object, each value text up to
+  200 characters, `districts` keyed by org unit UUID), `retention`
+  (`{period_days 1..36500 or null, expiry_action erase|lock}`),
+  `refusal_behaviour`; unknown keys 400. `POST` adds a version: `language`
+  (BCP 47), `text` (stored and hashed exactly as sent, up to 20,000
+  characters), `purposes` `[{code, label, required}]`, `allowed_modes`,
+  optional `version` (default highest plus one; a translation passes its
+  number), `covered_fields` (default the seven informant register fields,
+  `Id10007` and the WHO answers the register prefills with address or family
+  data: `Id10055`, `Id10057`, `Id10061`, `Id10062`; `Id10055`/`Id10057` are
+  prefilled from the org path even without a registered address),
+  `witness_allowed` (default true); `text` with a NUL or an unpaired
+  surrogate is 400 `fields: ["text"]`; 201 `{notice_version}`; 409
+  `conflict` when that version and language exist. The config and settings
+  replies list at most 200 versions, the newest. Two concurrent first `PUT`s
+  of a project's settings both apply (the later over the earlier), no 500. Versions are never edited.
+  Each write adds a `map_consent_audit` row. The Project Setup screen is
+  digitva-athy. Dev seeding: `flask web-intake seed-consent-notice <project>
+  --actor <admin email> [--language en] [--require]`.
+
+## Offline station onboarding and station config (`app/routes/api/station_config.py`; `app/services/station_config_service.py`)
+
+Beads digitva-gb8w.4 and digitva-gb8w.8; contract
+[Offline API Contract](../policy/offline-api-contract.md) 3.8 and 4.1; file
+format [bundle spec](../policy/offline-bundle-and-transfer.md) 6.4.
+
+- Browser routes: admin, project PI or project-scoped data manager of the
+  station's project (the identifier-type rule: 404 unknown project, no grant
+  there, or a device of another project; 403 other role); browser session only
+  (a bearer: 403); `X-CSRFToken` on writes; `no-store`; 64 KB bodies.
+  - `GET /api/v1/projects/<project_id>/stations/<device_id>`: `{device_id,
+    designations, custodian | null, roster: [{user_id (UUID), user_number,
+    name, designation, roles, active}], config: {config_id, issued_at,
+    expires_at, text_sha256} | null}`. 120/min.
+  - `PUT .../stations/<device_id>/custodian`: `{name, designation, phone,
+    email, onboarded_on}`; `designation` a code of `designations`; `phone`
+    normalised to 10 digits (`app/utils/phone.py`) or null, `email` or null,
+    at least one; `onboarded_on` `YYYY-MM-DD`, not in the future. The caller
+    is recorded as the verifier. 400 `invalid_request` with `fields`. Audit
+    `station_custodian_set` (changed field names only). 30/min.
+  - `PUT .../stations/<device_id>/roster`: `{"members": [{user_id (UUID),
+    designation, roles: [{role, site_id, org_unit_id | null}], active}]}`
+    replaces the roster (at most 50 members, 10 roles each). `role` one of
+    `death_reporter`, `interviewer`, `coder` (that server grant) or
+    `station_supervisor` (a supervising grant: `interview_supervisor`,
+    `data_manager` or `site_pi`, owner decision 10), at the site of the
+    station's project; a null unit needs a project- or site-wide grant. An
+    active member needs a role and an active account. Every member's role
+    sites must be active sites of the project and its units units of the
+    project's tree (422 `invalid_roster`, `fields:
+    ["members[i].roles[j].site_id" | ".org_unit_id"]`); an inactive member's
+    roles are not grant-checked, but the user must hold some live grant in
+    the project or already be on this station's roster (422 `invalid_roster`,
+    `fields: ["members[i].user_id"]`). 400 `invalid_request` with `fields`; 422
+    `invalid_roster` with `fields: ["members[i].roles[j]"]` when an active
+    member's grant is missing. Audit `station_roster_set` (user ids added, removed, changed). 30/min.
+  - `POST /api/v1/projects/<project_id>/station-config?device_id=`: build,
+    sign and store a new config (201, the station view). 409
+    `station_not_onboarded` (no signing key, no custodian, or no active roster
+    member), 409 `device_revoked`, 422 `invalid_roster` (a grant has gone since
+    the roster was set; `fields` lists those members' user ids, UUIDs), 409
+    `notice_not_nfc` (a consent notice text that is not NFC would fail the
+    station's hash check), 409 `config_not_canonical` (a stored value with no
+    canonical JSON form), 503 `station_config_unavailable` (no signing key on
+    the server, the published test key outside tests, or no
+    `DEVICE_PUBLIC_URL`). Audit
+    `station_config_issued` (config id, member count, file hash). 30/min.
+  - `GET /api/v1/projects/<project_id>/station-config?device_id=`: the config
+    in force (the newest issued) as a download,
+    `application/vnd.digitva.station-config`, strong `ETag`; 404 `not_found`
+    when none is issued. 60/min.
+- `GET /api/v1/intake/station-config`: the station's own device bearer (the
+  device comes from the session); the same bytes and `ETag` as the download,
+  304 on `If-None-Match`; `no-store`; 60/hour per device. 404 `not_found`
+  when no config is issued (issued = a custodian and an active roster member
+  were set and `POST` was called); 403 `device_session_required` for a cookie;
+  a revoked device's bearer is 401 (the revoke ends its sessions), and the
+  service answers 403 `device_revoked`.
+- The file is two LF-terminated lines: RFC 8785 canonical JSON with NFC
+  strings (`canonical_json`), then `{"alg":"ed25519","sig","signing_key_id"}`
+  over `b"digitva-station-config-v1\x00" || line1`, signed with
+  `BUNDLE_SERVER_SIGNING_KEY_FILE`. Payload keys: `station_config_format_version`
+  (1), `config_id`, `issued_at`, `expires_at` (`STATION_CONFIG_VALID_DAYS`,
+  180), `device_id`, `server_url` (`DEVICE_PUBLIC_URL`), `kem_public_key`
+  `{key_id, public}`, `server_signing_key` `{signing_key_id, public}`,
+  `projects: [{project_id, sites, site_names, org_units, org_unit_paths,
+  org_unit_sites, identifier_types, consent, sealed_field_ids, coding_mode,
+  form_options, translations}]` (the
+  station's project; `sites` and `org_units` are those the roster's roles
+  name; `site_names` `{site_id: name}`; `org_unit_paths` `{org_unit_id:
+  "District, Block, PHC"}`, active unit names from the top of the project
+  tree down, ", " joined; `org_unit_sites` `{org_unit_id: site_id}`, the site
+  of the role naming the unit (the server has no site per unit: a site grant
+  reaches the whole tree); `consent` is exactly
+  `GET /intake/consent-config`; `sealed_field_ids` the union over the
+  project's active forms' form types; `coding_mode` the station mode locked to
+  the project's coding mode, `icd11_doris` for unmasked DORIS, `icd10` for
+  unmasked simple, `null` for a masked project, which the station does not
+  code: bundle spec 2.4 Q5), `custodian` (`verified_by_user_id` is
+  the verifier's `user_number`), `designations`, `roster` (`user_id` is
+  `va_users.user_number`, sorted), `purge` (always `[]` until consent
+  withdrawal exists, digitva-athy). Conformance fixture:
+  `tests/fixtures/station_config/`, checked by
+  `tests/test_station_config_fixture.py` and
+  `desktop/crates/digitva-bundle/tests/station_config_fixture.rs`.
+- Project Setup, Devices card (admin): "Station config" on a station with a
+  signing key shows the custodian, roster and config in force, issues a new
+  config and links the download. Custodian and roster are set through the API.
+
+## Offline bundle ingest (`app/routes/api/bundles.py`; `app/services/bundle_ingest_service.py`)
+
+Bead digitva-gb8w.2; [bundle spec](../policy/offline-bundle-and-transfer.md)
+2-5; contract [Offline API Contract](../policy/offline-api-contract.md) 4,
+4.1, 4.2, 7, 8.
+
+- Callers: the station's own device bearer (its device must be the
+  manifest's `device_id`, else 403 `forbidden`), or a browser session of an
+  admin, or a data manager or interview supervisor with a grant in the
+  bundle's project (`X-CSRFToken` on POST; else 403 `forbidden`). Every reply
+  is `no-store`; errors `{error, code}`.
+- `POST /api/v1/intake/bundles`: body the raw `.dvb` file,
+  `Content-Type: application/vnd.digitva.bundle` (else 415), a declared
+  `Content-Length` of at most 50 MiB (413 `payload_too_large` before
+  reading; none is 413 too). 201 with the report; 200 with the stored report
+  for a re-upload of the same bundle. 10/hour per uploader (station or
+  browser user) and 10 stored ingests/hour per station (429 `rate_limited`).
+- `POST /api/v1/intake/bundles/validate`: the same checks and every service
+  call inside a transaction that is rolled back; stores nothing (no ingest
+  row, no record, no security event beyond a refusal's). 200, `status:
+  validated`, records `not_processed` or `rejected` with the code they would
+  get. 10/hour per uploader.
+- Whole-bundle refusals (nothing written; one `auth_security_events`
+  `bundle_refused` row with the code and claimed ids): 413
+  `payload_too_large` (file, manifest or record line over its limit, over
+  5,000 records); 422 `manifest_invalid` (not LF lines, not canonical JSON,
+  missing or unknown keys, a malformed field, `record_counts` not the
+  records), `bundle_version_unsupported`, `device_unknown`,
+  `signing_key_unknown` (looked up by `(device_id, signing_key_id)`),
+  `signature_invalid`, `body_hash_invalid`, `station_not_onboarded` (no
+  custodian, or the manifest's `station_config_id` not issued to this
+  device: the unprovisioned sandbox), `bundle_too_old`
+  (`BUNDLE_MAX_AGE_DAYS`, 90), `bundle_from_future` (over a day ahead of the
+  server), `bundle_key_unknown`; 403 `device_revoked` (compromised, or a
+  `created_at` not before `revoked_at`; the earlier of `created_at` and the
+  receipt time is compared), 403 `forbidden` (the manifest's `project_ids`
+  is not exactly the station's project, or the uploader may not upload);
+  409 `bundle_id_reused` (a stored `bundle_id` with other manifest bytes),
+  409 `conflict` (another request holds that bundle's ingest lock); 503
+  `station_config_unavailable` (no server signing key for the receipt).
+  Only the manifest and signature lines are parsed before the uploader
+  check; record lines only after the signature, body hash, replay and age.
+- A real ingest holds a session advisory lock on its `bundle_id` (its own
+  connection) and commits before releasing it. An ingest left `processing`
+  (worker killed midway) is resumed by a resend: records it already applied
+  come back `duplicate` (idempotent by client id), and it ends with a report
+  and receipt. One request applies every record; there is no partial report.
+- Records are decrypted in memory one at a time and applied by type in the
+  spec order (`death_registration`, `consent`, `death_correction`,
+  `interview_submission`, `identifiers_set`, `coding_result`), each in its
+  own savepoint, through the HTTPS services under the device projection of
+  the actor's grants. Outcomes `accepted`, `duplicate`, `superseded`,
+  `pending` (`coding_result` on a case still at SmartVA or attachments, code
+  `not_ready`, or whose coder holds another case, `allocation_exists`: held in `va_bundle_pending_coding` and applied by the Celery
+  applier once the case leaves those states; a resend while held is
+  `pending` again), `rejected`. A coding result needs a station registered
+  and active for the project (`offline_coding_disabled` when it was revoked
+  after making the bundle; `self_coding_enabled` is not required), an actor
+  with the `coder` role on the bundle's signed roster for the case's site,
+  still backed by a server grant (`actor_not_station_coder`; an acting role
+  other than `coder` is `forbidden`), an interview that same station
+  uploaded (`not_available` otherwise), its `coding_mode` matching the project's
+  coding mode (`icd11_doris` an unmasked DORIS project, `icd10` an unmasked
+  simple one, or a masked simple one with `initial`; else
+  `coding_mode_mismatch`; an unknown mode `coding_mode_unsupported`; no mode
+  at all masked simple only, the v1 rule) and the coded version
+  (`coded_version_superseded`); the station and mode checks run again when a
+  held result is applied; it is saved through the online coder save
+  in the project's mode, with its codes. An `icd11_doris` final is always
+  held (`pending`, `doris_pending`): the applier reprocesses the station's
+  certificate with the pinned WHO engines and saves the server's results
+  (bundle spec 2.4 Q5).
+  Actor: an active roster member of the named config with the acting role
+  for that record type, project, site and unit, still holding the server
+  grant behind it, and, on an online-enrolled station, with a device session
+  on it opened at or before `created_at` (else `actor_unknown_on_device`;
+  role or grant: `forbidden`). `attachment_chunk` is rejected
+  `attachments_incomplete` (not built). Corrections run the station roster
+  path of `update_death` / `put_identifiers` and add a `station_correction`
+  case audit row (`authorized_by: station_roster`, acting role, device,
+  config, bundle and client ids, custodian, reason); every other newly
+  applied registration, consent, interview or coding result adds a
+  `station_record` row with the same ids and no reason or values (none for a
+  `duplicate`). An interview's actor is checked against its case's site and
+  unit; a record naming another site, or a unit that is not the case's, is
+  `forbidden`. A registration whose `client_death_id` a bundle applied
+  before is `duplicate` with the same bytes, `conflict` with others (one
+  registered over HTTPS has no stored hash: same registrant, `duplicate`).
+  A string holding NUL or a lone surrogate (also inside `answers_json`), or
+  any unexpected failure of a record, is `record_invalid`; the log line
+  names only the exception class.
+- Report: `{bundle_id, device_id, kem_key_id, status, counts, missing_seq,
+  records: [{client_id, record_type, outcome, code, received_sha256,
+  death_id, unique_id, fields?}], purge}`; ids, codes, hashes and field
+  names only, never a value. `fields` names at most 5, each cut to 64
+  characters.
+- A dry run (`/validate`) queues no SmartVA run and sets no SmartVA marker,
+  and its report carries no `death_id` or `unique_id` (the rows are rolled
+  back). It may still consume death-number sequence values (`nextval` is not
+  transactional), leaving gaps as any rolled-back registration does.
+- `GET /api/v1/intake/bundles/<bundle_id>`: the stored report; a held coding
+  result's entry moves from `pending` to its final outcome (`accepted`, or
+  `rejected` with its code) and `counts` follow, in every report that named
+  it; `GET .../receipt`: the signed receipt (signed afresh from the current
+  report, not stored, once an entry has changed), `application/vnd.digitva.receipt`,
+  line 1 the report as canonical JSON, line 2 `{alg, sig, signing_key_id}`
+  over `b"digitva-receipt-v1\x00" || line1` with
+  `BUNDLE_SERVER_SIGNING_KEY_FILE`. For the station's bearer or a browser
+  uploader of the project; 404 otherwise. 120/min. Fixtures:
+  `tests/fixtures/bundles/` (`tests/test_bundle_fixture.py`,
+  `desktop/crates/digitva-bundle/tests/bundle_fixture.rs`).
 
 ## Translation suggestions (`/api/v1/translations`, `app/routes/api/translation_suggestions.py`)
 

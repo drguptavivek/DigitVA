@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-22
 ---
 
 # Current Data Model
@@ -564,7 +564,8 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
 `not_reachable`, `refused`, `submitted`, `duplicate`, `cancelled`.
 
 - `deceased_name`, `deceased_sex`, `date_of_death` are nullable; CHECK
-  `ck_va_death_register_identity` requires all three unless the state is
+  `ck_va_death_register_identity` requires `has_deceased_name` (see "Sealed
+  personal data" below), the date and the sex unless the state is
   `draft_identity` or `cancelled`. A direct start's draft saves fill them from
   `Id10017`/`Id10018`, `Id10019` and `Id10023` (else `Id10023_a`/`_b`); form
   edits on a registered case flow back the same way.
@@ -576,7 +577,8 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
 - `latitude`, `longitude`, `accuracy_m` (Float) and `captured_at`
   (timestamptz, UTC), all nullable (migration `q7w2e5r8t1y4`): the optional
   death-site GPS fix. CHECKs `ck_va_death_register_location_range`,
-  `_location_all_or_none` (a full fix, with `captured_at`, or none) and
+  `_location_all_or_none` (a full fix, with `captured_at`, or none; reads
+  `has_location`, so a sealed fix passes) and
   `_location_accuracy` (>= 0). `captured_at` is server time at save. Personal
   data with the address's audience; never logged. Policy: docs/policy/web-intake.md,
   "Death-site GPS location".
@@ -613,6 +615,35 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
   fields, PII. They reach the payload only as the editable prefill of WHO
   `Id10061` / `Id10062` (asked for children and neonates only).
 
+- **Sealed personal data** (migration `e5a2c7b9d3f1`, PII slice 2 T1; policy:
+  [PII Encryption at Rest](../policy/pii-encryption-at-rest.md), "Register
+  design"; [pii-slice-2.md](../kb/pii-slice-2.md)). Nothing is sealed at
+  upgrade. `pii_sealed` (JSONB, nullable; `{field: "v1:aes256gcm:..."}`),
+  `pii_dek_wrapped` (Text), `pii_key_id` (String(16)), `pii_blind_key_id`
+  (String(8)), `pii_sealed_at` (timestamptz). With
+  `REGISTER_PII_SPLIT_ENABLED` on, a write seals `deceased_name`,
+  `father_name`, `mother_name`, `informant_name`, `informant_phone`,
+  `informant_phone_2`, `abha_number`, `abha_address`, `address`,
+  `address_house_street`, `address_village_ward`, `address_landmark`,
+  `place_of_death`, `remarks` and the GPS fix (`latitude`, `longitude`,
+  `accuracy_m` as one field `location`) and NULLs those columns.
+  `informant_phone_bidx`, `informant_phone_2_bidx`, `abha_number_bidx`,
+  `abha_address_bidx` (String(128), nullable) are blind indexes with partial
+  indexes `ix_va_death_register_project_<bidx> (project_id, <bidx>) WHERE
+  <bidx> IS NOT NULL`; `ix_va_death_register_pii_key (pii_key_id) WHERE
+  pii_sealed IS NOT NULL` serves rotation. Presence flags (Boolean not null,
+  default false): `has_deceased_name`, `has_informant_phone`,
+  `has_informant_phone_2`, `has_location`; filled by the migration from the
+  plaintext and kept by a mapper listener (non-null plaintext sets the flag; a
+  NULL clears it only on an unsealed row) and by the seal writer. Filters and
+  `identity_complete` read the flags, never the sealed column. The
+  downgrade refuses while any row is sealed.
+  Readers (T2) go through `register_pii_accessor.open_register_pii`: the
+  serialisers, prefill, the worklist and the shared case list open a page's
+  rows once, only for fields the viewer may see; the case list's SQL selects
+  the blob under the same visibility `CASE` as the name, and the export
+  (`with_names=False`) selects and opens nothing.
+
 ### `map_case_transitions`
 
 One audit row per case creation, state change or flag: `death_id`, `action`
@@ -629,7 +660,12 @@ foreign keys to `va_user_access_grants` and `mas_cadre`, not indexed),
 `details_edited` and `identity_from_interview` rows, `{field: {"old": ...,
 "new": ...}}` of each case detail changed, dates as ISO strings; **personal
 data**, kept out of `reason`, never logged or returned by an API; NULL on
-other rows and rows before the migration), `created_at`. Indexed on `(death_id, created_at)` and
+other rows and rows before the migration), `changes_dek_wrapped` (Text) and
+`changes_key_id` (String(16)) (migration `e5a2c7b9d3f1`: with
+`REGISTER_PII_SPLIT_ENABLED` on, the old/new values of the sealed register
+fields inside `changes` are `v1:aes256gcm:` ciphertexts under this one wrapped
+DEK, AAD = `map_case_transitions`, `<field>.old|new`, `transition_id`; other
+fields stay plain; both NULL otherwise), `created_at`. Indexed on `(death_id, created_at)` and
 `(actor_user_id, death_id)`; the second serves the worklist's "mine" filter
 (cases a user registered, started or acted on).
 
@@ -673,6 +709,66 @@ migration, `status` is free text; digitva-xz83 part B);
 `auth_device_enrolment_codes`, `auth_devices` and `auth_device_sessions`
 hold hashed enrolment codes, device secrets and tokens. See
 [Device Collection API](device-collection-api.md).
+
+Migration `b9e4f2a7c1d3` (digitva-gb8w.5, `docs/policy/offline-bundle-and-transfer.md`
+3.2): `auth_devices` gains `signing_public_key` (raw 32-byte Ed25519 public
+key, `bytea`), `signing_key_id` (`String(16)`, indexed; first 16 hex of the
+key's SHA-256), `signing_key_set_at` and `revoked_compromised` (boolean, not
+null, default false: a lost or stolen device whose bundles are all refused).
+`auth_device_signing_keys` keeps every key a device has held (current one
+with `retired_at` NULL), unique on `(device_id, signing_key_id)`, so bundles
+signed before a re-key still verify. Additive; downgrade drops all of it.
+
+Migration `f3a9c6d2e1b7` (digitva-gb8w.4, digitva-gb8w.8; contract
+`docs/policy/offline-api-contract.md` 4.1; model `app/models/auth_station.py`):
+`va_users.user_number` (`BIGINT` identity, unique, filled for every existing
+user at upgrade) is the integer user id the offline station roster and bundle
+`actor_user_id` carry, since `user_id` is a UUID. `auth_station_custodians`
+(PK `device_id` FK `auth_devices`; `name`, `designation` code, `phone`
+10 digits or null, `email` or null, CHECK one of them, `onboarded_on`,
+`verified_by` FK `va_users`, `updated_at`): the station's custodian.
+`auth_station_roster` (`id`, `device_id`, `user_id` FK `va_users`, unique
+together; `designation`, `roles` JSONB `[{role, project_id, site_id,
+org_unit_id}]`, `active`, `updated_by`, `updated_at`). `auth_station_configs`
+(PK `config_id`; `device_id`, `issued_at`, `expires_at`, `issued_by`,
+`signed_text` the exact two-line file, `text_sha256` its ETag; index
+`(device_id, issued_at)`): every config issued, the newest in force.
+Additive and empty at upgrade; the downgrade refuses while a config has been
+issued.
+
+Migration `a7d3e9b2c4f6` (digitva-gb8w.2; bundle spec
+`docs/policy/offline-bundle-and-transfer.md` 3.3, 5.6; model
+`app/models/va_bundle_ingest.py`): `va_bundle_ingests` (PK `bundle_id`,
+the replay guard; `device_id` FK `auth_devices`, `project_id`, `bundle_seq`,
+`manifest_sha256`, `station_config_id` FK `auth_station_configs`,
+`kem_key_id`, `uploader_user_id` FK `va_users`, `channel` `browser` or
+`device`, `created_at` as claimed, `received_at`, `status` `processing` or
+`processed`, `counts`, `report` JSONB, `receipt_text`; indexes
+`(device_id, received_at)` for the per-station rate and `(device_id,
+bundle_seq)` for `missing_seq`): one row per real ingest, never for a dry
+run. `map_bundle_records` (PK `client_id`; `bundle_id`, `record_type`,
+`content_sha256` of the decrypted record, `death_id`, `applied_at`; index
+`(death_id, applied_at)`): one row per applied record, for cross-bundle
+idempotency (same hash duplicate, other conflict) and the correction
+`base_client_id` stale check. Neither holds personal data. Additive; the
+downgrade refuses while an ingest is recorded.
+
+Migration `c5e8a1f4b2d9` (digitva-gb8w.2; bundle spec 5.5; model
+`app/models/va_bundle_ingest.py`): `va_bundle_pending_coding` (PK
+`client_id` of the `coding_result`; `bundle_ids` uuid[] of every ingest whose
+report names it pending, the first the original; `project_id`, `va_sid` FK
+`va_submissions`, `death_id`, `actor_user_id` FK `va_users`,
+`content_sha256` of the decrypted record, `result` JSONB with the masked
+coding fields only (`client_draft_id`, `coded_answers_sha256`, `kind`,
+`initial` / `final` / `not_codeable`, `coding_mode`), `status` `pending`,
+`applied` or `rejected`, `code` (the pending reason while pending:
+`not_ready`, `allocation_exists`, `doris_pending`; the refusal once
+rejected), `created_at`, `resolved_at`; indexes `va_sid` and
+`(status, created_at)`): a coding result held until its case leaves
+`smartva_pending` / `attachment_sync_pending`, or an ICD-11 DORIS final the
+applier reprocesses (digitva-lmxr). No informant data, no
+ciphertext. On `applied` a `map_bundle_records` row is added. Additive; the
+downgrade refuses while a row is `pending`.
 
 Migration `f3a8c1d6e2b9` (digitva-l7c2, `docs/policy/mobile-sign-in.md`):
 `va_users.email` is nullable (still unique); `va_users.mobile_login`
@@ -778,6 +874,64 @@ SHA-256 of the blind key), `review_flags` (JSONB list of field ids the
 national-ID sweep flagged; ids only), `created_at`, `updated_at`. Read and
 written only by `app/services/payload_pii_accessor.py`. Deleted with its
 version by the synthetic demo reset (`DELETE_TABLES`).
+
+## Respondent Consent
+
+Migration `e8c4f2a7b913` (digitva-gb8w.3; contract
+[Offline API Contract](../policy/offline-api-contract.md) section 5; model
+`app/models/va_consent.py`; service `app/services/consent_service.py`).
+Additive and empty at upgrade: a project without a settings row does not
+require consent, so every existing project behaves as before. No table holds
+informant personal data. The downgrade refuses while `va_consent_records`
+has a row.
+
+### `mas_project_consent_settings`
+
+One row per project (PK `project_id`, FK `va_project_master`):
+`consent_required` (default false), `contacts` (JSONB, the 5.2 contacts
+object: `deletion`, `mentor_institution`, `central_team`, `dpo` or null,
+`districts` keyed by district `org_unit_id`), `retention_period_days`
+(null: until the project ends), `expiry_action` (`erase`|`lock`),
+`refusal_behaviour` (`interview_without_informant_data`), `updated_by`,
+`updated_at`. Written only by `consent_service.save_settings`.
+
+### `mas_consent_notice_versions`
+
+`notice_version_id` (PK), `project_id`, `version` (int >= 1), `language`,
+`text`, `text_sha256` (hex SHA-256 of the text's UTF-8 bytes as stored),
+`purposes` (JSONB `[{code, label, required}]` by code), `covered_fields`
+(JSONB), `allowed_modes` (JSONB subset of `spoken`, `tap`, `signed`),
+`witness_allowed`, `contacts_snapshot` (the settings' contacts when created),
+`created_by`, `created_at`, `retired_at` (null: current; no API sets it yet).
+Unique (`project_id`, `version`, `language`). Never updated: a change is a new
+version.
+
+### `va_consent_records` and `va_consent_record_purposes`
+
+Append-only (a trigger, `va_consent_refuse_update`, refuses UPDATE on both;
+the app has no delete path, the synthetic demo reset deletes its own
+project's rows through `DELETE_TABLES`). `va_consent_records`: `consent_id`
+(PK), `client_consent_id` (the client's `client_id`, unique: the idempotency
+key), `project_id`, `death_id` (FK the case), `client_draft_id` (the interview
+attempt, null for a registration consent; the spec sketch's `draft_id`),
+`notice_version_id` (FK), `notice_language`, `notice_sha256`, `event`
+(`granted`|`refused`|`withdrawn`; withdrawal is digitva-athy), `mode`,
+`witness_present`, `supersedes_consent_id` (FK self), `recorded_by`,
+`recorded_at` (client clock), `received_at`, `channel` (`web`|`device`|
+`bundle`), `content_sha256` (fingerprint of the client object, case and
+recorder, telling a resend from reuse of a `client_id`). Indexes
+`ix_va_consent_records_death (death_id, received_at)`,
+`ix_va_consent_records_client_draft (client_draft_id)`.
+`va_consent_record_purposes`: PK (`consent_id`, `purpose_code`), `required`
+(as the version said), `granted`.
+
+### `map_consent_audit`
+
+Append-only configuration events (`consent_settings_saved` with
+`{field: {old, new}}`, `consent_notice_created` with version, language,
+text hash and purpose codes): `audit_id`, `project_id`, `event`,
+`actor_user_id`, `actor_role`, `notice_version_id` (nullable), `details`,
+`created_at`; `ix_map_consent_audit_project_created`.
 
 ## ICD Reference Master Table
 

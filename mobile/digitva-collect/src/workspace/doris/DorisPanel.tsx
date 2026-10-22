@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { AppState as NativeAppState, Text, View } from "react-native";
 
 import { ApiError } from "../../api";
+import { t as tr } from "../../i18n";
 import { errorText } from "../../ui";
 import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
@@ -12,7 +13,7 @@ import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
-import { Alert, Body, Button, ButtonGlyph, Card, CardTitle, Chip, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
+import { Alert, Body, Button, ButtonGlyph, Card, CardTitle, Chip, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
 import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 import { CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
@@ -538,6 +539,7 @@ export function DorisPanel({
         {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
         {picker(ownFinal?.conclusive_cod ?? "")}
         {detailSheet}
+        <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>
       </Card>
     );
   }
@@ -609,6 +611,7 @@ export function DorisPanel({
       {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
       {picker(isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? "")}
       {detailSheet}
+      <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>
     </Card>
   );
 }

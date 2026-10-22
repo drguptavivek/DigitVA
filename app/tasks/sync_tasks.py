@@ -64,6 +64,12 @@ SMARTVA_SWEEP_SCAN_LIMIT = 1000
 # A sid still smartva_pending after its run (a crashed batch, a result that
 # already exists) is left alone this long instead of re-run every 30 seconds.
 SMARTVA_SWEEP_SKIP_TTL_SECONDS = 600
+# Bundle coding results held until their case is ready (bundle spec 5.5): a
+# 60-second applier, serialised on its own lock.
+BUNDLE_PENDING_CODING_LOCK_KEY = "digitva:lock:bundle-pending-coding"
+BUNDLE_PENDING_CODING_LOCK_TTL_SECONDS = 360
+BUNDLE_PENDING_CODING_SCHEDULE_NAME = "Bundle pending coding applier — every 60 seconds"
+BUNDLE_PENDING_CODING_INTERVAL_SECONDS = 60
 INTERRUPTED_RUN_MESSAGE = (
     "Interrupted run — the worker stopped before completion. "
     "Re-initiate Sync or Repair to continue remaining gaps."
@@ -2374,47 +2380,91 @@ def sweep_smartva_pending(self):
         return {"sids": taken, "forms": done_forms}
 
 
-def ensure_smartva_sweep_scheduled():
-    """Seed the 30-second SmartVA pending sweep beat entry. Idempotent."""
-    try:
-        from app import db
+@shared_task(
+    name="app.tasks.sync_tasks.apply_bundle_pending_coding",
+    bind=True,
+    soft_time_limit=240,
+    time_limit=300,
+)
+def apply_bundle_pending_coding(self):
+    """Apply bundle coding results held ``pending`` whose case is now past
+    SmartVA and attachments (``bundle_ingest_service.apply_pending_coding``).
+    Beat fires this every 60 seconds; an empty table is one indexed query.
+    Never raises."""
+    from app import db
+    from app.services import bundle_ingest_service
 
-        with db.engine.begin() as conn:
+    with _sweep_lock(BUNDLE_PENDING_CODING_LOCK_KEY, BUNDLE_PENDING_CODING_LOCK_TTL_SECONDS) as acquired:
+        if not acquired:
+            return {"skipped": "locked"}
+        try:
+            return bundle_ingest_service.apply_pending_coding()
+        except Exception:  # noqa: BLE001 - a scheduled task must not crash the beat loop
+            db.session.rollback()
+            log.error("bundle pending coding applier failed", exc_info=True)
+            return {"status": "error"}
+
+
+def _ensure_interval_task(name: str, task: str, every_seconds: int, expire_seconds: int | None = None) -> bool:
+    """Seed one every-N-seconds beat entry by *name*. Idempotent; True when
+    it inserted the entry."""
+    from app import db
+
+    with db.engine.begin() as conn:
+        interval_id = conn.execute(sa.text(
+            "SELECT id FROM public.celery_intervalschedule "
+            "WHERE every = :every AND period = 'seconds' LIMIT 1"
+        ), {"every": every_seconds}).scalar()
+        if interval_id is None:
             interval_id = conn.execute(sa.text(
-                "SELECT id FROM public.celery_intervalschedule "
-                "WHERE every = :every AND period = 'seconds' LIMIT 1"
-            ), {"every": SMARTVA_SWEEP_INTERVAL_SECONDS}).scalar()
-            if interval_id is None:
-                interval_id = conn.execute(sa.text(
-                    "INSERT INTO public.celery_intervalschedule (every, period) "
-                    "VALUES (:every, 'seconds') RETURNING id"
-                ), {"every": SMARTVA_SWEEP_INTERVAL_SECONDS}).scalar()
+                "INSERT INTO public.celery_intervalschedule (every, period) "
+                "VALUES (:every, 'seconds') RETURNING id"
+            ), {"every": every_seconds}).scalar()
+        exists = conn.execute(sa.text(
+            "SELECT id FROM public.celery_periodictask WHERE name = :name LIMIT 1"
+        ), {"name": name}).scalar()
+        if exists:
+            return False
+        conn.execute(sa.text("""
+            INSERT INTO public.celery_periodictask
+                (name, task, args, kwargs, queue, exchange, routing_key, headers,
+                 priority, one_off, enabled, total_run_count, description,
+                 discriminator, schedule_id, expire_seconds)
+            VALUES
+                (:name, :task, '[]', '{}', NULL, NULL, NULL, '{}',
+                 NULL, false, true, 0, '',
+                 'intervalschedule', :schedule_id, :expire_seconds)
+        """), {"name": name, "task": task, "schedule_id": interval_id, "expire_seconds": expire_seconds})
+        conn.execute(sa.text(
+            "INSERT INTO public.celery_periodictaskchanged (last_update) "
+            "VALUES (NOW()) ON CONFLICT DO NOTHING"
+        ))
+    return True
 
-            exists = conn.execute(sa.text(
-                "SELECT id FROM public.celery_periodictask WHERE name = :name LIMIT 1"
-            ), {"name": SMARTVA_SWEEP_SCHEDULE_NAME}).scalar()
-            if exists:
-                return
-            conn.execute(sa.text("""
-                INSERT INTO public.celery_periodictask
-                    (name, task, args, kwargs, queue, exchange, routing_key, headers,
-                     priority, one_off, enabled, total_run_count, description,
-                     discriminator, schedule_id, expire_seconds)
-                VALUES
-                    (:name, :task, '[]', '{}', NULL, NULL, NULL, '{}',
-                     NULL, false, true, 0, '',
-                     'intervalschedule', :schedule_id, :expire_seconds)
-            """), {
-                "name": SMARTVA_SWEEP_SCHEDULE_NAME,
-                "expire_seconds": SMARTVA_SWEEP_EXPIRE_SECONDS,
-                "task": "app.tasks.sync_tasks.sweep_smartva_pending",
-                "schedule_id": interval_id,
-            })
-            conn.execute(sa.text(
-                "INSERT INTO public.celery_periodictaskchanged (last_update) "
-                "VALUES (NOW()) ON CONFLICT DO NOTHING"
-            ))
-        log.info("SmartVA sweep beat schedule seeded: every %d seconds.", SMARTVA_SWEEP_INTERVAL_SECONDS)
+
+def ensure_bundle_pending_coding_scheduled():
+    """Seed the 60-second bundle pending-coding applier. Idempotent. Called
+    from ``ensure_smartva_sweep_scheduled`` (worker startup) since the
+    applier follows the SmartVA results it waits for."""
+    try:
+        if _ensure_interval_task(BUNDLE_PENDING_CODING_SCHEDULE_NAME,
+                                 "app.tasks.sync_tasks.apply_bundle_pending_coding",
+                                 BUNDLE_PENDING_CODING_INTERVAL_SECONDS,
+                                 BUNDLE_PENDING_CODING_INTERVAL_SECONDS - 5):
+                log.info("Bundle pending coding beat schedule seeded: every %d seconds.",
+                     BUNDLE_PENDING_CODING_INTERVAL_SECONDS)
+    except Exception as e:
+        log.warning("Could not seed bundle pending coding schedule: %s", e)
+
+
+def ensure_smartva_sweep_scheduled():
+    """Seed the 30-second SmartVA pending sweep beat entry, and the bundle
+    pending-coding applier that follows it. Idempotent."""
+    ensure_bundle_pending_coding_scheduled()
+    try:
+        if _ensure_interval_task(SMARTVA_SWEEP_SCHEDULE_NAME, "app.tasks.sync_tasks.sweep_smartva_pending",
+                                 SMARTVA_SWEEP_INTERVAL_SECONDS, SMARTVA_SWEEP_EXPIRE_SECONDS):
+            log.info("SmartVA sweep beat schedule seeded: every %d seconds.", SMARTVA_SWEEP_INTERVAL_SECONDS)
     except Exception as e:
         log.warning("Could not seed SmartVA sweep schedule: %s", e)
 

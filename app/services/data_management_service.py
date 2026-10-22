@@ -47,8 +47,11 @@ from app.models import (
     VaUsers,
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
+from app.models.mas_icd11_mms import MasIcd11Mms
 from app.services.coding_release_service import deactivate_coding_for_accepted_change
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+from app.services.icd11_licence import ICD11_CITATION
+from app.services.icd_coding_value import extract_icd_code
 from app.services.final_cod_authority_service import upsert_final_cod_authority
 from app.services.odk_retirement_service import (
     submission_is_in_odk,
@@ -1659,6 +1662,32 @@ def dm_submissions_export_csv(
     return handle.getvalue()
 
 
+#: Snapshot ICD columns that can hold an ICD-11 value -> the URI column exported beside each.
+COD_SNAPSHOT_ICD11_URI_COLUMNS = {
+    "coder_final_icd": "coder_final_icd11_stem_uri",
+    "reviewer_final_icd": "reviewer_final_icd11_stem_uri",
+    "authoritative_icd": "authoritative_icd11_stem_uri",
+}
+
+
+def _icd11_stem_uris(values) -> dict[str, str]:
+    """Release-pinned linearization URI per ICD-11 code found in ``values``; one query."""
+    from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, _versioned_icd11_uri
+
+    codes = {extract_icd_code(value, "icd11") for value in values}
+    codes.discard(None)
+    if not codes:
+        return {}
+    found = db.session.execute(
+        sa.select(MasIcd11Mms.code, MasIcd11Mms.linearization_uri).where(
+            MasIcd11Mms.release == DEFAULT_ICD11_RELEASE,
+            MasIcd11Mms.code.in_(codes),
+            MasIcd11Mms.is_active.is_(True),
+        )
+    ).all()
+    return {code: _versioned_icd11_uri(uri, DEFAULT_ICD11_RELEASE) or "" for code, uri in found}
+
+
 def dm_coded_cod_snapshot_export_csv(
     user,
     *,
@@ -1881,17 +1910,28 @@ def dm_coded_cod_snapshot_export_csv(
     rows = db.session.execute(query).mappings().all()
     redact_pii = should_redact_pii(user)
 
+    # Licence 1.2.2: an exported ICD-11 code travels with its linearization URI.
+    uri_headers = list(COD_SNAPSHOT_ICD11_URI_COLUMNS.values())
+    uri_by_code = _icd11_stem_uris(
+        {row.get(source) for row in rows for source in COD_SNAPSHOT_ICD11_URI_COLUMNS}
+    )
+
     handle = io.StringIO()
-    writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
+    writer = csv.DictWriter(handle, fieldnames=[*headers, *uri_headers], extrasaction="ignore")
     writer.writeheader()
     for row in rows:
         export_row = {key: _serialize_csv_cell(row.get(key)) for key in headers}
+        for source, target in COD_SNAPSHOT_ICD11_URI_COLUMNS.items():
+            code = extract_icd_code(row.get(source), "icd11")
+            export_row[target] = uri_by_code.get(code, "") if code else ""
         _redact_staff_identity_export_row(
             export_row,
             redact=redact_pii,
             headers=COD_SNAPSHOT_STAFF_IDENTITY_HEADERS,
         )
         writer.writerow(export_row)
+    # Licence 2.6: WHO citation as a final "#" row (a CSV has no header block).
+    csv.writer(handle).writerow([f"# {ICD11_CITATION}"])
     return handle.getvalue()
 
 

@@ -1,6 +1,6 @@
 use axum::{
     body::Bytes,
-    extract::{Path, Query, Request, State},
+    extract::{DefaultBodyLimit, Path, Query, Request, State},
     http::{header, HeaderMap, HeaderValue, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -11,12 +11,16 @@ use digitva_db::consent::{
     get_project_consent_config, upsert_project_consent_config, ProjectConsentConfig,
 };
 use digitva_db::roster::UpsertRosterMemberInput;
-use digitva_db::OfflineDatabase;
+use digitva_db::{CaseListQuery, OfflineDatabase};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use subtle::ConstantTimeEq;
+use std::sync::Arc;
+
+mod icd11;
+pub use icd11::Icd11Service;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,6 +28,8 @@ pub struct AppState {
     pub csrf_token: String,
     pub launch_token: String,
     pub web_dist_dir: Option<std::path::PathBuf>,
+    /// The lazily started WHO ICD-11 + DORIS engine (`icd11_doris` coding).
+    pub icd11: Arc<Icd11Service>,
 }
 
 impl AppState {
@@ -37,6 +43,7 @@ impl AppState {
             csrf_token: hex::encode(csrf_bytes),
             launch_token: hex::encode(launch_bytes),
             web_dist_dir: None,
+            icd11: Arc::new(Icd11Service::from_env()),
         }
     }
 
@@ -48,11 +55,18 @@ impl AppState {
             csrf_token: hex::encode(csrf_bytes),
             launch_token: launch_token.into(),
             web_dist_dir: None,
+            icd11: Arc::new(Icd11Service::from_env()),
         }
     }
 
     pub fn with_web_dist_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
         self.web_dist_dir = dir;
+        self
+    }
+
+    /// Replaces the engine config read from the environment (tests, embedding apps).
+    pub fn with_icd11(mut self, service: Icd11Service) -> Self {
+        self.icd11 = Arc::new(service);
         self
     }
 }
@@ -200,6 +214,10 @@ async fn verify_local_request_middleware(
     resp
 }
 
+/// Largest signed station config the import accepts: it carries every offered locale's
+/// translations (about 100-220 KB each), so a project offering every language passes 2 MB.
+const STATION_CONFIG_MAX_BYTES: usize = 16 * 1024 * 1024;
+
 pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/health", get(handle_health))
@@ -207,11 +225,17 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/station/config",
             get(handle_get_station_config)
                 .put(handle_put_station_config)
-                .post(handle_import_signed_station_config),
+                .post(handle_import_signed_station_config)
+                .layer(DefaultBodyLimit::max(STATION_CONFIG_MAX_BYTES)),
         )
         .route(
             "/api/v1/station/config/signed",
-            post(handle_import_signed_station_config),
+            post(handle_import_signed_station_config)
+                .layer(DefaultBodyLimit::max(STATION_CONFIG_MAX_BYTES)),
+        )
+        .route(
+            "/api/v1/station/enrolment-file",
+            get(handle_station_enrolment_file),
         )
         .route(
             "/api/v1/station/bundle/export",
@@ -229,6 +253,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/station/bundles/receipt",
             post(handle_import_dvb_receipt),
         )
+        .route(
+            "/api/v1/station/facility",
+            get(handle_get_facility).put(handle_put_facility),
+        )
+        .route(
+            "/api/v1/station/settings",
+            get(handle_get_station_settings).put(handle_put_station_settings),
+        )
         .route("/api/v1/station/lock", post(handle_lock_station))
         .route("/api/v1/station/unlock", post(handle_unlock_station))
         .route(
@@ -241,6 +273,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/api/v1/station/acting-role", post(handle_switch_acting_role))
         .route("/api/v1/me/access", get(handle_me_access))
+        .route("/api/v1/me/home", get(handle_me_home))
         .route("/api/v1/me/kpis", get(handle_me_kpis))
         .route("/api/v1/me/notifications", get(handle_me_notifications))
         .route("/api/v1/profile/", get(handle_profile_nudge))
@@ -302,13 +335,15 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/v1/intake/drafts/:draft_id",
-            get(handle_get_draft).put(handle_save_draft),
+            get(handle_get_draft)
+                .put(handle_save_draft)
+                .patch(handle_save_draft_sections),
         )
         .route(
             "/api/v1/intake/drafts/:draft_id/submit",
             post(handle_submit_draft),
         )
-        // Offline Coding & Reviewing Workspace (NO /api/v1/doris-clinical/*)
+        // Offline Coding & Reviewing Workspace
         .route("/api/v1/va/:va_sid/workspace", get(handle_va_workspace))
         .route("/api/v1/va/:va_sid/categories/:code", get(handle_va_category))
         .route(
@@ -376,7 +411,17 @@ pub fn build_router(state: AppState) -> Router {
             "/api/v1/icd10/2019-2/coding-search/:va_sid",
             get(handle_icd10_search),
         )
-        .route("/api/v1/icd11/coding-search/:va_sid", get(handle_icd11_search))
+        .route("/api/v1/icd11/coding-search/:va_sid", get(icd11::handle_coding_search))
+        .route("/api/v1/icd11/status", get(icd11::handle_status))
+        // ICD-11 + DORIS on the in-process WHO engine (server: app/routes/api/doris_clinical.py)
+        .route("/api/v1/doris-clinical/terms/:va_sid", post(icd11::handle_terms))
+        .route("/api/v1/doris-clinical/codeinfo/:va_sid", post(icd11::handle_codeinfo))
+        .route(
+            "/api/v1/doris-clinical/selection-check/:va_sid",
+            post(icd11::handle_selection_check),
+        )
+        .route("/api/v1/doris-clinical/process/:va_sid", post(icd11::handle_process))
+        .route("/api/v1/doris-clinical/:op/:va_sid", post(icd11::handle_guidance))
         .route("/api/v1/va-definitions/for-icd", get(handle_va_definition))
         .route("/api/v1/workflow/events/:va_sid", get(handle_workflow_events))
         // WHO MCCD A4 PDF Certificate & Line-List CSV Export
@@ -520,7 +565,7 @@ async fn handle_static_web(State(state): State<AppState>, req: Request) -> Respo
     (StatusCode::OK, headers, bytes).into_response()
 }
 
-fn json_with_csrf(state: &AppState, status: StatusCode, body: Value) -> Response {
+pub(crate) fn json_with_csrf(state: &AppState, status: StatusCode, body: Value) -> Response {
     let mut headers = HeaderMap::new();
     headers.insert(
         header::HeaderName::from_static("x-csrftoken"),
@@ -543,7 +588,8 @@ async fn handle_health(State(state): State<AppState>) -> Response {
             "mode": cfg.mode,
             "station_id": cfg.station_id,
             "facility_name": cfg.facility_name,
-            "locked": state.db.is_locked()
+            "locked": state.db.is_locked(),
+            "icd11": state.icd11.status()
         }),
     )
 }
@@ -624,10 +670,32 @@ async fn handle_import_signed_station_config(
     }
 }
 
+/// The never-online enrolment file (`OfflineDatabase::station_enrolment_file`), served as a
+/// download. It holds only the device id and public key, nothing secret.
+async fn handle_station_enrolment_file(State(state): State<AppState>) -> Response {
+    let file = match state.db.station_enrolment_file() {
+        Ok(file) => file,
+        Err(msg) => {
+            eprintln!("station enrolment file failed: {msg}");
+            return json_with_csrf(
+                &state,
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!({ "error": "Could not read the station signing key.", "code": "signing_key_error" }),
+            );
+        }
+    };
+    let mut resp = json_with_csrf(&state, StatusCode::OK, file);
+    resp.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=\"digitva-station-enrolment.json\""),
+    );
+    resp
+}
+
 async fn handle_export_dvb_bundle_json(State(state): State<AppState>) -> Response {
     use base64::{engine::general_purpose::STANDARD, Engine as _};
     match state.db.export_dvb_bundle() {
-        Ok((built, filename)) => json_with_csrf(
+        Ok((built, filename, held_back)) => json_with_csrf(
             &state,
             StatusCode::OK,
             json!({
@@ -635,6 +703,8 @@ async fn handle_export_dvb_bundle_json(State(state): State<AppState>) -> Respons
                 "bundle_seq": built.manifest.bundle_seq,
                 "filename": filename,
                 "record_count": built.items.len(),
+                "records_held_back": held_back,
+                "sandbox_records_excluded": state.db.count_pending_sandbox_records(),
                 "bundle_bytes_b64": STANDARD.encode(&built.bytes)
             }),
         ),
@@ -648,7 +718,7 @@ async fn handle_export_dvb_bundle_json(State(state): State<AppState>) -> Respons
 
 async fn handle_export_dvb_bundle(State(state): State<AppState>) -> Response {
     match state.db.export_dvb_bundle() {
-        Ok((built, filename)) => {
+        Ok((built, filename, held_back)) => {
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::CONTENT_TYPE,
@@ -669,6 +739,10 @@ async fn handle_export_dvb_bundle(State(state): State<AppState>) -> Response {
             headers.insert(
                 header::HeaderName::from_static("x-bundle-record-count"),
                 HeaderValue::from_str(&built.items.len().to_string()).unwrap(),
+            );
+            headers.insert(
+                header::HeaderName::from_static("x-bundle-records-held-back"),
+                HeaderValue::from_str(&held_back.len().to_string()).unwrap(),
             );
             headers.insert(
                 header::CACHE_CONTROL,
@@ -703,6 +777,98 @@ async fn handle_import_dvb_receipt(State(state): State<AppState>, body: Bytes) -
             &state,
             StatusCode::from_u16(code).unwrap_or(StatusCode::UNPROCESSABLE_ENTITY),
             err_val,
+        ),
+    }
+}
+
+fn facility_json(cfg: &digitva_db::StationConfig) -> Value {
+    json!({
+        "name": cfg.facility_name,
+        "code": cfg.facility_code,
+        "type": cfg.facility_type,
+        "address": cfg.facility_address,
+        "district": cfg.district_name,
+        "state": cfg.state_name,
+    })
+}
+
+async fn handle_get_facility(State(state): State<AppState>) -> Response {
+    json_with_csrf(&state, StatusCode::OK, facility_json(&state.db.get_station_config()))
+}
+
+async fn handle_put_facility(
+    State(state): State<AppState>,
+    body: Result<Json<Value>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    let bad = |msg: &str| {
+        json_with_csrf(
+            &state,
+            StatusCode::BAD_REQUEST,
+            json!({ "error": msg, "code": "validation_error" }),
+        )
+    };
+    let Ok(Json(body)) = body else {
+        return bad("Request body must be a JSON object.");
+    };
+    // Absent or non-string fields count as empty, so a missing name fails the required check.
+    let field = |k: &str| body.get(k).and_then(Value::as_str).unwrap_or("");
+    match state.db.update_facility_details(
+        field("name"),
+        field("code"),
+        field("type"),
+        field("address"),
+        field("district"),
+        field("state"),
+    ) {
+        Ok(cfg) => json_with_csrf(&state, StatusCode::OK, facility_json(&cfg)),
+        Err(msg) => bad(&msg),
+    }
+}
+
+async fn handle_get_station_settings(State(state): State<AppState>) -> Response {
+    json_with_csrf(&state, StatusCode::OK, state.db.station_settings())
+}
+
+/// `{enabled_modules?: [tag], coding_mode?: "icd11_doris"|"icd10"}`: at least one field.
+async fn handle_put_station_settings(
+    State(state): State<AppState>,
+    body: Result<Json<Value>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    let bad = |msg: &str| {
+        json_with_csrf(
+            &state,
+            StatusCode::BAD_REQUEST,
+            json!({ "error": msg, "code": "validation_error" }),
+        )
+    };
+    let Ok(Json(body)) = body else {
+        return bad("Request body must be a JSON object.");
+    };
+    let modules: Option<Vec<String>> = match body.get("enabled_modules") {
+        None => None,
+        Some(Value::Array(items)) => {
+            let names: Option<Vec<String>> = items.iter().map(|v| v.as_str().map(str::to_string)).collect();
+            match names {
+                Some(names) => Some(names),
+                None => return bad("enabled_modules must be a list of module codes."),
+            }
+        }
+        Some(_) => return bad("enabled_modules must be a list of module codes."),
+    };
+    let coding_mode = match body.get("coding_mode") {
+        None => None,
+        Some(Value::String(mode)) => Some(mode.as_str()),
+        Some(_) => return bad("coding_mode must be a string."),
+    };
+    if modules.is_none() && coding_mode.is_none() {
+        return bad("Send enabled_modules or coding_mode.");
+    }
+    match state.db.update_station_settings(modules.as_deref(), coding_mode) {
+        Ok(settings) => json_with_csrf(&state, StatusCode::OK, settings),
+        Err((code, err)) => json_with_csrf(
+            &state,
+            StatusCode::from_u16(code).unwrap_or(StatusCode::BAD_REQUEST),
+            err,
         ),
     }
 }
@@ -848,15 +1014,71 @@ async fn handle_me_access(State(state): State<AppState>) -> Response {
     }
 }
 
+/// 409 `station_coding_not_enabled` when the signed config says the station does not code this
+/// case's project (contract 4.3); None when coding may go on.
+fn coding_gate(state: &AppState, va_sid: &str) -> Option<Response> {
+    state.db.check_station_coding(va_sid).err().map(|err| db_result(state, Err(err)))
+}
+
+fn db_result(state: &AppState, result: Result<Value, (u16, Value)>) -> Response {
+    match result {
+        Ok(body) => json_with_csrf(state, StatusCode::OK, body),
+        Err((code, body)) => json_with_csrf(
+            state,
+            StatusCode::from_u16(code).unwrap_or(StatusCode::NOT_FOUND),
+            body,
+        ),
+    }
+}
+
 async fn handle_form_options(
     State(state): State<AppState>,
     Path(project_id): Path<String>,
 ) -> Response {
-    json_with_csrf(&state, StatusCode::OK, state.db.form_options(&project_id))
+    db_result(&state, state.db.form_options(project_id.trim()))
 }
 
-async fn handle_instrument_definition(State(state): State<AppState>) -> Response {
-    let (def, sha) = state.db.instrument_definition();
+#[derive(Deserialize)]
+struct DefinitionQuery {
+    project_id: Option<String>,
+    version: Option<String>,
+    extensions: Option<String>,
+}
+
+/// The server's `instrument_definition`: `project_id` required; `version` and `extensions`
+/// together name an exact earlier slice. The body's SHA-256 is the strong ETag and
+/// `X-Definition-SHA256`; `If-None-Match` with it gets a bodiless 304.
+async fn handle_instrument_definition(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+    Query(q): Query<DefinitionQuery>,
+    req_headers: HeaderMap,
+) -> Response {
+    let project_id = q.project_id.as_deref().map(str::trim).unwrap_or_default();
+    if project_id.is_empty() {
+        return json_with_csrf(
+            &state,
+            StatusCode::BAD_REQUEST,
+            json!({ "error": "project_id is required.", "code": "invalid_request" }),
+        );
+    }
+    let version = q.version.as_deref().map(str::trim).filter(|v| !v.is_empty());
+    if version.is_some() != q.extensions.is_some() {
+        return json_with_csrf(
+            &state,
+            StatusCode::BAD_REQUEST,
+            json!({ "error": "version and extensions are given together.", "code": "invalid_request" }),
+        );
+    }
+    let slice = version.map(|v| {
+        let names = q.extensions.as_deref().unwrap_or_default();
+        (v, names.split(',').map(str::trim).filter(|n| !n.is_empty()).map(ToString::to_string).collect())
+    });
+    let served = match state.db.instrument_definition(code.trim(), project_id, slice) {
+        Ok(served) => served,
+        Err(err) => return db_result(&state, Err(err)),
+    };
+    let etag = format!("\"{}\"", served.sha256);
     let mut headers = HeaderMap::new();
     headers.insert(
         header::HeaderName::from_static("x-csrftoken"),
@@ -864,46 +1086,57 @@ async fn handle_instrument_definition(State(state): State<AppState>) -> Response
     );
     headers.insert(
         header::HeaderName::from_static("x-definition-sha256"),
-        HeaderValue::from_str(&sha).unwrap(),
+        HeaderValue::from_str(&served.sha256).unwrap(),
     );
-    headers.insert(
-        header::ETAG,
-        HeaderValue::from_str(&format!("\"{sha}\"")).unwrap(),
-    );
-    headers.insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static("no-store"),
-    );
-    (StatusCode::OK, headers, Json(def)).into_response()
+    headers.insert(header::ETAG, HeaderValue::from_str(&etag).unwrap());
+    let revalidated = req_headers
+        .get(header::IF_NONE_MATCH)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.split(',').any(|tag| tag.trim().trim_start_matches("W/") == etag));
+    if revalidated {
+        return (StatusCode::NOT_MODIFIED, headers).into_response();
+    }
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    (StatusCode::OK, headers, served.body.clone()).into_response()
 }
 
 async fn handle_instrument_translations(
     State(state): State<AppState>,
     Path((code, locale)): Path<(String, String)>,
+    Query(q): Query<DefinitionQuery>,
 ) -> Response {
-    json_with_csrf(
-        &state,
-        StatusCode::OK,
-        json!({
-            "instrument_code": code,
-            "locale": locale,
-            "version": 1,
-            "strings": {}
-        }),
-    )
+    let project_id = q.project_id.as_deref().map(str::trim).filter(|p| !p.is_empty());
+    db_result(&state, state.db.instrument_translations(&code, locale.trim(), project_id))
+}
+
+async fn handle_me_home(State(state): State<AppState>) -> Response {
+    match state.db.home_blocks() {
+        Ok(body) => json_with_csrf(&state, StatusCode::OK, body),
+        Err(_) => json_with_csrf(
+            &state,
+            StatusCode::UNAUTHORIZED,
+            json!({ "error": "Authentication required", "code": "unauthorized" }),
+        ),
+    }
 }
 
 #[derive(Deserialize)]
 struct ProjectQuery {
-    project_id: Option<i64>,
+    project_id: Option<String>,
+}
+
+impl ProjectQuery {
+    /// The requested project, or the sandbox "1" when absent or blank.
+    fn project_id(&self) -> &str {
+        self.project_id.as_deref().map(str::trim).filter(|s| !s.is_empty()).unwrap_or("1")
+    }
 }
 
 async fn handle_get_consent_config(
     State(state): State<AppState>,
     Query(q): Query<ProjectQuery>,
 ) -> Response {
-    let pid = q.project_id.unwrap_or(1);
-    match state.db.with_conn(|conn| get_project_consent_config(conn, pid)) {
+    match state.db.with_conn(|conn| get_project_consent_config(conn, q.project_id())) {
         Ok(cfg) => json_with_csrf(&state, StatusCode::OK, cfg.to_contract_wire_json()),
         Err(_) => json_with_csrf(
             &state,
@@ -930,21 +1163,37 @@ async fn handle_get_identifier_types(
     State(state): State<AppState>,
     Query(q): Query<ProjectQuery>,
 ) -> Response {
-    let pid = q.project_id.unwrap_or(1);
-    let types = state.db.list_identifier_types(pid);
+    let types = state.db.list_identifier_types(q.project_id());
     json_with_csrf(&state, StatusCode::OK, json!({ "identifier_types": types }))
 }
 
-async fn handle_list_deaths(State(state): State<AppState>) -> Response {
-    let all = state.db.list_cases();
-    json_with_csrf(
-        &state,
-        StatusCode::OK,
-        json!({
-            "deaths": all["deaths"],
-            "next_cursor": null
-        }),
-    )
+/// The station's case page or a 400 `invalid_request` for a malformed `limit`, `cursor` or
+/// `registered` (the server's `GET /intake/deaths` and `/intake/cases` rules).
+fn list_cases_or_400(state: &AppState, q: &CaseListQuery) -> Result<Value, Response> {
+    state.db.list_cases(q).map_err(|msg| {
+        json_with_csrf(
+            state,
+            StatusCode::BAD_REQUEST,
+            json!({ "error": msg, "code": "invalid_request" }),
+        )
+    })
+}
+
+async fn handle_list_deaths(
+    State(state): State<AppState>,
+    Query(q): Query<CaseListQuery>,
+) -> Response {
+    match list_cases_or_400(&state, &q) {
+        Ok(page) => json_with_csrf(
+            &state,
+            StatusCode::OK,
+            json!({
+                "deaths": page["deaths"],
+                "next_cursor": page["next_cursor"]
+            }),
+        ),
+        Err(refusal) => refusal,
+    }
 }
 
 async fn handle_register_death(
@@ -981,8 +1230,14 @@ async fn handle_patch_death(
     }
 }
 
-async fn handle_list_cases(State(state): State<AppState>) -> Response {
-    json_with_csrf(&state, StatusCode::OK, state.db.list_cases())
+async fn handle_list_cases(
+    State(state): State<AppState>,
+    Query(q): Query<CaseListQuery>,
+) -> Response {
+    match list_cases_or_400(&state, &q) {
+        Ok(page) => json_with_csrf(&state, StatusCode::OK, page),
+        Err(refusal) => refusal,
+    }
 }
 
 async fn handle_get_case_detail(
@@ -1102,6 +1357,21 @@ async fn handle_save_draft(
     }
 }
 
+async fn handle_save_draft_sections(
+    State(state): State<AppState>,
+    Path(draft_id): Path<String>,
+    Json(body): Json<Value>,
+) -> Response {
+    match state.db.save_draft_sections(&draft_id, &body) {
+        Ok((code, res)) => json_with_csrf(&state, StatusCode::from_u16(code).unwrap_or(StatusCode::OK), res),
+        Err(_) => json_with_csrf(
+            &state,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({ "error": "The draft could not be saved.", "code": "db_error" }),
+        ),
+    }
+}
+
 async fn handle_submit_draft(
     State(state): State<AppState>,
     Path(draft_id): Path<String>,
@@ -1132,6 +1402,12 @@ async fn handle_va_workspace(
     Query(q): Query<ModeQuery>,
 ) -> Response {
     let mode = q.mode.as_deref().unwrap_or("coding");
+    if mode != "view"
+        && let Some(refused) = coding_gate(&state, &va_sid)
+    {
+        return refused;
+    }
+    icd11::warm_for_workspace(&state, &va_sid, mode);
     match state.db.get_va_workspace(&va_sid, mode) {
         Ok(res) => json_with_csrf(&state, StatusCode::OK, res),
         Err(msg) => json_with_csrf(
@@ -1218,32 +1494,43 @@ async fn handle_save_social_autopsy(
     }
 }
 
+/// `project_options` and the first project id, from `OfflineDatabase::station_projects`.
+fn project_options(state: &AppState) -> (Vec<Value>, String) {
+    let projects = state.db.station_projects();
+    let first = projects.first().map(|(id, _)| id.clone()).unwrap_or_else(|| "1".to_string());
+    let options = projects
+        .into_iter()
+        .map(|(project_id, project_name)| json!({ "project_id": project_id, "project_name": project_name }))
+        .collect();
+    (options, first)
+}
+
+/// The projects the station codes; a project whose config `coding_mode` is null is coded on the
+/// server and is not offered. `station_coding_disabled` is true when no project is left, so the
+/// queue says coding is done on the server.
 async fn handle_coding_projects(State(state): State<AppState>) -> Response {
-    let cfg = state.db.get_station_config();
+    let (mut options, _) = project_options(&state);
+    options.retain(|o| o["project_id"].as_str().is_some_and(|id| state.db.project_coding_mode(id).is_some()));
+    let first = options.first().map_or(Value::Null, |o| o["project_id"].clone());
+    let ids: Vec<Value> = options.iter().map(|o| o["project_id"].clone()).collect();
     json_with_csrf(
         &state,
         StatusCode::OK,
         json!({
-            "projects": ["1"],
-            "project_options": [
-                { "project_id": "1", "project_name": format!("{} Mortality Surveillance", cfg.facility_name) }
-            ],
-            "last_project_id": "1"
+            "projects": ids,
+            "project_options": options,
+            "last_project_id": first,
+            "station_coding_disabled": options.is_empty(),
         }),
     )
 }
 
 async fn handle_reviewing_projects(State(state): State<AppState>) -> Response {
-    let cfg = state.db.get_station_config();
+    let (options, first) = project_options(&state);
     json_with_csrf(
         &state,
         StatusCode::OK,
-        json!({
-            "project_options": [
-                { "project_id": "1", "project_name": format!("{} Mortality Surveillance", cfg.facility_name) }
-            ],
-            "last_project_id": "1"
-        }),
+        json!({ "project_options": options, "last_project_id": first }),
     )
 }
 
@@ -1298,6 +1585,9 @@ async fn handle_allocate_coding(
         .and_then(Value::as_str)
         .unwrap_or("")
         .to_string();
+    if let Some(refused) = coding_gate(&state, &va_sid) {
+        return refused;
+    }
     json_with_csrf(
         &state,
         StatusCode::OK,
@@ -1317,6 +1607,9 @@ async fn handle_code_now(
     State(state): State<AppState>,
     Path(va_sid): Path<String>,
 ) -> Response {
+    if let Some(refused) = coding_gate(&state, &va_sid) {
+        return refused;
+    }
     let _ = state.db.run_smartva_for_submission(&va_sid);
     json_with_csrf(
         &state,
@@ -1346,16 +1639,16 @@ async fn handle_run_smartva(
 async fn handle_save_initial_coding(
     State(state): State<AppState>,
     Path(va_sid): Path<String>,
-    Json(body): Json<Value>,
 ) -> Response {
-    match state.db.save_coding_assessment(&va_sid, "initial", &body) {
-        Ok(res) => json_with_csrf(&state, StatusCode::OK, res),
-        Err(msg) => json_with_csrf(
-            &state,
-            StatusCode::UNPROCESSABLE_ENTITY,
-            json!({ "error": msg, "code": "validation_error" }),
-        ),
+    if let Some(refused) = coding_gate(&state, &va_sid) {
+        return refused;
     }
+    // Station workspaces are unmasked only, so there is no Step 1 to save (server: 409 not_masked).
+    json_with_csrf(
+        &state,
+        StatusCode::CONFLICT,
+        json!({ "error": "This project codes in one step; there is no Step 1 to save.", "code": "not_masked" }),
+    )
 }
 
 async fn handle_save_final_coding(
@@ -1363,6 +1656,13 @@ async fn handle_save_final_coding(
     Path(va_sid): Path<String>,
     Json(body): Json<Value>,
 ) -> Response {
+    if let Some(refused) = coding_gate(&state, &va_sid) {
+        return refused;
+    }
+    let body = match icd11::verify_doris_final(&state, &va_sid, body).await {
+        Ok(body) => body,
+        Err(resp) => return resp,
+    };
     match state.db.save_coding_assessment(&va_sid, "final", &body) {
         Ok(res) => json_with_csrf(&state, StatusCode::OK, res),
         Err(msg) => json_with_csrf(
@@ -1378,6 +1678,9 @@ async fn handle_save_not_codeable(
     Path(va_sid): Path<String>,
     Json(body): Json<Value>,
 ) -> Response {
+    if let Some(refused) = coding_gate(&state, &va_sid) {
+        return refused;
+    }
     match state.db.save_coding_assessment(&va_sid, "not_codeable", &body) {
         Ok(res) => json_with_csrf(&state, StatusCode::OK, res),
         Err(msg) => json_with_csrf(
@@ -1462,6 +1765,10 @@ async fn handle_save_reviewer_final(
     Path(va_sid): Path<String>,
     Json(body): Json<Value>,
 ) -> Response {
+    let body = match icd11::verify_doris_final(&state, &va_sid, body).await {
+        Ok(body) => body,
+        Err(resp) => return resp,
+    };
     match state
         .db
         .save_coding_assessment(&va_sid, "reviewer_final", &body)
@@ -1476,8 +1783,8 @@ async fn handle_save_reviewer_final(
 }
 
 #[derive(Deserialize)]
-struct SearchQuery {
-    q: Option<String>,
+pub(crate) struct SearchQuery {
+    pub(crate) q: Option<String>,
 }
 
 async fn handle_icd10_search(
@@ -1486,15 +1793,6 @@ async fn handle_icd10_search(
 ) -> Response {
     let query = q.q.as_deref().unwrap_or("");
     let items = state.db.search_icd("icd10", query);
-    json_with_csrf(&state, StatusCode::OK, Value::Array(items))
-}
-
-async fn handle_icd11_search(
-    State(state): State<AppState>,
-    Query(q): Query<SearchQuery>,
-) -> Response {
-    let query = q.q.as_deref().unwrap_or("");
-    let items = state.db.search_icd("icd11", query);
     json_with_csrf(&state, StatusCode::OK, Value::Array(items))
 }
 
@@ -1603,6 +1901,32 @@ fn roster_member_role_labels(m: &digitva_db::roster::StationRosterMember) -> Vec
     labels
 }
 
+/// Active roster members holding a grant in `project_id` that covers `org_unit_id` (a grant
+/// without an org unit covers every unit of the project).
+fn unit_people(
+    members: &[digitva_db::roster::StationRosterMember],
+    project_id: &str,
+    org_unit_id: &str,
+) -> Vec<Value> {
+    members
+        .iter()
+        .filter(|m| {
+            m.active
+                && m.roles.iter().any(|g| {
+                    g.project_id == project_id
+                        && g.org_unit_id.as_deref().is_none_or(|id| id == org_unit_id)
+                })
+        })
+        .map(|m| {
+            json!({
+                "name": m.name,
+                "cadre": m.designation,
+                "roles": roster_member_role_labels(m)
+            })
+        })
+        .collect()
+}
+
 async fn handle_organization_me(State(state): State<AppState>) -> Response {
     let cfg = state.db.get_station_config();
     let roster = state.db.get_roster();
@@ -1636,6 +1960,33 @@ async fn handle_organization_me(State(state): State<AppState>) -> Response {
     };
 
     let active_cadre = roster.active_actor.designation.clone();
+    let (project_id, project_name) = state.db.station_projects().swap_remove(0);
+
+    // A provisioned project shows the active actor's granted units, labelled by their paths.
+    // ponytail: flat list, no above/below; the config names unit paths, not ancestor ids.
+    if let Some(targets) = state.db.active_actor_targets(&project_id) {
+        let units: Vec<&(String, String)> = targets.iter().flat_map(|t| t.org_units.iter()).collect();
+        return json_with_csrf(
+            &state,
+            StatusCode::OK,
+            json!({
+                "projects": [{
+                    "project_id": project_id,
+                    "project_name": project_name,
+                    "my_units": units.iter().map(|(id, path)| json!({
+                        "org_unit_id": id, "unit_name": path, "level_name": "Org unit",
+                        "cadres": [active_cadre]
+                    })).collect::<Vec<Value>>(),
+                    "above": [],
+                    "my_level": units.iter().map(|(id, path)| json!({
+                        "org_unit_id": id, "unit_name": path, "parent_org_unit_id": null,
+                        "people": unit_people(&roster.members, &project_id, id)
+                    })).collect::<Vec<Value>>(),
+                    "below": []
+                }]
+            }),
+        );
+    }
 
     json_with_csrf(
         &state,
@@ -1643,8 +1994,8 @@ async fn handle_organization_me(State(state): State<AppState>) -> Response {
         json!({
             "projects": [
                 {
-                    "project_id": "1",
-                    "project_name": format!("{} Mortality Surveillance", cfg.facility_name),
+                    "project_id": project_id,
+                    "project_name": project_name,
                     "my_units": [
                         {
                             "org_unit_id": "ou-phc-1",
@@ -1767,27 +2118,46 @@ async fn handle_organization_unit_people(
                 }),
             )
         }
-        _ => json_with_csrf(
-            &state,
-            StatusCode::NOT_FOUND,
-            json!({ "error": "Organization unit not found", "code": "not_found" }),
-        ),
+        _ => {
+            // A provisioned unit is served only when the active actor's grants cover it.
+            let found = state.db.station_projects().into_iter().find_map(|(project_id, _)| {
+                state.db.active_actor_targets(&project_id)?.into_iter().find_map(|t| {
+                    t.org_units
+                        .into_iter()
+                        .find(|(id, _)| *id == org_unit_id)
+                        .map(|(_, path)| (project_id.clone(), path))
+                })
+            });
+            match found {
+                Some((project_id, path)) => json_with_csrf(
+                    &state,
+                    StatusCode::OK,
+                    json!({
+                        "unit": {
+                            "org_unit_id": org_unit_id,
+                            "unit_name": path,
+                            "level_name": "Org unit"
+                        },
+                        "people": unit_people(&roster.members, &project_id, &org_unit_id),
+                        "children": []
+                    }),
+                ),
+                None => json_with_csrf(
+                    &state,
+                    StatusCode::NOT_FOUND,
+                    json!({ "error": "Organization unit not found", "code": "not_found" }),
+                ),
+            }
+        }
     }
 }
 
 async fn handle_me_kpis(State(state): State<AppState>) -> Response {
-    let cfg = state.db.get_station_config();
-    let cases_val = state.db.list_cases();
-    let cases_arr = cases_val
-        .get("cases")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let deaths_reported = cases_arr.len();
-    let interviews_done = cases_arr
-        .iter()
-        .filter(|c| c.get("state").and_then(Value::as_str) == Some("completed"))
-        .count();
+    // Whole-register counts, not one page of rows.
+    let counts = state.db.case_counts().unwrap_or(Value::Null);
+    let count_of = |key: &str| counts.get(key).and_then(Value::as_u64).unwrap_or(0) as usize;
+    let deaths_reported = count_of("total");
+    let interviews_done = count_of("completed");
     let hist = state.db.get_coder_history(500, 0);
     let coded = hist
         .get("count")
@@ -1801,14 +2171,15 @@ async fn handle_me_kpis(State(state): State<AppState>) -> Response {
     } else {
         (None, None)
     };
+    let (project_id, project_name) = state.db.station_projects().swap_remove(0);
     json_with_csrf(
         &state,
         StatusCode::OK,
         json!({
             "projects": [
                 {
-                    "project_id": "1",
-                    "project_name": format!("{} Mortality Surveillance", cfg.facility_name),
+                    "project_id": project_id,
+                    "project_name": project_name,
                     "deaths_reported": deaths_reported,
                     "interviews_done": interviews_done,
                     "coded": coded,
@@ -1927,7 +2298,6 @@ mod tests {
         // 5. Removed routes return 404
         for removed_uri in [
             "/api/v1/intake/supervision/cases",
-            "/api/v1/doris-clinical/terms/VA-1",
             "/api/v1/intake/cases/1/consent-withdraw",
         ] {
             let r = app
@@ -1960,8 +2330,9 @@ mod tests {
             },
             "consent": {
                 "decision": "granted",
-                "notice_version_id": "0.1",
+                "notice_version_id": digitva_db::consent::DEFAULT_NOTICE_VERSION_ID_EN,
                 "notice_language": "en",
+                "notice_sha256": digitva_db::consent::default_project_consent_config("1").notices[0].text_sha256,
                 "mode": "spoken",
                 "purposes": [
                     { "code": "record_and_interview", "granted": true },
@@ -1985,5 +2356,379 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(reg_resp.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn test_station_facility_get_put_token_and_validation() {
+        let state = AppState::new(OfflineDatabase::open_in_memory().unwrap());
+        let tok = state.launch_token.clone();
+        let app = build_router(state);
+        let req = |method: &str, token: Option<&str>, body: &str| {
+            let mut b = Request::builder()
+                .method(method)
+                .uri("/api/v1/station/facility")
+                .header("content-type", "application/json");
+            if let Some(t) = token {
+                b = b.header("authorization", format!("Bearer {t}"));
+            }
+            b.body(Body::from(body.to_string())).unwrap()
+        };
+        let json_of = |resp: Response| async move {
+            let bytes = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        };
+
+        let refused = app.clone().oneshot(req("GET", None, "")).await.unwrap();
+        assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
+        let refused = app.clone().oneshot(req("PUT", None, "{}")).await.unwrap();
+        assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
+
+        let got = app.clone().oneshot(req("GET", Some(&tok), "")).await.unwrap();
+        assert_eq!(got.status(), StatusCode::OK);
+        assert_eq!(json_of(got).await["name"], "Model Primary Health Centre");
+
+        let put = app
+            .clone()
+            .oneshot(req(
+                "PUT",
+                Some(&tok),
+                r#"{"name":"Rampur PHC","code":"RP01","type":"PHC","address":"Main Rd","district":"Rampur","state":"UP"}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(put.status(), StatusCode::OK);
+        assert_eq!(json_of(put).await["code"], "RP01");
+        let got = app.clone().oneshot(req("GET", Some(&tok), "")).await.unwrap();
+        assert_eq!(json_of(got).await["name"], "Rampur PHC");
+
+        let empty_name = app.clone().oneshot(req("PUT", Some(&tok), r#"{"name":" "}"#)).await.unwrap();
+        assert_eq!(empty_name.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(json_of(empty_name).await["error"], "Facility name is required.");
+        let garbage = app.clone().oneshot(req("PUT", Some(&tok), "not json")).await.unwrap();
+        assert_eq!(garbage.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_station_settings_get_put_validation_and_policy_lock() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE loc_station_config SET station_id = '0b8d6c2e-1f3a-4c5b-9d7e-8f9a0b1c2d3e' WHERE id = 1",
+                [],
+            )
+        })
+        .unwrap();
+        let state = AppState::new(db);
+        let tok = state.launch_token.clone();
+        let app = build_router(state.clone());
+        let req = |method: &str, token: Option<&str>, body: &str| {
+            let mut b = Request::builder()
+                .method(method)
+                .uri("/api/v1/station/settings")
+                .header("content-type", "application/json");
+            if let Some(t) = token {
+                b = b.header("authorization", format!("Bearer {t}"));
+            }
+            b.body(Body::from(body.to_string())).unwrap()
+        };
+        let json_of = |resp: Response| async move {
+            let bytes = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        };
+
+        assert_eq!(app.clone().oneshot(req("GET", None, "")).await.unwrap().status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(app.clone().oneshot(req("PUT", None, "{}")).await.unwrap().status(), StatusCode::UNAUTHORIZED);
+
+        let got = json_of(app.clone().oneshot(req("GET", Some(&tok), "")).await.unwrap()).await;
+        assert_eq!(got["coding_mode"], "icd11_doris");
+        assert_eq!(got["modules_locked"], false);
+        assert!(got["modules"].as_array().unwrap().iter().all(|m| m["enabled"] == true));
+
+        let put = app
+            .clone()
+            .oneshot(req("PUT", Some(&tok), r#"{"enabled_modules":["social_autopsy"],"coding_mode":"icd10"}"#))
+            .await
+            .unwrap();
+        assert_eq!(put.status(), StatusCode::OK);
+        let put = json_of(put).await;
+        assert_eq!(put["coding_mode"], "icd10");
+        let on: Vec<&str> = put["modules"].as_array().unwrap().iter()
+            .filter(|m| m["enabled"] == true).filter_map(|m| m["code"].as_str()).collect();
+        assert_eq!(on, ["social_autopsy"]);
+
+        for bad in [r#"{"enabled_modules":["nope"]}"#, r#"{"coding_mode":"icd9"}"#, r#"{"enabled_modules":"abha"}"#, "{}", "not json"] {
+            let resp = app.clone().oneshot(req("PUT", Some(&tok), bad)).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{bad}");
+        }
+
+        let signed = std::fs::read_to_string(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../tests/fixtures/station_config/station_config.signed"),
+        )
+        .unwrap();
+        state.db.import_signed_station_config(&signed).unwrap();
+        let locked = json_of(app.clone().oneshot(req("GET", Some(&tok), "")).await.unwrap()).await;
+        assert_eq!(locked["modules_locked"], true);
+        let resp = app.clone().oneshot(req("PUT", Some(&tok), r#"{"enabled_modules":[]}"#)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+        assert_eq!(json_of(resp).await["code"], "policy_locked");
+        // The fixture's TST001 carries `coding_mode: "icd11_doris"`: it wins over the local icd10.
+        assert_eq!((locked["coding_mode"].as_str(), locked["coding_mode_locked"].as_bool()), (Some("icd11_doris"), Some(true)));
+        let resp = app.clone().oneshot(req("PUT", Some(&tok), r#"{"coding_mode":"icd10"}"#)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::CONFLICT);
+        assert_eq!(json_of(resp).await["code"], "policy_locked");
+    }
+
+    /// The server fixture config re-signed with TST001's `coding_mode` set to null.
+    fn fixture_config_without_station_coding() -> String {
+        let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../tests/fixtures/station_config");
+        let signed = std::fs::read_to_string(dir.join("station_config.signed")).unwrap();
+        let mut payload: digitva_bundle::StationConfigPayload =
+            serde_json::from_str(signed.split('\n').next().unwrap()).unwrap();
+        payload.projects[0].coding_mode = Some(None);
+        let key = digitva_bundle::StationSigningKey::from_base64url_secret(
+            std::fs::read_to_string(dir.join("test_server_signing_key")).unwrap().trim(),
+        )
+        .unwrap();
+        digitva_bundle::format_signed_station_config(&payload, &key).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_null_config_coding_mode_refuses_coding_routes() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        db.with_conn(|conn| {
+            conn.execute(
+                "UPDATE loc_station_config SET station_id = '0b8d6c2e-1f3a-4c5b-9d7e-8f9a0b1c2d3e' WHERE id = 1",
+                [],
+            )
+        })
+        .unwrap();
+        db.import_signed_station_config(&fixture_config_without_station_coding()).unwrap();
+        db.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO loc_va_submissions (va_sid, unique_id, project_id, payload_json, payload_fingerprint,
+                    submitted_at, updated_at)
+                 VALUES ('VA-1', 'VA-1', 'TST001', '{}', 'fp', '2026-10-21T10:00:00Z', '2026-10-21T10:00:00Z')",
+                [],
+            )
+        })
+        .unwrap();
+        let state = AppState::new(db);
+        let tok = state.launch_token.clone();
+        let app = build_router(state);
+        let call = |method: &str, uri: &str, body: &str| {
+            Request::builder()
+                .method(method)
+                .uri(uri)
+                .header("content-type", "application/json")
+                .header("authorization", format!("Bearer {tok}"))
+                .body(Body::from(body.to_string()))
+                .unwrap()
+        };
+        let json_of = |resp: Response| async move {
+            let bytes = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        };
+
+        let settings = json_of(app.clone().oneshot(call("GET", "/api/v1/station/settings", "")).await.unwrap()).await;
+        assert_eq!((settings["coding_mode"].clone(), settings["coding_mode_locked"].clone()), (Value::Null, json!(true)));
+        let projects = json_of(app.clone().oneshot(call("GET", "/api/v1/coding/projects", "")).await.unwrap()).await;
+        assert_eq!((projects["project_options"].clone(), projects["station_coding_disabled"].clone()), (json!([]), json!(true)));
+        let queue = json_of(app.clone().oneshot(call("GET", "/api/v1/coding/available", "")).await.unwrap()).await;
+        assert_eq!(queue["count"], 0);
+
+        for (method, uri) in [
+            ("GET", "/api/v1/va/VA-1/workspace"),
+            ("POST", "/api/v1/coding/submissions/VA-1/code-now"),
+            ("POST", "/api/v1/coding/finalize/VA-1"),
+            ("POST", "/api/v1/coding/not-codeable/VA-1"),
+        ] {
+            let resp = app.clone().oneshot(call(method, uri, "{}")).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::CONFLICT, "{uri}");
+            assert_eq!(json_of(resp).await["code"], "station_coding_not_enabled", "{uri}");
+        }
+        // Viewing the case stays open.
+        let view = app.clone().oneshot(call("GET", "/api/v1/va/VA-1/workspace?mode=view", "")).await.unwrap();
+        assert_eq!(view.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_station_enrolment_file_needs_the_launch_token_and_has_exactly_the_server_keys() {
+        let state = AppState::new(OfflineDatabase::open_in_memory().unwrap());
+        let tok = state.launch_token.clone();
+        let app = build_router(state);
+        let req = |token: Option<&str>| {
+            let mut b = Request::builder().uri("/api/v1/station/enrolment-file");
+            if let Some(t) = token {
+                b = b.header("authorization", format!("Bearer {t}"));
+            }
+            b.body(Body::empty()).unwrap()
+        };
+
+        let refused = app.clone().oneshot(req(None)).await.unwrap();
+        assert_eq!(refused.status(), StatusCode::UNAUTHORIZED);
+
+        let resp = app.clone().oneshot(req(Some(&tok))).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(resp.headers()["content-disposition"].to_str().unwrap().starts_with("attachment"));
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 16).await.unwrap();
+        let file: Value = serde_json::from_slice(&bytes).unwrap();
+        let mut keys: Vec<&str> = file.as_object().unwrap().keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["app_version", "device_id", "signing_public_key"]);
+    }
+
+    #[tokio::test]
+    async fn test_case_lists_honour_limit_cursor_and_registered() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        for n in 0..3 {
+            let reg = json!({
+                "project_id": "1",
+                "site_id": "PHC01",
+                "deceased_name": format!("Case {n}"),
+                "deceased_sex": "male",
+                "date_of_death": "2026-10-18"
+            });
+            db.register_death(&reg, "test").unwrap();
+        }
+        let state = AppState::new(db);
+        let tok = state.launch_token.clone();
+        let app = build_router(state);
+        let get = |uri: &str| {
+            Request::builder()
+                .uri(uri)
+                .header("host", "127.0.0.1:18420")
+                .header("authorization", format!("Bearer {tok}"))
+                .body(Body::empty())
+                .unwrap()
+        };
+        let body = |resp: Response| async move {
+            let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        };
+
+        let resp = app.clone().oneshot(get("/api/v1/intake/deaths?limit=2&registered=mine")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let page = body(resp).await;
+        assert_eq!(page["deaths"].as_array().unwrap().len(), 2);
+        assert_eq!(page["next_cursor"], "2");
+        assert!(page.get("cases").is_none());
+
+        let resp = app.clone().oneshot(get("/api/v1/intake/cases?limit=2&cursor=2")).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let page = body(resp).await;
+        assert_eq!(page["cases"].as_array().unwrap().len(), 1);
+        assert!(page["next_cursor"].is_null());
+        assert_eq!(page["counts"]["total"], 3);
+
+        for bad in [
+            "/api/v1/intake/deaths?limit=abc",
+            "/api/v1/intake/deaths?registered=all",
+            "/api/v1/intake/cases?cursor=not-a-cursor",
+        ] {
+            let resp = app.clone().oneshot(get(bad)).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::BAD_REQUEST, "{bad}");
+            let refusal = body(resp).await;
+            assert_eq!(refusal["code"], "invalid_request", "{bad}");
+            assert!(!refusal["error"].as_str().unwrap().contains("not-a-cursor"));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_form_routes_definition_etag_home_and_draft_autosave() {
+        let state = AppState::new(OfflineDatabase::open_in_memory().unwrap());
+        let tok = state.launch_token.clone();
+        let app = build_router(state);
+        let req = |method: &str, uri: &str, extra: Option<(&str, String)>, body: Option<Value>| {
+            let mut b = Request::builder()
+                .method(method)
+                .uri(uri)
+                .header("host", "127.0.0.1:18420")
+                .header("authorization", format!("Bearer {tok}"));
+            if let Some((name, value)) = extra {
+                b = b.header(name, value);
+            }
+            match body {
+                Some(v) => b.header("content-type", "application/json").body(Body::from(v.to_string())).unwrap(),
+                None => b.body(Body::empty()).unwrap(),
+            }
+        };
+        let json_of = |resp: Response| async move {
+            let bytes = axum::body::to_bytes(resp.into_body(), 4 << 20).await.unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        };
+
+        // A server project before any config: a clear refusal, not a stub form.
+        let resp = app.clone().oneshot(req("GET", "/api/v1/organization/TST001/form-options", None, None)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+        assert_eq!(json_of(resp).await["code"], "form_policy_missing");
+
+        let options = json_of(app.clone().oneshot(req("GET", "/api/v1/organization/1/form-options", None, None)).await.unwrap()).await;
+        let sha = options["definition_sha256"].as_str().unwrap().to_string();
+        let resp = app.clone().oneshot(req("GET", "/api/v1/instruments/WHO_2022_VA/definition", None, None)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+        let resp = app
+            .clone()
+            .oneshot(req("GET", "/api/v1/instruments/WHO_2022_VA/definition?project_id=1", None, None))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(resp.headers()["x-definition-sha256"], sha.as_str());
+        let bytes = axum::body::to_bytes(resp.into_body(), 4 << 20).await.unwrap();
+        assert_eq!(digitva_bundle::sha256_hex(&bytes), sha);
+        let resp = app
+            .clone()
+            .oneshot(req(
+                "GET",
+                "/api/v1/instruments/WHO_2022_VA/definition?project_id=1",
+                Some(("if-none-match", format!("\"{sha}\""))),
+                None,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_MODIFIED);
+
+        let home = json_of(app.clone().oneshot(req("GET", "/api/v1/me/home", None, None)).await.unwrap()).await;
+        assert!(home["roles"].is_array());
+        assert!(home["blocks"].is_object());
+
+        let started = json_of(
+            app.clone()
+                .oneshot(req("POST", "/api/v1/intake/drafts", None, Some(json!({ "project_id": "1", "site_id": "PHC01" }))))
+                .await
+                .unwrap(),
+        )
+        .await;
+        let draft_id = started["draft"]["draft_id"].as_str().unwrap().to_string();
+        let resp = app
+            .clone()
+            .oneshot(req(
+                "PATCH",
+                &format!("/api/v1/intake/drafts/{draft_id}"),
+                None,
+                Some(json!({ "sections": { "s1": { "Id10007": "R" } }, "meta": { "definitionSha256": sha } })),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(json_of(resp).await["saved_sections"], 1);
+
+        // A config of several MB (every locale's translations) reaches the verifier, not a 413.
+        let big = "x".repeat(3 << 20);
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/station/config/signed")
+                    .header("host", "127.0.0.1:18420")
+                    .header("authorization", format!("Bearer {tok}"))
+                    .body(Body::from(big))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_ne!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        assert!(resp.status().is_client_error(), "{}", resp.status());
     }
 }

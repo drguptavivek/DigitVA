@@ -1,0 +1,160 @@
+{
+ "rule": "app/utils/national_id.py reduce_national_id_flagged on an Id10073 answer: expected is the stored form or null (not answered: the answer is kept as given); needs_review is the server's flag.",
+ "cases": [
+  {
+   "input": "234567890123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "2345 6789 0123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "2345-6789-0123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": " 234567890123 ",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "9123 4567 8901 2345",
+   "expected": "XXXXXXXXX345",
+   "needs_review": false
+  },
+  {
+   "input": "\u0968\u0969\u096a\u096b\u096c\u096d\u096e\u096f\u0966\u0967\u0968\u0969",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669\u0660\u0661\u0662\u0663",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "\uff12\uff13\uff14\uff15\uff16\uff17\uff18\uff19\uff10\uff11\uff12\uff13",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "XXXXXXXXX123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "XXXXXXXXXXXX",
+   "expected": "XXXXXXXXXXXX",
+   "needs_review": false
+  },
+  {
+   "input": "12345678901",
+   "expected": "XXXXXXXXX901",
+   "needs_review": true
+  },
+  {
+   "input": "1234567890123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": true
+  },
+  {
+   "input": "A1B2C3D4",
+   "expected": "XXXXXXXXX234",
+   "needs_review": true
+  },
+  {
+   "input": "not known",
+   "expected": "XXXXXXXXXXXX",
+   "needs_review": true
+  },
+  {
+   "input": "12",
+   "expected": "XXXXXXXXXXXX",
+   "needs_review": true
+  },
+  {
+   "input": "dk",
+   "expected": "XXXXXXXXXXXX",
+   "needs_review": true
+  },
+  {
+   "input": "",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "   ",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "NA",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "n/a",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "None",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "null",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "-",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "\"_\"",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "...",
+   "expected": null,
+   "needs_review": false
+  },
+  {
+   "input": "xxxxxxxxx123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": true
+  },
+  {
+   "input": "XX1",
+   "expected": "XXXXXXXXXXXX",
+   "needs_review": true
+  },
+  {
+   "input": "XXXXXXXXXX12",
+   "expected": "XXXXXXXXXXXX",
+   "needs_review": true
+  },
+  {
+   "input": "abc 12 de 3",
+   "expected": "XXXXXXXXX123",
+   "needs_review": true
+  },
+  {
+   "input": "\u001c234567890123\u001c",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  },
+  {
+   "input": "\u0085234567890123",
+   "expected": "XXXXXXXXX123",
+   "needs_review": false
+  }
+ ]
+}

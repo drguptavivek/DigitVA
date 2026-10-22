@@ -894,3 +894,42 @@ describe("queue layout", () => {
     await unmount(renderer);
   });
 });
+
+describe("offline station coding status", () => {
+  const coded = (va_sid: string, extra: Record<string, unknown>) => ({
+    ...coderRow, va_sid, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "coded", recodeable: true, ...extra,
+  });
+
+  test("history shows the server's held and refused answers in plain words", async () => {
+    const api = makeApi({
+      getCodingStats: jest.fn().mockResolvedValue({ random_ready: 0, has_random_mode: true, has_pick_mode: false }),
+      getCodingHistory: jest.fn().mockResolvedValue({
+        history: [
+          coded("held", { server_status: "pending", server_code: "doris_pending" }),
+          coded("refused", { server_status: "refused", server_code: "coding_mode_mismatch" }),
+          coded("odd", { server_status: "refused", server_code: "brand_new_code" }),
+          coded("plain", {}),
+        ],
+        count: 4, limit: 50, offset: 0, has_more: false,
+      }),
+    });
+    const { renderer } = await render("coding", api);
+    const status = (sid: string) => renderer.root.findAll((n) => typeof n.type === "string" && n.props.testID === `coding-server-status-${sid}`).map((n) => n.props.children);
+    expect(status("held")).toEqual(["Sent — waiting for the server's DORIS"]);
+    expect(status("refused")).toEqual(["Refused by the server: the coding mode does not match the project's"]);
+    expect(status("odd")).toEqual(["Refused by the server: code brand_new_code"]);
+    expect(status("plain")).toEqual([]);
+    await unmount(renderer);
+  });
+
+  test("says coding is done on the server when the station codes none of its projects", async () => {
+    const api = makeApi({
+      getCodingProjects: jest.fn().mockResolvedValue({ projects: [], project_options: [], last_project_id: null, station_coding_disabled: true }),
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [], count: 0, limit: 50, offset: 0, has_more: false }),
+    });
+    const { renderer } = await render("coding", api);
+    const note = renderer.root.findAll((n) => n.props.testID === "coding-done-on-server");
+    expect(note[0]?.props.children).toBe("Coding for this project is done on the server.");
+    await unmount(renderer);
+  });
+});

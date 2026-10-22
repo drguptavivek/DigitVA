@@ -1,0 +1,776 @@
+{
+ "coder_icd10": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   },
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "coding_result"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "An ICD-10 result in an unmasked simple project: applied at once.",
+  "files": [
+   "coder_icd10.dvb",
+   "coder_icd10.2.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   },
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "coding_result",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": [
+     "project_mode:unmasked_simple",
+     "ready"
+    ]
+   }
+  ]
+ },
+ "coder_icd11_doris": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   },
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "coding_result"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A DORIS result in an ICD-11 project: held for the server's reprocessing.",
+  "files": [
+   "coder_icd11_doris.dvb",
+   "coder_icd11_doris.2.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   },
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "coding_result",
+       "pending",
+       "doris_pending"
+      ]
+     ],
+     "status": 201
+    },
+    "setup": [
+     "project_mode:unmasked_doris",
+     "ready"
+    ]
+   }
+  ]
+ },
+ "coder_mode_mismatch": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   },
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "coding_result"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A DORIS result sent to an ICD-10 project: refused.",
+  "files": [
+   "coder_mode_mismatch.dvb",
+   "coder_mode_mismatch.2.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   },
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "coding_result",
+       "rejected",
+       "coding_mode_mismatch"
+      ]
+     ],
+     "status": 201
+    },
+    "setup": [
+     "project_mode:unmasked_simple",
+     "ready"
+    ]
+   }
+  ]
+ },
+ "consent_missing_informant": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "Informant data with no consent: the record is rejected, the bundle is processed.",
+  "files": [
+   "consent_missing_informant.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "rejected",
+       "consent_required"
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   }
+  ]
+ },
+ "oversize_record_line": {
+  "container": null,
+  "description": "A record line over the line limit (generated at test time, never stored).",
+  "files": null,
+  "steps": [
+   {
+    "expect": {
+     "code": "payload_too_large",
+     "records": [],
+     "status": 413
+    },
+    "setup": []
+   }
+  ]
+ },
+ "partial_acceptance": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "death_registration",
+     "consent",
+     "interview_submission",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A valid case beside a registration without consent and an interview on it.",
+  "files": [
+   "partial_acceptance.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "death_registration",
+       "rejected",
+       "consent_required"
+      ],
+      [
+       "consent",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "rejected",
+       "depends_on_rejected"
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   }
+  ]
+ },
+ "reordered_records": {
+  "container": [
+   {
+    "body_hash_ok": false,
+    "record_types": [
+     "consent",
+     "death_registration",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "Two record lines swapped: the body hash no longer matches.",
+  "files": [
+   "reordered_records.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "body_hash_invalid",
+     "records": [],
+     "status": 422
+    },
+    "setup": []
+   }
+  ]
+ },
+ "replayed": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   },
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "The same bytes sent twice: the stored report again (200), nothing written twice.",
+  "files": [
+   "replayed.dvb",
+   "replayed.2.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "consent",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   },
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "consent",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 200
+    },
+    "setup": []
+   }
+  ]
+ },
+ "replayed_other_bytes": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration"
+    ],
+    "signature_ok": true
+   },
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A bundle_id the server already holds, with other records.",
+  "files": [
+   "replayed_other_bytes.dvb",
+   "replayed_other_bytes.2.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   },
+   {
+    "expect": {
+     "code": "bundle_id_reused",
+     "records": [],
+     "status": 409
+    },
+    "setup": []
+   }
+  ]
+ },
+ "revoked_device": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A station revoked before the bundle was made.",
+  "files": [
+   "revoked_device.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "device_revoked",
+     "records": [],
+     "status": 403
+    },
+    "setup": [
+     "revoked_station"
+    ]
+   }
+  ]
+ },
+ "same_records_later_bundle": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration"
+    ],
+    "signature_ok": true
+   },
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "The same records in a later bundle (new id, seq 2) are duplicates.",
+  "files": [
+   "same_records_later_bundle.dvb",
+   "same_records_later_bundle.2.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   },
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "duplicate",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   }
+  ]
+ },
+ "superseded_station_config": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A bundle naming an earlier config of the station, a newer one since issued: still issued to it, accepted.",
+  "files": [
+   "superseded_station_config.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "consent",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": [
+     "superseded_config"
+    ]
+   }
+  ]
+ },
+ "tampered_ciphertext": {
+  "container": [
+   {
+    "body_hash_ok": false,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "One ciphertext byte changed: the body hash no longer matches.",
+  "files": [
+   "tampered_ciphertext.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "body_hash_invalid",
+     "records": [],
+     "status": 422
+    },
+    "setup": []
+   }
+  ]
+ },
+ "tampered_manifest": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": false
+   }
+  ],
+  "description": "A manifest field changed after signing.",
+  "files": [
+   "tampered_manifest.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "signature_invalid",
+     "records": [],
+     "status": 422
+    },
+    "setup": []
+   }
+  ]
+ },
+ "unissued_station_config": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A bundle naming a config this server never issued to the station (sandbox build or forged id). The server has no config-expiry check; the Rust writer refuses an expired config before writing.",
+  "files": [
+   "unissued_station_config.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "station_not_onboarded",
+     "records": [],
+     "status": 422
+    },
+    "setup": [
+     "unissued_config"
+    ]
+   }
+  ]
+ },
+ "unknown_device": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A device id the server does not know.",
+  "files": [
+   "unknown_device.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "device_unknown",
+     "records": [],
+     "status": 422
+    },
+    "setup": [
+     "unknown_device"
+    ]
+   }
+  ]
+ },
+ "unknown_signing_key": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "Signed with a key the server never registered for the station.",
+  "files": [
+   "unknown_signing_key.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "signing_key_unknown",
+     "records": [],
+     "status": 422
+    },
+    "setup": []
+   }
+  ]
+ },
+ "valid": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": true
+   }
+  ],
+  "description": "A sandbox-free bundle: registration with informant data, its consent, the interview.",
+  "files": [
+   "valid.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": null,
+     "records": [
+      [
+       "death_registration",
+       "accepted",
+       null
+      ],
+      [
+       "consent",
+       "accepted",
+       null
+      ],
+      [
+       "interview_submission",
+       "accepted",
+       null
+      ]
+     ],
+     "status": 201
+    },
+    "setup": []
+   }
+  ]
+ },
+ "wrong_signature": {
+  "container": [
+   {
+    "body_hash_ok": true,
+    "record_types": [
+     "death_registration",
+     "consent",
+     "interview_submission"
+    ],
+    "signature_ok": false
+   }
+  ],
+  "description": "Signed by another key under the station's signing_key_id.",
+  "files": [
+   "wrong_signature.dvb"
+  ],
+  "steps": [
+   {
+    "expect": {
+     "code": "signature_invalid",
+     "records": [],
+     "status": 422
+    },
+    "setup": []
+   }
+  ]
+ }
+}

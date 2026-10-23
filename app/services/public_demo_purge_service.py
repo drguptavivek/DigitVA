@@ -25,7 +25,10 @@ project, and no other account shares a case. Any miss refuses that account and
 deletes nothing.
 
 Rows go in explicit dependency order (``PLAN``): most ``va_sid`` foreign keys
-have no ``ondelete``. ``auth_security_events`` is kept (its user columns go to
+have no ``ondelete``. Sign-in QR tokens and devices reference each other
+(``redeemed_device_id`` / ``enrolled_via_sign_in_token``): the back-reference
+is nulled first, then the tokens (issued to the account or redeemed on its
+devices) go before the devices. ``auth_security_events`` is kept (its user columns go to
 NULL). Stored files are removed after the commit, never before: the paths wait
 in ``session.info`` and are dropped by a rollback. Logs and audit rows carry
 counts only, never a username or content.
@@ -132,6 +135,7 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("va_bundle_ingests", "uploader_user_id = :u OR device_id IN :devices"),
     ("auth_device_sessions", "user_id = :u"),
     ("auth_device_signing_keys", "device_id IN :devices"),
+    ("auth_sign_in_tokens", "user_id = :u OR redeemed_device_id IN :devices"),
     ("auth_devices", "device_id IN :devices"),
     ("auth_device_enrolment_codes",
      "created_by = :u AND NOT EXISTS (SELECT 1 FROM auth_devices d "
@@ -394,6 +398,13 @@ def _delete_rows(user_id, idle_days: int, *, apply: bool, now: datetime | None):
     db.session.execute(
         sa.text("UPDATE va_submissions SET active_payload_version_id = NULL WHERE va_sid IN :sids")
         .bindparams(_bind("sids", ids)), {"sids": ids["sids"]},
+    )
+    # The device -> token side of the cycle; the token -> device side is the
+    # ``auth_sign_in_tokens`` step, which runs before ``auth_devices``.
+    db.session.execute(
+        sa.text("UPDATE auth_devices SET enrolled_via_sign_in_token = NULL WHERE enrolled_via_sign_in_token IN "
+                "(SELECT id FROM auth_sign_in_tokens WHERE user_id = :u OR redeemed_device_id IN :devices)")
+        .bindparams(_bind("u", ids), _bind("devices", ids)), {"u": ids["u"], "devices": ids["devices"]},
     )
     for table, where in PLAN:
         deleted = _run(table, where, ids)

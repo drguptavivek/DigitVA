@@ -21,6 +21,7 @@ from app.models import (
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
     AuthDeviceSigningKey,
+    AuthSignInToken,
     AuthSecurityEvent,
     MapCaseContactAttempt,
     MapCaseTransition,
@@ -273,8 +274,23 @@ class PurgeBase(PublicDemoBase):
         self._add(AuthDeviceSigningKey, device_id=device.device_id)
         self._add(AuthDeviceSession, device_id=device.device_id, user_id=uid,
                   access_expires_at=now, refresh_expires_at=now)
+        self._redeemed_sign_in_qr(uid)
         db.session.commit()
         return [os.path.join(self._data.name, self.form_id, "media", name) for name in (shared, draft_only)]
+
+    def _redeemed_sign_in_qr(self, uid):
+        """A sign-in QR the account redeemed: the token and the device it
+        enrolled reference each other. Returns ``(token, device)``."""
+        now = datetime.now(UTC)
+        token = self._add(AuthSignInToken, user_id=uid, token_hash=uuid.uuid4().hex + uuid.uuid4().hex,
+                          issued_by=uid, expires_at=now + timedelta(minutes=5), redeemed_at=now,
+                          user_session_version=0)
+        device = self._add(AuthDevice, project_id=PROJECT, enrolled_via_sign_in_token=token.id)
+        token.redeemed_device_id = device.device_id
+        self._add(AuthDeviceSession, device_id=device.device_id, user_id=uid,
+                  access_expires_at=now, refresh_expires_at=now)
+        db.session.flush()
+        return token, device
 
     #: Covered by the purge but not seeded: a bundle ingest needs an offline
     #: station configuration, which a demo account never has.
@@ -313,6 +329,29 @@ class PurgeTests(PurgeBase):
         # ... and so are her stored files; his remain.
         self.assertFalse(any(os.path.exists(path) for path in a_files))
         self.assertTrue(all(os.path.exists(path) for path in b_files))
+
+    def test_a_redeemed_sign_in_qr_and_its_device_go_together_and_others_stay(self):
+        alice = self._account("demo.pgq")
+        bob = self._account("demo.pgr")
+        a_token, a_device = self._redeemed_sign_in_qr(alice.user_id)
+        b_token, b_device = self._redeemed_sign_in_qr(bob.user_id)
+        db.session.commit()
+        ids = (a_token.id, a_device.device_id, b_token.id, b_device.device_id)
+        a_token_id, a_device_id, b_token_id, b_device_id = ids
+        self.assertIsNotNone(db.session.get(AuthSignInToken, b_token_id))
+        self.assertIsNotNone(db.session.get(AuthDevice, b_device_id))
+        self._idle(alice, 40)
+        self._idle(bob, 1)
+
+        result = purge.purge_run(apply=True)
+
+        self.assertEqual((result["accounts"], result["failed"]), (1, 0))
+        self.assertIsNone(db.session.get(AuthSignInToken, a_token_id))
+        self.assertIsNone(db.session.get(AuthDevice, a_device_id))
+        bob_token = db.session.get(AuthSignInToken, b_token_id)
+        self.assertIsNotNone(bob_token)
+        self.assertEqual(bob_token.redeemed_device_id, b_device_id)
+        self.assertEqual(db.session.get(AuthDevice, b_device_id).enrolled_via_sign_in_token, b_token_id)
 
     def test_a_second_full_account_leaves_no_trace_either(self):
         before = self._snapshot()
@@ -737,7 +776,10 @@ class PurgeCoverageTests(PurgeBase):
             for fk in table.foreign_keys:
                 parent = fk.column.table.name
                 if parent in order and parent != table.name and fk.ondelete != "SET NULL" \
-                        and (table.name, parent) != ("va_submissions", "va_submission_payload_versions"):  # nulled first
+                        and (table.name, parent) not in {
+                            ("va_submissions", "va_submission_payload_versions"),  # nulled first
+                            ("auth_devices", "auth_sign_in_tokens"),  # nulled first; tokens reference devices too
+                        }:
                     with self.subTest(child=str(table.name), parent=str(parent)):
                         self.assertLess(order[table.name], order[parent])
 

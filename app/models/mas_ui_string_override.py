@@ -21,7 +21,7 @@ class MasUiStringOverride(db.Model):
     __tablename__ = "mas_ui_string_override"
     __table_args__ = (
         sa.CheckConstraint(
-            "source IN ('machine', 'edited')", name="ck_mas_ui_string_override_source"
+            "source IN ('machine', 'edited')", name="source"
         ),
     )
 

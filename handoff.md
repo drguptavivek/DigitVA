@@ -3,7 +3,8 @@
 ## Start here
 
 Read `AGENTS.md`, `docs/current-state/README.md`, then the policy for the piece
-you take. What already landed: `CHANGELOG.md`. Owner focus (bd memory
+you take. What already landed: `CHANGELOG.md`. Load tests, measured
+optimizations and dropped ideas (Oct 2026): `docs/kb/load-test-and-optimizations-2026-10.md`. Owner focus (bd memory
 `focus-2026-10-22`): station app paused; training (TRN01), the Expo web app and
 digitva-collect (Android, collection only). digitva-coder will be a new Expo
 project in its own folder. The owner owns `vendor/who-va-2022` and decides

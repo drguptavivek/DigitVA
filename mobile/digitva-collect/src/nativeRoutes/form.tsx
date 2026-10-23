@@ -834,7 +834,7 @@ export default function Form() {
   );
   const menuItems: SheetItem[] = [
     { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
-    ...(locales.length > 1 ? [{ key: "language", label: t("formLanguage"), onPress: () => setLanguageOpen(true) }] : []),
+    ...(locales.length > 1 ? [{ key: "language", label: t("questionnaireLanguage"), onPress: () => setLanguageOpen(true) }] : []),
     { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
     { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
   ];
@@ -849,7 +849,7 @@ export default function Form() {
       {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1}>{t("questionnaireEnglishFallback")}</Text> : null}
       <Sheet
         visible={languageOpen}
-        title={t("formLanguage")}
+        title={t("questionnaireLanguage")}
         onClose={() => setLanguageOpen(false)}
         items={locales.map((entry) => ({ key: entry.code, label: entry.label, selected: entry.code === locale, onPress: () => void switchLocale(entry.code) }))}
       />

@@ -39,8 +39,8 @@ import { ShellContext, type Shell } from "../src/nativeShell/shellContext";
 
 const shell: Shell = {
   sheet: null, openSheet: jest.fn(), closeSheet: jest.fn(), userId: "a",
-  sync: { unsent: 2, lastAt: new Date(2026, 9, 23, 9, 7).getTime(), busy: false, result: undefined, offline: false },
-  sendNow: jest.fn(async () => undefined), refreshNow: jest.fn(async () => undefined), header: true, tabs: true,
+  sync: { work: { unsent: 2, attention: 0, inProgress: 1, items: [] }, lastAt: new Date(2026, 9, 23, 9, 7).getTime(), busy: false, result: undefined, offline: false },
+  sendNow: jest.fn(async () => undefined), recount: jest.fn(async () => undefined), refreshNow: jest.fn(async () => undefined), header: true, tabs: true,
 };
 
 async function render(): Promise<ReactTestRenderer> {
@@ -67,7 +67,7 @@ it("is titled Settings and shows every section", async () => {
   expect(text).toContain("https://digitvav3.causeofdeathindia.com");
   expect(text).toContain("dev-1");
   expect(text).toContain("Synced 09:07");
-  expect(text).toContain("2 unsent");
+  expect(text).toContain("2 ready to send from this phone");
   expect(text).toContain("The app locks after 5 minutes without use.");
   expect(text).toContain("Version ");
 });

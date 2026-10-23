@@ -143,7 +143,7 @@ export default function NativeSettings() {
       </Section>
       <Section title={t("tabSync")}>
         <Text style={styles.text}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
-        <Text style={styles.text}>{sync.unsent === undefined ? t("syncUnsentUnknown") : t("syncUnsentCount", { count: sync.unsent })}</Text>
+        <Text style={styles.text}>{sync.work === undefined ? t("syncUnsentUnknown") : t("syncUnsentScoped", { count: sync.work.unsent })}</Text>
         <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
       </Section>
       <Section title={t("settingsHelp")}>

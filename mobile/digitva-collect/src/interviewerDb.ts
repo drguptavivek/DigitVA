@@ -18,6 +18,7 @@
 import { deleteDatabaseAsync, openDatabaseAsync } from "expo-sqlite";
 
 import { countUnsentWork, migrate, type Db } from "./drafts";
+import { summariseWork, type WorkSummary } from "./unsentWork";
 import {
   buildPassphrase,
   createStoreSecret,
@@ -60,11 +61,22 @@ export async function openInterviewerDb(userId: string): Promise<Db> {
 /**
  * How many items this interviewer has not sent, or undefined while the store
  * is locked: the count is inside the encrypted store and is never kept
- * outside it (no plaintext index of what a store holds).
+ * outside it (no plaintext index of what a store holds). Everything on the
+ * phone, drafts included: the guard for sign-out and re-enrolment, which
+ * would lose it. The badges use unsentWork below (ready to send only).
  */
 export async function unsentWorkCount(userId: string): Promise<number | undefined> {
   const db = unlocked.get(userId);
   return db ? countUnsentWork(db) : undefined;
+}
+
+/**
+ * What this interviewer has not sent (src/unsentWork.ts), or undefined while the store is locked: the
+ * counts are inside the encrypted store and are never kept outside it (no plaintext index of what a store holds).
+ */
+export async function unsentWork(userId: string): Promise<WorkSummary | undefined> {
+  const db = unlocked.get(userId);
+  return db ? summariseWork(db) : undefined;
 }
 
 /** Whether a PIN has been set up for this interviewer on this device. */

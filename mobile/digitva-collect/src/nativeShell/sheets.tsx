@@ -18,7 +18,7 @@ import { clock, useShell, type SyncStatus } from "./shellContext";
 /** "Synced 14:05 · 3 unsent" (parts that are not known yet are left out). */
 export function syncSummary(sync: SyncStatus): string {
   const parts = [sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")];
-  if (sync.unsent !== undefined) parts.push(t("syncUnsentCount", { count: sync.unsent }));
+  if (sync.work) parts.push(t("syncUnsentCount", { count: sync.work.unsent }));
   return parts.join(" · ");
 }
 
@@ -86,7 +86,7 @@ export function HelpSheet() {
   const { device } = useAppState();
   const { ui } = useTheme();
   const screen = helpScreenFor(pathname);
-  const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.unsent });
+  const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.work?.unsent });
   function openGuide() {
     if (!device) return;
     Linking.openURL(helpGuideUrl(device.server, help.slug)).catch(() => toast.show({ kind: "error", text: t("helpGuideFailed") }));
@@ -108,12 +108,27 @@ export function HelpSheet() {
 
 export function SyncSheet() {
   const shell = useShell();
+  const router = useRouter();
   const { ui } = useTheme();
   const { sync } = shell;
+  const work = sync.work;
+  const openDrafts = () => {
+    shell.closeSheet();
+    router.replace({ pathname: "/worklist", params: { userId: shell.userId, view: "interviews", filter: "drafts" } });
+  };
   return (
     <BottomSheet visible={shell.sheet === "sync"} title={t("tabSync")} onClose={shell.closeSheet}>
       <Text style={{ ...typography.body, color: ui.popoverForeground }}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
-      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{sync.unsent === undefined ? t("syncUnsentUnknown") : t("syncUnsentCount", { count: sync.unsent })}</Text>
+      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{work ? t("syncUnsentScoped", { count: work.unsent }) : t("syncUnsentUnknown")}</Text>
+      {work?.attention ? <Text style={{ ...typography.subhead, color: ui.destructiveText }}>{t("syncAttentionCount", { count: work.attention })}</Text> : null}
+      {work?.items.map((item) => (
+        <View key={item.key} testID="sync-item" style={{ paddingVertical: spacing.xxs }}>
+          <Text style={{ ...typography.body, color: ui.popoverForeground }}>{`${t(`unsentKind_${item.kind}`)}: ${item.title}`}</Text>
+          <Text style={{ ...typography.caption, color: item.state === "attention" ? ui.destructiveText : ui.mutedForeground }}>{t(`unsentState_${item.state}`)}</Text>
+          {item.error ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{t("unsentRef", { ref: item.error })}</Text> : null}
+        </View>
+      ))}
+      {work?.inProgress ? <SheetRow label={t("syncDraftsLink", { count: work.inProgress })} onPress={openDrafts} /> : null}
       {sync.result ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("syncLastResult", { text: sync.result })}</Text> : null}
       <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
         <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />

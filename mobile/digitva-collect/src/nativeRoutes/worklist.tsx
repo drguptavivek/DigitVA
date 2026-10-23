@@ -29,6 +29,7 @@ import {
 } from "../cases";
 import { listDrafts, retryDemoLimitDraft, type Db, type DraftRow } from "../drafts";
 import { t } from "../i18n";
+import { useShell } from "../nativeShell/shellContext";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import {
   fetchSubmittedRevisions,
@@ -75,6 +76,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     refresh?: string;
   }>();
   const { accounts, reload, lockVersion, syncAccount, offline } = useAppState();
+  const shell = useShell();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -729,6 +731,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         if (isCurrent()) await handleError(error);
       }
       setBusy(false);
+      void shell.recount();
     }
   }
 
@@ -772,8 +775,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     submitted: visibleSubmittedRevisions,
     revisions: visibleRevisions,
   });
-  const queuedActions = actions.filter((row) => authorizedProjectIds.has(row.project_id) && (!selectedProjectId || row.project_id === selectedProjectId)).length;
-  const summary = homeSummary(items, interviewCounts(items), queuedActions);
+  const summary = homeSummary(items, interviewCounts(items));
   const canRegister = Boolean(selectedProject && registersDeaths(selectedProject.project) && account.registration_access);
   const loaded = Boolean(db && referenceData);
   const isOffline = Boolean(offline);
@@ -914,6 +916,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         loaded={Boolean(db)}
         offline={isOffline}
         summary={summary}
+        unsent={shell.sync.work?.unsent}
         canStart={Boolean(db && referenceData && targets.length > 0)}
         canRegister={canRegister}
         busy={busy}

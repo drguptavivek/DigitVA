@@ -9,10 +9,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { useAppState } from "../AppState";
-import { t } from "../i18n";
+import { t, UI_LOCALES } from "../i18n";
 import { spacing, typography, ui, useTheme } from "../theme";
-import { activeNativeTab, nativeTabs, type NativeTab } from "./navAdapter";
-import { clock, useShell, type SyncStatus } from "./shellContext";
+import { activeNativeTab, isPreLoginRoute, nativeTabs, type NativeTab } from "./navAdapter";
+import { useShell, type SyncStatus } from "./shellContext";
 
 // Brand blue with white text in both colour modes, like the browser strip (AppHeader.web.tsx).
 const bar = () => ui.light.primary;
@@ -42,12 +42,30 @@ export function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0]?.toUpperCase() ?? "").join("") || "?";
 }
 
-/** The chip's text and dot colour for the current status (syncing first, then offline, then unsent work). */
-export function chipState(sync: SyncStatus): { label: string; tone: "ok" | "warn" | "busy" } {
-  if (sync.busy) return { label: t("syncChipSyncing"), tone: "busy" };
-  if (sync.offline) return { label: t("syncChipOffline"), tone: "warn" };
-  if (sync.unsent) return { label: t("syncChipUnsent", { count: sync.unsent }), tone: "warn" };
-  return { label: sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever"), tone: "ok" };
+/**
+ * What the header shows about syncing: a spinner while it runs, "Offline" while the phone is offline, otherwise
+ * nothing. The unsent count lives on the Sync tab, the Home card and the Sync sheet only.
+ */
+export function syncIndicator(sync: SyncStatus): { label: string; busy: boolean } | undefined {
+  if (sync.busy) return { label: t("syncChipSyncing"), busy: true };
+  if (sync.offline) return { label: t("syncChipOffline"), busy: false };
+  return undefined;
+}
+
+/** The app-language button (文A): one tap switches English and हिन्दी. Used in the header and on the pre-login screens. */
+export function LanguageButton({ color }: { color: string }) {
+  const { uiLocale, chooseUiLocale } = useAppState();
+  const next = UI_LOCALES.find((locale) => locale.code !== uiLocale) ?? UI_LOCALES[0];
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={t("appLanguageSwitch", { language: next.label })}
+      onPress={() => void chooseUiLocale(next.code)}
+      style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}
+    >
+      <Text style={{ ...typography.subhead, fontWeight: "700", color }}>文A</Text>
+    </Pressable>
+  );
 }
 
 export function NativeHeader() {
@@ -61,7 +79,8 @@ function HeaderBar() {
   const { accounts } = useAppState();
   const insets = useSafeAreaInsets();
   const account = accounts.find((item) => item.user_id === shell.userId);
-  const chip = chipState(shell.sync);
+  const chip = syncIndicator(shell.sync);
+  const preLogin = isPreLoginRoute(usePathname().replace(/\/$/, "") || "/");
   const BAR = bar();
   const ON_BAR = onBar();
   return (
@@ -69,21 +88,24 @@ function HeaderBar() {
       <View style={{ height: HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.sm, paddingRight: spacing.xxs }}>
         <Image source={require("../../assets/icon.png")} accessibilityLabel={t("appName")} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#FFFFFF" }} />
         <Text accessibilityRole="header" numberOfLines={1} style={{ ...typography.headline, color: ON_BAR, flex: 1 }}>DigitVA</Text>
-        {account ? (
+        {account && chip && !preLogin ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={chip.label}
             onPress={() => shell.openSheet("sync")}
             style={{ height: 32, paddingHorizontal: spacing.sm, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.18)", flexDirection: "row", alignItems: "center", gap: spacing.xxs }}
           >
-            {chip.tone === "busy" ? <ActivityIndicator size="small" color={ON_BAR} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: chip.tone === "ok" ? "#86EFAC" : "#FCD34D" }} />}
-            <Text style={{ ...typography.caption, color: ON_BAR }}>{chip.label}</Text>
+            {chip.busy ? <ActivityIndicator size="small" color={ON_BAR} /> : <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#FCD34D" }} />}
+            {chip.busy ? null : <Text style={{ ...typography.caption, color: ON_BAR }}>{chip.label}</Text>}
           </Pressable>
         ) : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={t("formHelp")} onPress={() => shell.openSheet("help")} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
-          <Icon name="help" color={ON_BAR} />
-        </Pressable>
-        {account ? (
+        {preLogin ? null : (
+          <Pressable accessibilityRole="button" accessibilityLabel={t("formHelp")} onPress={() => shell.openSheet("help")} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
+            <Icon name="help" color={ON_BAR} />
+          </Pressable>
+        )}
+        <LanguageButton color={ON_BAR} />
+        {account && !preLogin ? (
           <Pressable accessibilityRole="button" accessibilityLabel={t("accountMenu")} onPress={() => shell.openSheet("account")} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
             <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center" }}>
               <Text style={{ ...typography.caption, fontWeight: "700", color: BAR }}>{initials(account.name)}</Text>
@@ -120,7 +142,7 @@ function TabBar() {
       {nativeTabs(account).map((tab) => {
         const on = tab.key === active;
         const color = on ? tokens.primary : tokens.mutedForeground;
-        const badge = tab.key === "sync" && shell.sync.unsent ? shell.sync.unsent : 0;
+        const badge = tab.key === "sync" && shell.sync.work?.unsent ? shell.sync.work.unsent : 0;
         return (
           <Pressable
             key={tab.key}

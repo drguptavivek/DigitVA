@@ -40,15 +40,15 @@ jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true }));
 import { activeNativeTab, nativeTabs, showNativeHeader, showNativeTabs } from "../src/nativeShell/navAdapter";
 import { HELP_SLUGS, helpContent, helpGuideUrl, helpScreenFor, type HelpScreen } from "../src/nativeShell/helpContent";
 import { SCREEN_HELP_CONFIG } from "../src/web/ContextualHelp";
-import { chipState, initials, NativeHeader, NativeTabs } from "../src/nativeShell/NativeChrome";
+import { initials, LanguageButton, syncIndicator, NativeHeader, NativeTabs } from "../src/nativeShell/NativeChrome";
 import { AccountSheet, HelpSheet, SyncSheet } from "../src/nativeShell/sheets";
 import { ShellContext, type Shell } from "../src/nativeShell/shellContext";
 import { setUiLocale } from "../src/i18n";
 
-const SYNC = { unsent: 3, lastAt: new Date(2026, 9, 23, 14, 5).getTime(), busy: false, result: undefined, offline: false };
+const SYNC = { work: { unsent: 3, attention: 0, inProgress: 2, items: [] }, lastAt: new Date(2026, 9, 23, 14, 5).getTime(), busy: false, result: undefined, offline: false };
 const shellValue = (patch: Partial<Shell> = {}): Shell => ({
   sheet: null, openSheet: jest.fn(), closeSheet: jest.fn(), userId: "u1", sync: SYNC,
-  sendNow: jest.fn(async () => undefined), refreshNow: jest.fn(async () => undefined), header: true, tabs: true, ...patch,
+  sendNow: jest.fn(async () => undefined), recount: jest.fn(async () => undefined), refreshNow: jest.fn(async () => undefined), header: true, tabs: true, ...patch,
 });
 async function render(node: React.ReactElement, value: Shell): Promise<ReactTestRenderer> {
   let tree!: ReactTestRenderer;
@@ -107,12 +107,10 @@ describe("navigation adapter", () => {
 });
 
 describe("header and tabs", () => {
-  it("shows Synced HH:MM, a spinner while syncing, the unsent count, or Offline", () => {
-    expect(chipState({ ...SYNC, unsent: 0 }).label).toBe("Synced 14:05");
-    expect(chipState({ ...SYNC, unsent: 0, lastAt: undefined }).label).toBe(en.syncChipNever);
-    expect(chipState(SYNC).label).toBe("3 unsent");
-    expect(chipState({ ...SYNC, busy: true })).toEqual({ label: en.syncChipSyncing, tone: "busy" });
-    expect(chipState({ ...SYNC, offline: true }).label).toBe("Offline");
+  it("shows only a spinner while syncing or Offline, otherwise nothing in the header", () => {
+    expect(syncIndicator(SYNC)).toBeUndefined();
+    expect(syncIndicator({ ...SYNC, busy: true })).toEqual({ label: en.syncChipSyncing, busy: true });
+    expect(syncIndicator({ ...SYNC, offline: true })).toEqual({ label: "Offline", busy: false });
   });
   it("takes initials from the first two words", () => {
     expect(initials("Asha Devi Sharma")).toBe("AD");
@@ -121,12 +119,34 @@ describe("header and tabs", () => {
   it("opens the Sync, Help and Account sheets from the header", async () => {
     const value = shellValue();
     const tree = await render(<NativeHeader />, value);
-    await press(tree, "3 unsent");
+    expect(texts(tree)).not.toMatch(/unsent/i); // the count is not in the header
+    expect(byLabel(tree, "Syncing…")).toHaveLength(0); // idle: no indicator at all
     await press(tree, "Help");
     await press(tree, "Account");
-    expect(value.openSheet).toHaveBeenNthCalledWith(1, "sync");
-    expect(value.openSheet).toHaveBeenNthCalledWith(2, "help");
-    expect(value.openSheet).toHaveBeenNthCalledWith(3, "account");
+    expect(value.openSheet).toHaveBeenNthCalledWith(1, "help");
+    expect(value.openSheet).toHaveBeenNthCalledWith(2, "account");
+  });
+  it("shows the sync indicator only while syncing or offline, and it opens the Sync sheet", async () => {
+    const busy = shellValue({ sync: { ...SYNC, busy: true } });
+    const tree = await render(<NativeHeader />, busy);
+    await press(tree, "Syncing…");
+    expect(busy.openSheet).toHaveBeenCalledWith("sync");
+    const offline = await render(<NativeHeader />, shellValue({ sync: { ...SYNC, offline: true } }));
+    expect(byLabel(offline, "Offline").length).toBeGreaterThan(0);
+  });
+  it("switches the app language from the header button (48dp, labelled), and from a pre-login screen", async () => {
+    const tree = await render(<NativeHeader />, shellValue());
+    expect(byLabel(tree, "App language: switch to हिन्दी")[0].props.style).toMatchObject({ width: 48, height: 48 });
+    await press(tree, "App language: switch to हिन्दी");
+    expect(mockChooseLocale).toHaveBeenCalledWith("hi");
+    mockPathname = "/sign-in";
+    mockChooseLocale.mockClear();
+    const pre = await render(<NativeHeader />, shellValue());
+    expect(byLabel(pre, "Help")).toHaveLength(0);
+    expect(byLabel(pre, "Account")).toHaveLength(0);
+    await press(pre, "App language: switch to हिन्दी");
+    expect(mockChooseLocale).toHaveBeenCalledWith("hi");
+    mockPathname = "/worklist";
   });
   it("renders nothing when the shell says the header is off", async () => {
     const tree = await render(<NativeHeader />, shellValue({ header: false }));
@@ -231,12 +251,31 @@ describe("sync sheet", () => {
     const tree = await render(<SyncSheet />, value);
     const out = texts(tree);
     expect(out).toContain("Synced 14:05");
-    expect(out).toContain("3 unsent");
+    expect(out).toContain("3 ready to send from this phone");
     expect(out).toContain("Last result: Sent 3.");
     await press(tree, "Send now");
     await press(tree, "Refresh");
     expect(value.sendNow).toHaveBeenCalledTimes(1);
     expect(value.refreshNow).toHaveBeenCalledTimes(1);
+  });
+  it("lists each unsent item with its state and last error, and links to the drafts in progress", async () => {
+    const work = {
+      unsent: 1, attention: 1, inProgress: 2,
+      items: [
+        { key: "d:1", kind: "interview" as const, title: "Ramesh Kumar", state: "attention" as const, error: "HTTP 409 answers_conflict POST /intake/submissions" },
+        { key: "r:1", kind: "registration" as const, title: "Sunita Devi", state: "ready" as const },
+      ],
+    };
+    const value = shellValue({ sheet: "sync", sync: { ...SYNC, work } });
+    const tree = await render(<SyncSheet />, value);
+    const out = texts(tree);
+    expect(out).toContain("Interview: Ramesh Kumar");
+    expect(out).toContain("Needs attention");
+    expect(out).toContain("Ref: HTTP 409 answers_conflict POST /intake/submissions");
+    expect(out).toContain("Registration: Sunita Devi");
+    expect(out).toContain("1 need attention");
+    await press(tree, "2 in progress → Interviews");
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "drafts" } });
   });
   it("disables both actions while busy", async () => {
     const tree = await render(<SyncSheet />, shellValue({ sheet: "sync", sync: { ...SYNC, busy: true } }));

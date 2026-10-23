@@ -23,7 +23,7 @@ jest.mock("../src/AppState", () => ({
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => true,
   openInterviewerDb: async () => ({ db: true }),
-  unsentWorkCount: async () => mockUnsent,
+  unsentWork: async () => ({ unsent: mockUnsent, attention: 0, inProgress: 0, items: [] }),
 }));
 jest.mock("../src/notificationState", () => ({ readNotificationState: async () => ({ lastSuccessfulFullSyncAt: mockLastFull }) }));
 jest.mock("../src/sync", () => ({
@@ -61,7 +61,7 @@ it("resolves the interviewer from the route, counts unsent work and files the sc
   mockLastFull = new Date(2026, 9, 23, 8, 30).getTime();
   await mount();
   expect(shell.userId).toBe("u1");
-  expect(shell.sync.unsent).toBe(2);
+  expect(shell.sync.work?.unsent).toBe(2);
   expect(shell.sync.lastAt).toBe(mockLastFull);
   expect(shell.header).toBe(true);
   expect(shell.tabs).toBe(true);

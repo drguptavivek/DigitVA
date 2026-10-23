@@ -171,14 +171,15 @@ reported without a log cable, the Android app keeps a small local error log.
 ## Phone shell: header, tabs and Help
 
 Owner-approved design, 2026-10-23 (`digitva-gmt7`). The Android app has a 48 dp
-brand-blue header (emblem, sync status chip, Help, account avatar), bottom tabs
+brand-blue header (emblem, a spinner or Offline marker only while syncing or offline, Help,
+the 文A app-language button, account avatar), bottom tabs
 (Home, Interviews, Register death, Sync; the badge on Sync is the unsent count)
 and an account menu sheet (Settings, Help, language, Lock now, Switch
 interviewer, Sign out with the existing unsent-work confirmation, version). The
 tabs follow the account's `collection_access`, `registration_access` and
 `registered_deaths_access` through the browser's `navEntries` rules and never
 show coding or review (web-only). Header and tabs are hidden on the interview
-and revision forms and on the unlock, sign-in, enrol and PIN screens; tabs are
+and revision forms; the unlock, sign-in, enrol and PIN screens show a minimal header (emblem, title, 文A) and no tabs; tabs are
 also hidden while the keyboard is open, while locked and on the accounts list.
 Help is a bottom sheet per screen (what it is for, what to do now) bundled in
 the app's English and Hindi dictionaries, so it works offline; only "Open the
@@ -198,6 +199,17 @@ shown), with the last choice under Recent. Lists show skeleton rows while
 loading, an empty state with the next action, and a persistent notice while
 offline (Refresh disabled with the reason; work stays on the phone).
 
+Unsent (`mobile/digitva-collect/src/unsentWork.ts`, one count for the Sync badge,
+the Home card and the Sync sheet; never in the header): what Send now uploads
+from this phone across all projects, that is completed interviews, pending
+registrations, queued contact attempts and visits, and ready revisions. Drafts
+in progress are counted apart ("N in progress", linked to Interviews). Work
+Send cannot move (refused, needs an edit) is listed in the Sync sheet as
+needing attention and is not in the unsent count. Each listed item shows its
+last send error (the Ref line, kept per item in the encrypted store and filed
+in the error log). The 文A button switches the app language (English/हिन्दी);
+the form menus label the questionnaire language separately.
+
 ## Screen capture (temporary allowance)
 
 The native app blocks screenshots and screen recording (`FLAG_SECURE`, applied
@@ -209,6 +221,14 @@ at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
   blocks again automatically afterwards. A date more than 14 days past app
   start, or an invalid or unset value, keeps the block. Remove the setting from
   builds after expiry.
+
+## Update check
+
+- The app asks its own server `GET /api/v1/app/android/latest` (public, no
+  user data) whether a newer APK is hosted, and falls back to the GitHub
+  releases page when the server has none or is unreachable. It only tells the
+  user and links to the download; it never installs anything by itself
+  (`digitva-2vrs`).
 
 ## Hosting and languages
 

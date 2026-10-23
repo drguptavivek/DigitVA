@@ -153,11 +153,10 @@ describe("interview items", () => {
     expect(parseInterviewFilter(undefined)).toBe("all");
   });
 
-  it("summarises Home from the same items: drafts in progress, unsent and cases needing a visit", () => {
+  it("summarises Home from the same items: drafts in progress and cases needing a visit (unsent is shared, see unsent-work.test)", () => {
     const items = buildInterviewItems(sources({ drafts: [draft("d1"), draft("d2", { completed: 1 })], cases: [caseRow("C1"), caseRow("C2")] }));
-    const summary = homeSummary(items, interviewCounts(items), 2);
+    const summary = homeSummary(items, interviewCounts(items));
     expect(summary.inProgress).toHaveLength(1);
-    expect(summary.unsent).toBe(2 + 2); // two drafts + two queued case actions
     expect(summary.needVisit).toBe(2);
   });
 });

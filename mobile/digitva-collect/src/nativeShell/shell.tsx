@@ -11,12 +11,13 @@ import { useAppState } from "../AppState";
 import { installErrorLog } from "../errorLogDb";
 import { flushErrors, setErrorRoute } from "../errorLog";
 import { t } from "../i18n";
-import { isUnlocked, openInterviewerDb, unsentWorkCount } from "../interviewerDb";
+import { isUnlocked, openInterviewerDb, unsentWork } from "../interviewerDb";
 import { readNotificationState } from "../notificationState";
 import { refreshAuthorizedProjectDefinitions, refreshCases, refreshReferenceData } from "../sync";
 import { useToast } from "../toast";
 import { errorText } from "../ui";
-import { showNativeHeader, showNativeTabs } from "./navAdapter";
+import type { WorkSummary } from "../unsentWork";
+import { isPreLoginRoute, showNativeHeader, showNativeTabs } from "./navAdapter";
 import { AccountSheet, HelpSheet, SyncSheet } from "./sheets";
 import { ShellContext, type Shell, type ShellSheet, type SyncStatus } from "./shellContext";
 
@@ -41,7 +42,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const keyboardOpen = useKeyboardOpen();
   const [sheet, setSheet] = useState<ShellSheet>(null);
-  const [unsent, setUnsent] = useState<number>();
+  const [work, setWork] = useState<WorkSummary>();
   const [lastAt, setLastAt] = useState<number>();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string>();
@@ -57,15 +58,15 @@ export function ShellProvider({ children }: { children: ReactNode }) {
 
   const recount = useCallback(async () => {
     if (!userId || !isUnlocked(userId)) {
-      setUnsent(undefined);
+      setWork(undefined);
       return;
     }
     try {
-      setUnsent(await unsentWorkCount(userId));
+      setWork(await unsentWork(userId));
       const state = await readNotificationState(userId);
       if (state?.lastSuccessfulFullSyncAt) setLastAt((current) => Math.max(current ?? 0, state.lastSuccessfulFullSyncAt!));
     } catch {
-      setUnsent(undefined);
+      setWork(undefined);
     }
   }, [userId]);
   // Work is saved on forms and sent from lists, so count again on every screen change and lock/unlock.
@@ -105,9 +106,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     return { text: t("refreshed") };
   }), [run]);
 
-  const header = showNativeHeader(pathname);
+  const header = showNativeHeader(pathname) || isPreLoginRoute(pathname);
   const tabs = showNativeTabs({ pathname, userId, unlocked, keyboardOpen });
-  const sync: SyncStatus = useMemo(() => ({ unsent, lastAt, busy, result, offline: Boolean(offline) }), [unsent, lastAt, busy, result, offline]);
+  const sync: SyncStatus = useMemo(() => ({ work, lastAt, busy, result, offline: Boolean(offline) }), [work, lastAt, busy, result, offline]);
   const value: Shell = useMemo(() => ({
     sheet,
     openSheet: setSheet,
@@ -115,10 +116,11 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     userId,
     sync,
     sendNow,
+    recount,
     refreshNow,
     header,
     tabs,
-  }), [sheet, userId, sync, sendNow, refreshNow, header, tabs]);
+  }), [sheet, userId, sync, sendNow, recount, refreshNow, header, tabs]);
   return (
     <ShellContext.Provider value={value}>
       {children}

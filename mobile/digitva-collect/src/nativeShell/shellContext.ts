@@ -1,11 +1,13 @@
 /** The phone shell's shared state: which sheet is open, the sync status chip/sheet read, and which chrome is showing. */
 import { createContext, useContext } from "react";
 
+import type { WorkSummary } from "../unsentWork";
+
 export type ShellSheet = "account" | "help" | "sync" | null;
 
 export interface SyncStatus {
-  /** Items on this phone the server has not acknowledged; undefined while locked or not counted yet. */
-  unsent: number | undefined;
+  /** What Send now will upload from this phone (src/unsentWork.ts); undefined while locked or not counted yet. */
+  work: WorkSummary | undefined;
   /** Epoch ms of the last successful sync or refresh. */
   lastAt: number | undefined;
   busy: boolean;
@@ -23,6 +25,8 @@ export interface Shell {
   userId: string | undefined;
   sync: SyncStatus;
   sendNow(): Promise<void>;
+  /** Count the phone's unsent work again (a screen that sent or saved work calls it). */
+  recount(): Promise<void>;
   refreshNow(): Promise<void>;
   /** Whether the header and the tabs are on screen, so Screen leaves their insets to them. */
   header: boolean;
@@ -34,8 +38,9 @@ const IDLE: Shell = {
   openSheet: () => undefined,
   closeSheet: () => undefined,
   userId: undefined,
-  sync: { unsent: undefined, lastAt: undefined, busy: false, result: undefined, offline: false },
+  sync: { work: undefined, lastAt: undefined, busy: false, result: undefined, offline: false },
   sendNow: async () => undefined,
+  recount: async () => undefined,
   refreshNow: async () => undefined,
   header: false,
   tabs: false,

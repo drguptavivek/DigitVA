@@ -98,6 +98,8 @@ export interface HomeViewProps {
   loaded: boolean;
   offline: boolean;
   summary: HomeSummary;
+  /** Ready to send from this phone (shared count, src/unsentWork.ts); undefined while not counted. */
+  unsent: number | undefined;
   canStart: boolean;
   canRegister: boolean;
   busy: boolean;
@@ -138,7 +140,7 @@ export function HomeView(p: HomeViewProps) {
         )}
       </Card>
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
-        <Metric value={p.summary.unsent} label={t("homeUnsent")} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy} loading={p.busy} />
+        <Metric value={p.unsent ?? "–"} label={t("homeUnsent")} actionLabel={t("homeSendNow")} onAction={p.onSend} disabled={p.busy} loading={p.busy} />
         <Metric value={p.summary.needVisit} label={t("homeNeedVisit")} actionLabel={t("homeView")} onAction={p.onViewTodo} />
       </View>
       {p.canRegister ? <Button label={t("registerDeath")} onPress={p.onRegister} /> : null}

@@ -70,6 +70,7 @@ import {
 } from "./drafts";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
+import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
 import {
@@ -94,7 +95,7 @@ export interface SyncResult {
 }
 
 /** Outcomes the server accepts for a questionnaire the form reports invalid (web_intake_service._interview_outcome). */
-export const INCOMPLETE_OUTCOMES = ["partially_completed", "respondent_unavailable"] as const;
+export { INCOMPLETE_OUTCOMES };
 
 /** The case download: pages of the server's maximum, at most this many (5000 cases). */
 export const CASE_PAGE_SIZE = 200;
@@ -126,9 +127,7 @@ export function draftSyncDefaults(project: ProjectSettings): DraftSyncDefaults {
 
 /** Whether the server will take this interview: the form said valid, or the interviewer recorded an incomplete outcome. */
 export function isUploadable(data: CompletedDraft["draft"]["data"] | undefined, completion: Completion | null): boolean {
-  if (completion?.valid === true) return true;
-  const outcome = data?.interview_outcome;
-  return typeof outcome === "string" && (INCOMPLETE_OUTCOMES as readonly string[]).includes(outcome);
+  return isUploadableVerdict(completion?.valid === true, data?.interview_outcome);
 }
 
 /** 403 codes that gate the whole account rather than one project's rows. */
@@ -299,8 +298,10 @@ export async function uploadQueuedWork(
       });
       if (!isCaseDetail(body?.case) || body.case.project_id !== reg.project_id) throw new Error("invalid_case_detail");
       await acknowledgeRegistration(db, reg.client_death_id, body.case);
+      await clearSendError(db, reg.client_death_id);
       sent += 1;
     } catch (error) {
+      await noteSendError(db, reg.client_death_id, error);
       const refused = refusal(error);
       console.warn(`registration refused id=${reg.client_death_id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, reg.project_id, refused);
@@ -329,8 +330,10 @@ export async function uploadQueuedWork(
       });
       await purgeTerminalAcknowledgement(db, action.project_id, acknowledgement.body);
       await deleteAction(db, action.client_id);
+      await clearSendError(db, action.client_id);
       sent += 1;
     } catch (error) {
+      await noteSendError(db, action.client_id, error);
       const refused = refusal(error);
       console.warn(`case action refused id=${action.client_id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, action.project_id, refused);
@@ -346,10 +349,15 @@ export async function uploadQueuedWork(
     } catch (error) {
       if (!(error instanceof PinnedDefinitionError)) throw error;
       await setDraftUploadIssue(db, item.id, "invalid_definition_pin");
+      await noteSendError(db, item.id, "invalid_definition_pin");
       failed += 1;
       continue draftLoop;
     }
-    if (!isUploadable(item.draft.data, item.completion)) continue; // stays on the phone, counted as remaining
+    if (!isUploadable(item.draft.data, item.completion)) {
+      // Stays on the phone; the Sync sheet lists it as needing attention rather than leaving it silent.
+      await noteSendError(db, item.id, "not_ready");
+      continue;
+    }
     if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
     const answersJson = JSON.stringify(item.draft.data);
     let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
@@ -380,6 +388,7 @@ export async function uploadQueuedWork(
           } catch (retryError) {
             if (retryError instanceof ApiError && retryError.status === 422 && retryError.code === "answers_hash_invalid") {
               await setDraftUploadIssue(db, item.id, "answers_hash_invalid");
+              await noteSendError(db, item.id, retryError);
               console.warn(`submission refused draft=${item.id} status=${retryError.status} code=${retryError.code}`);
               failed += 1;
               continue draftLoop;
@@ -435,10 +444,12 @@ export async function uploadQueuedWork(
       }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
       await deleteDraftSnapshot(db, item.id, item.envelope);
+      await clearSendError(db, item.id);
       sent += 1;
     } catch (error) {
       // A per-draft refusal (409/413/422) keeps that draft and moves on; a
       // 422 (the interview as it stands) also reopens it for editing.
+      await noteSendError(db, item.id, error);
       const refused = refusal(error);
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, item.project_id, refused);

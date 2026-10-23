@@ -9,6 +9,7 @@ import { ApiError, INTAKE_API } from "./api";
 import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
 import { createProjectStoreGuard, localDateTimeWithOffset, type Completion, type Db, type DeviceTimedDraft } from "./drafts";
 import { readDefinitionPin, withDefinitionPin } from "./formDefinitionRuntime";
+import { clearSendError, noteSendError } from "./unsentWork";
 
 export type RevisionReason = "interviewer_correction" | "respondent_correction" | "more_information" | "finish_partial";
 export type RevisionState = "editing" | "ready" | "attention";
@@ -560,7 +561,9 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
         }
         const deleted = await db.runAsync("DELETE FROM revision_drafts WHERE draft_id = ? AND row_json = ?", [row.draft_id, rowJson]);
         if (deleted && typeof deleted === "object" && "changes" in deleted && Number(deleted.changes) > 0) sent += 1;
+        await clearSendError(db, row.draft_id);
       } catch (error) {
+        await noteSendError(db, row.draft_id, error);
         if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
         if (error instanceof ApiError && error.status === 403) throw error;
         if (error instanceof ApiError && TERMINAL_CODES.has(error.code ?? "")) {

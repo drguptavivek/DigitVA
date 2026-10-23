@@ -68,8 +68,8 @@ describe("CaseCard", () => {
 
 describe("Home", () => {
   const items = buildInterviewItems(sources({ drafts: [draft("d1", { death_id: "C1" }), draft("d2")], cases: [caseRow("C1", "Ramesh Kumar"), caseRow("C2", "Sunita Devi"), caseRow("C3", "Mohan Lal")] }));
-  const summary = homeSummary(items, interviewCounts(items), 1);
-  const base = { loaded: true, offline: false, summary, canStart: true, canRegister: true, busy: false, onResume: noop, onStart: noop, onRegister: noop, onSend: noop, onViewTodo: noop };
+  const summary = homeSummary(items, interviewCounts(items));
+  const base = { loaded: true, offline: false, summary, unsent: 1, canStart: true, canRegister: true, busy: false, onResume: noop, onStart: noop, onRegister: noop, onSend: noop, onViewTodo: noop };
 
   it("shows the draft count, the name of the latest draft, and unsent and need-a-visit numbers from local data", async () => {
     await render(<HomeView {...base} />);
@@ -77,7 +77,7 @@ describe("Home", () => {
     expect(out).toContain("2 drafts in progress");
     expect(out).toContain("Ramesh Kumar");
     expect(labelled(tree, "Resume draft")).toHaveLength(1);
-    expect(out).toContain('"3"'); // unsent = 2 drafts + 1 queued action
+    expect(out).toContain('"1"'); // unsent comes from the shared count, not from drafts
     expect(out).toContain('"2"'); // C2 and C3 still need a visit
     expect(labelled(tree, "Register a death").length).toBeGreaterThan(0);
   });
@@ -91,7 +91,7 @@ describe("Home", () => {
   });
 
   it("offers Start an interview when no draft is in progress, and the offline notice when offline", async () => {
-    const empty = homeSummary([], interviewCounts([]), 0);
+    const empty = homeSummary([], interviewCounts([]));
     await render(<HomeView {...base} summary={empty} offline />);
     expect(labelled(tree, "Start an interview").length).toBeGreaterThan(0);
     expect(labelled(tree, "Resume draft")).toHaveLength(0);

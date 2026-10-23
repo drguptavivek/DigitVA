@@ -63,6 +63,11 @@ export interface ChromeInput {
   keyboardOpen: boolean;
 }
 
+/** The sign-in, enrol, unlock and PIN screens: a minimal header (emblem, title, app language) and no tabs. */
+export function isPreLoginRoute(pathname: string): boolean {
+  return NATIVE_HEADERLESS_ROUTES.includes(pathname);
+}
+
 /** Header: everywhere except forms and the pre-login/device screens. */
 export function showNativeHeader(pathname: string): boolean {
   return !NATIVE_HEADERLESS_ROUTES.includes(pathname) && !NATIVE_IMMERSIVE_ROUTES.includes(pathname);

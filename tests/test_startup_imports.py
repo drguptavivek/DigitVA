@@ -46,3 +46,23 @@ class StartupImportTests(TestCase):
                 lines = done.stdout.strip().splitlines()
                 self.assertIn("APP_CREATED", lines, done.stdout + done.stderr)
                 self.assertEqual(json.loads(lines[-1]), [])
+
+
+class TaskModuleImportTests(TestCase):
+    """Celery beat imports task modules before the app's routes; each must load alone."""
+
+    def test_each_task_module_imports_first(self):
+        modules = sorted(p.stem for p in (REPO_ROOT / "app" / "tasks").glob("*.py") if p.stem != "__init__")
+        self.assertIn("ui_string_tasks", modules)
+        code = "import importlib, sys\nfor m in sys.argv[1:]:\n    importlib.import_module('app.tasks.' + m)"
+        for module in modules:
+            with self.subTest(module=module):
+                done = subprocess.run(
+                    [sys.executable, "-c", code, module],
+                    env=os.environ.copy(),
+                    cwd=REPO_ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                )
+                self.assertEqual(done.returncode, 0, done.stderr)

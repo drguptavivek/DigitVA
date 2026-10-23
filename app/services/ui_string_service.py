@@ -22,7 +22,6 @@ import sqlalchemy as sa
 
 from app import db
 from app.models.mas_ui_string_override import MasUiStringOverride
-from app.routes.expo_client import _dist_root
 from app.services.instrument_translation_service import (
     BASE_LOCALE,
     MAX_STRING_PAGE_SIZE,
@@ -69,6 +68,10 @@ _bundle_cache: dict[str, tuple[int, dict]] = {}
 
 
 def _ui_dir() -> Path:
+    # Imported here: app.routes imports the ui_strings API, which imports this
+    # module, so a top-level import is circular when a task loads us first.
+    from app.routes.expo_client import _dist_root
+
     return _dist_root() / "ui-strings"
 
 

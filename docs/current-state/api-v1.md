@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # API v1 Reference
@@ -735,7 +735,13 @@ projects, a data manager the holders of an active grant in their subtree.
   literal, max 64); `unit` a unit id (its subtree; unit grants only);
   `role` an access role; `status` `all` (default) | `active` | `inactive`;
   `enrolment` `enrolled` | `revoked` | `none`; `limit` 1..100 (default 50),
-  `offset`. Bad value: 400 `invalid_request`. Ordered by name. Reply
+  `offset`; also `created` `today` | `yesterday`, `created_from` /
+  `created_to` (YYYY-MM-DD, inclusive; the day is the viewer's timezone;
+  `created` wins over the pair; from after to is 400), and `email_verified`,
+  `password_set`, `passkey` each `yes` | `no` (password set = terms accepted
+  or sign-in code redeemed; passkey = at least one registered). All filters
+  are SQL on top of the viewer's scope, so `total` stays right and scope is
+  never widened (digitva-9npt). Bad value: 400 `invalid_request`. Ordered by name. Reply
   `{users, total, limit, offset, options?}`; each user `{user_id, name,
   email, phone, active, last_signed_in_at, grants, enrolment}`: `grants` are
   the in-scope active grants on active projects `{role, scope, project_id,
@@ -751,6 +757,21 @@ projects, a data manager the holders of an active grant in their subtree.
   per user) plus the options; the scope EXISTS is served by
   `ix_va_user_access_grants_user_status`, the unit subtree by
   `ix_mas_org_unit_path`, sessions by `ix_auth_device_sessions_user_id`.
+- `GET /users/<user_id>/status` (120/min; admin, project_pi, data_manager;
+  scope as `activity`, else 404 `not_found`): the Status popup, a fixed
+  eight queries or so whatever the history. `{user_id, name, active,
+  created_at, email_verified, email_verified_at, password_set,
+  verification_email_sent_at, password_emailed_at, terms_accepted,
+  terms_accepted_at, passkeys: {count, last_used_at}, enrolment_codes:
+  [{generated_at, project_id, status: valid|used|expired|revoked|unknown,
+  expires_at}] (latest 5; unknown = issued before the audit event named its
+  code), mobile: {status: enrolled|revoked|none, devices, revoked_devices,
+  last_seen_at}, sign_in_qrs: [{status, issued_at, expires_at,
+  redeemed_at}] (`[]` when the user is outside the QR rules), training:
+  [{session_code, session_name, session_status, role, coder_slot,
+  onboarded, onboarded_at}]}`. `*_at` times come from the security-event
+  audit (latest event) and are null when none was recorded (accounts
+  from before the audit). Never a password, hash, token or code.
 - `GET /users/<user_id>/activity` (120/min): `/me/activity`'s body for that
   user, limited to the viewer's projects (an admin: all), plus `user_id`,
   `name`, `last_signed_in_at`, `last_device_seen_at`, `last_active_at` (the

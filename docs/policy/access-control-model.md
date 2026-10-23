@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Access Control Model
@@ -686,6 +686,13 @@ to the viewer's projects (all projects for an admin); a unit data manager
 sees a listed user's counts for the whole project, not only their own
 subtree (counts carry no case detail). Issuing an enrolment code from this
 page: [Sign-in by Mobile Number](mobile-sign-in.md), section 6.
+
+The list's filters (account-created date, email verified, password set,
+passkey, mobile app, role, project) only narrow the viewer's scope, never
+widen it. `GET .../users/<id>/status` (digitva-9npt) shows one listed user's
+account facts (verification, password, terms, passkeys, enrolment code
+history, devices, sign-in QRs, training) to the same viewers and under the
+same 404 rule as activity; it never carries a password, hash, token or code.
 
 ### Users page admin tools: upload and grant grid (owner 2026-10-22, digitva-cgmc)
 

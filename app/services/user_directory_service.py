@@ -15,14 +15,20 @@ from __future__ import annotations
 import base64
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
 from app import db
 from app.models import (
     AuthDevice,
+    AuthDeviceEnrolmentCode,
     AuthDeviceSession,
+    AuthSecurityEvent,
+    AuthWebauthnCredential,
+    MapTrainingParticipant,
+    MasTrainingSession,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -55,6 +61,8 @@ MAX_UNITS = 500
 _MAX_TEXT = 64
 STATUSES = ("all", "active", "inactive")
 ENROLMENT_STATES = ("enrolled", "revoked", "none")
+YES_NO = ("yes", "no")
+CREATED_QUICK = ("today", "yesterday")
 DELIVERIES = ("show", "email")
 _ROLE_VALUES = frozenset(r.value for r in VaAccessRoles)
 
@@ -224,6 +232,41 @@ def _uuid(value: str, name: str) -> uuid.UUID:
         raise UserDirectoryError(f"{name} is not a valid id.") from None
 
 
+def _day(args, name) -> date | None:
+    value = _text(args, name)
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        raise UserDirectoryError(f"{name} must be a date as YYYY-MM-DD.") from None
+
+
+def _viewer_zone(viewer) -> ZoneInfo:
+    try:
+        return ZoneInfo(getattr(viewer, "timezone", None) or "UTC")
+    except Exception:  # unknown zone name: fall back to UTC
+        return ZoneInfo("UTC")
+
+
+def _created_bounds(args, zone: ZoneInfo, now: datetime):
+    """``(start, end)`` naive-UTC bounds (user_created_at is naive UTC) for
+    ``created`` (today | yesterday) or ``created_from`` / ``created_to``
+    (inclusive days in the viewer's timezone); either bound may be None."""
+    quick = _choice(args, "created", CREATED_QUICK)
+    first, last = _day(args, "created_from"), _day(args, "created_to")
+    if quick:
+        today = now.astimezone(zone).date()
+        first = last = today if quick == "today" else today - timedelta(days=1)
+    if first and last and first > last:
+        raise UserDirectoryError("created_from must not be after created_to.")
+
+    def utc(day):
+        return datetime.combine(day, datetime.min.time(), tzinfo=zone).astimezone(UTC).replace(tzinfo=None)
+
+    return (utc(first) if first else None), (utc(last + timedelta(days=1)) if last else None)
+
+
 def _parse(args: Mapping[str, str]) -> dict:
     unit = _text(args, "unit")
     return {
@@ -233,6 +276,9 @@ def _parse(args: Mapping[str, str]) -> dict:
         "role": _choice(args, "role", _ROLE_VALUES),
         "status": _choice(args, "status", STATUSES, "all"),
         "enrolment": _choice(args, "enrolment", ENROLMENT_STATES),
+        "email_verified": _choice(args, "email_verified", YES_NO),
+        "password_set": _choice(args, "password_set", YES_NO),
+        "passkey": _choice(args, "passkey", YES_NO),
         "limit": _int(args, "limit", DEFAULT_LIMIT, 1, MAX_LIMIT),
         "offset": _int(args, "offset", 0, 0, MAX_OFFSET),
     }
@@ -246,6 +292,18 @@ def _like(q: str) -> str:
 # ---------------------------------------------------------------------------
 # The list
 # ---------------------------------------------------------------------------
+
+# A usable password: the person has accepted the terms or redeemed a sign-in
+# code (user_account_service.has_usable_password, as SQL).
+_PASSWORD_SET = sa.or_(VaUsers.pw_reset_t_and_c.is_(True), VaUsers.mobile_verified_at.is_not(None))
+_HAS_PASSKEY = sa.exists(
+    sa.select(1).where(AuthWebauthnCredential.user_id == VaUsers.user_id)
+)
+
+
+def _yes_no(condition, value: str):
+    return condition if value == "yes" else sa.not_(condition)
+
 
 def _grants_by_user(scope: _Scope, user_ids) -> dict:
     """The in-scope active grants of *user_ids*, one query, named for display."""
@@ -321,12 +379,26 @@ def list_users(viewer, args: Mapping[str, str]) -> dict:
     """One page of the Users list. Query: ``q`` (name, email or phone,
     contains), ``project``, ``unit`` (its subtree), ``role``, ``status``
     (all | active | inactive), ``enrolment`` (enrolled | revoked | none),
+    ``created`` (today | yesterday), ``created_from`` / ``created_to``
+    (YYYY-MM-DD, account-created day in the viewer's timezone),
+    ``email_verified`` / ``password_set`` / ``passkey`` (yes | no),
     ``limit`` (1..100, default 50), ``offset``. Raises UserDirectoryError
     (400) on a malformed parameter."""
     scope = _Scope(viewer)
     f = _parse(args)
     now = datetime.now(UTC)
+    start, end = _created_bounds(args, _viewer_zone(viewer), now)
     where = []
+    if start:
+        where.append(VaUsers.user_created_at >= start)
+    if end:
+        where.append(VaUsers.user_created_at < end)
+    if f["email_verified"]:
+        where.append(_yes_no(VaUsers.email_verified.is_(True), f["email_verified"]))
+    if f["password_set"]:
+        where.append(_yes_no(_PASSWORD_SET, f["password_set"]))
+    if f["passkey"]:
+        where.append(_yes_no(_HAS_PASSKEY, f["passkey"]))
     if not scope.is_admin or f["project"] or f["unit"] or f["role"]:
         where.append(_visible_exists(
             scope, VaUsers.user_id, project_id=f["project"] or None, unit_id=f["unit"], role=f["role"] or None,
@@ -417,6 +489,103 @@ def user_activity(viewer, user_id: str) -> dict:
         "last_signed_in_at": _iso(user.last_signed_in_at),
         "last_device_seen_at": _iso(device_seen),
         "last_active_at": _iso(max(seen)) if seen else None,
+    }
+
+
+_STATUS_EVENTS = ("email_verified", "verification_email_sent", "password_generated", "terms_accepted")
+_CODE_HISTORY = 5
+
+
+def _code_state(row: AuthDeviceEnrolmentCode, now: datetime) -> str:
+    if row.revoked_at is not None:
+        return "revoked"
+    if row.use_count >= row.max_uses:
+        return "used"
+    return "expired" if row.expires_at <= now else "valid"
+
+
+def user_status(viewer, user_id: str) -> dict:
+    """The Status popup: what the account has done, from stored facts only
+    (digitva-9npt). Same visibility as ``user_activity`` (404 otherwise).
+    Never a password, hash, token or code. Fixed query count, whatever the
+    history: events, passkeys, devices, code events and rows, training, QRs.
+    Times are ISO strings or null where the system keeps none."""
+    from app.services import sign_in_qr_service as sign_in_qr
+
+    scope = _Scope(viewer)
+    user = _visible_user(scope, user_id)
+    uid, now = user.user_id, datetime.now(UTC)
+    last = dict(db.session.execute(
+        sa.select(AuthSecurityEvent.event_type, sa.func.max(AuthSecurityEvent.occurred_at))
+        .where(AuthSecurityEvent.user_id == uid, AuthSecurityEvent.event_type.in_(_STATUS_EVENTS))
+        .group_by(AuthSecurityEvent.event_type)
+    ).all())
+    passkeys, passkey_used = db.session.execute(
+        sa.select(sa.func.count(), sa.func.max(AuthWebauthnCredential.last_used_at))
+        .where(AuthWebauthnCredential.user_id == uid)
+    ).one()
+
+    events = db.session.execute(
+        sa.select(AuthSecurityEvent.occurred_at, AuthSecurityEvent.detail)
+        .where(AuthSecurityEvent.user_id == uid, AuthSecurityEvent.event_type == "device_enrolment_code_created")
+        .order_by(AuthSecurityEvent.occurred_at.desc()).limit(_CODE_HISTORY)
+    ).all()
+    code_ids = []
+    for _at, detail in events:
+        try:
+            code_ids.append(uuid.UUID((detail or {}).get("code_id", "")))
+        except ValueError:
+            code_ids.append(None)  # issued before the event named its code
+    rows = {
+        r.id: r for r in db.session.scalars(
+            sa.select(AuthDeviceEnrolmentCode).where(AuthDeviceEnrolmentCode.id.in_([c for c in code_ids if c]))
+        )
+    } if any(code_ids) else {}
+    codes = [
+        {
+            "generated_at": _iso(at),
+            "project_id": (detail or {}).get("project_id"),
+            "status": _code_state(rows[cid], now) if cid in rows else "unknown",
+            "expires_at": _iso(rows[cid].expires_at) if cid in rows else None,
+        }
+        for (at, detail), cid in zip(events, code_ids)
+    ]
+
+    training = [
+        {
+            "session_code": s.session_code, "session_name": s.name, "session_status": s.status,
+            "role": p.role, "coder_slot": p.coder_slot, "onboarded": p.onboarded_at is not None,
+            "onboarded_at": _iso(p.onboarded_at),
+        }
+        for p, s in db.session.execute(
+            sa.select(MapTrainingParticipant, MasTrainingSession)
+            .join(MasTrainingSession,
+                  MasTrainingSession.training_session_id == MapTrainingParticipant.training_session_id)
+            .where(MapTrainingParticipant.user_id == uid, MapTrainingParticipant.status == "active")
+            .order_by(MasTrainingSession.session_code, MapTrainingParticipant.role)
+        ).all()
+    ]
+    try:
+        qrs = sign_in_qr.list_for_user(viewer, str(uid))
+    except sign_in_qr.SignInQrError:  # QRs are for device-role users only
+        qrs = []
+    return {
+        "user_id": str(uid),
+        "name": user.name,
+        "active": user.user_status == VaStatuses.active,
+        "created_at": _iso(user.user_created_at.replace(tzinfo=UTC)),
+        "email_verified": bool(user.email_verified),
+        "email_verified_at": _iso(last.get("email_verified")),
+        "password_set": bool(user.pw_reset_t_and_c or user.mobile_verified_at is not None),
+        "verification_email_sent_at": _iso(last.get("verification_email_sent")),
+        "password_emailed_at": _iso(last.get("password_generated")),
+        "terms_accepted": bool(user.pw_reset_t_and_c),
+        "terms_accepted_at": _iso(last.get("terms_accepted")),
+        "passkeys": {"count": int(passkeys), "last_used_at": _iso(passkey_used)},
+        "enrolment_codes": codes,
+        "mobile": _enrolment_by_user([uid], now).get(uid, _NOT_ENROLLED),
+        "sign_in_qrs": qrs,
+        "training": training,
     }
 
 

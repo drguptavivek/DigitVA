@@ -48,7 +48,9 @@ def _refused(exc: service.UserDirectoryError):
 @limiter.limit("120 per minute")
 def list_users():
     """Query: ``q``, ``project``, ``unit``, ``role``, ``status``,
-    ``enrolment``, ``limit`` (max 100), ``offset``; see the service."""
+    ``enrolment``, ``created`` (today|yesterday), ``created_from``,
+    ``created_to``, ``email_verified``, ``password_set``, ``passkey`` (yes|no),
+    ``limit`` (max 100), ``offset``; see the service."""
     try:
         return _no_store(service.list_users(current_user, request.args))
     except service.UserDirectoryError as exc:
@@ -61,6 +63,18 @@ def list_users():
 def user_activity(user_id):
     try:
         return _no_store(service.user_activity(current_user, user_id))
+    except service.UserDirectoryError as exc:
+        return _refused(exc)
+
+
+@bp.get("/<user_id>/status")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("120 per minute")
+def user_status(user_id):
+    """The Status popup payload (digitva-9npt); see ``service.user_status``.
+    Same scope as the activity route; never a secret or a code."""
+    try:
+        return _no_store(service.user_status(current_user, user_id))
     except service.UserDirectoryError as exc:
         return _refused(exc)
 

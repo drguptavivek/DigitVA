@@ -262,7 +262,8 @@ def create_enrolment_code(project_id: str, *, actor: VaUsers, expires_in_minutes
     db.session.flush()
     record_security_event(
         user_id=subject_user_id, actor_user_id=actor.user_id, event_type="device_enrolment_code_created",
-        detail={"project_id": project_id, "max_uses": uses, "expires_in_minutes": minutes},
+        detail={"project_id": project_id, "code_id": str(row.id), "max_uses": uses,
+                "expires_in_minutes": minutes},
     )
     return row, code
 

@@ -1096,5 +1096,15 @@
   "attachGalleryTitle": "Allow access to photos?",
   "attachGalleryBody": "To choose a photograph from this phone's gallery, Android 12 and older need your permission. DigitVA reads only the picture you choose, keeps it encrypted in the app, and never changes your gallery.",
   "attachGalleryDeniedTitle": "Photos are off",
-  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera."
+  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera.",
+  "clockWrongAhead": "Your phone's date/time is wrong (it is {amount} ahead). Set Date & time to automatic.",
+  "clockWrongBehind": "Your phone's date/time is wrong (it is {amount} behind). Set Date & time to automatic.",
+  "clockSpanDays": "{days} days {hours} h",
+  "clockSpanHours": "{hours} h {minutes} min",
+  "clockSpanMinutes": "{minutes} min",
+  "clockBlockTitle": "Fix the phone's date and time",
+  "clockBlockBody": "Interviews cannot be started or edited while the date and time are this far off. Nothing you typed is lost. Set Date & time to automatic, then tap Re-check. You can still view cases and send work.",
+  "clockOpenSettings": "Open Date & time settings",
+  "clockRecheck": "Re-check",
+  "clockRecheckFailed": "Could not reach the server to check the time. Connect to the internet and try again."
 }

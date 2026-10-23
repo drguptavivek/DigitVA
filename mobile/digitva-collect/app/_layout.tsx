@@ -12,6 +12,7 @@ import { ToastProvider } from "../src/toast";
 import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
 import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
+import { ClockWarning } from "../src/nativeShell/ClockNotice";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 
@@ -44,6 +45,7 @@ function ActivityRoot() {
       }}
     >
       <ShellHeader />
+      <ClockWarning />
       <NativeTermsGate>
         <Stack
           screenOptions={{ headerShown: false, animation: "none" }}

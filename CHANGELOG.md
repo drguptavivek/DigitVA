@@ -5,6 +5,8 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Android `android-v0.3.1`** (CI run 39938767176 from `8da64237c`, Ref line
+  under generic errors) published and pinned for `/download/android`.
 - **Expo web `expo-web-v2026.10.23.2`** (from `a531ba664`: Ref line, server
   reason and Fix line on refused submits) pinned in `x-release-pins`.
 - **Unknown exact date of death** (owner 2026-10-23): when `Id10022` is not

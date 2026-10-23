@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Expo Web Client Boundary
@@ -107,6 +107,18 @@ server leaves it out unless the request asks for `training=1` and the caller
 has the matching active participation. The training sub-menus show nothing but
 the training project. The Training screens reuse the ordinary screens with a
 training scope; the scope comes from the route, not from an editable query.
+
+## Confirmations and submit notices
+
+Owner, 2026-10-23 (`digitva-8ehe`, `digitva-0d3a`). The Expo client never calls
+`window.confirm`, `window.alert` or `window.prompt`: browsers that suppress
+native dialogs (the in-app browser) cancel them silently. A web confirmation
+uses the shared `ConfirmDialog` (`src/ConfirmDialog.tsx`): Cancel takes focus,
+Escape cancels, Tab stays inside, and a destructive action gets the destructive
+button style. The phone keeps `Alert.alert`. Warning texts live in the string
+files, never inline. After a successful web submit the collection screen shows
+a dismissible banner ("Interview submitted successfully" with the unique id, or
+"Correction submitted"); the phone shows the "Sent N" toast after a send.
 
 ## Error messages and the support reference
 

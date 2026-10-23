@@ -646,7 +646,7 @@ export default function InterviewScreen() {
       }
       if (revisionGenerationRef.current === snapshot.generation) {
         dirtyRef.current = false;
-        router.replace(collectionPath as never);
+        router.replace({ pathname: collectionPath as never, params: { submitted: "correction" } });
       } else {
         dirtyRef.current = true;
         setMessage(acknowledgement.changed ? t("revisionSaved") : t("revisionNoCodingChange"));
@@ -734,10 +734,12 @@ export default function InterviewScreen() {
       );
       if (!isCurrent()) return;
       dirtyRef.current = false;
+      const sent = { submitted: "1", ...(submission.draft.unique_id ? { submittedId: submission.draft.unique_id } : {}) };
       if (submission.superseded) {
-        router.replace({ pathname: collectionPath as never, params: { superseded: "1" } });
+        router.replace({ pathname: collectionPath as never, params: { ...sent, superseded: "1" } });
       } else if (submission.kept === "server") {
         router.replace({ pathname: collectionPath as never, params: {
+          ...sent,
           submissionHistory: "1",
           submissionLocked: submission.locked === true ? "1" : "0",
           ...(submission.can_code_now === true ? { canCodeNow: "1" } : {}),
@@ -746,12 +748,13 @@ export default function InterviewScreen() {
         } });
       } else if (submission.can_code_now === true) {
         router.replace({ pathname: collectionPath as never, params: {
+          ...sent,
           canCodeNow: "1",
           ...(submission.draft.unique_id ? { readyUniqueId: submission.draft.unique_id } : {}),
           readyVaSid: submission.va_sid,
         } });
       } else {
-        router.replace(collectionPath as never);
+        router.replace({ pathname: collectionPath as never, params: sent });
       }
     } catch (error) {
       // The project began requiring consent after this page checked: ask for it now.

@@ -44,6 +44,22 @@ function useCollectionStyles() {
   }), [colors]);
 }
 
+/** Dismissible confirmation after a successful submit; it stays in the page until dismissed. */
+function SubmitBanner({ text, hidden, onDismiss }: { text: string; hidden: boolean; onDismiss: () => void }) {
+  const { colors } = useTheme();
+  if (hidden) return null;
+  return (
+    <View
+      accessibilityRole="alert"
+      accessibilityLiveRegion="polite"
+      style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, padding: spacing.sm, borderWidth: 1, borderColor: colors.success, borderRadius: 8, backgroundColor: colors.surface }}
+    >
+      <Text style={{ flex: 1, minWidth: 0, ...typography.subhead, fontWeight: "600", color: colors.success, fontFamily: controls.fontFamily }}>{text}</Text>
+      <Button kind="secondary" label={t("dismiss")} onPress={onDismiss} />
+    </View>
+  );
+}
+
 /** Browser-only refresh signal; native test and state interfaces omit it. */
 type BrowserNotificationRefresh = {
   notificationGeneration?: number;
@@ -66,8 +82,11 @@ export default function CollectionScreen() {
     readyUniqueId?: string;
     readyVaSid?: string;
     saved?: string;
+    submitted?: string;
+    submittedId?: string;
     tab?: string;
   }>();
+  const [dismissedSubmit, setDismissedSubmit] = useState("");
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
   const styles = useUiStyles();
@@ -302,6 +321,15 @@ export default function CollectionScreen() {
       <ContextualHelpBanner screen="collection" />
       {params.saved === "1" ? (
         <Text style={styles.text} accessibilityRole="alert">{t("registrationSaved")}</Text>
+      ) : null}
+      {params.submitted === "1" || params.submitted === "correction" ? (
+        <SubmitBanner
+          text={params.submitted === "correction" ? t("correctionSubmitted")
+            : typeof params.submittedId === "string" && params.submittedId
+              ? t("interviewSubmittedId", { id: params.submittedId.slice(0, 64) }) : t("interviewSubmitted")}
+          hidden={dismissedSubmit === `${params.submitted}|${params.submittedId ?? ""}`}
+          onDismiss={() => setDismissedSubmit(`${params.submitted}|${params.submittedId ?? ""}`)}
+        />
       ) : null}
       {params.superseded === "1" ? (
         <Text style={styles.muted} accessibilityRole="alert">

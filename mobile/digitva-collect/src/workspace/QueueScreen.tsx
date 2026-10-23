@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, 
 import { ActivityIndicator, Alert, AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
+import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, Screen, errorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
@@ -286,6 +287,7 @@ export function QueueScreen({
   const [catalog, setCatalog] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; projects?: ProjectOptions } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState<{ warning: string; proceed: () => void } | null>(null);
   const [message, setMessage] = useState<QueueMessage | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -601,26 +603,24 @@ export function QueueScreen({
     }
   }
 
-  function confirmRelease() {
+  function askRelease() {
     const requestGeneration = generation.current;
     const requestScope = { api, mode, projectId, offset, showHistory };
     if (!isCurrent(requestGeneration, requestScope)) return;
-    const warning = mode === "reviewing"
-      ? "The saved Step 1 is kept. Your Narrative QA and Social Autopsy analysis are cleared."
-      : "An unfinished saved Step 1 will be discarded. Unsaved work may also be lost.";
+    const warning = t(mode === "reviewing" ? "releaseReviewWarning" : "releaseCodingWarning");
     const proceed = () => {
       if (isCurrent(requestGeneration, requestScope)) void releaseAllocation(requestGeneration, requestScope);
     };
     if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window.confirm(`Release this case?\n\n${warning}`)) proceed();
+      setConfirmRelease({ warning, proceed });
       return;
     }
     Alert.alert(
-      "Release this case?",
+      t("releaseCaseTitle"),
       warning,
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Release", style: "destructive", onPress: proceed },
+        { text: t("cancel"), style: "cancel" },
+        { text: t("releaseCaseAction"), style: "destructive", onPress: proceed },
       ],
     );
   }
@@ -976,7 +976,7 @@ export function QueueScreen({
           <Text style={styles.muted}>Resume it, or release it, before you start another case.</Text>
           <View style={q.actions}>
             <Button label="Resume case" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: allocation.va_sid, mode })} />
-            <Button label="Release case" kind="danger" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={confirmRelease} />
+            <Button label="Release case" kind="danger" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={askRelease} />
           </View>
         </View>
       ) : null}
@@ -1159,6 +1159,18 @@ export function QueueScreen({
           </View>
         </View>
       )}
+      {confirmRelease ? <ConfirmDialog
+        destructive
+        title={t("releaseCaseTitle")}
+        message={confirmRelease.warning}
+        confirmLabel={t("releaseCaseAction")}
+        onCancel={() => setConfirmRelease(null)}
+        onConfirm={() => {
+          const pending = confirmRelease;
+          setConfirmRelease(null);
+          pending.proceed();
+        }}
+      /> : null}
     </ActiveShell>
   );
 }

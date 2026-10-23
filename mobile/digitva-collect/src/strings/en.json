@@ -1096,5 +1096,12 @@
   "attachGalleryTitle": "Allow access to photos?",
   "attachGalleryBody": "To choose a photograph from this phone's gallery, Android 12 and older need your permission. DigitVA reads only the picture you choose, keeps it encrypted in the app, and never changes your gallery.",
   "attachGalleryDeniedTitle": "Photos are off",
-  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera."
+  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera.",
+  "releaseCaseTitle": "Release this case?",
+  "releaseCaseAction": "Release",
+  "releaseCodingWarning": "An unfinished saved Step 1 will be discarded. Unsaved work may also be lost.",
+  "releaseReviewWarning": "The saved Step 1 is kept. Your Narrative QA and Social Autopsy analysis are cleared.",
+  "interviewSubmitted": "Interview submitted successfully",
+  "interviewSubmittedId": "Interview submitted successfully — {id}",
+  "correctionSubmitted": "Correction submitted"
 }

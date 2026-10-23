@@ -261,7 +261,7 @@ it("returns to collection after a normal 201 draft submission", async () => {
   const data = { Id10013: "yes", interview_outcome: "completed" };
   await act(async () => { await form.props.onComplete({ valid: true, issues: [], data }); });
   expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data }, mockBootstrap.csrf, "revision-1");
-  expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { submitted: "1" } });
   await act(async () => tree.unmount());
 });
 
@@ -274,7 +274,7 @@ it("routes an acknowledged can-code-now response to collection as a hint", async
   await act(async () => { tree = create(<InterviewScreen />); });
   const form = tree.root.findByType(WhoVaForm);
   await act(async () => { await form.props.onComplete({ valid: true, issues: [], data: { Id10013: "yes" } }); });
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { canCodeNow: "1", readyUniqueId: "VA-1", readyVaSid: "sid-1" } });
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { submitted: "1", submittedId: "VA-1", canCodeNow: "1", readyUniqueId: "VA-1", readyVaSid: "sid-1" } });
   await act(async () => tree.unmount());
 });
 
@@ -297,7 +297,7 @@ it("submits a stale completed tab's current answers after confirming the draft i
     "/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: answers }, mockBootstrap.csrf, "revision-1"
   );
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: {
-    submissionHistory: "1", submissionLocked: "1", canCodeNow: "1", readyUniqueId: "VA-1", readyVaSid: "sid-1"
+    submitted: "1", submittedId: "VA-1", submissionHistory: "1", submissionLocked: "1", canCodeNow: "1", readyUniqueId: "VA-1", readyVaSid: "sid-1"
   } });
   await act(async () => tree.unmount());
 });
@@ -409,7 +409,7 @@ it.each([
   expect(snapshot.answersJson).toBe(JSON.stringify(data));
   expect(snapshot.answersSha256).toMatch(/^[a-f0-9]{64}$/);
   expect(snapshot.draft.completedAt).toMatch(/T.*[+-]\d{2}:\d{2}$/);
-  expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { submitted: "correction" } });
   await act(async () => tree.unmount());
 });
 
@@ -460,7 +460,7 @@ it("returns to collection with a notice after a superseded 200 response", async 
   await act(async () => { tree = create(<InterviewScreen />); });
   const form = tree.root.findByType(WhoVaForm);
   await act(async () => { await form.props.onComplete({ valid: true, issues: [] }); });
-  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { superseded: "1" } });
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/collection", params: { submitted: "1", superseded: "1" } });
   await act(async () => tree.unmount());
 });
 

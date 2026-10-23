@@ -29,6 +29,7 @@ import {
 import { listDrafts, retryDemoLimitDraft, type Db, type DraftRow } from "../drafts";
 import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import { t } from "../i18n";
+import { revisionName } from "../revisionLabel";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import {
   fetchSubmittedRevisions,
@@ -1155,7 +1156,8 @@ function InterviewWorklist() {
       ) : null}
       {visibleSubmittedRevisions.map((row) => (
         <View key={row.draft_id} style={styles.card}>
-          <Text style={styles.text}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
+          <Text style={styles.text}>{revisionName(row) ?? row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
+          {revisionName(row) ? <Text style={styles.muted}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text> : null}
           {otherDraftDate(row.updated_at) ? (
             <Text style={styles.muted}>{otherDraftDate(row.updated_at)}</Text>
           ) : null}
@@ -1180,7 +1182,8 @@ function InterviewWorklist() {
           style={styles.card}
           onPress={() => openRevision(row)}
         >
-          <Text style={styles.text}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
+          <Text style={styles.text}>{revisionName(row) ?? row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
+          {revisionName(row) ? <Text style={styles.muted}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text> : null}
           <Text style={row.state === "attention" ? styles.error : styles.muted}>
             {localRevisionStatus(row)}
           </Text>

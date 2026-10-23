@@ -507,6 +507,27 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("titles a submitted row with the deceased's name and the ID below, and the ID alone without a name", async () => {
+    const base = {
+      project_id: "P1", site_id: "S1", death_id: null, va_sid: "va-1", status: "submitted",
+      updated_at: "2026-10-05T00:00:00Z",
+    };
+    mockSubmittedRevisions = [
+      { ...base, draft_id: "d1", unique_id: "VA-NAMED", deceased_name: "Asha Rao" },
+      { ...base, draft_id: "d2", unique_id: "VA-NONAME" },
+    ];
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+    const rendered = JSON.stringify(tree!.toJSON());
+    expect(rendered).toContain("Asha Rao");
+    expect(rendered.split("VA-NAMED").length - 1).toBe(1);
+    expect(rendered).toContain("VA-NONAME");
+    expect(rendered.split("Asha Rao").length - 1).toBe(1);
+    await act(async () => tree!.unmount());
+  });
+
   it("keeps the offline worklist when submitted metadata cannot be fetched", async () => {
     const { fetchSubmittedRevisions } = jest.requireMock("../src/revisions") as {
       fetchSubmittedRevisions: jest.Mock;

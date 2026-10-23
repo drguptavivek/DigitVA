@@ -101,6 +101,15 @@ describe("native submitted interview revisions", () => {
     expect(request).toHaveBeenCalledTimes(3);
   });
 
+  it("keeps deceased_name from the list, tolerates null, and rejects a non-string", async () => {
+    mockRequest(async () => ({ body: { drafts: [{ ...summary(), deceased_name: "Asha Rao" }, { ...summary(), deceased_name: null }] } }));
+    const [named, unnamed] = await fetchSubmittedRevisions(USER);
+    expect(named.deceased_name).toBe("Asha Rao");
+    expect(unnamed).not.toHaveProperty("deceased_name");
+    mockRequest(async () => ({ body: { drafts: [{ ...summary(), deceased_name: 5 }] } }));
+    await expect(fetchSubmittedRevisions(USER)).rejects.toThrow("malformed_response");
+  });
+
   it("rejects a detail identity mismatch before saving raw answers", async () => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }

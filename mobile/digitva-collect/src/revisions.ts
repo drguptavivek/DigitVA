@@ -20,6 +20,7 @@ export interface SubmittedRevisionSummary {
   death_id: string | null;
   va_sid: string;
   unique_id?: string;
+  deceased_name?: string;
   status?: string;
   current_section?: string | null;
   updated_at?: string;
@@ -106,6 +107,7 @@ function parseSummary(value: unknown): SubmittedRevisionSummary {
       !(value.death_id === null || (typeof value.death_id === "string" && value.death_id.length > 0)) ||
       typeof value.va_sid !== "string" || !value.va_sid ||
       (value.unique_id !== undefined && value.unique_id !== null && typeof value.unique_id !== "string") ||
+      (value.deceased_name !== undefined && value.deceased_name !== null && typeof value.deceased_name !== "string") ||
       (value.updated_at !== undefined && typeof value.updated_at !== "string") ||
       (value.current_section !== undefined && value.current_section !== null && typeof value.current_section !== "string")) {
     throw new ApiError(200, "malformed_response");
@@ -117,6 +119,7 @@ function parseSummary(value: unknown): SubmittedRevisionSummary {
       death_id: value.death_id,
     va_sid: value.va_sid,
     ...(typeof value.unique_id === "string" ? { unique_id: value.unique_id } : {}),
+    ...(typeof value.deceased_name === "string" && value.deceased_name ? { deceased_name: value.deceased_name } : {}),
     status: "submitted",
     ...(typeof value.current_section === "string" || value.current_section === null ? { current_section: value.current_section } : {}),
     ...(typeof value.updated_at === "string" ? { updated_at: value.updated_at } : {}),

@@ -34,6 +34,7 @@ import {
 } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { initialDataFromPrefill } from "../prefill";
+import { revisionName } from "../revisionLabel";
 import {
   beginRevision,
   createRevisionDraftStore,
@@ -665,6 +666,7 @@ export default function Revision() {
   return (
     <Screen title={t("revisionTitle")} scroll={false}>
       <View style={{ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }}>
+        {revisionName(loaded.row) ? <Text style={styles.text}>{revisionName(loaded.row)}</Text> : null}
         <Row>
           <Button kind="secondary" label={t("home")} disabled={busy} onPress={() => void flush().then(() => { if (isCurrentRevision(current.generation)) router.replace({ pathname: "/worklist", params: { userId } }); }).catch(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionUnsavedWarning")); })} />
           <Button kind="secondary" label={t("save")} disabled={busy} onPress={() => void flush().then(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionSaved")); }).catch(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionUnsavedWarning")); })} />

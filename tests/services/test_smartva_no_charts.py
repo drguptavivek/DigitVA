@@ -124,6 +124,8 @@ class RunnerEngineTests(BaseTestCase):
         self.addCleanup(runner._engine_version.cache_clear)
         self.app.config["SMARTVA_ENGINE"] = "rust"
         self.app.config["SMARTVA_RS_BIN"] = "/opt/bin/smartva-rs"
+        # The CLI path: the image's 3.0.2 library would answer for itself.
+        self.app.config["SMARTVA_RS_LIB"] = ""
         done = subprocess.CompletedProcess([], 0, stdout="smartva-rs 0.2.0\n", stderr="")
         with mock.patch.object(runner.subprocess, "run", return_value=done) as run:
             self.assertEqual(runner.smartva_engine_info(), {"name": "rust", "version": "smartva-rs 0.2.0"})

@@ -33,9 +33,7 @@ CPU-bound (2 cores), not memory-bound.
 
 0. **Landing queue** (owner 2026-10-23: land the optimizations; one committer
    session lands them, each after its own targeted tests, one full suite per
-   landing): smartva-rust 3.0.2
-   `digitva-kyxr` (`claude/clever-kowalevski-f5fc5a`, with its
-   `SMARTVA_RS_*` pin bump) → streaming exports and paged ODK sync
+   landing): streaming exports and paged ODK sync
    `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
    (EXPLAIN a real staging bucket report before more MV work).
 1. Coding allocation follow-ups from the 2026-10-23 security review:
@@ -110,5 +108,3 @@ ICD container stays on servers.
   (stop app/worker/beat, `docker volume rm`, `up -d`).
 - `.dockerignore` excludes `desktop/` and `vendor/who-icd11-api/` (6 GB+ images).
 - `resource/smartva-phmrc-dataset/` is local research data, git-ignored.
-- `vendor/smartva-analyze` (3.0.0) lags the pinned smartva-rs release (3.0.1):
-  `SMARTVA_RS_SOURCE=source` builds an older engine than staging runs.

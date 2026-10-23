@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **smartva-rust 3.0.2** (`digitva-kyxr`): a Rust panic in the library fails
+  that one SmartVA run instead of ending the worker child; runs record the
+  library's own version (`smartva_version`). Pinned in `x-release-pins`;
+  `vendor/smartva-analyze` at `cb89e05`, now on SmartVA-Analyze main.
 - **SmartVA backlog ~10x faster** (`digitva-96ik`;
   `docs/current-state/smartva-analysis.md` Throughput). A starting completion
   run takes up to 49 other queued completion runs of its form (same trigger,

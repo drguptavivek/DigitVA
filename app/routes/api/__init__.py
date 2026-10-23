@@ -6,6 +6,7 @@ api_v1 = Blueprint("api_v1", __name__)
 
 from app.routes.api import (  # noqa: E402, F401
     analytics,
+    app_release,
     area,
     attachments,
     auth,
@@ -55,6 +56,7 @@ from app.routes.api.dm_kpi import (  # noqa: E402, F401
 from app.routes.api.dm_kpi.dm_kpi_scope import bp as dm_kpi_cache_bp  # noqa: E402, F401
 
 api_v1.register_blueprint(analytics.bp, url_prefix="/analytics")
+api_v1.register_blueprint(app_release.bp, url_prefix="/app")
 api_v1.register_blueprint(area.bp, url_prefix="/area")
 api_v1.register_blueprint(attachments.bp, url_prefix="/attachments")
 api_v1.register_blueprint(auth.bp, url_prefix="/auth")

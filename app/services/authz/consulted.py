@@ -60,6 +60,8 @@ PUBLIC_ENDPOINTS = {
     "api_v1.ui_strings_api.ui_string_overrides": "Public UI string corrections (the sign-in "
                                           "screen is translated too); reference text "
                                           "only, no personal data (ui-strings.md).",
+    "api_v1.app_release_api.android_latest": "Public app-update check: version and download "
+                                             "link, no user data.",
     "health.health_check": "Liveness probe; must answer before login.",
     "va_auth.va_login": "Sign-in form and its POST; cannot require a session.",
     "va_auth.va_login_password": "Two-step login, password step: guarded in body by "

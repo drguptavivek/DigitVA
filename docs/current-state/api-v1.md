@@ -149,6 +149,7 @@ The pages beside them (not JSON): `/public-demo/cases`, `/public-demo/cases/<va_
 
 | Call | Notes |
 |---|---|
+| `GET /app/android/latest` | Public (no credential, no user data), 30/min per IP, `Cache-Control: public, max-age=300`. 200 `{version, version_code, tag, asset, url, sha256}` for the APK `/download/android` serves, read from its file name (`digitva-collect-<major>.<minor>.<patch>-<abi>.apk`) so there is no second pin; `url` is the absolute `/download/android` of this server, `sha256` is hashed from the file. `version_code` is the base `major*10000 + minor*100 + patch`; the installed per-ABI code is `base*10 + ABI` (`armeabi-v7a` 1, `arm64-v8a` 2). 404 `no_release` when no APK is pinned. |
 | `GET /me/access` | The whole access body, below. Sets `X-CSRFToken` for a cookie request. |
 | `GET /me/activity` | The caller's own personal activity counts (overall and per-project), below. Either credential. 120/min. |
 | `GET /me/home` | The Home page's one block per role the caller holds, counts only, below. 120/min. |

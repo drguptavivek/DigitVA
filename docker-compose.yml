@@ -205,9 +205,10 @@ services:
     # The child keeps SmartVA's trained models in memory (in-process engine,
     # SMARTVA_RS_LIB): measured child peak 236-240 MiB on SmartVA work, so the
     # cap sits above it, or every task would recycle the child and lose them.
-    # nice -n 10 yields CPU to gunicorn: on staging, a running worker raised
-    # request p50 2.5-6x (bead digitva-295w). nice execs celery, so children
-    # inherit the niceness.
+    # cpu_shares 128 (cgroup cpu.weight ~21 vs the app's 100) keeps gunicorn on the CPU:
+    # staging p50 coding.available was 142 ms worker paused, ~580 with nice -n 10 alone
+    # (no help: each container is its own cgroup), 252 with shares (beads digitva-295w, g8iu).
+    cpu_shares: 128
     command: nice -n 10 celery -A make_celery:celery_app worker --loglevel=info --concurrency=1 --max-memory-per-child=300000
     volumes:
       - .:/app

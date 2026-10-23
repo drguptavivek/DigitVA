@@ -172,7 +172,8 @@ services:
           cpus: "1.0"
         reservations:
           memory: 300m
-    cpu_shares: 256
+    # Half the app's weight (256): nice alone cannot cross containers (bead g8iu).
+    cpu_shares: 128
 
   # Seeds the demo's allowlisted schedule (make_celery.py). Never given the
   # PII private key (owner decision 13, as in main), so no secret; the empty

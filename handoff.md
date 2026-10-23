@@ -34,12 +34,10 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
-1. **`digitva-g8iu` (P1)**: `cpu_shares: 128` on both Celery workers (keep
-   `nice`). Staging A/B 2026-10-23: `nice -n 10` alone did not help (each
-   container is its own cgroup at equal weight); shares 128 halved request p50
-   while the worker ran (allocate 529 -> 227 ms, 0 5xx, SmartVA queue ≤11).
-   Requests are slow in Python, not Postgres (92% of busy backends idle in
-   transaction). Writer in the Rust session; short staging confirm after it lands.
+1. **`digitva-g8iu`** (landed): 4-minute staging confirm with `cpu_shares`
+   128 from compose (worker running). Requests are slow in Python, not
+   Postgres (92% of busy backends idle in transaction); if latency is still
+   short of target, the next step is 4 vCPU or profiling the request path.
 2. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays

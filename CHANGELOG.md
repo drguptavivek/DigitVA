@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **SmartVA worker CPU weight** (`digitva-g8iu`): worker containers run with
+  `cpu_shares` 128 (demo worker 128 against its app's 256), so gunicorn keeps
+  the CPU under load. Staging p50 coding.available 252 ms vs ~580 with `nice`
+  alone (it cannot cross container cgroups) and 142 with the worker paused.
 - **Expo web `expo-web-v2026.10.23.1`** (from `19c05ba07`, carries the DORIS
   remark) pinned in `x-release-pins`.
 - **Staging A/B on `d120dae27`**: `nice -n 10` on the workers did not lower

@@ -152,10 +152,18 @@ Current behavior:
 - Celery worker and beat wait for the app container to become healthy before starting so dependency refreshes propagate through the shared virtualenv before task processes launch
 - celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
 - the live migration chain now includes a forward-only additive migration that ensures the required `celery_*` scheduler tables exist on fresh databases
-- celery worker is started as `nice -n 10 celery ... --concurrency=1 --max-memory-per-child=300000`
-  (main and demo compose files; bead digitva-295w): the worker yields CPU to
-  gunicorn on the 2-vCPU host. `nice` execs celery, so PID 1 is still celery
-  and pool children inherit the niceness. The demo worker uses the same flags.
+- celery worker has `cpu_shares: 128` (cgroup `cpu.weight` ~21 vs the app's 100) and is
+  started as `nice -n 10 celery ... --concurrency=1 --max-memory-per-child=300000`
+  (main and demo compose files; beads digitva-295w, digitva-g8iu). `cpu_shares` is the
+  mechanism that keeps gunicorn on the 2-vCPU host: on staging (200 users, 4 min) p50
+  coding.available was 142 ms worker paused, ~580 ms with `nice -n 10` alone, 252 ms with
+  `cpu_shares: 128` (26.5 vs 24.8 req/s). `nice` is kept but has no effect across
+  containers, since each container is its own cgroup and niceness only ranks processes
+  inside it. The demo worker is also 128, against the demo app's 256. A hard `cpus` limit was rejected: it would slow the SmartVA drain when idle.
+  Change it by recreating the container
+  (`docker compose up -d --no-deps --force-recreate minerva_celery_worker`);
+  `docker update --cpu-shares 0` does NOT reset the value. Check it with
+  `/sys/fs/cgroup/system.slice/docker-<container id>.scope/cpu.weight` (~21 worker, 100 app).
 - celery worker startup uses `--concurrency=1 --max-memory-per-child=300000`
   (KiB, ~293 MiB; owner set 250 MiB on 2026-10-22 and approved 300000 on
   2026-10-23 for the in-process SmartVA engine, bead digitva-5gsq): a task that leaves the pool child above

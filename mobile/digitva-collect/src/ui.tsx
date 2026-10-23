@@ -7,7 +7,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { describeError, recordError } from "./errorLog";
 import { t, type StringKey } from "./i18n";
+import { useShell } from "./nativeShell/shellContext";
 import { BUTTON_MIN_WIDTH, buttonTone, controls, fontSize, radius, spacing, typography, ui, useTheme, type ButtonSize, type ButtonVariant, type UiTokens } from "./theme";
 
 /** Same phone breakpoint as the DORIS kit. */
@@ -38,6 +40,9 @@ export function Screen({
 }) {
   const theme = useTheme();
   const screenStyles = useUiStyles();
+  // The phone header and tabs pad the status and navigation bars themselves; Screen must not pad them again.
+  const shell = useShell();
+  const edges = (["top", "bottom", "left", "right"] as const).filter((edge) => !(edge === "top" && shell.header) && !(edge === "bottom" && shell.tabs));
   if (variant === "immersive") {
     return (
       <SafeAreaView style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
@@ -90,7 +95,7 @@ export function Screen({
     <View style={[screenStyles.body, screenStyles.fill, { backgroundColor: theme.colors.background }]}>{children}</View>
   );
   return (
-    <SafeAreaView style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView edges={edges} style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
       {__DEV__ ? (
         <Text
           style={[screenStyles.debug, { backgroundColor: theme.colors.warning, color: theme.colors.onAccent }]}
@@ -286,27 +291,12 @@ export function useUiStyles() {
  * route, error class and a scrubbed message prefix; never tokens, server text, URLs, names or answers.
  */
 export function errorReference(error: unknown): string {
-  let what = "unknown";
-  if (error instanceof ApiError) {
-    what = [`HTTP ${error.status}`, error.code, error.path && `${error.method ?? "GET"} ${error.path}`].filter(Boolean).join(" ");
-  } else if (error instanceof TypeError) {
-    what = "network";
-  } else if (error instanceof Error) {
-    // Quoted text is masked unless it is a bare identifier path (a native function name such as
-    // 'NativeDatabase.prepareAsync'); unquoted file paths are masked; "code 5" survives (under 4 digits).
-    const msg = error.message
-      .replace(/(["'`])(.*?)\1/g, (_, q, body) => (/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(body) && body.length <= 60 ? q + body + q : `${q}…${q}`))
-      .replace(/(file:\/\/|\/data\/)[^\s"'`]*/g, "file:…")
-      .replace(/\d{4,}/g, "#")
-      .replace(/\s+/g, " ")
-      .slice(0, 160);
-    what = `${error.name} ${msg}`.trim();
-  }
-  return `Ref: ${what} · ${new Date().toISOString().slice(11, 16)}Z · v${APP_VERSION}`;
+  return `Ref: ${describeError(error)} · ${new Date().toISOString().slice(11, 16)}Z · v${APP_VERSION}`;
 }
 
 /** The UI string for an error from the device API; never shows server text or answers. */
 export function errorText(error: unknown): string {
+  recordError(describeError(error));
   if (error instanceof SessionRevokedError) return t(error.keptUnsent ? "accessRemovedKept" : "sessionRevoked");
   if (error instanceof SignInRequiredError) return t("signInAgain");
   if (error instanceof ApiError) {

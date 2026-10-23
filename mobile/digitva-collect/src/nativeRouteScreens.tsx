@@ -16,6 +16,7 @@ export const SignIn = BrowserNativeRoute;
 export const Unlock = BrowserNativeRoute;
 export const Worklist = BrowserNativeRoute;
 export const Revision = BrowserNativeRoute;
+export const Settings = BrowserNativeRoute;
 export const Coding = BrowserNativeRoute;
 export const Reviewing = BrowserNativeRoute;
 export const Workspace = BrowserNativeRoute;

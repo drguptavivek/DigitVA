@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { recordToastError } from "./errorLog";
 import { radius, spacing, typography, useTheme } from "./theme";
 
 export const TOAST_MS = 4_000;
@@ -50,6 +51,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const show = useCallback((input: ToastInput) => {
     const toast = splitRef(input);
     if (!toast.text) return;
+    if (toast.kind === "error" && toast.detail === undefined) recordToastError(toast.text);
     setItems((current) => {
       const same = current.find((item) => item.text === toast.text);
       if (same) return current.map((item) => (item === same ? { ...item, ...toast, nonce: item.nonce + 1 } : item));

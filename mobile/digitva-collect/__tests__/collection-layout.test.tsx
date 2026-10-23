@@ -64,6 +64,7 @@ jest.mock("../src/ui", () => {
     useUiStyles: () => ({ text: {}, error: {} }),
   };
 });
+jest.mock("../src/nativeShell/chrome", () => ({ ShellRoot: ({ children }: { children: unknown }) => children, ShellHeader: () => null, ShellTabs: () => null }));
 jest.mock("expo-screen-capture", () => ({ preventScreenCaptureAsync: jest.fn() }));
 jest.mock("expo-status-bar", () => ({ StatusBar: () => null }));
 jest.mock("react-native-safe-area-context", () => ({

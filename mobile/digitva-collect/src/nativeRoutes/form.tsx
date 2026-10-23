@@ -75,6 +75,7 @@ import { reconcileCaseDraft } from "../draftSync";
 import { applyTranslations, type Translations } from "../translations";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
 import { revisionName } from "../revisionLabel";
+import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 
@@ -246,8 +247,8 @@ export default function Form() {
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [languageOpen, setLanguageOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const toast = useToast();
+  const shell = useShell();
   const [blockedReferenceData, setBlockedReferenceData] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
@@ -834,7 +835,7 @@ export default function Form() {
   const menuItems: SheetItem[] = [
     { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
     ...(locales.length > 1 ? [{ key: "language", label: t("formLanguage"), onPress: () => setLanguageOpen(true) }] : []),
-    { key: "help", label: t("formHelp"), onPress: () => setHelpOpen(true) },
+    { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
     { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
   ];
   return (
@@ -851,12 +852,6 @@ export default function Form() {
         title={t("formLanguage")}
         onClose={() => setLanguageOpen(false)}
         items={locales.map((entry) => ({ key: entry.code, label: entry.label, selected: entry.code === locale, onPress: () => void switchLocale(entry.code) }))}
-      />
-      <Sheet
-        visible={helpOpen}
-        title={t("formHelpText")}
-        onClose={() => setHelpOpen(false)}
-        items={[{ key: "ok", label: t("ok"), onPress: () => undefined }]}
       />
       <View style={{ flex: 1 }}>
         <WhoVaForm

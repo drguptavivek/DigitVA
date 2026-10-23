@@ -64,6 +64,10 @@ interface AppState {
   /** Native only: an automatic refresh failed; shown as a banner, never the gate. */
   backgroundError?: string;
   dismissBackgroundError?(): void;
+  /** Native only: the last automatic refresh failed for lack of network (the header's Offline chip). */
+  offline?: boolean;
+  /** Native only: data changed outside a screen's own load (the Sync sheet); mounted lists reload. */
+  dataChanged?(): void;
   /**
    * Native only: while a form is open, refreshes must not remount it. Returns
    * the release function; a refresh that arrived meanwhile applies on release.
@@ -96,7 +100,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [lockVersion, setLockVersion] = useState(0);
   const [error, setErrorText] = useState<string>();
   const [errorBlocking, setErrorBlocking] = useState(false);
-  const [backgroundError, setBackgroundError] = useState<string>();
+  const [backgroundErrorText, setBackgroundErrorText] = useState<string>();
+  const [offline, setOffline] = useState(false);
   const router = useRouter();
   const beforeLock = useRef(new Set<() => Promise<void>>());
   const accountsRef = useRef<Account[]>([]);
@@ -134,8 +139,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setErrorText(errorText(failure));
     setErrorBlocking(failure instanceof SessionRevokedError || failure instanceof SignInRequiredError);
   }, []);
-  const reportBackgroundError = useCallback((e: unknown) => setBackgroundError(errorText(e)), []);
-  const dismissBackgroundError = useCallback(() => setBackgroundError(undefined), []);
+  const setBackgroundError = useCallback((text: string | undefined) => {
+    setBackgroundErrorText(text);
+    if (text === undefined) setOffline(false);
+  }, []);
+  const reportBackgroundError = useCallback((e: unknown) => {
+    setBackgroundErrorText(errorText(e));
+    setOffline(e instanceof TypeError);
+  }, []);
+  const dismissBackgroundError = useCallback(() => setBackgroundError(undefined), [setBackgroundError]);
 
   const lockNow = useCallback(async () => {
     if (!anyUnlocked()) return true;
@@ -253,7 +265,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       reportBackgroundError(pollError);
       return false;
     }
-  }, [flushBeforeRefresh, reload, bumpRefresh, reportBackgroundError]);
+  }, [flushBeforeRefresh, reload, bumpRefresh, reportBackgroundError, setBackgroundError]);
 
   const syncAccount = useCallback(async (
     userId: string,
@@ -334,7 +346,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       foregroundNotificationRefresh.current = undefined;
       subscription.remove();
     };
-  }, [ready, refreshUnlocked, pollForegroundNotifications, reportBackgroundError]);
+  }, [ready, refreshUnlocked, pollForegroundNotifications, reportBackgroundError, setBackgroundError]);
 
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));
@@ -360,9 +372,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       onBeforeLock,
       error,
       errorBlocking,
-      backgroundError,
+      backgroundError: backgroundErrorText,
       dismissBackgroundError,
       holdRefresh,
+      offline,
+      dataChanged: bumpRefresh,
     }),
     [
       ready,
@@ -380,9 +394,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       onBeforeLock,
       error,
       errorBlocking,
-      backgroundError,
+      backgroundErrorText,
       dismissBackgroundError,
       holdRefresh,
+      offline,
+      bumpRefresh,
     ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;

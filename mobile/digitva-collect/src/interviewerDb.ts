@@ -47,6 +47,8 @@ const fileName = async (userId: string) => `iv_${await storeHash(userId)}.db`;
 
 export const isUnlocked = (userId: string) => unlocked.has(userId);
 export const anyUnlocked = () => unlocked.size > 0;
+/** An open store for device-level records that belong to no one interviewer (the error log); undefined while locked. */
+export const firstUnlockedDb = (): Db | undefined => unlocked.values().next().value;
 
 /** The interviewer's unlocked database; rejects with StoreLockedError while locked. */
 export async function openInterviewerDb(userId: string): Promise<Db> {

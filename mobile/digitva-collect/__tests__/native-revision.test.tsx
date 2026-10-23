@@ -140,6 +140,8 @@ jest.mock("../src/i18n", () => ({
 jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
 jest.mock("../src/translations", () => ({ applyTranslations: (instrument: unknown) => instrument }));
 const mockToast = jest.fn();
+const mockOpenSheet = jest.fn();
+jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ openSheet: mockOpenSheet, header: false, tabs: false }) }));
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -541,7 +543,7 @@ describe("native submitted-interview revisions", () => {
       expect(validate).toHaveBeenCalledTimes(1);
 
       await choose("formHelp");
-      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "ok").length).toBeGreaterThan(0);
+      expect(mockOpenSheet).toHaveBeenCalledWith("help");
 
       await press(tree, "back");
       await settle();

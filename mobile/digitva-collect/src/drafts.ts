@@ -322,6 +322,19 @@ export async function migrate(db: Db): Promise<void> {
       row_json TEXT NOT NULL
     );
   `);
+  // Local error log (src/errorLog.ts): support reference lines only, capped by src/errorLogDb.ts.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS error_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      at TEXT NOT NULL,
+      app_version TEXT NOT NULL,
+      route TEXT NOT NULL,
+      what TEXT NOT NULL,
+      device TEXT NOT NULL,
+      android TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS ix_error_log_at ON error_log(at);
+  `);
   for (const table of ["drafts", "cases", "registrations", "case_actions"] as const) {
     const tableColumns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`, []);
     if (!tableColumns.some((column) => column.name === "project_id")) {

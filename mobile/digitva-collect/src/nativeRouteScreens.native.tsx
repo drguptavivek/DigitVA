@@ -15,6 +15,7 @@ export { default as SignIn } from "./nativeRoutes/sign-in";
 export { default as Unlock } from "./nativeRoutes/unlock";
 export { default as Worklist } from "./nativeRoutes/worklist";
 export { default as Revision } from "./nativeRoutes/revision";
+export { default as Settings } from "./nativeRoutes/settings";
 
 /**
  * The Android app collects data only (docs/policy/field-data-collection.md).

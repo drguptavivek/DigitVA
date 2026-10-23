@@ -10,6 +10,7 @@ jest.mock("expo-secure-store", () => ({ canUseBiometricAuthentication: jest.fn()
 jest.mock("../src/AppState", () => ({ useAppState: mockUseAppState }));
 jest.mock("../src/vault", () => ({ biometricEnabled: mockBiometricEnabled }));
 jest.mock("../src/reEnrolConfirm", () => ({ confirmReEnrol: jest.fn(), reEnrolDevice: jest.fn() }));
+jest.mock("../src/nativeRouteScreens", () => ({ Settings: () => null }));
 jest.mock("../src/browserScreens", () => ({ SettingsScreen: () => require("react").createElement("web-settings") }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key, UI_LOCALES: [] }));
 jest.mock("../src/ui", () => ({ Button: "button", Screen: "screen", useUiStyles: jest.fn() }));

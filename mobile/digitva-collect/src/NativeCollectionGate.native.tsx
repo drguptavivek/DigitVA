@@ -3,10 +3,9 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Text } from "react-native";
 
 import { useAppState } from "./AppState";
-import { refreshAccessSummary, signOut } from "./auth";
+import { refreshAccessSummary } from "./auth";
 import { t } from "./i18n";
 import { isUnlocked, openInterviewerDb, unsentWorkCount } from "./interviewerDb";
-import { confirmSignOut } from "./signOutConfirm";
 import { uploadQueuedWork } from "./sync";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 
@@ -28,7 +27,7 @@ const WORKLIST_ROUTE = "/worklist";
  */
 function NativePendingWorkspace({ userId }: { userId: string }) {
   const router = useRouter();
-  const { accounts, lockNow, reload } = useAppState();
+  const { accounts, reload } = useAppState();
   const styles = useUiStyles();
   const [message, setMessage] = useState<string>();
   const [unsent, setUnsent] = useState<number>();
@@ -47,16 +46,6 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
   useEffect(() => {
     void recount();
   }, [recount, unlocked]);
-
-  async function doSignOut() {
-    try {
-      await signOut(userId);
-      await reload();
-      router.replace("/");
-    } catch {
-      setMessage(t("errGeneric"));
-    }
-  }
 
   async function sendUnsent() {
     setSending(true);
@@ -90,9 +79,6 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       {/* The Android app collects data only; coding and review are on the web. */}
       <Text style={styles.text}>{t(account?.coding_access || account?.reviewing_access ? "codingOnWeb" : "codingReviewPending")}</Text>
       {message ? <Text style={styles.error}>{message}</Text> : null}
-      <Button kind="secondary" label={t("accounts")} onPress={() => router.replace("/")} />
-      <Button kind="secondary" label={t("lockNow")} disabled={!unlocked} onPress={() => void lockNow()} />
-      <Button kind="danger" label={t("signOut")} onPress={() => void confirmSignOut(userId, () => void doSignOut())} />
     </Screen>
   );
 }

@@ -72,7 +72,6 @@ import {
 import { Button, Row, Screen, useUiStyles } from "../ui";
 import { MultilineInput } from "../MultilineInput";
 import { PhoneNumbers } from "../PhoneInput";
-import { ContextualHelpBanner } from "../web/ContextualHelp";
 
 type Field = Exclude<keyof RegistrationFields, "identifiers">;
 type BirthMode = "exact" | "month-year" | "year" | "unknown";
@@ -932,7 +931,6 @@ export default function Register() {
 
   return (
     <Screen title={t("registerDeath")}>
-      <ContextualHelpBanner screen="deathRegistration" />
       {!serverDeathId && registerProjects.length > 1 ? (
         <View style={{ gap: 8 }}>
           <Text style={styles.text}>{t("chooseProject")}</Text>

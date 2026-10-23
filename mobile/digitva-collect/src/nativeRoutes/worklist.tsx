@@ -16,7 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, AppState, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
-import { SessionRevokedError, SignInRequiredError, signOut } from "../auth";
+import { SessionRevokedError, SignInRequiredError } from "../auth";
 import {
   listActions,
   listCases,
@@ -27,7 +27,6 @@ import {
   type Registration,
 } from "../cases";
 import { listDrafts, retryDemoLimitDraft, type Db, type DraftRow } from "../drafts";
-import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import { t } from "../i18n";
 import { revisionName } from "../revisionLabel";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -51,7 +50,6 @@ import {
 } from "../sync";
 import { useToast } from "../toast";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
-import { ContextualHelpBanner } from "../web/ContextualHelp";
 import RegisteredDeaths from "./RegisteredDeaths";
 
 function displayDate(value: string | null | undefined): string | undefined {
@@ -120,7 +118,7 @@ function InterviewWorklist() {
     userId: string;
     refresh?: string;
   }>();
-  const { accounts, reload, lockNow, lockVersion, syncAccount } = useAppState();
+  const { accounts, reload, lockVersion, syncAccount } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -776,17 +774,6 @@ function InterviewWorklist() {
     }
   }
 
-  function confirmSignOut() {
-    if (!account) return;
-    void confirmUnsentSignOut(account.user_id, () => {
-      void (async () => {
-        await signOut(account.user_id);
-        await reload();
-        router.replace("/");
-      })();
-    });
-  }
-
   const selectedProject = (referenceData?.projects ?? []).find(
     ({ project }) => project.project_id === selectedProjectId,
   );
@@ -821,7 +808,6 @@ function InterviewWorklist() {
   );
   return (
     <Screen title={t("worklistTitle")}>
-      <ContextualHelpBanner screen="collection" />
       <Text style={styles.muted}>{account.name}</Text>
       {account.registered_deaths_access ? (
         <Button
@@ -1247,25 +1233,6 @@ function InterviewWorklist() {
             </Text>
           </View>
         ))}
-      <Row>
-        <Button
-          kind="secondary"
-          label={t("home")}
-          onPress={() => router.replace("/")}
-        />
-        <Button
-          kind="secondary"
-          label={t("lockNow")}
-          disabled={busy}
-          onPress={() => void lockNow()}
-        />
-        <Button
-          kind="danger"
-          label={t("signOut")}
-          disabled={busy}
-          onPress={confirmSignOut}
-        />
-      </Row>
     </Screen>
   );
 }

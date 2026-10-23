@@ -11,7 +11,7 @@ import { useWhoWebTheme } from "../src/whoWebTheme";
 import { ToastProvider } from "../src/toast";
 import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
-import AppHeader, { BottomTabs } from "../src/web/AppHeader";
+import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 
@@ -43,7 +43,7 @@ function ActivityRoot() {
         return false;
       }}
     >
-      <AppHeader />
+      <ShellHeader />
       <NativeTermsGate>
         <Stack
           screenOptions={{ headerShown: false, animation: "none" }}
@@ -54,7 +54,7 @@ function ActivityRoot() {
           )}
         />
       </NativeTermsGate>
-      <BottomTabs />
+      <ShellTabs />
     </View>
   );
 }
@@ -70,7 +70,9 @@ export default function RootLayout() {
       <AppStateProvider>
         <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
         <ToastProvider>
-          <ActivityRoot />
+          <ShellRoot>
+            <ActivityRoot />
+          </ShellRoot>
         </ToastProvider>
       </AppStateProvider>
     </SafeAreaProvider>

@@ -56,6 +56,7 @@ import {
 } from "../sync";
 import { applyTranslations, type Translations } from "../translations";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
+import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
@@ -282,9 +283,9 @@ export default function Revision() {
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [reasonOpen, setReasonOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const toast = useToast();
+  const shell = useShell();
   const [translationFallback, setTranslationFallback] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -708,7 +709,7 @@ export default function Revision() {
         onBack={leave}
         menuItems={[
           { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
-          { key: "help", label: t("formHelp"), onPress: () => setHelpOpen(true) },
+          { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
           { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
         ] satisfies SheetItem[]}
       />
@@ -744,12 +745,6 @@ export default function Revision() {
           selected: reason === item.code,
           onPress: () => setReason(item.code),
         }))}
-      />
-      <Sheet
-        visible={helpOpen}
-        title={t("formHelpText")}
-        onClose={() => setHelpOpen(false)}
-        items={[{ key: "ok", label: t("ok"), onPress: () => undefined }]}
       />
       <View style={{ flex: 1 }}>
         <WhoVaForm

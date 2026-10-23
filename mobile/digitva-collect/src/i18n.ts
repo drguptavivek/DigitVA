@@ -36,6 +36,11 @@ export function setUiLocale(code: string | null | undefined): string {
 
 export const uiLocale = () => current;
 
+/** Whether `text` is, word for word, one of the app's own fixed strings (so safe to keep in the error log). */
+export function uiTextKnown(text: string): boolean {
+  return Object.values(DICTIONARIES).some((dictionary) => Object.values(dictionary).includes(text));
+}
+
 /** The string for `key` in the current language, falling back to English, then the key itself. */
 export function t(key: StringKey, vars: Record<string, string | number> = {}): string {
   const text = DICTIONARIES[current]?.[key] ?? en[key] ?? key;

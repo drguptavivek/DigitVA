@@ -285,3 +285,29 @@ Policy: [Death Registration Identifiers](../policy/death-registration-identifier
   server could not decrypt does not hide the others. `cleanIdentifier` applies NFKC first, as
   the server does; `typedCaret` places the caret from the pre-keystroke selection and the
   length change of the typing transform.
+
+## Phone shell, Settings, Help and the error log (digitva-gmt7, digitva-j6cx)
+
+Native only; the browser shell is unchanged. All of it is under
+`mobile/digitva-collect/src/nativeShell/` and mounted by `app/_layout.tsx`
+through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
+
+- `shell.tsx` (`ShellProvider`) resolves the interviewer from the route's
+  `userId`, holds the sync status (unsent count, last sync, busy, last result,
+  offline flag from `AppState.offline`), runs Send now (`syncAccount`) and
+  Refresh (reference data, forms, cases) from any screen, and tells mounted
+  lists to reload (`AppState.dataChanged`). `Screen` leaves the status-bar and
+  navigation-bar insets to the header and tabs while they show.
+- `navAdapter.ts` feeds the account's access summary to `src/web/navTabs.ts`
+  and keeps Home, Interviews, Register death; Sync opens a sheet. Home and
+  Interviews both open the worklist (`view=interviews` marks the second) until
+  the Home dashboard of the design exists.
+- `sheets.tsx` holds the Account, Help and Sync sheets; Help text is
+  `help_<screen>_what|do1..3` in `src/strings/*.json`, chosen by
+  `helpContent.ts`, whose guide slugs a test keeps equal to
+  `SCREEN_HELP_CONFIG`. The guide URL is the enrolled server plus the slug,
+  opened with `Linking.openURL`.
+- `src/nativeRoutes/settings.tsx` is the sectioned Settings page.
+- Error log: `src/errorLog.ts` (scrubbing, buffer, export text),
+  `src/errorLogDb.ts` (table `error_log`, cap, install), `src/errorExport.ts`
+  (React Native `Share`). Rules: [policy](../policy/expo-client.md).

@@ -137,6 +137,54 @@ cannot name precisely must still identify itself on screen (owner,
 - Support matches a Ref to the server's access log by route, status and UTC
   minute.
 
+## Local error log and "Export errors" (native)
+
+Owner decision, 2026-10-23 (`digitva-j6cx`). So support can see what a phone
+reported without a log cable, the Android app keeps a small local error log.
+
+- **What is stored:** one row per error the app showed or reported: UTC time,
+  app version, the screen (route pathname, no parameters), the Ref content
+  (HTTP status, error code, method and masked route; or the native function
+  and scrubbed cause, by the rules above), device brand and model, Android
+  release. The same scrubbing as the on-screen Ref line applies, in
+  `describeError` (`mobile/digitva-collect/src/errorLog.ts`). Sources: every
+  `errorText` call (including messages that carry no Ref line, such as offline
+  or rate limited), background refresh failures, and error toasts whose text is
+  one of the app's own fixed strings. The same error on the same screen within
+  a minute is one row.
+- **What is never stored:** answers, names, phone numbers, tokens, URLs or query
+  strings, ids, server-provided free text, or any text typed by the worker.
+- **Where:** a table (`error_log`) in the interviewer's encrypted store, created by
+  the local migration in `src/drafts.ts`. Nothing is written in plaintext;
+  while no store is open, up to 50 entries wait in memory only and move in on
+  the next unlock. It is not unsent work and is never uploaded.
+- **Cap:** the newest 500 rows and at most 30 days, enforced on every write.
+- **Wipe:** it lives in the interviewer's database file, so sign-out, a revoked
+  session, a wipe after failed PINs and re-enrolment delete it with the store.
+- **Export:** Settings > Help & support > Export errors builds one text file
+  content, `digitva-errors-<date>.txt` (a header with app version, device and
+  export time, then entries newest first, cut to about 60,000 characters), and
+  hands it to the Android share sheet (email, WhatsApp). The worker chooses the
+  recipient; the app sends nothing itself. No file-sharing or zip package is a
+  dependency yet, so the text itself is shared, not an attached file.
+
+## Phone shell: header, tabs and Help
+
+Owner-approved design, 2026-10-23 (`digitva-gmt7`). The Android app has a 48 dp
+brand-blue header (emblem, sync status chip, Help, account avatar), bottom tabs
+(Home, Interviews, Register death, Sync; the badge on Sync is the unsent count)
+and an account menu sheet (Settings, Help, language, Lock now, Switch
+interviewer, Sign out with the existing unsent-work confirmation, version). The
+tabs follow the account's `collection_access`, `registration_access` and
+`registered_deaths_access` through the browser's `navEntries` rules and never
+show coding or review (web-only). Header and tabs are hidden on the interview
+and revision forms and on the unlock, sign-in, enrol and PIN screens; tabs are
+also hidden while the keyboard is open, while locked and on the accounts list.
+Help is a bottom sheet per screen (what it is for, what to do now) bundled in
+the app's English and Hindi dictionaries, so it works offline; only "Open the
+full guide" needs the network and opens the server's help page in the phone's
+browser.
+
 ## Screen capture (temporary allowance)
 
 The native app blocks screenshots and screen recording (`FLAG_SECURE`, applied

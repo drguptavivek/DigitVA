@@ -1,0 +1,124 @@
+/** The three shell sheets: Account menu, Help and Sync. Open state lives in the ShellProvider (shell.tsx). */
+import { usePathname, useRouter } from "expo-router";
+import { Linking, Pressable, Text, View } from "react-native";
+
+import { useAppState } from "../AppState";
+import { signOut } from "../auth";
+import { t, UI_LOCALES } from "../i18n";
+import { isUnlocked } from "../interviewerDb";
+import { confirmSignOut } from "../signOutConfirm";
+import { radius, spacing, typography, useTheme } from "../theme";
+import { useToast } from "../toast";
+import { APP_VERSION } from "../appVersion";
+import { Button } from "../ui";
+import { BottomSheet, SheetRow } from "./BottomSheet";
+import { helpContent, helpGuideUrl, helpScreenFor } from "./helpContent";
+import { clock, useShell, type SyncStatus } from "./shellContext";
+
+/** "Synced 14:05 · 3 unsent" (parts that are not known yet are left out). */
+export function syncSummary(sync: SyncStatus): string {
+  const parts = [sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")];
+  if (sync.unsent !== undefined) parts.push(t("syncUnsentCount", { count: sync.unsent }));
+  return parts.join(" · ");
+}
+
+function roleLine(account: { collection_access?: boolean; registration_access?: boolean }, project?: string): string {
+  const roles = [account.collection_access ? t("role_interviewer") : "", account.registration_access ? t("role_death_reporter") : ""].filter(Boolean);
+  return [roles.join(", "), project].filter(Boolean).join(" · ");
+}
+
+export function AccountSheet() {
+  const shell = useShell();
+  const router = useRouter();
+  const { accounts, device, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
+  const { ui } = useTheme();
+  const account = accounts.find((item) => item.user_id === shell.userId);
+  const userId = account?.user_id;
+  const go = (action: () => void) => () => {
+    shell.closeSheet();
+    action();
+  };
+  async function doSignOut() {
+    if (!userId) return;
+    try {
+      await signOut(userId);
+      await reload();
+      router.replace("/");
+    } catch {
+      // The sign-out confirmation already told the worker; a failure leaves them signed in.
+    }
+  }
+  return (
+    <BottomSheet visible={shell.sheet === "account"} title={account?.name ?? t("accountsTitle")} onClose={shell.closeSheet}>
+      <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{account ? roleLine(account, device?.project_name) : ""}</Text>
+      <Text style={{ ...typography.caption, color: ui.mutedForeground, marginBottom: spacing.xs }}>{syncSummary(shell.sync)}</Text>
+      <SheetRow label={t("settings")} onPress={go(() => router.push({ pathname: "/settings", params: { userId } }))} />
+      <SheetRow label={t("formHelp")} onPress={() => shell.openSheet("help")} />
+      <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm }}>
+        <Text style={{ ...typography.body, color: ui.popoverForeground }}>{t("languageLabel")}</Text>
+        <View style={{ flexDirection: "row", borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, overflow: "hidden" }}>
+          {UI_LOCALES.map((locale) => (
+            <Pressable
+              key={locale.code}
+              accessibilityRole="button"
+              accessibilityLabel={locale.label}
+              accessibilityState={{ selected: locale.code === uiLocale }}
+              onPress={() => void chooseUiLocale(locale.code)}
+              style={{ minHeight: 40, minWidth: 80, alignItems: "center", justifyContent: "center", backgroundColor: locale.code === uiLocale ? ui.accent : ui.popover }}
+            >
+              <Text style={{ ...typography.subhead, color: locale.code === uiLocale ? ui.accentForeground : ui.popoverForeground, fontWeight: locale.code === uiLocale ? "700" : "400" }}>{locale.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <SheetRow label={t("lockNow")} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
+      <SheetRow label={t("switchInterviewer")} onPress={go(() => router.replace("/"))} />
+      <SheetRow label={t("signOut")} tone="danger" disabled={!userId} onPress={go(() => userId && void confirmSignOut(userId, () => void doSignOut()))} />
+      <Text style={{ ...typography.caption, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("appVersionLabel", { version: APP_VERSION })}</Text>
+    </BottomSheet>
+  );
+}
+
+export function HelpSheet() {
+  const shell = useShell();
+  const pathname = usePathname();
+  const toast = useToast();
+  const { device } = useAppState();
+  const { ui } = useTheme();
+  const screen = helpScreenFor(pathname);
+  const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.unsent });
+  function openGuide() {
+    if (!device) return;
+    Linking.openURL(helpGuideUrl(device.server, help.slug)).catch(() => toast.show({ kind: "error", text: t("helpGuideFailed") }));
+  }
+  return (
+    <BottomSheet visible={shell.sheet === "help"} title={t("formHelp")} onClose={shell.closeSheet}>
+      <Text style={{ ...typography.caption, color: ui.mutedForeground, fontWeight: "600" }}>{t("helpWhatFor")}</Text>
+      <Text style={{ ...typography.body, color: ui.popoverForeground, marginBottom: spacing.sm }}>{help.what}</Text>
+      <Text style={{ ...typography.caption, color: ui.mutedForeground, fontWeight: "600" }}>{t("helpWhatToDo")}</Text>
+      {[...help.state, ...help.todo].map((line) => (
+        <Text key={line} style={{ ...typography.body, color: ui.popoverForeground, marginTop: spacing.xxs }}>{`• ${line}`}</Text>
+      ))}
+      <View style={{ marginTop: spacing.md }}>
+        <Button label={t("helpOpenGuide")} disabled={!device} onPress={openGuide} />
+      </View>
+    </BottomSheet>
+  );
+}
+
+export function SyncSheet() {
+  const shell = useShell();
+  const { ui } = useTheme();
+  const { sync } = shell;
+  return (
+    <BottomSheet visible={shell.sheet === "sync"} title={t("tabSync")} onClose={shell.closeSheet}>
+      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>
+      <Text style={{ ...typography.body, color: ui.popoverForeground }}>{sync.unsent === undefined ? t("syncUnsentUnknown") : t("syncUnsentCount", { count: sync.unsent })}</Text>
+      {sync.result ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("syncLastResult", { text: sync.result })}</Text> : null}
+      <View style={{ marginTop: spacing.md, gap: spacing.xs }}>
+        <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
+        <Button kind="secondary" label={t("refresh")} disabled={sync.busy || !shell.userId} onPress={() => void shell.refreshNow()} />
+      </View>
+    </BottomSheet>
+  );
+}

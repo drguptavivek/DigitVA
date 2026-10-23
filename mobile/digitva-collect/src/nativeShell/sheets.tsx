@@ -1,6 +1,7 @@
 /** The three shell sheets: Account menu, Help and Sync. Open state lives in the ShellProvider (shell.tsx). */
 import { usePathname, useRouter } from "expo-router";
-import { Linking, Pressable, Text, View } from "react-native";
+import { useState } from "react";
+import { Linking, Pressable, Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { signOut } from "../auth";
@@ -12,6 +13,7 @@ import { useToast } from "../toast";
 import { APP_VERSION } from "../appVersion";
 import { Button } from "../ui";
 import { BottomSheet, SheetRow } from "./BottomSheet";
+import { faqEntries, type FaqTarget } from "./faq";
 import { helpContent, helpGuideUrl, helpScreenFor } from "./helpContent";
 import { clock, useShell, type SyncStatus } from "./shellContext";
 
@@ -87,6 +89,18 @@ export function HelpSheet() {
   const { ui } = useTheme();
   const screen = helpScreenFor(pathname);
   const help = helpContent(screen, { offline: shell.sync.offline, unsent: shell.sync.work?.unsent });
+  const router = useRouter();
+  const [query, setQuery] = useState("");
+  const [openId, setOpenId] = useState<string>();
+  const entries = faqEntries(query);
+  /** The two sheets swap in place; the others close Help and open their screen. */
+  function goTo(target: FaqTarget) {
+    if (target === "account" || target === "sync") return shell.openSheet(target);
+    shell.closeSheet();
+    const params = { userId: shell.userId };
+    if (target === "settings") router.push({ pathname: "/settings", params });
+    else router.replace({ pathname: "/worklist", params: { ...params, view: "interviews", filter: target } });
+  }
   function openGuide() {
     if (!device) return;
     Linking.openURL(helpGuideUrl(device.server, help.slug)).catch(() => toast.show({ kind: "error", text: t("helpGuideFailed") }));
@@ -102,6 +116,29 @@ export function HelpSheet() {
       <View style={{ marginTop: spacing.md }}>
         <Button label={t("helpOpenGuide")} disabled={!device} onPress={openGuide} />
       </View>
+      <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, marginTop: spacing.lg }}>{t("faqTitle")}</Text>
+      <TextInput
+        accessibilityLabel={t("faqSearch")}
+        placeholder={t("faqSearch")}
+        placeholderTextColor={ui.mutedForeground}
+        value={query}
+        onChangeText={setQuery}
+        style={{ ...typography.body, color: ui.popoverForeground, borderWidth: 1, borderColor: ui.input, borderRadius: radius.md, minHeight: 48, paddingHorizontal: spacing.sm, marginVertical: spacing.xs }}
+      />
+      {entries.length === 0 ? <Text style={{ ...typography.body, color: ui.mutedForeground }}>{t("faqNone")}</Text> : null}
+      {entries.map((entry) => (
+        <View key={entry.id} testID="faq-entry" style={{ borderTopWidth: 1, borderTopColor: ui.border }}>
+          <SheetRow label={entry.question} onPress={() => setOpenId(openId === entry.id ? undefined : entry.id)} />
+          {openId === entry.id || query.trim() ? (
+            <View style={{ paddingBottom: spacing.sm, gap: spacing.xs }}>
+              <Text style={{ ...typography.body, color: ui.popoverForeground }}>{entry.answer}</Text>
+              {entry.target && (entry.target === "account" || entry.target === "sync" || shell.userId) ? (
+                <Button kind="secondary" label={entry.goLabel!} onPress={() => goTo(entry.target!)} />
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      ))}
     </BottomSheet>
   );
 }

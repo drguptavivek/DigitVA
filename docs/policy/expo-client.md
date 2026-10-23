@@ -260,7 +260,23 @@ at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
   user data) whether a newer APK is hosted, and falls back to the GitHub
   releases page when the server has none or is unreachable. It only tells the
   user and links to the download; it never installs anything by itself
-  (`digitva-2vrs`).
+  (`digitva-2vrs`). Phone (`mobile/digitva-collect/src/updateCheck.ts`): the
+  check runs on app start at most once a day (the time is stored only after an
+  answer, so an offline start is retried at the next start) and on Settings >
+  About "Check for updates". The fallback is the newest non-draft `android-v*`
+  release of `drguptavivek/DigitVA` (unauthenticated GitHub releases API; its
+  arm64 APK is the download). The base `version_code`
+  (`major*10000 + minor*100 + patch`) is compared with the installed version
+  (the app config `version`). A newer one shows a toast "Update available" with
+  a Download button that opens the URL in the browser; when both sources are
+  unreachable nothing is said at start and Settings shows "Couldn't check".
+
+## Common questions (Help)
+
+The Help sheet lists 11 interviewer questions bundled in the English and Hindi
+dictionaries (`faq_<id>_q` / `_a`; offline), searchable, each answer short with
+where to tap and, where it helps, a button that opens that screen. Settings >
+Help & support opens the same sheet (`digitva-zgl2`).
 
 ## Hosting and languages
 

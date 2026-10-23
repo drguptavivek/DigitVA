@@ -20,6 +20,8 @@ export interface ToastInput {
   text: string;
   /** Shown after a tap (an error's Ref line). */
   detail?: string;
+  /** A button under the text (the update notice's Download); the toast then stays longer. */
+  action?: { label: string; onPress(): void };
 }
 interface ToastItem extends ToastInput {
   id: number;
@@ -87,10 +89,10 @@ function ToastView({ item, onHide }: { item: ToastItem; onHide: () => void }) {
   hideRef.current = onHide;
 
   useEffect(() => {
-    const ms = expanded ? TOAST_EXPANDED_MS : item.kind === "error" ? TOAST_ERROR_MS : TOAST_MS;
+    const ms = expanded || item.action ? TOAST_EXPANDED_MS : item.kind === "error" ? TOAST_ERROR_MS : TOAST_MS;
     const timer = setTimeout(() => hideRef.current(), ms);
     return () => clearTimeout(timer);
-  }, [expanded, item.kind, item.nonce]);
+  }, [expanded, item.kind, item.nonce, item.action]);
 
   const tone = item.kind === "error" ? ui.destructiveText : item.kind === "success" ? ui.success : ui.border;
   return (
@@ -104,6 +106,11 @@ function ToastView({ item, onHide }: { item: ToastItem; onHide: () => void }) {
       <Text selectable={expanded} numberOfLines={expanded ? undefined : 2} style={{ ...typography.subhead, color: ui.popoverForeground }}>
         {expanded && item.detail ? item.detail : item.text}
       </Text>
+      {item.action ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={item.action.label} onPress={() => { item.action?.onPress(); hideRef.current(); }} style={{ minHeight: 48, justifyContent: "center" }}>
+          <Text style={{ ...typography.body, color: ui.primary, fontWeight: "600" }}>{item.action.label}</Text>
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }

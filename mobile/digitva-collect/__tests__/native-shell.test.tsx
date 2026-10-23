@@ -1,7 +1,7 @@
 /** The phone shell: tabs by access, when the chrome shows, the account menu, Help (offline) and the Sync sheet. */
 import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { Linking } from "react-native";
+import { Linking, View } from "react-native";
 
 import en from "../src/strings/en.json";
 import hi from "../src/strings/hi.json";
@@ -38,6 +38,7 @@ jest.mock("../src/signOutConfirm", () => ({ confirmSignOut: (userId: string, cb:
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true }));
 
 import { activeNativeTab, nativeTabs, showNativeHeader, showNativeTabs } from "../src/nativeShell/navAdapter";
+import { FAQ } from "../src/nativeShell/faq";
 import { HELP_SLUGS, helpContent, helpGuideUrl, helpScreenFor, type HelpScreen } from "../src/nativeShell/helpContent";
 import { SCREEN_HELP_CONFIG } from "../src/web/ContextualHelp";
 import { initials, LanguageButton, syncIndicator, NativeHeader, NativeTabs } from "../src/nativeShell/NativeChrome";
@@ -281,5 +282,69 @@ describe("sync sheet", () => {
     const tree = await render(<SyncSheet />, shellValue({ sheet: "sync", sync: { ...SYNC, busy: true } }));
     expect(byLabel(tree, "Send now")[0].props.disabled).toBe(true);
     expect(byLabel(tree, "Refresh")[0].props.disabled).toBe(true);
+  });
+});
+
+describe("common questions (Help)", () => {
+  const search = async (tree: ReactTestRenderer, text: string, label = "Search questions") => {
+    const input = tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onChangeText === "function")[0];
+    await act(async () => { input.props.onChangeText(text); });
+  };
+
+  it("has an answer for every question in English and Hindi", () => {
+    for (const dictionary of [en, hi] as Array<Record<string, string>>) {
+      for (const { id } of FAQ) {
+        expect(dictionary[`faq_${id}_q`]).toBeTruthy();
+        expect(dictionary[`faq_${id}_a`]).toBeTruthy();
+      }
+    }
+    expect(FAQ.length).toBe(11);
+  });
+
+  it("lists the questions and shows an answer on tap", async () => {
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    expect(tree.root.findAll((n) => n.props.testID === "faq-entry" && n.type === View)).toHaveLength(FAQ.length);
+    expect(texts(tree)).not.toContain(en.faq_unsent_a);
+    await press(tree, en.faq_unsent_q);
+    expect(texts(tree)).toContain(en.faq_unsent_a);
+  });
+
+  it("searches questions and answers, and says so when nothing matches", async () => {
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    await search(tree, "clock");
+    expect(tree.root.findAll((n) => n.props.testID === "faq-entry" && n.type === View)).toHaveLength(1);
+    expect(texts(tree)).toContain(en.faq_clock_a);
+    await search(tree, "zzzz");
+    expect(texts(tree)).toContain(en.faqNone);
+  });
+
+  it("answers in Hindi", async () => {
+    setUiLocale("hi");
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+    expect(texts(tree)).toContain(hi.faq_language_q);
+    await search(tree, "हिन्दी", hi.faqSearch);
+    expect(texts(tree)).toContain(hi.faq_language_a);
+  });
+
+  it("buttons open the screen the answer names", async () => {
+    const closeSheet = jest.fn();
+    const openSheet = jest.fn();
+    const tree = await render(<HelpSheet />, shellValue({ sheet: "help", closeSheet, openSheet }));
+    await search(tree, "continue an interview");
+    await press(tree, "Open Drafts");
+    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "drafts" } });
+    expect(closeSheet).toHaveBeenCalled();
+    await search(tree, "forms I have sent");
+    await press(tree, "Open Sent");
+    expect(mockRouter.replace).toHaveBeenLastCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "sent" } });
+    await search(tree, "Where do I see errors");
+    await press(tree, "Open Sync");
+    expect(openSheet).toHaveBeenCalledWith("sync");
+    await search(tree, "error log to support");
+    await press(tree, "Open Settings");
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/settings", params: { userId: "u1" } });
+    await search(tree, "app language");
+    await press(tree, "Open account menu");
+    expect(openSheet).toHaveBeenCalledWith("account");
   });
 });

@@ -5,7 +5,7 @@
  */
 import { useGlobalSearchParams, usePathname } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Keyboard } from "react-native";
+import { Keyboard, Linking } from "react-native";
 
 import { useAppState } from "../AppState";
 import { installErrorLog } from "../errorLogDb";
@@ -15,6 +15,7 @@ import { isUnlocked, openInterviewerDb, unsentWork } from "../interviewerDb";
 import { readNotificationState } from "../notificationState";
 import { refreshAuthorizedProjectDefinitions, refreshCases, refreshReferenceData } from "../sync";
 import { useToast } from "../toast";
+import { checkForUpdateDaily } from "../updateCheck";
 import { errorText } from "../ui";
 import type { WorkSummary } from "../unsentWork";
 import { isPreLoginRoute, showNativeHeader, showNativeTabs } from "./navAdapter";
@@ -38,7 +39,7 @@ export function useKeyboardOpen(): boolean {
 export function ShellProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname().replace(/\/$/, "") || "/";
   const params = useGlobalSearchParams<{ userId?: string | string[] }>();
-  const { accounts, lockVersion, offline, dataChanged, syncAccount, reload } = useAppState();
+  const { accounts, lockVersion, offline, dataChanged, syncAccount, reload, device } = useAppState();
   const toast = useToast();
   const keyboardOpen = useKeyboardOpen();
   const [sheet, setSheet] = useState<ShellSheet>(null);
@@ -51,6 +52,22 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const requested = first(params.userId);
   const userId = requested && accounts.some((account) => account.user_id === requested) ? requested : undefined;
   const unlocked = userId ? isUnlocked(userId) : false;
+
+  // Once per app start (and at most once a day, src/updateCheck.ts): tell, never install. Silent when nothing is known.
+  const server = device?.server;
+  const updateAsked = useRef(false);
+  useEffect(() => {
+    if (!server || updateAsked.current) return;
+    updateAsked.current = true;
+    void checkForUpdateDaily(server).then((result) => {
+      if (result?.status !== "available") return;
+      toast.show({
+        kind: "info",
+        text: t("updateAvailable", { version: result.version }),
+        action: { label: t("updateDownload"), onPress: () => void Linking.openURL(result.url).catch(() => undefined) },
+      });
+    }).catch(() => undefined);
+  }, [server, toast]);
 
   useEffect(() => installErrorLog(), []);
   useEffect(() => setErrorRoute(pathname), [pathname]);

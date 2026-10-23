@@ -6,7 +6,7 @@
 import { useRouter } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
 import { canUseBiometricAuthentication } from "expo-secure-store";
-import { Text, View } from "react-native";
+import { Linking, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { APP_VERSION } from "../appVersion";
@@ -16,6 +16,7 @@ import { t, UI_LOCALES } from "../i18n";
 import { clock, useShell } from "../nativeShell/shellContext";
 import { confirmReEnrol, reEnrolDevice } from "../reEnrolConfirm";
 import { useToast } from "../toast";
+import { checkForUpdate, type UpdateResult } from "../updateCheck";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { biometricEnabled } from "../vault";
 
@@ -39,6 +40,8 @@ export default function NativeSettings() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [update, setUpdate] = useState<UpdateResult>();
   useEffect(() => {
     let active = true;
     void Promise.all(accounts.map(async (account) => [account.user_id, await biometricEnabled(account.user_id)] as const))
@@ -100,6 +103,14 @@ export default function NativeSettings() {
       setExporting(false);
     }
   }
+  async function checkNow() {
+    setChecking(true);
+    try {
+      setUpdate(await checkForUpdate(device?.server));
+    } finally {
+      setChecking(false);
+    }
+  }
   const { sync } = shell;
   return (
     <Screen title={t("settings")}>
@@ -148,10 +159,14 @@ export default function NativeSettings() {
       </Section>
       <Section title={t("settingsHelp")}>
         <Button kind="secondary" label={t("helpGuide")} onPress={() => shell.openSheet("help")} />
+        <Button kind="secondary" label={t("faqOpenList")} onPress={() => shell.openSheet("help")} />
         <Button kind="secondary" label={t("exportErrors")} loading={exporting} disabled={exporting} onPress={() => void shareErrors()} />
       </Section>
       <Section title={t("settingsAbout")}>
         <Text style={styles.text}>{t("appVersionLabel", { version: APP_VERSION })}</Text>
+        {update ? <Text style={styles.muted}>{update.status === "available" ? t("updateAvailable", { version: update.version }) : update.status === "current" ? t("updateCurrent") : t("updateUnknown")}</Text> : null}
+        {update?.status === "available" ? <Button label={t("updateDownload")} onPress={() => void Linking.openURL(update.url).catch(() => undefined)} /> : null}
+        <Button kind="secondary" label={t("updateCheck")} loading={checking} disabled={checking} onPress={() => void checkNow()} />
         <Button kind="secondary" label={t("home")} onPress={() => router.back()} />
       </Section>
       {error ? <Text style={styles.error}>{error}</Text> : null}

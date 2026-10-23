@@ -8,7 +8,7 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
-export type PreferenceKey = "ui_locale" | "ui_theme";
+export type PreferenceKey = "ui_locale" | "ui_theme" | "update_check_at";
 export type ThemePreference = "system" | "light" | "dark";
 
 const listeners = new Set<() => void>();
@@ -25,7 +25,7 @@ function browserStorage(): Storage | undefined {
 }
 
 function isPreferenceKey(value: string): value is PreferenceKey {
-  return value === "ui_locale" || value === "ui_theme";
+  return value === "ui_locale" || value === "ui_theme" || value === "update_check_at";
 }
 
 /** Synchronous read for first paint: in-memory value, else browser storage. Null when unknown (native before its async read). */

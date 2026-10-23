@@ -11,9 +11,9 @@
 # (android-v<version>), downloaded and verified into /opt/digitva/android and
 # served at /download/android beside the GitHub releases link. Empty = none.
 x-release-pins: &release-pins
-  ANDROID_APK_TAG: "android-v0.3.2"
-  ANDROID_APK_ASSET: "digitva-collect-0.3.2-arm64-v8a.apk"
-  ANDROID_APK_SHA256: "9a494b0d0c041d84143e588db10815022449f1a4b0a5c9956a04e4654808970e"
+  ANDROID_APK_TAG: "android-v0.3.3"
+  ANDROID_APK_ASSET: "digitva-collect-0.3.3-arm64-v8a.apk"
+  ANDROID_APK_SHA256: "ad6a641b07b3f3ed85153a497edb0c3021057b6e3c976e553400f75745599c52"
   EXPO_WEB_TAG: "expo-web-v2026.10.24.4"
   EXPO_WEB_SHA256: "32a7b7aa59a6000ec04f19e490f41dba92dbd1e22a16e4e01f99ce32adf3d7d5"
   SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}

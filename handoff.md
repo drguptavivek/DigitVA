@@ -34,11 +34,12 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
-0. **Expo web release** for `digitva-p9j0` (DORIS remark):
-   `expo-web-v2026.10.23.1`, then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256`.
-1. **`digitva-295w`** (landed): staging A/B re-test with the workers niced
-   (worker paused vs running, same harness as 2026-10-23). If request p50 still
-   doubles while SmartVA runs, the next step is 4 vCPU.
+1. **`digitva-g8iu` (P1)**: `cpu_shares: 128` on both Celery workers (keep
+   `nice`). Staging A/B 2026-10-23: `nice -n 10` alone did not help (each
+   container is its own cgroup at equal weight); shares 128 halved request p50
+   while the worker ran (allocate 529 -> 227 ms, 0 5xx, SmartVA queue ≤11).
+   Requests are slow in Python, not Postgres (92% of busy backends idle in
+   transaction). Writer in the Rust session; short staging confirm after it lands.
 2. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays
@@ -47,8 +48,8 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
    approval), then pin the arm64 asset (`ANDROID_APK_*`) for
    `/download/android`. Signing key `private/android/` (owner backs it up;
    fingerprint in environment variable `ANDROID_RELEASE_CERT_SHA256`).
-   Current: `android-v0.3.0` (Latest) and `expo-web-v2026.10.22.5`, both built
-   from `21ccf04dc`.
+   Current: `android-v0.3.0` (Latest, from `21ccf04dc`) and
+   `expo-web-v2026.10.23.1` (from `19c05ba07`).
 3. **Public demo deploy** (`digitva-77v5.7`) per the runbook: DNS, DMZ block for
    `demo.causeofdeathindia.com`, S3 `demo/` prefix, demo DB and keys. Then
    `digitva-77v5.9` (seed without the default admin). Owner: review ~40 Hindi
@@ -98,6 +99,8 @@ ICD container stays on servers.
 
 ## Caveats
 
+- Quote backticks in `bd create -d "..."` descriptions: the shell runs them
+  (2026-10-23 a stray `docker update` hit the dev worker this way).
 - ODK sync (`digitva-lj7u`): a form syncs in one transaction, so row locks from
   its first page are held through later ODK fetches; a coder saving a case a
   large, slow delta sync updates waits until the form commits.

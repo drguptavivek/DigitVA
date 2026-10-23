@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Expo web `expo-web-v2026.10.23.1`** (from `19c05ba07`, carries the DORIS
+  remark) pinned in `x-release-pins`.
+- **Staging A/B on `d120dae27`**: `nice -n 10` on the workers did not lower
+  request latency; `cpu_shares` 128 did (`digitva-g8iu`).
 - **Sync master data and single-form resync** (`digitva-tn21`,
   `digitva-jvgp`; `docs/current-state/odk-sync.md`). The sync upsert reads
   form type and category config once per call instead of 3 queries per

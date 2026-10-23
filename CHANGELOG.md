@@ -5,6 +5,8 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Expo web `expo-web-v2026.10.23.2`** (from `a531ba664`: Ref line, server
+  reason and Fix line on refused submits) pinned in `x-release-pins`.
 - **Unknown exact date of death** (owner 2026-10-23): when `Id10022` is not
   yes and `Id10024` holds the year, the case gets 1 July of that year (capped
   at today), never replacing a date on file; web submit, revision and ODK case

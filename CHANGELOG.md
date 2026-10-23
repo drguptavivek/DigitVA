@@ -3,6 +3,88 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-24
+
+- **Phone app 0.3.3** (`3c2131d03`): release of everything below. CI run
+  `android-v0.3.3` awaits approval; until it is pinned, staging serves a
+  locally built 0.3.3 (`docs/current-state/android-release-builds.md`).
+- **Consent chip and delete a never-sent draft** (`digitva-wy90`, `0a32821c0`):
+  the interview shows its consent decision and lets the interviewer change it;
+  an unsent draft can be deleted. The previous decision is not kept: the
+  server rejects `supersedes` for unsent consents, so only the latest decision
+  is sent.
+- **Demo purge and station fixture** (`1f7289d3f`): the demo purge covers
+  `auth_sign_in_tokens`; the station fixture is regenerated; the UI string
+  source check is named once.
+- **Celery beat crash loop fixed** (`44bfe72be`): a circular import of the UI
+  string service crash-looped beat on staging between the first pull-only
+  deploy and this fix.
+- **Android `android-v0.3.2` hosted on servers** (`ec1b2d34f`): CI-built APK
+  pinned in `x-release-pins`; staging deployed at `ec1b2d34f`.
+- **Screenshots allowed in release APKs until 2026-10-30** (`a68e92a2d`,
+  `digitva-om65`): `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL`; remove afterwards.
+- **Expo web `expo-web-v2026.10.24.2` to `.4`** (`.4` from `b907cd7d5`,
+  pinned in `1b3760ae4`, `073490e15`, `1a429aeab`): the pins for the changes
+  below. `.1` was never used.
+- **Form colours follow the app theme** (`digitva-klzc`, `f273c99c7`): a
+  `FormTheme` prop replaces the engine's hard-coded greens.
+- **Form usability pass** (`digitva-e49e`, `digitva-man7`, `digitva-12ks`,
+  `digitva-v5zz`, `digitva-kkdb` step 1, `92da1f8e7`): a problems popup whose
+  rows jump to each field (Go), age assists, narration language taken from the
+  script, a compact footer, a year control, safe insets, a revision reason and
+  a dictation tip.
+- **In-app confirm dialog and submit banner** (`digitva-8ehe`, `digitva-0d3a`,
+  `00da8d2a2`): releases are confirmed in an app dialog, web submits in a
+  banner, instead of the browser's.
+- **Interviewer FAQ and daily update check** (`digitva-zgl2`, `digitva-2vrs`,
+  `a9bfd29fe`, `c77dba3e6`): the Help sheet carries the FAQ; the phone checks
+  once a day for a newer APK and offers it only when its link is https.
+  `c502a2bc0`: the server tells the phone which APK version it offers.
+- **Attachments in phone interviews** (`3a19c7aad`, `061360ca4`,
+  `50cafaf56`): audio recording, photos and PDFs; interviews started without a
+  case can carry them; narrative recordings pause and resume.
+- **Phone clock check** (`digitva-ltqg`, `57adf7bbc`, `05d3b3a7e`): the server
+  records each upload's clock offset and flags a wrong clock; the phone warns
+  above 5 minutes and blocks data entry above 4 hours, measured from the
+  server `Date` header and saved with the check.
+- **Azure machine translation of missing UI strings** (`digitva-cqw9`,
+  `9dd2440d3`): drafts in the Indian languages saved as candidates an admin
+  reviews, never live; migration `q7c2n5x9d4b8`; `1f7289d3f` fixes a
+  constraint name with `89f755b1156c`. Azure Translator is configured and
+  verified on staging (2 Punjabi drafts).
+- **Users screen redesign** (`digitva-9npt`, `f454c601d`): fly-out filters,
+  quick chips, one line per user, a Status popup and the sign-in QR dialog.
+  `6140258b6`: the users list filters on the server and returns a status
+  summary per user.
+- **Sign-in QR for data collectors and death reporters** (`digitva-3g19`,
+  `digitva-mhjg`): policy `55df618f1`; server `a62b78a70` (migration
+  `f3c8a1d5b7e2`); phone `e6e56b254` (redeem, six-box PIN, optional long-PIN
+  field) and `9b397cc4d` (PIN longer than six digits, fingerprint or phone
+  screen-lock unlock, the screen-lock weakness stated plainly). Security
+  review done.
+- **Phone consent parity and owner form defaults** (`99b340c5c`): the phone
+  asks for respondent consent, explains refused uploads, defaults `Id10051`
+  yes and `Id10053` "-", and prefills residence `Id10055`.
+- **Phone app polish** (`c96197359`): only work that can be sent counts as
+  unsent ("unsent" means ready to send), the phone says why anything stays,
+  and the language switch sits in the header.
+- **Names on coding screens** (`9ee184c5c`): shown to coders cleared for
+  personal data and to the submitter in a self-coding project.
+- **Phone shell** (`2ea4f8d5a`, `e6f60fa81`, `80be9f235`): one toast system,
+  full-height forms, a header, bottom tabs, account menu, Settings, Help and
+  an exportable error log; a Home dashboard, a searchable Interviews list and
+  site picker, deceased names on rows, empty, loading and offline states.
+- **CI builds the server image** (`7e2174a14`, `server-images.yml`): pushes
+  `ghcr.io/drguptavivek/digitva-app:<sha>` (public package); servers only pull
+  (`docker-compose.images.yml`, `make prod-pull`, `scripts/deploy-server.sh
+  <sha>`). Staging adopted it 2026-10-24: first pull-only deploy `1a429aeab`,
+  then `1b3760ae4`, `44bfe72be`, `ec1b2d34f` (migrations `e7b2c4d8f1a3`,
+  `f3c8a1d5b7e2`, `q7c2n5x9d4b8`, `89f755b1156c`; analytics MV refreshed;
+  build cache pruned).
+- **Full suite**: 6226 passed on 2026-10-24, then the 2 failures were fixed. An
+  earlier 252-failure run came from stale test databases (`create_all` never
+  adds columns): drop `minerva_test_*` after schema changes.
+
 ## 2026-10-23
 
 - **`finalAgeInYears` on web and app submissions** (`digitva-wsab`): set by

@@ -33,15 +33,15 @@ owner runs the deploy scripts (agent SSM writes are blocked); keep pull output o
 of SSM output (24 KB cap). Staging runs `ec1b2d34f` (pull-only deploy),
 `expo-web-v2026.10.24.4`, Azure Translator configured. Staging serves a
 locally built 0.3.3 APK through `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`
-in its `.env` (file in `/data/DigitVA/private/android-hosted`). CI run
-`android-v0.3.3` (40020454560) awaits approval; then pin `ANDROID_APK_*` to it,
-build the image, deploy; the deploy scripts remove the override
+in its `.env` (file in `/data/DigitVA/private/android-hosted`). CI
+`android-v0.3.3` is published and pinned in `9b64ec372` (image run 40023434115);
+deploying that image removes the override
 (`sed -i '/^DIGITVA_ANDROID_APK_DIR=/d' .env`).
 
 ## Ranked next steps
 
-1. **Release 0.3.3 from CI**: approve run 40020454560, pin the arm64 asset
-   (`ANDROID_APK_*`), new image, owner deploys, override gone. Releases: Expo
+1. **Deploy `9b64ec372`** (CI 0.3.3 pinned): the owner deploys; the APK
+   override comes off staging. Releases: Expo
    web `npm run vendor:build`, `npm run export:web`, tarball + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false`, bump
    `EXPO_WEB_TAG`/`EXPO_WEB_SHA256`. Signing key `private/android/` (owner backs

@@ -29,6 +29,7 @@ from app.routes.api.request_helpers import (
 from app.utils import va_user_timezone_name
 from app.services import smartva_service, training_scope
 from app.services.authz import Action, Reason, can
+from app.services.case_list_service import coding_names
 from app.services.case_transition_service import WebIntakeError
 from app.services.coder_cod_service import (
     CoderCodingError,
@@ -142,6 +143,7 @@ def get_allocation():
             else "varesumecoding"
         ),
         "is_upstream_recode": is_upstream_recode(va_sid),
+        "deceased_name": coding_names(current_user, [va_sid]).get(va_sid),
     }
     return jsonify({"allocation": row})
 

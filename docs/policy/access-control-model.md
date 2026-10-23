@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Access Control Model
@@ -218,6 +218,11 @@ May additionally see:
 - staff identity: who collected, coded and reviewed each death
   (`va_submissions.va_data_collector`, the payload's `SubmitterName`, and the
   coder and reviewer names on workflow and audit views)
+
+On the coding screens a coder who also holds it sees the deceased's name, and
+in a self-coding project so does the submitter of a case ([Coding Workflow
+State Machine Policy](coding-workflow-state-machine.md), "Names on the coding
+screens").
 
 Grant it for the operational reason it exists: a supervisor who has to know
 who did what for which death. It is not a convenience upgrade of

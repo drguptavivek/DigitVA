@@ -29,7 +29,7 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const styles = useUiStyles();
   return (
-    <Screen title={workspace.case.instance_name} headerAction={<Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={(
+    <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} headerAction={<Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={(
       <ScrollView accessibilityLabel="Case categories" style={styles.card}>
         {categories.map((item) => (
           <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ selected: selectedCode === item.code }} onPress={() => onSelectCategory(item.code)}>

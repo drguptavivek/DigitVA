@@ -954,6 +954,20 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(categories["catc"]["attachment_count"], 0)
         self.assertEqual(categories["social_autopsy"]["count"], 0)
 
+    def test_workspace_header_name_is_null_for_a_coder_without_name_access(self):
+        # tests/test_coding_names.py covers who does see it.
+        sid = self._coding_case()
+        self.assertIn("deceased_name", self._workspace(sid)["case"])
+        self.assertIsNone(self._workspace(sid)["case"]["deceased_name"])
+
+    def test_workspace_header_name_is_null_outside_coding_mode(self):
+        # The sealed name is only ever opened for the coding header.
+        reviewing = self._reviewing_case()
+        body = self._workspace(reviewing, mode="reviewing", user=self.reviewer_id)
+        self.assertIsNone(body["case"]["deceased_name"])
+        sid = self._coding_case()
+        self.assertIsNone(self._workspace(sid, mode="view")["case"]["deceased_name"])
+
     def test_a_category_the_role_does_not_see_is_404(self):
         coding = self._coding_case()
         reviewing = self._reviewing_case()

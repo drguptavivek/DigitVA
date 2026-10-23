@@ -82,7 +82,8 @@ def _reset_engines_after_fork():
 
 os.register_at_fork(before=_freeze_before_fork, after_in_child=_reset_engines_after_fork)
 #: API paths whose responses are never stored by a browser or proxy.
-_NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases")
+_NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases",
+                         "/api/v1/coding/")
 
 
 def _rate_limit_key():

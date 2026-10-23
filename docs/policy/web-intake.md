@@ -1679,6 +1679,10 @@ medical officer interviews and then codes their own case.
   Policy](coding-workflow-state-machine.md), "Self-coding". The interviewer
   worklist shows "Code now" on the user's own completed interviews that still
   await coding.
+- **Name on the coding screens.** The submitter sees the deceased's name on
+  their own cases in the pick list, the held case and the workspace header
+  (other coders do not): [Coding Workflow State Machine
+  Policy](coding-workflow-state-machine.md), "Names on the coding screens".
 - Nothing else changes: the case reaches coding by the normal path, and
   review, recode, revisions and send-back follow their own rules.
 

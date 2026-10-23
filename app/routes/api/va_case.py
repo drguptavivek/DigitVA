@@ -47,6 +47,7 @@ from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
+from app.services.case_list_service import coding_names
 from app.services.cod_entry_mode import is_masked
 from app.services.cod_entry_mode import project_mode as get_project_mode
 from app.services.coder_cod_service import (
@@ -562,6 +563,9 @@ def workspace(va_sid):
         "case": {
             "va_sid": va_sid,
             "instance_name": case.submission.va_uniqueid_masked,
+            # The coding header only (coding-workflow-state-machine.md,
+            # "Names on the coding screens"); None when the caller may not see it.
+            "deceased_name": coding_names(current_user, [va_sid]).get(va_sid) if case.mode == "coding" else None,
             "form_type_code": case.form_type_code,
             "project_code": case.project_code,
             "site_code": case.site_code,

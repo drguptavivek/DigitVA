@@ -275,7 +275,7 @@ class CodingPagingTests(BaseTestCase):
             {
                 "va_sid", "va_uniqueid_masked", "va_form_id", "project_id",
                 "site_id", "va_submission_date", "va_data_collector",
-                "va_deceased_age", "va_deceased_gender",
+                "va_deceased_age", "va_deceased_gender", "deceased_name",
             },
         )
         self.assertNotIn("pg-b-0", sids)

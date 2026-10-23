@@ -852,6 +852,36 @@ code their own case. This adds no workflow state and no new pool rule.
 - A coder may release their own allocation; see [Coding Allocation Timeout
   Policy](coding-allocation-timeouts.md), "Coder release".
 
+## Names on the coding screens
+
+Owner decision 2026-10-23, `digitva-8kka`. A coder sees a coding screen's
+cases by masked unique id. The deceased's name is added, per case, on the
+pick list (`GET /api/v1/coding/available`), the held case
+(`GET /api/v1/coding/allocation`) and the coding workspace header
+(`GET /api/v1/va/<sid>/workspace?mode=coding`), as `deceased_name` (`null`
+when not shown), when either holds:
+
+- **PII visibility, in every project.** The caller sees the case by name under
+  the case list's rule (`case_list_service` `can_name`: an assigned field
+  role on its reach, `collaborator_pii`, or admin / a supervising role with
+  personal-data access). The interviewer grant a self-coding coder is merely
+  *implied* does not count, and nor does a `coder` grant on its own: coding
+  alone shows the masked id.
+- **Self-coding submitter.** In a self-coding project
+  (`self_coding_enabled`), the coder who submitted the case, that is owns the
+  submitted web intake draft or device interview for that `va_sid` (the owner
+  test of "Code this case now"). Other coders of the project see no name of
+  that case. Outside a self-coding project this rule gives nothing.
+
+Anyone else keeps the masked id only. The server decides per row and never
+sends a name it should not. A submission with no register row (no sealed name)
+has `deceased_name` `null`. The name is opened through
+`register_pii_accessor` for the page's rows in one query; like the case list's
+names, an open here writes no audit row. The training scope bounds these
+endpoints as before. See [Web Intake Policy](web-intake.md), "Self-coding
+projects", and [Access Control Model](access-control-model.md),
+"`collaborator_pii`".
+
 ## Recode Window
 
 Only coder-finalized cases may be recoded.

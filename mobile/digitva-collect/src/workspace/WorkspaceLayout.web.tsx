@@ -365,7 +365,8 @@ export function WorkspaceLayout({
         </View> : (
           <View style={webStyles.desktopTopActions}>
             <View nativeID="digitva-case-strip" style={webStyles.caseStrip}>
-              <Text numberOfLines={1} style={webStyles.caseStripId}>{workspace.case.instance_name}</Text>
+              {workspace.case.deceased_name ? <Text numberOfLines={1} style={webStyles.caseStripId}>{workspace.case.deceased_name}</Text> : null}
+              <Text numberOfLines={1} style={workspace.case.deceased_name ? webStyles.caseStripText : webStyles.caseStripId}>{workspace.case.instance_name}</Text>
               <Text numberOfLines={1} accessibilityLabel={infoLabel} style={webStyles.caseStripText}>{infoLine}</Text>
               <Text numberOfLines={1} accessibilityLabel={`Project / Site ${projectSite}`} style={webStyles.caseStripText}>{projectSite}</Text>
               {workspace.case.is_demo_project ? <Text style={webStyles.demo}>DEMO</Text> : null}
@@ -418,7 +419,8 @@ export function WorkspaceLayout({
       </View>
       <ScrollView style={webStyles.infoPanelScroll} contentContainerStyle={webStyles.infoPanelContent}>
         <View style={webStyles.mobileCaseHeader}>
-          <Text style={webStyles.mobileCaseId}>{workspace.case.instance_name}</Text>
+          {workspace.case.deceased_name ? <Text style={webStyles.mobileCaseId}>{workspace.case.deceased_name}</Text> : null}
+          <Text style={workspace.case.deceased_name ? webStyles.mobileCaseMetaText : webStyles.mobileCaseId}>{workspace.case.instance_name}</Text>
           <View style={webStyles.mobileCaseMeta} accessibilityLabel={`Age ${age}, ${gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}${workspace.case.is_demo_project ? ", DEMO" : ""}`}>
             <Text style={webStyles.mobileCaseMetaText}>Age {age}</Text>
             <Text style={webStyles.mobileCaseMetaText}>{gender ? gender.charAt(0).toUpperCase() + gender.slice(1) : "-"}</Text>

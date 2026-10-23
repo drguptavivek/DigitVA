@@ -235,3 +235,22 @@ test("desktop layout keeps a compact case strip visible beside the Case Info tri
   const panel = renderer.root.findAll((node) => node.props.nativeID === "digitva-case-info-panel")[0];
   expect(StyleSheet.flatten(panel.props.style)).toMatchObject({ display: "none" });
 });
+
+test("the case strip leads with the deceased's name when the server sent one, else the id alone", async () => {
+  const render = async (deceased_name?: string | null) => {
+    let renderer!: ReactTestRenderer;
+    const workspace = { ...layoutWorkspace, case: { ...layoutWorkspace.case, ...(deceased_name !== undefined ? { deceased_name } : {}) } };
+    await act(async () => {
+      renderer = create(<WorkspaceLayout identity={{ vaSid: "sid-1", mode: "coding" }} workspace={workspace} categories={workspace.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()}><Text>category content</Text></WorkspaceLayout>);
+      await Promise.resolve();
+    });
+    const output = JSON.stringify(renderer.toJSON());
+    act(() => renderer.unmount());
+    return output;
+  };
+  const named = await render("Asha Rao");
+  expect(named).toContain("Asha Rao");
+  expect(named).toContain(layoutWorkspace.case.instance_name);
+  expect(await render(null)).not.toContain("Asha Rao");
+  expect(await render()).toContain(layoutWorkspace.case.instance_name);
+});

@@ -633,7 +633,7 @@ export function QueueScreen({
   const projects = catalogReady ? catalog?.projects : undefined;
 
   // The allocation snapshot carries only the SID; one workspace read per held case names its form and project.
-  const [heldCase, setHeldCase] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; vaSid: string; formId: string; projectCode: string | null; siteCode: string | null } | null>(null);
+  const [heldCase, setHeldCase] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; vaSid: string; formId: string; deceasedName: string | null; projectCode: string | null; siteCode: string | null } | null>(null);
   const heldCaseRef = useRef(heldCase);
   heldCaseRef.current = heldCase;
   const allocationSid = allocation?.va_sid;
@@ -644,7 +644,7 @@ export function QueueScreen({
     void Promise.resolve()
       .then(() => api.getWorkspace(allocationSid, mode))
       .then((workspace) => {
-        if (active) setHeldCase({ api, mode, vaSid: allocationSid, formId: workspace.case.instance_name, projectCode: workspace.case.project_code ?? null, siteCode: workspace.case.site_code ?? null });
+        if (active) setHeldCase({ api, mode, vaSid: allocationSid, formId: workspace.case.instance_name, deceasedName: workspace.case.deceased_name ?? null, projectCode: workspace.case.project_code ?? null, siteCode: workspace.case.site_code ?? null });
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -655,7 +655,7 @@ export function QueueScreen({
     ? projects?.project_options.find((option) => option.project_id === heldLabel.projectCode)?.project_name ?? null
     : null;
   const heldText = heldLabel
-    ? [heldLabel.formId, `Project / Site: ${heldLabel.projectCode ?? "-"}/${heldLabel.siteCode ?? "-"}`, heldProjectName].filter(Boolean).join(" · ")
+    ? [heldLabel.deceasedName, heldLabel.formId, `Project / Site: ${heldLabel.projectCode ?? "-"}/${heldLabel.siteCode ?? "-"}`, heldProjectName].filter(Boolean).join(" · ")
     : "";
   const coderStats = mode === "coding" && stats && "random_ready" in stats ? stats : undefined;
   const reviewerStats = mode === "reviewing" && stats && "available" in stats ? stats : undefined;
@@ -747,6 +747,7 @@ export function QueueScreen({
     if (!query) return true;
     const haystack = [
       item.va_uniqueid_masked,
+      "deceased_name" in item ? item.deceased_name : undefined,
       item.va_form_id,
       item.project_id,
       item.site_id,
@@ -1074,7 +1075,8 @@ export function QueueScreen({
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>
               <View style={q.caseHeader}>
                 <View style={q.caseHeaderMain}>
-                  <Text style={styles.headline}>{item.va_uniqueid_masked}</Text>
+                  {item.deceased_name ? <Text style={styles.headline}>{item.deceased_name}</Text> : null}
+                  <Text style={item.deceased_name ? styles.muted : styles.headline}>{item.va_uniqueid_masked}</Text>
                   <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, item.va_submission_date].filter(Boolean).join(" · ")}</Text>
                 </View>
               </View>

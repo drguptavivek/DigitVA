@@ -81,7 +81,7 @@ def dashboard():
 
         va_total_forms = _count_ready(va_form_access)
         va_random_ready_forms = _count_ready(random_form_ids) if random_form_ids else 0
-        pick_ready_rows = get_pick_available_forms(current_user, pick_form_ids)
+        pick_ready_rows = get_pick_available_forms(current_user, pick_form_ids, with_names=False)
         va_forms_completed = get_coder_completed_count(current_user.user_id, va_form_access)
         va_forms = get_coder_completed_history(current_user, va_form_access)
         va_pick_ready_forms_count = len(pick_ready_rows)

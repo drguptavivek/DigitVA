@@ -61,6 +61,7 @@ from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
 import sqlalchemy as sa
+from flask import current_app
 from sqlalchemy.orm import aliased
 
 from app import db
@@ -77,6 +78,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionWorkflow,
     VaUsers,
+    VaWebIntakeDraft,
 )
 from app.models.va_selectives import VaAllocation
 from app.models.va_web_intake import CASE_STATES, DEATH_SEX_VALUES
@@ -339,9 +341,9 @@ def _on_submission(condition):
     return sa.exists().where(VaSubmissions.va_sid == VaDeathRegister.va_sid, condition)
 
 
-def _reach(user: VaUsers) -> _Reach:
+def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
     grants = resolve_grants(user)
-    interviewer = _worklist_scope(user)
+    interviewer = _worklist_scope(user, assigned_only=assigned_only)
     reporter = _worklist_scope(user, None, _DEATH_REPORTER)
     # A reporter's reach is its own registrations only (``list_worklist``).
     if reporter is not None:
@@ -769,6 +771,55 @@ def _open_page(page, show_location: dict) -> dict:
         only = ("deceased_name", "latitude", "longitude") if with_fix else ("deceased_name",)
         opened.update(register_pii_accessor.open_register_pii(rows, only=only))
     return opened
+
+
+def coding_names(user: VaUsers, va_sids) -> dict[str, str]:
+    """``{va_sid: deceased name}`` for the coding screens' rows the caller may
+    see by name, one query and one sealed-blob open per such row.
+
+    Policy: docs/policy/coding-workflow-state-machine.md, "Names on the
+    coding screens". A row qualifies on ``can_name`` (the case list's rule)
+    computed without the interviewer grant a self-coding coder is implied,
+    which would otherwise name every case of the project; or, in a
+    self-coding project, when the caller submitted the case (owns its
+    submitted draft, as ``allocate_own_case``). A submission with no register
+    row, or no name, is absent. No audit row: opening a name in a list is not
+    audited anywhere (``list_cases``).
+    """
+    sids = [s for s in dict.fromkeys(va_sids) if s]
+    if not sids:
+        return {}
+    submitted = sa.and_(
+        VaProjectMaster.self_coding_enabled.is_(True),
+        VaProjectMaster.web_intake_mode != "off",
+        sa.exists().where(
+            VaWebIntakeDraft.va_sid == VaDeathRegister.va_sid,
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status == "submitted",
+        ),
+    )
+    rows = db.session.execute(
+        sa.select(
+            VaDeathRegister.death_id, VaDeathRegister.va_sid, VaDeathRegister.deceased_name,
+            VaDeathRegister.pii_sealed, VaDeathRegister.pii_dek_wrapped,
+        )
+        .join(VaProjectMaster, VaProjectMaster.project_id == VaDeathRegister.project_id)
+        .where(VaDeathRegister.va_sid.in_(sids),
+               sa.or_(_reach(user, assigned_only=True).can_name, submitted))
+        .order_by(VaDeathRegister.created_at)
+    ).all()
+    # One name per submission; a duplicate register row does not replace the first.
+    names: dict[str, str] = {}
+    for r in rows:
+        try:
+            name = register_pii_accessor.open_register_pii([r], only=("deceased_name",))[r.death_id]["deceased_name"]
+        except pii_crypto.PiiCryptoError:
+            # One unreadable row must not fail the page; the row id only, no PII.
+            current_app.logger.error("coding_names: register row %s did not open", r.death_id)
+            continue
+        if name:
+            names.setdefault(r.va_sid, name)
+    return names
 
 
 def list_cases(user: VaUsers, *, preset: str, filters: CaseFilters, cursor: str | None = None,

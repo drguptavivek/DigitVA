@@ -179,6 +179,8 @@ export interface WorkspacePayload {
   case: {
     va_sid: string;
     instance_name: string;
+    // The deceased's name, sent only to a coder who may see it (coding mode); null/absent otherwise.
+    deceased_name?: string | null;
     form_type_code: string;
     project_code?: string | null;
     site_code?: string | null;
@@ -269,6 +271,7 @@ export interface CoderQueue {
 export interface CoderAvailableCase {
   va_sid: string;
   va_uniqueid_masked: string;
+  deceased_name?: string | null;
   va_form_id: string;
   project_id: string;
   site_id: string;
@@ -579,6 +582,7 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
     case: {
       va_sid: string(caseSource.va_sid, "workspace.case.va_sid"),
       instance_name: string(caseSource.instance_name, "workspace.case.instance_name"),
+      ...(caseSource.deceased_name !== undefined ? { deceased_name: nullableString(caseSource.deceased_name, "workspace.case.deceased_name") } : {}),
       form_type_code: string(caseSource.form_type_code, "workspace.case.form_type_code"),
       ...(caseSource.project_code !== undefined ? { project_code: nullableString(caseSource.project_code, "workspace.case.project_code") } : {}),
       ...(caseSource.site_code !== undefined ? { site_code: nullableString(caseSource.site_code, "workspace.case.site_code") } : {}),
@@ -676,6 +680,7 @@ function coderAvailableCase(value: unknown, field: string): CoderAvailableCase {
   return {
     va_sid: string(source.va_sid, `${field}.va_sid`),
     va_uniqueid_masked: string(source.va_uniqueid_masked, `${field}.va_uniqueid_masked`),
+    ...(source.deceased_name !== undefined ? { deceased_name: nullableString(source.deceased_name, `${field}.deceased_name`) } : {}),
     va_form_id: string(source.va_form_id, `${field}.va_form_id`),
     project_id: string(source.project_id, `${field}.project_id`),
     site_id: string(source.site_id, `${field}.site_id`),

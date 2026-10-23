@@ -204,7 +204,8 @@ class RequestQueryCountTests(BaseTestCase):
         # the DISTINCT org_unit scan of va_submissions.
         self.assertTrue(any("map_org_unit_coding_gate" in s for s in sql))
         self.assertFalse(any("DISTINCT" in s and "org_unit_id" in s for s in sql))
-        self.assertLessEqual(len(sql), 14)
+        # 14 + the page's one batched name lookup (case_list_service.coding_names).
+        self.assertLessEqual(len(sql), 15)
         response, _, writes = self._measure("available_warm", "get", "/api/v1/coding/available")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(writes, 0)  # unchanged session inside the refresh window

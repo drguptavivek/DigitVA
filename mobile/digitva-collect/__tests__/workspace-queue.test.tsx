@@ -136,6 +136,23 @@ describe("QueueScreen", () => {
     await unmount(unavailable.renderer);
   });
 
+  test("a pick card leads with the deceased's name when sent, else shows the masked id alone", async () => {
+    const named = await render("coding", makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [{ ...coderRow, deceased_name: "Asha Rao" }], count: 1, limit: 50, offset: 0, has_more: false }),
+    }));
+    const output = JSON.stringify(named.renderer.toJSON());
+    expect(output).toContain("Asha Rao");
+    expect(output).toContain(coderRow.va_uniqueid_masked);
+    await unmount(named.renderer);
+
+    const masked = await render("coding", makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [{ ...coderRow, deceased_name: null }], count: 1, limit: 50, offset: 0, has_more: false }),
+    }));
+    expect(JSON.stringify(masked.renderer.toJSON())).toContain(coderRow.va_uniqueid_masked);
+    expect(JSON.stringify(masked.renderer.toJSON())).not.toContain("Asha Rao");
+    await unmount(masked.renderer);
+  });
+
   test("coder paging respects has_more, resets for project and tab changes, and allocates only on pick", async () => {
     const api = makeApi({
       getCodingAvailable: jest.fn().mockResolvedValue({ forms: [coderRow], count: 1, limit: 50, offset: 0, has_more: true }),

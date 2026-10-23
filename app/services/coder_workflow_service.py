@@ -1374,24 +1374,36 @@ def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None 
     )
 
 
+def _with_names(user, forms: list[dict]) -> list[dict]:
+    """*forms* with ``deceased_name`` (``None`` unless the caller may see it:
+    ``case_list_service.coding_names``), the page's names in one batch."""
+    from app.services.case_list_service import coding_names
+
+    names = coding_names(user, [f["va_sid"] for f in forms])
+    return [{**f, "deceased_name": names.get(f["va_sid"])} for f in forms]
+
+
 def get_pick_available_forms(
-    user, pick_form_ids: list[str], project_id: str | None = None
+    user, pick_form_ids: list[str], project_id: str | None = None,
+    with_names: bool = True,
 ) -> list[dict]:
     """Return submissions available for pick-mode coding, ordered for display.
 
     Unpaged: the web dashboard reads the whole list. *project_id* only narrows
-    the pool the caller's own scope already allows. See
+    the pool the caller's own scope already allows. *with_names* False skips
+    opening any deceased name (callers that never render one). See
     ``get_pick_available_page`` for the bounded form.
     """
     if not pick_form_ids:
         return []
     from app.utils import va_render_serialisedates
-    return [
+    forms = [
         va_render_serialisedates(row, ["va_submission_date"])
         for row in db.session.execute(
             _pick_available_stmt(user, pick_form_ids, project_id)
         ).mappings().all()
     ]
+    return _with_names(user, forms) if with_names else forms
 
 
 def count_pick_available(user, pick_form_ids: list[str]) -> int:
@@ -1425,7 +1437,7 @@ def get_pick_available_page(
         _pick_available_stmt(user, pick_form_ids, project_id).limit(limit + 1).offset(offset)
     ).mappings().all()
     return (
-        [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]],
+        _with_names(user, [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]]),
         len(rows) > limit,
     )
 

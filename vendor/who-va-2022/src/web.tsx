@@ -68,18 +68,22 @@ import {
 import { startWebAudioRecording } from "./web-audio.js";
 import { prefersReducedMotion } from "./ui/form-presentation.js";
 import { applyWebTheme } from "./ui/web-theme.js";
+import { useFormTheme, webDefaults as W } from "./ui/theme.js";
 import { isValidIsoDate } from "./date.js";
 
 function themedPrimitive(Component: React.ElementType, displayName: string): React.ElementType {
   const ThemedPrimitive = React.forwardRef<unknown, Record<string, unknown>>(
-    ({ style, contentContainerStyle, ...props }, ref) => (
-      <Component
-        {...props}
-        ref={ref}
-        style={applyWebTheme(style)}
-        contentContainerStyle={applyWebTheme(contentContainerStyle)}
-      />
-    )
+    ({ style, contentContainerStyle, ...props }, ref) => {
+      const theme = useFormTheme();
+      return (
+        <Component
+          {...props}
+          ref={ref}
+          style={applyWebTheme(style, theme)}
+          contentContainerStyle={applyWebTheme(contentContainerStyle, theme)}
+        />
+      );
+    }
   );
   ThemedPrimitive.displayName = displayName;
   return ThemedPrimitive;
@@ -279,13 +283,13 @@ function webDatePickerIcon({
 function webDatePickerTheme(input: HTMLInputElement | null) {
   const computed = input && typeof window !== "undefined" ? window.getComputedStyle(input) : undefined;
   const token = (name: string, fallback: string) => computed?.getPropertyValue(name).trim() || fallback;
-  const surface = token("--who-2022-web-color-surface", "#ffffff");
-  const ink = token("--who-2022-web-color-ink", "#1f2937");
-  const brand = token("--who-2022-web-color-brand", "#1b4f9c");
-  const brandDeep = token("--who-2022-web-color-brand-deep", "#004687");
-  const brandSoft = token("--who-2022-web-color-brand-soft", "#eaf1fa");
-  const border = token("--who-2022-web-color-border", "#e2e8f0");
-  const muted = token("--who-2022-web-color-muted", "#667085");
+  const surface = token("--who-2022-web-color-surface", W.surface);
+  const ink = token("--who-2022-web-color-ink", W.ink);
+  const brand = token("--who-2022-web-color-brand", W.brand);
+  const brandDeep = token("--who-2022-web-color-brand-deep", W.brandDeep);
+  const brandSoft = token("--who-2022-web-color-brand-soft", W.brandSoft);
+  const border = token("--who-2022-web-color-border", W.border);
+  const muted = token("--who-2022-web-color-muted", W.muted);
   const fontFamily = computed?.fontFamily || "system-ui, sans-serif";
   const fonts = Object.fromEntries(
     Object.entries(MD3LightTheme.fonts).map(([name, style]) => [name, { ...style, fontFamily }])
@@ -307,7 +311,7 @@ function webDatePickerTheme(input: HTMLInputElement | null) {
       onSurfaceVariant: muted,
       outline: border,
       outlineVariant: border,
-      backdrop: "rgba(31, 41, 55, 0.45)",
+      backdrop: W.backdrop,
       elevation: {
         ...MD3LightTheme.colors.elevation,
         level0: surface,
@@ -368,7 +372,7 @@ const WebDateInput = React.forwardRef<WebDateInputHandle, WebDateInputProps>(fun
     }),
     [disabled, locale, readOnly]
   );
-  const themed = applyWebTheme(style);
+  const themed = applyWebTheme(style, useFormTheme());
   const flattenedStyle = (Array.isArray(themed) ? themed.flat(Infinity) : [themed])
     .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
     .reduce<Record<string, unknown>>((result, entry) => Object.assign(result, entry), {});
@@ -443,7 +447,7 @@ const WebSelect = React.forwardRef<HTMLSelectElement, WebSelectProps>(function W
   { accessibilityLabel, disabled, emptyOptionLabel, onValueChange, options, style, testID, value },
   ref
 ) {
-  const themed = applyWebTheme(style);
+  const themed = applyWebTheme(style, useFormTheme());
   const flattenedStyle = (Array.isArray(themed) ? themed.flat(Infinity) : [themed])
     .filter((entry): entry is Record<string, unknown> => typeof entry === "object" && entry !== null)
     .reduce<Record<string, unknown>>((result, entry) => Object.assign(result, entry), {});

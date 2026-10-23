@@ -1,5 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Platform } from "react-native";
+
+import type { FormTheme } from "@drguptavivek/who-2022-va";
 
 import { uiRadius, useTheme, type Theme } from "./theme";
 
@@ -31,6 +33,27 @@ export function whoWebThemeVars({ ui }: Pick<Theme, "ui">): Record<string, strin
   };
 }
 
+/** Colours of the WHO form engine (native and web `theme` prop), read from the same `ui` tokens, light and dark. */
+export function whoFormTheme({ ui }: Pick<Theme, "ui">): FormTheme {
+  return {
+    primary: ui.primary,
+    onPrimary: ui.primaryForeground,
+    primarySoft: ui.accent,
+    accent: ui.primaryPressed,
+    surface: ui.card,
+    surfaceAlt: ui.muted,
+    border: ui.border,
+    borderStrong: ui.input,
+    text: ui.foreground,
+    textMuted: ui.mutedForeground,
+    danger: ui.destructiveText,
+    dangerSoft: ui.destructiveSoft,
+    success: ui.success,
+    focus: ui.ring,
+    scrim: "rgba(0, 0, 0, 0.5)"
+  };
+}
+
 /** Web only: keep the package's choice controls on the app theme, light and dark. */
 export function useWhoWebTheme() {
   const { ui } = useTheme();
@@ -39,6 +62,12 @@ export function useWhoWebTheme() {
     const style = document.documentElement.style;
     for (const [name, value] of Object.entries(whoWebThemeVars({ ui }))) style.setProperty(name, value);
   }, [ui]);
+}
+
+/** The form theme of the current light or dark mode; a new object only when the mode changes. */
+export function useWhoFormTheme(): FormTheme {
+  const { ui } = useTheme();
+  return useMemo(() => whoFormTheme({ ui }), [ui]);
 }
 
 /** Short labels (<= 18 characters) use 2 columns on phones and 3 elsewhere; long ones keep the width-based rule. */

@@ -47,7 +47,9 @@ const mockNavigation = {
 };
 jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, useIsFocused: () => true, useNavigation: () => mockNavigation}));
 jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
-jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, useTheme: () => ({colors: {}})}));
+// The real `ui` tokens, so the form theme the screen derives is the app's own; `mockColorMode` flips light and dark.
+let mockColorMode: "light" | "dark" = "light";
+jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));
 jest.mock("../src/ui", () => ({
   Button: (props: {label: string; onPress: () => void}) => jest.requireActual("react").createElement("mock-button", props),
   useUiStyles: () => ({}),
@@ -104,6 +106,7 @@ import { WhoVaForm } from "@drguptavivek/who-2022-va/web";
 import { t, setUiLocale } from "../src/i18n";
 import { guardedNavigate, leaveDialogOpen, leavePage, leaveSaveFailed, saveAndLeave, stayOnPage } from "../src/web/navigationGuard";
 import { AppHeaderBar } from "../src/web/AppHeader";
+import { whoFormTheme } from "../src/whoWebTheme";
 
 jest.mock("../src/prefill", () => ({initialDataFromPrefill: () => ({})}));
 
@@ -168,6 +171,22 @@ it("shows the reported death's case strip when the draft is linked to a death, n
   await act(async () => {tree = create(<InterviewScreen />);});
   expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
   expect(JSON.stringify(tree.toJSON())).not.toContain("Asha Devi");
+  await act(async () => tree.unmount());
+});
+
+it("hands the form the app theme tokens, light and dark", async () => {
+  const {ui: tokens} = jest.requireActual("../src/theme");
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  const light = tree.root.findByType(WhoVaForm).props.theme;
+  expect(light).toEqual(whoFormTheme({ui: tokens.light}));
+  expect(light.primary).toBe(tokens.light.primary);
+  mockColorMode = "dark";
+  await act(async () => {tree.update(<InterviewScreen />);});
+  const dark = tree.root.findByType(WhoVaForm).props.theme;
+  mockColorMode = "light";
+  expect(dark).toEqual(whoFormTheme({ui: tokens.dark}));
+  expect(dark.primary).not.toBe(light.primary);
   await act(async () => tree.unmount());
 });
 

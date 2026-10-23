@@ -30,6 +30,7 @@ import { WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "../languages/ui.js";
 import { WHO_VA_FORM_VERSION } from "../version.js";
 import { englishAlongside, plainText } from "./localize.js";
 import { createRichText } from "./rich-text-view.js";
+import { FormThemeContext, type FormTheme } from "./theme.js";
 import { createSectionNavigation, type SectionNavItem } from "./section-navigation.js";
 import {
   createWhoVaQuestionControls,
@@ -61,6 +62,11 @@ interface WhoVaFormCommonProps {
    * back to English one by one.
    */
   uiTranslations?: WhoVaUiTranslations;
+  /**
+   * Colours of the form (selected options, buttons, progress, headings, banners). Omitted: the engine's own
+   * palette on native and the `--who-2022-web-*` custom properties on web. Pass a new object per light or dark mode.
+   */
+  theme?: FormTheme;
   showSourceGuidance?: boolean;
   /**
    * Show the English beneath translated question labels, hints and choice
@@ -1324,7 +1330,7 @@ export function createWhoVaForm(
     );
   }
 
-  function Form(props: WhoVaFormProps) {
+  function FormContents(props: WhoVaFormProps) {
     const { instrument: providedInstrument, onInstrumentError } = props;
     const [loadedInstrument, setLoadedInstrument] = useState<InstrumentDefinition>();
     const [loadError, setLoadError] = useState<Error>();
@@ -1375,6 +1381,15 @@ export function createWhoVaForm(
       );
     }
     return <ReadyForm {...props} resolvedInstrument={instrument} />;
+  }
+
+  /** Carries the host's colour theme (none: the engine defaults) to every primitive below. */
+  function Form(props: WhoVaFormProps) {
+    return (
+      <FormThemeContext.Provider value={props.theme}>
+        <FormContents {...props} />
+      </FormThemeContext.Provider>
+    );
   }
 
   Form.displayName = "WhoVaForm";

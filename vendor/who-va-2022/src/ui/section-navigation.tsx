@@ -25,6 +25,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import type { WhoVaUiMessages } from "../i18n.js";
+import { defaultFormTheme as T } from "./theme.js";
 import { withWebTheme } from "./web-theme.js";
 
 export type SectionNavStatus = "empty" | "started" | "complete" | "issues";
@@ -522,8 +523,8 @@ export const navStyles = {
   circle: withWebTheme(
     {
       alignItems: "center" as const,
-      backgroundColor: "#ffffff",
-      borderColor: "#b8c2d1",
+      backgroundColor: T.surface,
+      borderColor: T.borderStrong,
       borderRadius: 999,
       borderWidth: 2,
       flexShrink: 0,
@@ -535,23 +536,27 @@ export const navStyles = {
     { backgroundColor: "surface", borderColor: "controlBorder" }
   ),
   circleSmall: { height: STEP_DIAMETER, width: STEP_DIAMETER },
-  circleComplete: withWebTheme({ borderColor: "#147d64" }, { borderColor: "brand" }),
-  circleIssues: withWebTheme({ borderColor: "#b34231" }, { borderColor: "danger" }),
+  circleComplete: withWebTheme({ borderColor: T.primary }, { borderColor: "brand" }),
+  circleIssues: withWebTheme({ borderColor: T.danger }, { borderColor: "danger" }),
   circleActive: withWebTheme(
-    { backgroundColor: "#147d64", borderColor: "#147d64" },
+    { backgroundColor: T.primary, borderColor: T.primary },
     { backgroundColor: "brand", borderColor: "brand" }
   ),
   circleGlyph: withWebTheme(
-    { color: "#147d64", fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
+    { color: T.primary, fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
     { color: "brand" }
   ),
   circleGlyphSmall: { fontSize: 12, lineHeight: 14 },
-  circleGlyphIssues: withWebTheme({ color: "#b34231" }, { color: "danger" }),
-  circleGlyphActive: { color: "#ffffff" },
-  circleDot: { backgroundColor: "#ffffff", borderRadius: 999, height: 8, width: 8 },
+  circleGlyphIssues: withWebTheme({ color: T.danger }, { color: "danger" }),
+  circleGlyphActive: withWebTheme({ color: T.onPrimary }, {}, { color: "onPrimary" }),
+  circleDot: withWebTheme(
+    { backgroundColor: T.onPrimary, borderRadius: 999, height: 8, width: 8 },
+    {},
+    { backgroundColor: "onPrimary" }
+  ),
   circleHalf: withWebTheme(
     {
-      backgroundColor: "#147d64",
+      backgroundColor: T.primary,
       height: "100%",
       left: 0,
       position: "absolute" as const,
@@ -567,7 +572,7 @@ export const navStyles = {
   ),
   groupLabel: withWebTheme(
     {
-      color: "#536b64",
+      color: T.textMuted,
       fontSize: 12,
       fontWeight: "700" as const,
       letterSpacing: 0.4,
@@ -583,19 +588,19 @@ export const navStyles = {
   stepEntering: { opacity: 0 },
   stepRail: { alignItems: "center" as const, width: 22 },
   stepLine: withWebTheme(
-    { backgroundColor: "#dce6e1", flex: 1, minHeight: 14, width: 2 },
+    { backgroundColor: T.border, flex: 1, minHeight: 14, width: 2 },
     { backgroundColor: "border" }
   ),
-  stepLineDone: withWebTheme({ backgroundColor: "#147d64" }, { backgroundColor: "brand" }),
+  stepLineDone: withWebTheme({ backgroundColor: T.primary }, { backgroundColor: "brand" }),
   stepText: withWebTheme(
-    { color: "#536b64", flexShrink: 1, fontSize: 14, lineHeight: 22, paddingBottom: 14 },
+    { color: T.textMuted, flexShrink: 1, fontSize: 14, lineHeight: 22, paddingBottom: 14 },
     { color: "muted" }
   ),
-  stepTextStrong: withWebTheme({ color: "#183d33" }, { color: "ink" }),
-  stepTextIssues: withWebTheme({ color: "#8c3022" }, { color: "dangerStrong" }),
+  stepTextStrong: withWebTheme({ color: T.text }, { color: "ink" }),
+  stepTextIssues: withWebTheme({ color: T.danger }, { color: "dangerStrong" }),
   moreNote: withWebTheme(
     {
-      color: "#536b64",
+      color: T.textMuted,
       fontSize: 13,
       fontStyle: "italic" as const,
       lineHeight: 18,
@@ -605,7 +610,7 @@ export const navStyles = {
     { color: "muted" }
   ),
   moreNoteInline: withWebTheme(
-    { color: "#536b64", fontSize: 12, fontStyle: "italic" as const, lineHeight: 16 },
+    { color: T.textMuted, fontSize: 12, fontStyle: "italic" as const, lineHeight: 16 },
     { color: "muted" }
   ),
   // Horizontal stepper (header)
@@ -624,12 +629,12 @@ export const navStyles = {
     minWidth: STEP_TOUCH_TARGET
   },
   stripLine: withWebTheme(
-    { backgroundColor: "#dce6e1", flexBasis: 0, flexGrow: 1, height: 2, minWidth: 12 },
+    { backgroundColor: T.border, flexBasis: 0, flexGrow: 1, height: 2, minWidth: 12 },
     { backgroundColor: "border" }
   ),
-  stripLineDone: withWebTheme({ backgroundColor: "#147d64" }, { backgroundColor: "brand" }),
+  stripLineDone: withWebTheme({ backgroundColor: T.primary }, { backgroundColor: "brand" }),
   stripCount: withWebTheme(
-    { color: "#536b64", fontSize: 12, fontWeight: "600" as const, lineHeight: 16 },
+    { color: T.textMuted, fontSize: 12, fontWeight: "600" as const, lineHeight: 16 },
     { color: "muted" }
   ),
   headerRow: {
@@ -640,11 +645,11 @@ export const navStyles = {
   },
   headerLead: { flexShrink: 1, rowGap: 2 },
   headerText: withWebTheme(
-    { color: "#183d33", fontSize: 14, fontWeight: "700" as const, lineHeight: 20 },
+    { color: T.text, fontSize: 14, fontWeight: "700" as const, lineHeight: 20 },
     { color: "ink" }
   ),
   headerHint: withWebTheme(
-    { color: "#536b64", flexShrink: 0, fontSize: 13, fontWeight: "600" as const, lineHeight: 20 },
+    { color: T.textMuted, flexShrink: 0, fontSize: 13, fontWeight: "600" as const, lineHeight: 20 },
     { color: "muted" }
   ),
   // Drawer
@@ -652,17 +657,14 @@ export const navStyles = {
     { bottom: 0, left: 0, position: "absolute" as const, right: 0, top: 0, zIndex: 1000 },
     { position: "overlayPosition" }
   ),
-  scrim: {
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
-    bottom: 0,
-    left: 0,
-    position: "absolute" as const,
-    right: 0,
-    top: 0
-  },
+  scrim: withWebTheme(
+    { backgroundColor: T.scrim, bottom: 0, left: 0, position: "absolute" as const, right: 0, top: 0 },
+    {},
+    { backgroundColor: "scrim" }
+  ),
   panel: withWebTheme(
     {
-      backgroundColor: "#ffffff",
+      backgroundColor: T.surface,
       bottom: 0,
       // Opens on the same side as the "Sections" toggle (top right).
       right: 0,
@@ -682,7 +684,7 @@ export const navStyles = {
     marginBottom: 8
   },
   panelTitle: withWebTheme(
-    { color: "#12372d", fontSize: 16, fontWeight: "700" as const, lineHeight: 24 },
+    { color: T.text, fontSize: 16, fontWeight: "700" as const, lineHeight: 24 },
     { color: "brandDeep" }
   ),
   panelList: { flex: 1 },
@@ -693,5 +695,5 @@ export const navStyles = {
     justifyContent: "center" as const,
     width: 44
   },
-  closeGlyph: withWebTheme({ color: "#12372d", fontSize: 18, lineHeight: 22 }, { color: "brandDeep" })
+  closeGlyph: withWebTheme({ color: T.text, fontSize: 18, lineHeight: 22 }, { color: "brandDeep" })
 };

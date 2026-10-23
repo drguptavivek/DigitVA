@@ -6,6 +6,7 @@ import { formatDdMmmYyyy } from "./date-value.js";
 import { localized } from "./localize.js";
 import type { AnswerValue, InstrumentQuestion, SubmissionData } from "../types.js";
 import type { WhoVaPrimitiveSet } from "./create-who-va-form.js";
+import { defaultFormTheme as T, useFormTheme, webDefaults } from "./theme.js";
 import { withWebTheme } from "./web-theme.js";
 
 export function FooterIcon({
@@ -16,12 +17,14 @@ export function FooterIcon({
   primitives: Required<Pick<WhoVaPrimitiveSet, "Svg" | "SvgCircle" | "SvgPath">>;
 }): React.ReactElement {
   const { Svg, SvgCircle, SvgPath } = primitives;
+  const theme = useFormTheme();
   const iconProps = {
     fill: "none",
     height: 20,
-    // Literals because react-native-svg cannot read a CSS variable the way the
+    // react-native-svg cannot read a CSS variable the way the
     // themed text primitives can: brand-deep, or white on the primary button.
-    stroke: name === "next" ? "#ffffff" : "#004687",
+    stroke:
+      name === "next" ? (theme?.onPrimary ?? webDefaults.surface) : (theme?.primary ?? webDefaults.brandDeep),
     strokeLinecap: "round",
     strokeLinejoin: "round",
     strokeWidth: 2,
@@ -124,13 +127,13 @@ export { prefersReducedMotion } from "./web-theme.js";
 // and Malayalam carry marks above and below the baseline that a tight default
 // clips, and the form is filled in those scripts.
 export const formStyles = {
-  root: withWebTheme({ flex: 1, backgroundColor: "#f6f8f7" }, { backgroundColor: "canvas" }),
+  root: withWebTheme({ flex: 1, backgroundColor: T.surfaceAlt }, { backgroundColor: "canvas" }),
   content: withWebTheme(
     { padding: 20, maxWidth: 760, width: "100%", alignSelf: "center" as const },
     { padding: "formPadding", maxWidth: "formMaxWidth" }
   ),
   progress: withWebTheme(
-    { color: "#47625b", marginBottom: 6, fontSize: 13, lineHeight: 18 },
+    { color: T.textMuted, marginBottom: 6, fontSize: 13, lineHeight: 18 },
     { color: "muted" }
   ),
   shell: withWebTheme({ flex: 1, position: "relative" as const }, { scrollMarginTop: "scrollMargin" }),
@@ -138,15 +141,15 @@ export const formStyles = {
   layoutRow: { alignItems: "flex-start" as const, columnGap: 20, flexDirection: "row" as const },
   mainColumn: { flex: 1, minWidth: 0 },
   sectionTitle: withWebTheme(
-    { color: "#12372d", fontSize: 22, fontWeight: "700" as const, lineHeight: 30, marginBottom: 12 },
+    { color: T.text, fontSize: 22, fontWeight: "700" as const, lineHeight: 30, marginBottom: 12 },
     { color: "brandDeep" }
   ),
   // One surface per section; questions are separated by a rule rather than
   // each carrying its own card, which halves the chrome on a long page.
   sectionCard: withWebTheme(
     {
-      backgroundColor: "#ffffff",
-      borderColor: "#dce6e1",
+      backgroundColor: T.surface,
+      borderColor: T.border,
       borderRadius: 12,
       borderWidth: 1,
       overflow: "hidden" as const,
@@ -157,13 +160,13 @@ export const formStyles = {
   question: withWebTheme(
     {
       borderBottomWidth: 1,
-      borderBottomColor: "#e6ede9",
+      borderBottomColor: T.border,
       paddingVertical: 16
     },
     { borderBottomColor: "border" }
   ),
   questionError: withWebTheme(
-    { borderLeftWidth: 3, borderLeftColor: "#d66552", marginLeft: -16, paddingLeft: 13 },
+    { borderLeftWidth: 3, borderLeftColor: T.danger, marginLeft: -16, paddingLeft: 13 },
     { borderLeftColor: "dangerBorder" }
   ),
   // Wide forms put the label, code and hint in a left column and the control
@@ -178,21 +181,21 @@ export const formStyles = {
     justifyContent: "space-between" as const
   },
   label: withWebTheme(
-    { color: "#142a24", fontSize: 16, fontWeight: "600" as const, lineHeight: 24, marginBottom: 8 },
+    { color: T.text, fontSize: 16, fontWeight: "600" as const, lineHeight: 24, marginBottom: 8 },
     { color: "ink" }
   ),
   labelWithStatus: { flex: 1 },
   // An interviewer instruction: read by the interviewer, not to the respondent.
   labelInstruction: withWebTheme(
-    { color: "#315e73", fontStyle: "italic" as const, fontWeight: "500" as const },
+    { color: T.accent, fontStyle: "italic" as const, fontWeight: "500" as const },
     { color: "guidance" }
   ),
   instructionTag: withWebTheme(
     {
       alignSelf: "flex-start" as const,
-      backgroundColor: "#e6f1f6",
+      backgroundColor: T.primarySoft,
       borderRadius: 4,
-      color: "#315e73",
+      color: T.accent,
       fontSize: 11,
       fontWeight: "700" as const,
       letterSpacing: 0.4,
@@ -208,9 +211,9 @@ export const formStyles = {
   codeChip: withWebTheme(
     {
       alignSelf: "flex-start" as const,
-      backgroundColor: "#eef3f0",
+      backgroundColor: T.surfaceAlt,
       borderRadius: 4,
-      color: "#536b64",
+      color: T.textMuted,
       fontSize: 11,
       lineHeight: 16,
       marginBottom: 4,
@@ -222,32 +225,40 @@ export const formStyles = {
   questionStatusBadge: withWebTheme(
     {
       alignItems: "center" as const,
-      backgroundColor: "#147d64",
+      backgroundColor: T.success,
       borderRadius: 999,
       height: 22,
       justifyContent: "center" as const,
       marginTop: 1,
       width: 22
     },
-    { backgroundColor: "brand" }
+    { backgroundColor: "brand" },
+    { backgroundColor: "success" }
   ),
-  questionStatusBadgeText: { color: "#ffffff", fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
-  required: withWebTheme({ color: "#a23a2a" }, { color: "danger" }),
-  hint: withWebTheme({ color: "#536b64", fontSize: 14, lineHeight: 20, marginBottom: 8 }, { color: "muted" }),
+  questionStatusBadgeText: withWebTheme(
+    { color: T.onPrimary, fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
+    {},
+    { color: "onPrimary" }
+  ),
+  required: withWebTheme({ color: T.danger }, { color: "danger" }),
+  hint: withWebTheme(
+    { color: T.textMuted, fontSize: 14, lineHeight: 20, marginBottom: 8 },
+    { color: "muted" }
+  ),
   guidance: withWebTheme(
-    { color: "#315e73", fontSize: 14, lineHeight: 20, marginBottom: 8 },
+    { color: T.accent, fontSize: 14, lineHeight: 20, marginBottom: 8 },
     { color: "guidance" }
   ),
   // The English beside a translation (`show-english`): secondary and muted.
   english: withWebTheme(
-    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const, lineHeight: 19, marginBottom: 8 },
+    { color: T.textMuted, fontSize: 13, fontStyle: "italic" as const, lineHeight: 19, marginBottom: 8 },
     { color: "muted" }
   ),
   note: withWebTheme(
     {
-      backgroundColor: "#edf5f2",
+      backgroundColor: T.primarySoft,
       borderLeftWidth: 3,
-      borderLeftColor: "#147d64",
+      borderLeftColor: T.primary,
       marginLeft: -16,
       marginRight: -16,
       paddingLeft: 13,
@@ -255,7 +266,7 @@ export const formStyles = {
     },
     { backgroundColor: "brandSoft", borderLeftColor: "brand" }
   ),
-  error: withWebTheme({ color: "#a23a2a", marginTop: 8, fontSize: 14, lineHeight: 20 }, { color: "danger" }),
+  error: withWebTheme({ color: T.danger, marginTop: 8, fontSize: 14, lineHeight: 20 }, { color: "danger" }),
   navigation: {
     columnGap: 8,
     flexDirection: "row" as const,
@@ -294,7 +305,7 @@ export const formStyles = {
   icon: { height: 20, width: 20 },
   draftStatus: withWebTheme(
     {
-      color: "#536b64",
+      color: T.textMuted,
       fontSize: 13,
       lineHeight: 18,
       marginTop: 4,
@@ -304,12 +315,12 @@ export const formStyles = {
     { color: "muted" }
   ),
   previewIntro: withWebTheme(
-    { color: "#536b64", fontSize: 14, lineHeight: 20, marginBottom: 16 },
+    { color: T.textMuted, fontSize: 14, lineHeight: 20, marginBottom: 16 },
     { color: "muted" }
   ),
-  previewAnswer: withWebTheme({ color: "#142a24", fontSize: 16, lineHeight: 24 }, { color: "ink" }),
+  previewAnswer: withWebTheme({ color: T.text, fontSize: 16, lineHeight: 24 }, { color: "ink" }),
   previewEmpty: withWebTheme(
-    { color: "#536b64", fontSize: 15, lineHeight: 22, paddingVertical: 16 },
+    { color: T.textMuted, fontSize: 15, lineHeight: 22, paddingVertical: 16 },
     { color: "muted" }
   )
 };

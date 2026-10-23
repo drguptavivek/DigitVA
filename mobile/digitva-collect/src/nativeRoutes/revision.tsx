@@ -59,6 +59,7 @@ import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar
 import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
+import { useWhoFormTheme } from "../whoWebTheme";
 
 const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
   {
@@ -262,6 +263,7 @@ async function resolveRevisionInstrument(
 
 export default function Revision() {
   const styles = useUiStyles();
+  const whoTheme = useWhoFormTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
     userId?: string;
@@ -748,6 +750,7 @@ export default function Revision() {
       />
       <View style={{ flex: 1 }}>
         <WhoVaForm
+          theme={whoTheme}
           key={`${loaded.row.draft_id}-${loaded.config.locale}`}
           instrument={instrument}
           locale={loaded.config.locale}

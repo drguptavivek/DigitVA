@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { applyWebTheme, withWebTheme } from "../src/ui/web-theme.js";
+import { defaultFormTheme } from "../src/ui/theme.js";
+import { applyNativeTheme, applyWebTheme, withWebTheme } from "../src/ui/web-theme.js";
 
 describe("explicit web theme bindings", () => {
   it("themes annotated properties without inspecting their literal values", () => {
@@ -33,5 +34,26 @@ describe("explicit web theme bindings", () => {
       { backgroundColor: "var(--who-2022-web-color-surface, #ffffff)" },
       override
     ]);
+  });
+
+  it("takes colours from a passed form theme, on web and native, and layout tokens stay web-only", () => {
+    const theme = { ...defaultFormTheme, primary: "#1D4ED8", onPrimary: "#FFFFFF" };
+    const style = withWebTheme(
+      { backgroundColor: "x", color: "y", borderRadius: 1 },
+      { backgroundColor: "brand", borderRadius: "controlRadius" },
+      { color: "onPrimary" }
+    );
+
+    expect(applyWebTheme(style, theme)).toMatchObject({
+      backgroundColor: "#1D4ED8",
+      color: "#FFFFFF",
+      borderRadius: "var(--who-2022-web-radius-control, 8px)"
+    });
+    expect(applyNativeTheme(style, theme)).toEqual({
+      backgroundColor: "#1D4ED8",
+      color: "#FFFFFF",
+      borderRadius: 1
+    });
+    expect(applyNativeTheme(style, undefined)).toBe(style);
   });
 });

@@ -3,12 +3,38 @@
  * factories to native primitives while re-exporting the headless API.
  */
 import React, { useState } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from "react-native";
+import {
+  Image,
+  Modal,
+  Pressable as RnPressable,
+  ScrollView as RnScrollView,
+  Text as RnText,
+  TextInput as RnTextInput,
+  useColorScheme,
+  View as RnView
+} from "react-native";
 import Svg, { Circle as SvgCircle, Path as SvgPath } from "react-native-svg";
 
 import { createWhoVaForm } from "./ui/create-who-va-form.js";
 import { createWhoVaQuestionControls } from "./ui/question-controls.js";
 import { loadWhoVa2022Instrument } from "./instrument-loader.js";
+import { defaultDarkFormTheme, defaultFormTheme, useFormTheme } from "./ui/theme.js";
+import { applyNativeTheme } from "./ui/web-theme.js";
+
+/** A react-native primitive whose annotated colours follow the form theme (none passed: untouched). */
+function themedPrimitive(Component: React.ElementType, displayName: string): React.ElementType {
+  const ThemedPrimitive = React.forwardRef<unknown, Record<string, unknown>>(({ style, ...props }, ref) => (
+    <Component {...props} ref={ref} style={applyNativeTheme(style, useFormTheme())} />
+  ));
+  ThemedPrimitive.displayName = displayName;
+  return ThemedPrimitive;
+}
+
+const View = themedPrimitive(RnView, "WhoVaNativeView");
+const Text = themedPrimitive(RnText, "WhoVaNativeText");
+const TextInput = themedPrimitive(RnTextInput, "WhoVaNativeTextInput");
+const Pressable = themedPrimitive(RnPressable, "WhoVaNativePressable");
+const ScrollView = themedPrimitive(RnScrollView, "WhoVaNativeScrollView");
 
 interface NativeSelectProps {
   accessibilityLabel?: string;
@@ -28,7 +54,7 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
 ) {
   const [open, setOpen] = useState(false);
   const colorScheme = useColorScheme();
-  const darkMode = colorScheme === "dark";
+  const t = useFormTheme() ?? (colorScheme === "dark" ? defaultDarkFormTheme : defaultFormTheme);
   const selectableOptions = [
     { value: "", label: emptyOptionLabel ?? "" },
     ...options.filter((option) => option.value !== "")
@@ -59,7 +85,7 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
                 right: 0,
                 bottom: 0,
                 left: 0,
-                backgroundColor: "rgba(0, 0, 0, 0.45)"
+                backgroundColor: t.scrim
               }}
               testID={testID ? `${testID}-backdrop` : undefined}
             />
@@ -71,9 +97,9 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
                 overflow: "hidden",
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: darkMode ? "#4b5563" : "#cbd5e1",
-                backgroundColor: darkMode ? "#1f2937" : "#ffffff",
-                shadowColor: "#000000",
+                borderColor: t.border,
+                backgroundColor: t.surface,
+                shadowColor: t.scrim,
                 shadowOpacity: 0.2,
                 shadowRadius: 12,
                 shadowOffset: { width: 0, height: 4 },
@@ -100,13 +126,11 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
                         paddingHorizontal: 20,
                         paddingVertical: 12,
                         justifyContent: "center",
-                        backgroundColor: selectedOption ? (darkMode ? "#374151" : "#e6f1f6") : "transparent"
+                        backgroundColor: selectedOption ? t.primarySoft : "transparent"
                       }}
                       testID={testID ? `${testID}-option-${option.value || "empty"}` : undefined}
                     >
-                      <Text style={{ color: darkMode ? "#f9fafb" : "#111827", fontSize: 16 }}>
-                        {option.label}
-                      </Text>
+                      <Text style={{ color: t.text, fontSize: 16 }}>{option.label}</Text>
                     </Pressable>
                   );
                 })}

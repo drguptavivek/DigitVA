@@ -39,7 +39,7 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
    landing): streaming exports and paged ODK sync
    `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
    (EXPLAIN a real staging bucket report before more MV work).
-1. **`digitva-c7yr` (P1)**: run the Celery worker under `nice -n 10` so web
+1. **`digitva-295w` (P1)**: run the Celery worker under `nice -n 10` so web
    requests win the CPU and SmartVA catches up in idle gaps; verify with the
    same staging A/B harness (worker paused vs running). Alternative: 4 vCPU.
 2. Coding allocation follow-ups from the 2026-10-23 security review:

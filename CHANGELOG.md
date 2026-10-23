@@ -8,7 +8,7 @@ What landed, newest first. Details live in the commits and the linked docs;
 - **Staging deployed at `f05091920`** and load-tested (200 users): 0
   allocation 500s, SmartVA queue ≤6, Python services −175 MB idle, COD refresh
   7.7 -> 2.6 s; request latency doubles while the SmartVA worker runs
-  (CPU-bound, `digitva-c7yr`).
+  (CPU-bound, `digitva-295w`).
 - **smartva-rust 3.0.2** (`digitva-kyxr`): a Rust panic in the library fails
   that one SmartVA run instead of ending the worker child; runs record the
   library's own version (`smartva_version`). Pinned in `x-release-pins`;

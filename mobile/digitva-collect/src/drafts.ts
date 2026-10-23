@@ -10,10 +10,11 @@
  * only: a row is deleted once the server acknowledges it (push and purge).
  */
 import { reduceNationalIdData, type SubmissionData, type ValidationIssue, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
+import { deleteCoveredAttachments, pruneUnreferencedAttachments } from "./attachmentStore";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
 
-type Bind = string | number | null;
+type Bind = string | number | null | Uint8Array;
 
 /** The subset of expo-sqlite's SQLiteDatabase this app uses. */
 export interface Db {
@@ -354,6 +355,26 @@ export async function migrate(db: Db): Promise<void> {
     CREATE INDEX IF NOT EXISTS ix_revision_drafts_sync
       ON revision_drafts(state, draft_id);
   `);
+  // Captured files (src/attachmentStore.ts): BLOBs inside the encrypted store, so they are encrypted and wiped with it.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY NOT NULL,
+      draft_id TEXT NOT NULL,
+      project_id TEXT,
+      question TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      ext TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      duration_ms INTEGER,
+      created_at TEXT NOT NULL,
+      uploaded_at TEXT,
+      data BLOB NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS ix_attachments_draft ON attachments(draft_id);
+  `);
+  // A file captured for a draft that was never saved has no owner to send or delete it.
+  await db.runAsync("DELETE FROM attachments WHERE draft_id NOT IN (SELECT id FROM drafts)", []);
   // Legacy downloaded cases have no safe project assignment. They can be
   // fetched again from the authoritative project list; retaining them could
   // expose a contact under the wrong project after a multi-project upgrade.
@@ -488,6 +509,8 @@ export async function getDraftPrefill<T>(db: Db, id: string): Promise<T | undefi
 export async function stripDraftCovered(db: Db, id: string, covered: readonly string[]): Promise<void> {
   const row = await db.getFirstAsync<{ envelope: string; prefill: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [id]);
   if (!row || !covered.length) return;
+  // The files of covered questions go with their answers: a refusal leaves no copy on the phone.
+  await deleteCoveredAttachments(db, id, covered);
   const strip = (value: unknown): unknown => (value && typeof value === "object" && !Array.isArray(value)
     ? Object.fromEntries(Object.entries(value).filter(([name]) => !covered.includes(name))) : value);
   const envelope = JSON.parse(row.envelope) as { data?: unknown };
@@ -537,8 +560,17 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
     id,
     current.envelope
   ]);
-  if (result && typeof result === "object" && "changes" in result && Number(result.changes) > 0) return;
+  if (result && typeof result === "object" && "changes" in result && Number(result.changes) > 0) {
+    await pruneUnreferencedAttachments(db, id, draft.data as Record<string, unknown> | undefined);
+    return;
+  }
   throw new Error("draft_conflict");
+}
+
+/** Drop the draft's files its current answers no longer reference (after a send that left the draft in place). */
+export async function pruneDraftAttachments(db: Db, id: string): Promise<void> {
+  const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [id]);
+  if (row) await pruneUnreferencedAttachments(db, id, (JSON.parse(row.envelope) as { data?: Record<string, unknown> }).data);
 }
 
 /** Persist an upload refusal while retaining the interview and its answers. */
@@ -645,6 +677,7 @@ export async function draftUniqueIds(db: Db, projectId?: string): Promise<string
 
 export async function deleteDraft(db: Db, id: string): Promise<void> {
   await db.runAsync("DELETE FROM drafts WHERE id = ?", [id]);
+  await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
   await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
 }
 
@@ -652,7 +685,10 @@ export async function deleteDraft(db: Db, id: string): Promise<void> {
 export async function deleteDraftSnapshot(db: Db, id: string, envelope: string): Promise<boolean> {
   const result = await db.runAsync("DELETE FROM drafts WHERE id = ? AND envelope = ?", [id, envelope]);
   const deleted = !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
-  if (deleted) await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
+  if (deleted) {
+    await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
+    await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
+  }
   return deleted;
 }
 

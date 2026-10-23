@@ -551,6 +551,8 @@ export interface ClientRequestOptions {
   timeoutMs?: number;
   /** Accept the Flask logout redirect without following its HTML landing page. */
   allowRedirect?: boolean;
+  /** A file sent as the raw body (`application/octet-stream`) with its SHA-256 (hex); used instead of JSON. */
+  rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
 }
 
 export interface RawApiResponse {
@@ -739,8 +741,12 @@ async function requestOnce<T>(
   options: ClientRequestOptions & { body?: unknown; token?: string },
 ): Promise<{ status: number; body: T; csrf?: ClientCsrf }> {
   const json = options.body !== undefined ? options.body : options.json;
+  const raw = options.rawBody;
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (json !== undefined) headers["Content-Type"] = "application/json";
+  if (raw) {
+    headers["Content-Type"] = "application/octet-stream";
+    if (raw.sha256) headers["X-Content-SHA256"] = raw.sha256;
+  } else if (json !== undefined) headers["Content-Type"] = "application/json";
   if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
   else {
     const csrfToken = cookieCsrfHeader(server, options.csrf);
@@ -762,7 +768,7 @@ async function requestOnce<T>(
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",
       headers,
-      body: json === undefined ? undefined : JSON.stringify(json),
+      body: raw ? raw.bytes : json === undefined ? undefined : JSON.stringify(json),
       signal: controller.signal,
       redirect: options.allowRedirect ? "manual" : "follow",
     });

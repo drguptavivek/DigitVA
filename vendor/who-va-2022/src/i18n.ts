@@ -105,6 +105,7 @@ export interface WhoVaUiMessageTemplates {
   zoomIn: string;
   zoomOut: string;
   removeImage: string;
+  removeRecording: string;
   attachment: string;
   pdf: string;
   openingFiles: string;
@@ -235,6 +236,7 @@ export interface WhoVaUiMessages {
   zoomIn: string;
   zoomOut: string;
   removeImage: string;
+  removeRecording: string;
   attachment: string;
   pdf: string;
   openingFiles: string;
@@ -352,6 +354,7 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   removeImage: "Remove image",
+  removeRecording: "Delete recording",
   attachment: "attachment",
   pdf: "PDF",
   openingFiles: "Opening files…",

@@ -104,6 +104,8 @@ export interface WhoVaPlatformServices {
   captureLocation?: (question: InstrumentQuestion, data: SubmissionData) => Promise<string | undefined>;
   /** Return the scanned barcode value, or undefined when the user cancels. */
   scanBarcode?: (question: InstrumentQuestion, data: SubmissionData) => Promise<string | undefined>;
+  /** Plays a saved recording where the primitives supply no player (a native host brings its own). */
+  AudioPlayer?: React.ComponentType<{ uri: string; accessibilityLabel: string; onError: () => void }>;
   resolveAttachmentUri?: (attachment: AttachmentReference) => Promise<string | undefined>;
   releaseAttachmentUri?: (uri: string) => void;
   removeAttachment?: (attachment: AttachmentReference) => Promise<void>;
@@ -1912,6 +1914,7 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const services = { ...primitives.platform, ...platform };
     const currentAttachment = audioAttachmentReference(value);
     const attachment = attachmentDetails(value);
+    const Player = services.AudioPlayer ?? AudioPlayer;
     const recordingUnavailable = !services.startAudioRecording && !services.captureAudio;
     useEffect(() => setPlaybackError(undefined), [attachment.uri]);
     const { previewUri, loading: playbackLoading } = useAudioPreviewUri(
@@ -2051,9 +2054,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
               setRecordingElapsed(0);
               setPhase("idle");
               setRecordingError(
-                typeof DOMException !== "undefined" &&
-                  error instanceof DOMException &&
-                  error.name === "NotAllowedError"
+                (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "NotAllowedError") ||
+                  (error instanceof Error && error.name === "NotAllowedError")
                   ? messages.microphonePermissionDenied
                   : messages.audioRecordingFailed
               );
@@ -2091,8 +2093,8 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
         {playbackLoading ? (
           <PrimitiveText style={questionControlStyles.hint}>{messages.loadingAudio}</PrimitiveText>
         ) : null}
-        {phase === "idle" && previewUri && AudioPlayer ? (
-          <AudioPlayer
+        {phase === "idle" && previewUri && Player ? (
+          <Player
             accessibilityLabel={messages.recorded}
             onError={() => setPlaybackError(messages.savedAudioLoadFailed)}
             uri={previewUri}
@@ -2102,6 +2104,19 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>
             {playbackError}
           </PrimitiveText>
+        ) : null}
+        {phase === "idle" && value && !readOnly && services.removeAttachment ? (
+          <Pressable
+            accessibilityRole="button"
+            testID={`question-${question.name}-remove`}
+            style={[questionControlStyles.button, questionControlStyles.buttonDanger, questionControlStyles.buttonCompact]}
+            onPress={() => {
+              removeOldAttachment(currentAttachment);
+              onAnswer(undefined);
+            }}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextDanger}>{messages.removeRecording}</PrimitiveText>
+          </Pressable>
         ) : null}
         {recordingError ? (
           <PrimitiveText accessibilityRole="alert" style={questionControlStyles.attachmentError}>

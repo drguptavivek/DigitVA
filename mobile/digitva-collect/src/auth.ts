@@ -550,6 +550,8 @@ export async function authedRequest<T>(
     body?: unknown;
     bodyFactory?: () => unknown;
     timeoutMs?: number;
+    /** A file as the raw request body (src/attachmentUpload.ts). */
+    rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
   } = {},
 ): Promise<{ status: number; body: T }> {
   const device = await loadDevice();

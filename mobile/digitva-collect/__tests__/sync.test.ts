@@ -6,7 +6,8 @@ import type { SubmissionData, WhoVaDraft } from "@drguptavivek/who-2022-va";
 const mockSecure = new Map<string, string>();
 jest.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: { SHA256: "SHA-256" },
-  digestStringAsync: async (_algorithm: string, value: string) => require("node:crypto").createHash("sha256").update(value, "utf8").digest("hex")
+  digestStringAsync: async (_algorithm: string, value: string) => require("node:crypto").createHash("sha256").update(value, "utf8").digest("hex"),
+  digest: async (_algorithm: string, data: Uint8Array) => require("node:crypto").createHash("sha256").update(data).digest().buffer
 }));
 jest.mock("expo-secure-store", () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
@@ -35,6 +36,7 @@ import { computeUtf8Sha256HexSync, type ConsentRecordEnvelope } from "../src/con
 import { consentForDraft, getConsentConfig, inheritedConsentRefused, loadConsents, refreshConsentConfig, saveDraftConsent, saveRegistrationConsent, type StoredConsent } from "../src/consentStore";
 import { pendingErrors, resetErrorLog } from "../src/errorLog";
 import { sendRefusal, summariseWork } from "../src/unsentWork";
+import { draftAttachments, saveAttachment } from "../src/attachmentStore";
 import { getCase, getRegistration, getRegistrationRefusal, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
 
 const SERVER = "http://10.0.2.2:8051";
@@ -163,7 +165,7 @@ const draft = (id = DRAFT, data: SubmissionData = { Id10013: "yes" }): WhoVaDraf
   data
 });
 
-type Call = { url: string; auth?: string; body?: Record<string, unknown> };
+type Call = { url: string; auth?: string; body?: Record<string, unknown>; raw?: Uint8Array };
 let calls: Call[];
 const json = (status: number, body: unknown) => Object.assign({ ok: status >= 200 && status < 300, status, headers: { get: () => "application/json" }, json: async () => body, text: async () => JSON.stringify(body) }, { __body: body }) as unknown as Response;
 
@@ -189,7 +191,8 @@ function server(handler: (call: Call) => Response): void {
     const call = {
       url: String(url),
       auth: headers?.Authorization ?? headers?.authorization,
-      body: init?.body ? JSON.parse(init.body as string) : undefined
+      body: typeof init?.body === "string" ? JSON.parse(init.body) : undefined,
+      raw: init?.body && typeof init.body !== "string" ? (init.body as Uint8Array) : undefined
     };
     calls.push(call);
     if (call.url.endsWith("/me/access")) {
@@ -568,6 +571,64 @@ describe("unsent work in a project that leaves access", () => {
     expect(calls.some(({ url }) => url.endsWith("/submissions"))).toBe(true);
     expect(await getDraftRow(db, DRAFT)).toBeNull();
     expect(await getRegistration(db, REG)).toMatchObject({ project_id: "P2", state: "pending" });
+  });
+});
+
+describe("attachments are sent before the interview", () => {
+  const FILE = "55555555-5555-4555-8555-555555555555";
+  const SERVER_DRAFT = "99999999-9999-4999-8999-999999999999";
+  async function withFile(): Promise<Db> {
+    const db = memoryDb();
+    await migrate(db);
+    server((call) => call.url.endsWith("/fixture-reference") ? json(200, referenceFixture()) : json(200, { scoped: false, levels: [], units: [] }));
+    await refreshReferenceData(USER, db, { force: true });
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, deathId: DEATH } }).save(
+      draft(DRAFT, { Id10476_audio: { id: FILE, uri: `who-va-attachment:${FILE}` } as never }));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveAttachment(db, { id: FILE, draftId: DRAFT, projectId: PROJECT, question: "Id10476_audio", kind: "audio", mimeType: "audio/mp4", ext: "m4a", bytes: new Uint8Array([1, 2, 3]) });
+    return db;
+  }
+  const happy = (call: Call): Response => {
+    if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+    if (call.url.endsWith("/intake/drafts")) return json(201, { draft: { draft_id: SERVER_DRAFT } });
+    if (call.url.includes("/attachments/")) return json(201, { created: true });
+    if (call.url.endsWith("/submissions")) return submissionSuccess(call);
+    if (call.url.endsWith("/outstanding")) return json(204, null);
+    return json(200, { cases: [], next_cursor: null, scoped: false, levels: [], units: [] });
+  };
+
+  it("uploads the file, then the interview, then deletes both from the phone", async () => {
+    const db = await withFile();
+    server(happy);
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
+    const order = calls.map(({ url }) => url).filter((url) => /\/intake\/drafts$|attachments|submissions/.test(url));
+    expect(order).toEqual([
+      expect.stringMatching(/\/intake\/drafts$/),
+      expect.stringContaining(`/intake/drafts/${SERVER_DRAFT}/attachments/${FILE}`),
+      expect.stringMatching(/\/submissions$/),
+    ]);
+    expect([...calls.find(({ url }) => url.includes("/attachments/"))!.raw!]).toEqual([1, 2, 3]);
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await draftAttachments(db, DRAFT)).toEqual([]);
+  });
+
+  it("does not send the interview while a file is not on the server, and keeps both for the next Send", async () => {
+    const db = await withFile();
+    server((call) => call.url.includes("/attachments/") ? json(503, { code: "unavailable" }) : happy(call));
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(calls.some(({ url }) => url.endsWith("/submissions"))).toBe(false);
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+    expect(await draftAttachments(db, DRAFT)).toHaveLength(1);
+    const work = await summariseWork(db);
+    expect(work.items.map((item) => item.kind).sort()).toEqual(["attachment", "interview"]);
+  });
+
+  it("sends the files again when the server says it lost them (409 attachments_pending)", async () => {
+    const db = await withFile();
+    server((call) => call.url.endsWith("/submissions") ? json(409, { code: "attachments_pending", error: "Files are still being sent." }) : happy(call));
+    await syncInterviewer(USER, db);
+    expect((await draftAttachments(db, DRAFT))[0]!.uploaded_at).toBeNull();
+    expect((await getDraftRow(db, DRAFT))!.upload_issue).toBeNull();
   });
 });
 
@@ -1503,6 +1564,23 @@ describe("respondent consent and refusals on the phone", () => {
     expect(JSON.parse(body.answers_json as string)).toEqual({ Id10013: "yes", Id10019: "female" });
     expect(body.answers_sha256).toBe(require("node:crypto").createHash("sha256").update(body.answers_json as string, "utf8").digest("hex"));
     expect((body.draft as { data: object }).data).toEqual({ Id10013: "yes", Id10019: "female" });
+  });
+
+  it("under a refusal deletes the files of the covered questions before sending, and keeps the others", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "Asha" });
+    const bytes = new Uint8Array([1, 2]);
+    const row = (id: string, question: string) => ({ id, draftId: ID, projectId: PROJECT, question, kind: "audio" as const, mimeType: "audio/mp4", ext: "m4a", bytes });
+    await saveAttachment(db, row("11111111-1111-4111-8111-111111111111", "Id10007"));
+    await saveAttachment(db, row("22222222-2222-4222-8222-222222222222", "Id10013"));
+    expect((await draftAttachments(db, ID)).map((f) => f.question).sort()).toEqual(["Id10007", "Id10013"]);
+    await saveDraftConsent(db, ID, record("refused", ID));
+    readyServer(() => json(409, { error: "closed", code: "case_closed" })); // the draft stays, so its rows can be read
+    await syncInterviewer(USER, db);
+    const left = (await draftAttachments(db, ID)).map((f) => f.question);
+    expect(left).toContain("Id10013");
+    expect(left).not.toContain("Id10007");
   });
 
   it("reuses a registration's consent without sending it again, and honours its refusal", async () => {

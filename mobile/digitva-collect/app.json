@@ -17,6 +17,7 @@
       "./plugins/with-android-dev-support",
       "./plugins/with-android-release-signing",
       "./plugins/with-android-abi-splits",
+      "./plugins/with-android-legacy-gallery",
       [
         "expo-sqlite",
         {
@@ -33,10 +34,17 @@
       [
         "expo-audio",
         {
-          "microphonePermission": false,
-          "recordAudioAndroid": false,
+          "microphonePermission": "Record the respondent's account of the death for the interview.",
+          "recordAudioAndroid": true,
           "enableBackgroundPlayback": false,
           "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Photograph the written narrative and documents for the interview.",
+          "microphonePermission": "Record the respondent's account of the death for the interview."
         }
       ]
     ],
@@ -47,11 +55,10 @@
       "package": "com.causeofdeathindia.digitvacollect",
       "versionCode": 1,
       "permissions": [
-        "CAMERA"
+        "CAMERA",
+        "RECORD_AUDIO"
       ],
       "blockedPermissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW"
       ],

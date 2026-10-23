@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Device Collection API (Path B server side)
@@ -639,10 +639,36 @@ a notification alone, a missed poll costs nothing, and ids and kinds carry no
 personal data. An empty poll is free for the server, so there is no need to back
 off, but do not poll faster than every 30 s.
 
+## Direct start with attachments
+
+A phone interview started without a registered case sends its files to a
+server draft identified by its `client_draft_id`:
+
+1. `POST /api/v1/intake/drafts` with `{project_id, site_id, org_unit_id?,
+   client_draft_id}` and no `death_id`. A new draft (and its direct case) is
+   201; the same id again with the same project, site and unit is the same
+   draft, 200. Another interviewer's id, an id already uploaded, or another
+   project/site/unit is 409; a malformed id is 400. With a `death_id` the
+   `client_draft_id` is ignored (the case's own open draft is returned, as
+   before).
+2. `PUT /api/v1/intake/drafts/<draft.draft_id>/attachments/<id>` per file.
+3. `POST /api/v1/intake/submissions` with the same `client_draft_id`, no
+   `death_id`, same project and site: the submit completes that draft instead
+   of starting another, so the files are on the submission. Resends are
+   idempotent on `client_draft_id` as always. An interview submitted without
+   step 1 still works (no files).
+
+The attachment draft is an ordinary open draft of the interviewer: one never
+submitted follows the existing open-draft rules (listed under `GET /drafts`,
+discardable with `POST /drafts/<id>/discard`). Its id is set only here, never
+by `/drafts/sync`.
+
 ## Not built
 
 - Admin UI for per-session revocation (device revoke ends all its sessions).
-- Attachments (phase 3, deferred).
+- Chunked, resumable attachment upload (`attachment_chunk`). The phone sends each file as one
+  `PUT /intake/drafts/<id>/attachments/<id>` before the interview, as
+  [Phone Attachments](../policy/phone-attachments.md) decides; a direct start (no case) attaches through the attachment draft below.
 - The admin Devices card shows the unsent count only, not the registration
   ids (they are in the JSON).
 - The Android app's draft sync client (`mobile/`), and a supervisor view of

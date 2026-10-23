@@ -18,6 +18,7 @@
 import { deleteDatabaseAsync, openDatabaseAsync } from "expo-sqlite";
 
 import { countUnsentWork, migrate, type Db } from "./drafts";
+import { wipeMediaCache } from "./mediaFiles";
 import { summariseWork, type WorkSummary } from "./unsentWork";
 import {
   buildPassphrase,
@@ -134,6 +135,7 @@ export async function unlockInterviewerDb(userId: string, pin: string): Promise<
     const db = await openKeyed(await fileName(userId), buildPassphrase(secret, pin));
     await setFailedAttempts(userId, 0);
     unlocked.set(userId, db);
+    wipeMediaCache(); // a playback copy left by a crash
     return { ok: true };
   } catch (error) {
     if (!isWrongKey(error)) {
@@ -157,6 +159,7 @@ export async function lockAll(): Promise<void> {
       failures.push(error);
     }
   }));
+  wipeMediaCache(); // plain playback copies do not outlive the unlocked store
   if (failures.length) throw failures[0];
 }
 
@@ -171,4 +174,5 @@ export async function deleteInterviewerDb(userId: string): Promise<void> {
     // No file yet: nothing to wipe.
   }
   await forgetStoreKeys(userId);
+  wipeMediaCache();
 }

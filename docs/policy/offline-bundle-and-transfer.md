@@ -3,7 +3,7 @@ title: Offline PHC App, Bundle Format and Transfer
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-22
+last_updated: 2026-10-24
 ---
 
 # Offline PHC App, Bundle Format and Transfer
@@ -336,7 +336,8 @@ station's. A WHO service outage (`who_unavailable`, `who_not_configured`) leaves
 result `pending` for the next run. A `not_codeable` result in either mode
 needs no WHO call and is applied at once.
 
-**`attachment_chunk`** (shape reserved, **not built**; `digitva-jkvl`):
+**`attachment_chunk`** (shape reserved, **not built**; `digitva-jkvl`; the phone's interim
+single-PUT upload is [Phone Attachments](phone-attachments.md)):
 `attachment_id` (uuid, the `client_attachment_id`), `client_draft_id`,
 `question_name`, `media_type`, `chunk_index` (0-based), `chunk_count`,
 `total_bytes`, `sha256` (of the whole file), `data` (b64url of the chunk, at

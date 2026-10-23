@@ -3,7 +3,7 @@ title: ODK Attachment Intake Limits
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-24
 ---
 
 # ODK Attachment Intake Limits
@@ -23,8 +23,8 @@ detail: [ODK Sync And Attachments](../current-state/odk-sync.md).
 ## Decisions (owner, 2026-10-14)
 
 1. **Caps.** 50 MB per ODK-synced attachment and 5 MB for `.amr` (owner decision
-   2026-10-14, superseding 2026-10-06). The Expo app is meant to share the 50 MB
-   cap; it has no size check of its own today. The values are the same as web
+   2026-10-14, superseding 2026-10-06). The phone app shares the 50 MB cap
+   and checks its own, tighter limits first ([Phone Attachments](phone-attachments.md)). The values are the same as web
    intake. Both live in `attachment_service` (`MAX_BYTES`,
    `AMR_MAX_BYTES`); intake and sync import them. Do not copy the numbers.
 2. **Over the cap: not stored.** The stream stops as soon as the running byte

@@ -62,6 +62,7 @@ import {
   draftUniqueIds,
   getMeta,
   deleteDraftSnapshot,
+  pruneDraftAttachments,
   localDateTimeWithOffset,
   projectIds,
   purgeProjectData,
@@ -75,6 +76,8 @@ import {
 } from "./drafts";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
+import { deleteCoveredAttachments, markDraftUnconfirmed } from "./attachmentStore";
+import { uploadDraftAttachments } from "./attachmentUpload";
 import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
 import { consentFor, deleteDraftConsent, getRegistrationConsent, loadConsents, markInheritedConsentRefused, refreshConsentConfig, withoutCovered } from "./consentStore";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
@@ -379,7 +382,17 @@ export async function uploadQueuedWork(
     const sentData = applied?.record.envelope.decision === "refused" && item.draft.data
       ? withoutCovered(item.draft.data, applied.record.covered_fields)
       : item.draft.data;
+    if (applied?.record.envelope.decision === "refused") await deleteCoveredAttachments(db, item.id, applied.record.covered_fields);
     const sentDraft = sentData === item.draft.data ? item.draft : { ...item.draft, data: sentData };
+    // Files first, and the interview only when the server holds every one (owner rule, digitva-jkvl).
+    const files = await uploadDraftAttachments(userId, db, item, sentData);
+    if (files.state !== "done") {
+      const refused = files.error instanceof Error ? refusal(files.error) : undefined;
+      if (refused) await notePausedRefusal(db, item.project_id, refused);
+      console.warn(`attachment upload ${files.state} draft=${item.id} status=${refused?.status ?? "-"} code=${refused?.code ?? "-"}`);
+      failed += 1;
+      continue draftLoop;
+    }
     const answersJson = JSON.stringify(sentData);
     let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
     try {
@@ -465,7 +478,8 @@ export async function uploadQueuedWork(
         }
       }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
-      await deleteDraftSnapshot(db, item.id, item.envelope);
+      // Edited during the send: the draft stays, and files its answers no longer name go.
+      if (!(await deleteDraftSnapshot(db, item.id, item.envelope))) await pruneDraftAttachments(db, item.id);
       await clearSendError(db, item.id);
       sent += 1;
     } catch (error) {
@@ -486,7 +500,9 @@ export async function uploadQueuedWork(
         }
         await reopenDraft(db, item.id);
       }
-      if (refused.status === 409) await setDraftUploadIssue(db, item.id, "case_conflict");
+      // The server lost the files (its draft was purged): send them again on the next pass, hold nothing.
+      if (refused.status === 409 && refused.code === "attachments_pending") await markDraftUnconfirmed(db, item.id);
+      else if (refused.status === 409) await setDraftUploadIssue(db, item.id, "case_conflict");
       // Final until the interviewer asks again (retryHeldDraft): sync skips it.
       if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
       failed += 1;

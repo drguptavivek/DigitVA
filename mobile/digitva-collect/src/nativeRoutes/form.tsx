@@ -12,6 +12,7 @@
  * form does; later opens take both from the draft itself, so a case pruned
  * from the list meanwhile changes nothing.
  */
+import { deleteCoveredAttachments } from "../attachmentStore";
 import {
   createWhoVa2022Instrument,
   type InstrumentDefinition,
@@ -60,6 +61,7 @@ import {
 } from "../formDefinitionRuntime";
 import { FormDefinitionError } from "../formDefinitions";
 import { platformServices } from "../platform";
+import { useAttachmentServices } from "../attachmentServices";
 import { initialDataFromPrefill } from "../prefill";
 import {
   getCachedReferenceData,
@@ -786,6 +788,16 @@ export default function Form() {
     [loaded, covered],
   );
 
+  // Audio, photographs and documents (docs/policy/phone-attachments.md). Files go up ahead of the interview, so
+  // only an interview on a case (or a registration still to be sent) can take them.
+  const attachmentServices = useAttachmentServices({
+    db: loaded?.db,
+    draftId,
+    projectId: loaded?.projectId ?? null,
+    canAttach: Boolean(loaded?.binding.deathId || loaded?.binding.clientDeathId),
+  });
+  const formServices = useMemo(() => ({ ...platformServices, ...attachmentServices }), [attachmentServices]);
+
   // With the questionnaire open, a message is a toast so the form never shifts; the blocked screens below show it in place.
   const editorShown = Boolean(loaded && instrument && draftStore && !blockedReferenceData);
   useEffect(() => {
@@ -990,7 +1002,8 @@ export default function Form() {
           draftStore={draftStore}
           {...(initialData ? { initialData } : {})}
           {...(lockedNames ? { lockedQuestionNames: lockedNames } : {})}
-          platform={platformServices}
+          platform={formServices}
+          condensePrompts
           autoSaveDraftOnChange
           onDraftController={(next) => {
             if (loaded.accessVersion === lockVersionRef.current) {
@@ -1004,6 +1017,7 @@ export default function Form() {
               const held = next.getSnapshot().data;
               if (covered.some((name) => name in held)) {
                 next.replaceData(withoutCovered(held, covered));
+                if (draftId) void deleteCoveredAttachments(loaded.db, draftId, covered).catch(() => undefined);
                 void controller.current?.saveDraft().catch(() => undefined);
               }
             }

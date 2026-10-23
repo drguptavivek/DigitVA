@@ -1060,6 +1060,7 @@
   "unsentKind_attempt": "Contact attempt",
   "unsentKind_visit": "Visit",
   "unsentKind_revision": "Revision",
+  "unsentKind_attachment": "File",
   "unsentState_ready": "Ready to send",
   "unsentState_waiting": "Waits for its registration",
   "unsentState_attention": "Needs attention",
@@ -1079,5 +1080,19 @@
   "consentUnavailableInterview": "Consent settings for this project are not on this phone yet, or there is no consent notice. The respondent's name, phone and address stay empty. Sync, then reopen the interview.",
   "consentRecordedForInterview": "Consent decision recorded for this interview.",
   "consentInformantNoNotice": "This project has no consent notice on this phone, so informant details cannot be recorded. Sync to load it.",
-  "consentNeededBeforeSave": "Record the respondent's consent decision before entering the informant's name, phone or address."
+  "consentNeededBeforeSave": "Record the respondent's consent decision before entering the informant's name, phone or address.",
+  "attachPlay": "Play",
+  "attachPause": "Pause",
+  "attachContinue": "Continue",
+  "attachOpenSettings": "Open settings",
+  "attachMicTitle": "Allow the microphone?",
+  "attachMicBody": "DigitVA records the respondent's account of the death only while you hold a recording open. The recording stays encrypted on this phone until it is sent with the interview.",
+  "attachMicDeniedTitle": "Microphone is off",
+  "attachMicDeniedBody": "Recording needs the microphone. Open the app's settings and allow Microphone, then try again. You can also type the narrative instead.",
+  "attachCameraDeniedTitle": "Camera is off",
+  "attachCameraDeniedBody": "Taking a photograph needs the camera. Open the app's settings and allow Camera, then try again.",
+  "attachGalleryTitle": "Allow access to photos?",
+  "attachGalleryBody": "To choose a photograph from this phone's gallery, Android 12 and older need your permission. DigitVA reads only the picture you choose, keeps it encrypted in the app, and never changes your gallery.",
+  "attachGalleryDeniedTitle": "Photos are off",
+  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera."
 }

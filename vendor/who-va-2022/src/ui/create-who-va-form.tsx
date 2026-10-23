@@ -74,6 +74,12 @@ interface WhoVaFormCommonProps {
    */
   showQuestionCodes?: boolean;
   platform?: WhoVaPlatformServices;
+  /**
+   * Tighten repeated prompts for a phone: a question whose prompt repeats the one above it (an audio question
+   * and its typed twin) shows the prompt once, and a long interviewer instruction shrinks to one line once it
+   * has been shown (tap to open it again). Off by default, so existing hosts render as before.
+   */
+  condensePrompts?: boolean;
   draftId?: string;
   draftStore?: WhoVaDraftStore;
   lockedQuestionNames?: Iterable<string>;
@@ -428,6 +434,9 @@ export function createWhoVaForm(
     hint: string;
     hintEnglish: string;
     instruction: boolean;
+    /** The prompt is the same as the question above it: shown there, not repeated. */
+    repeatedPrompt: boolean;
+    condensePrompts: boolean;
     issues: ValidationIssue[];
     label: string;
     labelEnglish: string;
@@ -475,6 +484,11 @@ export function createWhoVaForm(
    * `data` changes on every answer and is compared only for the controls that
    * read it, and `issues` by content.
    */
+  /** Instructions longer than this (plain characters) shrink to one line after their first view. */
+  const INSTRUCTION_ONE_LINE_AT = 120;
+  /** Instructions already shown in this session, so their second showing is the short one. */
+  const seenInstructions = new Set<string>();
+
   const QuestionRow = React.memo(
     function QuestionRow({
       choiceColumns,
@@ -484,6 +498,8 @@ export function createWhoVaForm(
       hint,
       hintEnglish,
       instruction,
+      repeatedPrompt,
+      condensePrompts,
       issues,
       label,
       labelEnglish,
@@ -502,6 +518,12 @@ export function createWhoVaForm(
     }: QuestionRowProps) {
       const hasIssues = issues.length > 0;
       const isQuestionComplete = isAnswerableQuestion(question) && hasAnswer(value) && !hasIssues;
+      // A long instruction is read in full the first time it is shown; later it takes one line until tapped.
+      const condensable = condensePrompts && instruction && plainText(label).length > INSTRUCTION_ONE_LINE_AT;
+      const [collapsed, setCollapsed] = useState(() => condensable && seenInstructions.has(question.name));
+      useEffect(() => {
+        if (condensable) seenInstructions.add(question.name);
+      }, [condensable, question.name]);
       return (
         <View
           ref={(node: unknown) => registerNode(question.name, node)}
@@ -517,18 +539,25 @@ export function createWhoVaForm(
           testID={`question-card-${question.name}`}
         >
           <View style={[splitLayout && styles.questionLead]}>
-            {code && showQuestionCodes ? (
+            {code && showQuestionCodes && !repeatedPrompt ? (
               <Text style={styles.codeChip} testID={`question-code-${question.name}`}>
                 {code}
               </Text>
             ) : null}
-            {instruction ? (
+            {instruction && !repeatedPrompt ? (
               <Text style={styles.instructionTag} testID={`question-instruction-${question.name}`}>
                 {messages.interviewer}
               </Text>
             ) : null}
-            <View style={styles.questionHeader}>
+            {repeatedPrompt ? null : (<View style={styles.questionHeader}>
               <Text
+                {...(condensable
+                  ? {
+                      numberOfLines: collapsed ? 1 : undefined,
+                      accessibilityRole: "button",
+                      onPress: () => setCollapsed((current) => !current)
+                    }
+                  : {})}
                 style={[
                   styles.label,
                   instruction && styles.labelInstruction,
@@ -552,8 +581,8 @@ export function createWhoVaForm(
                   <Text style={styles.questionStatusBadgeText}>✓</Text>
                 </View>
               ) : null}
-            </View>
-            {labelEnglish ? (
+            </View>)}
+            {labelEnglish && !repeatedPrompt && !collapsed ? (
               <Text lang="en" style={styles.english} testID={`question-english-${question.name}`}>
                 <RichText source={labelEnglish} />
               </Text>
@@ -960,7 +989,7 @@ export function createWhoVaForm(
       else setTimeout(performScroll, 0);
     };
 
-    const renderQuestion = (question: InstrumentQuestion) => {
+    const renderQuestion = (question: InstrumentQuestion, index: number, all: readonly InstrumentQuestion[]) => {
       const draftIssue = draftIssues[question.name];
       const sessionIssues = snapshot.issues.filter(
         (issue) => issue.question === question.name && !(draftIssue && issue.code === "required")
@@ -972,6 +1001,20 @@ export function createWhoVaForm(
         )
       );
       const { instruction, text: label } = instructionLabel(rawLabel);
+      const previous = all[index - 1];
+      const repeatedPrompt =
+        props.condensePrompts === true &&
+        previous !== undefined &&
+        plainText(label) !== "" &&
+        plainText(
+          instructionLabel(
+            splitQuestionCode(
+              interviewerQuestionLabel(
+                interpolateSubmissionReferences(localizedRich(previous.label, locale, previous.name), snapshot.data)
+              )
+            ).text
+          ).text
+        ) === plainText(label);
       const englishLabel = props.showEnglish ? englishAlongside(question.label, locale) : "";
       const labelEnglish = englishLabel
         ? instructionLabel(
@@ -995,6 +1038,8 @@ export function createWhoVaForm(
           hint={interpolateSubmissionReferences(localizedRich(question.hint, locale, ""), snapshot.data)}
           hintEnglish={englishHint ? interpolateSubmissionReferences(englishHint, snapshot.data) : ""}
           instruction={instruction}
+          repeatedPrompt={repeatedPrompt}
+          condensePrompts={props.condensePrompts === true}
           issues={issues}
           label={label}
           labelEnglish={labelEnglish}
@@ -1206,7 +1251,7 @@ export function createWhoVaForm(
         >
           {localized(snapshot.currentSection.label, locale, snapshot.currentSection.name)}
         </Text>
-        <View style={styles.sectionCard}>{snapshot.questions.map(renderQuestion)}</View>
+        <View style={styles.sectionCard}>{snapshot.questions.map((question, index, all) => renderQuestion(question, index, all))}</View>
         {navigation}
         <Text style={styles.draftStatus}>
           {draftStatus === "saved"

@@ -399,6 +399,7 @@ jest.mock("../src/web/StationConsentPanel", () => ({
   },
 }));
 jest.mock("../src/platform", () => ({ platformServices: {} }));
+jest.mock("../src/attachmentServices", () => ({ useAttachmentServices: () => ({}) }));
 jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
 jest.mock(
   "@drguptavivek/who-2022-va/native",

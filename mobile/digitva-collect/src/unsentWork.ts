@@ -23,7 +23,7 @@ export function isUploadableVerdict(valid: boolean, outcome: unknown): boolean {
   return valid || (typeof outcome === "string" && (INCOMPLETE_OUTCOMES as readonly string[]).includes(outcome));
 }
 
-export type UnsentKind = "interview" | "registration" | "attempt" | "visit" | "revision";
+export type UnsentKind = "interview" | "registration" | "attempt" | "visit" | "revision" | "attachment";
 
 export interface UnsentItem {
   key: string;
@@ -122,10 +122,11 @@ export async function sendRefusal(db: Db, id: string): Promise<SendRefusal | und
 interface DraftRecord { id: string; unique_id: string | null; death_id: string | null; client_death_id: string | null; upload_issue: string | null; valid: number | null; outcome: string | null }
 interface RegRecord { client_death_id: string; state: string; name: string | null }
 interface ActionRecord { client_id: string; kind: string; death_id: string | null; client_death_id: string | null; state: string }
+interface AttachmentRecord { id: string; draft_id: string; kind: string; unique_id: string | null }
 interface RevisionRecord { draft_id: string; state: string; refusal: string | null; va_sid: string | null; name: string | null; given: string | null; surname: string | null }
 
 export async function summariseWork(db: Db): Promise<WorkSummary> {
-  const [drafts, regs, actions, revisions, errors, inProgressDrafts] = await Promise.all([
+  const [drafts, regs, actions, revisions, errors, inProgressDrafts, files] = await Promise.all([
     db.getAllAsync<DraftRecord>(
       `SELECT id, unique_id, death_id, client_death_id, upload_issue,
               json_extract(completion, '$.valid') AS valid, json_extract(envelope, '$.data.interview_outcome') AS outcome
@@ -139,6 +140,11 @@ export async function summariseWork(db: Db): Promise<WorkSummary> {
        FROM revision_drafts ORDER BY updated_at DESC, draft_id`, []),
     sendRefusals(db),
     db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM drafts WHERE completed = 0", []),
+    // Each file of a completed interview the server has not confirmed (docs/policy/phone-attachments.md, decision 5).
+    db.getAllAsync<AttachmentRecord>(
+      `SELECT a.id AS id, a.draft_id AS draft_id, a.kind AS kind, d.unique_id AS unique_id
+         FROM attachments a JOIN drafts d ON d.id = a.draft_id
+        WHERE d.completed = 1 AND a.uploaded_at IS NULL ORDER BY a.created_at, a.id`, []),
   ]);
   const stuckRegs = new Set(regs.filter((reg) => reg.state !== "pending").map((reg) => reg.client_death_id));
   const items: UnsentItem[] = [];
@@ -148,6 +154,7 @@ export async function summariseWork(db: Db): Promise<WorkSummary> {
     items.push({ ...rest, ...((last?.ref ?? issue) ? { error: last?.ref ?? issue! } : {}), ...(last?.message ? { reason: last.message } : {}) });
   };
 
+  const draftState = new Map<string, UnsentItem["state"]>();
   for (const d of drafts) {
     const waitsOnStuck = Boolean(d.client_death_id && !d.death_id && (!regs.some((r) => r.client_death_id === d.client_death_id) || stuckRegs.has(d.client_death_id!)));
     const ok = !d.upload_issue && isUploadableVerdict(d.valid === 1, d.outcome);
@@ -156,6 +163,12 @@ export async function summariseWork(db: Db): Promise<WorkSummary> {
       state: !ok || waitsOnStuck ? "attention" : d.client_death_id && !d.death_id ? "waiting" : "ready",
       issue: d.upload_issue ?? (!ok ? "not_ready" : waitsOnStuck ? "registration_not_sent" : null),
     });
+    draftState.set(d.id, items[items.length - 1]!.state);
+  }
+  // A file waits, or needs attention, with its interview; it is unsent work of its own, with its own Ref line.
+  for (const f of files) {
+    const state = draftState.get(f.draft_id) ?? "ready";
+    add({ key: `f:${f.id}`, id: f.id, kind: "attachment", title: f.unique_id ?? f.draft_id.slice(0, 8), state, issue: state === "attention" ? "not_ready" : null });
   }
   for (const r of regs) {
     add({ key: `r:${r.client_death_id}`, id: r.client_death_id, kind: "registration", title: r.name ?? r.client_death_id.slice(0, 8), state: r.state === "pending" ? "ready" : "attention", issue: r.state === "pending" ? null : "needs_edit" });

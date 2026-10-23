@@ -23,7 +23,8 @@
       "<rootDir>/jest.setup.js"
     ],
     "moduleNameMapper": {
-      "^@drguptavivek/who-2022-va$": "<rootDir>/../../vendor/who-va-2022/dist/index.js"
+      "^@drguptavivek/who-2022-va$": "<rootDir>/../../vendor/who-va-2022/dist/index.js",
+      "^@drguptavivek/who-2022-va/native$": "<rootDir>/../../vendor/who-va-2022/dist/native.js"
     }
   },
   "dependencies": {
@@ -37,6 +38,10 @@
     "expo-camera": "~57.0.6",
     "expo-constants": "^57.0.6",
     "expo-crypto": "~57.0.3",
+    "expo-document-picker": "~57.0.3",
+    "expo-file-system": "~57.0.7",
+    "expo-image-manipulator": "~57.0.21",
+    "expo-image-picker": "~57.0.20",
     "expo-linking": "^57.0.3",
     "expo-localization": "~57.0.2",
     "expo-router": "~57.0.7",

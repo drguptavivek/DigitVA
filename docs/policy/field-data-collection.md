@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-24
 ---
 
 # Field Data Collection Policy
@@ -571,6 +571,32 @@ Until decision C4 is settled the app is built unsigned, for development only.
 A debug-signed build is signed with a well-known shared key, so any party can
 produce an update that replaces it. **Debug builds must not be used to collect
 real interviews**, and must be pointed at a non-production DigitVA.
+
+## Phone clock
+
+Owner decision 2026-10-23 (digitva-ltqg). A wrong phone date breaks
+date checks ("not in the future", the 1 July rule, age from dates), the
+interview start and end times and session expiry, so the phone checks its
+clock against the server.
+
+- **Measuring.** On each sync the phone compares its clock with the `Date`
+  header of a server response (every response carries one) and keeps the
+  difference, phone minus server. Offline it uses the last measured
+  difference; a phone that has never synced is not judged.
+- **5 minutes to 4 hours off:** a persistent warning with a button to the
+  phone's Date & time settings ("set to automatic").
+- **More than 4 hours off: no data entry.** No new registration or
+  interview and no editing of drafts or revisions until the clock is fixed and
+  a re-check passes. Viewing, Send now / Refresh (which re-measures),
+  Settings and Export errors still work. If this is detected while a form is
+  open, what was typed is saved first; nothing is lost.
+- **On the server.** Uploads may carry `draft.clockOffsetSeconds` (integer,
+  phone minus server; clamped to ±366 days, a non-integer is refused). The
+  server stores it in the draft meta and marks the upload `clockSuspect` when
+  the offset exceeds 4 hours or `startedAt` / `completedAt` is more than
+  10 minutes ahead of the server. Such uploads are kept, never refused;
+  coders and supervisors see `device_clock_offset_seconds` and
+  `device_clock_suspect` with the submission.
 
 ## Coding is masked; collection is not
 

@@ -1663,6 +1663,50 @@ class DeviceApiTests(BaseTestCase):
         _version, draft = self._payload_and_draft(response)
         self.assertAlmostEqual(draft.meta["clockSkewSeconds"], -600, delta=15)
 
+    def test_clock_offset_is_stored_exposed_and_flagged_past_four_hours(self):
+        _device, tokens = self._session()
+        small = self._timed_upload(tokens, clockOffsetSeconds=-120)
+        self.assertEqual(small.status_code, 201, small.get_json())
+        version, draft = self._payload_and_draft(small)
+        self.assertEqual(draft.meta["clockOffsetSeconds"], -120)
+        self.assertEqual(version.payload_data["device_clock_offset_seconds"], -120)
+        self.assertNotIn("clockSuspect", draft.meta)
+        self.assertNotIn("device_clock_suspect", version.payload_data)
+        _device2, tokens2 = self._session(email="device.teammate@test.local")
+        big = self._timed_upload(tokens2, clockOffsetSeconds=5 * 3600)
+        self.assertEqual(big.status_code, 201, big.get_json())
+        version, draft = self._payload_and_draft(big)
+        self.assertTrue(draft.meta["clockSuspect"])
+        self.assertEqual(version.payload_data["device_clock_offset_seconds"], 5 * 3600)
+        self.assertTrue(version.payload_data["device_clock_suspect"])
+
+    def test_clock_offset_is_clamped_and_must_be_an_integer(self):
+        _device, tokens = self._session()
+        for bad in ("60", 1.5, True):
+            response = self._timed_upload(tokens, clockOffsetSeconds=bad)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_interview"), bad)
+        huge = self._timed_upload(tokens, clockOffsetSeconds=10 ** 12)
+        self.assertEqual(huge.status_code, 201, huge.get_json())
+        self.assertEqual(self._payload_and_draft(huge)[1].meta["clockOffsetSeconds"], intake_svc._MAX_CLOCK_OFFSET_SECONDS)
+
+    def test_completion_in_the_server_future_is_flagged_but_kept(self):
+        _device, tokens = self._session()
+        future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+        response = self._timed_upload(tokens, completedAt=future)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        version, draft = self._payload_and_draft(response)
+        self.assertTrue(draft.meta["clockSuspect"])
+        self.assertTrue(version.payload_data["device_clock_suspect"])
+        near = (datetime.now(UTC) + timedelta(minutes=2)).isoformat()
+        _device2, tokens2 = self._session(email="device.teammate@test.local")
+        ok = self._timed_upload(tokens2, completedAt=near)
+        self.assertNotIn("clockSuspect", self._payload_and_draft(ok)[1].meta)
+
+    def test_device_api_responses_carry_a_date_header(self):
+        _device, tokens = self._session()
+        response = self._timed_upload(tokens)
+        self.assertTrue(response.headers.get("Date"))
+
     def test_superseded_copy_keeps_the_times_and_skew(self):
         _device, teammate_tokens = self._session(email="device.teammate@test.local")
         death_id = self._upload(teammate_tokens).get_json()["case"]["death_id"]

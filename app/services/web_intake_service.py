@@ -269,6 +269,31 @@ def _device_time(value: object) -> datetime | None:
     return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
 
 
+#: The phone's measured clock offset (phone minus server) is kept within a year
+#: (a wilder value is clamped, never refused: the upload must not be lost). An
+#: offset past 4 h (the owner's block rule) or a start or completion time more
+#: than 10 min ahead of the server marks the upload as clock-suspect.
+_MAX_CLOCK_OFFSET_SECONDS = 366 * 86400
+_CLOCK_BLOCK_SECONDS = 4 * 3600
+_FUTURE_TOLERANCE = timedelta(minutes=10)
+
+
+def _clock_meta(envelope: dict, now: datetime) -> dict:
+    """Meta for the device clock: ``clockOffsetSeconds`` when the envelope
+    carries one, and ``clockSuspect`` when the offset or a future start or
+    completion time says the phone's clock was wrong. Audit and display only."""
+    out: dict = {}
+    offset = envelope.get("clockOffsetSeconds")
+    if offset is not None:
+        out["clockOffsetSeconds"] = max(-_MAX_CLOCK_OFFSET_SECONDS, min(_MAX_CLOCK_OFFSET_SECONDS, offset))
+    times = [_device_time(envelope.get(k)) for k in ("startedAt", "completedAt")]
+    if abs(out.get("clockOffsetSeconds", 0)) > _CLOCK_BLOCK_SECONDS or any(
+        t is not None and t > now + _FUTURE_TOLERANCE for t in times
+    ):
+        out["clockSuspect"] = True
+    return out
+
+
 def _completion_time(envelope: dict, now: datetime) -> datetime:
     """When the interview was completed, in server time: the device's
     ``completedAt`` corrected by its clock drift (``now - deviceClockAt`` is
@@ -2235,6 +2260,11 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["start"] = meta["startedAt"] if started_at else meta.get("createdAt") or submitted_iso
     payload["end"] = meta["completedAt"] if completed_at else submitted_iso
     payload["today"] = (completed_at or submitted_at).date().isoformat()
+    # Phone-clock audit for coders and supervisors (phone minus server, seconds).
+    if "clockOffsetSeconds" in meta:
+        payload["device_clock_offset_seconds"] = meta["clockOffsetSeconds"]
+    if meta.get("clockSuspect"):
+        payload["device_clock_suspect"] = True
     payload["AttachmentsExpected"] = len(wanted)
     payload["AttachmentsPresent"] = len(wanted) - len(references)
     payload["intake_source"] = intake_source
@@ -2889,6 +2919,7 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     meta = {
         **(draft.meta or {}),
         **{k: envelope[k] for k in (*_DEVICE_TIME_KEYS, *_DEFINITION_IDENTITY_KEYS) if k in envelope},
+        **_clock_meta(envelope, _utcnow()),
     }
     # The original submit time and source: SubmissionDate, the masked id and
     # the default end time stay as they were, so they never read as a change.
@@ -3304,6 +3335,9 @@ def check_device_times(envelope: dict) -> None:
     for field in ("startedAt", "completedAt", "deviceClockAt"):
         if field in envelope and _device_time(envelope[field]) is None:
             raise WebIntakeError(f"draft.{field} must be an ISO 8601 time with a UTC offset.", 422)
+    offset = envelope.get("clockOffsetSeconds")
+    if offset is not None and (not isinstance(offset, int) or isinstance(offset, bool)):
+        raise WebIntakeError("draft.clockOffsetSeconds must be an integer number of seconds.", 422)
 
 
 def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntakeDraft | None:
@@ -3504,6 +3538,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     if device_id is not None:
         stored["deviceId"] = str(device_id)
     now = _utcnow()
+    stored.update(_clock_meta(envelope, now))
     device_clock = _device_time(envelope.get("deviceClockAt"))
     if device_clock is not None:
         # Positive = the device clock is behind the server. Audit only: the
@@ -3711,6 +3746,7 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         draft.sections.remove(row)
     draft.answers_sha256 = answers_sha256
     stored = {k: envelope[k] for k in ("startedAt",) if k in envelope}
+    stored.update(_clock_meta(envelope, now))
     draft.meta = {
         **meta, **stored,
         "effectiveSavedAt": effective.isoformat(),

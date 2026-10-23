@@ -21,6 +21,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flask_caching import Cache
+from werkzeug.http import http_date
 from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography.fernet import Fernet
 from config import (
@@ -765,6 +766,9 @@ def create_app(config_class=None, register_routes=True):
         # it reaches one, such as a CSRF or terms refusal).
         if request.path.startswith(_NO_STORE_API_PREFIXES):
             response.headers["Cache-Control"] = "no-store"
+        # The phone measures its clock offset from this header on every
+        # response (docs/policy/field-data-collection.md "Phone clock").
+        response.headers.setdefault("Date", http_date())
         if request.path.startswith("/static/") and response.status_code == 200:
             response.cache_control.public = True
             response.cache_control.max_age = app.config["STATIC_ASSET_CACHE_MAX_AGE"]

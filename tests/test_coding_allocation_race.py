@@ -280,3 +280,83 @@ class CodingAllocationRaceTests(BaseTestCase):
             cws._create_coding_allocation = original
         self.assertEqual(caught.exception.status_code, 409)
         self.assertEqual(caught.exception.code, "not_available")
+
+    def test_same_user_random_and_pick_of_one_case_do_not_deadlock(self):
+        """Random locks the workflow row then inserts the allocation; the pick
+        used to insert first then lock, so one user firing both on one case
+        deadlocked (digitva-nw4b). Random is parked holding the row lock; the
+        pick then reaches its allocation step and must wait on the lock, not
+        insert."""
+        r_locked, p_reached, release_r = (threading.Event() for _ in range(3))
+        real = cws._create_coding_allocation
+
+        def parked(*args, **kwargs):
+            name = threading.current_thread().name
+            if name == "P":
+                p_reached.set()
+            else:
+                r_locked.set()
+                assert release_r.wait(20)
+            return real(*args, **kwargs)
+
+        results = {}
+        cws._create_coding_allocation = parked
+        try:
+            thread_r = self._in_thread("R", lambda: cws.allocate_random_form(
+                db.session.get(VaUsers, self.coder_a_id), project_id="RAC02"), results)
+            self.assertTrue(r_locked.wait(20), results)
+            thread_p = self._in_thread("P", lambda: cws.allocate_pick_form(
+                db.session.get(VaUsers, self.coder_a_id), RANDOM_SID, own_case=True), results)
+            self.assertTrue(p_reached.wait(20), results)
+            time.sleep(0.5)  # P is now past its checks, waiting on R's row lock
+            release_r.set()
+            thread_r.join(30)
+            thread_p.join(30)
+        finally:
+            cws._create_coding_allocation = real
+            release_r.set()
+
+        self.assertEqual(results["R"][0], "ok", results.get("R"))
+        self.assertEqual(results["P"][0], "ok", results.get("P"))
+        self.assertEqual(results["R"][1].actiontype, "vastartcoding")
+        self.assertEqual(results["P"][1].actiontype, "varesumecoding")
+        active = self._active_allocations(RANDOM_SID)
+        self.assertEqual([a.va_allocated_to for a in active], [self.coder_a_id])
+
+    def test_deadlock_escaping_an_allocation_path_is_409_conflict(self):
+        class _Deadlock(Exception):
+            pgcode = "40P01"
+
+        def deadlock(*_args, **_kwargs):
+            raise sa.exc.OperationalError("INSERT", {}, _Deadlock())
+
+        original = cws._create_coding_allocation
+        cws._create_coding_allocation = deadlock
+        try:
+            user = db.session.get(VaUsers, self.coder_b_id)
+            for call in (
+                lambda: cws.allocate_random_form(user, project_id="RAC02"),
+                lambda: cws.allocate_pick_form(user, PICK_SID),
+            ):
+                with self.assertRaises(AllocationError) as caught:
+                    call()
+                self.assertEqual(caught.exception.status_code, 409)
+                self.assertEqual(caught.exception.code, "conflict")
+        finally:
+            cws._create_coding_allocation = original
+
+    def test_other_operational_errors_are_not_masked_as_conflicts(self):
+        class _Other(Exception):
+            pgcode = "57014"
+
+        def fail(*_args, **_kwargs):
+            raise sa.exc.OperationalError("INSERT", {}, _Other())
+
+        original = cws._create_coding_allocation
+        cws._create_coding_allocation = fail
+        try:
+            user = db.session.get(VaUsers, self.coder_b_id)
+            with self.assertRaises(sa.exc.OperationalError):
+                cws.allocate_pick_form(user, PICK_SID)
+        finally:
+            cws._create_coding_allocation = original

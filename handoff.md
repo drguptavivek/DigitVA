@@ -35,17 +35,13 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 ## Ranked next steps
 
 0. **Landing queue** (one committer session lands, one full suite per
-   landing): `digitva-295w` (nice the Celery workers; staging A/B re-test
-   after it lands) → `digitva-nw4b` + `digitva-hbrs` (allocation lock order;
-   INVALID-index guard inside `c5e7a9b1d3f6`).
-1. **`digitva-295w` (P1)**: run the Celery worker under `nice -n 10` so web
-   requests win the CPU and SmartVA catches up in idle gaps; verify with the
-   same staging A/B harness (worker paused vs running). Alternative: 4 vCPU.
-2. Coding allocation follow-ups from the 2026-10-23 security review:
-   `digitva-nw4b` (random vs pick lock order can deadlock -> 500 for one user
-   firing both at once), `digitva-hbrs` (a failed concurrent index build leaves
-   an INVALID index that a re-run keeps).
-3. **Releases.** Each web change ships as an Expo web release (`npm run
+   landing): `digitva-tn21` + `digitva-jvgp` (sync master data read once per
+   call; single-form force-resync paged; on failure the sync-issue flags are
+   rolled back with the run, as in the main sync).
+1. **`digitva-295w`** (landed): staging A/B re-test with the workers niced
+   (worker paused vs running, same harness as 2026-10-23). If request p50 still
+   doubles while SmartVA runs, the next step is 4 vCPU.
+2. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays
    Latest), then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256`. Android: CI
@@ -55,26 +51,26 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
    fingerprint in environment variable `ANDROID_RELEASE_CERT_SHA256`).
    Current: `android-v0.3.0` (Latest) and `expo-web-v2026.10.22.5`, both built
    from `21ccf04dc`.
-4. **Public demo deploy** (`digitva-77v5.7`) per the runbook: DNS, DMZ block for
+3. **Public demo deploy** (`digitva-77v5.7`) per the runbook: DNS, DMZ block for
    `demo.causeofdeathindia.com`, S3 `demo/` prefix, demo DB and keys. Then
    `digitva-77v5.9` (seed without the default admin). Owner: review ~40 Hindi
    strings in `mobile/digitva-collect/src/strings/hi.json`; WHO ICD-11 API terms
    for anonymous public use. Proof-of-work timing on a real phone is untested.
-5. SmartVA known ceilings (`digitva-96ik`): the batch claim is not atomic
+4. SmartVA known ceilings (`digitva-96ik`): the batch claim is not atomic
    above worker concurrency 1; a whole-run failure fails every case in the
    batch. Rollback for the in-process engine: `SMARTVA_RS_LIB=""`.
-6. Staging `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
-7. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
+5. Staging `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
+6. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
    Users page.
-8. digitva-collect queue: `0vgh` phone consent, `zkgx` questionnaire languages
+7. digitva-collect queue: `0vgh` phone consent, `zkgx` questionnaire languages
    from the server, `jkvl` audio/photo, `jish`, `wh4w`.
-9. Staging after deploy: Project Setup → HP0001 → Respondent consent → "Seed
+8. Staging after deploy: Project Setup → HP0001 → Respondent consent → "Seed
    from draft", approve after legal review, then turn "Require respondent
    consent" on. `flask training-demo setup` if TRN01 is missing.
-10. Aakanksha's direct interview (staging `88606c5b`) re-asked name/age at
+9. Aakanksha's direct interview (staging `88606c5b`) re-asked name/age at
     completion; deceased section saved only on the second try. Unreproduced:
     need the message, device and tabs. Her empty drafts `5d31cbd0`, `cd39dff7`.
-11. Older: `owqc`, `en2g`, `2s6p`, `hs7e` (digitva-coder, deferred), `a6q9`.
+10. Older: `owqc`, `en2g`, `2s6p`, `hs7e` (digitva-coder, deferred), `a6q9`.
    Also: `mubf` (COD bucket rule mismatch), `xp9w` (EXPLAIN a staging bucket
    report before more MV work), `8dzk` (allocation_exists 403 vs 409), `f0ys`
    (spelling-fold tests flaky under xdist).

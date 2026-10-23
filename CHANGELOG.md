@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Celery workers under `nice -n 10`** (`digitva-295w`): main and demo
+  workers yield CPU to gunicorn (demo worker also gets
+  `--max-memory-per-child=300000`). Staging A/B re-test pending.
+- **Allocation lock order** (`digitva-nw4b`): every coding allocation locks the
+  case's workflow row before inserting the allocation; a remaining deadlock
+  answers 409 `conflict`, not 500. Migration `c5e7a9b1d3f6` drops an INVALID
+  leftover of its concurrent index before rebuilding it (`digitva-hbrs`; no
+  new revision, a no-op where it already applied).
 - **Streaming exports and paged ODK sync** (`digitva-lj7u`;
   `docs/current-state/data-manager-dashboard.md`, `odk-sync.md`). The
   data-manager submissions and SmartVA-input CSV exports stream rows through a

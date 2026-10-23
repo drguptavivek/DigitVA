@@ -7,6 +7,7 @@ Pure domain logic consumed by both:
 
 from __future__ import annotations
 
+import functools
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -74,7 +75,10 @@ from app.services.workflow.intake_modes import (
     CODING_INTAKE_PICK,
     get_project_coding_intake_mode,
 )
-from app.services.workflow.state_store import get_submission_workflow_state
+from app.services.workflow.state_store import (
+    get_submission_workflow_record,
+    get_submission_workflow_state,
+)
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     admin_actor,
@@ -623,7 +627,13 @@ def _create_coding_allocation(
 
     Raises ActiveAllocationHeld, having written nothing, when *user* already
     holds an active coding allocation (a concurrent request inserted first).
+
+    Locks the workflow row before the insert: the random path locks it first
+    (its pick), and one user firing both paths on one case would otherwise
+    hold each lock the other waits for (digitva-nw4b). Re-locking a row this
+    transaction already holds returns at once.
     """
+    get_submission_workflow_record(va_sid, for_update=True)
     gen_uuid = uuid.uuid4()
     with active_allocation_savepoint():
         db.session.add(VaAllocations(
@@ -723,6 +733,27 @@ def _release_stale_coding_allocations_throttled() -> None:
     release_stale_coding_allocations(timeout_hours=1)
 
 
+def _deadlock_as_conflict(fn):
+    """Answer a Postgres deadlock (40P01) that escapes *fn* with a retryable
+    409 instead of a 500: the aborted transaction is rolled back and the
+    client's retry resumes or allocates (digitva-nw4b)."""
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except sa.exc.OperationalError as exc:
+            if getattr(exc.orig, "pgcode", None) != "40P01":
+                raise
+            db.session.rollback()
+            raise AllocationError(
+                "Another request is allocating this case. Try again.", 409, code="conflict"
+            ) from None
+
+    return wrapper
+
+
+@_deadlock_as_conflict
 def allocate_random_form(user, project_id: str | None = None) -> AllocationResult:
     """Allocate a random available form for coding.
 
@@ -814,6 +845,7 @@ def _unavailable(workflow_state: str | None) -> AllocationError:
     return AllocationError(message, 409, code=code, workflow_state=workflow_state)
 
 
+@_deadlock_as_conflict
 def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> AllocationResult:
     """Allocate a specific form for coding (pick-mode projects).
 

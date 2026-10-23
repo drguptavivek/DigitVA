@@ -102,7 +102,7 @@ def repair_submission_current_payload(
 
     repair_map, summary = _build_repair_map_for_form(
         va_form.form_id,
-        [],
+        {},
         {},
         target_sids=[va_sid],
     )

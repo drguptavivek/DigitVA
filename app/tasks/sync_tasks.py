@@ -156,7 +156,7 @@ def _refresh_batch_plan_after_enrichment(
     refreshed_plan = _normalize_batch_plan(batch_plan)
     repair_map, summary = _build_repair_map_for_form(
         form_id,
-        raw_submissions,
+        _instance_ids_by_sid(raw_submissions),
         {},
     )
     upstream_changed_count = 0
@@ -816,9 +816,18 @@ def finalize_canonical_repair_run_task(
     raise self.retry(countdown=10)
 
 
+def _instance_ids_by_sid(records: list[dict] | None) -> dict[str, str]:
+    """Return ``{sid: KEY}`` for the fetched records that carry both."""
+    return {
+        record.get("sid"): record.get("KEY")
+        for record in records or []
+        if record.get("sid") and record.get("KEY")
+    }
+
+
 def _build_repair_map_for_form(
     form_id: str,
-    raw_submissions: list[dict],
+    instance_ids_by_sid: dict[str, str],
     upserted_map: dict[str, str],
     *,
     target_sids: list[str] | None = None,
@@ -827,6 +836,9 @@ def _build_repair_map_for_form(
 
     Includes newly added/updated rows plus existing rows whose current payload is
     metadata-incomplete or whose local attachment cache is incomplete.
+    ``instance_ids_by_sid`` is the ``{sid: KEY}`` of the fetched records (see
+    ``_instance_ids_by_sid``), not the records themselves; when non-empty it
+    scopes the check to those sids, otherwise ``target_sids`` does.
     """
     from app import db
     from app.models import VaSubmissions, VaSmartvaResults
@@ -844,11 +856,7 @@ def _build_repair_map_for_form(
         "AttachmentsPresent",
     )
 
-    raw_by_sid = {
-        submission.get("sid"): submission
-        for submission in (raw_submissions or [])
-        if submission.get("sid") and submission.get("KEY")
-    }
+    instance_ids_by_sid = instance_ids_by_sid or {}
 
     smartva_current_sq = (
         sa.select(VaSmartvaResults.va_sid.label("va_sid"))
@@ -865,8 +873,8 @@ def _build_repair_map_for_form(
         .subquery()
     )
 
-    if raw_by_sid:
-        scoped_target_sids = list(raw_by_sid.keys())
+    if instance_ids_by_sid:
+        scoped_target_sids = list(instance_ids_by_sid)
     else:
         scoped_target_sids = target_sids
     attachment_states = attachment_state_by_submission(
@@ -923,7 +931,7 @@ def _build_repair_map_for_form(
     for va_sid, *payload_values, va_summary, va_category_list, smartva_present_sid in rows:
         payload = dict(zip(_REPAIR_PAYLOAD_KEYS, payload_values))
         instance_id = (
-            raw_by_sid.get(va_sid, {}).get("KEY")
+            instance_ids_by_sid.get(va_sid)
             or payload.get("KEY")
             or (va_sid.rsplit(f"-{form_id.lower()}", 1)[0] if va_sid.endswith(f"-{form_id.lower()}") else None)
         )
@@ -1122,9 +1130,10 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     import sqlalchemy as sa
     from app.utils import (
         va_odk_fetch_instance_ids,
-        va_odk_fetch_submissions,
+        va_odk_fetch_submissions_page,
     )
     from app.services.va_data_sync.va_data_sync_01_odkcentral import (
+        _ODK_FETCH_PAGE_SIZE,
         _mark_form_sync_issues,
         _upsert_form_submissions,
         SYNC_ISSUE_MISSING_IN_ODK,
@@ -1158,27 +1167,49 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         odk_ids = va_odk_fetch_instance_ids(va_form, client=odk_client)
         _mark_form_sync_issues(va_form, odk_ids)
 
-        # Fetch ALL submissions (force-resync = no since filter)
+        # Fetch ALL submissions (force-resync = no since filter), one page at a
+        # time so a form's records are never all held in memory. Still one
+        # transaction: a failure on any page rolls the whole form back.
         log_progress(f"[{form_id}] fetch: downloading submissions from ODK…")
-        va_submissions_raw = va_odk_fetch_submissions(
-            va_form,
-            since=None,
-            client=odk_client,
-        )
-        log_progress(
-            f"[{form_id}] fetch: downloaded {len(va_submissions_raw)} submission(s) from ODK"
-        )
         upserted_map: dict[str, str] = {}
+        amended_sids: set[str] = set()
+        instance_ids_by_sid: dict[str, str] = {}
+        added = updated = discarded = skipped = 0
+        fetched_total = 0
+        skip = 0
+        while True:
+            page = va_odk_fetch_submissions_page(
+                va_form,
+                since=None,
+                skip=skip,
+                client=odk_client,
+            )
+            if not page:
+                break
+            fetched_total += len(page)
+            instance_ids_by_sid.update(_instance_ids_by_sid(page))
+            log_progress(
+                f"[{form_id}] upsert: saving basic submission data for {len(page)} "
+                f"submission(s) ({fetched_total} fetched so far)…"
+            )
+            page_added, page_updated, page_discarded, page_skipped = _upsert_form_submissions(
+                va_form,
+                page,
+                amended_sids,
+                upserted_map,
+                enrich_payloads=False,
+                defer_protected_updates=True,
+            )
+            added += page_added
+            updated += page_updated
+            discarded += page_discarded
+            skipped += page_skipped
+            if len(page) < _ODK_FETCH_PAGE_SIZE:
+                break
+            skip += _ODK_FETCH_PAGE_SIZE
+        page = None  # the last page must not outlive the loop
         log_progress(
-            f"[{form_id}] upsert: saving basic submission data for {len(va_submissions_raw)} submission(s)…"
-        )
-        added, updated, discarded, skipped = _upsert_form_submissions(
-            va_form,
-            va_submissions_raw,
-            set(),
-            upserted_map,
-            enrich_payloads=False,
-            defer_protected_updates=True,
+            f"[{form_id}] fetch: downloaded {fetched_total} submission(s) from ODK"
         )
         db.session.commit()
         log_progress(
@@ -1187,7 +1218,7 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         )
         repair_map, repair_summary = _build_repair_map_for_form(
             form_id,
-            va_submissions_raw,
+            instance_ids_by_sid,
             upserted_map,
         )
         if repair_map:
@@ -1242,6 +1273,8 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
     except SoftTimeLimitExceeded:
         log.error("SingleFormSync [%s]: soft time limit exceeded — task killed after 10 min", form_id)
         try:
+            # Pages already upserted are uncommitted; the status commit must not keep them.
+            db.session.rollback()
             run = db.session.get(VaSyncRun, run_id)
             if run:
                 run.status = "error"
@@ -1256,6 +1289,8 @@ def run_single_form_sync(self, form_id: str, triggered_by: str = "manual", user_
         log.error("SingleFormSync [%s]: failed — %s", form_id, exc, exc_info=True)
         _log_progress_exc(db, run_id, f"SingleFormSync form={form_id}", exc)
         try:
+            # Pages already upserted are uncommitted; the status commit must not keep them.
+            db.session.rollback()
             run = db.session.get(VaSyncRun, run_id)
             if run:
                 run.status = "error"
@@ -1338,7 +1373,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
 
         existing_repair_map, existing_repair_summary = _build_repair_map_for_form(
             form_id,
-            [],
+            {},
             {},
             target_sids=sorted(local_sids),
         )
@@ -1396,7 +1431,7 @@ def run_single_form_backfill(self, form_id: str, triggered_by: str = "backfill",
 
             batch_repair_map, batch_repair_summary = _build_repair_map_for_form(
                 form_id,
-                batch_records,
+                _instance_ids_by_sid(batch_records),
                 batch_upserted_map,
                 target_sids=list(batch_upserted_map.keys()),
             )

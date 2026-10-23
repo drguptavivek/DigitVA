@@ -23,6 +23,7 @@ from app.services.attachment_service import SubmissionAttachmentState
 from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.tasks.sync_tasks import (
     _finalize_repair_run_if_ready,
+    _instance_ids_by_sid,
     _build_repair_map_for_form,
     _run_canonical_repair_batches,
     _refresh_batch_plan_after_enrichment,
@@ -196,7 +197,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             local_path=os.path.join(self._tmp_dir.name, self.form_id, "media", "photo.jpg"),
         )
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["metadata_missing"], 0)
         self.assertEqual(summary["attachments_missing"], 1)
@@ -205,6 +206,37 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         self.assertTrue(repair_map[va_sid]["needs_attachments"])
         self.assertFalse(repair_map[va_sid]["needs_metadata"])
         self.assertFalse(repair_map[va_sid]["needs_smartva"])
+
+    def test_build_repair_map_scopes_to_the_sids_of_the_instance_id_map(self):
+        va_sid = self._create_submission_with_attachment(
+            filename="photo.jpg",
+            storage_name="photo-storage.jpg",
+            local_path=os.path.join(self._tmp_dir.name, self.form_id, "media", "photo.jpg"),
+        )
+
+        other_map, _ = _build_repair_map_for_form(
+            self.form_id, {"other-sid": "uuid:other"}, {}
+        )
+        scoped_map, _ = _build_repair_map_for_form(
+            self.form_id, {va_sid: "uuid:fetched"}, {}
+        )
+
+        self.assertNotIn(va_sid, other_map)
+        self.assertEqual(scoped_map[va_sid]["instance_id"], "uuid:fetched")
+
+    def test_instance_ids_by_sid_drops_records_missing_sid_or_key(self):
+        self.assertEqual(
+            _instance_ids_by_sid(
+                [
+                    {"sid": "a", "KEY": "uuid:a"},
+                    {"sid": "b"},
+                    {"KEY": "uuid:c"},
+                    {"sid": "", "KEY": "uuid:d"},
+                ]
+            ),
+            {"a": "uuid:a"},
+        )
+        self.assertEqual(_instance_ids_by_sid(None), {})
 
     def test_build_repair_map_reads_readiness_through_attachment_service(self):
         # The repair map depends on the attachment module boundary, not on disk:
@@ -223,7 +255,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
                 )
             },
         ) as readiness:
-            repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+            repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         readiness.assert_called_once()
         self.assertEqual(summary["attachments_missing"], 0)
@@ -239,7 +271,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             sync_issue_code=MISSING_IN_ODK,
         )
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["attachments_missing"], 0)
         self.assertNotIn(va_sid, repair_map)
@@ -259,7 +291,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             derivative_state="stale",
         )
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["attachments_missing"], 1)
         self.assertTrue(repair_map[va_sid]["needs_attachments"])
@@ -271,7 +303,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             storage_name="photo-storage.jpg",
             local_path=os.path.join(self._tmp_dir.name, self.form_id, "media", "photo.jpg"),
         )
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
         self.assertEqual(summary["attachments_missing"], 1)
         self.assertIn(va_sid, repair_map)
 
@@ -282,7 +314,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         row.refused_size_bytes = 30_000_000
         db.session.commit()
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["attachments_missing"], 0)
         self.assertNotIn(va_sid, repair_map)
@@ -295,7 +327,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             store_state="s3",
         )
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["attachments_missing"], 0)
         self.assertNotIn(va_sid, repair_map)
@@ -313,7 +345,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             local_path=audit_path,
         )
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["attachments_missing"], 1)
         self.assertIn(va_sid, repair_map)
@@ -332,7 +364,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
             local_path=legacy_local_path,
         )
 
-        repair_map, summary = _build_repair_map_for_form(self.form_id, [], {})
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
 
         self.assertEqual(summary["attachments_missing"], 1)
         self.assertIn(va_sid, repair_map)

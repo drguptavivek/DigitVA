@@ -372,10 +372,15 @@ that page) and upserts each page with `_upsert_form_submissions` before fetching
 the next. The form is still one transaction: one commit after the last page, and
 a failure on any page rolls the whole form back. Only when no enrichment
 dispatcher is passed are the pages also kept, for the in-process comment and
-enrichment steps. `va_odk_fetch_submissions()` (single-form sync, backfill, gap
-sync) is the same page function in a loop that returns the full list.
+enrichment steps. The single-form force-resync (`run_single_form_sync`) pages
+the same way, without the backoff, and hands the repair-map build only the
+fetched `{sid: KEY}` map; backfill and gap sync fetch by instance id in batches
+of 50. `va_odk_fetch_submissions()` (the page function in a loop that returns
+the full list) has no sync caller left.
 `_upsert_form_submissions` works 250 records at a time, loading the chunk's
-`va_submissions` rows and active payload versions in two queries.
+`va_submissions` rows and active payload versions in two queries, and reads the
+form type and its active category config once per call, not per record (never
+cached across calls: admins edit those tables).
 
 ### OData JSON normalization
 

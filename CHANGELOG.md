@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Web submit refusals show the server's reason** (`digitva-l3r8`): a 422 on
+  interview submit shows the server's rule text (consent, Id10013, identity)
+  with the `Ref:` line, and web 400/422/5xx messages carry the `Ref:` line,
+  instead of "Check the highlighted fields" with nothing highlighted.
 - **SmartVA batch failure split** (`digitva-vv4h`): a multi-case whole-run
   failure reruns each case alone, so one bad case no longer fails the batch.
 - **Intake device submit CPU** (`digitva-9m11`, `digitva-anzv`): section

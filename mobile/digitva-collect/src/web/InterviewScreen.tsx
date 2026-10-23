@@ -25,7 +25,7 @@ import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
 import { radius, useTheme } from "../theme";
 import { applyTranslations } from "../translations";
-import { Button, useUiStyles } from "../ui";
+import { Button, errorReference, useUiStyles } from "../ui";
 import { AppHeaderBar } from "./AppHeader";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -152,6 +152,12 @@ function interviewErrorText(error: unknown): string {
   if (error instanceof ClientApiError && error.code === "draft_stale") {
     const message = error.payload?.error;
     if (typeof message === "string" && message.trim()) return message.trim().slice(0, 500);
+  }
+  // A refused submit names what to fix (consent, Id10013, identity); the page
+  // cannot highlight it, so show the server's fixed rule text with the Ref.
+  if (error instanceof ClientApiError && error.status === 422) {
+    const message = error.payload?.error;
+    if (typeof message === "string" && message.trim()) return `${message.trim().slice(0, 500)}\n${errorReference(error)}`;
   }
   return browserErrorText(error);
 }

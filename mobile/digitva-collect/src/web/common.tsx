@@ -23,8 +23,8 @@ export function browserErrorText(error: unknown): string {
     if (error.code === "terms_required") return t("loginRequiredAction");
     if (error.status === 403) return t("serverForbidden");
     if (error.code === "csrf_failed") return t("csrfRefreshed");
-    if (error.status === 422 || error.status === 400) return t("serverValidation");
-    if (error.status >= 500) return t("serverUnavailable");
+    if (error.status === 422 || error.status === 400) return `${t("serverValidation")}\n${errorReference(error)}`;
+    if (error.status >= 500) return `${t("serverUnavailable")}\n${errorReference(error)}`;
     return `${t("serverError")}\n${errorReference(error)}`;
   }
   if (error instanceof TypeError) return t("errNetwork");

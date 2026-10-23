@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Expo Web Client Boundary
@@ -91,6 +91,32 @@ users with no role grants yet — whenever the Expo export is present
 Effective roles come from the authz helper, so a `site_pi` held at an org
 unit (the In-charge) counts as `data_manager` and `interview_supervisor`.
 `VaUsers.landing_url()` implements the rule.
+
+## Error messages and the support reference
+
+Field users report problems by screenshot, not by log. So an error the app
+cannot name precisely must still identify itself on screen (owner,
+2026-10-23, `digitva-l3r8`):
+
+- A generic error (native "Something went wrong", web "server could not
+  complete", "Check the highlighted fields", "Server unavailable") carries a
+  second line, `Ref: <what> · <HH:MM>Z · v<app version>`, built by
+  `errorReference` in `mobile/digitva-collect/src/ui.tsx`. `<what>` is the
+  HTTP status, the error code, the method and the route with every id
+  segment masked as `:id`, or for a failure on the device, the error class
+  and at most 60 characters of its message with quoted text and digit runs
+  of 4+ masked.
+- The Ref line never carries tokens, query strings, full URLs, names,
+  answers or server-provided free text.
+- Messages that already say what to do (offline, rate limited, sign in
+  again, CSRF refreshed, forbidden) carry no Ref line.
+- An interview submit refused with 422 shows the server's own message
+  (fixed rule text such as consent, Id10013 or the deceased's identity, no
+  answers) with the Ref line, because the page cannot highlight the question
+  the rule names. `draft_stale` likewise shows the server's message. All other
+  server text stays hidden.
+- Support matches a Ref to the server's access log by route, status and UTC
+  minute.
 
 ## Hosting and languages
 

@@ -34,10 +34,8 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
-0. **Landing queue** (one committer session lands, one full suite per
-   landing): `digitva-tn21` + `digitva-jvgp` (sync master data read once per
-   call; single-form force-resync paged; on failure the sync-issue flags are
-   rolled back with the run, as in the main sync).
+0. **Expo web release** for `digitva-p9j0` (DORIS remark):
+   `expo-web-v2026.10.23.1`, then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256`.
 1. **`digitva-295w`** (landed): staging A/B re-test with the workers niced
    (worker paused vs running, same harness as 2026-10-23). If request p50 still
    doubles while SmartVA runs, the next step is 4 vCPU.
@@ -73,7 +71,7 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 10. Older: `owqc`, `en2g`, `2s6p`, `hs7e` (digitva-coder, deferred), `a6q9`.
    Also: `mubf` (COD bucket rule mismatch), `xp9w` (EXPLAIN a staging bucket
    report before more MV work), `8dzk` (allocation_exists 403 vs 409), `f0ys`
-   (spelling-fold tests flaky under xdist).
+   (spelling-fold tests flaky under xdist), `783d` (SmartVA export header order).
 
 ## Open owner decisions
 
@@ -102,9 +100,9 @@ ICD container stays on servers.
 
 - ODK sync (`digitva-lj7u`): a form syncs in one transaction, so row locks from
   its first page are held through later ODK fetches; a coder saving a case a
-  large, slow delta sync updates waits until the form commits. Single-form sync
-  and backfill in `sync_tasks.py` still fetch a whole form, and an unchanged
-  rerun still does 3 uncached master-data reads per record.
+  large, slow delta sync updates waits until the form commits.
+- SmartVA input export header order follows row order (no ORDER BY;
+  `digitva-783d`); harmless for consumers that read columns by name.
 - After an image rebuild, refresh the shared venv volume `digitva_minerva_venv`
   (stop app/worker/beat, `docker volume rm`, `up -d`).
 - `.dockerignore` excludes `desktop/` and `vendor/who-icd11-api/` (6 GB+ images).

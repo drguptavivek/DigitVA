@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Sync master data and single-form resync** (`digitva-tn21`,
+  `digitva-jvgp`; `docs/current-state/odk-sync.md`). The sync upsert reads
+  form type and category config once per call instead of 3 queries per
+  record; the single-form force-resync fetches page by page and still commits
+  once. On failure it now rolls back before recording the error, so that
+  run's sync-issue ("missing in ODK") flags are not saved, as in the main sync.
+- **DORIS remark in the Expo app** (`6848a6f8b`, `digitva-p9j0`): the final
+  cause-of-death step sends the coder's or reviewer's remark, as the web form
+  does. Needs an Expo web release and pin.
+- **Deploy runbook**: `git submodule update --init vendor/smartva-analyze`
+  after the pull and in rollback.
 - **Celery workers under `nice -n 10`** (`digitva-295w`): main and demo
   workers yield CPU to gunicorn (demo worker also gets
   `--max-memory-per-child=300000`). Staging A/B re-test pending.

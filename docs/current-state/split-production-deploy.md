@@ -3,7 +3,7 @@ title: Split Production Deploy Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-23
 ---
 
 # Split Production Deploy Runbook
@@ -130,9 +130,15 @@ database volume's EBS snapshot is an independent second copy.
 ```bash
 git fetch origin && git status -sb          # no local changes
 git pull --ff-only
+git submodule update --init vendor/smartva-analyze   # pull does not move it
 # New .env keys from the release notes go in now (and bump STATIC_ASSET_VERSION).
 make prod-build
 ```
+
+`git pull` leaves submodule checkouts where they were, so without the
+submodule update `git status` shows ` M vendor/smartva-analyze` and the image's
+Python SmartVA path dependency is built from the old checkout. The smartva-rs
+engine itself comes from the pinned release tarball, not from this checkout.
 
 `make prod-build` builds the images and recreates the changed containers. The
 app container runs `flask db upgrade` before gunicorn starts; the worker and
@@ -177,6 +183,7 @@ If the post-checks fail and the cause is not obvious within minutes:
 
 ```bash
 git checkout "$(cat ~/deploy-previous-commit)"
+git submodule update --init vendor/smartva-analyze
 make prod-build
 ```
 

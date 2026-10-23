@@ -30,6 +30,17 @@ is the phone's side. Server caps and accepted types are not restated here:
      mono AAC (`.m4a`) at a voice bitrate, about 0.25 MB a minute, so the
      duration limit is the binding one. The server accepts `m4a` and
      re-encodes audio to its canonical format.
+   - The recorder can be paused and resumed; one take is one file. Only
+     recorded time counts toward the 30 minutes (a pause never uses it up), the
+     control shows the elapsed and the remaining time, and the take stops by
+     itself when the recorded time reaches the limit. While a take is open the
+     audio mode is "recording, plays in silent mode"; when it is saved or
+     cancelled the mode returns to playback (`allowsRecording: false`, still
+     plays in silent mode) so a saved take can be heard with the phone on
+     silent. **No recording in the background:** when the app leaves the
+     foreground (background, a phone call) the take is paused, kept, and stays
+     paused until the interviewer resumes, saves or cancels it. The web form
+     records as before (no pause).
    - Images: the vendor package's policy (`WHO_VA_ATTACHMENT_POLICY.image`): at
      most 10 MB and 16 megapixels in, re-encoded to a JPEG of at most 2048 px
      and 2 MB out (a camera frame above 16 megapixels is scaled down first, so a 50 MP photograph is not refused). EXIF and every other metadata block are dropped by the
@@ -92,10 +103,12 @@ is the phone's side. Server caps and accepted types are not restated here:
      the same draft); (b) PUT the files to that draft; (c) `POST
      /intake/submissions` with the same `client_draft_id`, which completes
      that draft (owner, project, site and unit must match, else 409) rather
-     than creating another. Server: `docs/current-state/device-collection-api.md`,
+     than creating another. A 409 at step (a) (another interviewer's id, an id
+     already uploaded, another project, site or unit) holds the interview as
+     needing attention with the server's code on its Ref line; nothing is sent. Server: `docs/current-state/device-collection-api.md`,
      "Direct start with attachments". An attachment draft never submitted
-     stays an ordinary open draft under the existing rules. The phone enables
-     the attachment controls for direct starts once it makes step (a).
+     stays an ordinary open draft under the existing rules. The phone offers
+     the attachment controls on every interview, direct starts included.
 5. **Unsent work.** `src/unsentWork.ts`: each file of a completed interview
    that the server has not confirmed counts as unsent (kind `attachment`, ready
    to send); one held for needing attention shows in the attention list with
@@ -112,7 +125,8 @@ is the phone's side. Server caps and accepted types are not restated here:
    and after a send that left the draft in place.
 7. **Permissions.** `CAMERA` and `RECORD_AUDIO` are declared; storage
    permissions stay blocked. The microphone is asked for only when the
-   interviewer taps Record, after a plain explanation of why; if it was
+   interviewer taps Record, and the camera only when they take a photograph,
+   each after a plain explanation of why; if it was
    refused for good, the explanation offers a link to the app's settings. The
    gallery uses the system photo picker on Android 13 and later, with no
    permission. Owner decision: Android 12 and older (API 32) may request
@@ -127,7 +141,6 @@ is the phone's side. Server caps and accepted types are not restated here:
 
 ## Not decided here
 
-- Pause during recording: the form engine's recorder has start, stop and cancel
-  only; the phone offers the same. Re-recording replaces the saved file once the
-  new one is saved; delete removes it.
+- Re-recording replaces the saved file once the new one is saved; delete
+  removes it.
 - Chunked, resumable upload and server re-encode of images: `digitva-jkvl`.

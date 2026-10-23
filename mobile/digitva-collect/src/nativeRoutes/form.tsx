@@ -788,13 +788,12 @@ export default function Form() {
     [loaded, covered],
   );
 
-  // Audio, photographs and documents (docs/policy/phone-attachments.md). Files go up ahead of the interview, so
-  // only an interview on a case (or a registration still to be sent) can take them.
+  // Audio, photographs and documents (docs/policy/phone-attachments.md). Files go up ahead of the interview;
+  // a direct start (no case) is named to the server by its draft id.
   const attachmentServices = useAttachmentServices({
     db: loaded?.db,
     draftId,
     projectId: loaded?.projectId ?? null,
-    canAttach: Boolean(loaded?.binding.deathId || loaded?.binding.clientDeathId),
   });
   const formServices = useMemo(() => ({ ...platformServices, ...attachmentServices }), [attachmentServices]);
 

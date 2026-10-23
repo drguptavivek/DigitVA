@@ -63,6 +63,10 @@ export const hindiUiMessages: Partial<WhoVaUiMessageTemplates> = {
   startingMicrophone: "माइक्रोफ़ोन शुरू हो रहा है…",
   stopAndSaveRecording: "रिकॉर्डिंग रोकें और सहेजें",
   savingRecording: "रिकॉर्डिंग सहेजी जा रही है…",
+  pauseRecording: "रोकें",
+  resumeRecording: "फिर शुरू करें",
+  recordingPaused: "रुकी हुई",
+  recordingLeft: "बाकी",
   replaceAudio: "ऑडियो बदलें",
   recordAudio: "ऑडियो रिकॉर्ड करें",
   microphonePermissionDenied:
@@ -167,6 +171,10 @@ export const frenchUiMessages: Partial<WhoVaUiMessageTemplates> = {
   startingMicrophone: "Démarrage du microphone…",
   stopAndSaveRecording: "Arrêter et enregistrer l’audio",
   savingRecording: "Enregistrement de l’audio…",
+  pauseRecording: "Pause",
+  resumeRecording: "Reprendre",
+  recordingPaused: "En pause",
+  recordingLeft: "restant",
   replaceAudio: "Remplacer l’audio",
   recordAudio: "Enregistrer un audio",
   microphonePermissionDenied:

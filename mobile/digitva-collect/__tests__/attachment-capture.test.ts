@@ -44,6 +44,7 @@ function env(overrides: Partial<AudioEnv> = {}): AudioEnv {
     isRecording: false,
     prepareToRecordAsync: jest.fn(async () => undefined),
     record: jest.fn(function (this: RecorderLike) { (recorder as { isRecording: boolean }).isRecording = true; }),
+    pause: jest.fn(() => { (recorder as { isRecording: boolean }).isRecording = false; }),
     stop: jest.fn(async () => { (recorder as { isRecording: boolean }).isRecording = false; }),
   };
   return {
@@ -97,6 +98,93 @@ describe("audio", () => {
     expect(second).toBe(first);
     expect((first as { durationMs?: number }).durationMs).toBe(AUDIO_MAX_MS);
     expect(await draftAttachments(db, "draft-1")).toHaveLength(1);
+  });
+
+  it("pauses and resumes one take; paused time does not count toward the duration or the limit", async () => {
+    const e = env();
+    files.set("file:///cache/rec.m4a", new Uint8Array([1, 2, 3]));
+    const session = await startAudioRecording(e, QUESTION);
+    jest.setSystemTime(Date.now() + 10_000);
+    session.pause!();
+    expect(e.recorder.pause).toHaveBeenCalledTimes(1);
+    expect(session.getState!()).toEqual({ elapsedMs: 10_000, paused: true, limitMs: AUDIO_MAX_MS });
+    session.pause!(); // idempotent
+    expect(e.recorder.pause).toHaveBeenCalledTimes(1);
+    await jest.advanceTimersByTimeAsync(AUDIO_MAX_MS * 2); // a long pause never reaches the limit
+    expect(e.recorder.stop).not.toHaveBeenCalled();
+    expect(session.getState!().elapsedMs).toBe(10_000);
+    session.resume!();
+    expect(e.recorder.record).toHaveBeenCalledTimes(2);
+    jest.setSystemTime(Date.now() + 5_000);
+    expect(session.getState!()).toMatchObject({ elapsedMs: 15_000, paused: false });
+    const reference = await session.stop();
+    expect(reference).toMatchObject({ durationMs: 15_000, size: 3 });
+    expect(e.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(await draftAttachments(db, "draft-1")).toHaveLength(1);
+  });
+
+  it("stops at the limit counted over several segments", async () => {
+    const e = env();
+    files.set("file:///cache/rec.m4a", new Uint8Array([9]));
+    const session = await startAudioRecording(e, QUESTION);
+    await jest.advanceTimersByTimeAsync(AUDIO_MAX_MS - 60_000);
+    session.pause!();
+    await jest.advanceTimersByTimeAsync(3_600_000);
+    session.resume!();
+    await jest.advanceTimersByTimeAsync(59_000);
+    expect(e.recorder.stop).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(2_000);
+    expect(e.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(await draftAttachments(db, "draft-1")).toHaveLength(1);
+    expect(((await session.stop()) as { durationMs?: number }).durationMs).toBe(AUDIO_MAX_MS);
+  });
+
+  it("saves or cancels a take that is paused (the recorder is stopped although it is not recording)", async () => {
+    const e = env();
+    files.set("file:///cache/rec.m4a", new Uint8Array([4]));
+    const saved = await startAudioRecording(e, QUESTION);
+    saved.pause!();
+    await saved.stop();
+    expect(e.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(await draftAttachments(db, "draft-1")).toHaveLength(1);
+
+    const e2 = env();
+    files.set("file:///cache/rec.m4a", new Uint8Array([4]));
+    const dropped = await startAudioRecording(e2, QUESTION);
+    dropped.pause!();
+    await dropped.cancel();
+    expect(e2.recorder.stop).toHaveBeenCalledTimes(1);
+    expect(removed).toContain("file:///cache/rec.m4a");
+  });
+
+  it("an interruption pauses the take and keeps it; resume, save and the unsubscribe still work", async () => {
+    let interrupt = () => {};
+    const unwatch = jest.fn();
+    const e = env({ watchInterruptions: (cb) => { interrupt = cb; return unwatch; } });
+    files.set("file:///cache/rec.m4a", new Uint8Array([5, 5]));
+    const session = await startAudioRecording(e, QUESTION);
+    jest.setSystemTime(Date.now() + 4_000);
+    interrupt();
+    expect(e.recorder.pause).toHaveBeenCalledTimes(1);
+    expect(session.getState!()).toMatchObject({ paused: true, elapsedMs: 4_000 });
+    expect(e.recorder.stop).not.toHaveBeenCalled(); // nothing lost, nothing saved yet
+    interrupt(); // a second event while paused does nothing
+    expect(e.recorder.pause).toHaveBeenCalledTimes(1);
+    session.resume!();
+    jest.setSystemTime(Date.now() + 1_000);
+    const reference = await session.stop();
+    expect(reference).toMatchObject({ durationMs: 5_000 });
+    expect(unwatch).toHaveBeenCalled();
+  });
+
+  it("an interruption the recorder cannot pause does not throw and the take is still saved by stop", async () => {
+    let interrupt = () => {};
+    const e = env({ watchInterruptions: (cb) => { interrupt = cb; return () => {}; } });
+    files.set("file:///cache/rec.m4a", new Uint8Array([5]));
+    const session = await startAudioRecording(e, QUESTION);
+    (e.recorder.pause as jest.Mock).mockImplementationOnce(() => { throw new Error("already stopped"); });
+    expect(() => interrupt()).not.toThrow();
+    await expect(session.stop()).resolves.toMatchObject({ size: 1 });
   });
 
   it("refuses an empty or oversized take and still deletes the plain file", async () => {

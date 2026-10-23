@@ -16,7 +16,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useMemo } from "react";
-import { Alert, Linking, Platform } from "react-native";
+import { Alert, AppState, Linking, Platform } from "react-native";
 import {
   WHO_VA_ATTACHMENT_POLICY,
   type AttachmentCandidate,
@@ -78,9 +78,23 @@ export async function ensureMicrophone(): Promise<void> {
   }
 }
 
+/** Recording mode while a take is open; afterwards playback mode, which still sounds with the phone on silent. */
+export const setRecordingMode = (on: boolean) => setAudioModeAsync({ allowsRecording: on, playsInSilentMode: true });
+
+/** Leaving the foreground (background, a call or the system sheet that comes with one) pauses the take. */
+export function watchInterruptions(onInterrupt: () => void): () => void {
+  const subscription = AppState.addEventListener("change", (state) => {
+    if (state !== "active") onInterrupt();
+  });
+  return () => subscription.remove();
+}
+
 export async function ensureCamera(): Promise<boolean> {
   let permission = await ImagePicker.getCameraPermissionsAsync();
-  if (!permission.granted && permission.canAskAgain) permission = await ImagePicker.requestCameraPermissionsAsync();
+  if (!permission.granted && permission.canAskAgain) {
+    if (!(await confirm(t("attachCameraTitle"), t("attachCameraBody"), t("attachContinue"), t("cancel")))) return false;
+    permission = await ImagePicker.requestCameraPermissionsAsync();
+  }
   if (!permission.granted) offerSettings(t("attachCameraDeniedTitle"), t("attachCameraDeniedBody"));
   return permission.granted;
 }
@@ -143,14 +157,15 @@ async function preScale(candidate: AttachmentCandidate): Promise<AttachmentCandi
 }
 
 /**
- * The platform services for one interview. Capture needs an unlocked store and a case the server knows
- * (`canAttach`); without them no service is offered and the questionnaire keeps its "not available" notes.
+ * The platform services for one interview. Capture needs an unlocked store; without it no service is offered and
+ * the questionnaire keeps its "not available" notes. Direct starts (no case) attach too: the upload names the server
+ * draft by the interview's id (src/attachmentUpload.ts).
  */
 export function useAttachmentServices(context: AttachmentServicesContext): WhoVaPlatformServices {
   const recorder = useAudioRecorder(VOICE);
-  const { db, draftId, projectId, canAttach } = context;
+  const { db, draftId, projectId } = context;
   return useMemo<WhoVaPlatformServices>(() => {
-    if (!db || !draftId || !canAttach) return {};
+    if (!db || !draftId) return {};
     const env: CaptureEnv = {
       db, draftId, projectId, newId: randomUUID, now: Date.now, readBytes, fileSize, removeFile, writePlaybackCopy,
     };
@@ -161,7 +176,8 @@ export function useAttachmentServices(context: AttachmentServicesContext): WhoVa
           ...env,
           recorder,
           ensureMicrophone,
-          setRecordingMode: (on) => setAudioModeAsync({ allowsRecording: on, playsInSilentMode: on }),
+          setRecordingMode,
+          watchInterruptions,
         }, question),
       async captureImage() {
         if (!(await ensureCamera())) return undefined;
@@ -188,5 +204,5 @@ export function useAttachmentServices(context: AttachmentServicesContext): WhoVa
       releaseAttachmentUri: (uri) => removeFile(uri),
       removeAttachment: (reference) => removeStored(env, reference),
     };
-  }, [db, draftId, projectId, canAttach, recorder]);
+  }, [db, draftId, projectId, recorder]);
 }

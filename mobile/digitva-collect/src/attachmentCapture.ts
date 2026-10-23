@@ -34,6 +34,8 @@ type RecordingSession = Awaited<ReturnType<NonNullable<WhoVaPlatformServices["st
 export interface RecorderLike {
   prepareToRecordAsync(): Promise<void>;
   record(): void;
+  /** Keeps the take; `record()` carries on in the same file. */
+  pause(): void;
   stop(): Promise<void>;
   readonly uri: string | null;
   readonly isRecording: boolean;
@@ -56,7 +58,13 @@ export interface AudioEnv extends CaptureEnv {
   recorder: RecorderLike;
   /** Explain, ask, and throw a NotAllowedError (after offering the settings link) when refused. */
   ensureMicrophone(): Promise<void>;
+  /** Recording audio mode on, playback mode (works with the phone on silent) off; see attachmentServices.native.ts. */
   setRecordingMode(on: boolean): Promise<void>;
+  /**
+   * Call `onInterrupt` when the app leaves the foreground (background, a call): the take is paused, never recorded
+   * in the background. Returns the unsubscribe.
+   */
+  watchInterruptions?(onInterrupt: () => void): () => void;
 }
 
 /** A refusal the form shows as "microphone permission denied". */
@@ -79,7 +87,9 @@ const audioReference = (id: string, size: number, durationMs: number): Attachmen
 
 /**
  * Start recording. `stop()` saves the file into the store and returns the reference; `cancel()` drops the take.
- * The recorder stops by itself at AUDIO_MAX_MS and keeps what it has, so a later `stop()` still saves it.
+ * `pause()` / `resume()` keep one take across pauses; only recorded time counts toward AUDIO_MAX_MS. The recorder
+ * stops by itself at the limit and keeps what it has, so a later `stop()` still saves it. An interruption
+ * (`watchInterruptions`) pauses the take, which stays until the interviewer resumes, saves or cancels it.
  */
 export async function startAudioRecording(env: AudioEnv, question: InstrumentQuestion): Promise<RecordingSession> {
   await env.ensureMicrophone();
@@ -92,15 +102,21 @@ export async function startAudioRecording(env: AudioEnv, question: InstrumentQue
     await env.setRecordingMode(false).catch(() => undefined);
     throw error;
   }
-  const startedAt = env.now();
+  let recordedBefore = 0; // recorded ms of the finished segments
+  let segmentStart: number | undefined = env.now(); // undefined while paused
   let saved: Promise<AttachmentReference> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let unwatch: (() => void) | undefined;
 
+  const recordedMs = () => Math.min(AUDIO_MAX_MS, recordedBefore + (segmentStart === undefined ? 0 : env.now() - segmentStart));
   const finish = (): Promise<AttachmentReference> => {
     saved ??= (async () => {
       clearTimeout(timer);
+      unwatch?.();
+      const durationMs = recordedMs();
       try {
-        if (recorder.isRecording) await recorder.stop();
+        // A paused recorder is not "recording" but still holds the take: always stop it.
+        await recorder.stop();
       } catch (error) {
         env.removeFile(recorder.uri);
         throw error;
@@ -115,7 +131,6 @@ export async function startAudioRecording(env: AudioEnv, question: InstrumentQue
         if (size > AUDIO_MAX_BYTES) throw new Error("audio_too_large");
         const bytes = await env.readBytes(uri);
         const id = env.newId();
-        const durationMs = Math.min(AUDIO_MAX_MS, Math.max(0, env.now() - startedAt));
         await saveAttachment(env.db, {
           id, draftId: env.draftId, projectId: env.projectId, question: question.name, kind: "audio",
           mimeType: "audio/mp4", ext: "m4a", durationMs, bytes,
@@ -127,12 +142,40 @@ export async function startAudioRecording(env: AudioEnv, question: InstrumentQue
     })();
     return saved;
   };
+  const armLimit = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => void finish().catch(() => undefined), Math.max(0, AUDIO_MAX_MS - recordedMs()));
+  };
+  const pause = () => {
+    if (saved || segmentStart === undefined) return;
+    recorder.pause();
+    recordedBefore = recordedMs();
+    segmentStart = undefined;
+    clearTimeout(timer);
+  };
+  const resume = () => {
+    if (saved || segmentStart !== undefined) return;
+    recorder.record();
+    segmentStart = env.now();
+    armLimit();
+  };
 
-  timer = setTimeout(() => void finish().catch(() => undefined), AUDIO_MAX_MS);
+  armLimit();
+  unwatch = env.watchInterruptions?.(() => {
+    try {
+      pause();
+    } catch {
+      // The recorder could not pause (the OS already stopped it): the take is still in `recorder`; stop() saves it.
+    }
+  });
   return {
     stop: finish,
+    pause,
+    resume,
+    getState: () => ({ elapsedMs: recordedMs(), paused: segmentStart === undefined, limitMs: AUDIO_MAX_MS }),
     async cancel() {
       clearTimeout(timer);
+      unwatch?.();
       try {
         if (saved) {
           // The limit already saved the take: a cancelled take leaves nothing behind.
@@ -140,7 +183,7 @@ export async function startAudioRecording(env: AudioEnv, question: InstrumentQue
           if (reference) await removeStored(env, reference);
         } else {
           try {
-            if (recorder.isRecording) await recorder.stop();
+            await recorder.stop();
           } finally {
             env.removeFile(recorder.uri);
           }

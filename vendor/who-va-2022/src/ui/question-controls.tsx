@@ -111,9 +111,21 @@ export interface WhoVaPlatformServices {
   removeAttachment?: (attachment: AttachmentReference) => Promise<void>;
 }
 
+/** What a recorder that can pause reports: recorded time (pauses excluded) and the take's limit, if it has one. */
+export interface WhoVaAudioRecordingState {
+  elapsedMs: number;
+  paused: boolean;
+  limitMs?: number;
+}
+
 export interface WhoVaAudioRecordingSession {
   stop(): Promise<AttachmentReference>;
   cancel(): void | Promise<void>;
+  /** Optional: a host whose recorder can pause offers all three; the control then shows Pause / Resume and the remaining time. */
+  pause?(): void | Promise<void>;
+  resume?(): void | Promise<void>;
+  /** Polled while recording. The host may also pause by itself (the app went to the background); this reports it. */
+  getState?(): WhoVaAudioRecordingState;
 }
 
 export interface WhoVaQuestionControlProps {
@@ -1907,6 +1919,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     const [playbackError, setPlaybackError] = useState<string>();
     const [recordingStartedAt, setRecordingStartedAt] = useState<number>();
     const [recordingElapsed, setRecordingElapsed] = useState(0);
+    const [recordingPaused, setRecordingPaused] = useState(false);
+    const [recordingLimitMs, setRecordingLimitMs] = useState<number>();
+    const [pausable, setPausable] = useState(false);
     const session = useRef<WhoVaAudioRecordingSession | undefined>(undefined);
     const requestId = useRef(0);
     const mounted = useRef(true);
@@ -1936,10 +1951,16 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
 
     useEffect(() => {
       if (phase !== "recording" || recordingStartedAt === undefined) return;
-      const updateElapsed = () =>
-        setRecordingElapsed(Math.max(0, Math.floor((globalThis.Date.now() - recordingStartedAt) / 1000)));
+      const updateElapsed = () => {
+        const state = session.current?.getState?.();
+        if (state) {
+          setRecordingElapsed(Math.max(0, Math.floor(state.elapsedMs / 1000)));
+          setRecordingPaused(state.paused);
+          setRecordingLimitMs(state.limitMs);
+        } else setRecordingElapsed(Math.max(0, Math.floor((globalThis.Date.now() - recordingStartedAt) / 1000)));
+      };
       updateElapsed();
-      const timer = globalThis.setInterval(updateElapsed, 1000);
+      const timer = globalThis.setInterval(updateElapsed, 500);
       return () => globalThis.clearInterval(timer);
     }, [phase, recordingStartedAt]);
 
@@ -1964,7 +1985,20 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       if (activeSession) cancelSession(activeSession, true);
       setRecordingStartedAt(undefined);
       setRecordingElapsed(0);
+      setRecordingPaused(false);
       setPhase("idle");
+    };
+
+    const togglePause = async () => {
+      const active = session.current;
+      if (!active) return;
+      try {
+        if (recordingPaused) await active.resume?.();
+        else await active.pause?.();
+        setRecordingPaused(!recordingPaused);
+      } catch {
+        if (mounted.current) setRecordingError(messages.audioRecordingFailed);
+      }
     };
 
     const formatRecordingTime = (seconds: number) =>
@@ -2028,6 +2062,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
                   return;
                 }
                 session.current = nextSession;
+                setPausable(Boolean(nextSession.pause && nextSession.resume));
+                setRecordingPaused(false);
+                setRecordingLimitMs(undefined);
                 setRecordingStartedAt(globalThis.Date.now());
                 setRecordingElapsed(0);
                 setPhase("recording");
@@ -2071,7 +2108,28 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
             style={questionControlStyles.audioTimer}
           >
             {messages.recordingTime} {formatRecordingTime(recordingElapsed)}
+            {recordingLimitMs !== undefined
+              ? ` · ${formatRecordingTime(Math.max(0, Math.ceil(recordingLimitMs / 1000) - recordingElapsed))} ${messages.recordingLeft}`
+              : ""}
+            {recordingPaused ? ` · ${messages.recordingPaused}` : ""}
           </PrimitiveText>
+        ) : null}
+        {phase === "recording" && pausable ? (
+          <Pressable
+            accessibilityRole="button"
+            disabled={readOnly}
+            testID={`question-${question.name}-pause`}
+            style={[
+              questionControlStyles.button,
+              questionControlStyles.buttonSecondary,
+              questionControlStyles.buttonCompact
+            ]}
+            onPress={() => void togglePause()}
+          >
+            <PrimitiveText style={questionControlStyles.buttonTextSecondary}>
+              {recordingPaused ? messages.resumeRecording : messages.pauseRecording}
+            </PrimitiveText>
+          </Pressable>
         ) : null}
         {services.startAudioRecording && (phase === "starting" || phase === "recording") ? (
           <Pressable

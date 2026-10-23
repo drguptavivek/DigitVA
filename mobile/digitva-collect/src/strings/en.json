@@ -1089,6 +1089,8 @@
   "attachMicBody": "DigitVA records the respondent's account of the death only while you hold a recording open. The recording stays encrypted on this phone until it is sent with the interview.",
   "attachMicDeniedTitle": "Microphone is off",
   "attachMicDeniedBody": "Recording needs the microphone. Open the app's settings and allow Microphone, then try again. You can also type the narrative instead.",
+  "attachCameraTitle": "Allow the camera?",
+  "attachCameraBody": "DigitVA uses the camera only when you take a photograph for the interview. The photograph stays encrypted on this phone until it is sent with the interview.",
   "attachCameraDeniedTitle": "Camera is off",
   "attachCameraDeniedBody": "Taking a photograph needs the camera. Open the app's settings and allow Camera, then try again.",
   "attachGalleryTitle": "Allow access to photos?",

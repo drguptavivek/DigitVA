@@ -124,9 +124,37 @@ it("holds the interview when its case is closed or gone (409, 404) as a refused 
   expect((await getDraftRow(db, "d1"))!.upload_issue).toBe("case_conflict");
 });
 
-it("waits for an interview that has no case yet instead of making a second one", async () => {
-  expect(await uploadDraftAttachments("u1", db, { ...item, death_id: null }, { Id10476_audio: ref(A) })).toMatchObject({ state: "retry" });
-  expect(mockRequest).not.toHaveBeenCalled();
+describe("direct start (no case)", () => {
+  const direct = { ...item, death_id: null };
+  const starts = () => mockRequest.mock.calls.filter(([, path, init]) => init.method === "POST" && String(path).endsWith("/drafts"));
+
+  it("starts the server draft by the interview's own id, PUTs the files to it, and is done", async () => {
+    expect(await uploadDraftAttachments("u1", db, direct, { Id10476_audio: ref(A), imagenarr: ref(B) })).toEqual({ state: "done" });
+    expect(mockRequest.mock.calls[0]).toEqual(["u1", "/api/v1/intake/drafts", expect.objectContaining({ method: "POST", body: { project_id: "P1", site_id: "S1", client_draft_id: "d1" } })]);
+    expect(puts().map(([, path]) => path)).toEqual([
+      `/api/v1/intake/drafts/${SERVER_DRAFT}/attachments/${A}`,
+      `/api/v1/intake/drafts/${SERVER_DRAFT}/attachments/${B}`,
+    ]);
+    expect(mockRequest.mock.calls.findIndex(([, , init]) => init.method === "PUT")).toBeGreaterThan(0); // start first
+  });
+
+  it("is repeat-safe: a 200 for an id already started returns the same draft and only unconfirmed files go up", async () => {
+    mockRequest.mockImplementation(async (_u: string, path: string, init: { method?: string }) =>
+      init.method === "POST" && path.endsWith("/drafts") ? { status: 200, body: { draft: { draft_id: SERVER_DRAFT } } } : { status: 201, body: {} });
+    mockRequest.mockRejectedValueOnce(new ApiError(503, "unavailable")); // the first start fails
+    expect(await uploadDraftAttachments("u1", db, direct, { Id10476_audio: ref(A) })).toMatchObject({ state: "retry" });
+    expect(await uploadDraftAttachments("u1", db, direct, { Id10476_audio: ref(A) })).toEqual({ state: "done" });
+    expect(await uploadDraftAttachments("u1", db, direct, { Id10476_audio: ref(A) })).toEqual({ state: "done" }); // confirmed: no call
+    expect(starts()).toHaveLength(2);
+    expect(puts()).toHaveLength(1);
+  });
+
+  it("holds the interview on a 409 at the start (another user, already uploaded, mismatch) and uploads nothing", async () => {
+    mockRequest.mockRejectedValueOnce(new ApiError(409, "draft_conflict"));
+    expect(await uploadDraftAttachments("u1", db, direct, { Id10476_audio: ref(A) })).toMatchObject({ state: "held" });
+    expect((await getDraftRow(db, "d1"))!.upload_issue).toBe("case_conflict");
+    expect(puts()).toHaveLength(0);
+  });
 });
 
 describe("which refusals are permanent", () => {

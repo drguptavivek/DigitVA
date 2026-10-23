@@ -668,7 +668,7 @@ by `/drafts/sync`.
 - Admin UI for per-session revocation (device revoke ends all its sessions).
 - Chunked, resumable attachment upload (`attachment_chunk`). The phone sends each file as one
   `PUT /intake/drafts/<id>/attachments/<id>` before the interview, as
-  [Phone Attachments](../policy/phone-attachments.md) decides; a direct start (no case) attaches through the attachment draft below.
+  [Phone Attachments](../policy/phone-attachments.md) decides; a direct start (no case) attaches through the attachment draft ("Direct start with attachments", above); the phone makes step 1 with its interview id.
 - The admin Devices card shows the unsent count only, not the registration
   ids (they are in the JSON).
 - The Android app's draft sync client (`mobile/`), and a supervisor view of

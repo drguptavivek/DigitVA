@@ -79,6 +79,10 @@ export interface WhoVaUiMessageTemplates {
   savingRecording: string;
   cancelRecording: string;
   recordingTime: string;
+  pauseRecording: string;
+  resumeRecording: string;
+  recordingPaused: string;
+  recordingLeft: string;
   replaceAudio: string;
   recordAudio: string;
   microphonePermissionDenied: string;
@@ -210,6 +214,10 @@ export interface WhoVaUiMessages {
   savingRecording: string;
   cancelRecording: string;
   recordingTime: string;
+  pauseRecording: string;
+  resumeRecording: string;
+  recordingPaused: string;
+  recordingLeft: string;
   replaceAudio: string;
   recordAudio: string;
   microphonePermissionDenied: string;
@@ -327,6 +335,10 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   savingRecording: "Saving recording…",
   cancelRecording: "Cancel recording",
   recordingTime: "Recording time",
+  pauseRecording: "Pause",
+  resumeRecording: "Resume",
+  recordingPaused: "Paused",
+  recordingLeft: "left",
   replaceAudio: "Replace audio",
   recordAudio: "Record audio",
   microphonePermissionDenied:

@@ -1,8 +1,9 @@
 /**
  * Send a completed interview's files before the interview itself (docs/policy/phone-attachments.md, decision 4).
  *
- * The server holds a file against the interviewer's open draft of the case, and the later `POST /submissions`
- * finds the same draft, so: (a) `POST /intake/drafts` returns that draft, (b) each file the sent answers
+ * The server holds a file against the interviewer's open draft of the case (a direct start, with no case, has an
+ * attachment draft named by `client_draft_id`), and the later `POST /submissions` finds the same draft, so: (a)
+ * `POST /intake/drafts` returns that draft (a repeat returns the same one; a 409 holds the interview), (b) each file the sent answers
  * reference is PUT to it (the file's UUID is the idempotency key, so a retry is harmless), (c) the caller sends
  * the interview only when this returns "done". An interview with a file the server has not confirmed is never
  * submitted (owner rule, digitva-jkvl).
@@ -61,7 +62,6 @@ export async function uploadDraftAttachments(
     const earlier = await sendRefusal(db, file.id);
     if (earlier?.status !== undefined && fileRefused(earlier.status, earlier.code)) return hold(db, item.id, earlier.status, earlier);
   }
-  if (!item.death_id) return { state: "retry", error: "no_case" };
 
   let current: string | undefined;
   try {
@@ -71,7 +71,8 @@ export async function uploadDraftAttachments(
         project_id: item.project_id,
         site_id: item.site_id,
         ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
-        death_id: item.death_id,
+        // No case (a direct start): the interview's own id names the server draft, and the submit completes it.
+        ...(item.death_id ? { death_id: item.death_id } : { client_draft_id: item.id }),
       },
     });
     const draftId = body?.draft?.draft_id;

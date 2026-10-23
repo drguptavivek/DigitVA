@@ -113,3 +113,65 @@ describe("deleting a saved recording", () => {
     container.remove();
   });
 });
+
+describe("pausing a recording", () => {
+  it("shows Pause / Resume and the time left from the host's state, and the web recorder (no pause) shows neither", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    let paused = false;
+    const session = {
+      stop: vi.fn(),
+      cancel: vi.fn(),
+      pause: vi.fn(() => { paused = true; }),
+      resume: vi.fn(() => { paused = false; }),
+      getState: () => ({ elapsedMs: 65_000, paused, limitMs: 30 * 60_000 })
+    };
+    const render = (startAudioRecording: () => Promise<unknown>) =>
+      root.render(
+        <WhoVaQuestionControls.Audio
+          question={instrument.questions[0]!}
+          value={undefined}
+          data={{}}
+          locale="en"
+          issues={[]}
+          platform={{ startAudioRecording: startAudioRecording as never }}
+          onAnswer={vi.fn()}
+        />
+      );
+    render(async () => session);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    container.querySelector<HTMLElement>('[data-testid="question-narr_audio"]')?.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="question-narr_audio-timer"]')?.textContent).toContain("01:05"));
+    expect(container.querySelector('[data-testid="question-narr_audio-timer"]')?.textContent).toContain("28:55 left");
+    container.querySelector<HTMLElement>('[data-testid="question-narr_audio-pause"]')?.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="question-narr_audio-pause"]')?.textContent).toBe("Resume"));
+    expect(session.pause).toHaveBeenCalledTimes(1);
+    expect(container.querySelector('[data-testid="question-narr_audio-timer"]')?.textContent).toContain("Paused");
+    container.querySelector<HTMLElement>('[data-testid="question-narr_audio-pause"]')?.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="question-narr_audio-pause"]')?.textContent).toBe("Pause"));
+    expect(session.resume).toHaveBeenCalledTimes(1);
+    root.unmount();
+
+    // A recorder that cannot pause: no button, wall-clock timer, no "left".
+    const root2 = createRoot(container);
+    root2.render(
+      <WhoVaQuestionControls.Audio
+        question={instrument.questions[0]!}
+        value={undefined}
+        data={{}}
+        locale="en"
+        issues={[]}
+        platform={{ startAudioRecording: (async () => ({ stop: vi.fn(), cancel: vi.fn() })) as never }}
+        onAnswer={vi.fn()}
+      />
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    container.querySelector<HTMLElement>('[data-testid="question-narr_audio"]')?.click();
+    await vi.waitFor(() => expect(container.querySelector('[data-testid="question-narr_audio-timer"]')).not.toBeNull());
+    expect(container.querySelector('[data-testid="question-narr_audio-pause"]')).toBeNull();
+    expect(container.querySelector('[data-testid="question-narr_audio-timer"]')?.textContent).not.toContain("left");
+    root2.unmount();
+    container.remove();
+  });
+});

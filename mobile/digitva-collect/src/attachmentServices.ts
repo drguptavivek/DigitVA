@@ -10,8 +10,6 @@ export interface AttachmentServicesContext {
   db: Db | undefined;
   draftId: string | undefined;
   projectId: string | null;
-  /** The interview is on a case the server knows, so its files can be sent ahead of it (decision 4). */
-  canAttach: boolean;
 }
 
 export function useAttachmentServices(_context: AttachmentServicesContext): WhoVaPlatformServices {

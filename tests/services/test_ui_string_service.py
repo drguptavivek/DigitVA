@@ -146,7 +146,7 @@ class UiStringServiceTests(BaseTestCase):
         self.assertEqual(by_key["navCoding"]["corrected"], "सुधार")
         self.assertEqual(by_key["loginTitle"]["status"], svc.STATUS_BUNDLED)
         self.assertEqual(by_key["loginHelp"]["status"], svc.STATUS_MISSING)
-        self.assertEqual(data["counts"], {"all": 4, "corrected": 1, "missing": 1})
+        self.assertEqual(data["counts"], {"all": 4, "corrected": 1, "missing": 1, "machine": 0})
 
     def test_strings_for_admin_filters_and_pages(self):
         self.assertEqual(

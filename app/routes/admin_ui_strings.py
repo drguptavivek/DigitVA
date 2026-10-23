@@ -19,12 +19,17 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.routes.admin import _json_error, admin
+from app.services import machine_translation_service as azure
+from app.services import ui_string_machine_job as machine_job
 from app.services.ui_string_service import (
     FILTERS,
+    MACHINE_LOCALES,
     InvalidUiStringText,
     UiStringError,
+    accept,
     export,
     locales,
+    reviewable_locales,
     revert,
     set_override,
     strings_for_admin,
@@ -58,7 +63,8 @@ def admin_panel_ui_strings():
         page = int(request.args.get("page") or 1)
     except ValueError:
         page = 1
-    available = locales()
+    # No Expo export means no reference text: show the hint, not a locale list.
+    available = reviewable_locales() if locales() else []
     if not locale and available:
         locale = available[0]
 
@@ -85,6 +91,10 @@ def admin_panel_ui_strings():
         page=data["page"] if data else 1,
         last_page=last_page,
         panel_url=_panel_url,
+        machine_locales=MACHINE_LOCALES,
+        mt_configured=azure.is_configured(),
+        mt_running=machine_job.is_running(),
+        mt_last=machine_job.last_run(),
     )
 
 
@@ -104,6 +114,45 @@ def admin_ui_string_export(locale):
         mimetype="application/json",
         headers={"Content-Disposition": f'attachment; filename="{locale}.json"'},
     )
+
+
+@admin.post(f"{_API}/machine-translate")
+@role_required("admin")
+def admin_ui_string_machine_translate():
+    """Queue the machine-translation job for all allowed locales or a chosen few."""
+    if err := _guard():
+        return err
+    payload = request.get_json(silent=True) or {}
+    chosen = payload.get("locales") or []
+    if not isinstance(chosen, list) or any(c not in MACHINE_LOCALES for c in chosen):
+        return _json_error("Choose locales from the machine-translation list.", 400)
+    if not azure.is_configured():
+        return _json_error("Azure Translator is not configured.", 409)
+    if machine_job.is_running():
+        return _json_error("A machine-translation run is already in progress.", 409)
+    from app.tasks.ui_string_tasks import machine_translate_ui_strings
+
+    machine_translate_ui_strings.delay(chosen or None)
+    log.info("ui string machine translation queued | by=%s | locales=%s", current_user.user_id, chosen or "all")
+    return jsonify({"queued": True}), 202
+
+
+@admin.post(f"{_API}/<locale>/accept")
+@role_required("admin")
+def admin_ui_string_accept(locale):
+    """Accept one machine candidate as it is, so it starts being served."""
+    if err := _guard():
+        return err
+    key = (request.get_json(silent=True) or {}).get("key")
+    if not isinstance(key, str) or not key:
+        return _json_error("key is required.", 400)
+    try:
+        result = accept(locale, key, current_user.user_id)
+    except UiStringError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    return jsonify(result)
 
 
 @admin.put(f"{_API}/<locale>/<path:string_key>")

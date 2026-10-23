@@ -27,6 +27,35 @@
 
   <div id="uis-alert" class="alert d-none small py-2"></div>
 
+  <div class="card card-body small py-2 mb-3" id="uis-mt">
+    <strong>Machine translation</strong>
+    {% if not mt_configured %}
+      <span class="text-muted">Not configured: set AZURE_TRANSLATOR_KEY and AZURE_TRANSLATOR_REGION.</span>
+    {% else %}
+      <span class="text-muted">Drafts the missing strings with Azure Translator. Drafts are not shown
+        to anyone until you accept them.</span>
+      <div class="d-flex gap-2 flex-wrap align-items-center mt-2">
+        {% for code in machine_locales %}
+        <label class="form-check-label"><input type="checkbox" class="form-check-input uis-mt-locale"
+               value="{{ code }}"> {{ code }}</label>
+        {% endfor %}
+        <button type="button" class="btn btn-sm btn-outline-primary" id="uis-mt-run"
+                {% if mt_running %}disabled{% endif %}>Machine-translate missing strings</button>
+        <span class="text-muted">(none ticked = all)</span>
+      </div>
+    {% endif %}
+    {% if mt_running %}<div class="mt-2">A run is in progress. Reload the panel to see its counts.</div>{% endif %}
+    {% if mt_last %}
+      <div class="mt-2">
+        Last run: {{ mt_last.state }}{% if mt_last.finished_at %} ({{ mt_last.finished_at }}){% endif %}
+        {% for code, c in mt_last.results.items() %}
+          <div><code>{{ code }}</code> created {{ c.created }}, rejected {{ c.rejected }},
+            skipped {{ c.skipped }}, errors {{ c.errors }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+
   {% if not locales %}
     <div class="alert alert-warning small py-2">
       No UI language is bundled in this server's Expo export. Run
@@ -49,7 +78,7 @@
       {% for f in filters %}
         <a class="btn btn-sm {% if f == status %}btn-primary{% else %}btn-outline-secondary{% endif %}"
            href="#" hx-get="{{ panel_url(locale, f, 1) }}" hx-target="#admin-panel">
-          {% if f == 'all' %}All{% elif f == 'corrected' %}Corrected{% else %}Missing{% endif %}
+          {% if f == 'all' %}All{% elif f == 'corrected' %}Corrected{% elif f == 'machine' %}Machine{% else %}Missing{% endif %}
           {% if data %}<span class="badge bg-light text-dark ms-1">{{ data.counts[f] }}</span>{% endif %}
         </a>
       {% endfor %}
@@ -81,11 +110,13 @@
           <td>{{ row.english }}</td>
           <td>
             {% if row.corrected is not none %}{{ row.corrected }}
-            {% elif row.bundled %}{{ row.bundled }}
+            {% elif row.bundled and row.bundled.strip() %}{{ row.bundled }}
+            {% elif row.machine is not none %}{{ row.machine }}
             {% else %}<span class="text-muted">none</span>{% endif %}
           </td>
           <td>
             {% if row.status == 'corrected' %}<span class="badge bg-success">corrected</span>
+            {% elif row.status == 'machine' %}<span class="badge bg-info text-dark">machine</span>
             {% elif row.status == 'missing' %}<span class="badge bg-warning text-dark">missing</span>
             {% else %}<span class="badge bg-secondary">bundled</span>{% endif %}
           </td>
@@ -94,7 +125,11 @@
                target="_blank" rel="noopener noreferrer" class="me-2">Google Translate</a>
             <button type="button" class="btn btn-sm btn-outline-primary uis-edit-btn"
                     data-key="{{ row.key }}">Edit</button>
-            {% if row.status == 'corrected' %}
+            {% if row.status == 'machine' %}
+            <button type="button" class="btn btn-sm btn-success uis-accept-btn"
+                    data-key="{{ row.key }}">Accept</button>
+            {% endif %}
+            {% if row.status in ('corrected', 'machine') %}
             <button type="button" class="btn btn-sm btn-outline-danger uis-revert-btn"
                     data-key="{{ row.key }}">Revert</button>
             {% endif %}
@@ -104,7 +139,7 @@
           <td colspan="5">
             <label class="form-label small mb-1" for="uis-text-{{ loop.index }}">New text for <code>{{ row.key }}</code></label>
             <textarea class="form-control form-control-sm mb-2" id="uis-text-{{ loop.index }}" rows="2"
-                      maxlength="16000">{{ row.corrected if row.corrected is not none else (row.bundled or '') }}</textarea>
+                      maxlength="16000">{{ row.corrected if row.corrected is not none else (row.machine if row.machine is not none and not (row.bundled or '').strip() else (row.bundled or '')) }}</textarea>
             <button type="button" class="btn btn-sm btn-primary uis-save-btn" data-key="{{ row.key }}"
                     data-index="{{ loop.index }}">Save</button>
             <button type="button" class="btn btn-sm btn-outline-secondary uis-cancel-btn"
@@ -167,8 +202,27 @@
     });
   }
 
+  function post(url, body) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      return r.json().then(function (d) { return { ok: r.ok, data: d }; });
+    });
+  }
+
   ROOT.addEventListener('click', function (evt) {
     var target = evt.target;
+    if (target.id === 'uis-mt-run') {
+      var chosen = Array.prototype.map.call(
+        ROOT.querySelectorAll('.uis-mt-locale:checked'), function (el) { return el.value; });
+      post(API + 'machine-translate', { locales: chosen }).then(function (res) {
+        if (res.ok) { target.disabled = true; showAlert('Queued. Reload the panel for the counts.'); return; }
+        showAlert(res.data.error || 'The run was not queued.');
+      });
+      return;
+    }
     var key = target.getAttribute && target.getAttribute('data-key');
     if (!key) return;
 
@@ -183,6 +237,11 @@
       send('PUT', key, { text: text }).then(function (res) {
         if (res.ok) { reload(); return; }
         showAlert(res.data.error || 'The correction was not saved.');
+      });
+    } else if (target.classList.contains('uis-accept-btn')) {
+      post(API + encodeURIComponent(LOCALE) + '/accept', { key: key }).then(function (res) {
+        if (res.ok) { reload(); return; }
+        showAlert(res.data.error || 'The candidate was not accepted.');
       });
     } else if (target.classList.contains('uis-revert-btn')) {
       if (!window.confirm('Revert this string to the bundled text?')) return;

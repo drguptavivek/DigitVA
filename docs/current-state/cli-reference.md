@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-24
 ---
 
 # CLI Reference
@@ -254,6 +254,17 @@ and inactive, carrying their `machine`-sourced strings — migration
 `7134cb5dc7b6` (decided 2026-09-20, digitva-dms). Nothing is served until an
 operator imports a real workbook (which finds and fills in the locale row
 this migration created) and an administrator reviews and approves it.
+
+## `ui-strings` — Expo UI strings
+
+```bash
+docker compose exec minerva_app_service uv run flask ui-strings machine-translate [--locale hi]... [--dry-run] [--limit N]
+```
+
+Drafts the missing Expo UI strings as `source='machine'` candidates through Azure
+Translator (needs `AZURE_TRANSLATOR_KEY` and `AZURE_TRANSLATOR_REGION`).
+Insert-only, never served until accepted. `--dry-run` counts and calls no
+provider. Policy: `docs/policy/ui-strings.md`.
 
 ## `icd11` — ICD-11 MMS master data
 

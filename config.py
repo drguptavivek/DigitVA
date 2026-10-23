@@ -199,6 +199,13 @@ class Config:
     ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS = float(
         os.environ.get("ODK_CONNECTION_MIN_REQUEST_INTERVAL_SECONDS", "0.5")
     )
+    # Azure Translator (free F0 tier) for machine candidates of the Expo UI
+    # strings (digitva-cqw9, docs/policy/ui-strings.md). Unset = not configured.
+    AZURE_TRANSLATOR_KEY = os.environ.get("AZURE_TRANSLATOR_KEY", "")
+    AZURE_TRANSLATOR_REGION = os.environ.get("AZURE_TRANSLATOR_REGION", "")
+    AZURE_TRANSLATOR_ENDPOINT = os.environ.get(
+        "AZURE_TRANSLATOR_ENDPOINT", "https://api.cognitive.microsofttranslator.com"
+    ).rstrip("/")
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = os.environ.get(
         "HIBP_PASSWORD_BREACH_CHECK_ENABLED", "true"
     ).lower() in ("true", "1", "yes")

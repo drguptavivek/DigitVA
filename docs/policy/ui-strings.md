@@ -3,7 +3,7 @@ title: UI String Corrections Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-24
 ---
 
 # UI String Corrections Policy
@@ -26,7 +26,7 @@ on the server, whatever the page shows.
   `npm run export:web` in `mobile/digitva-collect`. The source files stay under
   `mobile/digitva-collect/src/strings/`; the server never edits them.
 - Lists the reference keys with the English, the bundled text, the current
-  text and a status. Filters: all, corrected, missing.
+  text and a status. Filters: all, corrected, missing, machine.
 - Saves a correction for one key, or reverts it to the bundled text.
 - Exports one locale as JSON with the corrections applied, for the release that
   folds them into the bundled files.
@@ -39,6 +39,7 @@ in `en` can be corrected.
 - `corrected`: a correction row exists for the key.
 - `missing`: no correction, and the bundled locale file has no text for the key
   (or only whitespace).
+- `machine`: no correction, no bundled text, and a machine candidate awaits review.
 - `bundled`: no correction; the bundled text is shown.
 
 ## Checks on a correction
@@ -92,9 +93,37 @@ reference text goes in the link: never the current translation, never data about
 a person. The server makes no call to Google; the link is a plain anchor built in
 the template.
 
+## Machine candidates
+
+Decided 2026-10-24 (digitva-cqw9). An administrator can ask for the strings a
+language lacks to be drafted by machine, then review each draft.
+
+- **Provider:** Azure Translator v3 (free F0 tier), configured by
+  `AZURE_TRANSLATOR_KEY`, `AZURE_TRANSLATOR_REGION` and
+  `AZURE_TRANSLATOR_ENDPOINT`. Unset, the page says "Not configured" and the job
+  refuses to run.
+- **What is sent:** the English UI text of the missing keys, and nothing else: no
+  user, case or site data. `{name}` placeholders are shielded from translation.
+- **Languages:** English into hi, pa, mr, kn, ta, ml, te, gu, or (the owner set,
+  digitva-1g1h), even before a language's JSON file ships.
+- **What it writes:** a row with `source='machine'` for each key that the
+  bundled file lacks (or holds only whitespace) and that has no override row of
+  any source. Insert only: it never updates a row, so an edit, an accepted text
+  or an earlier draft is never overwritten.
+- **Never served:** machine rows are left out of the public API, the version and
+  the export. They are served only after an administrator accepts one (Accept
+  keeps the text; Edit saves a new one). Both make the row `edited`.
+- **Checks:** a draft is dropped, and counted as rejected, if its placeholder
+  set differs from the English or it fails the correction checks above.
+- **Who:** admin only, from a button on the page or
+  `flask ui-strings machine-translate [--locale] [--dry-run] [--limit]`. One run
+  at a time; the last run's per-language counts (created, rejected, skipped,
+  errors) are shown on the page.
+
 ## Storage
 
-Corrections live in `mas_ui_string_override`, one row per (locale, key). Reverting
+Corrections and machine candidates live in `mas_ui_string_override`, one row per
+(locale, key), told apart by `source` (`edited` or `machine`). Reverting
 deletes the row. The downgrade of its migration refuses while rows exist.
 See `docs/current-state/data-model.md`.
 

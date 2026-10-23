@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Current Data Model
@@ -520,7 +520,11 @@ build. The bundled JSON under `mobile/digitva-collect/src/strings` is untouched.
 - `text` (Text, NOT NULL); `updated_by` FK -> `va_users` (NULL allowed);
   `updated_at` (timestamptz, NOT NULL, server default `now()`; the service sets
   it in Python).
-- No CHECK, index or table of its own beyond the PK. A revert deletes the row.
+- `source` (String(16), NOT NULL, server default `edited`, CHECK in
+  `machine`/`edited`), migration `q7c2n5x9d4b8` (digitva-cqw9). `machine` rows are
+  Azure drafts, left out of `_corrections`, the version, the API and the export.
+  The downgrade also refuses while machine rows exist.
+- No index or table of its own beyond the PK. A revert deletes the row.
   The version of a locale is computed from `count(*)` and `max(updated_at)` over
   its rows, not stored.
 - Downgrade refuses while rows exist (corrections are data).

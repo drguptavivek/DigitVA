@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Runtime And Operations
@@ -1258,3 +1258,7 @@ This is a simple deployment shape, not a cloud-native split-service architecture
   pressure
 
 These constraints matter for any future move toward multi-project and multi-server onboarding.
+
+## Machine translation of UI strings
+
+The Celery task `app.tasks.ui_string_tasks.machine_translate_ui_strings` calls Azure Translator (`AZURE_TRANSLATOR_KEY`, `AZURE_TRANSLATOR_REGION`, `AZURE_TRANSLATOR_ENDPOINT`). A Redis lock allows one run at a time and Redis keeps the last run's counts for the admin page. See `docs/policy/ui-strings.md`.

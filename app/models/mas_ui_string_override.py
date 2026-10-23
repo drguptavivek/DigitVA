@@ -19,10 +19,20 @@ class MasUiStringOverride(db.Model):
     """One corrected UI string of one locale. The key pair is the primary key."""
 
     __tablename__ = "mas_ui_string_override"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "source IN ('machine', 'edited')", name="ck_mas_ui_string_override_source"
+        ),
+    )
 
     locale_code: so.Mapped[str] = so.mapped_column(sa.String(16), primary_key=True)
     string_key: so.Mapped[str] = so.mapped_column(sa.String(255), primary_key=True)
     text: so.Mapped[str] = so.mapped_column(sa.Text, nullable=False)
+    #: ``machine`` is an unreviewed Azure candidate, never served; ``edited``
+    #: is a human's text (digitva-cqw9).
+    source: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="edited", server_default="edited"
+    )
     updated_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
     )

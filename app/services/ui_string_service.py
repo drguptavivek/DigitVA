@@ -36,8 +36,15 @@ log = logging.getLogger(__name__)
 STATUS_CORRECTED = "corrected"
 STATUS_BUNDLED = "bundled"
 STATUS_MISSING = "missing"
+STATUS_MACHINE = "machine"
+#: Row sources. ``machine`` is an unreviewed candidate and is never served.
+SOURCE_MACHINE = "machine"
+SOURCE_EDITED = "edited"
 #: Filters the admin page offers. ``bundled`` is a status, not a filter.
-FILTERS = ("all", STATUS_CORRECTED, STATUS_MISSING)
+FILTERS = ("all", STATUS_CORRECTED, STATUS_MISSING, STATUS_MACHINE)
+#: Indian UI languages that may hold machine candidates before their JSON ships
+#: (owner set, digitva-1g1h).
+MACHINE_LOCALES = ("hi", "pa", "mr", "kn", "ta", "ml", "te", "gu", "or")
 
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 _LOG_TEXT_LIMIT = 120
@@ -87,11 +94,19 @@ def locales() -> list[str]:
     return sorted(_shipped_codes() - {BASE_LOCALE})
 
 
+def reviewable_locales() -> list[str]:
+    """Locales the admin page lists: shipped ones plus the machine allow-list."""
+    return sorted((_shipped_codes() | set(MACHINE_LOCALES)) - {BASE_LOCALE})
+
+
 def _bundle(locale: str) -> dict:
-    """The bundled strings of a shipped locale, ``en`` included."""
+    """The bundled strings of a locale, ``en`` included; ``{}`` for an allowed
+    locale whose file is not shipped yet."""
     # Membership first: the locale names a file, so it must be one the export
     # really ships, never a raw URL value.
     if locale not in _shipped_codes():
+        if locale in MACHINE_LOCALES:
+            return {}
         raise UiStringError(f"No bundled strings for {locale!r}.")
     return _read_bundle(_ui_dir() / f"{locale}.json")
 
@@ -99,7 +114,7 @@ def _bundle(locale: str) -> dict:
 def _editable(locale: str) -> None:
     if locale == BASE_LOCALE:
         raise UiStringError(f"{BASE_LOCALE!r} is the reference and is not edited here.")
-    if locale not in locales():
+    if locale not in reviewable_locales():
         raise UiStringError(f"Unknown locale {locale!r}.")
 
 
@@ -116,9 +131,21 @@ def _english(key: str) -> str:
 
 
 def _corrections(locale: str) -> dict[str, str]:
+    """The human-edited texts. Machine candidates are never served."""
     rows = db.session.execute(
         sa.select(MasUiStringOverride.string_key, MasUiStringOverride.text).where(
-            MasUiStringOverride.locale_code == locale
+            MasUiStringOverride.locale_code == locale,
+            MasUiStringOverride.source == SOURCE_EDITED,
+        )
+    ).all()
+    return dict(rows)
+
+
+def _candidates(locale: str) -> dict[str, str]:
+    rows = db.session.execute(
+        sa.select(MasUiStringOverride.string_key, MasUiStringOverride.text).where(
+            MasUiStringOverride.locale_code == locale,
+            MasUiStringOverride.source == SOURCE_MACHINE,
         )
     ).all()
     return dict(rows)
@@ -135,17 +162,20 @@ def _version(locale: str) -> str:
         sa.select(
             sa.func.count(),
             sa.func.max(MasUiStringOverride.updated_at),
-        ).where(MasUiStringOverride.locale_code == locale)
+        ).where(
+            MasUiStringOverride.locale_code == locale,
+            MasUiStringOverride.source == SOURCE_EDITED,
+        )
     ).one()
     stamp = newest.isoformat() if newest is not None else "none"
     return f"{count}.{stamp}"
 
 
-def _status(bundled: str | None, corrected: str | None) -> str:
+def _status(bundled: str | None, corrected: str | None, machine: str | None = None) -> str:
     if corrected is not None:
         return STATUS_CORRECTED
     if not bundled or not bundled.strip():
-        return STATUS_MISSING
+        return STATUS_MACHINE if machine is not None else STATUS_MISSING
     return STATUS_BUNDLED
 
 
@@ -190,6 +220,7 @@ def set_override(locale: str, key: str, text: str, actor_id) -> dict:
         row = MasUiStringOverride(locale_code=locale, string_key=key)
         db.session.add(row)
     row.text = text
+    row.source = SOURCE_EDITED
     row.updated_by = actor_id
     row.updated_at = now
     db.session.flush()
@@ -204,6 +235,27 @@ def set_override(locale: str, key: str, text: str, actor_id) -> dict:
         "locale": locale,
         "key": key,
         "text": text,
+        "status": STATUS_CORRECTED,
+        "version": _version(locale),
+    }
+
+
+def accept(locale: str, key: str, actor_id) -> dict:
+    """Promote a machine candidate to a served correction, text unchanged."""
+    _editable(locale)
+    _english(key)
+    row = db.session.get(MasUiStringOverride, (locale, key))
+    if row is None or row.source != SOURCE_MACHINE:
+        raise UiStringError("There is no machine candidate to accept for this string.")
+    row.source = SOURCE_EDITED
+    row.updated_by = actor_id
+    row.updated_at = datetime.now(UTC)
+    db.session.flush()
+    log.info("ui string candidate accepted | %s | key=%s | by=%s", locale, key, actor_id)
+    return {
+        "locale": locale,
+        "key": key,
+        "text": row.text,
         "status": STATUS_CORRECTED,
         "version": _version(locale),
     }
@@ -249,22 +301,26 @@ def strings_for_admin(
 
     bundled = _bundle(locale)
     corrections = _corrections(locale)
+    candidates = _candidates(locale)
     rows = []
     for key, english in _bundle(BASE_LOCALE).items():
         bundled_text = bundled.get(key)
         corrected = corrections.get(key)
+        machine = candidates.get(key)
         rows.append({
             "key": key,
             "english": english,
             "bundled": bundled_text,
             "corrected": corrected,
-            "status": _status(bundled_text, corrected),
+            "machine": machine,
+            "status": _status(bundled_text, corrected, machine),
         })
 
     counts = {
         "all": len(rows),
         STATUS_CORRECTED: sum(r["status"] == STATUS_CORRECTED for r in rows),
         STATUS_MISSING: sum(r["status"] == STATUS_MISSING for r in rows),
+        STATUS_MACHINE: sum(r["status"] == STATUS_MACHINE for r in rows),
     }
     matching = rows if status == "all" else [r for r in rows if r["status"] == status]
     start = (page - 1) * page_size

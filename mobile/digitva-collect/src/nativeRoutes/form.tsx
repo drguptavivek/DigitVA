@@ -42,8 +42,10 @@ import {
 } from "../cases";
 import {
   createDraftStore,
+  deleteUnsentDraft,
   getDraftRow,
   getMeta,
+  isNeverSentDraft,
   markCompleted,
   setMeta,
   stripDraftCovered,
@@ -79,6 +81,7 @@ import {
 } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
 import { applyTranslations, type Translations } from "../translations";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
 import { revisionName } from "../revisionLabel";
 import { useShell } from "../nativeShell/shellContext";
@@ -120,10 +123,15 @@ interface DraftConfig {
   translationVersion?: number;
 }
 
+type ConsentDecision = "granted" | "refused" | "none";
 type ConsentView =
   | { kind: "checking" }
   | { kind: "ask"; config: ProjectConsentConfig }
-  | { kind: "ready"; covered: string[]; unavailable?: boolean };
+  /**
+   * `required`: the project asks for consent (the top bar shows the status chip). `config`: a usable notice is
+   * cached, so the decision can be changed. `decision`: what applies now (its own, else its registration's).
+   */
+  | { kind: "ready"; covered: string[]; unavailable?: boolean; decision: ConsentDecision; required: boolean; config?: ProjectConsentConfig };
 
 const draftConfigKey = (draftId: string) => `draft-config:${draftId}`;
 
@@ -289,6 +297,12 @@ export default function Form() {
   // Respondent consent (docs/policy/respondent-consent-notice-draft.md, "Phone flow"): the questionnaire opens
   // once a decision applies; a refusal (or missing settings) locks the covered questions empty.
   const [consentView, setConsentView] = useState<ConsentView>({ kind: "checking" });
+  // The consent screen opened from the top bar to change the decision on file (the form is closed meanwhile).
+  const [changingConsent, setChangingConsent] = useState(false);
+  // "Delete draft": offered only while the draft was never sent; `deleted` stops any later autosave re-creating the row.
+  const [canDelete, setCanDelete] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleted = useRef(false);
   // Why the server (or the phone's own check) would not take this interview, shown above the questionnaire.
   const [refusal, setRefusal] = useState<SendRefusal | undefined>();
   // The "N problems" chip and the safe-area insets the form's own overlays (Sections drawer, problems list) need.
@@ -651,26 +665,35 @@ export default function Form() {
       const last = await sendRefusal(loaded.db, draftId);
       // The server refused the decision this draft inherited: ask for a new attempt-level one.
       const inheritedRefused = applied && !applied.own && await inheritedConsentRefused(loaded.db, draftId);
-      if (!live) return;
-      setRefusal(last?.message || last?.status === 422 ? last : undefined);
-      if (applied && !inheritedRefused) {
-        setConsentView({ kind: "ready", covered: applied.record.envelope.decision === "refused" ? applied.record.covered_fields : [] });
-        return;
-      }
       const gate = interviewConsentGate(await getConsentConfig(loaded.db, loaded.projectId));
       if (!live) return;
+      setRefusal(last?.message || last?.status === 422 ? last : undefined);
+      const config = gate.state === "ask" ? gate.config : undefined;
+      if (applied && !inheritedRefused) {
+        const refused = applied.record.envelope.decision === "refused";
+        setConsentView({ kind: "ready", covered: refused ? applied.record.covered_fields : [], decision: refused ? "refused" : "granted", required: gate.state !== "off", config });
+        return;
+      }
       if (gate.state === "ask") setConsentView({ kind: "ask", config: gate.config });
-      else if (gate.state === "off") setConsentView({ kind: "ready", covered: [] });
+      else if (gate.state === "off") setConsentView({ kind: "ready", covered: [], decision: "none", required: false });
       else {
         recordError("consent settings unavailable");
-        setConsentView({ kind: "ready", covered: gate.covered, unavailable: true });
+        setConsentView({ kind: "ready", covered: gate.covered, unavailable: true, decision: "none", required: true });
       }
     })().catch(() => {
-      if (live) setConsentView({ kind: "ready", covered: [...DEFAULT_COVERED_FIELDS], unavailable: true });
+      if (live) setConsentView({ kind: "ready", covered: [...DEFAULT_COVERED_FIELDS], unavailable: true, decision: "none", required: true });
     });
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- a language switch re-creates `loaded`; consent is decided once per interview
   }, [loaded?.db, loaded?.projectId, draftId]);
+
+  // Delete draft is offered while the draft was never sent (the store checks again when it deletes).
+  useEffect(() => {
+    if (!loaded || !draftId || canDelete || saveState !== "saved") return undefined;
+    let live = true;
+    void isNeverSentDraft(loaded.db, draftId).then((never) => live && setCanDelete(never)).catch(() => undefined);
+    return () => { live = false; };
+  }, [loaded, draftId, canDelete, saveState]);
 
   useEffect(() => {
     if (!loaded || !baseInstrument || !account) return;
@@ -770,6 +793,7 @@ export default function Form() {
     return {
       ...store,
       save: (draft: Parameters<typeof store.save>[0]) => {
+        if (deleted.current) return Promise.resolve(); // the draft was deleted: nothing may bring its row back
         if (loaded.accessVersion !== lockVersionRef.current) {
           return Promise.reject(new Error("interview_access_changed"));
         }
@@ -856,17 +880,27 @@ export default function Form() {
     );
   }
 
-  if (consentView.kind === "checking") return <ActivityIndicator style={{ flex: 1 }} />;
-  if (consentView.kind === "ask") {
-    const config = consentView.config;
+  // The first decision (before the questionnaire opens), or a change of the one on file from the top bar.
+  const askConfig = consentView.kind === "ask" ? consentView.config : changingConsent && consentView.kind === "ready" ? consentView.config : undefined;
+  if (askConfig) {
+    const config = askConfig;
+    const changing = consentView.kind === "ready";
     const recordConsent = async (envelope: ConsentRecordEnvelope) => {
       try {
         const record = storedConsent(envelope, config, account!.user_id);
+        // Replaces the decision on file: only this record travels with the interview (the server keeps the newest).
         await saveDraftConsent(loaded!.db, draftId!, record);
         // A refusal takes the covered answers off the stored draft and its prefill now, not only in memory.
         if (envelope.decision === "refused") await stripDraftCovered(loaded!.db, draftId!, record.covered_fields);
-        setConsentView({ kind: "ready", covered: envelope.decision === "refused" ? record.covered_fields : [] });
-        toast.show({ kind: envelope.decision === "refused" ? "info" : "success", text: t(envelope.decision === "refused" ? "consentRefusedInterview" : "consentRecordedForInterview") });
+        const granted = envelope.decision !== "refused";
+        setConsentView({
+          kind: "ready", covered: granted ? [] : record.covered_fields, decision: granted ? "granted" : "refused", required: true, config,
+        });
+        setChangingConsent(false);
+        toast.show({
+          kind: granted ? "success" : "info",
+          text: t(changing ? (granted ? "consentChangedAgreed" : "consentChangedRefused") : granted ? "consentRecordedForInterview" : "consentRefusedInterview"),
+        });
       } catch (error) {
         toast.show({ kind: "error", text: errorText(error) });
       }
@@ -874,9 +908,39 @@ export default function Form() {
     return (
       <Screen title={t("consentHeading")}>
         <RespondentConsentPanel config={config} language={locale} clientDraftId={draftId!} makeId={randomUUID} onDecision={(envelope) => void recordConsent(envelope)} />
-        <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
+        <Button kind="secondary" label={t("cancel")} onPress={() => (changing ? setChangingConsent(false) : router.back())} />
       </Screen>
     );
+  }
+  if (consentView.kind !== "ready") return <ActivityIndicator style={{ flex: 1 }} />;
+
+  /** Save what is typed, then close the questionnaire for the consent screen (its answers come back from the stored draft). */
+  async function changeConsent() {
+    try {
+      await controller.current?.saveDraft();
+    } catch (error) {
+      setMessage(errorText(error));
+      return;
+    }
+    controller.current = undefined;
+    session.current = undefined;
+    setChangingConsent(true);
+  }
+
+  /** Delete this never-sent draft with its consent record and files, then back to the worklist. */
+  async function deleteThisDraft() {
+    setConfirmDelete(false);
+    deleted.current = true;
+    try {
+      if (!(await deleteUnsentDraft(loaded!.db, draftId!))) throw new Error("draft_not_deletable");
+    } catch {
+      deleted.current = false;
+      setCanDelete(false);
+      toast.show({ kind: "error", text: t("deleteDraftFailed") });
+      return;
+    }
+    toast.show({ kind: "success", text: t("deleteDraftDone") });
+    router.replace({ pathname: "/worklist", params: { userId: account!.user_id, view: "interviews", filter: "drafts" } });
   }
 
   async function leave() {
@@ -970,7 +1034,16 @@ export default function Form() {
     { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
     { key: "preview", label: t("formPreviewAnswers"), onPress: () => controller.current?.openPreview() },
     { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
+    ...(consentView.required && consentView.config ? [{ key: "consent", label: t("consentChange"), onPress: () => void changeConsent() }] : []),
+    ...(canDelete ? [{ key: "delete", label: t("deleteDraft"), onPress: () => setConfirmDelete(true) }] : []),
   ];
+  const consentChip = consentView.required
+    ? {
+        label: t(consentView.decision === "granted" ? "consentChipAgreed" : consentView.decision === "refused" ? "consentChipRefused" : "consentChipNotRecorded"),
+        decision: consentView.decision,
+        ...(consentView.config ? { onPress: () => void changeConsent() } : {}),
+      }
+    : undefined;
   return (
     <Screen title={t("appName")} variant="immersive">
       <FormTopBar
@@ -980,7 +1053,18 @@ export default function Form() {
         menuItems={menuItems}
         problemCount={problemCount}
         onProblems={() => controller.current?.showProblems()}
+        consentChip={consentChip}
       />
+      {confirmDelete ? (
+        <ConfirmDialog
+          destructive
+          title={t("deleteDraftTitle")}
+          message={t("deleteDraftMessage")}
+          confirmLabel={t("deleteDraft")}
+          onConfirm={() => void deleteThisDraft()}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      ) : null}
       {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1}>{t("questionnaireEnglishFallback")}</Text> : null}
       {consentView.unavailable ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} testID="consent-unavailable">{t("consentUnavailableInterview")}</Text> : null}
       <Sheet

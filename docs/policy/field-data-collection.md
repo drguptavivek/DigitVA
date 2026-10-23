@@ -215,6 +215,18 @@ FLAG_SECURE covers every screen. Checked on the emulator (encrypted file,
 lock, PIN counter, wipe); biometric enforcement needs a real device. Builds
 stay debug-only and must not collect real interviews until C4 is settled.
 
+**Deleting an unsent interview draft on the phone** (owner 2026-10-24,
+`digitva-wy90`). "Delete draft" is in the interview's ⋮ menu and on a draft
+row of the Interviews list, only for a draft that was never sent: not
+completed (not queued, ready to send or sending), no server draft id, no
+upload issue, no stored send refusal and no attachment the server confirmed.
+A draft that was sent once and reopened is not offered. A danger
+confirmation precedes it; the delete then removes, in one transaction, the
+draft row, its consent record, its attachments, its stored form choices and
+its send-error note, then returns to the worklist with "Draft deleted".
+Nothing is deleted on the server (a never-sent draft has no server copy).
+Registration and revision discards are unchanged.
+
 **Built, phase 3 offline cases** (`digitva-kmk.4`, 2026-09-30; one case
 list since `digitva-p6fs.24`): the device's case list is the browser
 worklist of one project. The app downloads the cases in active states

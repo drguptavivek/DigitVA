@@ -1258,5 +1258,17 @@
   "screenLockPrompt": "Unlock DigitVA Collect with your phone screen lock",
   "unlockOptionsOffer": "Unlock faster next time? Use your fingerprint or your phone's screen lock. The PIN always works too.",
   "unlockOptionFailed": "Could not turn this on. You can try again, or skip and use the PIN.",
-  "pinLonger": "My PIN is longer than 6 digits"
+  "pinLonger": "My PIN is longer than 6 digits",
+  "consentChipAgreed": "Consent: agreed",
+  "consentChipRefused": "Consent: refused",
+  "consentChipNotRecorded": "Consent: not recorded",
+  "consentChipChangeHint": "Opens the consent screen to change the decision",
+  "consentChange": "Change consent decision",
+  "consentChangedAgreed": "Consent changed to agreed. The questions are open again.",
+  "consentChangedRefused": "Consent changed to refused. The answers about the respondent's name, family and address were removed.",
+  "deleteDraft": "Delete draft",
+  "deleteDraftTitle": "Delete this draft?",
+  "deleteDraftMessage": "This interview was never sent. Deleting it removes its answers, recordings and photographs from this phone. This cannot be undone.",
+  "deleteDraftDone": "Draft deleted",
+  "deleteDraftFailed": "The draft could not be deleted."
 }

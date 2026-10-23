@@ -28,7 +28,8 @@ import {
   type Registration,
 } from "../cases";
 import { sendRefusals, type SendRefusal } from "../unsentWork";
-import { listDrafts, retryHeldDraft, type Db, type DraftRow } from "../drafts";
+import { deleteUnsentDraft, listDrafts, retryHeldDraft, type Db, type DraftRow } from "../drafts";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { t } from "../i18n";
 import { useShell } from "../nativeShell/shellContext";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -115,6 +116,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   >([]);
   const [canCodeNowUniqueIds, setCanCodeNowUniqueIds] = useState<string[]>([]);
   const [draftConflict, setDraftConflict] = useState(false);
+  const [deleting, setDeleting] = useState<DraftRow | undefined>();
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
   const onlineRequestGenerationRef = useRef(0);
@@ -824,6 +826,21 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     if (handle && item.retryDemo) void retryHeldDraft(handle, item.retryDemo.id).then(() => loadLocal(handle));
   }
 
+  /** Delete a never-sent draft after the danger dialog; the store re-checks it was never sent and deletes nothing on the server. */
+  async function confirmDeleteDraft() {
+    const draft = deleting;
+    const handle = dbRef.current;
+    setDeleting(undefined);
+    if (!draft || !handle) return;
+    try {
+      if (!(await deleteUnsentDraft(handle, draft.id))) throw new Error("draft_not_deletable");
+      setMessage(t("deleteDraftDone"), "success");
+    } catch {
+      setMessage(t("deleteDraftFailed"));
+    }
+    await loadLocal(handle);
+  }
+
   // Sync outcomes the old list showed under its buttons; kept as notices on both tabs.
   const notices = (
     <>
@@ -869,6 +886,16 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   );
   const sheets = (
     <>
+      {deleting ? (
+        <ConfirmDialog
+          destructive
+          title={t("deleteDraftTitle")}
+          message={t("deleteDraftMessage")}
+          confirmLabel={t("deleteDraft")}
+          onConfirm={() => void confirmDeleteDraft()}
+          onCancel={() => setDeleting(undefined)}
+        />
+      ) : null}
       <SitePickerSheet visible={picking} targets={targets} recent={recent} onPick={startInterview} onClose={() => setPicking(false)} />
       <ProjectSheet
         visible={choosingProject}
@@ -903,6 +930,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           loadFailed={submittedRevisionsError}
           onAction={runAction}
           onRetryDemo={retryDemo}
+          onDeleteDraft={(item) => setDeleting(item.deletable)}
           onRegister={openRegister}
           onRefresh={() => void refresh()}
           onSend={() => void send()}

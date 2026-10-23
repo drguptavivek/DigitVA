@@ -13,6 +13,8 @@ import { reduceNationalIdData, type SubmissionData, type ValidationIssue, type W
 import { deleteCoveredAttachments, pruneUnreferencedAttachments } from "./attachmentStore";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
+import { runInTransaction } from "./dbTransaction";
+import { clearSendError, sendRefusal } from "./unsentWork";
 
 type Bind = string | number | null | Uint8Array;
 
@@ -689,6 +691,44 @@ export async function deleteDraftSnapshot(db: Db, id: string, envelope: string):
     await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
     await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
   }
+  return deleted;
+}
+
+/**
+ * Whether the draft was never sent and has no server copy, so deleting it on the phone loses nothing the server
+ * holds: still in progress (not queued, ready or sending), no server draft id, no upload issue, no stored send
+ * refusal (a draft reopened after a 422 was sent once) and no attachment the server confirmed.
+ */
+export async function isNeverSentDraft(db: Db, id: string): Promise<boolean> {
+  const row = await db.getFirstAsync<Pick<DraftRow, "completed" | "server_draft_id" | "base_updated_at" | "upload_issue">>(
+    "SELECT completed, server_draft_id, base_updated_at, upload_issue FROM drafts WHERE id = ?", [id]);
+  if (!row || row.completed !== 0 || row.server_draft_id || row.base_updated_at || row.upload_issue) return false;
+  if (await sendRefusal(db, id)) return false;
+  const sent = await db.getFirstAsync<{ id: string }>("SELECT id FROM attachments WHERE draft_id = ? AND uploaded_at IS NOT NULL LIMIT 1", [id]);
+  return !sent;
+}
+
+/**
+ * Delete a never-sent draft and everything the phone keeps for it (consent record, files, form choices, send note)
+ * in one transaction, behind the project's store guard like the form's own writes. Returns false, deleting nothing,
+ * when the draft is gone or was sent once. Never touches the server.
+ */
+export async function deleteUnsentDraft(db: Db, id: string): Promise<boolean> {
+  const row = await db.getFirstAsync<{ project_id: string | null }>("SELECT project_id FROM drafts WHERE id = ?", [id]);
+  if (!row?.project_id) return false;
+  const guard = createProjectStoreGuard(db, row.project_id);
+  let deleted = false;
+  await guard.runWrite(async () => {
+    guard.assertCurrent();
+    await runInTransaction(db, async (tx) => {
+      // Checked again inside the transaction: a sync may have given the draft a server copy meanwhile.
+      if (!(await isNeverSentDraft(tx, id))) return;
+      await deleteDraft(tx, id);
+      await tx.runAsync("DELETE FROM meta WHERE key = ?", [`draft-config:${id}`]);
+      await clearSendError(tx, id);
+      deleted = true;
+    });
+  });
   return deleted;
 }
 

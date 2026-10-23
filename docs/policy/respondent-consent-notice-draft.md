@@ -290,6 +290,32 @@ record informant details on the phone.
 - **Not on the phone.** Withdrawal, and any change of a recorded decision
   after it has been sent (web, supervisor or data manager).
 
+## Changing a decision during an interview (owner 2026-10-24, `digitva-wy90`)
+
+Where the project requires consent, the phone interview's top bar shows a
+status chip: "Consent: agreed", "Consent: refused" or "Consent: not recorded"
+(the state is in the words and the chip's accessibility label, not in colour
+alone; theme tokens). It is absent when the project does not require consent.
+
+- Tapping the chip, or "Change consent decision" in the ⋮ menu, saves what is
+  typed and opens the same respondent consent screen; the new decision
+  replaces the one on file for this interview (`saveDraftConsent`).
+- **Agreed to refused** strips the covered answers and their files from the
+  stored draft exactly as a first refusal does, and keeps the covered
+  questions locked empty. **Refused to agreed** reopens them (empty; the
+  earlier answers are gone and are not restored).
+- The new record has its own id and time and is the only decision sent with
+  the interview (`consent` on `POST /intake/submissions`); the server keeps
+  the newest, as it already does for a case asked again. The previous decision
+  is not sent and not kept on the phone: `supersedes_client_id` must name a
+  consent the server holds, and a decision taken during an unsent interview
+  has not reached it.
+- A decision inherited from the registration is shown as it stands; changing
+  it records an interview-level decision and leaves the registration's
+  shared record alone (the same rule as a refused inherited decision).
+- Cancelling the consent screen changes nothing. After a send, the decision
+  can no longer be changed on the phone (see "Not on the phone").
+
 ## In-progress saves (owner 2026-10-24)
 
 No covered data is stored without a granted consent on file, in any save of

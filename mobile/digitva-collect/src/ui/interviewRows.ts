@@ -45,6 +45,8 @@ export interface InterviewItem {
   retryDemo?: DraftRow;
   /** The button label for retryDemo (the demo limit and a held 409 retry differ in wording). */
   retryLabel?: string;
+  /** A draft never sent (in progress, no server copy, no refusal): the card offers Delete draft. */
+  deletable?: DraftRow;
   search: Array<string | null | undefined>;
   updatedAt: string;
 }
@@ -147,6 +149,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       lines: [...(known ? caseLines(known) : []), ...draftIssueLines(draft, src.refusals?.get(draft.id))],
       retryDemo: draft.upload_issue === "demo_limit" || draft.upload_issue === "case_conflict" ? draft : undefined,
       retryLabel: draft.upload_issue === "case_conflict" ? t("retryHeld") : undefined,
+      deletable: !ready && !draft.server_draft_id && !draft.base_updated_at && draft.upload_issue == null && !src.refusals?.get(draft.id) ? draft : undefined,
       search: [known?.name, draft.unique_id, known?.unique_id, known?.unit_name, known?.village],
       updatedAt: draft.updated_at,
     });

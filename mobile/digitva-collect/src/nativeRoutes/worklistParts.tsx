@@ -183,7 +183,7 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
 }
 
 /** One Interviews row: the shared CaseCard with the ID under the title, a status badge and one action. */
-export function InterviewCard({ item, onAction, onRetryDemo }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void }) {
+export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void }) {
   const { colors } = useTheme();
   const styles = useUiStyles();
   return (
@@ -203,6 +203,7 @@ export function InterviewCard({ item, onAction, onRetryDemo }: { item: Interview
         <Text key={index} style={line.tone === "error" ? styles.error : { ...typography.subhead, color: colors.textMuted }}>{line.text}</Text>
       ))}
       {item.retryDemo ? <Button kind="secondary" size="sm" label={item.retryLabel ?? t("demoDraftRetry")} onPress={() => onRetryDemo(item)} /> : null}
+      {item.deletable && onDelete ? <Button kind="danger" size="sm" label={t("deleteDraft")} onPress={() => onDelete(item)} /> : null}
     </CaseCard>
   );
 }
@@ -221,6 +222,7 @@ export interface InterviewsViewProps {
   loadFailed: boolean;
   onAction(action: InterviewAction): void;
   onRetryDemo(item: InterviewItem): void;
+  onDeleteDraft?(item: InterviewItem): void;
   onRegister(): void;
   onRefresh(): void;
   onSend(): void;
@@ -270,7 +272,7 @@ export function InterviewsView(p: InterviewsViewProps) {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: spacing.xs, paddingBottom: spacing.md }}
         renderItem={({ item: entry }) => {
-          if (entry.item) return <InterviewCard item={entry.item} onAction={p.onAction} onRetryDemo={p.onRetryDemo} />;
+          if (entry.item) return <InterviewCard item={entry.item} onAction={p.onAction} onRetryDemo={p.onRetryDemo} onDelete={p.onDeleteDraft} />;
           if (entry.part === "empty") {
             if (!p.loaded) return <SkeletonCards count={3} />;
             return empty ? (

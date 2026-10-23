@@ -48,6 +48,7 @@ let mockSubmittedRevisions: unknown[] = [];
 let mockLocalRevisions: unknown[] = [];
 let mockFormProps: Record<string, unknown> = {};
 let mockConsentProps: Record<string, unknown> | undefined;
+let mockConfirmProps: Record<string, unknown> | undefined;
 let mockLockVersion = 0;
 let mockObservedLockVersion = 0;
 let mockDefinitionResponse: { body: string; sha256: string } | undefined;
@@ -205,6 +206,8 @@ jest.mock("../src/drafts", () => ({
   })),
   markCompleted: jest.fn(),
   stripDraftCovered: jest.fn(async () => undefined),
+  isNeverSentDraft: jest.fn(async () => false),
+  deleteUnsentDraft: jest.fn(async () => true),
 }));
 jest.mock("../src/revisions", () => ({
   fetchSubmittedRevisions: jest.fn(async () => mockSubmittedRevisions),
@@ -392,6 +395,12 @@ jest.mock("../src/ui", () => {
     }),
   };
 });
+jest.mock("../src/ConfirmDialog", () => ({
+  ConfirmDialog: (props: Record<string, unknown>) => {
+    mockConfirmProps = props;
+    return (jest.requireActual("react") as typeof React).createElement("section", { "data-confirm": true });
+  },
+}));
 jest.mock("../src/web/StationConsentPanel", () => ({
   RespondentConsentPanel: (props: Record<string, unknown>) => {
     mockConsentProps = props;
@@ -1846,4 +1855,149 @@ describe("respondent consent in the interview form", () => {
     expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
+
+  describe("status chip and changing the decision", () => {
+    const chip = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => n.props.testID === "consent-chip" && typeof n.type !== "string")[0];
+    const menu = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => n.props.accessibilityLabel === "moreActions" && typeof n.props.onPress === "function")[0];
+    const decide = (decision: "granted" | "refused") =>
+      act(async () => { (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c2", client_draft_id: FORM_ID, notice_version_id: "n1", decision }); });
+    const mountController = async (saveDraft: jest.Mock) => act(async () => {
+      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
+    });
+    const own = (decision: "granted" | "refused") => [{ key: `consent:draft:${FORM_ID}`, value: stored(decision) }];
+
+    it("shows agreed, refused and not recorded in words, and nothing where consent is off", async () => {
+      setup(consentConfig(), own("granted"));
+      let tree = await open();
+      expect(chip(tree).props.accessibilityLabel).toBe("consentChipAgreed");
+      await act(async () => tree.unmount());
+
+      setup(consentConfig(), own("refused"));
+      tree = await open();
+      expect(chip(tree).props.accessibilityLabel).toBe("consentChipRefused");
+      await act(async () => tree.unmount());
+
+      // Required but no usable notice: nothing recorded and nothing to change it with.
+      setup(undefined);
+      tree = await open();
+      expect(chip(tree).props.accessibilityLabel).toBe("consentChipNotRecorded");
+      expect(chip(tree).props.disabled).toBe(true);
+      await act(async () => tree.unmount());
+
+      setup(consentConfig(false), own("granted"));
+      tree = await open();
+      expect(mockFormProps.instrument).toBeTruthy(); // the subject is there
+      expect(chip(tree)).toBeUndefined();
+      await act(async () => tree.unmount());
+    });
+
+    it("saves what is typed, then agreed to refused strips the covered answers, stores the new decision and locks them", async () => {
+      setup(consentConfig(), own("granted"));
+      const tree = await open();
+      const saveDraft = jest.fn(async () => undefined);
+      await mountController(saveDraft);
+      expect(mockFormProps.lockedQuestionNames ?? []).toEqual([]);
+      (setMeta as jest.Mock).mockClear();
+      await act(async () => { chip(tree).props.onPress(); });
+      await settle();
+      // Saved first, then the questionnaire closes for the consent screen.
+      expect(saveDraft).toHaveBeenCalledTimes(1);
+      expect(mockConsentProps).toMatchObject({ clientDraftId: FORM_ID });
+      expect(tree.root.findAllByProps({ "data-consent-panel": true })).toHaveLength(1);
+      await decide("refused");
+      await settle();
+      expect(setMeta).toHaveBeenCalledWith(expect.anything(), `consent:draft:${FORM_ID}`, expect.objectContaining({ envelope: expect.objectContaining({ client_id: "c2", decision: "refused" }), covered_fields: ["Id10007"] }));
+      expect(jest.requireMock("../src/drafts").stripDraftCovered).toHaveBeenCalledWith(expect.anything(), FORM_ID, ["Id10007"]);
+      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
+      expect(chip(tree).props.accessibilityLabel).toBe("consentChipRefused");
+      expect(mockToast).toHaveBeenCalledWith({ kind: "info", text: "consentChangedRefused" });
+      await act(async () => tree.unmount());
+    });
+
+    it("refused to agreed reopens the covered questions; the menu item does the same as the chip; cancel changes nothing", async () => {
+      setup(consentConfig(), own("refused"));
+      const tree = await open();
+      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
+      await mountController(jest.fn(async () => undefined));
+      await act(async () => { menu(tree).props.onPress(); });
+      await act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === "consentChange" && typeof n.props.onPress === "function")[0].props.onPress(); });
+      await settle();
+      expect(tree.root.findAllByProps({ "data-consent-panel": true })).toHaveLength(1);
+      const jestDrafts = jest.requireMock("../src/drafts");
+      jestDrafts.stripDraftCovered.mockClear();
+      await act(async () => { tree.root.findAll((n) => n.props["data-label"] === "cancel")[0].props.onClick(); });
+      expect(tree.root.findAllByProps({ "data-consent-panel": true })).toHaveLength(0);
+      expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
+
+      await mountController(jest.fn(async () => undefined));
+      await act(async () => { chip(tree).props.onPress(); });
+      await settle();
+      await decide("granted");
+      await settle();
+      expect(jestDrafts.stripDraftCovered).not.toHaveBeenCalled();
+      expect(mockFormProps.lockedQuestionNames ?? []).toEqual([]);
+      expect(chip(tree).props.accessibilityLabel).toBe("consentChipAgreed");
+      expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: "consentChangedAgreed" });
+      await act(async () => tree.unmount());
+    });
+  });
+
+  describe("delete draft", () => {
+    const drafts = () => jest.requireMock("../src/drafts");
+    const choose = async (tree: ReturnType<typeof create>, label: string) => {
+      await act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === "moreActions" && typeof n.props.onPress === "function")[0].props.onPress(); });
+      await act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress(); });
+    };
+    const hasItem = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => n.props.accessibilityLabel === "deleteDraft" && typeof n.props.onPress === "function").length > 0;
+    const menuOpen = async (tree: ReturnType<typeof create>) =>
+      act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === "moreActions" && typeof n.props.onPress === "function")[0].props.onPress(); });
+    beforeEach(() => {
+      mockConfirmProps = undefined;
+      drafts().isNeverSentDraft.mockReset().mockResolvedValue(true);
+      drafts().deleteUnsentDraft.mockReset().mockResolvedValue(true);
+      mockRouter.replace.mockClear();
+      mockToast.mockClear();
+      setup(consentConfig(false));
+    });
+
+    it("is not in the menu for a draft that was sent or queued", async () => {
+      drafts().isNeverSentDraft.mockResolvedValue(false);
+      const tree = await open();
+      await menuOpen(tree);
+      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "saveNow").length).toBeGreaterThan(0); // the menu is open
+      expect(hasItem(tree)).toBe(false);
+      await act(async () => tree.unmount());
+    });
+
+    it("cancel keeps the draft; confirm deletes it, shows the toast and returns to the worklist", async () => {
+      const tree = await open();
+      await menuOpen(tree);
+      expect(hasItem(tree)).toBe(true);
+      await choose(tree, "deleteDraft");
+      expect(mockConfirmProps).toMatchObject({ destructive: true, title: "deleteDraftTitle" });
+      await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+      expect(drafts().deleteUnsentDraft).not.toHaveBeenCalled();
+      expect(tree.root.findAllByProps({ "data-confirm": true })).toHaveLength(0);
+
+      await choose(tree, "deleteDraft");
+      await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
+      await settle();
+      expect(drafts().deleteUnsentDraft).toHaveBeenCalledWith(expect.anything(), FORM_ID);
+      expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: "deleteDraftDone" });
+      expect(mockRouter.replace).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/worklist" }));
+      await act(async () => tree.unmount());
+    });
+
+    it("keeps the screen and says so when the store refuses (the draft was sent meanwhile)", async () => {
+      drafts().deleteUnsentDraft.mockResolvedValue(false);
+      const tree = await open();
+      await choose(tree, "deleteDraft");
+      await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
+      await settle();
+      expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "deleteDraftFailed" });
+      expect(mockRouter.replace).not.toHaveBeenCalled();
+      await act(async () => tree.unmount());
+    });
+  });
+
 });

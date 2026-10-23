@@ -71,7 +71,8 @@ export function FormTopBar({
   menuItems,
   disabled,
   problemCount = 0,
-  onProblems
+  onProblems,
+  consentChip
 }: {
   title: string;
   /** A small line above the title (the revision screen's "Revision"). */
@@ -83,6 +84,8 @@ export function FormTopBar({
   /** When above zero, a "N problems" chip opens the problems list (`onProblems`). */
   problemCount?: number;
   onProblems?(): void;
+  /** Shown when the project requires consent: the decision in words (never colour alone); tapping changes it. */
+  consentChip?: { label: string; decision: "granted" | "refused" | "none"; onPress?(): void };
 }) {
   const { ui } = useTheme();
   const [open, setOpen] = useState(false);
@@ -110,9 +113,23 @@ export function FormTopBar({
           <Text numberOfLines={1} style={{ ...typography.caption, fontWeight: "700", color: ui.destructiveText }}>{t("problemsChip", { count: problemCount })}</Text>
         </Pressable>
       ) : null}
+      {consentChip ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={consentChip.label}
+          accessibilityHint={consentChip.onPress ? t("consentChipChangeHint") : undefined}
+          accessibilityState={{ disabled: !consentChip.onPress }}
+          testID="consent-chip"
+          disabled={!consentChip.onPress || disabled}
+          onPress={consentChip.onPress}
+          style={{ minHeight: 36, paddingHorizontal: spacing.sm, borderRadius: radius.lg * 2, borderWidth: 1, borderColor: consentChip.decision === "granted" ? ui.success : consentChip.decision === "refused" ? ui.destructiveText : ui.warningText, justifyContent: "center" }}
+        >
+          <Text numberOfLines={1} style={{ ...typography.caption, fontWeight: "700", color: ui.foreground }}>{consentChip.label}</Text>
+        </Pressable>
+      ) : null}
       <View accessible accessibilityLabel={state} style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dot }} />
-        {problemCount > 0 ? null : <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{state}</Text>}
+        {problemCount > 0 || consentChip ? null : <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{state}</Text>}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={t("moreActions")} disabled={disabled} onPress={() => setOpen(true)} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: 22, color: ui.foreground }}>⋮</Text>

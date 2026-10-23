@@ -225,3 +225,29 @@ describe("StateView", () => {
     expect(text(tree)).toContain("You are offline. Work is saved on this phone and sent later.");
   });
 });
+
+describe("Delete draft on the Interviews list", () => {
+  const refusal = { ref: "HTTP 422 invalid_interview", status: 422, message: "No.", at: "2026-10-23T10:15:00Z" };
+  const itemOf = (row: unknown, extra = {}) => buildInterviewItems(sources({ drafts: [row], ...extra }))[0];
+
+  it("is offered only for a draft never sent: in progress, no server copy, no issue, no refusal", () => {
+    expect(itemOf(draft("d1")).deletable).toMatchObject({ id: "d1" });
+    expect(itemOf(draft("d2", { completed: 1 })).deletable).toBeUndefined();
+    expect(itemOf(draft("d3", { server_draft_id: "srv", base_updated_at: "2026-10-23T00:00:00Z" })).deletable).toBeUndefined();
+    expect(itemOf(draft("d4", { upload_issue: "case_conflict" })).deletable).toBeUndefined();
+    expect(itemOf(draft("d5"), { refusals: new Map([["d5", refusal]]) }).deletable).toBeUndefined();
+  });
+
+  it("shows the button on a deletable card only, and calls back with that item", async () => {
+    const onDeleteDraft = jest.fn();
+    const items = buildInterviewItems(sources({ drafts: [draft("d1"), draft("d2", { completed: 1 })] }));
+    // Subject present first: both cards render.
+    await render(<InterviewsView {...interviewsProps(items, { onDeleteDraft })} />);
+    expect(tree.root.findAllByProps({ testID: "interview-draft-d1" }).length).toBeGreaterThan(0);
+    expect(tree.root.findAllByProps({ testID: "interview-draft-d2" }).length).toBeGreaterThan(0);
+    const buttons = labelled(tree, "Delete draft");
+    expect(buttons).toHaveLength(1);
+    await act(async () => buttons[0].props.onClick());
+    expect(onDeleteDraft).toHaveBeenCalledWith(expect.objectContaining({ key: "draft-d1" }));
+  });
+});

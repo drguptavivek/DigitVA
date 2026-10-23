@@ -123,8 +123,9 @@ Work is not complete until `git push` succeeds.
 3. Update `handoff.md` by rewriting it, not appending. It holds only what the
    next session needs: the start prompt, the ranked next steps, open owner
    decisions, approved work not started, and caveats still true, each with
-   its bead id. Keep it under about 150 lines. No session logs or "landed"
-   sections: git history and closed beads record those. Move a lasting
+   its bead id. Keep it under about 100 lines. No session logs or "landed"
+   sections: add one dated entry per landed change to `CHANGELOG.md` (commit,
+   beads, docs) instead. Move a lasting
    decision into `docs/policy`, `docs/current-state` or `docs/kb` before
    dropping it from the handoff.
 4. `git pull --rebase && git push`, then `git status` must show up to date

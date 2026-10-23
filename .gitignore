@@ -16,6 +16,7 @@ resource/depreciated/*
 resource/other/*
 resource/pyodk/*
 !resource/pyodk/.gitkeep
+resource/smartva-phmrc-dataset/
 updates/
 private/
 output/*

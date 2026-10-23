@@ -38,3 +38,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  minerva_db_service:
+    # Dev only: parallel test suites and several sessions share this Postgres;
+    # the 756m production limit OOM-killed backends during -n 4 runs.
+    deploy:
+      resources:
+        limits:
+          memory: 1g

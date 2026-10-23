@@ -51,7 +51,7 @@ import {
 } from "./contracts";
 
 export interface WorkspaceRequestInit {
-  method?: "GET" | "POST" | "PUT";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   json?: unknown;
 }
 

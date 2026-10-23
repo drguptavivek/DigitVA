@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Modal, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { t, type StringKey } from "../i18n";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import {
-  emailEnrolmentCode, enrolmentProjects, getUserActivity, getUsers, issueEnrolmentCode,
+  activeFilterCount, DEFAULT_FILTERS, emailEnrolmentCode, enrolmentProjects, filtersFromSearch, filtersToSearch, getUserActivity,
+  getUsers, issueEnrolmentCode, signInQrCandidate,
   type DirectoryOptions, type DirectoryUser, type GridUser, type IssuedCode, type UserActivity, type UserFilters,
 } from "../users/api";
 import type { JsonRequester } from "../workspace/api";
@@ -14,8 +15,9 @@ import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { ChipGroup } from "./caseFilters";
 import { browserErrorText, WebShell } from "./common";
 import { formatDisplayTimestamp } from "./DeathsList";
-import { roleLabelKey } from "./roleHome";
 import { AccountUpload, GrantGrid, grantLine } from "./UsersAdminTools";
+import { SignInQrDialog, StatusDialog } from "./UsersDialogs";
+import { FilterSheet, FiltersButton, QuickChips } from "./UsersFilters";
 
 /**
  * The Users page (digitva-75wn): everyone the server lets this viewer see (admin all, project PI their projects,
@@ -26,12 +28,19 @@ import { AccountUpload, GrantGrid, grantLine } from "./UsersAdminTools";
 
 const WIDE_MIN_WIDTH = 768;
 const SEARCH_DELAY_MS = 300;
-const MAX_UNIT_CHIPS = 20;
-const ROLE_FILTERS = ["interviewer", "death_reporter", "coder", "reviewer", "data_manager", "interview_supervisor", "site_pi", "project_pi"];
 
 type UsersView = "list" | "grid" | "upload";
 
-const EMPTY_FILTERS: UserFilters = { q: "", project: "", unit: "", role: "", status: "active", enrolment: "" };
+/** The filters in the page URL (a reload or a shared link keeps them); the default view has a bare URL. */
+function readUrlFilters(): UserFilters {
+  return filtersFromSearch(typeof window !== "undefined" && window.location ? window.location.search : "");
+}
+
+function writeUrlFilters(filters: UserFilters) {
+  if (typeof window === "undefined" || !window.location || !window.history?.replaceState) return;
+  const query = filtersToSearch(filters);
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash ?? ""}`);
+}
 
 function enrolmentLabel(user: DirectoryUser): string {
   const e = user.enrolment;
@@ -52,6 +61,14 @@ function useStyles() {
     row: { flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.xs, borderBottomWidth: 1, borderColor: colors.border, alignItems: "flex-start" },
     head: { ...typography.caption, fontWeight: "700", color: colors.textMuted, fontFamily: controls.fontFamily },
     cell: { flex: 1, minWidth: 0, gap: spacing.xxs },
+    line: { alignItems: "center" },
+    nameCell: { flex: 1.2, minWidth: 0 },
+    contactCell: { flex: 1.8, minWidth: 0 },
+    statusCell: { width: 80 },
+    appCell: { flex: 1.3, minWidth: 0 },
+    actionsCell: { flexDirection: "row", gap: spacing.xs, flexShrink: 0, justifyContent: "flex-end" },
+    toolbar: { flexDirection: "row", gap: spacing.xs, alignItems: "center" },
+    searchBox: { flex: 1, minWidth: 0 },
     wideCell: { flex: 2, minWidth: 0, gap: spacing.xxs },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
     counts: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
@@ -169,7 +186,9 @@ function EnrolmentDialog({ request, user, onClose }: { request: JsonRequester; u
   );
 }
 
-function UserActions({ user, open, onToggle, onIssue }: { user: DirectoryUser; open: boolean; onToggle: () => void; onIssue: () => void }) {
+function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: {
+  user: DirectoryUser; open: boolean; onToggle: () => void; onIssue: () => void; onStatus: () => void; onQr: () => void;
+}) {
   const s = useStyles();
   return (
     <View style={s.actions}>
@@ -177,7 +196,32 @@ function UserActions({ user, open, onToggle, onIssue }: { user: DirectoryUser; o
       {user.active && enrolmentProjects(user).length ? (
         <Button size="sm" kind="secondary" label={t("usersIssueCode")} accessibilityLabel={t("usersIssueCodeFor", { name: user.name })} onPress={onIssue} />
       ) : null}
+      <Button size="sm" kind="secondary" label={t("usersStatus")} accessibilityLabel={t("usersStatusFor", { name: user.name })} onPress={onStatus} />
+      {signInQrCandidate(user) ? (
+        <Button size="sm" kind="secondary" label={t("usersQr")} accessibilityLabel={t("usersQrFor", { name: user.name })} onPress={onQr} />
+      ) : null}
     </View>
+  );
+}
+
+/** One line of roles (the first grant and a count); pressing it shows or hides the rest. */
+function RolesCell({ user }: { user: DirectoryUser }) {
+  const styles = useUiStyles();
+  const [open, setOpen] = useState(false);
+  const lines = user.grants.map(grantLine);
+  if (!lines.length) return <Text style={styles.muted} numberOfLines={1}>{t("usersNoRoles")}</Text>;
+  if (lines.length === 1) return <Text style={styles.muted} numberOfLines={1}>{lines[0]}</Text>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={open ? t("usersHideRoles", { name: user.name }) : t("usersShowRoles", { name: user.name })}
+      accessibilityState={{ expanded: open }}
+      onPress={() => setOpen((current) => !current)}
+    >
+      {open
+        ? lines.map((line, index) => <Text key={index} style={styles.muted}>{line}</Text>)
+        : <Text style={styles.muted} numberOfLines={1}>{t("usersRolesMore", { summary: lines[0], count: lines.length - 1 })}</Text>}
+    </Pressable>
   );
 }
 
@@ -191,9 +235,11 @@ export default function UsersScreen() {
     () => (bootstrap ? createWebWorkspaceTransport(bootstrap.csrf) : undefined),
     [bootstrap],
   );
-  const [filters, setFilters] = useState<UserFilters>(EMPTY_FILTERS);
-  const [search, setSearch] = useState("");
-  const [unitSearch, setUnitSearch] = useState("");
+  const [filters, setFilters] = useState<UserFilters>(readUrlFilters);
+  const [search, setSearch] = useState(filters.q ?? "");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [statusFor, setStatusFor] = useState<DirectoryUser>();
+  const [qrFor, setQrFor] = useState<DirectoryUser>();
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [total, setTotal] = useState(0);
   const [options, setOptions] = useState<DirectoryOptions>({ projects: [], units: [] });
@@ -210,6 +256,8 @@ export default function UsersScreen() {
     const timer = setTimeout(() => setFilters((current) => (current.q === search ? current : { ...current, q: search })), SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => { writeUrlFilters(filters); }, [filters]);
 
   const load = useCallback(async (offset: number) => {
     if (!request) return;
@@ -232,13 +280,10 @@ export default function UsersScreen() {
   useEffect(() => { void load(0); }, [load]);
 
   const set = (patch: Partial<UserFilters>) => setFilters((current) => ({ ...current, ...patch }));
-  const chipLabel = (label: string) => t("usersChipLabel", { label });
-  const units = useMemo(() => {
-    const needle = unitSearch.trim().toLowerCase();
-    const chosen = options.units.filter((u) => u.org_unit_id === filters.unit);
-    const matches = options.units.filter((u) => u.org_unit_id !== filters.unit && (!needle || u.unit_name.toLowerCase().includes(needle)));
-    return [...chosen, ...matches].slice(0, MAX_UNIT_CHIPS);
-  }, [options.units, unitSearch, filters.unit]);
+  const clearAll = () => {
+    setSearch("");
+    setFilters(DEFAULT_FILTERS);
+  };
 
   if (!bootstrap || !request) return <WebShell title={t("usersTitle")}>{null}</WebShell>;
 
@@ -267,69 +312,20 @@ export default function UsersScreen() {
   }
 
   return (
-    <WebShell title={t("usersTitle")}>
+    <WebShell title={t("usersTitle")} wide>
       {views}
-      <View style={s.filters}>
+      <View style={s.toolbar}>
         <TextInput
           accessibilityLabel={t("usersSearchLabel")}
           placeholder={t("usersSearchPlaceholder")}
           placeholderTextColor={colors.textMuted}
           value={search}
           onChangeText={setSearch}
-          style={s.input}
+          style={[s.input, s.searchBox]}
         />
-        <Text style={s.label}>{t("usersFilterStatus")}</Text>
-        <ChipGroup
-          options={[{ key: "active", label: t("usersActive") }, { key: "inactive", label: t("usersInactive") }, { key: "all", label: t("usersAll") }]}
-          value={filters.status ?? "all"}
-          onChange={(status) => set({ status: status as UserFilters["status"] })}
-          a11yLabel={chipLabel}
-        />
-        <Text style={s.label}>{t("usersFilterEnrolment")}</Text>
-        <ChipGroup
-          options={[{ key: "", label: t("usersAll") }, { key: "enrolled", label: t("usersEnrolled") }, { key: "revoked", label: t("usersEnrolRevoked") }, { key: "none", label: t("usersEnrolNone") }]}
-          value={filters.enrolment ?? ""}
-          onChange={(enrolment) => set({ enrolment: enrolment as UserFilters["enrolment"] })}
-          a11yLabel={chipLabel}
-        />
-        <Text style={s.label}>{t("usersFilterRole")}</Text>
-        <ChipGroup
-          options={[{ key: "", label: t("usersAll") }, ...ROLE_FILTERS.map((role) => ({ key: role, label: t(roleLabelKey(role)) }))]}
-          value={filters.role ?? ""}
-          onChange={(role) => set({ role })}
-          a11yLabel={chipLabel}
-        />
-        {options.projects.length > 1 ? (
-          <>
-            <Text style={s.label}>{t("usersFilterProject")}</Text>
-            <ChipGroup
-              options={[{ key: "", label: t("usersAll") }, ...options.projects.map((p) => ({ key: p.project_id, label: p.project_name }))]}
-              value={filters.project ?? ""}
-              onChange={(project) => set({ project, unit: "" })}
-              a11yLabel={chipLabel}
-            />
-          </>
-        ) : null}
-        {options.units.length > 0 ? (
-          <>
-            <Text style={s.label}>{t("usersFilterUnit")}</Text>
-            <TextInput
-              accessibilityLabel={t("usersUnitSearch")}
-              placeholder={t("usersUnitSearch")}
-              placeholderTextColor={colors.textMuted}
-              value={unitSearch}
-              onChangeText={setUnitSearch}
-              style={s.input}
-            />
-            <ChipGroup
-              options={[{ key: "", label: t("usersAll") }, ...units.map((u) => ({ key: u.org_unit_id, label: `${u.unit_name} (${u.level_name})` }))]}
-              value={filters.unit ?? ""}
-              onChange={(unit) => set({ unit })}
-              a11yLabel={chipLabel}
-            />
-          </>
-        ) : null}
+        <FiltersButton count={activeFilterCount(filters)} onPress={() => setSheetOpen(true)} />
       </View>
+      <QuickChips filters={filters} onChange={set} />
 
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       {!busy && !error && users.length === 0 ? <Text style={styles.muted}>{t("usersNone")}</Text> : null}
@@ -337,29 +333,31 @@ export default function UsersScreen() {
 
       {wide && users.length ? (
         <View testID="users-table">
-          <View style={s.row}>
-            {(["usersColName", "usersColContact", "usersColRoles", "usersColStatus", "usersColApp"] as StringKey[]).map((key) => (
-              <Text key={key} style={[s.head, key === "usersColRoles" ? s.wideCell : s.cell]}>{t(key)}</Text>
-            ))}
+          <View style={[s.row, s.line]}>
+            <Text style={[s.head, s.nameCell]}>{t("usersColName")}</Text>
+            <Text style={[s.head, s.contactCell]}>{t("usersColContact")}</Text>
+            <Text style={[s.head, s.wideCell]}>{t("usersColRoles")}</Text>
+            <Text style={[s.head, s.statusCell]}>{t("usersColStatus")}</Text>
+            <Text style={[s.head, s.appCell]}>{t("usersColApp")}</Text>
+            <View style={s.actionsCell} />
           </View>
           {users.map((user) => (
             <View key={user.user_id} testID="users-row">
-              <View style={s.row}>
-                <View style={s.cell}>
-                  <Text style={styles.text}>{user.name}</Text>
-                  <UserActions user={user} open={openActivity === user.user_id} onToggle={() => toggle(user.user_id)} onIssue={() => setIssuing(user)} />
-                </View>
-                <View style={s.cell}>
-                  {user.email ? <Text style={styles.muted} selectable>{user.email}</Text> : null}
-                  {user.phone ? <Text style={styles.muted} selectable>{user.phone}</Text> : null}
-                </View>
-                <View style={s.wideCell}>
-                  {user.grants.map((grant, index) => <Text key={index} style={styles.muted}>{grantLine(grant)}</Text>)}
-                </View>
-                <Text style={[styles.muted, s.cell]}>{user.active ? t("usersActive") : t("usersInactive")}</Text>
-                <View style={s.cell}>
-                  <Text style={styles.muted}>{enrolmentLabel(user)}</Text>
-                  {user.enrolment.last_seen_at ? <Text style={styles.muted}>{t("usersLastSeen", { when: formatDisplayTimestamp(user.enrolment.last_seen_at) })}</Text> : null}
+              <View style={[s.row, s.line]} testID="users-line">
+                <Text style={[styles.text, s.nameCell]} numberOfLines={1}>{user.name}</Text>
+                <Text style={[styles.muted, s.contactCell]} numberOfLines={1} selectable>{[user.email, user.phone].filter(Boolean).join(" · ")}</Text>
+                <View style={s.wideCell}><RolesCell user={user} /></View>
+                <Text style={[styles.muted, s.statusCell]} numberOfLines={1}>{user.active ? t("usersActive") : t("usersInactive")}</Text>
+                <Text style={[styles.muted, s.appCell]} numberOfLines={1}>{enrolmentLabel(user)}</Text>
+                <View style={s.actionsCell}>
+                  <UserActions
+                    user={user}
+                    open={openActivity === user.user_id}
+                    onToggle={() => toggle(user.user_id)}
+                    onIssue={() => setIssuing(user)}
+                    onStatus={() => setStatusFor(user)}
+                    onQr={() => setQrFor(user)}
+                  />
                 </View>
               </View>
               {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
@@ -377,7 +375,7 @@ export default function UsersScreen() {
           <Text style={styles.muted}>
             {`${user.active ? t("usersActive") : t("usersInactive")} · ${enrolmentLabel(user)}`}
           </Text>
-          <UserActions user={user} open={openActivity === user.user_id} onToggle={() => toggle(user.user_id)} onIssue={() => setIssuing(user)} />
+          <UserActions user={user} open={openActivity === user.user_id} onToggle={() => toggle(user.user_id)} onIssue={() => setIssuing(user)} onStatus={() => setStatusFor(user)} onQr={() => setQrFor(user)} />
           {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
         </View>
       )) : null}
@@ -388,6 +386,11 @@ export default function UsersScreen() {
       ) : null}
 
       {issuing ? <EnrolmentDialog request={request} user={issuing} onClose={() => setIssuing(undefined)} /> : null}
+      {statusFor ? <StatusDialog request={request} user={statusFor} onClose={() => setStatusFor(undefined)} /> : null}
+      {qrFor ? <SignInQrDialog request={request} user={qrFor} onClose={() => setQrFor(undefined)} /> : null}
+      {sheetOpen ? (
+        <FilterSheet filters={filters} options={options} wide={wide} onChange={set} onClear={clearAll} onClose={() => setSheetOpen(false)} />
+      ) : null}
     </WebShell>
   );
 }

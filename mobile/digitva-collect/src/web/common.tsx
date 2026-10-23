@@ -384,10 +384,13 @@ export function WebShell({
   children,
   headerAction,
   footer,
-  lead
+  lead,
+  wide
 }: {
   title: string;
   children: React.ReactNode;
+  /** Use the full page width instead of the 720px reading column. */
+  wide?: boolean;
   headerAction?: React.ReactNode;
   footer?: React.ReactNode;
   /** Rendered above the title inside the scroller (Screen `lead`); the interview passes its header bar here. */
@@ -404,7 +407,7 @@ export function WebShell({
   if (!bootstrap) return <LoginLanding />;
   const resolvedHeaderAction = headerAction === undefined ? <UiLanguageSwitcher /> : headerAction;
   return (
-    <Screen title={title} sidebar={<NavigationMenu />} headerAction={resolvedHeaderAction} footer={footer} lead={lead}>
+    <Screen title={title} sidebar={<NavigationMenu />} headerAction={resolvedHeaderAction} footer={footer} lead={lead} wide={wide}>
       {KPI_SCREENS.includes(pathname) ? <KpiStrip csrf={bootstrap.csrf} /> : null}
       {children}
     </Screen>

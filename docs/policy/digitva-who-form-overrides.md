@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-24
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -35,6 +35,20 @@ ND01 is the available ICMR workbook in this comparison; it must not be relabelle
 | `Id10366` recorded birth weight | WHO constraint | DORIS grams constraint 100–9999; acknowledgement `Id10366_confirm` outside 500–6000 | DORIS support browser override. Server re-derivation retains the looser WHO rule so valid browser answers survive. |
 | `Id10308` pregnancy question | WHO requiredness | Required | DORIS A9; implemented browser behavior, proposal status remains `proposed` in the source block. |
 | `Id10340` hysterectomy | WHO relevance | Asked only after a recorded pregnancy event, excluding the specified short injury interval | DORIS A10; implemented browser behavior, proposal status remains `proposed`. Exact expression is defined once in `DORIS_ID10340_RELEVANT`. Server retains WHO’s broader relevance. |
+
+### Defaults and prefill for new interviews (owner decision 2026-10-23)
+
+Always-on core overrides in `vendor/who-va-2022/src/instrument.ts`, carried as `defaultValue` in the composed definition. The session applies a literal `defaultValue` only when the key is absent from the initial data, so prefill and saved answers win. They affect new interviews on the new definition version; drafts and saved answers pinned to an older version keep that version's definition and are untouched.
+
+| Field | Behavior |
+|---|---|
+| `Id10051` | Default `yes`, so every question it gates stays asked |
+| `Id10052` citizenship | Visible, no default |
+| `Id10053` ethnicity | Default `-`, visible and editable |
+| `Id10055` usual residence | Prefilled by the host (server `web_intake_service._prefill_from_death`, phone `cases.ts`): the case unit's code and name, then `; ` and the registration address, e.g. `PHC06 PHC name 2; <address>`; when the registration has no address, its Remarks text instead (sealed, opened like the address; owner decision 2026-10-24). Consent-covered: stripped under a refusal like the other covered fields |
+| `Id10057` place of death | Never prefilled (empty), by the server, phone, or `createWhoVaInitialDataFromPrefill` |
+
+The desktop station (`desktop/crates/digitva-db`) still prefills `Id10057` and `Id10051` from the organization path; it is not aligned (the station is paused and `cargo` is not available to test it).
 
 `whoOverrides: false` in server composition disables the DORIS tightening, not the always-on typed-narrative correction. Requiredness is enforced by the form validator; server relevance processing must preserve `Id10476` alongside media.
 

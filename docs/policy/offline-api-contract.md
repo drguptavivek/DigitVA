@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Offline API Contract v1
@@ -571,7 +571,7 @@ informant is a different person, in which case the app takes a new one for
 that attempt (with its `client_draft_id`). The server accepts an interview's
 covered data when a granted consent exists for that `client_draft_id`, or a
 granted registration consent exists on the case and the submission does not
-carry a new one. Server: `implemented today` (uncommitted, digitva-gb8w.3); web capture: `implemented today` (uncommitted, digitva-athy: registration sends `consent`; a browser interview records its decision first on `POST /intake/drafts/<id>/consent`, see [respondent-consent-notice-draft.md](respondent-consent-notice-draft.md) "Web flow"); Expo native capture: `specified, not built`.
+carry a new one. Server: `implemented today` (uncommitted, digitva-gb8w.3); web capture: `implemented today` (uncommitted, digitva-athy: registration sends `consent`; a browser interview records its decision first on `POST /intake/drafts/<id>/consent`, see [respondent-consent-notice-draft.md](respondent-consent-notice-draft.md) "Web flow"); Expo native capture: `implemented today` (uncommitted, digitva-0vgh; see [respondent-consent-notice-draft.md](respondent-consent-notice-draft.md) "Phone flow").
 
 ### 5.5 Informant fields on a station registration
 

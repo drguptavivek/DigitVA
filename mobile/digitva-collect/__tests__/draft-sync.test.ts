@@ -3,7 +3,8 @@ import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
 
 import { ApiError } from "../src/api";
 import { authedRequest } from "../src/auth";
-import { createDraftStore, getDraftRow, markCompleted, migrate, unfinishedDraftsForSync, type Db, type DraftSyncItem } from "../src/drafts";
+import { saveDraftConsent } from "../src/consentStore";
+import { createDraftStore, getDraftRow, markCompleted, migrate, stripDraftCovered, unfinishedDraftsForSync, type Db, type DraftSyncItem } from "../src/drafts";
 import { reconcileCaseDraft, syncDraftSnapshot, type FetchedServerDraft } from "../src/draftSync";
 import type { CaseDetail } from "../src/cases";
 
@@ -378,5 +379,64 @@ describe("native draft sync", () => {
     expect(request).toHaveBeenCalledTimes(1);
     const current = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
     expect(JSON.parse(current!.envelope)).toMatchObject({ id: LOCAL_ID, data: { Id10007: "browser" } });
+  });
+
+  describe("under a recorded refusal", () => {
+    const refusal = {
+      envelope: { client_id: "c1", decision: "refused", client_draft_id: LOCAL_ID } as never,
+      project_id: "PROJECT1", covered_fields: ["Id10007", "Id10055"], recorded_by: "u1",
+    };
+
+    it("sends the in-progress answers without the covered fields", async () => {
+      await saveDraftConsent(db, LOCAL_ID, refusal);
+      const item = await saveLocal();
+      await db.runAsync("UPDATE drafts SET envelope = ? WHERE id = ?", [
+        JSON.stringify({ ...JSON.parse(item.envelope), data: { Id10007: "Asha", Id10055: "PHC06 PHC name 2; Kandaghat", Id10013: "yes" } }), LOCAL_ID]);
+      const [stored] = await unfinishedDraftsForSync(db, "PROJECT1");
+      let payload: Record<string, unknown> | undefined;
+      request.mockImplementationOnce(async (_userId: string, _path: string, init: { bodyFactory: () => unknown }) => {
+        payload = init.bodyFactory() as Record<string, unknown>;
+        return { status: 200, body: syncReply("incoming") };
+      });
+      await syncDraftSnapshot("user-1", db, stored);
+      const sent = JSON.parse(payload!.answers_json as string);
+      expect(sent).toEqual({ Id10013: "yes" }); // the other answer is there, the covered one is not
+      expect(payload!.answers_json).not.toContain("Asha");
+    });
+
+    it("keeps covered answers out of the stored draft when the server version wins, prefill included", async () => {
+      await saveDraftConsent(db, LOCAL_ID, refusal);
+      const item = await saveLocal();
+      await db.runAsync("UPDATE drafts SET prefill = ? WHERE id = ?", [JSON.stringify({ answers: { Id10007: "from-prefill", Id10013: "yes" } }), LOCAL_ID]);
+      const reply = syncReply("server");
+      (reply as { envelope?: Record<string, unknown> }).envelope = serverEnvelope({ Id10007: "server", Id10019: "female" });
+      request.mockResolvedValueOnce({ status: 200, body: reply });
+      await syncDraftSnapshot("user-1", db, item);
+      const row = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [LOCAL_ID]);
+      expect(JSON.parse(row!.envelope).data).toEqual({ Id10013: "yes", Id10019: "female" });
+    });
+
+    it("sends everything when no refusal is on file", async () => {
+      const item = await saveLocal();
+      let payload: Record<string, unknown> | undefined;
+      request.mockImplementationOnce(async (_userId: string, _path: string, init: { bodyFactory: () => unknown }) => {
+        payload = init.bodyFactory() as Record<string, unknown>;
+        return { status: 200, body: syncReply("incoming") };
+      });
+      await syncDraftSnapshot("user-1", db, item);
+      expect(JSON.parse(payload!.answers_json as string)).toEqual({ Id10007: "local" });
+    });
+
+    it("stripDraftCovered removes the covered answers from the stored envelope and prefill", async () => {
+      const item = await saveLocal();
+      await db.runAsync("UPDATE drafts SET envelope = ?, prefill = ? WHERE id = ?", [
+        JSON.stringify({ ...JSON.parse(item.envelope), data: { Id10007: "Asha", Id10055: "PHC06 PHC name 2; Kandaghat", Id10013: "yes" } }),
+        JSON.stringify({ answers: { Id10007: "Asha", Id10055: "PHC06 PHC name 2; Kandaghat", Id10019: "female" }, lockedQuestionNames: ["Id10019"] }), LOCAL_ID]);
+      await stripDraftCovered(db, LOCAL_ID, ["Id10007", "Id10055"]);
+      const row = await db.getFirstAsync<{ envelope: string; prefill: string }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [LOCAL_ID]);
+      expect(JSON.parse(row!.envelope).data).toEqual({ Id10013: "yes" });
+      expect(JSON.parse(row!.prefill)).toEqual({ answers: { Id10019: "female" }, lockedQuestionNames: ["Id10019"] });
+      expect(await getDraftRow(db, LOCAL_ID)).toMatchObject({ draft_sync_dirty: 1 });
+    });
   });
 });

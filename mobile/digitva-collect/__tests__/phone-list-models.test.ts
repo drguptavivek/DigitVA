@@ -126,6 +126,27 @@ describe("interview items", () => {
     expect(ready.caseId).toBeUndefined();
   });
 
+  it("shows why the server refused a draft: 'Not accepted: <reason>', and a held 409 with its retry", () => {
+    const refusals = new Map([
+      ["d1", { ref: "HTTP 422", message: "Record the name, date of death and sex of the deceased before submitting.", at: "" }],
+      ["d2", { ref: "HTTP 409", message: "This case is closed.", at: "" }],
+    ]);
+    const items = buildInterviewItems(sources({
+      drafts: [draft("d1"), draft("d2", { completed: 1, upload_issue: "case_conflict" }), draft("d3")],
+      refusals,
+    }));
+    const byKey = Object.fromEntries(items.map((item) => [item.key, item]));
+    expect(byKey["draft-d1"].lines).toEqual([{ text: "Not accepted: Record the name, date of death and sex of the deceased before submitting.", tone: "error" }]);
+    expect(byKey["draft-d1"].action).toMatchObject({ type: "resume" });
+    expect(byKey["draft-d2"].lines.map((line) => line.text)).toEqual([
+      "Not accepted: This case is closed.",
+      expect.stringContaining("Held:"),
+    ]);
+    expect(byKey["draft-d2"].retryDemo).toBeTruthy();
+    expect(byKey["draft-d2"].retryLabel).toBe("Send again");
+    expect(byKey["draft-d3"].lines).toEqual([]);
+  });
+
   it("counts per chip and filters by chip and search together", () => {
     const items = buildInterviewItems(sources({
       drafts: [draft("d1"), draft("d2")],

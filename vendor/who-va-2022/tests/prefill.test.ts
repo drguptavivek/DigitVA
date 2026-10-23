@@ -50,7 +50,7 @@ describe("host prefill mapping", () => {
       Id10023_a: "2026-07-01",
       Id10051: "yes",
       Id10052: "citizen_at_birth",
-      Id10057: "Karnataka, Mysuru, Hunsur"
+      Id10055: "Karnataka, Mysuru, Hunsur"
     });
 
     const session = createWhoVaSession(whoVa2022Instrument, { initialData: data });
@@ -108,10 +108,20 @@ describe("host prefill mapping", () => {
           deathPlace: "District hospital"
         }
       })
-    ).toMatchObject({
-      Id10051: "yes",
-      Id10057: "India, Odisha, Puri; District hospital"
-    });
+    ).toEqual({ Id10055: "India, Odisha, Puri; District hospital" });
+  });
+
+  it("applies form defaults only when the answer is absent", () => {
+    const fresh = createWhoVaSession(whoVa2022Instrument, {}).getSnapshot().data;
+    expect(fresh.Id10051).toBe("yes");
+    expect(fresh.Id10053).toBe("-");
+    expect(fresh.Id10052).toBeUndefined();
+    expect(fresh.Id10057).toBeUndefined();
+    const saved = createWhoVaSession(whoVa2022Instrument, {
+      initialData: { Id10051: "no", Id10053: "Tamil" }
+    }).getSnapshot().data;
+    expect(saved.Id10051).toBe("no");
+    expect(saved.Id10053).toBe("Tamil");
   });
 
   it("prefills citizenship while leaving the session answer editable", () => {

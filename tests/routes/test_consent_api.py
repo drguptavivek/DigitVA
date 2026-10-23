@@ -21,6 +21,7 @@ from app.models import (
     VaConsentRecord,
     VaDeathRegister,
     VaForms,
+    VaWebIntakeDraft,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -405,6 +406,85 @@ class ConsentApiTests(BaseTestCase):
                                 consent=self._consent(decision="refused", client_draft_id=attempt))
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertIn("refused", {r.event for r in self._records(death_id)})
+
+    def _sync_draft(self, death_id, answers, project_id=None, client_draft_id=None):
+        project_id = project_id or self.REQUIRED
+        now = datetime.now(UTC).isoformat()
+        answers_json = json.dumps(answers, separators=(",", ":"))
+        return self.client.post(f"{INTAKE}/drafts/sync", json={
+            "project_id": project_id, "site_id": self.SITE_REQ if project_id == self.REQUIRED else self.SITE_PLAIN,
+            "death_id": death_id, "client_draft_id": str(client_draft_id or uuid.uuid4()),
+            "draft": {"currentSection": "consented"},
+            "answers_json": answers_json, "answers_sha256": hashlib.sha256(answers_json.encode()).hexdigest(),
+            "savedAt": now, "deviceClockAt": now, "base_updated_at": None,
+        }, headers=self._csrf_headers())
+
+    def _synced_answers(self, death_id):
+        draft = db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(death_id), VaWebIntakeDraft.status == "draft")).one()
+        db.session.refresh(draft)
+        return {k: v for sec in draft.sections for k, v in sec.data.items()}
+
+    def test_draft_sync_drops_covered_answers_without_a_granted_consent_on_file(self):
+        # The submit path refuses these (422 consent_required); an in-progress save is stripped instead, so a
+        # phone saving before its consent is uploaded is not refused and no covered data is stored.
+        death_id = self._register().get_json()["case"]["death_id"]
+        response = self._sync_draft(death_id, _answers(Id10007="Ram", Id10061="Hari"))
+        self.assertEqual(response.status_code, 200, response.get_json())
+        stored = self._synced_answers(death_id)
+        self.assertEqual(stored["Id10017"], "Bina")  # present: the rest of the answers are kept
+        self.assertNotIn("Id10007", stored)
+        self.assertNotIn("Id10061", stored)
+
+    def test_draft_sync_keeps_covered_answers_under_a_granted_registration_consent(self):
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        self.assertEqual(self._sync_draft(death_id, _answers(Id10007="Ram")).status_code, 200)
+        self.assertEqual(self._synced_answers(death_id)["Id10007"], "Ram")
+
+    def test_draft_sync_drops_covered_answers_under_a_refused_registration_consent(self):
+        death_id = self._register(consent=self._consent(decision="refused")).get_json()["case"]["death_id"]
+        self.assertEqual(self._sync_draft(death_id, _answers(Id10007="Ram")).status_code, 200)
+        stored = self._synced_answers(death_id)
+        self.assertIn("Id10017", stored)
+        self.assertNotIn("Id10007", stored)
+
+    def test_a_stripped_sync_is_stored_in_full_when_resent_after_consent(self):
+        death_id = self._register().get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        answers = _answers(Id10007="Ram")
+        self.assertEqual(self._sync_draft(death_id, answers, client_draft_id=attempt).status_code, 200)
+        stored = self._synced_answers(death_id)
+        self.assertEqual(stored["Id10017"], "Bina")
+        self.assertNotIn("Id10007", stored)
+        # The consent reaches the server later (the final upload's, or the registration's) ...
+        consent_service.record_consent(
+            self.interviewer, project_id=self.REQUIRED, death=self._death(death_id),
+            consent=self._consent(), client_draft_id=None, channel="device")
+        db.session.commit()
+        # ... and the same save sent again is no no-op: it is stored in full and the flag clears.
+        self.assertEqual(self._sync_draft(death_id, answers, client_draft_id=attempt).status_code, 200)
+        self.assertEqual(self._synced_answers(death_id)["Id10007"], "Ram")
+        draft = db.session.scalars(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.death_id == uuid.UUID(death_id), VaWebIntakeDraft.status == "draft")).one()
+        self.assertNotIn("stripped", draft.meta["lastSync"])
+
+    def test_a_partial_consent_drops_only_the_fields_it_does_not_cover(self):
+        consent_service.create_notice_version(self.base_admin_user, self.REQUIRED, {
+            "language": "en", "text": "Notice v2", "purposes": PURPOSES, "allowed_modes": ["spoken"],
+            "covered_fields": [*consent_service.DEFAULT_COVERED_FIELDS, "Id10008"],
+        })
+        db.session.commit()
+        # The v1 consent on file covers Id10007 but not the v2-only Id10008.
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        self.assertEqual(self._sync_draft(death_id, _answers(Id10007="Ram", Id10008="parent")).status_code, 200)
+        stored = self._synced_answers(death_id)
+        self.assertEqual(stored["Id10007"], "Ram")
+        self.assertNotIn("Id10008", stored)
+
+    def test_draft_sync_in_a_project_without_consent_settings_keeps_everything(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        self.assertEqual(self._sync_draft(death_id, _answers(Id10007="Ram"), self.PLAIN).status_code, 200)
+        self.assertEqual(self._synced_answers(death_id)["Id10007"], "Ram")
 
     def test_project_without_consent_settings_uploads_as_today(self):
         death_id = self._register(self.PLAIN, informant_name="Ram").get_json()["case"]["death_id"]
@@ -791,6 +871,45 @@ class ConsentApiTests(BaseTestCase):
             "project_id": self.REQUIRED, "site_id": self.SITE_REQ, "death_id": death_id})
         draft_id = started.get_json()["draft"]["draft_id"]
         self.assertEqual(self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").get_json()["decision"], "granted")
+
+    def _save_draft(self, draft_id, answers):
+        return self.client.patch(f"{INTAKE}/drafts/{draft_id}", headers=self._csrf_headers(),
+                                 json={"sections": {"main": answers}})
+
+    def _saved_answers(self, draft_id):
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        return {k: v for sec in draft.sections for k, v in sec.data.items()}
+
+    def test_a_browser_draft_save_drops_covered_answers_without_a_granted_consent(self):
+        draft_id = self._direct_draft()
+        response = self._save_draft(draft_id, _answers(Id10007="Ram", Id10061="Hari"))
+        self.assertEqual(response.status_code, 200, response.get_json())
+        saved = self._saved_answers(draft_id)
+        self.assertEqual(saved["Id10017"], "Bina")  # present: the rest is kept
+        self.assertNotIn("Id10007", saved)
+        self.assertNotIn("Id10061", saved)
+
+    def test_a_browser_draft_save_keeps_covered_answers_after_a_granted_consent(self):
+        draft_id = self._direct_draft()
+        self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 201)
+        self.assertEqual(self._save_draft(draft_id, _answers(Id10007="Ram")).status_code, 200)
+        self.assertEqual(self._saved_answers(draft_id)["Id10007"], "Ram")
+        # and the submit that follows is unchanged
+        self.assertEqual(self._submit(draft_id, _answers(Id10007="Ram")).status_code, 201)
+
+    def test_a_browser_draft_save_drops_covered_answers_after_a_refusal(self):
+        draft_id = self._direct_draft()
+        self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
+        self.assertEqual(self._save_draft(draft_id, _answers(Id10007="Ram")).status_code, 200)
+        saved = self._saved_answers(draft_id)
+        self.assertIn("Id10017", saved)
+        self.assertNotIn("Id10007", saved)
+
+    def test_a_browser_draft_save_in_a_project_without_consent_keeps_everything(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(draft_id, _answers(Id10007="Ram")).status_code, 200)
+        self.assertEqual(self._saved_answers(draft_id)["Id10007"], "Ram")
 
     def test_a_project_without_consent_needs_no_decision(self):
         draft_id = self._direct_draft(self.PLAIN)

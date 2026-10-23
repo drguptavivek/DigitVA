@@ -470,6 +470,34 @@ def apply_interview_consent(user, *, project_id: str, death, client_draft_id: uu
          values=answers, channel=channel)
 
 
+def strip_unconsented_answers(*, project_id: str, death, client_draft_id: uuid.UUID | None,
+                              answers: dict) -> tuple[dict, bool]:
+    """In-progress saves (``POST /intake/drafts/sync`` and the browser
+    ``PATCH /intake/drafts/<id>``): *answers* with the covered fields removed
+    unless the gate would take them; returns ``(answers, stripped)``.
+
+    A draft save carries no ``consent`` object (that travels with the final
+    upload), so the gate runs on what is on file: the attempt's own consent,
+    else the case's registration consent. Where the gate would refuse the
+    covered fields are dropped instead of the save refused: a phone saving a
+    draft before its consent is uploaded must not fail, and no covered data is
+    stored without a granted consent on file. ``consent_invalid`` (a granted
+    consent whose notice version does not cover some fields) drops only the
+    fields it names; ``consent_required`` and ``consent_conflict`` drop every
+    covered field. The phone keeps its own copy and sends the fields with the
+    final upload, where ``gate`` decides again. *stripped* is False, and
+    *answers* is returned itself, when nothing is dropped.
+    """
+    try:
+        gate(None, project_id=project_id, death=death, client_draft_id=client_draft_id, consent=None,
+             values=answers, channel="device")
+        return answers, False
+    except ConsentError as exc:
+        drop = set(exc.fields) if exc.code == "consent_invalid" else (_required_covered_fields(project_id) or set())
+        kept = {name: value for name, value in answers.items() if name not in drop}
+        return kept, len(kept) != len(answers)
+
+
 # ---------------------------------------------------------------------------
 # Management (admin, project PI, project data manager; browser only)
 # ---------------------------------------------------------------------------

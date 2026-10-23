@@ -39,6 +39,7 @@ import {
   cleanRegistration,
   getRegistration,
   getRegistrationRefusal,
+  keepRegistrationConsentForCase,
   localToday,
   MAX_REGISTRATION_AGE,
   registrationAgeInfoIssue,
@@ -49,6 +50,19 @@ import {
   type RegistrationFields,
 } from "../cases";
 import { getMeta, setMeta, type Db } from "../drafts";
+import type { ProjectConsentConfig } from "../consent";
+import {
+  coveredFieldsOf,
+  getConsentConfig,
+  getRegistrationConsent,
+  registrationConsentGate,
+  saveRegistrationConsent,
+  storedConsent,
+  withoutCovered,
+  type StoredConsent,
+} from "../consentStore";
+import { sendRefusal } from "../unsentWork";
+import { RespondentConsentPanel } from "../web/StationConsentPanel";
 import { t, uiLocale, type StringKey } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { platformServices } from "../platform";
@@ -378,6 +392,9 @@ export default function Register() {
   const [ageConfirmationStartAfter, setAgeConfirmationStartAfter] =
     useState(false);
   const [busy, setBusy] = useState(false);
+  // Informant details need a granted consent decision (docs/policy/respondent-consent-notice-draft.md, "Phone flow").
+  const [consentConfig, setConsentConfig] = useState<ProjectConsentConfig | undefined>();
+  const [consent, setConsent] = useState<StoredConsent | undefined>();
   const registrationId = useRef(randomUUID());
   const registrationOnly = account?.collection_access !== true;
   const editing = params.clientDeathId;
@@ -554,6 +571,7 @@ export default function Register() {
           setAgeConfirmationStartAfter(restored.ageConfirmationStartAfter === true);
         }
         if (persistable) hydrated.current = true;
+        setConsent(serverDeathId ? undefined : await getRegistrationConsent(handle, editing ?? registrationId.current));
         const nextProjectId =
           serverProjectId ??
           existing?.project_id ??
@@ -581,6 +599,8 @@ export default function Register() {
               setIdErrors(refused);
               setMessage(t("serverValidation"));
             }
+            const last = await sendRefusal(handle, existing.client_death_id);
+            if (last?.message) setMessage(last.message);
           }
           setFields(existing.fields);
           setBirthMode(birthModeFor(existing.fields));
@@ -657,6 +677,16 @@ export default function Register() {
     return () => { active = false; };
   }, [db, account?.user_id, projectId]);
 
+  useEffect(() => {
+    if (!db || !projectId) {
+      setConsentConfig(undefined);
+      return undefined;
+    }
+    let active = true;
+    void getConsentConfig(db, projectId).then((config) => { if (active) setConsentConfig(config); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [db, projectId]);
+
   if (!account) return <Redirect href="/" />;
   if (registrationOnly && editing) return <Redirect href="/worklist" />;
   if (!isUnlocked(account.user_id)) {
@@ -680,6 +710,37 @@ export default function Register() {
     setAgeConfirmationStartAfter(false);
   };
   const idShown = idTypes.length > 0 && (!serverDeathId || idEditable);
+
+  // Informant details: closed until a decision is recorded; a granted one opens them, a refusal keeps them empty.
+  const covered = coveredFieldsOf(consentConfig);
+  const informantNames = new Set<string>(covered);
+  const consentGate = registrationConsentGate(consentConfig);
+  const decision = consent?.envelope.decision;
+  const informantFilled = (name: string) => ((fields as unknown as Record<string, string | undefined>)[name] ?? "").trim() !== "";
+  const informantEntered = serverDeathId
+    ? covered.some((name) => informantFilled(name) &&
+        ((fields as unknown as Record<string, string | undefined>)[name] ?? "") !== ((serverBase.current as unknown as Record<string, string | undefined> | undefined)?.[name] ?? ""))
+    : covered.some(informantFilled);
+  // A new registration always needs consent for informant details (the station rule); a correction to a server
+  // registration only where the project requires it (the server refuses it otherwise).
+  const needsConsent = informantEntered && decision !== "granted" && (!serverDeathId || consentConfig?.consent_required === true);
+  const informantOpen = decision === "granted" || Boolean(serverDeathId) || (informantEntered && !consent);
+  const clientDeathIdForConsent = editing ?? registrationId.current;
+
+  async function recordConsent(envelope: import("../consent").ConsentRecordEnvelope) {
+    if (!db || !account || !consentConfig) return;
+    const record = storedConsent(envelope, consentConfig, account.user_id);
+    if (!serverDeathId) await saveRegistrationConsent(db, clientDeathIdForConsent, record);
+    setConsent(record);
+    if (envelope.decision === "refused") setFields((current) => withoutCovered(current, covered));
+    setMessage("");
+  }
+
+  // The stored decision stays until a new one replaces it: a queued registration still holds the informant's
+  // details, and deleting it would let them upload with no decision. Saving without a new one is blocked (needsConsent).
+  function changeConsent() {
+    setConsent(undefined);
+  }
 
   const setFieldIssue = (field: Field, issue?: StringKey) => {
     setErrors((current) =>
@@ -802,6 +863,10 @@ export default function Register() {
       setMessage(t("registerFixErrors"));
       return;
     }
+    if (needsConsent) {
+      setMessage(t("consentNeededBeforeSave"));
+      return;
+    }
     if (!confirmAge && registrationNeedsAgeConfirmation(fields)) {
       setAgeConfirmationPending(true);
       setAgeConfirmationStartAfter(startAfter);
@@ -811,6 +876,8 @@ export default function Register() {
     setAgeConfirmationStartAfter(false);
     if (startAfter && !canStartInterview) return;
     const clientDeathId = editing ?? registrationId.current;
+    // A refusal (or no decision) never saves the informant's details.
+    const registrationToSave = decision === "granted" || serverDeathId ? fields : withoutCovered(fields, covered);
     const operation = ++operationGeneration.current;
     const current = () => operationIsCurrent(operation, account.user_id);
     setBusy(true);
@@ -829,6 +896,7 @@ export default function Register() {
           router.back();
           return;
         }
+        if (consent && covered.some((name) => name in changes)) changes.consent = consent.envelope;
         const corrected = await patchNativeDeathRegistration(account.user_id, serverDeathId, changes, serverUpdatedAt.current);
         if (!current()) return;
         serverBase.current = registrationFieldsFromCase(corrected);
@@ -837,13 +905,16 @@ export default function Register() {
         return;
       }
       if (!canStartInterview) {
-        await postNativeDeathRegistration(account.user_id, {
+        const registered = await postNativeDeathRegistration(account.user_id, {
           project_id: projectId,
           site_id: target.siteId,
           ...(target.orgUnitId ? { org_unit_id: target.orgUnitId } : {}),
-          ...cleanRegistration(fields),
+          ...cleanRegistration(registrationToSave),
           client_death_id: clientDeathId,
+          ...(consent ? { consent: consent.envelope } : {}),
         });
+        // Its interviews reuse the decision (as acknowledgeRegistration does for a queued registration).
+        await keepRegistrationConsentForCase(db, clientDeathId, registered.death_id);
         if (persistable) {
           await clearInProgress(db);
           hydrated.current = false;
@@ -863,7 +934,7 @@ export default function Register() {
         client_death_id: clientDeathId,
         site_id: target.siteId,
         org_unit_id: target.orgUnitId ?? null,
-        fields: cleanRegistration(fields),
+        fields: cleanRegistration(registrationToSave),
       });
       if (persistable) {
         await clearInProgress(db);
@@ -899,7 +970,13 @@ export default function Register() {
       } else {
         const refused = identifierFieldErrors(error);
         if (Object.keys(refused).length) setIdErrors(refused);
-        setMessage(error instanceof ApiError && error.status === 422 ? t("serverValidation") : t("registerSaveFailed"));
+        if (error instanceof ApiError && error.status === 422 && error.code?.startsWith("consent_")) {
+          // The decision was unusable (or missing): ask again.
+          setConsent(undefined);
+          setMessage(t("consentNeededBeforeSave"));
+        } else {
+          setMessage(error instanceof ApiError && error.status === 422 ? t("serverValidation") : t("registerSaveFailed"));
+        }
       }
     } finally {
       if (current()) setBusy(false);
@@ -907,6 +984,8 @@ export default function Register() {
   }
 
   async function discard(handle: Db) {
+    await handle.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${registrationId.current}`]);
+    setConsent(undefined);
     await clearInProgress(handle);
     setFields({ deceased_name: "", deceased_sex: "", date_of_death: "" });
     setBirthMode("exact");
@@ -1048,7 +1127,26 @@ export default function Register() {
         ))}
       </Row>
       {errorFor("deceased_sex")}
-      {TEXT_FIELDS.slice(2).map(renderTextField)}
+      {TEXT_FIELDS.slice(2).filter((field) => !informantNames.has(field.name)).map(renderTextField)}
+      {consent ? (
+        <Row>
+          <Text style={styles.muted} testID="respondent-consent-recorded">{t(decision === "granted" ? "consentRecordedGranted" : "consentRecordedRefused")}</Text>
+          {!serverReadOnly ? <Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={changeConsent} /> : null}
+        </Row>
+      ) : consentGate.state === "ask" && !serverReadOnly && (!serverDeathId || needsConsent) ? (
+        <RespondentConsentPanel
+          config={consentGate.config}
+          language={uiLocale()}
+          clientDraftId={null}
+          busy={busy}
+          makeId={randomUUID}
+          onDecision={(envelope) => void recordConsent(envelope)}
+        />
+      ) : consentGate.state === "unavailable" && !serverDeathId ? (
+        <Text style={styles.muted} testID="informant-no-notice">{t("consentInformantNoNotice")}</Text>
+      ) : null}
+      {!informantOpen && !consent && consentGate.state === "ask" ? <Text style={styles.muted} testID="informant-closed">{t("consentInformantClosed")}</Text> : null}
+      {informantOpen ? TEXT_FIELDS.slice(2).filter((field) => informantNames.has(field.name)).map(renderTextField) : null}
       {idShown ? (
         <IdentifierFields
           types={idTypes}

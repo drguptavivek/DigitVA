@@ -8,8 +8,10 @@ import {
   type RegisteredDeathPage,
 } from "./api";
 import { authedRequest, refreshAccessSummaryForAction } from "./auth";
+import type { ConsentRecordEnvelope } from "./consent";
 
-export type RegistrationChanges = Partial<Omit<RegistrationInput, "project_id" | "site_id" | "org_unit_id">>;
+/** `consent`: the respondent's decision for informant details (contract 5.3, `client_draft_id` null). */
+export type RegistrationChanges = Partial<Omit<RegistrationInput, "project_id" | "site_id" | "org_unit_id">> & { consent?: ConsentRecordEnvelope };
 
 export interface RegistrationCase {
   death_id: string;
@@ -57,7 +59,7 @@ export async function getNativeRegisteredDeaths(
 /** Submit one online registration and reject an interview-shaped response. */
 export async function postNativeDeathRegistration(
   userId: string,
-  input: RegistrationInput & { client_death_id: string },
+  input: RegistrationInput & { client_death_id: string; consent?: ConsentRecordEnvelope },
 ): Promise<{ death_id: string; unique_id: string }> {
   const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths`, {
     method: "POST",

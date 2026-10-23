@@ -18,7 +18,12 @@
  * Each item is deleted once the server acknowledges it. A 422 reopens it for
  * editing (a draft goes back to in progress; a registration or action is
  * marked needs_edit); a 404/409 on an action also marks it needs_edit, since
- * it can no longer apply and would be refused on every sync. Also the
+ * it can no longer apply and would be refused on every sync. A 409 on an
+ * interview holds it (upload_issue case_conflict) until the interviewer
+ * sends it again; the server's reason is kept per item (src/unsentWork.ts)
+ * and shown. A respondent consent decision travels with the registration
+ * and with the interview it was taken for; a refusal strips the covered
+ * answers from what is sent (src/consentStore.ts). Also the
  * per-interviewer reference data (access-scoped organization units, form
  * options, prefill policy and translations), cached in that interviewer's own
  * database and wiped with it. A validated superseded acknowledgement is
@@ -71,6 +76,7 @@ import {
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
 import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
+import { consentFor, deleteDraftConsent, getRegistrationConsent, loadConsents, markInheritedConsentRefused, refreshConsentConfig, withoutCovered } from "./consentStore";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
 import {
@@ -286,6 +292,10 @@ export async function uploadQueuedWork(
   for (const reg of await listRegistrations(db)) {
     if (reg.state !== "pending") continue;
     try {
+      // The consent decision taken for the informant details travels with the registration (contract 5.4);
+      // a refusal never sends them.
+      const consent = await getRegistrationConsent(db, reg.client_death_id);
+      const fields = consent?.envelope.decision === "refused" ? withoutCovered(reg.fields, consent.covered_fields) : reg.fields;
       const { body } = await authedRequest<{ case: CaseDetail }>(userId, `${INTAKE_API}/deaths`, {
         method: "POST",
         body: {
@@ -293,7 +303,8 @@ export async function uploadQueuedWork(
           client_death_id: reg.client_death_id,
           site_id: reg.site_id,
           ...(reg.org_unit_id ? { org_unit_id: reg.org_unit_id } : {}),
-          ...reg.fields
+          ...fields,
+          ...(consent ? { consent: consent.envelope } : {})
         }
       });
       if (!isCaseDetail(body?.case) || body.case.project_id !== reg.project_id) throw new Error("invalid_case_detail");
@@ -309,6 +320,8 @@ export async function uploadQueuedWork(
       // interviewer, never resent by the next sync.
       if (isDemoLimit(refused)) await setRegistrationState(db, reg.client_death_id, "needs_edit");
       if (refused.status === 422) {
+        // An unusable consent decision is dropped so the registration screen asks again.
+        if (refused.code?.startsWith("consent_")) await db.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${reg.client_death_id}`]);
         const numbers = identifierFieldErrors(refused);
         if (Object.keys(numbers).length) await setRegistrationRefusal(db, reg.client_death_id, numbers);
         await setRegistrationState(db, reg.client_death_id, "needs_edit");
@@ -342,6 +355,7 @@ export async function uploadQueuedWork(
     }
   }
 
+  const consents = await loadConsents(db);
   draftLoop: for (const item of await completedDrafts(db)) {
     if (!item.project_id) continue;
     try {
@@ -359,7 +373,14 @@ export async function uploadQueuedWork(
       continue;
     }
     if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
-    const answersJson = JSON.stringify(item.draft.data);
+    // A refusal (this interview's, or its registration's) never sends the covered answers, so the hash covers
+    // only what is sent. A decision taken for this interview travels with it (contract 5.3).
+    const applied = consentFor(consents, item);
+    const sentData = applied?.record.envelope.decision === "refused" && item.draft.data
+      ? withoutCovered(item.draft.data, applied.record.covered_fields)
+      : item.draft.data;
+    const sentDraft = sentData === item.draft.data ? item.draft : { ...item.draft, data: sentData };
+    const answersJson = JSON.stringify(sentData);
     let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
     try {
       const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
@@ -371,10 +392,11 @@ export async function uploadQueuedWork(
           site_id: item.site_id,
           ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
           ...(item.death_id ? { death_id: item.death_id } : {}),
-          draft: { ...item.draft, deviceClockAt: localDateTimeWithOffset() },
+          draft: { ...sentDraft, deviceClockAt: localDateTimeWithOffset() },
           answers_json: answersJson,
           answers_sha256: answersHash,
-          completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] }
+          completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] },
+          ...(applied?.own ? { consent: applied.record.envelope } : {})
         })
       });
       let acknowledgement;
@@ -447,14 +469,25 @@ export async function uploadQueuedWork(
       await clearSendError(db, item.id);
       sent += 1;
     } catch (error) {
-      // A per-draft refusal (409/413/422) keeps that draft and moves on; a
-      // 422 (the interview as it stands) also reopens it for editing.
+      // A per-draft refusal (409/413/422) keeps that draft and moves on, with the server's reason stored by
+      // noteSendError for the Interviews card and the form. A 422 (the interview as it stands) also reopens it
+      // for editing; a refused consent is dropped so the form asks again. A 409 (the case is closed, already
+      // submitted or changed) is held until the interviewer retries or discards it: never retried on its own,
+      // and never deleted, since this row is the only copy of the answers.
       await noteSendError(db, item.id, error);
       const refused = refusal(error);
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, item.project_id, refused);
-      if (refused.status === 422 && refused.code !== "answers_hash_invalid") await reopenDraft(db, item.id);
-      // Final until the interviewer asks again (retryDemoLimitDraft): sync skips it.
+      if (refused.status === 422 && refused.code !== "answers_hash_invalid") {
+        // Its own decision is dropped; an inherited one (the registration's) is shared, so only this draft is told to ask again.
+        if (refused.code?.startsWith("consent_")) {
+          if (applied?.own) await deleteDraftConsent(db, item.id);
+          else await markInheritedConsentRefused(db, item.id);
+        }
+        await reopenDraft(db, item.id);
+      }
+      if (refused.status === 409) await setDraftUploadIssue(db, item.id, "case_conflict");
+      // Final until the interviewer asks again (retryHeldDraft): sync skips it.
       if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
       failed += 1;
     }
@@ -677,6 +710,7 @@ export async function refreshCases(
     await replaceCases(db, project.project_id, details);
     all.push(...details);
     await refreshIdentifierTypes(userId, db, project.project_id);
+    await refreshConsentConfig(userId, db, project.project_id);
   }
   return all;
 }

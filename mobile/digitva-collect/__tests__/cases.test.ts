@@ -339,7 +339,8 @@ describe("sync queue", () => {
       "/api/v1/intake/outstanding",
       "/api/v1/intake/cases",
       `/api/v1/intake/cases/${DEATH}`,
-      "/api/v1/intake/identifier-types"
+      "/api/v1/intake/identifier-types",
+      "/api/v1/intake/consent-config"
     ]);
     expect(calls.find((c) => path(c).endsWith("/deaths"))?.body).toMatchObject({ client_death_id: REG, site_id: "S1", org_unit_id: "u1", ...fields });
     expect(calls.find((c) => path(c).endsWith("/attempts"))?.body).toEqual({ client_attempt_id: ATTEMPT, outcome: "reached" });

@@ -608,7 +608,7 @@ export function stripInformantPiiOnRefusal<T extends Record<string, unknown>>(
   return clone as T;
 }
 
-function normaliseProjectConsentConfig(raw: unknown): ProjectConsentConfig | null {
+export function normaliseProjectConsentConfig(raw: unknown): ProjectConsentConfig | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
   if (typeof obj.consent_required !== "boolean") return null;

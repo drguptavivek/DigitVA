@@ -9,7 +9,7 @@ const mockAccount = {
   collection_access: true,
   registration_access: true,
 };
-const mockDb = { getFirstAsync: jest.fn(async () => null) };
+const mockDb = { getFirstAsync: jest.fn(async () => null), getAllAsync: jest.fn(async () => []), runAsync: jest.fn(async () => ({ changes: 0 })) };
 const mockDeathRegistrationAccess = {
   user: mockAccount,
   is_admin: false,
@@ -47,6 +47,7 @@ let mockCachedCases: unknown[] = [];
 let mockSubmittedRevisions: unknown[] = [];
 let mockLocalRevisions: unknown[] = [];
 let mockFormProps: Record<string, unknown> = {};
+let mockConsentProps: Record<string, unknown> | undefined;
 let mockLockVersion = 0;
 let mockObservedLockVersion = 0;
 let mockDefinitionResponse: { body: string; sha256: string } | undefined;
@@ -203,6 +204,7 @@ jest.mock("../src/drafts", () => ({
     remove: jest.fn(),
   })),
   markCompleted: jest.fn(),
+  stripDraftCovered: jest.fn(async () => undefined),
 }));
 jest.mock("../src/revisions", () => ({
   fetchSubmittedRevisions: jest.fn(async () => mockSubmittedRevisions),
@@ -390,6 +392,12 @@ jest.mock("../src/ui", () => {
     }),
   };
 });
+jest.mock("../src/web/StationConsentPanel", () => ({
+  RespondentConsentPanel: (props: Record<string, unknown>) => {
+    mockConsentProps = props;
+    return (jest.requireActual("react") as typeof React).createElement("section", { "data-consent-panel": true });
+  },
+}));
 jest.mock("../src/platform", () => ({ platformServices: {} }));
 jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
 jest.mock(
@@ -442,6 +450,8 @@ import {
   syncInterviewer,
 } from "../src/sync";
 import { saveRegistration } from "../src/cases";
+import { getMeta, setMeta } from "../src/drafts";
+import { computeUtf8Sha256HexSync } from "../src/consent";
 
 /** The rendered tree as JSON without the FlatList's own `data` prop, which repeats every row's fields. */
 const dump = (tree: ReturnType<typeof create>) =>
@@ -1639,10 +1649,10 @@ describe("immersive interview form", () => {
   it("runs Save now, Finish as incomplete and Back through their handlers", async () => {
     const tree = await open();
     const saveDraft = jest.fn(async () => undefined);
-    const validate = jest.fn(() => ({ valid: false, issues: [], data: {} }));
+    const validate = jest.fn(() => ({ valid: false, issues: [], data: { Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } }));
     await act(async () => {
       (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
-      (mockFormProps.onReady as (s: unknown) => void)({ validate });
+      (mockFormProps.onReady as (s: unknown) => void)({ validate, getSnapshot: () => ({ data: {} }) });
     });
     await choose(tree, "saveNow");
     await settle();
@@ -1665,6 +1675,169 @@ describe("immersive interview form", () => {
     expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "errGeneric" });
     await act(async () => { (mockFormProps.onDraftSaved as () => void)(); });
     expect(tree.root.findAll((n) => n.props.accessibilityLabel === "saveStateSaved").length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("respondent consent in the interview form", () => {
+  const FORM_ID = "44444444-4444-4444-8444-444444444444";
+  const NOTICE = "Notice";
+  const consentConfig = (required = true) => ({
+    project_id: "P1", consent_required: required, refusal_behaviour: "interview_without_informant_data",
+    notice_versions: [{
+      notice_version_id: "n1", version: 1, language: "en", text: NOTICE, text_sha256: computeUtf8Sha256HexSync(NOTICE),
+      purposes: [{ code: "a", label: "A", required: true }], covered_fields: ["Id10007"], allowed_modes: ["spoken"], witness_allowed: false,
+    }],
+  });
+  const stored = (decision: "granted" | "refused") => ({
+    envelope: { client_id: "c1", decision, client_draft_id: null }, project_id: "P1", covered_fields: ["Id10007"], recorded_by: "u1",
+  });
+  const setup = (config: unknown, rows: Array<{ key: string; value: unknown }> = []) => {
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) => (key === "consentConfig" ? config : undefined));
+    mockDb.getAllAsync.mockImplementation((async (_sql: string, params: string[]) =>
+      rows.filter((row) => row.key.startsWith(String(params[0]).replace("%", "")))
+        .map((row) => ({ key: row.key, value: JSON.stringify(row.value) }))) as never);
+  };
+  const open = async () => {
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: FORM_ID };
+    mockConsentProps = undefined;
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+    return tree;
+  };
+  afterEach(() => {
+    (jest.requireMock("../src/cases").resolveDraftHost as jest.Mock).mockResolvedValue({ projectId: "P1", siteId: "S1", binding: {}, prefill: undefined });
+    (jest.requireMock("../src/cases").getRegistration as jest.Mock).mockResolvedValue(undefined);
+    (getMeta as jest.Mock).mockReset().mockResolvedValue(undefined);
+    mockDb.getAllAsync.mockReset().mockResolvedValue([] as never);
+  });
+
+  it("shows the consent screen, not the questionnaire, until a decision is recorded; granted is stored and opens the form unlocked", async () => {
+    setup(consentConfig());
+    const tree = await open();
+    expect(mockConsentProps).toMatchObject({ clientDraftId: FORM_ID, language: "en" });
+    expect(mockFormProps.instrument).toBeUndefined();
+    const envelope = { client_id: "c1", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "granted" };
+    await act(async () => { (mockConsentProps!.onDecision as (e: unknown) => void)(envelope); });
+    await settle();
+    expect(setMeta).toHaveBeenCalledWith(expect.anything(), `consent:draft:${FORM_ID}`, expect.objectContaining({ envelope, covered_fields: ["Id10007"], recorded_by: "u1", project_id: "P1" }));
+    expect(mockFormProps.instrument).toBeTruthy();
+    expect(mockFormProps.lockedQuestionNames ?? []).toEqual([]);
+    await act(async () => tree.unmount());
+  });
+
+  it("under a refusal locks the covered questions and drops covered answers a saved draft holds", async () => {
+    setup(consentConfig());
+    const tree = await open();
+    await act(async () => {
+      (mockConsentProps!.onDecision as (e: unknown) => void)({ client_id: "c1", client_draft_id: FORM_ID, notice_version_id: "n1", decision: "refused" });
+    });
+    await settle();
+    expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
+    // The stored draft and its prefill lose the covered answers at once, not only the copy in memory.
+    expect(jest.requireMock("../src/drafts").stripDraftCovered).toHaveBeenCalledWith(expect.anything(), FORM_ID, ["Id10007"]);
+    const replaceData = jest.fn();
+    const saveDraft = jest.fn(async () => undefined);
+    await act(async () => {
+      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
+      (mockFormProps.onReady as (s: unknown) => void)({ getSnapshot: () => ({ data: { Id10007: "Asha", Id10013: "yes" } }), replaceData });
+    });
+    expect(replaceData).toHaveBeenCalledWith({ Id10013: "yes" });
+    expect(saveDraft).toHaveBeenCalledTimes(1); // persisted
+    await act(async () => tree.unmount());
+  });
+
+  it("reuses a decision already on file (its registration's) and asks nothing", async () => {
+    (jest.requireMock("../src/cases").resolveDraftHost as jest.Mock).mockResolvedValue({
+      projectId: "P1", siteId: "S1", binding: { projectId: "P1", clientDeathId: "reg-1" }, prefill: undefined,
+    });
+    setup(consentConfig(), [{ key: "consent:reg:reg-1", value: stored("granted") }]);
+    const tree = await open();
+    expect(mockConsentProps).toBeUndefined();
+    expect(mockFormProps.instrument).toBeTruthy();
+    expect(mockFormProps.lockedQuestionNames ?? []).toEqual([]);
+    await act(async () => tree.unmount());
+  });
+
+  it("asks nothing where the project does not require consent, and locks the covered questions with a reason when the settings are not on the phone", async () => {
+    setup(consentConfig(false));
+    let tree = await open();
+    expect(mockConsentProps).toBeUndefined();
+    expect(mockFormProps.lockedQuestionNames ?? []).toEqual([]);
+    await act(async () => tree.unmount());
+
+    setup(undefined);
+    tree = await open();
+    expect(mockConsentProps).toBeUndefined();
+    // The server's whole covered list, the family and address answers included.
+    expect(mockFormProps.lockedQuestionNames).toEqual(expect.arrayContaining(
+      ["Id10007", "informant_name", "father_name", "mother_name", "Id10055", "Id10057", "Id10061", "Id10062"]));
+    expect(tree.root.findAll((n) => n.props.testID === "consent-unavailable").length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("shows a stored refusal at the top with the Fix line and jumps to its section; a consent refusal opens the consent screen", async () => {
+    const refusal = { ref: "HTTP 422 invalid_interview", status: 422, message: "Record the name, date of death and sex of the deceased before submitting.", fields: ["Id10019"], at: "2026-10-23T10:15:00Z" };
+    setup(consentConfig(false), [{ key: `senderr:${FORM_ID}`, value: refusal }]);
+    const servedInstrument = mockResolvedDefinition.instrument;
+    mockResolvedDefinition.instrument = { ...mockServedInstrument, sections: [{ name: "start", label: { en: "Identity" } }], questions: [{ name: "Id10019", label: { en: "Sex" }, sectionPath: ["start"] }] } as never;
+    const tree = await open();
+    mockResolvedDefinition.instrument = servedInstrument;
+    const banner = tree.root.findAll((n) => n.props.testID === "refusal-banner")[0];
+    expect(banner).toBeTruthy();
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Record the name, date of death and sex of the deceased before submitting.");
+    expect(text).toContain("Identity › Sex (Id10019)");
+    expect(text).toContain("Ref: HTTP 422 invalid_interview");
+    const goTo = jest.fn();
+    await act(async () => { (mockFormProps.onReady as (s: unknown) => void)({ getSnapshot: () => ({ data: {} }), goToSection: goTo }); });
+    await act(async () => { tree.root.findAll((n) => n.props["data-label"] === "refusalGoToSection")[0].props.onClick(); });
+    expect(goTo).toHaveBeenCalledWith("start");
+    await act(async () => tree.unmount());
+  });
+
+  it("asks again when the server refused the decision this interview inherited from its registration", async () => {
+    (jest.requireMock("../src/cases").resolveDraftHost as jest.Mock).mockResolvedValue({
+      projectId: "P1", siteId: "S1", binding: { projectId: "P1", clientDeathId: "reg-1" }, prefill: undefined,
+    });
+    setup(consentConfig(), [{ key: "consent:reg:reg-1", value: stored("granted") }]);
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) =>
+      key === "consentConfig" ? consentConfig() : key === `consentRefused:${FORM_ID}` ? true : undefined);
+    const tree = await open();
+    expect(mockConsentProps).toMatchObject({ clientDraftId: FORM_ID });
+    expect(mockFormProps.instrument).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
+
+  it("shows every pre-send issue at once, in the server's order", async () => {
+    setup(consentConfig(false));
+    const tree = await open();
+    await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "refused" } }); });
+    await settle();
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("preOutcomeConflictsConsent");
+    expect(text).toContain("preIdentityMissing");
+    expect(text.indexOf("preOutcomeConflictsConsent")).toBeLessThan(text.indexOf("preIdentityMissing"));
+    await act(async () => tree.unmount());
+  });
+
+  it("keeps an interview a draft, with the server's message, when the pre-send checks fail", async () => {
+    setup(consentConfig(false));
+    const tree = await open();
+    const saveDraft = jest.fn(async () => undefined);
+    await act(async () => {
+      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
+      (mockFormProps.onReady as (s: unknown) => void)({ getSnapshot: () => ({ data: {} }) });
+    });
+    await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes" } }); });
+    await settle();
+    expect(jest.requireMock("../src/drafts").markCompleted).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("preIdentityMissing");
+    await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } }); });
+    await settle();
+    expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 });

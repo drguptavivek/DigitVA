@@ -125,6 +125,7 @@ export function SyncSheet() {
         <View key={item.key} testID="sync-item" style={{ paddingVertical: spacing.xxs }}>
           <Text style={{ ...typography.body, color: ui.popoverForeground }}>{`${t(`unsentKind_${item.kind}`)}: ${item.title}`}</Text>
           <Text style={{ ...typography.caption, color: item.state === "attention" ? ui.destructiveText : ui.mutedForeground }}>{t(`unsentState_${item.state}`)}</Text>
+          {item.reason ? <Text style={{ ...typography.caption, color: ui.destructiveText }}>{t("refusalNotAccepted", { reason: item.reason })}</Text> : null}
           {item.error ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{t("unsentRef", { ref: item.error })}</Text> : null}
         </View>
       ))}

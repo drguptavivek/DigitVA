@@ -6,6 +6,7 @@ import { ApiError, INTAKE_API } from "./api";
 import { authedRequest } from "./auth";
 import type { CaseDetail } from "./cases";
 import { canStartDeathInterview } from "./deathWorkflow";
+import { consentFor, loadConsents, withoutCovered } from "./consentStore";
 import { draftForCase, getDraftPrefill, getDraftRow, localDateTimeWithOffset, type Db, type DeviceTimedDraft, type DraftRow, type DraftSyncItem } from "./drafts";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 
@@ -240,6 +241,7 @@ function normalizedEnvelope(
   prefill?: Record<string, unknown>,
   startedAt?: string,
   createdAt?: string,
+  covered: readonly string[] = [],
 ): DeviceTimedDraft {
   if (!UUID_RE.test(localId) || envelope.instrumentId !== defaults.instrumentId) {
     throw new Error("server_draft_instrument_mismatch");
@@ -257,7 +259,7 @@ function normalizedEnvelope(
     currentSection: envelope.currentSection || defaults.currentSection,
     createdAt: createdAt ?? envelope.createdAt ?? server.created_at,
     updatedAt: server.updated_at,
-    data: { ...draftPrefillAnswers(prefill), ...envelope.data }
+    data: withoutCovered({ ...draftPrefillAnswers(prefill), ...envelope.data }, covered)
   };
   const decoded = decodeWhoVaDraft(merged);
   return {
@@ -271,6 +273,12 @@ function normalizedEnvelope(
       : {}),
     ...definitionPinFields(envelope),
   };
+}
+
+/** The fields a recorded refusal (the draft's own or its registration's) keeps off the server and out of the stored copy. */
+async function refusedCovered(db: Db, item: Pick<DraftSyncItem, "id" | "death_id" | "client_death_id">): Promise<string[]> {
+  const applied = consentFor(await loadConsents(db), item);
+  return applied?.record.envelope.decision === "refused" ? applied.record.covered_fields : [];
 }
 
 function prefillFromStored(value: unknown): Record<string, unknown> {
@@ -322,7 +330,8 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
       draftId: item.id
     };
   }
-  const answersJson = JSON.stringify(draft.data);
+  const covered = await refusedCovered(db, item);
+  const answersJson = JSON.stringify(withoutCovered(draft.data, covered));
   let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
   const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/drafts/sync`, {
     method: "POST",
@@ -396,7 +405,8 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
       { instrumentId: draft.instrumentId, instrumentVersion: draft.instrumentVersion, currentSection: draft.currentSection },
       prefill,
       draft.startedAt,
-      draft.createdAt
+      draft.createdAt,
+      covered
     );
     envelope = JSON.stringify(merged);
     savedAt = server.updated_at;
@@ -455,7 +465,8 @@ async function storeServerWinner(
     defaults,
     prefill,
     localDraft.startedAt,
-    localDraft.createdAt
+    localDraft.createdAt,
+    await refusedCovered(db, local)
   );
   const result = await db.runAsync(`UPDATE drafts SET envelope = ?, updated_at = ?,
       server_draft_id = ?, base_updated_at = ?, draft_sync_dirty = 0

@@ -121,8 +121,9 @@ function addDeceased(data: SubmissionData, deceased: WhoVaDeceasedPrefill | unde
 function addLocation(data: SubmissionData, location: WhoVaLocationPrefill | undefined): void {
   const formattedLocation = formatLocation(location);
   if (!formattedLocation) return;
-  data.Id10051 = "yes";
-  data.Id10057 = formattedLocation;
+  // Usual residence only: place of death (Id10057) is never prefilled
+  // (owner decision 2026-10-23); Id10051 comes from the form default.
+  data.Id10055 = formattedLocation;
 }
 
 /**

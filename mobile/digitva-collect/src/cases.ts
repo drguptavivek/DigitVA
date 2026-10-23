@@ -311,6 +311,20 @@ export async function getRegistrationRefusal(db: Db, clientDeathId: string): Pro
 }
 
 /**
+ * The registration's consent decision now belongs to the server case: its interviews reuse it
+ * (src/consentStore.ts). One transaction, so a crash never leaves the decision on both keys or neither.
+ */
+export async function keepRegistrationConsentForCase(db: Db, clientDeathId: string, deathId: string): Promise<void> {
+  await runInTransaction(db, async (tx) => {
+    await tx.runAsync("INSERT OR REPLACE INTO meta (key, value) SELECT ?, value FROM meta WHERE key = ?", [
+      `consent:death:${deathId}`,
+      `consent:reg:${clientDeathId}`
+    ]);
+    await tx.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${clientDeathId}`]);
+  });
+}
+
+/**
  * The server acknowledged a registration as `row`. Dependants are rebound
  * first, then the registration is deleted, then the case stored: if the app
  * dies in between, the registration is resent, answered 200 with the same
@@ -333,6 +347,7 @@ export async function acknowledgeRegistration(db: Db, clientDeathId: string, row
   ]);
   await db.runAsync("DELETE FROM registrations WHERE client_death_id = ?", [clientDeathId]);
   await db.runAsync("DELETE FROM meta WHERE key = ?", [refusalKey(clientDeathId)]);
+  await keepRegistrationConsentForCase(db, clientDeathId, row.death_id);
   if (isActiveCaseState(row.state)) await upsertCase(db, row);
   else await deleteCase(db, row.project_id, row.death_id);
 }
@@ -341,6 +356,7 @@ export async function acknowledgeRegistration(db: Db, clientDeathId: string, row
 export async function discardRegistration(db: Db, clientDeathId: string): Promise<void> {
   await db.runAsync("DELETE FROM case_actions WHERE client_death_id = ? AND death_id IS NULL", [clientDeathId]);
   await db.runAsync("DELETE FROM registrations WHERE client_death_id = ?", [clientDeathId]);
+  await db.runAsync("DELETE FROM meta WHERE key = ?", [`consent:reg:${clientDeathId}`]);
 }
 
 // ---------------------------------------------------------------------------
@@ -560,6 +576,13 @@ export function cleanRegistration(fields: RegistrationFields): RegistrationField
   return clean as unknown as RegistrationFields;
 }
 
+/** Id10055: the unit's "code name" first, then the registration's address (the server's own order);
+ * a case prefill from the server already starts with the unit, so it is not repeated. */
+export function joinResidence(unit: string, registration: string | undefined): string {
+  if (!registration || registration.startsWith(unit)) return registration ?? unit;
+  return `${unit}; ${registration}`;
+}
+
 /**
  * The prefill for an interview on a registration the server has not seen
  * yet: the deceased's identity and the informant's and parents' names,
@@ -604,16 +627,17 @@ export function prefillFromRegistration(
     }
   }
   // Keep this in the same order as web_intake_service._case_address. The
-  // offline registration has no organization path, so the available address
-  // is both the usual residence (Id10055) and death location (Id10057).
+  // address (else remarks) is the usual residence (Id10055); the unit's code and name are
+  // joined in by mergeProjectPrefill. Place of death (Id10057) and Id10051
+  // are not prefilled (form default; owner decision 2026-10-23).
   const address = [fields.address_house_street, fields.address_village_ward, fields.address_landmark, fields.address]
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part))
     .join(", ");
-  if (address) {
-    answers.Id10051 = "yes";
-    answers.Id10055 = address;
-    answers.Id10057 = address;
+  // No address: the registration's remarks (the server does the same).
+  const residence = address || fields.remarks?.trim();
+  if (residence) {
+    answers.Id10055 = residence;
   }
   if (fields.informant_name?.trim()) answers.Id10007 = fields.informant_name.trim();
   if (fields.father_name?.trim()) answers.Id10061 = fields.father_name.trim();

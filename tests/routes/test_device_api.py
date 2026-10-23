@@ -2028,7 +2028,7 @@ class DeviceApiTests(BaseTestCase):
         draft = intake_svc.start_draft(self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID,
                                        org_unit_id=str(p1.org_unit_id))
         self.assertEqual(policy["units"][str(p1.org_unit_id)]["answers"], draft.prefill["answers"])
-        self.assertEqual(draft.prefill["answers"]["Id10057"], "Unit D1, Unit P1")
+        self.assertEqual(draft.prefill["answers"]["Id10055"], "P1 Unit P1")
 
     def test_project_id_selects_another_authorized_project(self):
         _device, tokens = self._session()

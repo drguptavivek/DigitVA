@@ -3027,6 +3027,7 @@
       "constraintMessage": {},
       "control": "singleChoice",
       "dataType": "string",
+      "defaultValue": "yes",
       "guidance": {
         "en": "<span style=\"color:blue\">The project site will determine if this information should be collected. If you choose \"NO\", you will skip details about the place of residence, education, and family. If you select \"YES\", proceed with the next question. Site programmers may make this question hidden to the interviewers.</span>"
       },
@@ -3140,6 +3141,7 @@
       "constraintMessage": {},
       "control": "text",
       "dataType": "string",
+      "defaultValue": "-",
       "guidance": {
         "en": "<span style=\"color:blue\">Record the reported ethnicity. Do not probe too much if the respondent is uncomfortable. Enter “-“, if this information is not available or if the respondent is not happy to report the ethnicity. </span>"
       },
@@ -33945,5 +33947,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-503d5dd1bb"
+  "version": "2026081401-09bfef9a99"
 }

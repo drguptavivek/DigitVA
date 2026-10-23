@@ -1065,5 +1065,19 @@
   "unsentState_attention": "Needs attention",
   "unsentRef": "Ref: {ref}",
   "appLanguageSwitch": "App language: switch to {language}",
-  "questionnaireLanguage": "Questionnaire language"
+  "questionnaireLanguage": "Questionnaire language",
+  "preIdentityMissing": "Record the name, date of death and sex of the deceased before submitting.",
+  "preConsentUnanswered": "The consent question (Id10013) must be answered.",
+  "preOutcomeConflictsConsent": "Consent is recorded as yes, but the interview outcome says refused. Change one of them.",
+  "preVisitNoteMissing": "A refusal with no identity needs a visit note: record the visit address and the visit date.",
+  "refusalNotAccepted": "Not accepted: {reason}",
+  "refusalNotAcceptedNoReason": "Not accepted by the server.",
+  "refusalCaseConflict": "Held: the server cannot take this interview (its case is closed, already submitted or changed). Send again to try once more, or ask your supervisor.",
+  "refusalGoToSection": "Go to the question",
+  "refusalBannerTitle": "This interview was not accepted",
+  "retryHeld": "Send again",
+  "consentUnavailableInterview": "Consent settings for this project are not on this phone yet, or there is no consent notice. The respondent's name, phone and address stay empty. Sync, then reopen the interview.",
+  "consentRecordedForInterview": "Consent decision recorded for this interview.",
+  "consentInformantNoNotice": "This project has no consent notice on this phone, so informant details cannot be recorded. Sync to load it.",
+  "consentNeededBeforeSave": "Record the respondent's consent decision before entering the informant's name, phone or address."
 }

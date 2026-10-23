@@ -1,4 +1,4 @@
-import { prefillFromRegistration, type RegistrationFields } from "../src/cases";
+import { joinResidence, prefillFromRegistration, type RegistrationFields } from "../src/cases";
 import { initialDataFromPrefill } from "../src/prefill";
 
 jest.mock(
@@ -50,13 +50,24 @@ describe("offline registration WHO prefill", () => {
     address: " Kandaghat "
   };
 
-  it("maps local address parts to residence and death location in server order", () => {
-    expect(prefillFromRegistration(fields).answers).toMatchObject({
-      Id10051: "yes",
-      Id10055: "House 12, Ward 4, Near the well, Kandaghat",
-      Id10057: "House 12, Ward 4, Near the well, Kandaghat",
-      Id10007: "Sita Verma"
-    });
+  it("maps local address parts to residence only, in server order", () => {
+    const answers = prefillFromRegistration(fields).answers;
+    expect(answers).toMatchObject({ Id10055: "House 12, Ward 4, Near the well, Kandaghat", Id10007: "Sita Verma" });
+    expect(answers).not.toHaveProperty("Id10057");
+    expect(answers).not.toHaveProperty("Id10051");
+  });
+
+  it("uses the remarks as the residence when no address is registered", () => {
+    const blank = { ...fields, address_house_street: " ", address_village_ward: "", address_landmark: undefined, address: "" };
+    expect(prefillFromRegistration({ ...blank, remarks: " Lives by the river " }).answers?.Id10055).toBe("Lives by the river");
+    expect(prefillFromRegistration(blank).answers).not.toHaveProperty("Id10055");
+    expect(prefillFromRegistration({ ...fields, remarks: "ignored" }).answers?.Id10055).toBe("House 12, Ward 4, Near the well, Kandaghat");
+  });
+
+  it("puts the unit code and name before the registration address, once", () => {
+    expect(joinResidence("PHC06 PHC name 2", "Kandaghat")).toBe("PHC06 PHC name 2; Kandaghat");
+    expect(joinResidence("PHC06 PHC name 2", "PHC06 PHC name 2; Kandaghat")).toBe("PHC06 PHC name 2; Kandaghat");
+    expect(joinResidence("PHC06 PHC name 2", undefined)).toBe("PHC06 PHC name 2");
   });
 
   it("preserves partial birth precision and can apply cached interviewer identity", () => {

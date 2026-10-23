@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-22
+last_updated: 2026-10-24
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -223,6 +223,93 @@ the WHO answers `Id10007`, `Id10055`, `Id10057`, `Id10061`, `Id10062`).
   the recording device and the recording user. Records are append-only.
 - **Later.** Withdrawal (supervisor or data manager, with erasure and audit)
   is not built yet.
+
+## Phone flow (native Expo app; owner 2026-10-22, `digitva-0vgh`)
+
+The phone follows the station rule: **informant details always need a granted
+consent against a notice the project serves**, whatever the project's
+"Require respondent consent" switch says. A project with no notice cannot
+record informant details on the phone.
+
+- **Cached settings.** Each sync fetches `GET /intake/consent-config` per
+  project and keeps it, notice texts (every language), purposes, covered
+  fields and `consent_required`, in the interviewer's encrypted store with
+  the other reference data. A failed fetch keeps the old copy. The consent
+  screen needs only that copy, so it works offline. A notice whose
+  `text_sha256` does not match its text, or a config with an unknown
+  `refusal_behaviour`, is treated as no usable notice; there is no fallback
+  to a built-in text (the unprovisioned sandbox project excepted).
+- **Registration.** The informant name, phone and address fields stay closed
+  until a decision is recorded on the registration screen: the notice in the
+  app language (switchable), one toggle per purpose, how consent was given
+  and whether a witness was present, then "Respondent agrees" (every required
+  purpose on) or "Respondent refuses". Granted opens the fields; refused
+  keeps them closed and empty. With no usable notice the fields stay closed
+  with the reason shown. The decision is stored on the phone (id, notice
+  version, language, SHA-256, decision, purposes, mode, witness, time,
+  signed-in user) and sent as `consent` (`client_draft_id` null) with the
+  registration (`POST /intake/deaths`), whether queued offline or sent at
+  once. A newly entered informant field on an edit of a server registration
+  needs a granted decision on the same screen.
+- **Interview.** Where the project requires consent and the notice is usable,
+  a new or resumed interview with no decision on file for it shows the same
+  screen before the questionnaire opens; no decision on file means no
+  decision stored on the phone for this interview and none for its
+  registration (a registration made on this phone with a decision is reused,
+  no second asking). A downloaded case's server-side consent is not visible
+  to the phone (the case reply carries no consent status), so the phone asks
+  once for that interview and the server keeps the newest decision. The
+  decision is stored with the interview and sent as `consent` naming the
+  interview's `client_draft_id` with `POST /intake/submissions`.
+- **Refusal.** The covered fields (the version's `covered_fields`, for example
+  the respondent's name `Id10007`) are locked empty in the questionnaire and
+  removed from what is sent (the answers and the stored copy of the draft),
+  so the answers hash covers only what was sent. Registration informant
+  fields are cleared and closed. Where the project requires consent but has no
+  usable notice, the same lock applies with the reason shown.
+- **In-progress sync.** A refusal on file (the interview's or its
+  registration's) also keeps the covered fields out of `POST /drafts/sync`,
+  out of a server version stored back on the phone, and out of the stored
+  draft and its prefill the moment the refusal is recorded. The server does
+  the same on its own: `POST /intake/drafts/sync` carries no `consent`, so it
+  runs `consent_service.gate` against the consent on file and, where the gate
+  would refuse, **strips** the covered fields from the stored draft instead
+  of refusing the sync (a phone saving before its consent is uploaded must
+  not fail; the final `/submissions` upload decides again with the phone's
+  full answers). Decisions inherited from the registration cover the draft.
+- **A refused inherited decision.** On 422 `consent_*` the interview's own
+  decision is dropped; a decision inherited from the registration is shared
+  and stays, and the draft is flagged so its form asks for a new
+  interview-level decision.
+- **What the server checks** (`consent_service.gate`): 422 `consent_required`
+  (covered data without a granted consent), `consent_conflict` (covered data
+  under a refusal), `consent_invalid` (unknown notice version, hash, language,
+  purposes or mode). The phone shows the server's message; `consent_required`
+  reopens the consent screen for that item; the item is never retried
+  unchanged.
+- **Not on the phone.** Withdrawal, and any change of a recorded decision
+  after it has been sent (web, supervisor or data manager).
+
+## In-progress saves (owner 2026-10-24)
+
+No covered data is stored without a granted consent on file, in any save of
+an unfinished interview. `consent_service.strip_unconsented_answers` runs the
+gate on the consent on file (the attempt's own, else the case's registration
+consent) and drops the covered fields instead of refusing the save:
+
+- **Phone** `POST /intake/drafts/sync` and **browser** `PATCH
+  /intake/drafts/<id>` (every section of the save) behave the same. The web
+  interview records consent before the covered questions open, so a covered
+  answer saved after a granted decision is kept; in a project that does not
+  require consent nothing is stripped.
+- `consent_required` and `consent_conflict` drop every covered field of the
+  project. `consent_invalid` (a granted consent whose notice version does not
+  cover some fields) drops only the fields it names.
+- A phone sync that was stripped is marked `lastSync.stripped`; the same save
+  sent again (same answers hash) is not a no-op while the mark is set, so once
+  consent is on file it is stored in full and the mark clears.
+- The final upload (`/submissions`, `/drafts/<id>/submit`) still refuses
+  covered answers without consent (422), as above.
 
 ## Contact variables
 

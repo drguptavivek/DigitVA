@@ -105,6 +105,10 @@ class UniversalWhoVaSession implements WhoVaSession {
       this.data[name] = value;
     }
     for (const question of instrument.questions) {
+      // Literal defaults only (not XLSForm ${...} references); prefill and
+      // saved answers win because the key is already present.
+      if (question.defaultValue && !question.defaultValue.includes("${") && this.data[question.name] == null)
+        this.data[question.name] = question.defaultValue;
       if (question.sourceType === "today" && this.data[question.name] == null)
         this.data[question.name] = formatLocalDate(startedAt);
       if (question.sourceType === "start" && this.data[question.name] == null)

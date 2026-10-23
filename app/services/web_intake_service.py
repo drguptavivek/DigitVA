@@ -1414,13 +1414,10 @@ def _who_place_of_death(text: str | None) -> str | None:
     return None
 
 
-def _org_path_names(org_unit_id: uuid.UUID | None) -> list[str]:
-    """Unit names from the tree root down to the unit (active units only),
-    e.g. ["India", "Himachal Pradesh", "Solan", "Kandaghat"]. One query."""
-    unit = db.session.get(MasOrgUnit, org_unit_id) if org_unit_id else None
-    if unit is None:
-        return []
-    return [row["unit_name"] for row in org.list_units_by_codes(unit.project_id, str(unit.path).split("."))]
+def _unit_label(unit: MasOrgUnit | None) -> str:
+    """The unit's own code and name, e.g. "PHC06 PHC name 2" (Id10055's
+    prefill, owner decision 2026-10-23); "" without a unit."""
+    return f"{unit.unit_code} {unit.unit_name}" if unit is not None else ""
 
 
 _ADDRESS_ATTRS = ("address_house_street", "address_village_ward", "address_landmark", "address")
@@ -1461,7 +1458,7 @@ def _interviewer_age(user: VaUsers) -> int | None:
 
 
 def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None,
-                        unit_parts: tuple[dict, list[str]] | None = None) -> dict:
+                        unit_parts: tuple[dict, str] | None = None) -> dict:
     """The draft's prefill, per the map in docs/policy/web-intake.md.
 
     ``deceased`` and ``interviewer`` go through the package's
@@ -1485,9 +1482,8 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
     its date of birth and age win (``_sync_case_identity``). An exact date
     of birth sends no age (the form calculates it).
 
-    ``unit_parts`` is the unit's ``(presets, org path
-    names)`` already resolved for a batch (``prefill_policy``); without it
-    both are queried here.
+    ``unit_parts`` is the unit's ``(presets, unit label)`` already resolved
+    for a batch (``prefill_policy``); without it both are queried here.
     """
     interviewer: dict = {"name": user.name, "id": str(user.user_id)}
     age = _interviewer_age(user)
@@ -1509,22 +1505,19 @@ def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_i
         presets = unit_parts[0] if unit_parts else org_grant_service.resolve_va_presets(org_unit_id)
         answers.update(presets)
         locked.update(presets)
-    org_path = ", ".join(unit_parts[1] if unit_parts else _org_path_names(org_unit_id))
+    unit_label = (unit_parts[1] if unit_parts
+                  else _unit_label(db.session.get(MasOrgUnit, org_unit_id) if org_unit_id else None))
     # Opened once (one unwrap for a sealed row); the sealed columns are NULL.
     register = (register_pii_accessor.current_values(death, (
-        *_ADDRESS_ATTRS, *PREFILL_ANSWER_FIELDS.values(), *PREFILL_LOCKED_FIELDS, "deceased_name"))
+        *_ADDRESS_ATTRS, *PREFILL_ANSWER_FIELDS.values(), *PREFILL_LOCKED_FIELDS, "deceased_name", "remarks"))
         if death is not None else {})
-    address = _case_address(register) if death is not None else ""
-    # Id10057 in prefill.ts's location format: "path; address".
-    place = "; ".join(part for part in (org_path, address) if part)
-    residence = address or org_path
-    if place:
-        answers["Id10057"] = place
+    # No registered address: the registration's remarks say where the person lived.
+    address = (_case_address(register) or (register["remarks"] or "").strip()) if death is not None else ""
+    # Id10055 (usual residence): "<unit code> <unit name>; <address or remarks>". Place of
+    # death (Id10057) is never prefilled; Id10051 comes from the form default.
+    residence = "; ".join(part for part in (unit_label, address) if part)
     if residence:
         answers["Id10055"] = residence
-    if place or residence:
-        # Id10055/Id10057 are asked only when Id10051 = yes.
-        answers["Id10051"] = "yes"
     if death is not None:
         for name, field in PREFILL_ANSWER_FIELDS.items():
             value = register[field]
@@ -3672,13 +3665,21 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         raise WebIntakeError("death_id is required.")
     now = _utcnow()
     draft = start_draft(user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id, death_id=death_id)
+    # No covered answer is stored without a granted consent on file (the gate of /submissions); the hash
+    # stays the phone's, so a resend of the same save is still recognised below.
+    from app.services import consent_service  # local: consent_service imports this module
+
+    data, stripped = consent_service.strip_unconsented_answers(
+        project_id=draft.project_id, death=db.session.get(VaDeathRegister, draft.death_id),
+        client_draft_id=client_draft_id, answers=data)
     meta = draft.meta or {}
     last = meta.get("lastSync") or {}
     cid = str(client_draft_id)
     # The phone's own earlier version, untouched since: the same draft
-    # continuing, never a conflict.
+    # continuing, never a conflict. A stripped earlier sync is not a no-op
+    # resend: once consent is on file the same hash stores the full answers.
     from_phone = draft.answers_sha256 is not None and last.get("clientDraftId") == cid
-    if from_phone and draft.answers_sha256 == answers_sha256:
+    if from_phone and draft.answers_sha256 == answers_sha256 and not last.get("stripped"):
         return _sync_reply(draft, "incoming", bool(last.get("conflict")))
     has_content = bool(draft.sections)
     effective = min(now, now - (clock - saved))
@@ -3687,7 +3688,10 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
     phone_won = draft.answers_sha256 is not None and meta.get("effectiveSavedAt")
     current = datetime.fromisoformat(meta["effectiveSavedAt"]) if phone_won else draft.updated_at
     conflict = has_content and not from_phone and (base is None or base != draft.updated_at)
-    if has_content and (conflict or from_phone):
+    redo_stripped = from_phone and draft.answers_sha256 == answers_sha256
+    if redo_stripped:
+        incoming_wins = True
+    elif has_content and (conflict or from_phone):
         incoming_wins = effective >= current
     else:
         incoming_wins = True
@@ -3711,7 +3715,7 @@ def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_
         **meta, **stored,
         "effectiveSavedAt": effective.isoformat(),
         "clockSkewSeconds": round((now - clock).total_seconds()),
-        "lastSync": {"clientDraftId": cid, "conflict": conflict},
+        "lastSync": {"clientDraftId": cid, "conflict": conflict, **({"stripped": True} if stripped else {})},
     }
     section = envelope.get("currentSection")
     save_draft_sections(
@@ -3745,32 +3749,24 @@ def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:
 # Device cases (Path B phase 3, digitva-kmk.4)
 # ---------------------------------------------------------------------------
 
-def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict, list[str]]]:
-    """``{unit_id: (Id10002/Id10003 presets, org path names root first)}``
-    for ``_prefill_from_death``'s ``unit_parts``, in three queries for any
-    number of units (units, presets, one name lookup per project)."""
+def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict, str]]:
+    """``{unit_id: (Id10002/Id10003 presets, unit label)}`` for
+    ``_prefill_from_death``'s ``unit_parts``, in two queries for any number
+    of units (units, presets)."""
     if not unit_ids:
         return {}
     units = db.session.scalars(
         sa.select(MasOrgUnit).where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)))
     ).all()
     presets = org_grant_service.resolve_unit_va_presets(sorted(unit_ids))
-    codes_by_project: dict[str, set[str]] = {}
-    for unit in units:
-        codes_by_project.setdefault(unit.project_id, set()).update(str(unit.path).split("."))
-    names = {
-        project_id: {row["unit_code"]: row["unit_name"] for row in org.list_units_by_codes(project_id, codes)}
-        for project_id, codes in codes_by_project.items()
-    }
     parts = {}
     for unit in units:
-        unit_names = names[unit.project_id]
         parts[unit.org_unit_id] = (
             {
                 org_grant_service.VA_PRESET_QUESTION_NAMES[column]: entry["value"]
                 for column, entry in presets.get(unit.org_unit_id, {}).items()
             },
-            [unit_names[code] for code in str(unit.path).split(".") if code in unit_names],
+            _unit_label(unit),
         )
     return parts
 

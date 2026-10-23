@@ -707,9 +707,19 @@ def save_draft(draft_id):
     draft = intake_svc.lock_draft_for_browser_write(intake_svc.get_draft(current_user, draft_id, require_open=True))
     if p.get("if_updated_at") is not None and intake_svc.draft_is_stale(draft, p["if_updated_at"]):
         return error(intake_svc.SYNC_MESSAGE, "draft_stale", 409)
+    sections = p.get("sections") or {}
+    if isinstance(sections, dict):
+        # No covered answer is stored without a granted consent on file (as the phone sync).
+        death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+        sections = {
+            name: consent_svc.strip_unconsented_answers(
+                project_id=draft.project_id, death=death, client_draft_id=draft.client_draft_id, answers=answers,
+            )[0] if isinstance(answers, dict) else answers
+            for name, answers in sections.items()
+        }
     written = intake_svc.save_draft_sections(
         draft,
-        sections=p.get("sections") or {},
+        sections=sections,
         meta=p.get("meta") or None,
         current_section=p.get("current_section"),
         actor=current_user,

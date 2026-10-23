@@ -22,6 +22,7 @@ import {
   type WhoVaDraftController,
   type WhoVaSession,
 } from "@drguptavivek/who-2022-va/native";
+import { randomUUID } from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
@@ -35,6 +36,7 @@ import {
   resolveDraftHost,
   type DraftHost,
   type Prefill,
+  joinResidence,
 } from "../cases";
 import {
   createDraftStore,
@@ -42,6 +44,7 @@ import {
   getMeta,
   markCompleted,
   setMeta,
+  stripDraftCovered,
   type Db,
 } from "../drafts";
 import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
@@ -77,6 +80,22 @@ import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar
 import { revisionName } from "../revisionLabel";
 import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
+import { RespondentConsentPanel } from "../web/StationConsentPanel";
+import {
+  consentForDraft,
+  inheritedConsentRefused,
+  DEFAULT_COVERED_FIELDS,
+  getConsentConfig,
+  interviewConsentGate,
+  saveDraftConsent,
+  storedConsent,
+  withoutCovered,
+} from "../consentStore";
+import type { ConsentRecordEnvelope, ProjectConsentConfig } from "../consent";
+import { recordError } from "../errorLog";
+import { refusalFieldsText, refusalFirstSection } from "../refusalText";
+import { preSendIssues } from "../submissionChecks";
+import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,6 +115,11 @@ interface DraftConfig {
   instrumentCode: string;
   translationVersion?: number;
 }
+
+type ConsentView =
+  | { kind: "checking" }
+  | { kind: "ask"; config: ProjectConsentConfig }
+  | { kind: "ready"; covered: string[]; unavailable?: boolean };
 
 const draftConfigKey = (draftId: string) => `draft-config:${draftId}`;
 
@@ -208,6 +232,9 @@ function mergeProjectPrefill(
       ...(direct?.answers ?? {}),
       ...(unit?.answers ?? {}),
       ...(registration?.answers ?? {}),
+      ...(typeof unit?.answers?.Id10055 === "string" && typeof registration?.answers?.Id10055 === "string"
+        ? { Id10055: joinResidence(unit.answers.Id10055, registration.answers.Id10055) }
+        : {}),
     },
     lockedQuestionNames: [
       ...new Set([
@@ -254,6 +281,11 @@ export default function Form() {
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
   const session = useRef<WhoVaSession | undefined>(undefined);
   const loadGeneration = useRef(0);
+  // Respondent consent (docs/policy/respondent-consent-notice-draft.md, "Phone flow"): the questionnaire opens
+  // once a decision applies; a refusal (or missing settings) locks the covered questions empty.
+  const [consentView, setConsentView] = useState<ConsentView>({ kind: "checking" });
+  // Why the server (or the phone's own check) would not take this interview, shown above the questionnaire.
+  const [refusal, setRefusal] = useState<SendRefusal | undefined>();
 
   useEffect(() => {
     const generation = ++loadGeneration.current;
@@ -594,6 +626,43 @@ export default function Form() {
 
   const baseInstrument = loaded?.definition.instrument;
 
+  // The decision that applies to this interview: its own, its registration's, else the project's settings.
+  useEffect(() => {
+    setConsentView({ kind: "checking" });
+    setRefusal(undefined);
+    if (!loaded || !draftId) return undefined;
+    let live = true;
+    void (async () => {
+      const row = await getDraftRow(loaded.db, draftId);
+      const applied = await consentForDraft(loaded.db, {
+        id: draftId,
+        death_id: row?.death_id ?? loaded.binding.deathId,
+        client_death_id: row?.client_death_id ?? loaded.binding.clientDeathId,
+      });
+      const last = await sendRefusal(loaded.db, draftId);
+      // The server refused the decision this draft inherited: ask for a new attempt-level one.
+      const inheritedRefused = applied && !applied.own && await inheritedConsentRefused(loaded.db, draftId);
+      if (!live) return;
+      setRefusal(last?.message || last?.status === 422 ? last : undefined);
+      if (applied && !inheritedRefused) {
+        setConsentView({ kind: "ready", covered: applied.record.envelope.decision === "refused" ? applied.record.covered_fields : [] });
+        return;
+      }
+      const gate = interviewConsentGate(await getConsentConfig(loaded.db, loaded.projectId));
+      if (!live) return;
+      if (gate.state === "ask") setConsentView({ kind: "ask", config: gate.config });
+      else if (gate.state === "off") setConsentView({ kind: "ready", covered: [] });
+      else {
+        recordError("consent settings unavailable");
+        setConsentView({ kind: "ready", covered: gate.covered, unavailable: true });
+      }
+    })().catch(() => {
+      if (live) setConsentView({ kind: "ready", covered: [...DEFAULT_COVERED_FIELDS], unavailable: true });
+    });
+    return () => { live = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a language switch re-creates `loaded`; consent is decided once per interview
+  }, [loaded?.db, loaded?.projectId, draftId]);
+
   useEffect(() => {
     if (!loaded || !baseInstrument || !account) return;
     let active = true;
@@ -707,9 +776,14 @@ export default function Form() {
   }, [loaded, draftId, activity, lockVersion]);
 
   // A stored draft replaces these on mount (the form's restore), so they only fill a new one.
-  const initialData = useMemo(
-    () => initialDataFromPrefill(loaded?.prefill),
-    [loaded],
+  const covered = consentView.kind === "ready" ? consentView.covered : [];
+  const initialData = useMemo(() => {
+    const data = initialDataFromPrefill(loaded?.prefill);
+    return data && covered.length ? withoutCovered(data, covered) : data;
+  }, [loaded, covered]);
+  const lockedNames = useMemo(
+    () => (covered.length ? [...new Set([...(loaded?.prefill?.lockedQuestionNames ?? []), ...covered])] : loaded?.prefill?.lockedQuestionNames),
+    [loaded, covered],
   );
 
   // With the questionnaire open, a message is a toast so the form never shifts; the blocked screens below show it in place.
@@ -760,6 +834,29 @@ export default function Form() {
           label={t("cancel")}
           onPress={() => router.back()}
         />
+      </Screen>
+    );
+  }
+
+  if (consentView.kind === "checking") return <ActivityIndicator style={{ flex: 1 }} />;
+  if (consentView.kind === "ask") {
+    const config = consentView.config;
+    const recordConsent = async (envelope: ConsentRecordEnvelope) => {
+      try {
+        const record = storedConsent(envelope, config, account!.user_id);
+        await saveDraftConsent(loaded!.db, draftId!, record);
+        // A refusal takes the covered answers off the stored draft and its prefill now, not only in memory.
+        if (envelope.decision === "refused") await stripDraftCovered(loaded!.db, draftId!, record.covered_fields);
+        setConsentView({ kind: "ready", covered: envelope.decision === "refused" ? record.covered_fields : [] });
+        toast.show({ kind: envelope.decision === "refused" ? "info" : "success", text: t(envelope.decision === "refused" ? "consentRefusedInterview" : "consentRecordedForInterview") });
+      } catch (error) {
+        toast.show({ kind: "error", text: errorText(error) });
+      }
+    };
+    return (
+      <Screen title={t("consentHeading")}>
+        <RespondentConsentPanel config={config} language={locale} clientDraftId={draftId!} makeId={randomUUID} onDecision={(envelope) => void recordConsent(envelope)} />
+        <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
       </Screen>
     );
   }
@@ -818,8 +915,24 @@ export default function Form() {
       setMessage(t("finishNeedsOutcome"));
       return;
     }
+    // What the server checks on a direct start, with its messages: a failing interview stays a draft.
+    const issues = preSendIssues(result.data, {
+      valid: result.valid,
+      direct: !loaded.binding.deathId && !loaded.binding.clientDeathId,
+    });
+    if (issues.length) {
+      recordError(`precheck ${issues.map((issue) => issue.message).join(",")}`);
+      setRefusal({
+        ref: "precheck",
+        message: issues.map((issue) => t(issue.message)).join("\n"),
+        fields: [...new Set(issues.flatMap((issue) => issue.fields))],
+        at: new Date().toISOString(),
+      });
+      return;
+    }
     await controller.current?.saveDraft();
     await markCompleted(loaded.db, draftId, completion);
+    await clearSendError(loaded.db, draftId);
     router.back();
   }
 
@@ -847,6 +960,20 @@ export default function Form() {
         menuItems={menuItems}
       />
       {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1}>{t("questionnaireEnglishFallback")}</Text> : null}
+      {consentView.unavailable ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} testID="consent-unavailable">{t("consentUnavailableInterview")}</Text> : null}
+      {refusal ? (
+        <View style={[styles.card, { marginHorizontal: 16 }]} accessibilityRole="alert" testID="refusal-banner">
+          <Text style={styles.error}>{t("refusalBannerTitle")}</Text>
+          <Text style={styles.text}>{refusal.message ?? t("refusalNotAcceptedNoReason")}</Text>
+          {refusalFieldsText(refusal.fields, instrument, locale) ? (
+            <Text style={styles.muted}>{t("fixFields")} {refusalFieldsText(refusal.fields, instrument, locale)}</Text>
+          ) : null}
+          {refusal.ref !== "precheck" ? <Text style={styles.muted}>{`Ref: ${refusal.ref}${refusal.at ? ` · ${refusal.at.slice(11, 16)}Z` : ""}`}</Text> : null}
+          {refusalFirstSection(refusal.fields, instrument) ? (
+            <Button size="sm" kind="secondary" label={t("refusalGoToSection")} onPress={() => session.current?.goToSection(refusalFirstSection(refusal.fields, instrument)!)} />
+          ) : null}
+        </View>
+      ) : null}
       <Sheet
         visible={languageOpen}
         title={t("questionnaireLanguage")}
@@ -855,16 +982,14 @@ export default function Form() {
       />
       <View style={{ flex: 1 }}>
         <WhoVaForm
-          key={locale}
+          key={`${locale}:${covered.length}`}
           instrument={instrument}
           locale={locale}
           showEnglish={locale !== "en"}
           draftId={draftId}
           draftStore={draftStore}
           {...(initialData ? { initialData } : {})}
-          {...(loaded.prefill?.lockedQuestionNames
-            ? { lockedQuestionNames: loaded.prefill.lockedQuestionNames }
-            : {})}
+          {...(lockedNames ? { lockedQuestionNames: lockedNames } : {})}
           platform={platformServices}
           autoSaveDraftOnChange
           onDraftController={(next) => {
@@ -875,6 +1000,12 @@ export default function Form() {
           onReady={(next) => {
             if (loaded.accessVersion === lockVersionRef.current) {
               session.current = next;
+              // A saved draft may hold covered answers from before the refusal: they are dropped, not sent.
+              const held = next.getSnapshot().data;
+              if (covered.some((name) => name in held)) {
+                next.replaceData(withoutCovered(held, covered));
+                void controller.current?.saveDraft().catch(() => undefined);
+              }
             }
           }}
           onDraftError={() => {

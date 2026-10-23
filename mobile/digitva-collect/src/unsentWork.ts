@@ -8,6 +8,7 @@
  * `attention` with its last error and is not in the unsent count, so a Send that succeeds always brings the
  * count down. Counts are exact; the item list is capped at MAX_ITEMS.
  */
+import { ApiError } from "./api";
 import { describeError, recordError } from "./errorLog";
 import type { Db } from "./drafts";
 
@@ -33,6 +34,8 @@ export interface UnsentItem {
   state: "ready" | "waiting" | "attention";
   /** The last send error (the Ref line: status, code, route; never answers or names). */
   error?: string;
+  /** The server's fixed rule text when it refused the item (409 or 422), for the Sync sheet. */
+  reason?: string;
 }
 
 export interface WorkSummary {
@@ -46,14 +49,46 @@ export interface WorkSummary {
   items: UnsentItem[];
 }
 
-/** Remember the last send error of one item and file it in the error log. Never throws. */
+/** What the server (or the phone's own check) said about an item it would not take, kept with the item. */
+export interface SendRefusal {
+  /** The Ref line: status, code, route; never answers or names. */
+  ref: string;
+  status?: number;
+  code?: string;
+  /** The server's fixed rule text for a 409 or 422 (no answers); other statuses carry none. */
+  message?: string;
+  /** The question names the refusal points at, for the "Fix:" line. */
+  fields?: string[];
+  at: string;
+}
+
+const MAX_MESSAGE = 500;
+const MAX_FIELDS = 20;
+
+/** The refusal an error amounts to. Only a 409 or 422 contributes the server's message and fields. */
+export function refusalOf(error: unknown, now = new Date()): SendRefusal {
+  const refusal: SendRefusal = { ref: typeof error === "string" ? error : describeError(error), at: now.toISOString() };
+  if (error instanceof ApiError) {
+    refusal.status = error.status;
+    if (error.code) refusal.code = error.code;
+    if (error.status === 409 || error.status === 422) {
+      const message = error.payload?.error;
+      if (typeof message === "string" && message.trim()) refusal.message = message.trim().slice(0, MAX_MESSAGE);
+      const fields = error.payload?.fields;
+      if (Array.isArray(fields)) refusal.fields = fields.filter((name): name is string => typeof name === "string").slice(0, MAX_FIELDS);
+    }
+  }
+  return refusal;
+}
+
+/** Remember the last send error of one item and file it in the error log (Ref line only). Never throws. */
 export async function noteSendError(db: Db, id: string, error: unknown): Promise<void> {
-  const what = typeof error === "string" ? error : describeError(error);
-  recordError(`send ${what}`);
+  const refusal = refusalOf(error);
+  recordError(`send ${refusal.ref}`);
   try {
     await db.runAsync(
       "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-      [ERROR_PREFIX + id, JSON.stringify(what)],
+      [ERROR_PREFIX + id, JSON.stringify(refusal)],
     );
   } catch {
     // The error is already in the log; the item just shows no Ref.
@@ -63,6 +98,25 @@ export async function noteSendError(db: Db, id: string, error: unknown): Promise
 /** Forget an item's error once it is sent. */
 export async function clearSendError(db: Db, id: string): Promise<void> {
   await db.runAsync("DELETE FROM meta WHERE key = ?", [ERROR_PREFIX + id]);
+}
+
+/** Every item's last refusal in one read, by item id (a value kept by an older build is just its Ref line). */
+export async function sendRefusals(db: Db): Promise<Map<string, SendRefusal>> {
+  const rows = await db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM meta WHERE key LIKE ?", [`${ERROR_PREFIX}%`]);
+  const found = new Map<string, SendRefusal>();
+  for (const { key, value } of rows) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (typeof parsed === "string") found.set(key.slice(ERROR_PREFIX.length), { ref: parsed, at: "" });
+      else if (parsed && typeof parsed === "object" && typeof (parsed as SendRefusal).ref === "string") found.set(key.slice(ERROR_PREFIX.length), parsed as SendRefusal);
+    } catch { /* unreadable: no Ref */ }
+  }
+  return found;
+}
+
+/** One item's last refusal. */
+export async function sendRefusal(db: Db, id: string): Promise<SendRefusal | undefined> {
+  return (await sendRefusals(db)).get(id);
 }
 
 interface DraftRecord { id: string; unique_id: string | null; death_id: string | null; client_death_id: string | null; upload_issue: string | null; valid: number | null; outcome: string | null }
@@ -83,18 +137,15 @@ export async function summariseWork(db: Db): Promise<WorkSummary> {
               json_extract(row_json, '$.deceased_name') AS name, json_extract(row_json, '$.prefill.deceased.givenNames') AS given,
               json_extract(row_json, '$.prefill.deceased.surname') AS surname
        FROM revision_drafts ORDER BY updated_at DESC, draft_id`, []),
-    db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM meta WHERE key LIKE ?", [`${ERROR_PREFIX}%`]),
+    sendRefusals(db),
     db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM drafts WHERE completed = 0", []),
   ]);
-  const errorOf = new Map<string, string>();
-  for (const { key, value } of errors) {
-    try { errorOf.set(key.slice(ERROR_PREFIX.length), String(JSON.parse(value))); } catch { /* unreadable: no Ref */ }
-  }
   const stuckRegs = new Set(regs.filter((reg) => reg.state !== "pending").map((reg) => reg.client_death_id));
   const items: UnsentItem[] = [];
   const add = (item: Omit<UnsentItem, "error"> & { id: string; issue?: string | null }) => {
     const { id, issue, ...rest } = item;
-    items.push({ ...rest, ...((errorOf.get(id) ?? issue) ? { error: errorOf.get(id) ?? issue! } : {}) });
+    const last = errors.get(id);
+    items.push({ ...rest, ...((last?.ref ?? issue) ? { error: last?.ref ?? issue! } : {}), ...(last?.message ? { reason: last.message } : {}) });
   };
 
   for (const d of drafts) {

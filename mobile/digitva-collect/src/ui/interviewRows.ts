@@ -8,6 +8,7 @@ import { canStartDeathInterview } from "../deathWorkflow";
 import type { DraftRow } from "../drafts";
 import { t } from "../i18n";
 import { revisionName } from "../revisionLabel";
+import type { SendRefusal } from "../unsentWork";
 import type { RevisionRow, SubmittedRevisionSummary } from "../revisions";
 import { matchesSearch } from "./caseSearch";
 
@@ -42,6 +43,8 @@ export interface InterviewItem {
   lines: Array<{ text: string; tone?: "error" }>;
   /** A draft the demo limit refused: the card offers a retry beside its Resume. */
   retryDemo?: DraftRow;
+  /** The button label for retryDemo (the demo limit and a held 409 retry differ in wording). */
+  retryLabel?: string;
   search: Array<string | null | undefined>;
   updatedAt: string;
 }
@@ -53,6 +56,8 @@ export interface InterviewSources {
   onlineCases: CaseRow[];
   submitted: SubmittedRevisionSummary[];
   revisions: RevisionRow[];
+  /** The last server refusal of each local item, by draft id or client death id. */
+  refusals?: Map<string, SendRefusal>;
 }
 
 const TERMINAL_CASE_STATES = new Set(["completed", "submitted", "cancelled", "closed", "duplicate", "not_codeable"]);
@@ -101,9 +106,15 @@ export function localRevisionStatus(row: RevisionRow): string {
   }
 }
 
-const draftIssueLines = (draft: DraftRow): InterviewItem["lines"] => [
+/** "Not accepted: <the server's reason>" for an item the server refused (409 or 422), else nothing. */
+const refusalLine = (refusal: SendRefusal | undefined): InterviewItem["lines"] =>
+  refusal?.message ? [{ text: t("refusalNotAccepted", { reason: refusal.message }), tone: "error" as const }] : [];
+
+const draftIssueLines = (draft: DraftRow, refusal?: SendRefusal): InterviewItem["lines"] => [
   ...(draft.upload_issue === "answers_hash_invalid" ? [{ text: t("draftHashInvalidAttention"), tone: "error" as const }] : []),
   ...(draft.upload_issue === "demo_limit" ? [{ text: t("demoDraftLimit"), tone: "error" as const }] : []),
+  ...(draft.upload_issue === "case_conflict" ? [...refusalLine(refusal), { text: t("refusalCaseConflict"), tone: "error" as const }] : []),
+  ...(draft.upload_issue == null ? refusalLine(refusal) : []),
 ];
 
 function dateOnly(value: string | null | undefined): string | null {
@@ -133,8 +144,9 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       ageYears: known?.age, sex: known?.sex, dateOfDeath: dateOnly(known?.died), unit: known?.unit_name ?? undefined,
       badge: ready ? { label: t("draftReady"), tone: "accent" } : { label: t("badgeDraft"), tone: "warning" },
       action: ready ? undefined : { type: "resume", draft, label: t("actionResume") },
-      lines: [...(known ? caseLines(known) : []), ...draftIssueLines(draft)],
-      retryDemo: draft.upload_issue === "demo_limit" ? draft : undefined,
+      lines: [...(known ? caseLines(known) : []), ...draftIssueLines(draft, src.refusals?.get(draft.id))],
+      retryDemo: draft.upload_issue === "demo_limit" || draft.upload_issue === "case_conflict" ? draft : undefined,
+      retryLabel: draft.upload_issue === "case_conflict" ? t("retryHeld") : undefined,
       search: [known?.name, draft.unique_id, known?.unique_id, known?.unit_name, known?.village],
       updatedAt: draft.updated_at,
     });
@@ -146,7 +158,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       sex: reg.fields.deceased_sex, dateOfDeath: reg.fields.date_of_death,
       badge: { label: attention ? t("needsEdit") : t("pendingSend"), tone: attention ? "warning" : "neutral" },
       action: { type: "registration", clientDeathId: reg.client_death_id, label: t("viewDetails") },
-      lines: [], search: [reg.fields.deceased_name], updatedAt: reg.created_at,
+      lines: attention ? refusalLine(src.refusals?.get(reg.client_death_id)) : [], search: [reg.fields.deceased_name], updatedAt: reg.created_at,
     });
   }
   for (const row of src.revisions) {

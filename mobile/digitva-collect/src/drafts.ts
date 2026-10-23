@@ -54,7 +54,7 @@ export interface DraftRow {
   /** An offline registration not yet acknowledged; the draft waits for it. */
   client_death_id: string | null;
   /** A persistent upload refusal that needs interviewer attention. */
-  upload_issue?: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | null;
+  upload_issue?: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | null;
   upload_issue_unique_id?: string | null;
   /** Server draft identity is separate from the stable local submission id. */
   server_draft_id?: string | null;
@@ -481,6 +481,26 @@ export async function getDraftPrefill<T>(db: Db, id: string): Promise<T | undefi
   return row?.prefill ? (JSON.parse(row.prefill) as T) : undefined;
 }
 
+/**
+ * Remove covered answers from the stored draft and its stored prefill (a refusal was just recorded), so no
+ * copy on the phone, and nothing synced from it, holds them. Marks the draft for the next sync.
+ */
+export async function stripDraftCovered(db: Db, id: string, covered: readonly string[]): Promise<void> {
+  const row = await db.getFirstAsync<{ envelope: string; prefill: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [id]);
+  if (!row || !covered.length) return;
+  const strip = (value: unknown): unknown => (value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value).filter(([name]) => !covered.includes(name))) : value);
+  const envelope = JSON.parse(row.envelope) as { data?: unknown };
+  const prefill = row.prefill ? (JSON.parse(row.prefill) as { answers?: unknown }) : undefined;
+  if (envelope.data) envelope.data = strip(envelope.data);
+  if (prefill?.answers) prefill.answers = strip(prefill.answers);
+  await db.runAsync("UPDATE drafts SET envelope = ?, prefill = ?, draft_sync_dirty = 1 WHERE id = ?", [
+    JSON.stringify(envelope),
+    prefill ? JSON.stringify(prefill) : null,
+    id,
+  ]);
+}
+
 /** The newest local draft on a case (by server id or offline registration id), to resume instead of starting another. */
 export async function draftForCase(db: Db, key: { deathId?: string; clientDeathId?: string }): Promise<DraftRow | null> {
   if (key.deathId) {
@@ -525,7 +545,7 @@ export async function markCompleted(db: Db, id: string, completion: Completion):
 export async function setDraftUploadIssue(
   db: Db,
   id: string,
-  issue: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit",
+  issue: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict",
 ): Promise<void> {
   await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
     completed = CASE WHEN ? = 'answers_hash_invalid' THEN 0 ELSE completed END
@@ -533,13 +553,14 @@ export async function setDraftUploadIssue(
 }
 
 /**
- * The interviewer asks for a draft refused at the public demo's limit to be
- * sent again. The only way out of `demo_limit`: sync never clears it, so a
- * limit is never retried on its own.
+ * The interviewer asks for a held draft (refused at the public demo's limit,
+ * or by a 409 on its case) to be sent again. The only way out of
+ * `demo_limit` and `case_conflict`: sync never clears them, so such a
+ * refusal is never retried on its own.
  */
-export async function retryDemoLimitDraft(db: Db, id: string): Promise<void> {
+export async function retryHeldDraft(db: Db, id: string): Promise<void> {
   await db.runAsync(
-    "UPDATE drafts SET upload_issue = NULL, upload_issue_unique_id = NULL WHERE id = ? AND upload_issue = 'demo_limit'",
+    "UPDATE drafts SET upload_issue = NULL, upload_issue_unique_id = NULL WHERE id = ? AND upload_issue IN ('demo_limit', 'case_conflict')",
     [id],
   );
 }
@@ -624,12 +645,15 @@ export async function draftUniqueIds(db: Db, projectId?: string): Promise<string
 
 export async function deleteDraft(db: Db, id: string): Promise<void> {
   await db.runAsync("DELETE FROM drafts WHERE id = ?", [id]);
+  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
 }
 
 /** Delete only the exact envelope sent, preserving edits made during upload. */
 export async function deleteDraftSnapshot(db: Db, id: string, envelope: string): Promise<boolean> {
   const result = await db.runAsync("DELETE FROM drafts WHERE id = ? AND envelope = ?", [id, envelope]);
-  return !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
+  const deleted = !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
+  if (deleted) await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
+  return deleted;
 }
 
 export async function countDrafts(db: Db, projectId?: string): Promise<number> {

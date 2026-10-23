@@ -26,11 +26,15 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
 }), { virtual: true });
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
-import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, retryDemoLimitDraft, setMeta, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, retryHeldDraft, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary } from "../src/api";
 import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
+import { computeUtf8Sha256HexSync, type ConsentRecordEnvelope } from "../src/consent";
+import { consentForDraft, getConsentConfig, inheritedConsentRefused, loadConsents, refreshConsentConfig, saveDraftConsent, saveRegistrationConsent, type StoredConsent } from "../src/consentStore";
+import { pendingErrors, resetErrorLog } from "../src/errorLog";
+import { sendRefusal, summariseWork } from "../src/unsentWork";
 import { getCase, getRegistration, getRegistrationRefusal, listCases, queueAction, saveRegistration, upsertCase, type CaseDetail, type CaseRow } from "../src/cases";
 
 const SERVER = "http://10.0.2.2:8051";
@@ -866,7 +870,7 @@ describe("sync upload ordering", () => {
     await syncInterviewer(USER, db);
     await syncInterviewer(USER, db);
     expect(sends()).toBe(1);
-    await retryDemoLimitDraft(db, id);
+    await retryHeldDraft(db, id);
     expect(await getDraftRow(db, id)).toMatchObject({ completed: 1, upload_issue: null });
     await syncInterviewer(USER, db);
     expect(sends()).toBe(2);
@@ -1425,5 +1429,207 @@ describe("sync upload ordering", () => {
     server((call) => call.url.endsWith(`/cases/${DEATH}`) ? json(404, { code: "not_found" }) : json(204, null));
     await expect(fetchCaseDetail(USER, db, DEATH)).rejects.toThrow("HTTP 404 not_found");
     expect(await getCase(db, DEATH)).toBeUndefined();
+  });
+});
+
+describe("respondent consent and refusals on the phone", () => {
+  const NOTICE = "Notice text";
+  const configBody = (required = true) => ({
+    project_id: PROJECT, consent_required: required, refusal_behaviour: "interview_without_informant_data",
+    notice_versions: [{
+      notice_version_id: "nnnnnnnn-0000-4000-8000-000000000001", version: 1, language: "en", text: NOTICE,
+      text_sha256: computeUtf8Sha256HexSync(NOTICE), purposes: [{ code: "record", label: "Record", required: true }],
+      covered_fields: ["informant_name", "Id10007"], allowed_modes: ["spoken"], witness_allowed: false,
+    }],
+    contacts: {}, retention: { period_days: null, expiry_action: "erase" },
+  });
+  const envelope = (decision: "granted" | "refused", draftId: string | null): ConsentRecordEnvelope => ({
+    client_id: "cccccccc-0000-4000-8000-000000000001", client_draft_id: draftId, notice_version_id: "nnnnnnnn-0000-4000-8000-000000000001",
+    notice_language: "en", notice_sha256: computeUtf8Sha256HexSync(NOTICE), decision,
+    purposes: [{ code: "record", granted: decision === "granted" }], mode: "spoken", witness_present: false,
+    supersedes_client_id: null, recorded_at: "2026-10-23T10:00:00+05:30",
+  });
+  const record = (decision: "granted" | "refused", draftId: string | null): StoredConsent => ({
+    envelope: envelope(decision, draftId), project_id: PROJECT, covered_fields: ["informant_name", "Id10007"], recorded_by: USER,
+  });
+  const readyServer = (onSubmission: (call: Call) => Response) => server((call) => {
+    if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture());
+    if (call.url.endsWith("/submissions")) return onSubmission(call);
+    if (call.url.endsWith("/deaths")) return json(201, { case: detail() });
+    if (call.url.endsWith("/outstanding")) return json(204, null);
+    return json(200, { cases: [], next_cursor: null });
+  });
+  const complete = async (db: Db, id: string, data: SubmissionData, binding: { clientDeathId?: string; deathId?: string } = {}) => {
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE, binding: { projectId: PROJECT, ...binding } }).save(draft(id, data));
+    await markCompleted(db, id, { valid: true, issues: [] });
+  };
+  const ID = "aaaaaaaa-0000-4000-8000-000000000031";
+
+  it("keeps the project's consent settings for offline use and keeps the old copy when a refresh fails", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    server(() => json(200, configBody()));
+    await expect(refreshConsentConfig(USER, db, PROJECT)).resolves.toMatchObject({ consent_required: true });
+    server(() => { throw new TypeError("offline"); });
+    await expect(refreshConsentConfig(USER, db, PROJECT)).resolves.toBeUndefined();
+    expect(await getConsentConfig(db, PROJECT)).toMatchObject({ consent_required: true, notice_versions: [expect.objectContaining({ text: NOTICE })] });
+    server(() => json(200, { consent_required: "yes" }));
+    await refreshConsentConfig(USER, db, PROJECT);
+    expect(await getConsentConfig(db, PROJECT)).toMatchObject({ consent_required: true });
+  });
+
+  it("sends the interview's own consent in the submission body and nothing else", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "Asha" });
+    await saveDraftConsent(db, ID, record("granted", ID));
+    readyServer((call) => submissionSuccess(call));
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1 });
+    const body = calls.find(({ url }) => url.endsWith("/submissions"))!.body!;
+    expect(body.consent).toEqual(envelope("granted", ID));
+    expect(JSON.parse(body.answers_json as string)).toEqual({ Id10013: "yes", Id10007: "Asha" });
+    expect(await loadConsents(db)).toEqual(new Map());
+  });
+
+  it("under a refusal strips the covered answers from the answers, their hash and the draft sent", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "Asha", Id10019: "female" });
+    await saveDraftConsent(db, ID, record("refused", ID));
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    const body = calls.find(({ url }) => url.endsWith("/submissions"))!.body!;
+    expect(body.consent).toMatchObject({ decision: "refused", client_draft_id: ID });
+    expect(JSON.parse(body.answers_json as string)).toEqual({ Id10013: "yes", Id10019: "female" });
+    expect(body.answers_sha256).toBe(require("node:crypto").createHash("sha256").update(body.answers_json as string, "utf8").digest("hex"));
+    expect((body.draft as { data: object }).data).toEqual({ Id10013: "yes", Id10019: "female" });
+  });
+
+  it("reuses a registration's consent without sending it again, and honours its refusal", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const reg = "bbbbbbbb-0000-4000-8000-000000000031";
+    await complete(db, ID, { Id10013: "yes", Id10007: "Asha" }, { clientDeathId: reg, deathId: DEATH });
+    await db.runAsync("UPDATE drafts SET client_death_id = ?, death_id = ? WHERE id = ?", [reg, DEATH, ID]);
+    await saveRegistrationConsent(db, reg, record("granted", null));
+    expect(await consentForDraft(db, { id: ID, client_death_id: reg })).toMatchObject({ own: false });
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    const body = calls.find(({ url }) => url.endsWith("/submissions"))!.body!;
+    expect(body).not.toHaveProperty("consent");
+    expect(JSON.parse(body.answers_json as string)).toHaveProperty("Id10007", "Asha");
+
+    const second = "aaaaaaaa-0000-4000-8000-000000000032";
+    await complete(db, second, { Id10013: "yes", Id10007: "Asha" }, { clientDeathId: reg, deathId: DEATH });
+    await db.runAsync("UPDATE drafts SET client_death_id = ?, death_id = ? WHERE id = ?", [reg, DEATH, second]);
+    await saveRegistrationConsent(db, reg, record("refused", null));
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    const refusedBody = calls.find(({ url }) => url.endsWith("/submissions"))!.body!;
+    expect(refusedBody).not.toHaveProperty("consent");
+    expect(JSON.parse(refusedBody.answers_json as string)).not.toHaveProperty("Id10007");
+  });
+
+  it("sends a registration's consent with POST /deaths, strips informant fields under a refusal, and hands the decision to the case", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    const reg = "bbbbbbbb-0000-4000-8000-000000000032";
+    const fields = { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29", informant_name: "Asha" };
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: reg, site_id: SITE, fields });
+    await saveRegistrationConsent(db, reg, record("granted", null));
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    const granted = calls.find(({ url }) => url.endsWith("/deaths"))!.body!;
+    expect(granted).toMatchObject({ informant_name: "Asha", consent: envelope("granted", null) });
+    expect((await loadConsents(db)).has(`consent:death:${DEATH}`)).toBe(true);
+
+    const refusedReg = "bbbbbbbb-0000-4000-8000-000000000033";
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: refusedReg, site_id: SITE, fields });
+    await saveRegistrationConsent(db, refusedReg, record("refused", null));
+    readyServer((call) => submissionSuccess(call));
+    await syncInterviewer(USER, db);
+    const refused = calls.filter(({ url }) => url.endsWith("/deaths")).map(({ body }) => body!).find((body) => body.client_death_id === refusedReg)!;
+    expect(refused).not.toHaveProperty("informant_name");
+    expect(refused).toMatchObject({ consent: { decision: "refused", client_draft_id: null } });
+  });
+
+  it("stores a 422 refusal with the server's message, fields and Ref, reopens the draft, and shows it in the Sync summary", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes" });
+    readyServer(() => json(422, { error: "Record the name, date of death and sex of the deceased before submitting.", code: "invalid_interview", fields: ["Id10017", "Id10018", "Id10019"] }));
+    await syncInterviewer(USER, db);
+    expect(await getDraftRow(db, ID)).toMatchObject({ completed: 0, upload_issue: null });
+    const stored = await sendRefusal(db, ID);
+    expect(stored).toMatchObject({
+      status: 422, code: "invalid_interview", fields: ["Id10017", "Id10018", "Id10019"],
+      message: "Record the name, date of death and sex of the deceased before submitting.",
+    });
+    expect(stored?.ref).toContain("HTTP 422 invalid_interview POST /api/v1/intake/submissions");
+    expect(stored?.at).toMatch(/^\d{4}-/);
+    // Reopened, so the Sync sheet lists nothing for it as sendable; the card and the form read the stored refusal.
+    expect(await summariseWork(db)).toMatchObject({ unsent: 0 });
+  });
+
+  it("drops the interview's consent on a refused consent so the form asks again", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "Asha" });
+    await saveDraftConsent(db, ID, record("granted", ID));
+    readyServer(() => json(422, { error: "Respondent consent must be recorded.", code: "consent_required", fields: ["consent"] }));
+    await syncInterviewer(USER, db);
+    expect(await getDraftRow(db, ID)).toMatchObject({ completed: 0 });
+    expect(await consentForDraft(db, { id: ID })).toBeUndefined();
+    expect(await sendRefusal(db, ID)).toMatchObject({ code: "consent_required", message: "Respondent consent must be recorded." });
+  });
+
+  it("keeps the registration's decision on a refused inherited consent and tells only this draft to ask again", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes", Id10007: "Asha" }, { deathId: DEATH });
+    await setMeta(db, `consent:death:${DEATH}`, record("granted", null));
+    readyServer((call) => !call.url.endsWith("/submissions") ? json(404, { error: "x", code: "not_found" }) : json(422, { error: "Respondent consent must be recorded.", code: "consent_required", fields: ["consent"] }));
+    // The reopened draft then goes through the in-progress draft sync, which this fake server does not answer.
+    await syncInterviewer(USER, db).catch(() => undefined);
+    expect((await loadConsents(db)).has(`consent:death:${DEATH}`)).toBe(true); // shared: not deleted
+    expect(await inheritedConsentRefused(db, ID)).toBe(true);
+    expect(await getDraftRow(db, ID)).toMatchObject({ completed: 0 });
+    // Its own new decision clears the flag.
+    await saveDraftConsent(db, ID, record("granted", ID));
+    expect(await inheritedConsentRefused(db, ID)).toBe(false);
+  });
+
+  it("holds an interview refused with 409, shows why, stops retrying, keeps the answers, and sends again only when asked", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await complete(db, ID, { Id10013: "yes" });
+    let status = 409;
+    readyServer((call) => status === 409 ? json(409, { error: "This case is closed.", code: "conflict" }) : submissionSuccess(call));
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1, remaining: 1 });
+    expect(await getDraftRow(db, ID)).toMatchObject({ completed: 1, upload_issue: "case_conflict" });
+    expect(await sendRefusal(db, ID)).toMatchObject({ status: 409, message: "This case is closed." });
+    const sends = () => calls.filter(({ url }) => url.endsWith("/submissions")).length;
+    expect(sends()).toBe(1);
+    await syncInterviewer(USER, db);
+    await syncInterviewer(USER, db);
+    expect(sends()).toBe(1);
+    expect(await summariseWork(db)).toMatchObject({ unsent: 0, attention: 1, items: [expect.objectContaining({ state: "attention", reason: "This case is closed." })] });
+    status = 201;
+    await retryHeldDraft(db, ID);
+    await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1 });
+    expect(await getDraftRow(db, ID)).toBeNull();
+    expect(await sendRefusal(db, ID)).toBeUndefined();
+  });
+
+  it("files each refusal in the error log as a Ref line only", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    resetErrorLog();
+    await complete(db, ID, { Id10013: "yes" });
+    readyServer(() => json(409, { error: "A questionnaire has already been submitted for this death.", code: "conflict" }));
+    await syncInterviewer(USER, db);
+    const logged = pendingErrors().map((entry) => entry.what).join("\n");
+    expect(logged).toContain("send HTTP 409 conflict POST /api/v1/intake/submissions");
+    expect(logged).not.toContain("questionnaire");
   });
 });

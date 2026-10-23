@@ -109,11 +109,13 @@ const MODE_LABEL = { spoken: "consentModeSpoken", tap: "consentModeTap", signed:
  * records an explicit decision: agree (every required purpose on) or refuse (every purpose off).
  * The envelope (contract 5.3) goes to *onDecision*; the caller sends it to the server.
  */
-export function RespondentConsentPanel({ config, language, clientDraftId, busy, onDecision }: {
+export function RespondentConsentPanel({ config, language, clientDraftId, busy, makeId, onDecision }: {
   config: ProjectConsentConfig | null;
   language: string;
   clientDraftId: string | null;
   busy?: boolean;
+  /** The id of a new record; the phone passes expo-crypto's (Hermes has no global crypto), the browser's default is used otherwise. */
+  makeId?: () => string;
   onDecision: (envelope: ConsentRecordEnvelope) => void;
 }) {
   const styles = useUiStyles();
@@ -133,7 +135,7 @@ export function RespondentConsentPanel({ config, language, clientDraftId, busy, 
   function decide(decision: "granted" | "refused") {
     if (!notice || !chosenMode) return;
     onDecision({
-      client_id: globalThis.crypto.randomUUID(),
+      client_id: (makeId ?? (() => globalThis.crypto.randomUUID()))(),
       client_draft_id: clientDraftId,
       notice_version_id: notice.notice_version_id,
       notice_language: notice.language,

@@ -143,7 +143,7 @@ class WebIntakePrefillTests(BaseTestCase):
         leaf = units[str(self.unit.org_unit_id)]
         self.assertEqual((leaf["answers"]["Id10002"], leaf["answers"]["Id10003"]), ("high", "low"))
         self.assertTrue({"Id10002", "Id10003"} <= set(leaf["lockedQuestionNames"]))
-        self.assertTrue(leaf["answers"]["Id10057"].startswith("Himachal Pradesh, Solan"))
+        self.assertEqual(leaf["answers"]["Id10055"], "SOL Solan")
         self.assertEqual(units[str(root_id)]["answers"]["Id10002"], "high")
         self.assertNotIn("Id10003", units[str(root_id)]["answers"])
         # The device detail's prefill is the web form's for that case.
@@ -162,9 +162,11 @@ class WebIntakePrefillTests(BaseTestCase):
         self.assertNotIn("dateOfBirth", deceased)
         self.assertEqual(deceased["dateOfDeath"], (date.today() - timedelta(days=10)).isoformat())
         self.assertEqual(answers["Id10058"], "home")
-        self.assertEqual(answers["Id10057"], "Himachal Pradesh, Solan; Kandaghat, Near the temple")
-        self.assertEqual(answers["Id10055"], "Kandaghat, Near the temple")
-        self.assertEqual(answers["Id10051"], "yes")
+        # Residence: the unit's code and name, then the registered address;
+        # place of death and Id10051 are left to the form (empty / default).
+        self.assertEqual(answers["Id10055"], "SOL Solan; Kandaghat, Near the temple")
+        self.assertNotIn("Id10057", answers)
+        self.assertNotIn("Id10051", answers)
         self.assertEqual(answers["Id10007"], "Sita Sharma")
         self.assertEqual(answers["Id10061"], "Mohan Lal")
         self.assertEqual(answers["Id10062"], "Kamla Devi")
@@ -187,7 +189,7 @@ class WebIntakePrefillTests(BaseTestCase):
         prefill = self._start(self._register(abha_number="12345678901234")).prefill
         self.assertEqual(set(prefill["lockedQuestionNames"]), INTERVIEWER_LOCKS | {"abha_number"})
         self.assertEqual(prefill["answers"]["age_adult"], 64)  # present, though not locked
-        for editable in ("Id10007", "Id10051", "Id10055", "Id10057", "Id10058", "Id10061", "Id10062"):
+        for editable in ("Id10007", "Id10055", "Id10058", "Id10061", "Id10062"):
             self.assertIn(editable, prefill["answers"])
             self.assertNotIn(editable, prefill["lockedQuestionNames"])
 
@@ -220,20 +222,24 @@ class WebIntakePrefillTests(BaseTestCase):
         answers = prefill["answers"]
         for absent in ("Id10058", "Id10007", "Id10061", "Id10062"):
             self.assertNotIn(absent, answers)
-        # No address: the residence falls back to the org path.
-        self.assertEqual(answers["Id10057"], "Himachal Pradesh, Solan")
-        self.assertEqual(answers["Id10055"], "Himachal Pradesh, Solan")
+        # No address: the residence is the unit alone.
+        self.assertNotIn("Id10057", answers)
+        self.assertEqual(answers["Id10055"], "SOL Solan")
+
+    def test_remarks_stand_in_for_a_missing_address_in_the_residence(self):
+        prefill = self._start(self._register(
+            address_village_ward="", address="", remarks="  Lives by the river  ")).prefill
+        self.assertEqual(prefill["answers"]["Id10055"], "SOL Solan; Lives by the river")
+        # A registered address wins; remarks are then not used.
+        prefill = self._start(self._register(remarks="By the river")).prefill
+        self.assertEqual(prefill["answers"]["Id10055"], "SOL Solan; Kandaghat, Near the temple")
 
     # ── direct start ───────────────────────────────────────────────────────
 
-    def test_direct_start_prefills_the_org_path_and_interviewer_only(self):
+    def test_direct_start_prefills_the_unit_and_interviewer_only(self):
         prefill = self._start().prefill
         self.assertNotIn("deceased", prefill)
-        self.assertEqual(prefill["answers"], {
-            "Id10057": "Himachal Pradesh, Solan",
-            "Id10055": "Himachal Pradesh, Solan",
-            "Id10051": "yes",
-        })
+        self.assertEqual(prefill["answers"], {"Id10055": "SOL Solan"})
         self.assertEqual(set(prefill["lockedQuestionNames"]), INTERVIEWER_LOCKS)
 
     def test_prefill_applies_once_when_the_draft_is_created(self):
@@ -333,6 +339,19 @@ class WebIntakePrefillTests(BaseTestCase):
         for year, sex in (("abc", None), (1899, None), (datetime.now(UTC).year + 1, None), (None, "other")):
             with self.assertRaises(ValueError):
                 user.set_interviewer_profile(year, sex)
+
+    def test_composed_definition_defaults_are_the_owner_decision(self):
+        """Id10051 "yes" and ethnicity "-" are form defaults (applied by the
+        engine only when the answer is absent); no other residence/death-place
+        question has one."""
+        import json
+        from pathlib import Path
+
+        composed = json.loads((Path(__file__).parents[2] / "app/data/who-va-2022.composed.json").read_text())
+        defaults = {q["name"]: q.get("defaultValue") for q in composed["questions"]
+                    if q["name"] in ("Id10051", "Id10052", "Id10053", "Id10055", "Id10057")}
+        self.assertEqual(defaults, {"Id10051": "yes", "Id10052": None, "Id10053": "-",
+                                    "Id10055": None, "Id10057": None})
 
     # ── PII registry ───────────────────────────────────────────────────────
 

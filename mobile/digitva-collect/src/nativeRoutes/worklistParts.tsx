@@ -202,7 +202,7 @@ export function InterviewCard({ item, onAction, onRetryDemo }: { item: Interview
       {item.lines.map((line, index) => (
         <Text key={index} style={line.tone === "error" ? styles.error : { ...typography.subhead, color: colors.textMuted }}>{line.text}</Text>
       ))}
-      {item.retryDemo ? <Button kind="secondary" size="sm" label={t("demoDraftRetry")} onPress={() => onRetryDemo(item)} /> : null}
+      {item.retryDemo ? <Button kind="secondary" size="sm" label={item.retryLabel ?? t("demoDraftRetry")} onPress={() => onRetryDemo(item)} /> : null}
     </CaseCard>
   );
 }

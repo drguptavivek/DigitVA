@@ -168,6 +168,38 @@ reported without a log cable, the Android app keeps a small local error log.
   recipient; the app sends nothing itself. No file-sharing or zip package is a
   dependency yet, so the text itself is shared, not an attached file.
 
+## Refused uploads on the phone (native; `digitva-3nui`)
+
+Owner decision, 2026-10-23. The phone shows why the server refused an item,
+as the web does, instead of reopening it silently.
+
+- **What is kept per item** (in the encrypted store, with its last send
+  error): the HTTP status, the machine code, the server's message, the
+  question names it points at (`fields`), the Ref line and the time. The
+  message is the server's fixed rule text, never answers. The error log gets
+  the Ref line only.
+- **422 on an interview** reopens it as in progress, answers kept, and shows
+  "Not accepted: <message>" on its Interviews card and as a banner at the top
+  of the questionnaire with the web's "Fix: Section > Question (name)" line
+  and a button that jumps to the first section named. A `consent_required`
+  refusal opens the consent screen first. The refusal clears when the
+  interview is marked ready again.
+- **409 on an interview** (`conflict`, the case is closed, already submitted
+  or changed under the interviewer) is final until the interviewer acts: the
+  item is held (not counted as sendable, not retried by Send now) with the
+  server's message shown. The interview is **not** deleted: on the phone the
+  row is the only copy of the answers, so unlike the web, a refusal that says
+  "already submitted" is not treated as done. The interviewer can retry or
+  discard it from its card.
+- **Before an interview is marked ready**, the phone checks what the server
+  checks on a direct start, with the server's own messages: the deceased's
+  name (`Id10017` or `Id10018`), sex (`Id10019`) and date of death (`Id10023`,
+  or the `_a` / `_b` date when `Id10022` is yes, or the year `Id10024` when
+  the exact date is not known; the server stores 1 July of that year), skipped
+  when consent (`Id10013`) is no; and the consent question (`Id10013`) when
+  the form is complete. A failing interview stays in progress with the reason
+  and the "Fix:" line shown.
+
 ## Phone shell: header, tabs and Help
 
 Owner-approved design, 2026-10-23 (`digitva-gmt7`). The Android app has a 48 dp

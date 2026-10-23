@@ -5,6 +5,7 @@ jest.mock("@drguptavivek/who-2022-va/web", () => ({ WhoVaForm: () => null }), { 
 import { RevisionMemoryStore } from "../src/client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, getSubmittedRevisions, isIncompleteOutcome, isPartialOutcome, postRevision, revisionOutcome } from "../src/client/revisions";
 import { interviewErrorText, normalizeRevisionEnvelope, refusalFieldsText } from "../src/web/InterviewScreen";
+import { refusalFirstSection } from "../src/refusalText";
 import { ClientApiError } from "../src/client/api";
 
 function response(status: number, body: unknown): Response {
@@ -252,6 +253,12 @@ describe("refusalFieldsText", () => {
     expect(refusalFieldsText("Id10013", instrument, "en")).toBe("");
     expect(refusalFieldsText(["consent"], instrument, "en")).toBe("");
     expect(refusalFieldsText(["Id10013"], undefined, "en")).toBe("");
+  });
+  it("names the section of the first matched question, for the phone's jump button", () => {
+    expect(refusalFirstSection(["consent", "interview_outcome", "Id10013"], instrument)).toBe("outcome");
+    expect(refusalFirstSection(["Id10017"], instrument)).toBeUndefined();
+    expect(refusalFirstSection(["consent"], instrument)).toBeUndefined();
+    expect(refusalFirstSection(undefined, instrument)).toBeUndefined();
   });
   it("shows at most five matches", () => {
     const many = { sections: [], questions: Array.from({ length: 8 }, (_, i) => ({ name: `q${i}`, label: { en: `Q${i}` }, sectionPath: [] })) } as unknown as InstrumentDefinition;

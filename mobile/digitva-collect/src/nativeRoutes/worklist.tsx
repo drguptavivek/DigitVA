@@ -27,7 +27,8 @@ import {
   type CaseDetail,
   type Registration,
 } from "../cases";
-import { listDrafts, retryDemoLimitDraft, type Db, type DraftRow } from "../drafts";
+import { sendRefusals, type SendRefusal } from "../unsentWork";
+import { listDrafts, retryHeldDraft, type Db, type DraftRow } from "../drafts";
 import { t } from "../i18n";
 import { useShell } from "../nativeShell/shellContext";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -80,6 +81,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
+  const [refusals, setRefusals] = useState<Map<string, SendRefusal>>(new Map());
   const [revisions, setRevisions] = useState<RevisionRow[]>([]);
   const [submittedRevisions, setSubmittedRevisions] = useState<SubmittedRevisionSummary[]>([]);
   const [submittedRevisionsLoaded, setSubmittedRevisionsLoaded] = useState(false);
@@ -206,13 +208,14 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       current: () => boolean = () => true,
       caseFlagsAuthoritative = false,
     ) => {
-      const [d, c, r, a, localRevisions, reference] = await Promise.all([
+      const [d, c, r, a, localRevisions, reference, lastRefusals] = await Promise.all([
         listDrafts(handle),
         listCases(handle),
         listRegistrations(handle),
         listActions(handle),
         listLocalRevisions(handle),
         getCachedReferenceData(handle),
+        sendRefusals(handle),
       ]);
       const paused = await listPausedProjects(
         handle,
@@ -220,6 +223,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       );
       if (!current()) return;
       setDrafts(d);
+      setRefusals(lastRefusals);
       setRevisions(localRevisions);
       setCases(c);
       if (caseFlagsAuthoritative) {
@@ -774,6 +778,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     onlineCases: selectedProjectId ? onlineCases : [],
     submitted: visibleSubmittedRevisions,
     revisions: visibleRevisions,
+    refusals,
   });
   const summary = homeSummary(items, interviewCounts(items));
   const canRegister = Boolean(selectedProject && registersDeaths(selectedProject.project) && account.registration_access);
@@ -816,7 +821,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
 
   function retryDemo(item: InterviewItem) {
     const handle = dbRef.current;
-    if (handle && item.retryDemo) void retryDemoLimitDraft(handle, item.retryDemo.id).then(() => loadLocal(handle));
+    if (handle && item.retryDemo) void retryHeldDraft(handle, item.retryDemo.id).then(() => loadLocal(handle));
   }
 
   // Sync outcomes the old list showed under its buttons; kept as notices on both tabs.

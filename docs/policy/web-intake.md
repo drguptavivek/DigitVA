@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Web Intake Policy
@@ -1134,9 +1134,9 @@ Built 2026-09-30 (`digitva-vzk.1`, `digitva-vzk.3`) in
 | `age_group` and its age field | case `age_years` when there is no exact date of birth: 12-119 as adult (`age_adult`), 1-11 as child in years (`age_child_unit` = years, `age_child_years`); 0 is not prefilled (days or months cannot be told) | no: prefilled but editable (locked by `digitva-q219` until 2026-10-06; unlocked by `digitva-uq6v`, the interview wins on age and date of birth, see "Correcting a registered death"); nothing age-related when the case has no prefilled age |
 | `Id10022` = yes, `Id10023_a` (with a date of birth) or `Id10023_b` date of death | case | no |
 | `Id10058` where the deceased died | case `place_of_death`, mapped to WHO choices (see below) | no |
-| `Id10057` where the death occurred (country, state, district, village) | org path names of the case's unit, root first, then "; " and the case address | no |
-| `Id10055` usual residence | case address, else the same org path | no |
-| `Id10051` = yes | set whenever `Id10055` or `Id10057` is (they are asked only then) | no |
+| `Id10055` usual residence | the case unit's code and name (`PHC06 PHC name 2`), then "; " and the case address, or the registration's Remarks when it has no address (owner decisions 2026-10-23, 2026-10-24); consent-covered | no |
+| `Id10057` where the death occurred | never prefilled (empty) | no |
+| `Id10051` = yes, `Id10053` = "-" | not prefilled: form defaults, see [DigitVA form overrides](digitva-who-form-overrides.md) | no |
 | `Id10007` respondent name | case informant name | no |
 | `Id10061` / `Id10062` father's / mother's name | optional registration-form fields `father_name` / `mother_name` (`digitva-vzk.1`) | no |
 | `Id10010b` interviewer sex | user-profile `sex` (`digitva-vzk.3`) | yes, when the profile has a sex |
@@ -1198,7 +1198,7 @@ Rules as built:
   residence). No match leaves the question unanswered; never `other` by
   default.
 - **Direct start**: no case fields yet, so only the interviewer, presets,
-  and `Id10057` / `Id10055` from the org path.
+  and `Id10055` from the unit's code and name.
 - Only name, sex and date of death flow back to the case; parents' names,
   place and respondent do not.
 - `Id10061` / `Id10062` are asked for children and neonates only; an adult's

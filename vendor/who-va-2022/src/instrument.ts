@@ -110,6 +110,11 @@ export function createWhoVa2022Instrument(
       return alwaysVisibleQuestion;
     }
     if (question.name === "Id10476_audio") return { ...question, hint: {} };
+    // Owner decision 2026-10-23: new interviews start with Id10051 "yes" (so
+    // the questions it gates stay asked) and ethnicity "-". The session
+    // applies a literal defaultValue only when the key is absent.
+    if (question.name === "Id10051") return { ...question, defaultValue: "yes" };
+    if (question.name === "Id10053") return { ...question, defaultValue: "-" };
     return question;
   });
 

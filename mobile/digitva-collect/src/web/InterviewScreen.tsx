@@ -1,6 +1,5 @@
 import {
   createWhoVa2022Instrument,
-  localizeText,
   WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   WHO_VA_FORM_VERSION,
   type SubmissionData,
@@ -22,6 +21,7 @@ import { FormDefinitionError, type DefinitionRequest } from "../formDefinitions"
 import { FormDefinitionHistoryError } from "../formDefinitionHistory";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
+import { refusalFieldsText } from "../refusalText";
 import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type ConsentRecordEnvelope, type DraftConsentStatus, type ProjectConsentConfig } from "../consent";
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
@@ -147,33 +147,7 @@ export function definitionErrorText(error: unknown): string | undefined {
   return undefined;
 }
 
-const MAX_REFUSAL_FIELDS = 5;
-const MAX_LABEL_CHARS = 80;
-
-function plainLabel(text: Record<string, string | undefined>, locale: string, fallback: string): string {
-  const flat = localizeText(text, locale, fallback).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  return flat.length > MAX_LABEL_CHARS ? `${flat.slice(0, MAX_LABEL_CHARS - 1)}…` : flat;
-}
-
-/**
- * "Section › Question (name)" for the questions a refused submit names (the 422's `fields`),
- * joined by "; ". Names the instrument does not hold (e.g. "consent") are skipped. Only
- * definition labels are used, never answers. Returns "" when nothing matched.
- */
-export function refusalFieldsText(fields: unknown, instrument: InstrumentDefinition | undefined, language: string): string {
-  if (!instrument || !Array.isArray(fields)) return "";
-  const parts: string[] = [];
-  for (const name of new Set(fields.filter((field): field is string => typeof field === "string"))) {
-    const question = instrument.questions.find((entry) => entry.name === name);
-    if (!question) continue;
-    const sectionName = question.sectionPath[0] ?? question.sectionPath.at(-1);
-    const section = instrument.sections.find((entry) => entry.name === sectionName);
-    const label = plainLabel(question.label, language, name);
-    parts.push(`${section ? `${plainLabel(section.label, language, section.name)} › ` : ""}${label} (${name})`);
-    if (parts.length === MAX_REFUSAL_FIELDS) break;
-  }
-  return parts.join("; ");
-}
+export { refusalFieldsText };
 
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
 export function interviewErrorText(error: unknown, instrument?: InstrumentDefinition, language = "en"): string {

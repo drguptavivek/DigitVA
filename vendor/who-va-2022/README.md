@@ -155,8 +155,8 @@ Prefill evidence is mutually exclusive: choose date of birth or reported age, an
 | `deceased.ageInYears`                     | `age_adult`                | Adult age in years                           | Number, 12-119; also sets `Id10020="no"`, `age_group="adult"`                        |
 | `deceased.dateOfDeath`                    | `Id10023_a` or `Id10023_b` | When did (s)he die?                          | ISO date string, `YYYY-MM-DD`; also sets `Id10022="yes"`                             |
 | `deceased.yearOfDeath`                    | `Id10024`                  | Please indicate the year of death            | Four-digit year string; also sets `Id10022="no"`                                     |
-| `location.country/state/district/village` | `Id10057`                  | Where did the death occur?                   | Strings composed as `country, state, district, village`; also sets `Id10051="yes"`   |
-| `location.deathPlace`                     | `Id10057`                  | Where did the death occur?                   | Non-empty string, appended after `; ` when structured location is present            |
+| `location.country/state/district/village` | `Id10055`                  | Usual residence                              | Strings composed as `country, state, district, village`; place of death is never prefilled |
+| `location.deathPlace`                     | `Id10055`                  | Usual residence                              | Non-empty string, appended after `; ` when structured location is present            |
 
 Language dropdown options display the English language name plus the local/native name. For custom language choices, use the ISO/BCP-47 tag as the choice value and provide `label.en` plus a native label keyed by the same tag or its base language, for example `{ value: "hi-IN", label: { en: "Hindi (India)", "hi-IN": "हिन्दी" } }`.
 

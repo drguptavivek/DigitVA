@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Device Collection API (Path B server side)
@@ -460,7 +460,9 @@ migration (draft `status` is free text; `replaced` is new).
 
 `POST /api/v1/intake/drafts/sync` (role interviewer, either credential, CSRF
 for a cookie; body cap 2 MB). The phone's in-progress interview for a
-registered case, into the caller's one open draft of it.
+registered case, into the caller's one open draft of it. Covered answers
+(`consent_service.strip_unconsented_answers`) are dropped from what is stored
+when the consent on file would not pass the gate; the sync is never refused for it.
 
 - **Body**: `project_id`, `site_id`, `death_id` (required; 400 without),
   `org_unit_id`, `client_draft_id` (UUID), `answers_json` +
@@ -599,6 +601,32 @@ credential, CSRF for a cookie; body cap 2 MB). Code:
   answers (the `final` section) in `envelope.data` and, as `answers_sha256`,
   the hash of the answers text held now (null for a browser submit). Every
   submit now stores the `final` section.
+
+## What the Expo phone app sends and keeps (`digitva-0vgh`, `digitva-3nui`)
+
+Client side of the endpoints above; policy in
+[Respondent Consent Notice, Draft Text](../policy/respondent-consent-notice-draft.md)
+"Phone flow" and [Expo Web Client Boundary](../policy/expo-client.md)
+"Refused uploads on the phone". No server change.
+
+- **Consent settings.** Each sync fetches `GET /intake/consent-config` per
+  project and caches it in the interviewer's encrypted store
+  (`mobile/digitva-collect/src/consentStore.ts`); a failed fetch keeps the old
+  copy.
+- **Consent decisions** are stored in the same store (`consent:reg:<client
+  death id>`, `consent:draft:<client draft id>`, `consent:death:<death id>`
+  after the server accepts a registration) and sent as the `consent` object
+  (contract 5.3): with `POST /intake/deaths` (`client_draft_id` null) and with
+  `POST /intake/submissions` (`client_draft_id` = the body's). A registration's
+  decision is not sent again with its interviews. Under a refusal the covered
+  fields are removed from the registration fields and from `answers_json` and
+  `draft.data` before the hash is computed.
+- **Refusals** (409, 422) are stored per item with the server's `error` text,
+  `fields`, code, status, Ref and time (`senderr:<id>` in `meta`). A 422 on an
+  interview reopens it; a 422 `consent_*` also drops its stored decision so the
+  form asks again. A 409 on `/submissions` sets `upload_issue = case_conflict`
+  (`code` is always the bare `conflict`; the message tells "already submitted"
+  from "closed"): not resent until the interviewer asks, never deleted.
 
 ## Notifications (`digitva-hdrv`)
 

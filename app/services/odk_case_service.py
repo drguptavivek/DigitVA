@@ -29,6 +29,7 @@ from app.services.payload_pii_split import join_payload
 from app.services import register_pii_accessor
 from app.services.web_intake_service import (
     _allocate_unique_id,
+    _approximate_date_of_death,
     _birth_age_from_answers,
     _identity_from_answers,
 )
@@ -49,6 +50,10 @@ _IDENTITY_KEYS = ("deceased_name", "deceased_sex", "date_of_death")
 def _identity_or_none(payload: dict) -> dict | None:
     """The case's identity from the ODK answers, or None unless all three are given."""
     identity = _identity_from_answers(payload)
+    if "date_of_death" not in identity:
+        approximate = _approximate_date_of_death(payload)
+        if approximate:
+            identity["date_of_death"] = approximate
     return identity if all(identity.get(key) for key in _IDENTITY_KEYS) else None
 
 

@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Web Intake Policy
@@ -515,7 +515,7 @@ created by the ODK sync, so such a VA needs no web-intake action.
   account (`va_users`, `ODK_SYNC_USER_ID`). It cannot sign in: deactivated,
   no password, no verified email. One `created` audit row names it as actor.
 - Identity from the ODK answers: name (`Id10017` `Id10018`), sex (`Id10019`),
-  date of death (`Id10023`, else `Id10023_a`/`_b`). Without all three the case
+  date of death (`Id10023`, else `Id10023_a`/`_b`, else 1 July of the `Id10024` year when `Id10022` is not yes). Without all three the case
   is not created; the sync logs the `va_sid` (no personal data) and goes on.
 - Never for a submission that already has a case (any source) or an intake
   draft. A unique partial index on `va_sid` where `source = 'odk'` makes the
@@ -584,6 +584,13 @@ second interviewer now gets their own copy (see "Parallel interviews").
   and sex**; the form's answers (`Id10017`/`Id10018`, `Id10019`, `Id10023`, the
   calculated age) fill it as they are saved. A case cannot leave the pre-
   identity state until all three are present.
+- **Date of death, exact date unknown.** When the answers give no exact date
+  (`Id10023`, `Id10023_a`/`_b`), `Id10022` is not "yes" and `Id10024` holds a
+  year (1900 up to this year), the case gets **1 July of that year**
+  (capped at today for the current year). Mid-year minimises the worst-case
+  error. It applies to a direct-start sync/submit, a revision and the ODK case
+  creation, and **never replaces a date the case already holds**; the answers
+  keep `Id10022` = no, so the approximation stays visible in the interview.
 - Until then the row shows as "New interview, details pending" and is visible
   to **the interviewer who started it and to supervisors in scope** (owner,
   2026-09-30, item 11). A supervisor sees "details pending, started by

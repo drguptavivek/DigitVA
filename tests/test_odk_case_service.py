@@ -4,7 +4,7 @@ Rules live in app/services/odk_case_service.py; policy in docs/policy/web-intake
 "Cases for ODK-only interviews". Reuses the routing fixtures (one tree project,
 one ODK form, one site) from tests/test_org_unit_routing.py.
 """
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -129,6 +129,17 @@ class OdkCaseCreationTests(OdkCaseFixtureMixin, BaseTestCase):
         self._sync([self._record("uuid:odk-case-sites")])
 
         self.assertEqual(self._odk_cases(sid), [])
+
+    def test_year_of_death_only_gives_a_case_dated_1_july(self):
+        self._tree()
+        self._mapping()
+        sid = self._sid("uuid:odk-case-year")
+        self._sync([self._record(
+            "uuid:odk-case-year", org_phc_code="P01", Id10023="", Id10022="no", Id10024="2025-01-01",
+        )])
+
+        (case,) = self._odk_cases(sid)
+        self.assertEqual(case.date_of_death, date(2025, 7, 1))
 
     def test_missing_identity_creates_no_case(self):
         self._tree()

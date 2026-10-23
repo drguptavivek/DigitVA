@@ -1181,6 +1181,46 @@ class IntakeApiTests(BaseTestCase):
         missing = self._sync(death_id, {}, cid=cid, death_id=None)
         self.assertEqual(missing.status_code, 400)
 
+    def _submit_answers(self, draft, **answers):
+        return self.client.post(
+            f"/api/v1/intake/drafts/{draft['draft_id']}/submit", headers=self._csrf_headers(),
+            json={"completion": {"valid": True, "issues": [], "data": {
+                "Id10013": "yes", "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female",
+                "finalAgeInYears": "71", "narr_language": "english", **answers}}})
+
+    def test_a_direct_start_with_only_the_year_of_death_completes_on_1_july(self):
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(draft["death_id"])).status, "draft_identity")
+        submitted = self._submit_answers(draft, Id10022="no", Id10024="2025-01-01")
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        case = db.session.get(VaDeathRegister, uuid.UUID(draft["death_id"]))
+        self.assertEqual(case.date_of_death, date(2025, 7, 1))
+        self.assertEqual(case.status, "submitted")
+
+    def test_an_incomplete_identity_names_the_questions_to_answer(self):
+        self._login(self.interviewer_id)
+        base = {"Id10022": "yes", "Id10023": (date.today() - timedelta(days=5)).isoformat()}
+        cases = [
+            ({**base, "Id10017": "", "Id10018": ""}, ["Id10017", "Id10018"]),
+            ({**base, "Id10019": ""}, ["Id10019"]),
+            ({"Id10022": "no", "Id10024": ""}, ["Id10022", "Id10024"]),
+        ]
+        for answers, fields in cases:
+            draft = self._start_draft()
+            response = self._submit_answers(draft, **answers)
+            body = response.get_json()
+            self.assertEqual((response.status_code, body["code"]), (422, "invalid_interview"), body)
+            self.assertEqual(body["fields"], fields)
+
+    def test_the_year_of_death_never_replaces_a_registered_exact_date(self):
+        death_id = self._case()
+        registered = db.session.get(VaDeathRegister, uuid.UUID(death_id)).date_of_death
+        draft = self._start_draft(death_id=death_id)
+        submitted = self._submit_answers(draft, Id10022="no", Id10024="2025-01-01")
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).date_of_death, registered)
+
     def test_a_closed_case_refuses_the_sync(self):
         death_id = self._case()
         draft = self._start_draft(death_id=death_id)

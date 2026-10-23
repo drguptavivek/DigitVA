@@ -1860,6 +1860,41 @@ def _identity_from_answers(data: dict) -> dict:
     return out
 
 
+def _approximate_date_of_death(data: dict) -> date | None:
+    """1 July of the ``Id10024`` year of death, when the exact date is not known.
+
+    Only when the answers give no exact date (``_identity_from_answers``) and
+    ``Id10022`` is not "yes". Mid-year minimises the worst-case error; it is
+    capped at today (a current-year death before July is not a future date).
+    None for an unusable year (not four digits, before 1900, or after this
+    year). Callers use it only where the case holds no date of death.
+    """
+    if "date_of_death" in _identity_from_answers(data) or data.get("Id10022") == "yes":
+        return None
+    raw = str(data.get("Id10024") or "").strip()[:4]
+    if not (raw.isascii() and raw.isdigit() and len(raw) == 4):
+        return None
+    year, today = int(raw), date.today()
+    if not 1900 <= year <= today.year:
+        return None
+    return min(date(year, 7, 1), today)
+
+
+def _missing_identity_error(data: dict, *, name: bool, sex: bool, date_of_death: bool) -> WebIntakeError:
+    """The 422 for an incomplete identity, naming the WHO questions to answer.
+
+    Each flag says that part is present. ``fields`` lists only the missing
+    parts' input questions (``Id10023`` is calculated, so its ``_a``/``_b``
+    sources stand in once the date is said to be known)."""
+    fields: list[str] = [] if name else ["Id10017", "Id10018"]
+    if not sex:
+        fields.append("Id10019")
+    if not date_of_death:
+        fields.append("Id10022")
+        fields += ["Id10023_a", "Id10023_b"] if data.get("Id10022") == "yes" else ["Id10024"]
+    return WebIntakeError("Record the name, date of death and sex of the deceased before submitting.", 422, fields=fields)
+
+
 def _birth_age_from_answers(data: dict, date_of_death: date | None) -> dict:
     """The interview's date of birth and age as case columns (the reverse of
     ``_prefill_from_death``); the answers are read by ``who_va_answers``, the
@@ -1917,6 +1952,10 @@ def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> N
     the case's, the previous values going to the audit. An empty or unusable
     answer never blanks a value the case already holds."""
     incoming = _identity_from_answers(data)
+    if "date_of_death" not in incoming and not death.date_of_death:
+        approximate = _approximate_date_of_death(data)
+        if approximate:
+            incoming["date_of_death"] = approximate
     incoming.update(_birth_age_from_answers(data, incoming.get("date_of_death") or death.date_of_death))
     opened = register_pii_accessor.current_values(death)
     before: dict = {}
@@ -2457,8 +2496,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         # state the identity constraint allows without one (digitva-vzk.12).
         identity_pending = death.status == "draft_identity"
         if identity_pending and outcome != "refused":
-            raise WebIntakeError(
-                "Record the name, date of death and sex of the deceased before submitting.", 422
+            raise _missing_identity_error(
+                data, name=bool(death.has_deceased_name or death.deceased_name),
+                sex=bool(death.deceased_sex), date_of_death=bool(death.date_of_death),
             )
         if identity_pending:
             visit_note = _visit_note(data)
@@ -2467,8 +2507,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
             raise WebIntakeError("This case is closed.", 409)
         # A case restarted from such a refusal still has no identity.
         if outcome != "refused" and not cases.identity_complete(death):
-            raise WebIntakeError(
-                "Record the name, date of death and sex of the deceased before submitting.", 422
+            raise _missing_identity_error(
+                data, name=bool(death.has_deceased_name or death.deceased_name),
+                sex=bool(death.deceased_sex), date_of_death=bool(death.date_of_death),
             )
 
     submitted_at = _utcnow()
@@ -2822,8 +2863,13 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
                     "date_of_death": death.date_of_death,
                     "deceased_sex": death.deceased_sex, **_identity_from_answers(raw),
                 }
+                if not identity["date_of_death"]:
+                    identity["date_of_death"] = _approximate_date_of_death(raw)
                 if not all(identity.values()):
-                    raise WebIntakeError("Record the name, date of death and sex of the deceased before submitting.", 422)
+                    raise _missing_identity_error(
+                        raw, name=bool(identity["deceased_name"]), sex=bool(identity["deceased_sex"]),
+                        date_of_death=bool(identity["date_of_death"]),
+                    )
         elif outcome != previous and death.status != OUTCOME_CASE_STATES[outcome] and death.va_sid != va_sid:
             # Incomplete to another incomplete outcome: the case follows it as
             # on a submit (via in_progress), or the revision is refused rather

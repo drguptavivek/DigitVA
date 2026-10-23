@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Unknown exact date of death** (owner 2026-10-23): when `Id10022` is not
+  yes and `Id10024` holds the year, the case gets 1 July of that year (capped
+  at today), never replacing a date on file; web submit, revision and ODK case
+  creation. A direct start with only the year no longer fails at submit.
+  `docs/policy/web-intake.md`.
+- **Identity refusals name the questions**: the 422 "Record the name, date of
+  death and sex" carries `fields` (Id10017/18, Id10019, Id10022 + Id10024 or
+  Id10023_a/_b), and the web page shows them as "Fix: Section › Question".
 - **Web submit refusals show the server's reason** (`digitva-l3r8`): a 422 on
   interview submit shows the server's rule text (consent, Id10013, identity)
   with the `Ref:` line, and web 400/422/5xx messages carry the `Ref:` line,

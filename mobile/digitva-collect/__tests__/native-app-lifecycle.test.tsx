@@ -55,6 +55,7 @@ jest.mock("../src/nativeNotificationSync", () => ({
 }));
 
 import { AppStateProvider, useAppState } from "../src/AppState";
+import { recordServerDate, resetPhoneClock } from "../src/phoneClock";
 
 let latest!: ReturnType<typeof useAppState>;
 
@@ -257,4 +258,21 @@ describe("background failures", () => {
     expect(latest.backgroundError).toBeUndefined();
     await act(async () => tree.unmount());
   });
+});
+
+it("saves the open form the moment the phone clock passes 4 hours off, and not for a small offset", async () => {
+  const tree = await renderProbe();
+  mockSave.mockClear();
+  await act(async () => {
+    recordServerDate(new Date(0).toUTCString(), 120_000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  expect(mockSave).not.toHaveBeenCalled();
+  await act(async () => {
+    recordServerDate(new Date(0).toUTCString(), 5 * 3600_000);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  expect(mockSave).toHaveBeenCalledTimes(1);
+  await act(async () => tree.unmount());
+  resetPhoneClock();
 });

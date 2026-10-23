@@ -39,6 +39,7 @@ import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
 import type { ClientBootstrap } from "./client/api";
 import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, type NativeSyncResult } from "./nativeNotificationSync";
 import type { Db } from "./drafts";
+import { loadPhoneClock, usePhoneClock } from "./phoneClock";
 
 const UI_LOCALE_KEY = "ui_locale";
 const POLL_MS = 60_000;
@@ -208,6 +209,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const flushBeforeRefresh = useCallback(async () => {
     for (const hook of [...beforeLock.current]) await hook();
   }, []);
+
+  // Phone clock: the stored offset applies from start-up; when it turns into a block, what is typed is saved first.
+  const { level: clockLevel } = usePhoneClock();
+  useEffect(() => void loadPhoneClock(), []);
+  useEffect(() => {
+    if (clockLevel === "block") void flushBeforeRefresh().catch(() => undefined);
+  }, [clockLevel, flushBeforeRefresh]);
 
   const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1]) => {
     if (!isUnlocked(userId)) return;

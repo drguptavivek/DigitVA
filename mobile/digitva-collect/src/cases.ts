@@ -17,6 +17,7 @@ import { getDraftPrefill, getDraftRow, getMeta, setMeta, type Db, type DraftBind
 import type { StringKey } from "./i18n";
 import { identifiersToSend } from "./identifiers";
 import { normalisePhone } from "./phoneFormat";
+import { correctedNow } from "./phoneClock";
 
 /** What the server's prefill builder returns (web_intake_service._prefill_from_death). */
 export interface Prefill {
@@ -668,7 +669,7 @@ export function visitAt(date: string): string | null {
 }
 
 /** Today as YYYY-MM-DD on the phone's clock. */
-export function localToday(now = new Date()): string {
+export function localToday(now = correctedNow()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }

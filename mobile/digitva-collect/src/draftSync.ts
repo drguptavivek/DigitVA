@@ -1,4 +1,5 @@
 /** Sync unfinished phone drafts with the interviewer's server-side web draft. */
+import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { decodeWhoVaDraft } from "@drguptavivek/who-2022-va";
 
@@ -344,7 +345,7 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
       client_draft_id: item.id,
       answers_json: answersJson,
       answers_sha256: answersHash,
-      draft: metadataForSync(draft),
+      draft: { ...metadataForSync(draft), ...clockOffsetField() },
       savedAt: item.updated_at,
       deviceClockAt: localDateTimeWithOffset(),
       base_updated_at: item.base_updated_at

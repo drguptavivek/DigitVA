@@ -6,6 +6,7 @@
  */
 import type { SubmissionData } from "@drguptavivek/who-2022-va";
 import type { StringKey } from "./i18n";
+import { correctedNow } from "./phoneClock";
 
 export interface PreSendIssue {
   message: StringKey;
@@ -47,7 +48,7 @@ const pastDate = (raw: unknown, today: Date) => validPastDate(raw, today) && tex
  * `valid`: the form engine's verdict.
  */
 export function preSendIssues(data: SubmissionData, opts: { valid: boolean; direct: boolean; today?: Date }): PreSendIssue[] {
-  const today = opts.today ?? new Date();
+  const today = opts.today ?? correctedNow();
   const consent = text(data.Id10013).toLowerCase();
   const issues: PreSendIssue[] = [];
   if (consent === "no") {

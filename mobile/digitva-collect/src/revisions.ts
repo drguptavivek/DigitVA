@@ -3,6 +3,7 @@
  * Server answers are fetched only when an interviewer opens a revision; the
  * local row is kept only while that revision is being edited or sent.
  */
+import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument, reduceNationalIdData, type SubmissionData, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API } from "./api";
@@ -527,7 +528,7 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
           answers_json: row.frozen_json,
           answers_sha256: row.answers_sha256,
           completion: row.completion,
-          draft: { ...revisionMeta(row), deviceClockAt: localDateTimeWithOffset() }
+          draft: { ...revisionMeta(row), deviceClockAt: localDateTimeWithOffset(), ...clockOffsetField() }
         })
       });
       let acknowledgement;

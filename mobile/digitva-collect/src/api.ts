@@ -4,6 +4,8 @@
  * payloads are available for handling and must never be logged.
  */
 
+import { recordServerDate } from "./phoneClock";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -773,6 +775,7 @@ async function requestOnce<T>(
       redirect: options.allowRedirect ? "manual" : "follow",
     });
     const csrf = options.token === undefined && !server ? rememberCsrf(response) : undefined;
+    if (response.ok) recordServerDate(response.headers.get("Date"));
     if (response.status === 204) return { status: 204, body: undefined as T };
     const contentType = response.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
@@ -904,6 +907,7 @@ export async function requestRaw(
       redirect: options.allowRedirect ? "manual" : "follow",
     });
     const csrf = options.token === undefined && !server ? rememberCsrf(response) : undefined;
+    if (response.ok) recordServerDate(response.headers.get("Date"));
     const responseHeaders = {
       etag: response.headers.get("ETag"),
       definitionSha256: response.headers.get("X-Definition-SHA256"),

@@ -31,6 +31,7 @@
  *
  * Logs carry client ids and error codes only, never answers or names.
  */
+import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, parseAccessSummary, type AccessSummary } from "./api";
@@ -405,7 +406,7 @@ export async function uploadQueuedWork(
           site_id: item.site_id,
           ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
           ...(item.death_id ? { death_id: item.death_id } : {}),
-          draft: { ...sentDraft, deviceClockAt: localDateTimeWithOffset() },
+          draft: { ...sentDraft, deviceClockAt: localDateTimeWithOffset(), ...clockOffsetField() },
           answers_json: answersJson,
           answers_sha256: answersHash,
           completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] },

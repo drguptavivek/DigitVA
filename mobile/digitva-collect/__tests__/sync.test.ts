@@ -1,6 +1,7 @@
 /** Project scoped reference refresh and upload ordering. */
 import { DatabaseSync } from "node:sqlite";
 
+import { recordServerDate, resetPhoneClock } from "../src/phoneClock";
 import type { SubmissionData, WhoVaDraft } from "@drguptavivek/who-2022-va";
 
 const mockSecure = new Map<string, string>();
@@ -1014,14 +1015,17 @@ describe("sync upload ordering", () => {
     });
 
     jest.useFakeTimers().setSystemTime(new Date("2026-10-01T18:31:00Z"));
+    recordServerDate(new Date("2026-10-01T18:00:00Z").toUTCString(), Date.parse("2026-10-01T18:00:30Z"));
     try {
       await expect(syncInterviewer(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, remaining: 0 });
     } finally {
       jest.useRealTimers();
+      resetPhoneClock();
     }
 
     const uploads = calls.filter((call) => call.url.endsWith("/submissions"));
     expect(uploads).toHaveLength(2);
+    expect((uploads[0].body!.draft as { clockOffsetSeconds?: number }).clockOffsetSeconds).toBe(30);
     expect(uploads[0].auth).toBe("Bearer a");
     expect(uploads[1].auth).toBe("Bearer fresh-access");
     const firstBody = uploads[0].body!;

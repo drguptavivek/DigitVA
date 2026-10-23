@@ -1225,5 +1225,15 @@
   "usersQrErrNotEligible": "This person cannot get a sign-in QR. It is for active accounts whose only roles are interviewer or death reporter.",
   "usersQrErrNoVerified": "Their email is not verified, so the QR cannot be emailed. Show it on screen instead.",
   "usersQrErrEmailFailed": "The email could not be sent. Try again, or show the QR on screen.",
-  "usersQrErrNotFound": "You cannot manage this person's sign-in QR."
+  "usersQrErrNotFound": "You cannot manage this person's sign-in QR.",
+  "clockWrongAhead": "Your phone's date/time is wrong (it is {amount} ahead). Set Date & time to automatic.",
+  "clockWrongBehind": "Your phone's date/time is wrong (it is {amount} behind). Set Date & time to automatic.",
+  "clockSpanDays": "{days} days {hours} h",
+  "clockSpanHours": "{hours} h {minutes} min",
+  "clockSpanMinutes": "{minutes} min",
+  "clockBlockTitle": "Fix the phone's date and time",
+  "clockBlockBody": "Interviews cannot be started or edited while the date and time are this far off. Nothing you typed is lost. Set Date & time to automatic, then tap Re-check. You can still view cases and send work.",
+  "clockOpenSettings": "Open Date & time settings",
+  "clockRecheck": "Re-check",
+  "clockRecheckFailed": "Could not reach the server to check the time. Connect to the internet and try again."
 }

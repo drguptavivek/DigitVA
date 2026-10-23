@@ -1,10 +1,12 @@
 import { Redirect, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { ActivityIndicator, Text } from "react-native";
+import { ActivityIndicator, Text, View } from "react-native";
 
 import { useAppState } from "./AppState";
 import { refreshAccessSummary } from "./auth";
 import { t } from "./i18n";
+import { ClockBlock } from "./nativeShell/ClockNotice";
+import { usePhoneClock } from "./phoneClock";
 import { isUnlocked, openInterviewerDb, unsentWorkCount } from "./interviewerDb";
 import { uploadQueuedWork } from "./sync";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
@@ -18,6 +20,8 @@ const COLLECTION_ROUTES = new Set([
 ]);
 const REGISTRATION_ROUTES = new Set(["/death-registration", "/register"]);
 const WORKLIST_ROUTE = "/worklist";
+/** Data entry: blocked while the phone clock is more than 4 hours off. Viewing and sending are not. */
+const ENTRY_ROUTES = new Set(["/death-registration", "/register", "/form", "/interview", "/revision"]);
 
 /**
  * Keep account controls available while collection is disabled. Unsent work
@@ -97,6 +101,7 @@ export default function NativeCollectionGate({
   const router = useRouter();
   const state = useAppState();
   const styles = useUiStyles();
+  const { level } = usePhoneClock();
   const [checking, setChecking] = useState(false);
   const [accessError, setAccessError] = useState<string>();
   const sceneUserId = routeParams && typeof routeParams === "object"
@@ -142,14 +147,17 @@ export default function NativeCollectionGate({
     }
   }, [checkAccess, codingAccess, collectionAccess, hasAccount, pathname, registrationAccess, reviewingAccess]);
 
+  const guarded = (screen: ReactNode) => level === "block" && ENTRY_ROUTES.has(pathname)
+    ? <View style={{ flex: 1 }}>{screen}<ClockBlock /></View>
+    : screen;
   if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE) return children;
   if (!state.ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!userId || !account) return <Redirect href="/" />;
   if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
   if (pathname === WORKLIST_ROUTE && (account.coding_access || account.reviewing_access) &&
       account.collection_access !== true && account.registration_access !== true) return <NativePendingWorkspace userId={userId} />;
-  if (COLLECTION_ROUTES.has(pathname) && account.collection_access === true) return children;
-  if (REGISTRATION_ROUTES.has(pathname) && account.registration_access === true) return children;
+  if (COLLECTION_ROUTES.has(pathname) && account.collection_access === true) return guarded(children);
+  if (REGISTRATION_ROUTES.has(pathname) && account.registration_access === true) return guarded(children);
   if (pathname === WORKLIST_ROUTE &&
       (account.collection_access === true || account.registration_access === true)) return children;
   if (COLLECTION_ROUTES.has(pathname) && account.collection_access === false) {

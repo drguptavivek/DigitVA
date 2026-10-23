@@ -130,6 +130,7 @@ database volume's EBS snapshot is an independent second copy.
 ```bash
 git fetch origin && git status -sb          # no local changes
 git pull --ff-only
+git submodule sync vendor/smartva-analyze           # remote URL from .gitmodules
 git submodule update --init vendor/smartva-analyze   # pull does not move it
 # New .env keys from the release notes go in now (and bump STATIC_ASSET_VERSION).
 make prod-build
@@ -137,7 +138,10 @@ make prod-build
 
 `git pull` leaves submodule checkouts where they were, so without the
 submodule update `git status` shows ` M vendor/smartva-analyze` and the image's
-Python SmartVA path dependency is built from the old checkout. The smartva-rs
+Python SmartVA path dependency is built from the old checkout. `git submodule
+sync` first: an old checkout's `.git/config` can still point at upstream
+`ihmeuw/SmartVA-Analyze`, which lacks commits that exist only on the
+`drguptavivek` fork named in `.gitmodules` (staging, 2026-10-23). The smartva-rs
 engine itself comes from the pinned release tarball, not from this checkout.
 
 `make prod-build` builds the images and recreates the changed containers. The
@@ -183,6 +187,7 @@ If the post-checks fail and the cause is not obvious within minutes:
 
 ```bash
 git checkout "$(cat ~/deploy-previous-commit)"
+git submodule sync vendor/smartva-analyze
 git submodule update --init vendor/smartva-analyze
 make prod-build
 ```

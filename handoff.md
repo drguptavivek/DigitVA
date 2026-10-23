@@ -26,18 +26,19 @@ tree's export (`EXPO_CLIENT_DIST` in the override).
 Staging: `https://digitvav3.causeofdeathindia.com`, AWS arm64
 `i-0b2caee6465bfcac1` (ap-south-1, profile `digitva`, `/data/DigitVA`); read-only
 checks via `aws ssm send-command`. Never change staging without asking.
-Staging runs `f05091920` (head `c5e7a9b1d3f6`, smartva-rust 3.0.2). Load test
-2026-10-23, 200 users: 25 req/s, 0 allocation 500s (was 2-4), SmartVA queue
-≤6 (was ~3,300), Python services −175 MB idle, COD refresh 7.7 -> 2.6 s; but
-request latency is CPU-bound (2 cores) and doubles while the now-fast SmartVA
-worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
+Staging runs `f23339810` (head `c5e7a9b1d3f6`, smartva-rust 3.0.2,
+`expo-web-v2026.10.23.1`). Load test 2026-10-23, 200 users, worker running at
+`cpu_shares` 128: 26.8 req/s, 0 5xx, request p50 within ~30-75 ms of the
+worker-paused baseline (intake 461 vs 388 ms, allocate 182 vs 129), SmartVA
+queue ≤11, Python services −175 MB idle vs 2026-10-22, COD refresh 7.7 -> 2.6 s.
+DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
-1. **`digitva-g8iu`** (landed): 4-minute staging confirm with `cpu_shares`
-   128 from compose (worker running). Requests are slow in Python, not
-   Postgres (92% of busy backends idle in transaction); if latency is still
-   short of target, the next step is 4 vCPU or profiling the request path.
+1. **Request path is CPU-bound in Python** (2 cores; 92% of busy backends idle
+   in transaction during load, no lock waits). Next lever: profile the slowest
+   endpoints (intake p95 ~1 s), or 4 vCPU. Load-test harness to
+   `scripts/loadtest/` (agreed, small change through the committer).
 2. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays

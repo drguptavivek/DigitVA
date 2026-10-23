@@ -5,6 +5,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Staging at `f23339810`**, confirmed: with the worker at `cpu_shares` 128,
+  request p50 is within ~30-75 ms of the worker-paused baseline at full
+  SmartVA throughput, 0 5xx. Runbook: `git submodule sync` before the update.
 - **SmartVA worker CPU weight** (`digitva-g8iu`): worker containers run with
   `cpu_shares` 128 (demo worker 128 against its app's 256), so gunicorn keeps
   the CPU under load. Staging p50 coding.available 252 ms vs ~580 with `nice`

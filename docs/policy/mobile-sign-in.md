@@ -219,7 +219,7 @@ that would collect an interviewer's password.
   it asks once, signs every interviewer out (the ordinary sign-out wipe) and
   drops the enrolment, then opens the enrol screen for the new server's QR.
 
-## 8. Sign-in QR (owner decision 2026-10-23; server built, phone and Users-page screens pending)
+## 8. Sign-in QR (owner decision 2026-10-23; server and phone scan built, Users-page screens pending)
 
 **Approved by the owner 2026-10-23; server built** (digitva-3g19: tables,
 issue, redeem, revoke, status and audit; the phone scan screen and the Users
@@ -291,3 +291,35 @@ scan do both for the least-privileged accounts.
   rule; first-time accounts (no password set yet) are the main use.
 
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).
+
+## 9. Phone unlock: PIN boxes, fingerprint, phone screen lock (owner 2026-10-23, digitva-mhjg)
+
+The device PIN (6 to 16 digits in `src/vault.ts`; the entry and setup screens
+take **six digits**, one per box) keys the interviewer's encrypted store. The
+rules of sections 1 to 8, the 3-wrong-PIN warning and the wipe on the 5th wrong
+PIN in a row are unchanged.
+
+- **Entry.** PIN entry and PIN setup use six separate boxes: one digit each,
+  moving on as a digit is typed, backspace stepping back, the numeric keypad
+  opening at once, masked with a Show / Hide toggle, and a pasted six-digit
+  PIN filling every box. A wrong PIN clears the boxes and shakes them.
+- **Unlock options**, per account on this phone, all optional; the app PIN is
+  always the fallback (cancelled or failed prompt, a lost option such as a new
+  fingerprint enrolment or a removed screen lock):
+  - **Fingerprint** (existing): the PIN is kept behind a Keystore key usable
+    only after a strong biometric.
+  - **Use phone screen lock** (new): `expo-local-authentication` asks the
+    phone's own lock (fingerprint, face, pattern, PIN or password, as the
+    phone allows, device-credential fallback). On success the app releases
+    the PIN it holds in Keystore-backed SecureStore. Weaker than the
+    fingerprint option, which binds the key itself to the biometric: the PIN
+    sits in Keystore without per-use authentication and the prompt is an app
+    check, so a rooted phone running modified code could skip it. It is
+    offered only when the phone has a screen lock set.
+  Turning an option on needs the PIN (or the first-run PIN just set) and one
+  successful prompt. Wipe, sign-out and re-enrolment erase both entries.
+- **First-run prompt.** After the first PIN setup the app offers, once and
+  skippably, fingerprint and phone screen lock (whichever the phone supports).
+  If skipped it is offered **once more** on a later PIN unlock, then never
+  again; nothing is offered when an option is already on or the phone
+  supports neither. Settings can turn either option on or off at any time.

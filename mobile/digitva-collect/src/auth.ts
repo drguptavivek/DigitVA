@@ -295,9 +295,7 @@ export async function signIn(
   const device = await loadDevice();
   const secret = await loadDeviceSecret();
   if (!device || !secret) throw new Error("not_enrolled");
-  const { body } = await requestJson<
-    Tokens & { user: { user_id: string; name: string; email?: string | null }; access: unknown }
-  >(device.server, `${AUTH_API}/sessions`, {
+  const { body } = await requestJson<SessionBody>(device.server, `${AUTH_API}/sessions`, {
     method: "POST",
     // The device API keeps `email` as its backwards-compatible field name;
     // it accepts an email or the canonical +91 mobile identifier.
@@ -309,6 +307,38 @@ export async function signIn(
       app_version: APP_VERSION,
     },
   });
+  return storeSession(body);
+}
+
+type SessionBody = Tokens & { user: { user_id: string; name: string; email?: string | null }; access: unknown };
+
+/**
+ * POST /sign-in-qr/redeem: one scan enrols this phone and opens the QR's user's
+ * session, stored as enrolment plus password sign-in store them. The server
+ * answers every failure with 404 `sign_in_qr_invalid`. The token is sent once
+ * and is never logged or kept.
+ */
+export async function redeemSignInQr(
+  server: string,
+  token: string,
+  deviceName: string,
+  appVersion: string,
+): Promise<Account> {
+  const { body } = await requestJson<EnrolReply & SessionBody>(server, `${AUTH_API}/sign-in-qr/redeem`, {
+    method: "POST",
+    body: {
+      token,
+      device_name: deviceName,
+      platform: Platform.OS === "ios" ? "ios" : "android",
+      app_version: appVersion,
+    },
+  });
+  await storeEnrolment(server, body);
+  return storeSession(body);
+}
+
+/** Keep the account and tokens a session reply opened (password sign-in and sign-in QR redeem alike). */
+async function storeSession(body: SessionBody): Promise<Account> {
   const account: Account = {
     user_id: String(body.user.user_id),
     name: body.user.name,

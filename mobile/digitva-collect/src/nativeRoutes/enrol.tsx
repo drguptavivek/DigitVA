@@ -1,7 +1,9 @@
 /**
  * Enrol: scan the one-time QR from the project's Devices page, validate its
  * server against the compiled rule (src/enrolment.ts), show that server's host
- * and wait for the user to confirm, then POST /enroll. Pasting the JSON is a
+ * and wait for the user to confirm, then POST /enroll. A sign-in QR (docs/policy/mobile-sign-in.md section 8)
+ * is taken the same way but redeems its token, which enrols the phone and signs the person in; they go
+ * on to PIN setup. Pasting the JSON is a
  * debug-build convenience for the emulator. "Try the demo" (src/nativeRoutes/demo.tsx)
  * enrols on the public demo server without a code.
  */
@@ -12,8 +14,9 @@ import { useRef, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
-import { enrolDevice } from "../auth";
-import { EnrolmentError, parseEnrolmentQr, type EnrolmentPayload } from "../enrolment";
+import { ApiError } from "../api";
+import { enrolDevice, redeemSignInQr } from "../auth";
+import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
 import { t } from "../i18n";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 
@@ -27,32 +30,42 @@ export default function Enrol() {
   const [pasted, setPasted] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [pending, setPending] = useState<EnrolmentPayload>();
+  const [pending, setPending] = useState<ScannedQr>();
   const busyRef = useRef(false);
 
   /** Validate a scanned or pasted QR; nothing is redeemed until the user confirms its server. */
   function review(raw: string) {
     if (busyRef.current) return;
     try {
-      setPending(parseEnrolmentQr(raw, __DEV__));
+      setPending(parseScannedQr(raw, __DEV__));
       setError("");
     } catch (caught) {
       setError(caught instanceof EnrolmentError ? t(caught.key) : errorText(caught));
     }
   }
 
-  async function submit(payload: EnrolmentPayload) {
+  async function submit(payload: ScannedQr) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError("");
     try {
-      await enrolDevice(payload.server, payload.code, Constants.deviceName ?? "Android", APP_VERSION);
-      await reload();
-      router.replace("/");
+      const deviceName = Constants.deviceName ?? "Android";
+      if (payload.kind === "sign_in") {
+        const account = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
+        await reload();
+        // Unlock sends a person without a PIN yet to PIN setup (then the unlock-options offer).
+        router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
+      } else {
+        await enrolDevice(payload.server, payload.code, deviceName, APP_VERSION);
+        await reload();
+        router.replace("/");
+      }
     } catch (caught) {
       setPending(undefined);
-      setError(errorText(caught));
+      // One message for every refusal of a sign-in QR; the token and the server's detail are never shown or logged.
+      const refused = payload.kind === "sign_in" && caught instanceof ApiError && (caught.status === 404 || caught.status === 400);
+      setError(refused ? t("errSignInQrInvalid") : errorText(caught));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -67,8 +80,14 @@ export default function Enrol() {
           <Text style={[styles.text, { fontSize: 20, fontWeight: "700" }]} selectable>
             {t("enrolConfirmServer", { host: new URL(pending.server).host })}
           </Text>
-          <Text style={styles.text}>{t("enrolConfirmProject", { project: pending.project })}</Text>
-          <Text style={styles.muted}>{t("enrolConfirmHint")}</Text>
+          {pending.kind === "enroll" ? (
+            <>
+              <Text style={styles.text}>{t("enrolConfirmProject", { project: pending.project })}</Text>
+              <Text style={styles.muted}>{t("enrolConfirmHint")}</Text>
+            </>
+          ) : (
+            <Text style={styles.muted}>{t("enrolConfirmSignInHint")}</Text>
+          )}
           <Button label={t("enrolConfirm")} loading={busy} disabled={busy} onPress={() => void submit(pending)} />
           <Button kind="secondary" label={t("cancel")} disabled={busy} onPress={() => setPending(undefined)} />
         </View>

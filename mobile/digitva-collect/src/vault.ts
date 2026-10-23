@@ -14,6 +14,7 @@
  * Nothing here logs.
  */
 import { CryptoDigestAlgorithm, digestStringAsync, getRandomBytesAsync } from "expo-crypto";
+import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
 export const PIN_MIN_LENGTH = 6;
@@ -60,6 +61,9 @@ const secretKey = (hash: string) => `store_secret_${hash}`;
 const failuresKey = (hash: string) => `pin_failures_${hash}`;
 const biometricFlagKey = (hash: string) => `pin_bio_on_${hash}`;
 const biometricKey = (hash: string) => `pin_bio_${hash}`;
+const screenLockFlagKey = (hash: string) => `pin_lock_on_${hash}`;
+const screenLockKey = (hash: string) => `pin_lock_${hash}`;
+const offerKey = (hash: string) => `unlock_offer_${hash}`;
 /** Its own Keystore alias: an authentication-bound key cannot share the default one. */
 const biometricOptions = (hash: string, prompt?: string): SecureStore.SecureStoreOptions => ({
   ...OPTIONS,
@@ -133,10 +137,80 @@ async function disableBiometric(hash: string): Promise<void> {
   }
 }
 
-/** Forget this interviewer's secret, counter and biometric PIN. Other interviewers are untouched. */
+/** Turn fingerprint unlock off (Settings); the PIN keeps working. */
+export async function turnOffBiometric(userId: string): Promise<void> {
+  await disableBiometric(await storeHash(userId));
+}
+
+/**
+ * Phone screen lock unlock (docs/policy/mobile-sign-in.md section 9): the phone's own lock (biometric, pattern,
+ * PIN or password as the phone allows) gates the release of the PIN, which sits in Keystore-backed SecureStore
+ * without per-use authentication. Weaker than the biometric entry above, whose key is bound to the biometric.
+ */
+export async function screenLockAvailable(): Promise<boolean> {
+  try {
+    return (await LocalAuthentication.getEnrolledLevelAsync()) !== LocalAuthentication.SecurityLevel.NONE;
+  } catch {
+    return false;
+  }
+}
+
+export async function screenLockEnabled(userId: string): Promise<boolean> {
+  return (await SecureStore.getItemAsync(screenLockFlagKey(await storeHash(userId)), OPTIONS)) === "1";
+}
+
+async function promptScreenLock(prompt: string): Promise<boolean> {
+  const result = await LocalAuthentication.authenticateAsync({ promptMessage: prompt, disableDeviceFallback: false });
+  return result.success;
+}
+
+/** Ask the phone's lock once, then keep `pin` behind it. Throws when the prompt fails or is cancelled. */
+export async function enableScreenLock(userId: string, pin: string, prompt: string): Promise<void> {
+  if (!(await promptScreenLock(prompt))) throw new Error("screen_lock_refused");
+  const hash = await storeHash(userId);
+  await SecureStore.setItemAsync(screenLockKey(hash), pin, OPTIONS);
+  await SecureStore.setItemAsync(screenLockFlagKey(hash), "1", OPTIONS);
+}
+
+/**
+ * The PIN released by the phone's lock prompt, or null when this option is off. Throws when the prompt is
+ * cancelled or fails; that is not a failed PIN. The option drops itself when the phone no longer has a screen lock.
+ */
+export async function readScreenLockPin(userId: string, prompt: string): Promise<string | null> {
+  if (!(await screenLockEnabled(userId))) return null;
+  if (!(await screenLockAvailable())) {
+    await turnOffScreenLock(userId);
+    return null;
+  }
+  if (!(await promptScreenLock(prompt))) throw new Error("screen_lock_refused");
+  return SecureStore.getItemAsync(screenLockKey(await storeHash(userId)), OPTIONS);
+}
+
+export async function turnOffScreenLock(userId: string): Promise<void> {
+  const hash = await storeHash(userId);
+  await SecureStore.deleteItemAsync(screenLockFlagKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(screenLockKey(hash), OPTIONS);
+}
+
+/** How many times the unlock-options offer has been shown to this interviewer. */
+export async function unlockOfferCount(userId: string): Promise<number> {
+  const count = Number(await SecureStore.getItemAsync(offerKey(await storeHash(userId)), OPTIONS));
+  return Number.isInteger(count) && count > 0 ? count : 0;
+}
+
+export async function noteUnlockOffer(userId: string): Promise<void> {
+  await SecureStore.setItemAsync(offerKey(await storeHash(userId)), String((await unlockOfferCount(userId)) + 1), OPTIONS);
+}
+
+/** First offer after PIN setup, one more on a later PIN unlock, then never. */
+export const UNLOCK_OFFER_MAX = 2;
+
+/** Forget this interviewer's secret, counter and biometric / screen-lock PIN. Other interviewers are untouched. */
 export async function forgetStoreKeys(userId: string): Promise<void> {
   const hash = await storeHash(userId);
   await SecureStore.deleteItemAsync(secretKey(hash), OPTIONS);
   await SecureStore.deleteItemAsync(failuresKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(offerKey(hash), OPTIONS);
   await disableBiometric(hash);
+  await turnOffScreenLock(userId);
 }

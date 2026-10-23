@@ -1,18 +1,19 @@
 /**
  * First PIN for an interviewer on this device (after their first sign-in):
- * creates their encrypted store, then offers biometric unlock when the
- * device has a strong biometric enrolled.
+ * creates their encrypted store (six PIN boxes, entered and confirmed), then
+ * offers fingerprint and phone screen lock unlock (src/UnlockOffer.tsx).
  */
-import { canUseBiometricAuthentication } from "expo-secure-store";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Text, TextInput } from "react-native";
+import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import { createInterviewerDb } from "../interviewerDb";
+import { PinBoxes } from "../PinBoxes";
 import { Button, Screen, useUiStyles } from "../ui";
-import { enableBiometric, pinProblem } from "../vault";
+import { pendingUnlockOffer, UnlockOffer } from "../UnlockOffer";
+import { pinProblem } from "../vault";
 
 export default function PinSetup() {
   const styles = useUiStyles();
@@ -24,7 +25,7 @@ export default function PinSetup() {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [offerBiometric, setOfferBiometric] = useState(false);
+  const [offer, setOffer] = useState<{ biometric: boolean; screenLock: boolean }>();
 
   if (!account) return <Redirect href="/" />;
   const toWorklist = () => router.replace({ pathname: "/worklist", params: { userId: account.user_id, ...(refresh === "1" ? { refresh: "1" } : {}) } });
@@ -41,7 +42,8 @@ export default function PinSetup() {
     try {
       await createInterviewerDb(account.user_id, pin);
       unlocked();
-      if (canUseBiometricAuthentication()) setOfferBiometric(true);
+      const pending = await pendingUnlockOffer(account.user_id).catch(() => null);
+      if (pending) setOffer(pending);
       else toWorklist();
     } catch {
       setError(t("errGeneric"));
@@ -50,22 +52,10 @@ export default function PinSetup() {
     }
   }
 
-  async function turnOnBiometric() {
-    if (!account) return;
-    try {
-      await enableBiometric(account.user_id, pin, t("biometricPrompt"));
-    } catch {
-      // Cancelled or unavailable: the PIN alone still unlocks.
-    }
-    toWorklist();
-  }
-
-  if (offerBiometric) {
+  if (offer) {
     return (
       <Screen title={t("pinSetupTitle")}>
-        <Text style={styles.text}>{t("biometricOffer")}</Text>
-        <Button label={t("biometricEnable")} onPress={() => void turnOnBiometric()} />
-        <Button kind="secondary" label={t("biometricSkip")} onPress={toWorklist} />
+        <UnlockOffer userId={account.user_id} pin={pin} options={offer} onDone={toWorklist} />
       </Screen>
     );
   }
@@ -75,15 +65,9 @@ export default function PinSetup() {
       <Text style={styles.muted}>{account.name}</Text>
       <Text style={styles.text}>{t("pinSetupHint")}</Text>
       <Text style={styles.muted}>{t("pin")}</Text>
-      <TextInput style={styles.input} secureTextEntry keyboardType="number-pad" value={pin} onChangeText={setPin} />
+      <PinBoxes value={pin} onChange={setPin} label={t("pin")} />
       <Text style={styles.muted}>{t("pinConfirm")}</Text>
-      <TextInput
-        style={styles.input}
-        secureTextEntry
-        keyboardType="number-pad"
-        value={confirm}
-        onChangeText={setConfirm}
-      />
+      <PinBoxes value={confirm} onChange={setConfirm} label={t("pinConfirm")} autoFocus={false} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button label={t("pinSave")} disabled={busy || !pin || !confirm} onPress={() => void submit()} />
     </Screen>

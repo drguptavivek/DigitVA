@@ -1096,5 +1096,16 @@
   "attachGalleryTitle": "Allow access to photos?",
   "attachGalleryBody": "To choose a photograph from this phone's gallery, Android 12 and older need your permission. DigitVA reads only the picture you choose, keeps it encrypted in the app, and never changes your gallery.",
   "attachGalleryDeniedTitle": "Photos are off",
-  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera."
+  "attachGalleryDeniedBody": "Choosing a picture needs access to photos. Open the app's settings and allow Photos, then try again. You can also take a photograph with the camera.",
+  "errSignInQrInvalid": "This sign-in QR is no longer valid. Ask your supervisor for a new one.",
+  "enrolConfirmSignInHint": "This QR will set up this phone and sign you in. Continue only if your supervisor gave it to you.",
+  "pinShow": "Show PIN",
+  "pinHide": "Hide PIN",
+  "screenLockEnable": "Use phone screen lock",
+  "screenLockOn": "Phone screen lock unlock is on",
+  "screenLockOff": "Turn off phone screen lock",
+  "biometricOff": "Turn off fingerprint",
+  "screenLockPrompt": "Unlock DigitVA Collect with your phone screen lock",
+  "unlockOptionsOffer": "Unlock faster next time? Use your fingerprint or your phone's screen lock. The PIN always works too.",
+  "unlockOptionFailed": "Could not turn this on. You can try again, or skip and use the PIN."
 }

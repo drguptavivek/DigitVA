@@ -787,6 +787,16 @@ token is never marked revoked.
 met at an issue, revoke or redeem attempt; there is no sweep). Plus
 `device_enrolled` and `device_session_opened`.
 
+**Phone** (`mobile/digitva-collect`): the enrol screen's scanner (and the
+debug-build paste box) accepts this QR beside the enrolment QR
+(`parseScannedQr` in `src/enrolment.ts`, same server-origin rule), shows the
+server host, and on confirm calls `redeemSignInQr` (`src/auth.ts`), which stores
+the device and session as enrolment plus password sign-in do and then opens
+`/unlock`, which sends a new account to PIN setup. Every 400/404 shows one
+message ("This sign-in QR is no longer valid..."); the token is never logged or
+stored. PIN entry and setup are six boxes; fingerprint and phone screen lock
+unlock options and their first-run offer: [policy section 9](../policy/mobile-sign-in.md).
+
 ### 6.2 Device sign-in: `POST /api/v1/auth/sessions`
 
 Body `{"device_id", "device_secret", "email", "password"}`. The

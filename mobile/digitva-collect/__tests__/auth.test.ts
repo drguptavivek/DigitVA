@@ -30,6 +30,7 @@ import {
   authedRequest,
   getAuthenticatedAttachmentSource,
   loadAccounts,
+  redeemSignInQr,
   refreshAccessSummary,
   SessionRevokedError,
   signIn,
@@ -839,4 +840,43 @@ it("does not return an attachment source when the account signs out during refre
   }));
 
   await expect(source).rejects.toBeInstanceOf(SignInRequiredError);
+});
+
+describe("redeemSignInQr", () => {
+  const TOKEN = "SignInTokenSignInTokenSignInToken123";
+  const reply = {
+    device_id: "dev-9",
+    device_secret: "sec-9",
+    project: { project_id: "P9", name: "Nine" },
+    server_time: "2026-10-24T00:00:00Z",
+    access_token: "acc",
+    access_expires_at: "",
+    refresh_token: "ref",
+    refresh_expires_at: "",
+    user: { user_id: USER, name: "Asha" },
+    access: ACCESS,
+  };
+
+  it("posts the token once, then stores the device and the session as enrolment plus sign-in do", async () => {
+    mockServer(() => json(201, reply));
+    const account = await redeemSignInQr(SERVER, TOKEN, "Pixel", "1.2.3");
+    expect(account).toMatchObject({ user_id: USER, name: "Asha" });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/sign-in-qr/redeem`);
+    expect(JSON.parse(calls[0].body!)).toMatchObject({ token: TOKEN, device_name: "Pixel", app_version: "1.2.3" });
+    expect(JSON.parse(mockSecure.get("device")!)).toEqual({ device_id: "dev-9", server: SERVER, project_id: "P9", project_name: "Nine" });
+    expect(mockSecure.get("device_secret")).toBe("sec-9");
+    expect(JSON.parse(mockSecure.get(`tokens.${USER}`)!)).toMatchObject({ access_token: "acc", refresh_token: "ref" });
+    expect((await loadAccounts()).map((a) => a.user_id)).toEqual([USER]);
+    // The token is never kept.
+    expect([...mockSecure.values()].some((value) => value.includes(TOKEN))).toBe(false);
+  });
+
+  it("stores nothing when the server refuses, and the error carries no token", async () => {
+    mockServer(() => json(404, { code: "sign_in_qr_invalid" }));
+    const error = await redeemSignInQr(SERVER, TOKEN, "Pixel", "1.2.3").catch((caught) => caught);
+    expect(error).toMatchObject({ status: 404, code: "sign_in_qr_invalid" });
+    expect(JSON.stringify([error.message, error.path, error.method])).not.toContain(TOKEN);
+    expect(mockSecure.size).toBe(0);
+  });
 });

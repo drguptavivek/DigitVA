@@ -59,7 +59,8 @@ export async function checkForUpdate(server?: string): Promise<UpdateResult> {
   let latest: Release | undefined;
   if (server) latest = await fromServer(server).catch(() => undefined);
   if (!latest) latest = await fromGitHub().catch(() => undefined);
-  if (!latest) return { status: "unknown" };
+  // Only an https link is ever handed to Linking (no intent:, javascript: or plain http from a bad reply).
+  if (!latest || !latest.url.startsWith("https://")) return { status: "unknown" };
   const hosted = versionCode(latest.version);
   const installed = versionCode(APP_VERSION);
   if (hosted === null || installed === null) return { status: "unknown" };

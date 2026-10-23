@@ -91,3 +91,8 @@ test("the start-up check runs once a day and is retried after an unreachable try
   expect(fetchMock).not.toHaveBeenCalled();
   expect((await checkForUpdateDaily(SERVER, t0 + 1000 + 24 * 3_600_000))?.status).toBe("available");
 });
+
+test("a non-https download link is never offered", async () => {
+  routes[SERVER_URL] = ok({ version: "0.4.0", version_code: 400, url: "intent://evil#Intent;end" });
+  expect(await checkForUpdate(SERVER)).toEqual({ status: "unknown" });
+});

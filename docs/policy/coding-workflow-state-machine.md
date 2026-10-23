@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Coding Workflow State Machine Policy
@@ -637,7 +637,12 @@ ready when a coder opens the case:
   result (success or recorded failure) for its current payload version, unless
   it was queued with `regenerate`. The existing helpers then move
   `smartva_pending` to `ready_for_coding` for a result and for a recorded
-  failure alike.
+  failure alike. A plain run (no `regenerate`, no requester) also takes the
+  other queued plain runs of its form, with the same trigger, into one engine
+  run of at most 50 cases. Their markers read `running` during it. Their own
+  tasks then skip, and a case the run wrote nothing for is run by its own task.
+  Regenerate and Run-button requests run alone. A task that finds its case's
+  marker `running` skips, because another run holds the case.
 - a Celery beat sweep every 30 seconds (`sweep_smartva_pending`) is the
   backstop: it runs SmartVA for every submission still in `smartva_pending`,
   batched per form (`generate_for_form`, trigger `smartva_sweep`), under a Redis

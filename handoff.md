@@ -33,8 +33,7 @@ CPU-bound (2 cores), not memory-bound.
 
 0. **Landing queue** (owner 2026-10-23: land the optimizations; one committer
    session lands them, each after its own targeted tests, one full suite per
-   landing): SmartVA coalescing `digitva-96ik`
-   (`claude/cool-haibt-16aa88`, ICMR parity pending) → smartva-rust 3.0.2
+   landing): smartva-rust 3.0.2
    `digitva-kyxr` (`claude/clever-kowalevski-f5fc5a`, with its
    `SMARTVA_RS_*` pin bump) → streaming exports and paged ODK sync
    `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
@@ -63,14 +62,12 @@ CPU-bound (2 cores), not memory-bound.
    `runtime-and-operations.md` came from copies started from worktrees, and
    with lazy imports pandas/openpyxl now load per worker, so `--preload` no
    longer shares them.
-5. **SmartVA in-process** (`digitva-5gsq`, landed): verify on staging, under
-   load, the tasks/s and the worker child's RSS against the 300000 KB cap.
-   Rollback: `SMARTVA_RS_LIB=""`. In progress, land in this order: branch
-   `claude/clever-kowalevski-f5fc5a`, a smartva-rust release with
-   `catch_unwind` and a version export at the FFI (today a Rust panic ends the
-   worker child instead of failing one run); then
-   `claude/cool-haibt-16aa88`, grouping queued per-case tasks into one engine
-   run (~1 ms per extra case, the next ~5-10x).
+5. **SmartVA in-process and coalescing** (`digitva-5gsq`, `digitva-96ik`,
+   landed): staging deploy and 200-user load re-test requested by the owner;
+   expect the SmartVA queue to drain ~100+ tasks/s on one worker; watch the
+   worker child RSS against the 300000 KB cap. Known ceilings: the batch claim
+   is not atomic above worker concurrency 1; a whole-run failure fails every
+   case in the batch. Rollback: `SMARTVA_RS_LIB=""`.
 6. Staging `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
 7. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
    Users page.

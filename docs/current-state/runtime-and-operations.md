@@ -160,6 +160,15 @@ Current behavior:
   236-240 MiB (measured before the lazy imports); the limit sits above that,
   so it catches only heavier tasks (exports, large syncs) and does not throw
   the models away after every SmartVA task
+- `config.py` recycles a worker child mainly on memory:
+  `worker_max_tasks_per_child` is 1000 (it was 100; a safety net for leaks
+  memory does not show, owner 2026-10-23), and
+  `worker_max_memory_per_child` is 300000 KB, the same as the flag above, so
+  a worker started without the flag (the demo stack's) is capped too. With the
+  100-task recycle, the worker idled ~1-4 s per recycle and rebuilt the
+  SmartVA models. On a 6,932-case SmartVA backlog that was 216 s of a 599 s
+  drain, and it ate most of the gain of running queued cases together
+  ([SmartVA throughput](smartva-analysis.md#throughput), bead digitva-96ik)
 - celery beat boots the app without blueprints: `scripts/wait-for-celery-beat-db.sh`
   exports `DIGITVA_REGISTER_ROUTES=0` and `make_celery.py` passes it to
   `create_app(register_routes=...)`. Beat only sends tasks by name; schedule

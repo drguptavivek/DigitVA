@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **SmartVA backlog ~10x faster** (`digitva-96ik`;
+  `docs/current-state/smartva-analysis.md` Throughput). A starting completion
+  run takes up to 49 other queued completion runs of its form (same trigger,
+  Redis flag `smartva-plain:<sid>`) into one engine run; their own tasks skip.
+  Run-button and regenerate requests stay per case. Worker children recycle
+  mainly on memory (`worker_max_memory_per_child` 300000 KB) with a 1000-task
+  backstop (was 100). Dev backlog: UNSW01 20 -> 195 tasks/s, ICMR01 (6,932
+  cases) 11.6 -> 136 tasks/s; stored results identical on all 7,897 cases.
 - **Per-request DB work cut; lost allocation race is 409** (`digitva-lb6b`,
   `digitva-kxit`, migration `c5e7a9b1d3f6`). The unit coding-gate scan returns
   early when no gate exists; the stale-allocation sweep on allocation requests

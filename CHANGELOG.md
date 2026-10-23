@@ -5,6 +5,7 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Expo web `expo-web-v2026.10.23.3`** (from `d31d1ef8d`: Training menu and screens) pinned in `x-release-pins`.
 - **Training in the Expo app** (`digitva-r2pf`, `digitva-rcwt`): a Training
   menu (Interview, Coding, Review by training role) and `/app/training`;
   every request excludes the training project by default (Flask and API),

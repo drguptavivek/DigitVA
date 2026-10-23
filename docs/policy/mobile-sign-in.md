@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Sign-in by Mobile Number
@@ -218,5 +218,66 @@ that would collect an interviewer's password.
   names each interviewer and says to unlock and sync. When nothing is unsent
   it asks once, signs every interviewer out (the ordinary sign-out wipe) and
   drops the enrolment, then opens the enrol screen for the new server's QR.
+
+## 8. Sign-in QR (owner decision 2026-10-23, not yet built)
+
+**Approved by the owner 2026-10-23; not yet built** (digitva-3g19). Sections
+1 to 7 stay authoritative until it ships.
+
+Today a new data collector needs two things: the enrolment QR (a device
+credential, section 6) and then their own password. This proposal lets one
+scan do both for the least-privileged accounts.
+
+- **Who.** A user holding an active `interviewer` or `death_reporter` grant.
+  Never for an admin, project PI, data manager, In-charge, coder, coding
+  tester, reviewer or any other privileged account. If the person also holds
+  any such other grant, in any project, no sign-in QR is offered or redeemable
+  (checked at issue and again at redeem); they get the enrolment QR and
+  password sign-in only.
+- **What one scan does.** It enrols the device (as `enrol_device` does today)
+  and opens the normal device session for that one user: same device API
+  scope only, same 15-minute access and sliding refresh lifetimes, same
+  `has_device_access` check, pending-terms behaviour, reuse detection and
+  revocation as a password sign-in. The app then runs PIN setup and the
+  biometric / screen-lock prompt as after any sign-in. No password is typed
+  or created.
+- **Token.** `secrets.token_urlsafe(32)`, stored only as its SHA-256 hash,
+  never logged, never shown again after issue. Single use; bound to one user
+  and to the one device that redeems it first (that enrolment records the
+  token as `enrolled_via`). Expires after **6 hours**. Issuing a new one voids the previous. Redeem is rate-limited per
+  IP, per device and per token, and a wrong token gives one indistinguishable
+  answer. Revocable from the Users page.
+- **Delivery.** Emailed only to a **verified** email address of that user, as
+  QR and code text; the email says it signs them in on the phone and to report
+  it if they did not expect it. Or shown on screen once to an admin, with the
+  person present, on the same Users page rules as section 6. An account
+  without a verified email (mobile-number-only included) gets the on-screen,
+  in-person delivery only. Who may issue: an admin, a project PI, or a data
+  manager who may manage every active grant the person holds (the section 3
+  `can_grant` rule), 10 requests a minute.
+- **Audit** (security events, never the token): `sign_in_qr_issued` (actor,
+  user), `sign_in_qr_redeemed` (device id), `sign_in_qr_expired` and
+  `sign_in_qr_revoked` (actor). A redeem also sends the user's email address
+  a notice ("this phone was signed in with a sign-in QR; if this wasn't you,
+  tell your supervisor"), no token in it.
+- **Threat model.** Whoever holds an unredeemed token becomes that person on
+  a phone: a compromised mailbox, a forwarded email or a photographed QR
+  grants device-API access to the user's cases until redeemed or expired.
+  Mitigations: single use; short expiry; one device binding; notification on
+  redeem; the user and supervisors can see and revoke devices (revoking ends
+  the sessions); the phone still demands the PIN and screen lock on every
+  unlock; the credential reaches only the device API, never web pages,
+  account-security APIs or any admin or supervisory power; privileged roles
+  are excluded outright. Residual risk: the window before redeem, and a
+  stranger redeeming first. This is weaker than password sign-in, which
+  needs something the person knows.
+- **What stays.** Password sign-in (email or mobile, section 2) and the
+  one-time code (section 3) are unchanged. The enrolment QR (device only,
+  sections 6 and 7) continues for everyone else, including all roles above.
+  The app's server-origin rule (section 7) applies to this QR too.
+- **Owner decisions (2026-10-23).** Expiry 6 hours; delivery by verified
+  email or on screen in person; one scan, no second code at redeem; issued by
+  an admin, a project PI or a data manager under the section 3 `can_grant`
+  rule; first-time accounts (no password set yet) are the main use.
 
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).

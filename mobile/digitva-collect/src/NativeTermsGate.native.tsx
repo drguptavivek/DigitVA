@@ -102,7 +102,7 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
               loading={busy}
               onPress={() => void retryAccess()}
             />}
-            {gateMessage ? <Text style={styles.error}>{gateMessage}</Text> : null}
+            {gateMessage ? <Text selectable style={styles.error}>{gateMessage}</Text> : null}
             <Button
               kind="secondary"
               label={t("home")}

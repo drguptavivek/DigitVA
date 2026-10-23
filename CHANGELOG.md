@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **On-screen error reference** (`digitva-l3r8`): the Expo app's generic
+  "Something went wrong" (and web "server could not complete") messages now
+  carry a `Ref:` line with HTTP status, code, method and masked route (or the
+  local error class), UTC time and app version, so a field screenshot is
+  enough to find the failing request. No tokens, server text or answers.
 - **Staging at `f23339810`**, confirmed: with the worker at `cpu_shares` 128,
   request p50 is within ~30-75 ms of the worker-paused baseline at full
   SmartVA throughput, 0 5xx. Runbook: `git submodule sync` before the update.

@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
+import { APP_VERSION } from "./appVersion";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { t, type StringKey } from "./i18n";
 import { BUTTON_MIN_WIDTH, buttonTone, controls, fontSize, radius, spacing, typography, ui, useTheme, type ButtonSize, type ButtonVariant, type UiTokens } from "./theme";
@@ -265,6 +266,23 @@ export function useUiStyles() {
   return useMemo(() => createStyles(theme.ui, height, compact), [theme.mode, height, compact]);
 }
 
+/**
+ * One support line for screenshots: what failed, when, on which build. Only status, machine code, masked
+ * route, error class and a scrubbed message prefix; never tokens, server text, URLs, names or answers.
+ */
+export function errorReference(error: unknown): string {
+  let what = "unknown";
+  if (error instanceof ApiError) {
+    what = [`HTTP ${error.status}`, error.code, error.path && `${error.method ?? "GET"} ${error.path}`].filter(Boolean).join(" ");
+  } else if (error instanceof TypeError) {
+    what = "network";
+  } else if (error instanceof Error) {
+    const msg = error.message.replace(/(["'`]).*?\1/g, "$1…$1").replace(/\d{4,}/g, "#").slice(0, 60);
+    what = `${error.name} ${msg}`.trim();
+  }
+  return `Ref: ${what} · ${new Date().toISOString().slice(11, 16)}Z · v${APP_VERSION}`;
+}
+
 /** The UI string for an error from the device API; never shows server text or answers. */
 export function errorText(error: unknown): string {
   if (error instanceof SessionRevokedError) return t(error.keptUnsent ? "accessRemovedKept" : "sessionRevoked");
@@ -283,10 +301,10 @@ export function errorText(error: unknown): string {
     if (error.code === "cap_reached") return t("demoFull");
     if (error.status === 429) return t("errRateLimited");
     if (error.status === 401) return t("errSignIn");
-    return t("errGeneric");
+    return `${t("errGeneric")}\n${errorReference(error)}`;
   }
   if (error instanceof TypeError) return t("errNetwork");
-  return t("errGeneric");
+  return `${t("errGeneric")}\n${errorReference(error)}`;
 }
 
 /** A case state's UI label (the states a device holds), else the state code itself. */

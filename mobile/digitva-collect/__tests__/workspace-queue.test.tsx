@@ -226,7 +226,7 @@ describe("QueueScreen", () => {
     allocation.reject(new ApiError(409, "allocation_conflict"));
     await settle();
     expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
-    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(409, "allocation_conflict")));
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(JSON.stringify(errorText(new ApiError(409, "allocation_conflict"))).slice(1, -1));
     await unmount(screen.renderer);
   });
 
@@ -289,7 +289,7 @@ describe("QueueScreen", () => {
     expect(button(screen.renderer.root, "Resume case")).toBeDefined();
     expect(button(screen.renderer.root, "Release case")).toBeDefined();
     expect(button(screen.renderer.root, "Start a random case")?.props.accessibilityState.disabled).toBe(true);
-    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(JSON.stringify(errorText(new ApiError(503, "unavailable"))).slice(1, -1));
 
     await press(screen.renderer, "Release case");
     await settle();
@@ -308,7 +308,7 @@ describe("QueueScreen", () => {
     const screen = await render("reviewing", api);
     expect(button(screen.renderer.root, "Resume case")).toBeDefined();
     expect(button(screen.renderer.root, "Release case")).toBeDefined();
-    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(JSON.stringify(errorText(new ApiError(503, "unavailable"))).slice(1, -1));
 
     await press(screen.renderer, "Release case");
     const release = alert.mock.calls[0]?.[2]?.find((action) => action.text === "Release");
@@ -372,7 +372,7 @@ describe("QueueScreen", () => {
         .mockResolvedValue({ cases: [row], count: 1, limit: 50, offset: 0, has_more: false }),
     });
     const screen = await render("reviewing", api);
-    expect(JSON.stringify(screen.renderer.toJSON())).toContain(errorText(new ApiError(503, "unavailable")));
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(JSON.stringify(errorText(new ApiError(503, "unavailable"))).slice(1, -1));
     await press(screen.renderer, "Refresh cases");
     await settle();
     expect(api.getReviewerAvailable).toHaveBeenCalledTimes(2);

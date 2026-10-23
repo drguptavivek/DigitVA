@@ -10,11 +10,27 @@ export class ApiError extends Error {
     public code: string | undefined,
     public readonly redirectUrl?: string,
     public readonly csrf?: ClientCsrf,
-    public readonly payload?: Record<string, unknown>
+    public readonly payload?: Record<string, unknown>,
+    /** Masked route of the failing request (see maskApiPath); for on-screen error references. */
+    public path?: string,
+    public method?: string
   ) {
     super(`HTTP ${status}${code ? ` ${code}` : ""}`);
     this.name = "ApiError";
   }
+}
+
+/** Route only: no origin or query, id-like segments (digits, UUIDs, 8+ char hex/opaque tokens) as :id. */
+export function maskApiPath(path: string): string {
+  return path.split(/[?#]/)[0].split("/").map((seg) =>
+    /^\d+$/.test(seg) || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(seg) || (seg.length >= 8 && /\d/.test(seg) && /^[\w~.-]+$/.test(seg)) ||
+    /^[0-9a-f]{8,}$/i.test(seg) ? ":id" : seg).join("/");
+}
+
+function withRoute(error: ApiError, path: string, method?: string): ApiError {
+  error.path = maskApiPath(path);
+  error.method = method ?? "GET";
+  return error;
 }
 
 export const AUTH_API = "/api/v1/auth";
@@ -743,18 +759,18 @@ async function requestOnce<T>(
         (response.status >= 300 && response.status < 400));
     if (manualRedirect) return { status: response.status, body: body as T };
     if (response.redirected || !contentType.includes("json")) {
-      throw new ApiError(
+      throw withRoute(new ApiError(
         response.status,
         "redirected_response",
         redirectUrl,
-      );
+      ), path, options.method);
     }
     if (malformedJson && response.ok) {
-      throw new ApiError(
+      throw withRoute(new ApiError(
         response.status,
         "malformed_response",
         redirectUrl,
-      );
+      ), path, options.method);
     }
     if (!response.ok) {
       const code =
@@ -762,7 +778,7 @@ async function requestOnce<T>(
           ? body.code
           : undefined;
       signalAccessStale(response.status, code, path, options.token === undefined);
-      throw new ApiError(response.status, code, redirectUrl, csrf, body);
+      throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, body), path, options.method);
     }
     return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
   } finally {
@@ -819,7 +835,7 @@ export async function requestRaw(
     if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
   }
   if (options.ifNoneMatch !== undefined) {
-    if (!/^"[0-9a-f]{64}"$/.test(options.ifNoneMatch)) throw new ApiError(400, "invalid_request");
+    if (!/^"[0-9a-f]{64}"$/.test(options.ifNoneMatch)) throw withRoute(new ApiError(400, "invalid_request"), path, options.method);
     headers["If-None-Match"] = options.ifNoneMatch;
   }
   if (options.acceptGzip && Platform.OS !== "web") headers["Accept-Encoding"] = "gzip";
@@ -850,29 +866,29 @@ export async function requestRaw(
     const redirectUrl = sameOriginRedirect(response);
     const manualRedirect = options.allowRedirect &&
       (response.status === 0 || response.type === "opaqueredirect" || (response.status >= 300 && response.status < 400));
-    if (manualRedirect || response.redirected) throw new ApiError(response.status, "redirected_response", redirectUrl);
+    if (manualRedirect || response.redirected) throw withRoute(new ApiError(response.status, "redirected_response", redirectUrl), path, options.method);
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.toLowerCase().includes("json")) signalAccessStale(response.status, undefined, path, options.token === undefined);
     if (response.status !== 304) {
       const contentLength = Number(response.headers.get("Content-Length"));
       if (Number.isFinite(contentLength) && contentLength > 8 * 1024 * 1024) {
-        throw new ApiError(response.status, "response_too_large");
+        throw withRoute(new ApiError(response.status, "response_too_large"), path, options.method);
       }
     }
     if (contentType && !contentType.toLowerCase().includes("json")) {
-      throw new ApiError(response.status, "redirected_response", redirectUrl);
+      throw withRoute(new ApiError(response.status, "redirected_response", redirectUrl), path, options.method);
     }
     if (response.status === 304) return { status: 304, body: null, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
-    if (!contentType.toLowerCase().includes("json")) throw new ApiError(response.status, "redirected_response", redirectUrl);
+    if (!contentType.toLowerCase().includes("json")) throw withRoute(new ApiError(response.status, "redirected_response", redirectUrl), path, options.method);
 
     let body: string;
     try {
       body = await response.text();
     } catch (error) {
       if (controller.signal.aborted) throw error;
-      throw new ApiError(response.status, "malformed_response");
+      throw withRoute(new ApiError(response.status, "malformed_response"), path, options.method);
     }
-    if (utf8ByteLength(body) > 8 * 1024 * 1024) throw new ApiError(response.status, "response_too_large");
+    if (utf8ByteLength(body) > 8 * 1024 * 1024) throw withRoute(new ApiError(response.status, "response_too_large"), path, options.method);
     if (!response.ok) {
       let payload: Record<string, unknown> = {};
       try {
@@ -883,7 +899,7 @@ export async function requestRaw(
       }
       const code = typeof payload.code === "string" ? payload.code : undefined;
       signalAccessStale(response.status, code, path, options.token === undefined);
-      throw new ApiError(response.status, code, redirectUrl, csrf, payload);
+      throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, payload), path, options.method);
     }
     return { status: response.status, body, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
   } finally {

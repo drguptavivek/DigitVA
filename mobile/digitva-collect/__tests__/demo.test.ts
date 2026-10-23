@@ -125,7 +125,7 @@ describe("demoErrorText", () => {
   });
 
   it("falls back to the shared mapping and speaks Hindi when asked", () => {
-    expect(text(500, "oops")).toBe(t("errGeneric"));
+    expect(text(500, "oops")).toContain(t("errGeneric"));
     expect(demoErrorText(new TypeError("Network request failed"))).toBe(t("errNetwork"));
     setUiLocale("hi");
     expect(text(503, "cap_reached")).not.toBe("The demo is full; try again later.");

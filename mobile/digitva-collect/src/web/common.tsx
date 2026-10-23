@@ -6,7 +6,7 @@ import { useAppState } from "../AppState";
 import { ClientApiError } from "../client/api";
 import { t, UI_LOCALES } from "../i18n";
 import { radius, useTheme } from "../theme";
-import { Button, Screen, useUiStyles } from "../ui";
+import { Button, errorReference, Screen, useUiStyles } from "../ui";
 import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
 import { loginRecoveryUrl } from "./loginRecovery";
 import { guardedNavigate } from "./navigationGuard";
@@ -25,10 +25,10 @@ export function browserErrorText(error: unknown): string {
     if (error.code === "csrf_failed") return t("csrfRefreshed");
     if (error.status === 422 || error.status === 400) return t("serverValidation");
     if (error.status >= 500) return t("serverUnavailable");
-    return t("serverError");
+    return `${t("serverError")}\n${errorReference(error)}`;
   }
   if (error instanceof TypeError) return t("errNetwork");
-  return t("serverError");
+  return `${t("serverError")}\n${errorReference(error)}`;
 }
 
 export function UiLanguageSwitcher() {

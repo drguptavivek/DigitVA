@@ -9,8 +9,13 @@ them.
 
 Row order: the export query has no ORDER BY, so the database is free to return
 rows in any order. The golden comparison therefore pins the header line and the
-set of whole records byte for byte, and not their sequence.
+set of whole records byte for byte, and not their sequence. The SmartVA input
+export also orders its payload columns by first sight across rows, so its
+comparison pins the leading columns and the trailing ``sid`` and treats the
+payload columns and the rows as sets. Byte identity in real order was checked
+on a 7k-row dev clone, where the plan is the production one.
 """
+import csv
 import io
 import os
 import re
@@ -74,6 +79,20 @@ PII_STATUS = {
     ),
 }
 UNCONFIRMED = PiiSetStatus(confirmed=False, field_ids=frozenset(), owned_flagged_count=0)
+
+
+SMARTVA_FRONT = ["project_id", "site_id", "va_form_id", "va_uniqueid_masked", "workflow_state"]
+
+
+def _smartva_view(text):
+    """The SmartVA input CSV with its row-order-dependent column order factored out."""
+    header, *rows = csv.reader(io.StringIO(text.removeprefix(export_store_service.UTF8_BOM)))
+    return (
+        header[:5],
+        header[-1],
+        sorted(header[5:-1]),
+        sorted(sorted(zip(header, row)) for row in rows),
+    )
 
 
 def _split_records(text, record_start):
@@ -266,10 +285,9 @@ class DmExportStreamingTests(BaseTestCase):
         )
 
     def test_smartva_input_export_matches_the_golden_file(self):
-        self.assertEqual(
-            _split_records(dm_smartva_input_export_csv(self.user, project=PROJECT), f"{PROJECT},"),
-            _split_records(self._golden("smartva_input.csv"), f"{PROJECT},"),
-        )
+        actual = _smartva_view(dm_smartva_input_export_csv(self.user, project=PROJECT))
+        self.assertEqual(actual[:2], (SMARTVA_FRONT, "sid"))
+        self.assertEqual(actual, _smartva_view(self._golden("smartva_input.csv")))
 
     def test_the_golden_files_exercise_what_they_are_meant_to(self):
         """Non-vacuity: the fixture really hits each case the goldens pin."""
@@ -312,8 +330,8 @@ class DmExportStreamingTests(BaseTestCase):
         handle = io.StringIO()
         write_dm_smartva_input_export_csv(handle, self.user, project=PROJECT)
         self.assertEqual(
-            _split_records(handle.getvalue(), f"{PROJECT},"),
-            _split_records(dm_smartva_input_export_csv(self.user, project=PROJECT), f"{PROJECT},"),
+            _smartva_view(handle.getvalue()),
+            _smartva_view(dm_smartva_input_export_csv(self.user, project=PROJECT)),
         )
 
     def test_the_export_query_is_streamed_with_yield_per(self):
@@ -382,14 +400,18 @@ class DmExportStreamingTests(BaseTestCase):
             self.assertEqual(response.headers["X-Export-Cache"], "MISS", name)
             body = response.get_data()
             self.assertTrue(body.startswith(export_store_service.UTF8_BOM.encode("utf-8")), name)
-            record_start = "uuid:lj7u-" if name.startswith("submissions") else f"{PROJECT},"
-            self.assertEqual(
-                _split_records(body.decode("utf-8"), record_start),
-                _split_records(
-                    export_store_service.UTF8_BOM + self._golden(name), record_start
-                ),
-                name,
-            )
+            if name.startswith("submissions"):
+                self.assertEqual(
+                    _split_records(body.decode("utf-8"), "uuid:lj7u-"),
+                    _split_records(
+                        export_store_service.UTF8_BOM + self._golden(name), "uuid:lj7u-"
+                    ),
+                    name,
+                )
+            else:
+                self.assertEqual(
+                    _smartva_view(body.decode("utf-8")), _smartva_view(self._golden(name)), name
+                )
             self.assertIn(body, stored.values(), name)
 
     # -- scratch files never outlive an export ---------------------------------------

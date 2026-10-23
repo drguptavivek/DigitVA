@@ -1,10 +1,11 @@
-import { createWhoVa2022Instrument, WHO_VA_FORM_VERSION, type SubmissionData, type WhoVaDraft } from "@drguptavivek/who-2022-va";
+import { createWhoVa2022Instrument, WHO_VA_FORM_VERSION, type InstrumentDefinition, type SubmissionData, type WhoVaDraft } from "@drguptavivek/who-2022-va";
 
 jest.mock("@drguptavivek/who-2022-va/web", () => ({ WhoVaForm: () => null }), { virtual: true });
 
 import { RevisionMemoryStore } from "../src/client/revisionMemoryStore";
 import { createRevisionSnapshot, getRevisionDetail, getSubmittedRevisions, isIncompleteOutcome, isPartialOutcome, postRevision, revisionOutcome } from "../src/client/revisions";
-import { normalizeRevisionEnvelope } from "../src/web/InterviewScreen";
+import { interviewErrorText, normalizeRevisionEnvelope, refusalFieldsText } from "../src/web/InterviewScreen";
+import { ClientApiError } from "../src/client/api";
 
 function response(status: number, body: unknown): Response {
   return {
@@ -225,5 +226,43 @@ describe("browser submitted interview revisions", () => {
     expect(store.getCurrent()).toMatchObject({ locale: "en", translation_version: 0 });
     store.remove("d1");
     expect(store.load("d1")).toBeUndefined();
+  });
+});
+
+describe("refusalFieldsText", () => {
+  const instrument = {
+    sections: [{ name: "consent", label: { en: "Consent" } }, { name: "outcome", label: { en: "<b>Interview</b> outcome" } }],
+    questions: [
+      { name: "Id10013", label: { en: "Did the respondent give consent?" }, sectionPath: ["consent"] },
+      { name: "interview_outcome", label: { en: "Outcome\nof the interview" }, sectionPath: ["outcome", "sub"] },
+      { name: "Id10017", label: { en: "x".repeat(200) }, sectionPath: [] },
+    ],
+  } as unknown as InstrumentDefinition;
+
+  it("names section, question and field, skipping unknown names", () => {
+    expect(refusalFieldsText(["Id10013", "consent", "interview_outcome", "Id10013"], instrument, "en"))
+      .toBe("Consent › Did the respondent give consent? (Id10013); Interview outcome › Outcome of the interview (interview_outcome)");
+  });
+  it("omits the section when there is none and caps the label", () => {
+    const text = refusalFieldsText(["Id10017"], instrument, "en");
+    expect(text).toBe(`${"x".repeat(79)}… (Id10017)`);
+  });
+  it("returns empty for absent, non-array or unmatched fields", () => {
+    expect(refusalFieldsText(undefined, instrument, "en")).toBe("");
+    expect(refusalFieldsText("Id10013", instrument, "en")).toBe("");
+    expect(refusalFieldsText(["consent"], instrument, "en")).toBe("");
+    expect(refusalFieldsText(["Id10013"], undefined, "en")).toBe("");
+  });
+  it("shows at most five matches", () => {
+    const many = { sections: [], questions: Array.from({ length: 8 }, (_, i) => ({ name: `q${i}`, label: { en: `Q${i}` }, sectionPath: [] })) } as unknown as InstrumentDefinition;
+    expect(refusalFieldsText(many.questions.map((q: { name: string }) => q.name), many, "en").split("; ")).toHaveLength(5);
+  });
+  it("adds the Fix line between the server message and the Ref on a 422", () => {
+    const error = new ClientApiError(422, "outcome_conflicts_consent", undefined, undefined, { error: "Change one of them.", fields: ["Id10013"] });
+    expect(interviewErrorText(error, instrument, "en").split("\n")).toEqual([
+      "Change one of them.",
+      "Fix: Consent › Did the respondent give consent? (Id10013)",
+      expect.stringMatching(/^Ref: HTTP 422 outcome_conflicts_consent/),
+    ]);
   });
 });

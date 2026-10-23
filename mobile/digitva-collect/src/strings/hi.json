@@ -916,5 +916,6 @@
   "demoLinkFailed": "ब्राउज़र नहीं खुल सका।",
   "demoDraftLimit": "इस साक्षात्कार के लिए डेमो की सीमा पूरी हो गई। यह इसी फ़ोन में रहेगा और अपने आप दोबारा नहीं भेजा जाएगा।",
   "demoDraftRetry": "फिर से भेजने की कोशिश करें",
-  "demoSignInUsername": "यूज़रनेम"
+  "demoSignInUsername": "यूज़रनेम",
+  "fixFields": "ठीक करें:"
 }

@@ -1,5 +1,6 @@
 import {
   createWhoVa2022Instrument,
+  localizeText,
   WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   WHO_VA_FORM_VERSION,
   type SubmissionData,
@@ -145,19 +146,50 @@ export function definitionErrorText(error: unknown): string | undefined {
   return undefined;
 }
 
+const MAX_REFUSAL_FIELDS = 5;
+const MAX_LABEL_CHARS = 80;
+
+function plainLabel(text: Record<string, string | undefined>, locale: string, fallback: string): string {
+  const flat = localizeText(text, locale, fallback).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return flat.length > MAX_LABEL_CHARS ? `${flat.slice(0, MAX_LABEL_CHARS - 1)}…` : flat;
+}
+
+/**
+ * "Section › Question (name)" for the questions a refused submit names (the 422's `fields`),
+ * joined by "; ". Names the instrument does not hold (e.g. "consent") are skipped. Only
+ * definition labels are used, never answers. Returns "" when nothing matched.
+ */
+export function refusalFieldsText(fields: unknown, instrument: InstrumentDefinition | undefined, language: string): string {
+  if (!instrument || !Array.isArray(fields)) return "";
+  const parts: string[] = [];
+  for (const name of new Set(fields.filter((field): field is string => typeof field === "string"))) {
+    const question = instrument.questions.find((entry) => entry.name === name);
+    if (!question) continue;
+    const sectionName = question.sectionPath[0] ?? question.sectionPath.at(-1);
+    const section = instrument.sections.find((entry) => entry.name === sectionName);
+    const label = plainLabel(question.label, language, name);
+    parts.push(`${section ? `${plainLabel(section.label, language, section.name)} › ` : ""}${label} (${name})`);
+    if (parts.length === MAX_REFUSAL_FIELDS) break;
+  }
+  return parts.join("; ");
+}
+
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
-function interviewErrorText(error: unknown): string {
+export function interviewErrorText(error: unknown, instrument?: InstrumentDefinition, language = "en"): string {
   const definitionText = definitionErrorText(error);
   if (definitionText) return definitionText;
   if (error instanceof ClientApiError && error.code === "draft_stale") {
     const message = error.payload?.error;
     if (typeof message === "string" && message.trim()) return message.trim().slice(0, 500);
   }
-  // A refused submit names what to fix (consent, Id10013, identity); the page
-  // cannot highlight it, so show the server's fixed rule text with the Ref.
+  // A refused submit names what to fix (consent, Id10013, identity): show the server's fixed rule
+  // text, the section and question it points at, and the Ref.
   if (error instanceof ClientApiError && error.status === 422) {
     const message = error.payload?.error;
-    if (typeof message === "string" && message.trim()) return `${message.trim().slice(0, 500)}\n${errorReference(error)}`;
+    if (typeof message === "string" && message.trim()) {
+      const fix = refusalFieldsText(error.payload?.fields, instrument, language);
+      return [message.trim().slice(0, 500), fix && `${t("fixFields")} ${fix}`, errorReference(error)].filter(Boolean).join("\n");
+    }
   }
   return browserErrorText(error);
 }
@@ -745,7 +777,7 @@ export default function InterviewScreen() {
     } catch (error) {
       // The project began requiring consent after this page checked: ask for it now.
       if (isCurrent() && error instanceof ClientApiError && error.code === "consent_required") setConsentCheck((n) => n + 1);
-      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error));
+      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error, instrument, locale));
     } finally {
       if (isCurrent()) setBusy(false);
     }

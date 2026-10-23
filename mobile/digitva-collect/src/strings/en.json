@@ -916,5 +916,6 @@
   "demoLinkFailed": "Could not open the browser.",
   "demoDraftLimit": "The demo limit was reached for this interview. It stays on this phone and is not sent again by itself.",
   "demoDraftRetry": "Try sending again",
-  "demoSignInUsername": "Username"
+  "demoSignInUsername": "Username",
+  "fixFields": "Fix:"
 }

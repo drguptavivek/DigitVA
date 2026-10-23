@@ -8,6 +8,12 @@ Create Date: 2026-10-23
 distinct routed units of a coder's forms on every allocation request in a
 project that has a unit coding gate. A partial index on the routed rows
 covers it. Additive; built CONCURRENTLY, so outside the transaction.
+
+A CONCURRENTLY build that fails or is cancelled leaves an INVALID index of the
+same name, which ``if_not_exists`` would silently keep; upgrade drops such a
+leftover first (digitva-hbrs). The guard lives here, not in a later revision,
+because this revision is the one that re-runs after a failed build: it was
+never stamped.
 """
 
 import sqlalchemy as sa
@@ -21,8 +27,24 @@ depends_on = None
 INDEX = "ix_va_submissions_form_org_unit"
 
 
+# An index of this name in the current schema that Postgres marked invalid.
+_INVALID_INDEX = sa.text(
+    "SELECT 1 FROM pg_class c"
+    " JOIN pg_index i ON i.indexrelid = c.oid"
+    " JOIN pg_namespace n ON n.oid = c.relnamespace"
+    " WHERE c.relname = :name AND n.nspname = current_schema() AND NOT i.indisvalid"
+)
+
+
 def upgrade():
     with op.get_context().autocommit_block():
+        if op.get_bind().execute(_INVALID_INDEX, {"name": INDEX}).first():
+            op.drop_index(
+                INDEX,
+                table_name="va_submissions",
+                postgresql_concurrently=True,
+                if_exists=True,
+            )
         op.create_index(
             INDEX,
             "va_submissions",

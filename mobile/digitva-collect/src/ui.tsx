@@ -1,7 +1,7 @@
 /** Shared screen chrome and controls. */
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
@@ -20,7 +20,8 @@ export function Screen({
   sidebar,
   headerAction,
   footer,
-  lead
+  lead,
+  variant = "standard"
 }: {
   title: string;
   children: ReactNode;
@@ -31,9 +32,20 @@ export function Screen({
   /** With a sidebar and scroll: rendered full width at the top of the scroller, and the title row moves into the
    * scroller under it, so both scroll away with the page (the browser interview's header bar). */
   lead?: ReactNode;
+  /** "immersive": no title bar, no dev banner, no padding or max width; `children` own the full height (the
+   * interview and revision forms put their one compact top bar first). */
+  variant?: "standard" | "immersive";
 }) {
   const theme = useTheme();
   const screenStyles = useUiStyles();
+  if (variant === "immersive") {
+    return (
+      <SafeAreaView style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>
+        <View style={screenStyles.fill}>{children}</View>
+        {footer ? <View style={[screenStyles.footer, { borderColor: theme.colors.border }]}>{footer}</View> : null}
+      </SafeAreaView>
+    );
+  }
   const titleNode = (
     <View style={screenStyles.titleWrap}>
       <View style={screenStyles.titleBar}>
@@ -150,7 +162,9 @@ export function Button({
         style
       ]}
     >
-      <Text style={[styles.buttonText, { color: tone.fg }]}>{loading ? t("loading") : label}</Text>
+      <Text style={[styles.buttonText, { color: tone.fg }]}>{label}</Text>
+      {/* Absolute, so the button keeps its width while busy. */}
+      {loading ? <ActivityIndicator size="small" color={tone.fg} style={styles.buttonSpinner} /> : null}
     </Pressable>
   );
 }
@@ -239,6 +253,7 @@ function createStyles(t: UiTokens, controlHeight: number = controls.minHeight, c
     primary: { backgroundColor: t.primary },
     secondary: { backgroundColor: t.background, borderWidth: 1, borderColor: t.input },
     danger: { backgroundColor: t.destructive },
+    buttonSpinner: { position: "absolute", right: spacing.xs },
     disabled: { opacity: 0.5 },
     buttonText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "500", color: t.primaryForeground, fontFamily: controls.fontFamily },
     secondaryText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "500", color: t.foreground, fontFamily: controls.fontFamily },

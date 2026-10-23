@@ -139,13 +139,15 @@ jest.mock("../src/i18n", () => ({
 }));
 jest.mock("../src/prefill", () => ({ initialDataFromPrefill: () => ({}) }));
 jest.mock("../src/translations", () => ({ applyTranslations: (instrument: unknown) => instrument }));
+const mockToast = jest.fn();
+jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
     Button: ({ label, onPress, disabled }: { label: string; onPress?: () => void; disabled?: boolean }) =>
       ReactActual.createElement("button", { "data-label": label, disabled, onClick: onPress }, label),
     Row: ({ children }: { children: ReactNode }) => ReactActual.createElement("div", null, children),
-    Screen: ({ children }: { children: ReactNode }) => ReactActual.createElement("main", null, children),
+    Screen: ({ children, variant }: { children: ReactNode; variant?: string }) => ReactActual.createElement("main", { "data-variant": variant }, children),
     errorText: () => "error",
     useUiStyles: () => ({ text: {}, muted: {}, error: {} }),
   };
@@ -167,6 +169,17 @@ jest.mock("@drguptavivek/who-2022-va", () => ({
 
 import Revision from "../src/nativeRoutes/revision";
 import { fetchSubmittedRevisions, beginRevision, queueRevision, reopenRevision } from "../src/revisions";
+
+/** Opens the single-line reason select and taps the reason's row in the sheet. */
+const chooseReason = async (tree: ReturnType<typeof create>, label: string) => {
+  const press = (node: { props: Record<string, any> }) => node.props.onPress();
+  await act(async () => {
+    press(tree.root.findAll((n) => n.props.accessibilityLabel === "revisionReason" && typeof n.props.onPress === "function")[0]);
+  });
+  await act(async () => {
+    press(tree.root.findAll((n) => n.props.accessibilityRole === "menuitem" && typeof n.props.onPress === "function" && n.props.accessibilityLabel === label)[0]);
+  });
+};
 
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 
@@ -348,8 +361,8 @@ describe("native submitted-interview revisions", () => {
     expect(tree!.root.findAllByProps({ "data-revision-form": true })).toHaveLength(1);
     await act(async () => {
       (mockFormProps.onDraftController as (controller: unknown) => void)({ saveDraft: mockSaveDraft });
-      tree!.root.findByProps({ "data-label": "revisionReasonInterviewerCorrection" }).props.onClick();
     });
+    await chooseReason(tree!, "revisionReasonInterviewerCorrection");
     await settle();
     await act(async () => {
       (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: savedAnswers });
@@ -381,8 +394,7 @@ describe("native submitted-interview revisions", () => {
     });
     expect(mockQueue).not.toHaveBeenCalled();
 
-    const reason = tree!.root.findByProps({ "data-label": "revisionReasonInterviewerCorrection" });
-    await act(async () => { reason.props.onClick(); });
+    await chooseReason(tree!, "revisionReasonInterviewerCorrection");
     await act(async () => {
       (mockFormProps.onComplete as (result: unknown) => void)({ ...completion, data: { Id10013: "yes", interview_outcome: "partially_completed" } });
     });
@@ -400,8 +412,7 @@ describe("native submitted-interview revisions", () => {
     await settle();
     await settle();
 
-    const reason = tree!.root.findByProps({ "data-label": "revisionReasonInterviewerCorrection" });
-    await act(async () => { reason.props.onClick(); });
+    await chooseReason(tree!, "revisionReasonInterviewerCorrection");
     await act(async () => {
       (mockFormProps.onComplete as (result: unknown) => void)({
         valid: true,
@@ -410,9 +421,8 @@ describe("native submitted-interview revisions", () => {
       });
     });
 
-    const rendered = JSON.stringify(tree!.toJSON());
-    expect(rendered).toContain("revisionConsentRequired");
-    expect(rendered).toContain("data-revision-form");
+    expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "revisionConsentRequired" });
+    expect(JSON.stringify(tree!.toJSON())).toContain("data-revision-form");
     expect(mockQueue).not.toHaveBeenCalled();
   });
 
@@ -425,8 +435,8 @@ describe("native submitted-interview revisions", () => {
 
     await act(async () => {
       (mockFormProps.onDraftController as (controller: unknown) => void)({ saveDraft: mockSaveDraft });
-      tree!.root.findByProps({ "data-label": "revisionReasonInterviewerCorrection" }).props.onClick();
     });
+    await chooseReason(tree!, "revisionReasonInterviewerCorrection");
     const completion = { valid: true, issues: [] };
     await act(async () => {
       (mockFormProps.onComplete as (result: unknown) => void)({
@@ -446,15 +456,13 @@ describe("native submitted-interview revisions", () => {
     await settle();
     await settle();
     await act(async () => { (mockFormProps.onDraftController as (value: unknown) => void)?.({ saveDraft: mockSaveDraft }); });
-    const ordinaryReason = tree!.root.findByProps({ "data-label": "revisionReasonMoreInformation" });
-    await act(async () => { ordinaryReason.props.onClick(); });
+    await chooseReason(tree!, "revisionReasonMoreInformation");
     await act(async () => {
       (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "partially_completed" } });
     });
     expect(mockQueue).not.toHaveBeenCalled();
 
-    const finishReason = tree!.root.findByProps({ "data-label": "revisionReasonFinishPartial" });
-    await act(async () => { finishReason.props.onClick(); });
+    await chooseReason(tree!, "revisionReasonFinishPartial");
     await act(async () => {
       (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "partially_completed" } });
     });
@@ -472,5 +480,83 @@ describe("native submitted-interview revisions", () => {
     expect(mockSaveDraft).toHaveBeenCalledTimes(1);
     expect(mockQueue).not.toHaveBeenCalled();
     expect(tree!.toJSON()).not.toBeNull();
+  });
+
+  describe("immersive layout", () => {
+    const press = (tree: ReturnType<typeof create>, label: string) =>
+      act(async () => {
+        tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress();
+      });
+    const openForm = async () => {
+      let tree!: ReturnType<typeof create>;
+      await act(async () => { tree = create(<Revision />); });
+      await settle();
+      await settle();
+      await act(async () => { (mockFormProps.onDraftController as (value: unknown) => void)?.({ saveDraft: mockSaveDraft }); });
+      return tree;
+    };
+
+    it("renders the immersive screen with one top bar and a single-line reason select", async () => {
+      const tree = await openForm();
+      expect(tree.root.findByType("main").props["data-variant"]).toBe("immersive");
+      expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header")).toHaveLength(1);
+      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "revisionReason" && typeof n.props.onPress === "function").length).toBeGreaterThan(0);
+      // The reasons are not inline buttons any more.
+      expect(tree.root.findAllByProps({ "data-label": "revisionReasonInterviewerCorrection" })).toHaveLength(0);
+    });
+
+    it("lists the same reasons in the select sheet and shows the picked reason's notice on one line", async () => {
+      const tree = await openForm();
+      await act(async () => {
+        tree.root.findAll((n) => n.props.accessibilityLabel === "revisionReason" && typeof n.props.onPress === "function")[0].props.onPress();
+      });
+      const rows = tree.root.findAll((n) => n.props.accessibilityRole === "menuitem" && typeof n.props.onPress === "function");
+      expect([...new Set(rows.map((n) => n.props.accessibilityLabel))]).toEqual([
+        "revisionReasonInterviewerCorrection",
+        "revisionReasonRespondentCorrection",
+        "revisionReasonMoreInformation",
+        "revisionReasonFinishPartial",
+      ]);
+      await act(async () => { rows[2].props.onPress(); });
+      const notice = tree.root.findAll((n) => n.props.numberOfLines === 1 && JSON.stringify(n.props.children) === '"revisionReasonMessageMoreInformation"');
+      expect(notice.length).toBeGreaterThan(0);
+    });
+
+    it("overflow menu runs Save now, Finish as incomplete and Help; Back leaves after a save", async () => {
+      const tree = await openForm();
+      const choose = async (label: string) => {
+        await press(tree, "moreActions");
+        await act(async () => {
+          tree.root.findAll((n) => n.props.accessibilityRole === "menuitem" && n.props.accessibilityLabel === label)[0].props.onPress();
+        });
+      };
+      await choose("saveNow");
+      await settle();
+      expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+      expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: "revisionSaved" });
+
+      const validate = jest.fn(() => ({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "completed" } }));
+      await act(async () => { (mockFormProps.onReady as (value: unknown) => void)({ validate }); });
+      await choose("finishIncomplete");
+      expect(validate).toHaveBeenCalledTimes(1);
+
+      await choose("formHelp");
+      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "ok").length).toBeGreaterThan(0);
+
+      await press(tree, "back");
+      await settle();
+      expect(mockSaveDraft).toHaveBeenCalledTimes(2);
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    });
+
+    it("shows Not saved after a failed save and Saved after the next one", async () => {
+      const tree = await openForm();
+      const label = () => tree.root.findAll((n) => n.props.accessibilityLabel === "saveStateSaved" || n.props.accessibilityLabel === "saveStateUnsaved")[0].props.accessibilityLabel;
+      await act(async () => { (mockFormProps.onDraftError as () => void)(); });
+      expect(label()).toBe("saveStateUnsaved");
+      expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "revisionUnsavedWarning" });
+      await act(async () => { (mockFormProps.onDraftSaved as () => void)(); });
+      expect(label()).toBe("saveStateSaved");
+    });
   });
 });

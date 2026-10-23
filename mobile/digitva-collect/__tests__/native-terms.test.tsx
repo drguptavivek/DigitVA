@@ -4,6 +4,9 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 let mockRequired = true;
 let mockBlocked: "maintenance" | undefined;
 let mockAppError: string | undefined;
+let mockErrorBlocking = false;
+const mockShow = jest.fn();
+jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockShow }) }));
 let mockBackground: string | undefined;
 const mockDismiss = jest.fn();
 let mockRouteUser: string | undefined = "worker";
@@ -23,6 +26,7 @@ jest.mock("../src/AppState", () => ({
     ],
     reload: mockReload,
     error: mockAppError,
+    errorBlocking: mockErrorBlocking,
     clearError: mockClearError,
     backgroundError: mockBackground,
     dismissBackgroundError: mockDismiss,
@@ -60,6 +64,7 @@ beforeEach(() => {
   mockRequired = true;
   mockBlocked = undefined;
   mockAppError = undefined;
+  mockErrorBlocking = false;
   mockBackground = undefined;
   mockRouteUser = "worker";
   jest.clearAllMocks();
@@ -79,6 +84,7 @@ it("keeps the account home usable after a foreground refresh error", async () =>
 it("clears a prior provider error only after a confirmed access retry", async () => {
   mockRequired = false;
   mockAppError = "server_unavailable";
+  mockErrorBlocking = true;
   let tree!: ReactTestRenderer;
   await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
   await act(async () => { await tree.root.findByProps({ label: "retry" }).props.onPress(); });
@@ -168,50 +174,60 @@ it("returns home for sign-in when acceptance finds an ended session", async () =
   await act(async () => tree.unmount());
 });
 
+describe("gate classes", () => {
+  const render = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+    return tree;
+  };
+
+  it("does not block on a generic error: it becomes a toast and is cleared", async () => {
+    mockRequired = false;
+    mockAppError = "Could not reach the server.\nRef: x";
+    const tree = await render();
+    expect(tree.root.findAllByProps({ label: "retry" })).toHaveLength(0);
+    expect(JSON.stringify(tree.toJSON())).toContain('"pointerEvents":"auto"');
+    expect(mockShow).toHaveBeenCalledWith({ kind: "error", text: "Could not reach the server.\nRef: x" });
+    expect(mockClearError).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("still blocks on a revoked or sign-in-required session error", async () => {
+    mockRequired = false;
+    mockAppError = "Access removed";
+    mockErrorBlocking = true;
+    const tree = await render();
+    expect(tree.root.findAllByProps({ label: "retry" }).length).toBeGreaterThan(0);
+    expect(JSON.stringify(tree.toJSON())).toContain("Access removed");
+    expect(JSON.stringify(tree.toJSON())).toContain('"pointerEvents":"none"');
+    expect(mockShow).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("still blocks on required terms and on an access block", async () => {
+    let tree = await render();
+    expect(JSON.stringify(tree.toJSON())).toContain("acceptTerms");
+    await act(async () => tree.unmount());
+    mockRequired = false;
+    mockBlocked = "maintenance";
+    tree = await render();
+    expect(tree.root.findAllByProps({ label: "retry" }).length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+  });
+});
+
 describe("background error toast", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
     mockRequired = false;
     mockBackground = "Server down\nRef: x";
   });
-  afterEach(() => jest.useRealTimers());
 
-  const toastText = (tree: ReactTestRenderer) => tree.root.findByProps({ accessibilityRole: "alert" });
-
-  it("shows the short message, leaves the page interactive, and auto-hides after 6 s", async () => {
+  it("hands the failure to the toast queue with its Ref line as detail, then dismisses it", async () => {
     let tree!: ReactTestRenderer;
     await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
-    const json = JSON.stringify(tree.toJSON());
-    expect(json).toContain("backgroundRefreshFailed");
-    expect(json).not.toContain("Ref: x");
-    expect(json).toContain('"pointerEvents":"auto"');
-    expect(json).toContain('"pointerEvents":"box-none"');
-    expect(json).toContain('"accessibilityLiveRegion":"polite"');
-    await act(async () => { jest.advanceTimersByTime(5_900); });
-    expect(mockDismiss).not.toHaveBeenCalled();
-    await act(async () => { jest.advanceTimersByTime(200); });
+    expect(mockShow).toHaveBeenCalledWith({ kind: "error", text: "backgroundRefreshFailed", detail: "Server down\nRef: x" });
     expect(mockDismiss).toHaveBeenCalledTimes(1);
-    await act(async () => tree.unmount());
-  });
-
-  it("expands on tap to the full text with the Ref line, then hides after 15 s", async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
-    await act(async () => { toastText(tree).props.onPress(); });
-    expect(JSON.stringify(tree.toJSON())).toContain("Ref: x");
-    await act(async () => { jest.advanceTimersByTime(14_900); });
-    expect(mockDismiss).not.toHaveBeenCalled();
-    await act(async () => { jest.advanceTimersByTime(200); });
-    expect(mockDismiss).toHaveBeenCalledTimes(1);
-    await act(async () => tree.unmount());
-  });
-
-  it("collapses again on a second tap", async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
-    await act(async () => { toastText(tree).props.onPress(); });
-    await act(async () => { toastText(tree).props.onPress(); });
-    expect(JSON.stringify(tree.toJSON())).not.toContain("Ref: x");
+    expect(JSON.stringify(tree.toJSON())).toContain('"pointerEvents":"auto"');
     await act(async () => tree.unmount());
   });
 
@@ -219,7 +235,7 @@ describe("background error toast", () => {
     mockRequired = true;
     let tree!: ReactTestRenderer;
     await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
-    expect(JSON.stringify(tree.toJSON())).not.toContain("backgroundRefreshFailed");
+    expect(mockShow).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 });

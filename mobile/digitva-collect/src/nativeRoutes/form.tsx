@@ -73,7 +73,10 @@ import {
 } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
 import { applyTranslations, type Translations } from "../translations";
-import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
+import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
+import { revisionName } from "../revisionLabel";
+import { useToast } from "../toast";
+import { Button, errorText, Screen, useUiStyles } from "../ui";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -241,6 +244,10 @@ export default function Form() {
   >();
   const [translationFallback, setTranslationFallback] = useState(false);
   const [message, setMessage] = useState("");
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [languageOpen, setLanguageOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const toast = useToast();
   const [blockedReferenceData, setBlockedReferenceData] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
@@ -704,6 +711,14 @@ export default function Form() {
     [loaded],
   );
 
+  // With the questionnaire open, a message is a toast so the form never shifts; the blocked screens below show it in place.
+  const editorShown = Boolean(loaded && instrument && draftStore && !blockedReferenceData);
+  useEffect(() => {
+    if (!message || !editorShown) return;
+    toast.show({ kind: "error", text: message });
+    setMessage("");
+  }, [message, editorShown, toast]);
+
   if (loaded && loaded.accessVersion !== lockVersion) {
     return <ActivityIndicator style={{ flex: 1 }} />;
   }
@@ -758,6 +773,18 @@ export default function Form() {
     router.back();
   }
 
+  async function saveNow() {
+    setSaveState("saving");
+    try {
+      await controller.current?.saveDraft();
+      setSaveState("saved");
+      toast.show({ kind: "success", text: t("draftSaved") });
+    } catch (error) {
+      setSaveState("unsaved");
+      setMessage(errorText(error));
+    }
+  }
+
   async function switchLocale(code: string) {
     try {
       await controller.current?.saveDraft();
@@ -804,44 +831,33 @@ export default function Form() {
   const locales = questionnaireLocales(
     loaded.project.form_options?.available_locales,
   );
+  const menuItems: SheetItem[] = [
+    { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
+    ...(locales.length > 1 ? [{ key: "language", label: t("formLanguage"), onPress: () => setLanguageOpen(true) }] : []),
+    { key: "help", label: t("formHelp"), onPress: () => setHelpOpen(true) },
+    { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
+  ];
   return (
-    <Screen title={t("appName")} scroll={false}>
-      <View style={{ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }}>
-        <Row>
-          <Button
-            kind="secondary"
-            label={t("home")}
-            onPress={() => void leave()}
-          />
-          <Button
-            kind="secondary"
-            label={t("save")}
-            onPress={() => void controller.current?.saveDraft()}
-          />
-          <Button
-            kind="secondary"
-            label={t("finishIncomplete")}
-            onPress={finishIncomplete}
-          />
-        </Row>
-        {locales.length > 1 ? (
-          <Row>
-            <Text style={styles.muted}>{t("formLanguage")}</Text>
-            {locales.map((entry) => (
-              <Button
-                key={entry.code}
-                kind={entry.code === locale ? "primary" : "secondary"}
-                label={entry.label}
-                onPress={() => void switchLocale(entry.code)}
-              />
-            ))}
-          </Row>
-        ) : null}
-        {translationFallback ? (
-          <Text style={styles.muted}>{t("questionnaireEnglishFallback")}</Text>
-        ) : null}
-        {message ? <Text style={styles.error}>{message}</Text> : null}
-      </View>
+    <Screen title={t("appName")} variant="immersive">
+      <FormTopBar
+        title={revisionName({ prefill: loaded.prefill }) ?? t("appName")}
+        saveState={saveState}
+        onBack={() => void leave()}
+        menuItems={menuItems}
+      />
+      {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1}>{t("questionnaireEnglishFallback")}</Text> : null}
+      <Sheet
+        visible={languageOpen}
+        title={t("formLanguage")}
+        onClose={() => setLanguageOpen(false)}
+        items={locales.map((entry) => ({ key: entry.code, label: entry.label, selected: entry.code === locale, onPress: () => void switchLocale(entry.code) }))}
+      />
+      <Sheet
+        visible={helpOpen}
+        title={t("formHelpText")}
+        onClose={() => setHelpOpen(false)}
+        items={[{ key: "ok", label: t("ok"), onPress: () => undefined }]}
+      />
       <View style={{ flex: 1 }}>
         <WhoVaForm
           key={locale}
@@ -866,8 +882,11 @@ export default function Form() {
               session.current = next;
             }
           }}
-          onDraftError={() => setMessage(t("errGeneric"))}
-          onDraftSaved={() => setMessage("")}
+          onDraftError={() => {
+            setSaveState("unsaved");
+            setMessage(t("errGeneric"));
+          }}
+          onDraftSaved={() => setSaveState("saved")}
           onComplete={(result) => void complete(result)}
         />
       </View>

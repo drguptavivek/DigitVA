@@ -944,5 +944,16 @@
   "trainingReviewStep": "Reviewer and data manager: review the coders' work on the whole session, and see its data, progress and exports.",
   "trainingReportDeath": "Report a death",
   "trainingReadReport": "Read the training report (progress and agreement)",
-  "trainingOnlyHere": "Everything on this page belongs to the training project. Your real work is in the other menus."
+  "trainingOnlyHere": "Everything on this page belongs to the training project. Your real work is in the other menus.",
+  "back": "Back",
+  "moreActions": "More actions",
+  "saveStateSaved": "Saved",
+  "saveStateSaving": "Saving…",
+  "saveStateUnsaved": "Not saved",
+  "saveNow": "Save now",
+  "formHelp": "Help",
+  "formHelpText": "Answers save on this phone as you go. Use Finish as incomplete only if the interview could not be completed.",
+  "draftSaved": "Interview saved.",
+  "ok": "OK",
+  "refreshed": "Refreshed."
 }

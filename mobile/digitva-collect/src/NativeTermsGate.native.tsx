@@ -1,5 +1,5 @@
 import { useGlobalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import { useAppState } from "./AppState";
@@ -7,12 +7,12 @@ import { acceptDeviceTerms, refreshAccessSummary, signOut } from "./auth";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { ApiError } from "./api";
 import { t } from "./i18n";
-import { Toast } from "./Toast.native";
+import { useToast } from "./toast";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 
 export default function NativeTermsGate({ children }: { children: ReactNode }) {
   const params = useGlobalSearchParams<{ userId?: string }>();
-  const { accounts, reload, clearError, error: appError, backgroundError, dismissBackgroundError } = useAppState();
+  const { accounts, reload, clearError, error: appError, errorBlocking, backgroundError, dismissBackgroundError } = useAppState();
   const router = useRouter();
   const styles = useUiStyles();
   const account = accounts.find((entry) => entry.user_id === params.userId);
@@ -22,7 +22,20 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState("");
 
   const blockedCode = account?.access_blocked;
-  const gateActive = Boolean(account && (account.terms_required || blockedCode || appError));
+  // Only terms, a maintenance/access block, or a revoked/sign-in-required session stops the app; any other
+  // error (server, network, lock) is a toast and the page stays usable.
+  const gateActive = Boolean(account && (account.terms_required || blockedCode || (appError && errorBlocking)));
+  const toast = useToast();
+  useEffect(() => {
+    if (!appError || errorBlocking) return;
+    toast.show({ kind: "error", text: appError });
+    clearError?.();
+  }, [appError, errorBlocking, clearError, toast]);
+  useEffect(() => {
+    if (!backgroundError || gateActive) return;
+    toast.show({ kind: "error", text: t("backgroundRefreshFailed"), detail: backgroundError });
+    dismissBackgroundError?.();
+  }, [backgroundError, gateActive, dismissBackgroundError, toast]);
 
   async function accept() {
     if (!account || busy) return;
@@ -67,9 +80,7 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
     }
   }
 
-  const hideToast = useCallback(() => dismissBackgroundError?.(), [dismissBackgroundError]);
-
-  const gateMessage = message || (account ? appError : undefined) || (blockedCode ? errorText(new ApiError(403, blockedCode)) : "");
+  const gateMessage = message || (account && errorBlocking ? appError : undefined) || (blockedCode ? errorText(new ApiError(403, blockedCode)) : "");
 
   return (
     <View style={{ flex: 1 }}>
@@ -83,9 +94,6 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
       >
         {children}
       </View>
-      {backgroundError && !gateActive ? (
-        <Toast message={t("backgroundRefreshFailed")} detail={backgroundError} onHide={hideToast} />
-      ) : null}
       {gateActive ? (
         <View
           style={{ position: "absolute", inset: 0 }}

@@ -12,7 +12,7 @@ import {
 } from "@drguptavivek/who-2022-va/native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, Text, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { useStableAccount } from "../useStableAccount";
@@ -55,6 +55,8 @@ import {
   type ProjectSettings,
 } from "../sync";
 import { applyTranslations, type Translations } from "../translations";
+import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
+import { useToast } from "../toast";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
 const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
@@ -278,6 +280,11 @@ export default function Revision() {
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
   const [reason, setReason] = useState<RevisionReason>();
   const [message, setMessage] = useState("");
+  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [reasonOpen, setReasonOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const toast = useToast();
   const [translationFallback, setTranslationFallback] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
@@ -503,6 +510,14 @@ export default function Revision() {
     [flush, onBeforeLock],
   );
 
+  // With the editor open, a message is a toast so the form never shifts; the other screens show it in place.
+  const editorShown = Boolean(loaded && loaded.row.state !== "attention" && draftStore && instrument);
+  useEffect(() => {
+    if (!message || !editorShown) return;
+    toast.show({ kind: message === t("revisionSaved") ? "success" : "error", text: message });
+    setMessage("");
+  }, [message, editorShown, toast]);
+
   if (loaded && loaded.accessVersion !== lockVersion) {
     return <ActivityIndicator style={{ flex: 1 }} />;
   }
@@ -658,39 +673,84 @@ export default function Revision() {
     }
   }
 
+  async function saveNow() {
+    setSaveState("saving");
+    try {
+      await flush();
+      if (!isCurrentRevision(current.generation)) return;
+      setSaveState("saved");
+      setMessage(t("revisionSaved"));
+    } catch {
+      if (isCurrentRevision(current.generation)) {
+        setSaveState("unsaved");
+        setMessage(t("revisionUnsavedWarning"));
+      }
+    }
+  }
+
+  function leave() {
+    void flush()
+      .then(() => { if (isCurrentRevision(current.generation)) router.replace({ pathname: "/worklist", params: { userId } }); })
+      .catch(() => { if (isCurrentRevision(current.generation)) { setSaveState("unsaved"); setMessage(t("revisionUnsavedWarning")); } });
+  }
+
   function finishIncomplete() {
     const result = session.current?.validate();
     if (result) void complete(result);
   }
 
   return (
-    <Screen title={t("revisionTitle")} scroll={false}>
-      <View style={{ paddingHorizontal: 16, gap: 8, paddingBottom: 8 }}>
-        {revisionName(loaded.row) ? <Text style={styles.text}>{revisionName(loaded.row)}</Text> : null}
-        <Row>
-          <Button kind="secondary" label={t("home")} disabled={busy} onPress={() => void flush().then(() => { if (isCurrentRevision(current.generation)) router.replace({ pathname: "/worklist", params: { userId } }); }).catch(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionUnsavedWarning")); })} />
-          <Button kind="secondary" label={t("save")} disabled={busy} onPress={() => void flush().then(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionSaved")); }).catch(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionUnsavedWarning")); })} />
-          <Button kind="secondary" label={t("finishIncomplete")} disabled={busy} onPress={finishIncomplete} />
-        </Row>
-        <Text style={styles.text}>{t("revisionReason")}</Text>
-        <Row>
-          {reasons.map((item) => (
-            <Button
-              key={item.code}
-              kind={reason === item.code ? "primary" : "secondary"}
-              label={t(item.label as never)}
-              disabled={busy}
-              onPress={() => {
-                setReason(item.code);
-                setMessage(t(item.message as never));
-              }}
-            />
-          ))}
-        </Row>
-        {reason ? <Text style={styles.muted}>{t(REASONS.find((item) => item.code === reason)!.message as never)}</Text> : null}
-        {translationFallback ? <Text style={styles.muted}>{t("questionnaireEnglishFallback")}</Text> : null}
-        {message ? <Text style={styles.error}>{message}</Text> : null}
+    <Screen title={t("revisionTitle")} variant="immersive">
+      <FormTopBar
+        title={revisionName(loaded.row) ?? t("revisionTitle")}
+        saveState={saveState}
+        disabled={busy}
+        onBack={leave}
+        menuItems={[
+          { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
+          { key: "help", label: t("formHelp"), onPress: () => setHelpOpen(true) },
+          { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
+        ] satisfies SheetItem[]}
+      />
+      <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 4 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("revisionReason")}
+          disabled={busy}
+          onPress={() => setReasonOpen(true)}
+          style={{ minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+        >
+          <Text numberOfLines={1} style={[reason ? styles.text : styles.muted, { flex: 1 }]}>
+            {reason ? t(REASONS.find((item) => item.code === reason)!.label as never) : t("revisionReason")}
+          </Text>
+          <Text style={styles.text}>▾</Text>
+        </Pressable>
+        {reason ? (
+          <Pressable accessibilityRole="button" onPress={() => setNoticeOpen((open) => !open)}>
+            <Text numberOfLines={noticeOpen ? undefined : 1} style={styles.muted}>
+              {t(REASONS.find((item) => item.code === reason)!.message as never)}
+            </Text>
+          </Pressable>
+        ) : null}
+        {translationFallback ? <Text numberOfLines={1} style={styles.muted}>{t("questionnaireEnglishFallback")}</Text> : null}
       </View>
+      <Sheet
+        visible={reasonOpen}
+        title={t("revisionReason")}
+        onClose={() => setReasonOpen(false)}
+        items={reasons.map((item) => ({
+          key: item.code,
+          label: t(item.label as never),
+          selected: reason === item.code,
+          onPress: () => setReason(item.code),
+        }))}
+      />
+      <Sheet
+        visible={helpOpen}
+        title={t("formHelpText")}
+        onClose={() => setHelpOpen(false)}
+        items={[{ key: "ok", label: t("ok"), onPress: () => undefined }]}
+      />
       <View style={{ flex: 1 }}>
         <WhoVaForm
           key={`${loaded.row.draft_id}-${loaded.config.locale}`}
@@ -710,8 +770,8 @@ export default function Revision() {
           onReady={(next) => {
             if (isCurrentRevision(current.generation)) session.current = next;
           }}
-          onDraftError={() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionUnsavedWarning")); }}
-          onDraftSaved={() => { if (isCurrentRevision(current.generation)) setMessage(""); }}
+          onDraftError={() => { if (isCurrentRevision(current.generation)) { setSaveState("unsaved"); setMessage(t("revisionUnsavedWarning")); } }}
+          onDraftSaved={() => { if (isCurrentRevision(current.generation)) setSaveState("saved"); }}
           onComplete={(result) => void complete(result)}
         />
       </View>

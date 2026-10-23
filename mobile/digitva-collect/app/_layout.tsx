@@ -8,6 +8,7 @@ import { AppStateProvider, useAppState } from "../src/AppState";
 import { applyScreenCaptureBlock } from "../src/screenCapture";
 import { useTheme } from "../src/theme";
 import { useWhoWebTheme } from "../src/whoWebTheme";
+import { ToastProvider } from "../src/toast";
 import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
 import AppHeader, { BottomTabs } from "../src/web/AppHeader";
@@ -68,7 +69,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AppStateProvider>
         <StatusBar style={theme.mode === "dark" ? "light" : "dark"} />
-        <ActivityRoot />
+        <ToastProvider>
+          <ActivityRoot />
+        </ToastProvider>
       </AppStateProvider>
     </SafeAreaProvider>
   );

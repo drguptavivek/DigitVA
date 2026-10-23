@@ -49,6 +49,7 @@ import {
   startsDirectly,
   targetsFrom,
 } from "../sync";
+import { useToast } from "../toast";
 import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import RegisteredDeaths from "./RegisteredDeaths";
@@ -140,7 +141,14 @@ function InterviewWorklist() {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [message, setMessage] = useState("");
+  // Results and failures are toasts, so the list never shifts under the user's thumb. A clear ("") is a no-op.
+  const toast = useToast();
+  const setMessage = useCallback(
+    (text: string, kind: "error" | "success" = "error") => {
+      if (text) toast.show({ kind, text });
+    },
+    [toast],
+  );
   const [supersededUniqueIds, setSupersededUniqueIds] = useState<string[]>([]);
   const [serverKeptUploads, setServerKeptUploads] = useState<
     Array<{ uniqueId: string; locked: boolean }>
@@ -532,7 +540,6 @@ function InterviewWorklist() {
           );
           void loadSubmittedInterviews(authorizedProjectIds, isCurrent);
           await loadLocal(handle, isCurrent);
-            setMessage("");
           }
         })
         .catch(async (error) => {
@@ -574,7 +581,6 @@ function InterviewWorklist() {
     const projectId = selectedProjectId;
     setBusy(true);
     setRefreshing(true);
-    setMessage("");
     try {
       const fresh = await refreshReferenceData(account.user_id, db, {
         force: true,
@@ -602,6 +608,7 @@ function InterviewWorklist() {
           setOnlineCursor(page.next_cursor ?? null);
         }
       }
+      if (isCurrent()) setMessage(t("refreshed"), "success");
     } catch (error) {
       if (isCurrent()) {
         if (
@@ -687,7 +694,6 @@ function InterviewWorklist() {
       isCurrent() && syncGeneration === onlineRequestGenerationRef.current;
     let caseFlagsAuthoritative = false;
     setBusy(true);
-    setMessage("");
     setSupersededUniqueIds([]);
     setServerKeptUploads([]);
     setCanCodeNowUniqueIds([]);
@@ -731,6 +737,7 @@ function InterviewWorklist() {
             failed: result.failed,
             remaining: result.remaining,
           }),
+          result.failed ? "error" : "success",
         );
         setSupersededUniqueIds((current) =>
           [...new Set([...current, ...result.supersededUniqueIds])],
@@ -1206,7 +1213,6 @@ function InterviewWorklist() {
           onPress={() => void refresh()}
         />
       </Row>
-      {message ? <Text style={styles.text}>{message}</Text> : null}
       {draftConflict ? (
         <Text style={styles.text}>{t("draftConflictNotice")}</Text>
       ) : null}

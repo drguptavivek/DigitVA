@@ -34,6 +34,7 @@ import { createAutoLock, type AutoLock } from "./autoLock";
 import { setUiLocale } from "./i18n";
 import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interviewerDb";
 import { errorText } from "./ui";
+import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
 import type { ClientBootstrap } from "./client/api";
 import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, type NativeSyncResult } from "./nativeNotificationSync";
@@ -80,6 +81,8 @@ interface AppState {
   loginUrl?: string;
   actionCode?: "terms_required";
   error?: string;
+  /** Native only: `error` stops the app (revoked session, sign-in required); otherwise it is shown as a toast. */
+  errorBlocking?: boolean;
   logout?: () => Promise<void>;
 }
 
@@ -91,7 +94,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [uiLocale, setLocaleState] = useState("en");
   const [lockVersion, setLockVersion] = useState(0);
-  const [error, setError] = useState<string>();
+  const [error, setErrorText] = useState<string>();
+  const [errorBlocking, setErrorBlocking] = useState(false);
   const [backgroundError, setBackgroundError] = useState<string>();
   const router = useRouter();
   const beforeLock = useRef(new Set<() => Promise<void>>());
@@ -120,6 +124,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
     };
   }, []);
+  /** Only a revoked session or a sign-in demand blocks; any other failure is a toast and the app stays usable. */
+  const setError = useCallback((failure: unknown) => {
+    if (failure === undefined) {
+      setErrorText(undefined);
+      setErrorBlocking(false);
+      return;
+    }
+    setErrorText(errorText(failure));
+    setErrorBlocking(failure instanceof SessionRevokedError || failure instanceof SignInRequiredError);
+  }, []);
   const reportBackgroundError = useCallback((e: unknown) => setBackgroundError(errorText(e)), []);
   const dismissBackgroundError = useCallback(() => setBackgroundError(undefined), []);
 
@@ -128,7 +142,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try {
       for (const hook of [...beforeLock.current]) await hook();
     } catch (lockError) {
-      setError(errorText(lockError));
+      setError(lockError);
       return false;
     }
     try {
@@ -139,14 +153,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setLockVersion((v) => v + 1);
       return true;
     } catch (lockError) {
-      setError(errorText(lockError));
+      setError(lockError);
       return false;
     }
-  }, [router]);
+  }, [router, setError]);
 
   useEffect(() => {
     const timer = createAutoLock(() => {
-      void lockNow().catch((lockError) => setError(errorText(lockError)));
+      void lockNow().catch((lockError) => setError(lockError));
     });
     autoLock.current = timer;
     const subscription = NativeAppState.addEventListener("change", (state) =>
@@ -327,7 +341,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await SecureStore.setItemAsync(UI_LOCALE_KEY, code);
   }, []);
 
-  const clearError = useCallback(() => setError(undefined), []);
+  const clearError = useCallback(() => setError(undefined), [setError]);
 
   const value = useMemo(
     () => ({
@@ -345,6 +359,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearError,
       onBeforeLock,
       error,
+      errorBlocking,
       backgroundError,
       dismissBackgroundError,
       holdRefresh,
@@ -364,6 +379,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearError,
       onBeforeLock,
       error,
+      errorBlocking,
       backgroundError,
       dismissBackgroundError,
       holdRefresh,

@@ -347,6 +347,8 @@ jest.mock("../src/draftSync", () => ({
     imported: false,
   })),
 }));
+const mockToast = jest.fn();
+jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
@@ -368,8 +370,8 @@ jest.mock("../src/ui", () => {
       ),
     Row: ({ children }: { children: ReactNode }) =>
       ReactActual.createElement("div", null, children),
-    Screen: ({ children }: { children: ReactNode }) =>
-      ReactActual.createElement("main", null, children),
+    Screen: ({ children, variant }: { children: ReactNode; variant?: string }) =>
+      ReactActual.createElement("main", { "data-variant": variant }, children),
     errorText: () => "error",
     stateLabel: (state: string) => state,
     useUiStyles: () => ({
@@ -1273,6 +1275,8 @@ describe("native project-aware routes", () => {
     expect(rendered).toContain("Coding has finished; only a send-back or reopen can change the coder's version.");
     expect(rendered).toContain("Stored interview: VA-KEPT");
     expect(rendered).toContain("readyForCode");
+    // The send result is a toast, never in-flow text.
+    expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: expect.any(String) });
     await act(async () => tree!.unmount());
   });
 
@@ -1565,5 +1569,66 @@ describe("native project-aware routes", () => {
     await settle();
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Old project contact");
     await act(async () => tree!.unmount());
+  });
+});
+
+describe("immersive interview form", () => {
+  const FORM_ID = "44444444-4444-4444-8444-444444444444";
+  const press = (tree: ReturnType<typeof create>, label: string) =>
+    act(async () => {
+      tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress();
+    });
+  const open = async () => {
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: FORM_ID };
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+    return tree;
+  };
+  const choose = async (tree: ReturnType<typeof create>, label: string) => {
+    await press(tree, "moreActions");
+    await press(tree, label);
+  };
+
+  it("uses the immersive screen with a single top bar and no in-flow button rows", async () => {
+    const tree = await open();
+    expect(tree.root.findByType("main").props["data-variant"]).toBe("immersive");
+    expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "header")).toHaveLength(1);
+    expect(tree.root.findAllByProps({ "data-label": "finishIncomplete" })).toHaveLength(0);
+    expect(mockFormProps.instrument).toBeTruthy();
+    await act(async () => tree.unmount());
+  });
+
+  it("runs Save now, Finish as incomplete and Back through their handlers", async () => {
+    const tree = await open();
+    const saveDraft = jest.fn(async () => undefined);
+    const validate = jest.fn(() => ({ valid: false, issues: [], data: {} }));
+    await act(async () => {
+      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
+      (mockFormProps.onReady as (s: unknown) => void)({ validate });
+    });
+    await choose(tree, "saveNow");
+    await settle();
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: "draftSaved" });
+    await choose(tree, "finishIncomplete");
+    expect(validate).toHaveBeenCalledTimes(1);
+    await press(tree, "back");
+    await settle();
+    // Save now, the save inside Finish as incomplete, and the save on Back.
+    expect(saveDraft).toHaveBeenCalledTimes(3);
+    expect(mockRouter.back).toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("reports a failed save as a Not saved dot and an error toast, not in-flow text", async () => {
+    const tree = await open();
+    await act(async () => { (mockFormProps.onDraftError as () => void)(); });
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === "saveStateUnsaved").length).toBeGreaterThan(0);
+    expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "errGeneric" });
+    await act(async () => { (mockFormProps.onDraftSaved as () => void)(); });
+    expect(tree.root.findAll((n) => n.props.accessibilityLabel === "saveStateSaved").length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
   });
 });

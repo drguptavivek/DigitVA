@@ -182,6 +182,25 @@ it("surfaces a database close failure and keeps the app locked operation retryab
   await act(async () => tree.unmount());
 });
 
+it("marks only a revoked or sign-in-required failure as blocking; other lock failures are generic", async () => {
+  const { SessionRevokedError, SignInRequiredError } = jest.requireActual("../src/authErrors");
+  const tree = await renderProbe();
+  mockLockAll.mockRejectedValueOnce(new Error("close failed"));
+  await act(async () => { await mockAutoLockCallback?.(); });
+  expect(latest.error).toContain("close failed");
+  expect(latest.errorBlocking).toBe(false);
+  mockLockAll.mockRejectedValueOnce(new SessionRevokedError());
+  await act(async () => { await mockAutoLockCallback?.(); });
+  expect(latest.errorBlocking).toBe(true);
+  await act(async () => latest.clearError());
+  expect(latest.error).toBeUndefined();
+  expect(latest.errorBlocking).toBe(false);
+  mockLockAll.mockRejectedValueOnce(new SignInRequiredError());
+  await act(async () => { await mockAutoLockCallback?.(); });
+  expect(latest.errorBlocking).toBe(true);
+  await act(async () => tree.unmount());
+});
+
 const SETTLE = () => act(async () => { await new Promise<void>((resolve) => setTimeout(resolve, 0)); });
 
 it("an unchanged poll and an unchanged access result change no state", async () => {

@@ -6,6 +6,7 @@
 import React from "react";
 
 import type { WhoVaUiMessages } from "../i18n.js";
+import { defaultFormTheme as T } from "./theme.js";
 import { withWebTheme } from "./web-theme.js";
 
 export interface ProblemRow {
@@ -121,18 +122,15 @@ const styles = {
     { bottom: 0, justifyContent: "flex-end" as const, left: 0, position: "absolute" as const, right: 0, top: 0, zIndex: 1000 },
     { position: "overlayPosition" }
   ),
-  scrim: {
-    backgroundColor: "rgba(15, 23, 42, 0.45)",
-    bottom: 0,
-    left: 0,
-    position: "absolute" as const,
-    right: 0,
-    top: 0
-  },
+  scrim: withWebTheme(
+    { backgroundColor: T.scrim, bottom: 0, left: 0, position: "absolute" as const, right: 0, top: 0 },
+    {},
+    { backgroundColor: "scrim" }
+  ),
   panel: withWebTheme(
     {
       alignSelf: "center" as const,
-      backgroundColor: "#ffffff",
+      backgroundColor: T.surface,
       borderTopLeftRadius: 16,
       borderTopRightRadius: 16,
       maxHeight: "80%" as const,
@@ -150,7 +148,7 @@ const styles = {
     justifyContent: "space-between" as const
   },
   title: withWebTheme(
-    { color: "#12372d", flex: 1, fontSize: 18, fontWeight: "700" as const, lineHeight: 26, minWidth: 0 },
+    { color: T.primary, flex: 1, fontSize: 18, fontWeight: "700" as const, lineHeight: 26, minWidth: 0 },
     { color: "brandDeep" }
   ),
   close: {
@@ -159,12 +157,12 @@ const styles = {
     justifyContent: "center" as const,
     width: 44
   },
-  closeGlyph: withWebTheme({ color: "#12372d", fontSize: 18, lineHeight: 22 }, { color: "brandDeep" }),
+  closeGlyph: withWebTheme({ color: T.primary, fontSize: 18, lineHeight: 22 }, { color: "brandDeep" }),
   list: { flexGrow: 0, flexShrink: 1 },
   row: withWebTheme(
     {
       alignItems: "center" as const,
-      borderTopColor: "#dce6e1",
+      borderTopColor: T.border,
       borderTopWidth: 1,
       columnGap: 12,
       flexDirection: "row" as const,
@@ -174,14 +172,14 @@ const styles = {
   ),
   rowText: { flex: 1, minWidth: 0 },
   where: withWebTheme(
-    { color: "#142a24", fontSize: 14, fontWeight: "600" as const, lineHeight: 20 },
+    { color: T.text, fontSize: 14, fontWeight: "600" as const, lineHeight: 20 },
     { color: "ink" }
   ),
-  reason: withWebTheme({ color: "#8c3022", fontSize: 14, lineHeight: 20 }, { color: "dangerStrong" }),
+  reason: withWebTheme({ color: T.danger, fontSize: 14, lineHeight: 20 }, { color: "dangerStrong" }),
   go: withWebTheme(
     {
       alignItems: "center" as const,
-      backgroundColor: "#147d64",
+      backgroundColor: T.primary,
       borderRadius: 8,
       justifyContent: "center" as const,
       minHeight: 44,
@@ -190,9 +188,13 @@ const styles = {
     },
     { backgroundColor: "brand", borderRadius: "controlRadius" }
   ),
-  goText: { color: "#ffffff", fontSize: 15, fontWeight: "700" as const, lineHeight: 22 },
+  goText: withWebTheme(
+    { color: T.onPrimary, fontSize: 15, fontWeight: "700" as const, lineHeight: 22 },
+    {},
+    { color: "onPrimary" }
+  ),
   empty: withWebTheme(
-    { color: "#536b64", fontSize: 14, lineHeight: 20, paddingVertical: 16 },
+    { color: T.textMuted, fontSize: 14, lineHeight: 20, paddingVertical: 16 },
     { color: "muted" }
   )
 };

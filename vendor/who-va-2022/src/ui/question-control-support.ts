@@ -2,35 +2,39 @@ import { AttachmentProcessingError } from "../attachments.js";
 import { type WhoVaUiMessages } from "../i18n.js";
 import { localized, plainText } from "./localize.js";
 import type { AnswerValue, AttachmentReference, InstrumentQuestion } from "../types.js";
+import { defaultFormTheme as T } from "./theme.js";
 import { withWebTheme } from "./web-theme.js";
 
 export const questionControlStyles = {
   input: withWebTheme(
     {
       borderWidth: 1,
-      borderColor: "#9fb4ad",
+      borderColor: T.borderStrong,
       borderRadius: 8,
       minHeight: 44,
       paddingHorizontal: 12,
       paddingVertical: 9,
-      color: "#142a24",
-      backgroundColor: "#ffffff"
+      color: T.text,
+      backgroundColor: T.surface
     },
     { borderColor: "controlBorder", borderRadius: "controlRadius", color: "ink", backgroundColor: "surface" }
   ),
   narrativeInput: { minHeight: 160, textAlignVertical: "top" as const },
   inputError: withWebTheme(
-    { borderColor: "#b34231", backgroundColor: "#fff8f6" },
+    { borderColor: T.danger, backgroundColor: T.dangerSoft },
     { borderColor: "danger", backgroundColor: "dangerSoft" }
   ),
-  inputReadOnly: withWebTheme({ opacity: 0.72, backgroundColor: "#eef3f1" }, { backgroundColor: "border" }),
+  inputReadOnly: withWebTheme(
+    { opacity: 0.72, backgroundColor: T.surfaceAlt },
+    { backgroundColor: "border" }
+  ),
   // A choice is a row: the radio or checkbox indicator, then the label. The
   // whole row is the touch target (48px tall at minimum).
   choice: withWebTheme(
     {
       alignItems: "flex-start" as const,
       borderWidth: 1,
-      borderColor: "#9fb4ad",
+      borderColor: T.borderStrong,
       borderRadius: 8,
       columnGap: 12,
       flexDirection: "row" as const,
@@ -38,23 +42,23 @@ export const questionControlStyles = {
       paddingHorizontal: 12,
       paddingVertical: 11,
       marginTop: 8,
-      backgroundColor: "#ffffff"
+      backgroundColor: T.surface
     },
     { borderColor: "controlBorder", borderRadius: "controlRadius", backgroundColor: "surface" }
   ),
   choiceSelected: withWebTheme(
-    { borderColor: "#147d64", backgroundColor: "#e3f4ee" },
+    { borderColor: T.primary, backgroundColor: T.primarySoft },
     { borderColor: "brand", backgroundColor: "brandSoft" }
   ),
   choiceText: withWebTheme(
-    { color: "#213b34", flexShrink: 1, fontSize: 16, lineHeight: 24 },
+    { color: T.text, flexShrink: 1, fontSize: 16, lineHeight: 24 },
     { color: "inkSubtle" }
   ),
   choiceIndicator: withWebTheme(
     {
       alignItems: "center" as const,
-      backgroundColor: "#ffffff",
-      borderColor: "#9fb4ad",
+      backgroundColor: T.surface,
+      borderColor: T.borderStrong,
       borderWidth: 2,
       flexShrink: 0,
       height: 22,
@@ -66,16 +70,20 @@ export const questionControlStyles = {
   ),
   choiceIndicatorRadio: { borderRadius: 999 },
   choiceIndicatorCheckbox: { borderRadius: 4 },
-  choiceIndicatorSelected: withWebTheme({ borderColor: "#147d64" }, { borderColor: "brand" }),
+  choiceIndicatorSelected: withWebTheme({ borderColor: T.primary }, { borderColor: "brand" }),
   choiceIndicatorRadioDot: withWebTheme(
-    { backgroundColor: "#147d64", borderRadius: 999, height: 10, width: 10 },
+    { backgroundColor: T.primary, borderRadius: 999, height: 10, width: 10 },
     { backgroundColor: "brand" }
   ),
-  choiceIndicatorCheckboxSelected: withWebTheme({ backgroundColor: "#147d64" }, { backgroundColor: "brand" }),
-  choiceIndicatorCheck: { color: "#ffffff", fontSize: 14, fontWeight: "700" as const, lineHeight: 16 },
+  choiceIndicatorCheckboxSelected: withWebTheme({ backgroundColor: T.primary }, { backgroundColor: "brand" }),
+  choiceIndicatorCheck: withWebTheme(
+    { color: T.onPrimary, fontSize: 14, fontWeight: "700" as const, lineHeight: 16 },
+    {},
+    { color: "onPrimary" }
+  ),
   // The English beneath a translated choice label (`show-english`).
   choiceEnglish: withWebTheme(
-    { color: "#536b64", fontSize: 13, fontStyle: "italic" as const, lineHeight: 19 },
+    { color: T.textMuted, fontSize: 13, fontStyle: "italic" as const, lineHeight: 19 },
     { color: "muted" }
   ),
   // Layout appearances: `columns`, `columns-n`, `columns-pack`, `likert`,
@@ -123,7 +131,7 @@ export const questionControlStyles = {
   stepButton: withWebTheme(
     {
       alignItems: "center" as const,
-      backgroundColor: "#dce6e1",
+      backgroundColor: T.border,
       borderRadius: 8,
       height: 44,
       justifyContent: "center" as const,
@@ -132,7 +140,7 @@ export const questionControlStyles = {
     { backgroundColor: "border", borderRadius: "controlRadius" }
   ),
   stepGlyph: withWebTheme(
-    { color: "#183d33", fontSize: 22, fontWeight: "700" as const, lineHeight: 26 },
+    { color: T.text, fontSize: 22, fontWeight: "700" as const, lineHeight: 26 },
     { color: "brandDeep" }
   ),
   // Date and time boxes are sized for a date, not the column, and never wider than it.
@@ -146,8 +154,8 @@ export const questionControlStyles = {
   dateField: withWebTheme(
     {
       alignItems: "center" as const,
-      backgroundColor: "#ffffff",
-      borderColor: "#9fb4ad",
+      backgroundColor: T.surface,
+      borderColor: T.borderStrong,
       borderRadius: 8,
       borderWidth: 1,
       flexDirection: "row" as const,
@@ -159,7 +167,7 @@ export const questionControlStyles = {
   datePart: withWebTheme(
     {
       borderWidth: 0,
-      color: "#142a24",
+      color: T.text,
       fontSize: 16,
       minHeight: 40,
       paddingHorizontal: 6,
@@ -170,58 +178,66 @@ export const questionControlStyles = {
   datePartDay: { width: 44 },
   datePartMonth: { minWidth: 72 },
   datePartYear: { width: 68 },
-  dateSeparator: withWebTheme({ color: "#536b64", fontSize: 16 }, { color: "muted" }),
+  dateSeparator: withWebTheme({ color: T.textMuted, fontSize: 16 }, { color: "muted" }),
   hiddenPicker: { height: 1, left: 0, opacity: 0, position: "absolute" as const, top: 0, width: 1 },
   dateInput: { maxWidth: "100%", width: 192 },
   timeInput: { maxWidth: "100%", width: 144 },
   dateTimeInput: { maxWidth: "100%", width: 256 },
   formatHint: withWebTheme(
-    { color: "#536b64", fontSize: 13, lineHeight: 18, marginTop: 4 },
+    { color: T.textMuted, fontSize: 13, lineHeight: 18, marginTop: 4 },
     { color: "muted" }
   ),
-  unit: withWebTheme({ color: "#536b64", fontSize: 15, lineHeight: 22 }, { color: "muted" }),
+  unit: withWebTheme({ color: T.textMuted, fontSize: 15, lineHeight: 22 }, { color: "muted" }),
   // `signature`/`draw` replace capture-or-select, so those buttons are removed
   // from the layout rather than merely disabled.
   hidden: { display: "none" as const },
   star: { paddingHorizontal: 3, paddingVertical: 2 },
-  starFilled: withWebTheme({ color: "#147d64", fontSize: 26 }, { color: "brand" }),
-  starEmpty: withWebTheme({ color: "#9fb4ad", fontSize: 26 }, { color: "controlBorder" }),
+  starFilled: withWebTheme({ color: T.primary, fontSize: 26 }, { color: "brand" }),
+  starEmpty: withWebTheme({ color: T.borderStrong, fontSize: 26 }, { color: "controlBorder" }),
   dropdownList: { marginTop: 6 },
-  hint: withWebTheme({ color: "#536b64", fontSize: 13, marginBottom: 10 }, { color: "muted" }),
+  hint: withWebTheme({ color: T.textMuted, fontSize: 13, marginBottom: 10 }, { color: "muted" }),
   actions: { flexDirection: "row" as const, flexWrap: "wrap" as const, marginTop: 8 },
   buttonCompact: { alignSelf: "flex-start" as const },
-  audioTimer: withWebTheme({ color: "#536b64", fontSize: 14, marginTop: 6 }, { color: "muted" }),
+  audioTimer: withWebTheme({ color: T.textMuted, fontSize: 14, marginTop: 6 }, { color: "muted" }),
   button: withWebTheme(
     {
       minHeight: 44,
       borderRadius: 8,
       paddingHorizontal: 18,
       paddingVertical: 12,
-      backgroundColor: "#147d64",
+      backgroundColor: T.primary,
       justifyContent: "center" as const
     },
     { borderRadius: "controlRadius", backgroundColor: "brand" }
   ),
-  buttonSecondary: withWebTheme({ backgroundColor: "#dce6e1" }, { backgroundColor: "border" }),
+  buttonSecondary: withWebTheme(
+    { backgroundColor: T.border },
+    { backgroundColor: "border" },
+    { backgroundColor: "primarySoft" }
+  ),
   buttonError: withWebTheme(
-    { borderWidth: 1, borderColor: "#b34231", backgroundColor: "#b34231" },
+    { borderWidth: 1, borderColor: T.danger, backgroundColor: T.danger },
     { borderColor: "danger", backgroundColor: "danger" }
   ),
   buttonSecondaryError: withWebTheme(
-    { borderWidth: 1, borderColor: "#b34231", backgroundColor: "#fff8f6" },
+    { borderWidth: 1, borderColor: T.danger, backgroundColor: T.dangerSoft },
     { borderColor: "danger", backgroundColor: "dangerSoft" }
   ),
-  buttonDanger: withWebTheme({ backgroundColor: "#f3ded9" }, { backgroundColor: "dangerSoft" }),
+  buttonDanger: withWebTheme({ backgroundColor: T.dangerSoft }, { backgroundColor: "dangerSoft" }),
   buttonDisabled: { opacity: 0.45 },
-  buttonText: withWebTheme({ color: "#ffffff", fontWeight: "700" as const }, { color: "surface" }),
-  buttonTextSecondary: withWebTheme({ color: "#183d33", fontWeight: "700" as const }, { color: "brandDeep" }),
-  buttonTextDanger: withWebTheme({ color: "#8c3022", fontWeight: "700" as const }, { color: "dangerStrong" }),
+  buttonText: withWebTheme(
+    { color: T.onPrimary, fontWeight: "700" as const },
+    { color: "surface" },
+    { color: "onPrimary" }
+  ),
+  buttonTextSecondary: withWebTheme({ color: T.text, fontWeight: "700" as const }, { color: "brandDeep" }),
+  buttonTextDanger: withWebTheme({ color: T.danger, fontWeight: "700" as const }, { color: "dangerStrong" }),
   imageFrame: withWebTheme(
     {
       overflow: "hidden" as const,
       minHeight: 220,
       borderRadius: 8,
-      backgroundColor: "#10231e",
+      backgroundColor: T.surfaceAlt,
       alignItems: "center" as const,
       justifyContent: "center" as const,
       marginTop: 8
@@ -229,9 +245,9 @@ export const questionControlStyles = {
     { borderRadius: "controlRadius", backgroundColor: "imageBackground" }
   ),
   image: { width: "100%", height: 260, resizeMode: "contain" as const },
-  attachmentName: withWebTheme({ color: "#213b34", marginTop: 10 }, { color: "inkSubtle" }),
+  attachmentName: withWebTheme({ color: T.text, marginTop: 10 }, { color: "inkSubtle" }),
   attachmentError: withWebTheme(
-    { color: "#a23a2a", fontSize: 13, fontWeight: "700" as const, marginTop: 8 },
+    { color: T.danger, fontSize: 13, fontWeight: "700" as const, marginTop: 8 },
     { color: "danger" }
   )
 };

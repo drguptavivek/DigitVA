@@ -100,6 +100,7 @@ import { refusalProblems } from "../refusalText";
 import { preSendIssues } from "../submissionChecks";
 import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
+import { useWhoFormTheme } from "../whoWebTheme";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -251,6 +252,7 @@ function mergeProjectPrefill(
 
 export default function Form() {
   const styles = useUiStyles();
+  const whoTheme = useWhoFormTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
     userId: string;
@@ -989,6 +991,7 @@ export default function Form() {
       />
       <View style={{ flex: 1 }}>
         <WhoVaForm
+          theme={whoTheme}
           key={`${locale}:${covered.length}`}
           instrument={instrument}
           locale={locale}

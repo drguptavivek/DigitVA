@@ -26,6 +26,7 @@ import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type Cons
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
 import { radius, useTheme } from "../theme";
+import { useWhoFormTheme } from "../whoWebTheme";
 import { applyTranslations } from "../translations";
 import { Button, errorReference, useUiStyles } from "../ui";
 import { AppHeaderBar } from "./AppHeader";
@@ -228,6 +229,7 @@ export default function InterviewScreen() {
     appState as typeof appState & BrowserDefinitionAccess;
   const styles = useUiStyles();
   const theme = useTheme();
+  const whoTheme = useWhoFormTheme();
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [draftId, setDraftId] = useState(params.draftId);
   const [draft, setDraft] = useState<DraftResponse>();
@@ -932,6 +934,7 @@ export default function InterviewScreen() {
           {consentRefused ? <Text style={styles.muted} testID="consent-refused-note">{t("consentRefusedInterview")}</Text> : null}
           {consentPending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaForm
+              theme={whoTheme}
               key={`${draftId}:${locale}`}
               instrument={instrument}
               locale={locale}

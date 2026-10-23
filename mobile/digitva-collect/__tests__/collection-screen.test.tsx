@@ -32,7 +32,7 @@ const mockBootstrapB = {
   links: { login: "/vaauth/valogin", logout: "/vaauth/valogout", intakeCases: "/api/v1/intake/cases", intakeDrafts: "/api/v1/intake/drafts" }
 };
 let mockCurrentBootstrap = mockBootstrap;
-let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string; readyVaSid?: string; saved?: string; tab?: string } = {};
+let mockParams: { superseded?: string; submissionHistory?: string; submissionLocked?: string; canCodeNow?: string; readyUniqueId?: string; readyVaSid?: string; saved?: string; submitted?: string; submittedId?: string; tab?: string } = {};
 const mockRouterPush = jest.fn();
 const mockSetParams = jest.fn();
 
@@ -49,7 +49,7 @@ jest.mock("../src/client/api", () => ({
 }));
 jest.mock("../src/client/revisions", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/i18n", () => ({
-  t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : ""),
+  t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : "") + (values.id ? `:${values.id}` : ""),
 }));
 jest.mock("../src/ui", () => ({
   Button: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) => <button data-label={label} disabled={disabled} onClick={onPress} />,
@@ -254,6 +254,43 @@ describe("CollectionScreen refresh", () => {
     expect(rendered).toContain("supersededInterviewNotice");
     expect(rendered.match(/otherCompleteInterviewNotice/g)).toHaveLength(1);
     expect(rendered.match(/otherDraftActiveAt/g)).toHaveLength(1);
+    await act(async () => tree!.unmount());
+  });
+
+  it("confirms a submit with a banner naming the case, on every success shape", async () => {
+    mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
+    const cases: Array<[typeof mockParams, string]> = [
+      [{ submitted: "1", submittedId: "A-009" }, "interviewSubmittedId:A-009"],
+      [{ submitted: "1" }, "interviewSubmitted"],
+      [{ submitted: "1", submittedId: "A-009", superseded: "1" }, "interviewSubmittedId:A-009"],
+      [{ submitted: "1", submittedId: "A-009", submissionHistory: "1" }, "interviewSubmittedId:A-009"],
+      [{ submitted: "1", submittedId: "A-009", canCodeNow: "1" }, "interviewSubmittedId:A-009"],
+      [{ submitted: "correction" }, "correctionSubmitted"],
+    ];
+    for (const [params, text] of cases) {
+      mockParams = params;
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<CollectionScreen />); });
+      await settle();
+      expect(JSON.stringify(tree!.toJSON())).toContain(`"${text}"`);
+      await act(async () => tree!.unmount());
+    }
+    mockParams = {};
+    let none: ReturnType<typeof create>;
+    await act(async () => { none = create(<CollectionScreen />); });
+    await settle();
+    expect(JSON.stringify(none!.toJSON())).not.toContain("ubmitted");
+    await act(async () => none!.unmount());
+  });
+
+  it("dismisses the submit banner", async () => {
+    mockParams = { submitted: "1", submittedId: "A-009" };
+    mockGetCases.mockResolvedValue({ cases: [], next_cursor: null });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<CollectionScreen />); });
+    await settle();
+    await act(async () => { tree!.root.findAll((n) => n.type === "button" && n.props["data-label"] === "dismiss")[0].props.onClick(); });
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("interviewSubmittedId");
     await act(async () => tree!.unmount());
   });
 

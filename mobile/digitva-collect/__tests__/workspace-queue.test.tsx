@@ -297,7 +297,6 @@ describe("QueueScreen", () => {
 
   test("active coder allocation remains resumable and releasable when the page fails", async () => {
     Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
-    Object.defineProperty(window, "confirm", { configurable: true, value: jest.fn().mockReturnValue(true) });
     const api = makeApi({
       getCodingAllocation: jest.fn().mockResolvedValueOnce({ va_sid: "held-sid" }).mockResolvedValue(null),
       getCodingAvailable: jest.fn().mockRejectedValue(new ApiError(503, "unavailable")),
@@ -309,6 +308,7 @@ describe("QueueScreen", () => {
     expect(JSON.stringify(screen.renderer.toJSON())).toContain(JSON.stringify(errorText(new ApiError(503, "unavailable"))).slice(1, -1));
 
     await press(screen.renderer, "Release case");
+    await press(screen.renderer, "Release");
     await settle();
     expect(api.releaseCoding).toHaveBeenCalledTimes(1);
     expect(button(screen.renderer.root, "Resume case")).toBeUndefined();
@@ -397,18 +397,20 @@ describe("QueueScreen", () => {
     await unmount(screen.renderer);
   });
 
-  test("web release asks before releasing and cancellation leaves the allocation held", async () => {
+  test("web release asks in the in-app dialog; cancel keeps the case, Release releases it", async () => {
     Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
-    const confirmation = jest.fn().mockReturnValue(false);
-    Object.defineProperty(window, "confirm", { configurable: true, value: confirmation });
+    const nativeConfirm = jest.fn();
+    Object.defineProperty(window, "confirm", { configurable: true, value: nativeConfirm });
     const api = makeApi({ getCodingAllocation: jest.fn().mockResolvedValue({ va_sid: "held-sid" }) });
     const screen = await render("coding", api);
     await press(screen.renderer, "Release case");
-    expect(confirmation).toHaveBeenCalledWith(expect.stringContaining("An unfinished saved Step 1 will be discarded"));
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain("An unfinished saved Step 1 will be discarded");
+    await press(screen.renderer, "Cancel");
     expect(api.releaseCoding).not.toHaveBeenCalled();
-    confirmation.mockReturnValue(true);
     await press(screen.renderer, "Release case");
+    await press(screen.renderer, "Release");
     expect(api.releaseCoding).toHaveBeenCalledTimes(1);
+    expect(nativeConfirm).not.toHaveBeenCalled();
     await unmount(screen.renderer);
   });
 

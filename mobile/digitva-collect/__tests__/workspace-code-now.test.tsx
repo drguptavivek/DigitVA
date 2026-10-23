@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, StyleSheet } from "react-native";
+import { Alert, Platform, StyleSheet } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ApiError } from "../src/api";
@@ -109,6 +109,33 @@ describe("CodeNowButton", () => {
     expect(onOpen).not.toHaveBeenCalled();
     expect(nextApi.codeOwnSubmission).not.toHaveBeenCalled();
     await act(async () => { screen.renderer.unmount(); });
+  });
+
+  test("on the web the release is confirmed in the in-app dialog, and cancel releases nothing", async () => {
+    const original = Object.getOwnPropertyDescriptor(Platform, "OS")!;
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+    try {
+      const api = makeApi({
+        codeOwnSubmission: jest.fn()
+          .mockRejectedValueOnce(new ApiError(403, "allocation_exists"))
+          .mockResolvedValueOnce({ va_sid: "sid" }),
+      });
+      const screen = await render(api);
+      await act(async () => { button(screen.renderer.root, "Code this case now")?.props.onPress(); await Promise.resolve(); });
+      await settle();
+      await act(async () => { button(screen.renderer.root, "Release my other case and continue")?.props.onPress(); });
+      await act(async () => { button(screen.renderer.root, "Cancel")?.props.onPress(); });
+      expect(api.releaseCoding).not.toHaveBeenCalled();
+      expect(button(screen.renderer.root, "Release and continue")).toBeUndefined();
+      await act(async () => { button(screen.renderer.root, "Release my other case and continue")?.props.onPress(); });
+      await act(async () => { button(screen.renderer.root, "Release and continue")?.props.onPress(); await Promise.resolve(); await Promise.resolve(); });
+      await settle();
+      expect(api.releaseCoding).toHaveBeenCalledTimes(1);
+      expect(screen.onOpen).toHaveBeenCalledWith("sid");
+      await act(async () => { screen.renderer.unmount(); });
+    } finally {
+      Object.defineProperty(Platform, "OS", original);
+    }
   });
 
   test("requires explicit confirmation before releasing an existing allocation", async () => {

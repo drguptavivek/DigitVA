@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Alert, Platform, Text } from "react-native";
 
 import { ApiError } from "../api";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { t } from "../i18n";
 import { controls } from "../theme";
 import { Button, errorText, useUiStyles } from "../ui";
@@ -32,6 +33,7 @@ export function CodeNowButton({
   const [releaseRequired, setReleaseRequired] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
   const [message, setMessage] = useState("");
+  const [confirming, setConfirming] = useState<{ api: WorkspaceApi; vaSid: string } | null>(null);
   const busyRef = useRef(false);
   const contextRef = useRef({ api, vaSid });
   const retryRef = useRef<{ timer: ReturnType<typeof setTimeout>; resolve: (active: boolean) => void } | undefined>(undefined);
@@ -167,7 +169,7 @@ export function CodeNowButton({
     if (!isCurrent(context) || busyRef.current) return;
     const proceed = () => void releaseAndAllocate(context);
     if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window.confirm(t("codeNowReleaseConfirm"))) proceed();
+      setConfirming(context);
       return;
     }
     Alert.alert(t("codeNowReleaseTitle"), t("codeNowReleaseConfirm"), [
@@ -181,5 +183,17 @@ export function CodeNowButton({
     {retrying ? <Button kind="secondary" label={t("cancel")} style={touchTarget} onPress={cancel} /> : null}
     {releaseRequired ? <Button kind="danger" label={t("codeNowReleaseAction")} style={touchTarget} onPress={() => confirmRelease(contextRef.current)} /> : null}
     {message ? <Text accessibilityRole="alert" style={styles.error}>{message}</Text> : null}
+    {confirming ? <ConfirmDialog
+      destructive
+      title={t("codeNowReleaseTitle")}
+      message={t("codeNowReleaseConfirm")}
+      confirmLabel={t("codeNowReleaseConfirmAction")}
+      onCancel={() => setConfirming(null)}
+      onConfirm={() => {
+        const context = confirming;
+        setConfirming(null);
+        void releaseAndAllocate(context);
+      }}
+    /> : null}
   </>;
 }

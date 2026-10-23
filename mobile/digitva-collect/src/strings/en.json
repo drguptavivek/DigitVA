@@ -1235,5 +1235,16 @@
   "clockBlockBody": "Interviews cannot be started or edited while the date and time are this far off. Nothing you typed is lost. Set Date & time to automatic, then tap Re-check. You can still view cases and send work.",
   "clockOpenSettings": "Open Date & time settings",
   "clockRecheck": "Re-check",
-  "clockRecheckFailed": "Could not reach the server to check the time. Connect to the internet and try again."
+  "clockRecheckFailed": "Could not reach the server to check the time. Connect to the internet and try again.",
+  "releaseCaseTitle": "Release this case?",
+  "releaseCaseAction": "Release",
+  "releaseCodingWarning": "An unfinished saved Step 1 will be discarded. Unsaved work may also be lost.",
+  "releaseReviewWarning": "The saved Step 1 is kept. Your Narrative QA and Social Autopsy analysis are cleared.",
+  "interviewSubmitted": "Interview submitted successfully",
+  "interviewSubmittedId": "Interview submitted successfully — {id}",
+  "correctionSubmitted": "Correction submitted",
+  "problemsChip": "{count} problems",
+  "formRevisionLabel": "Revision",
+  "formPreviewAnswers": "Preview answers",
+  "revisionReasonRequired": "Choose a reason for the revision."
 }

@@ -3351,6 +3351,44 @@ def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntake
     return draft
 
 
+def is_attachment_draft(draft: VaWebIntakeDraft) -> bool:
+    """True for the open draft ``start_attachment_draft`` made: it has a
+    ``client_draft_id`` but no upload yet (an upload sets ``answers_sha256``
+    and closes the draft)."""
+    return draft.status == "draft" and draft.answers_sha256 is None
+
+
+def start_attachment_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None, client_draft_id: uuid.UUID) -> tuple[VaWebIntakeDraft, bool]:
+    """The server draft a phone's direct start (no case) uploads its files to,
+    identified by the phone's *client_draft_id*; returns ``(draft, created)``.
+
+    ``submit_device_interview`` resolves the same draft by that id instead of
+    starting another, so the files are on the submission. A repeat with the
+    same id and the same project/site/unit is the same draft (idempotent). The
+    id of another interviewer's draft is 409 (``find_device_upload``); of an
+    already uploaded interview, or with another project, site or unit, 409.
+    The draft is an ordinary open draft: an unsubmitted one follows the
+    existing open-draft rules. A new one runs every ``start_draft`` check.
+    """
+    existing = find_device_upload(user, client_draft_id)
+    if existing is not None:
+        if not is_attachment_draft(existing):
+            raise WebIntakeError("That client_draft_id is already in use.", 409)
+        _check_attachment_draft_matches(existing, project_id, site_id, org_unit_id)
+        return existing, False
+    draft = start_draft(user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id)
+    draft.client_draft_id = client_draft_id
+    db.session.flush()
+    return draft, True
+
+
+def _check_attachment_draft_matches(draft: VaWebIntakeDraft, project_id: str, site_id: str, org_unit_id: object | None) -> None:
+    if draft.project_id != project_id or draft.site_id != site_id:
+        raise WebIntakeError("That client_draft_id belongs to another project or site.", 409)
+    if org_unit_id and str(draft.org_unit_id) != str(org_unit_id):
+        raise WebIntakeError("That client_draft_id belongs to another unit.", 409)
+
+
 def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draft_id: uuid.UUID, site_id: str, data: dict, answers_sha256: str, meta: dict, completion: dict) -> VaWebIntakeDraft:
     """Keep a device interview for a closed case as a ``superseded`` draft
     linked to the case: answers stored, no submission, no routing, and the
@@ -3564,10 +3602,21 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
                 data=data, answers_sha256=answers_sha256, meta={**meta, **stored}, completion=completion,
             )
             return copy, "server", True
-    draft = start_draft(
-        user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
-        death_id=death_id, entries=entries, locked_death=death,
-    )
+    pending = find_device_upload(user, client_draft_id)
+    if pending is not None and is_attachment_draft(pending):
+        # The phone's direct start made this draft for its files: the upload
+        # completes it. It is a direct draft, so a request naming a case is
+        # not for it.
+        if death_id:
+            raise WebIntakeError("That client_draft_id is already in use.", 409)
+        _check_attachment_draft_matches(pending, project_id, site_id, org_unit_id)
+        _require_scope(user, project_id, site_id, pending.org_unit_id, entries=entries)
+        draft = pending
+    else:
+        draft = start_draft(
+            user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
+            death_id=death_id, entries=entries, locked_death=death,
+        )
     if draft.sections:
         # An open draft with content: the phone's own earlier sync is the same
         # draft continuing; a newer browser save is unfinished work that must

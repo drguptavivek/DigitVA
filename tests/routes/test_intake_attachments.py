@@ -10,7 +10,9 @@ serving token resolves, and the link into the submission (payload filename,
 ``va_submission_attachments`` row, case released to SmartVA; a referenced file
 that was never uploaded refuses the web submit).
 """
+import hashlib
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -380,6 +382,95 @@ class IntakeAttachmentTests(BaseTestCase):
         self.assertEqual(get_submission_workflow_state(va_sid), "smartva_pending")
         # The bytes are still the one stored object.
         self.assertEqual(len(self._stored_files()), 1)
+
+    # ── direct start from the phone (digitva-jkvl) ─────────────────────────
+
+    def _direct_start(self, client_draft_id, **over):
+        return self.client.post(
+            "/api/v1/intake/drafts", headers=self._csrf_headers(),
+            json={"project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "client_draft_id": str(client_draft_id), **over},
+        )
+
+    def _device_submit(self, client_draft_id, data, **over):
+        text = json.dumps(data, separators=(",", ":"))
+        return self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json={
+            "client_draft_id": str(client_draft_id), "project_id": self.PROJECT_ID, "site_id": self.SITE_ID,
+            "draft": {"startedAt": datetime.now(timezone.utc).isoformat()},
+            "completion": {"valid": True, "issues": []}, "answers_json": text,
+            "answers_sha256": hashlib.sha256(text.encode()).hexdigest(), **over,
+        })
+
+    def _drafts_count(self):
+        return db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.project_id == self.PROJECT_ID))
+
+    def test_a_direct_start_with_files_submits_onto_the_draft_it_uploaded_to(self):
+        self._login(self.interviewer_id)
+        cdid, cid = uuid.uuid4(), uuid.uuid4()
+        first = self._direct_start(cdid)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        draft_id = first.get_json()["draft"]["draft_id"]
+        case_id = first.get_json()["draft"]["death_id"]
+        # A repeat is the same draft, not another.
+        again = self._direct_start(cdid)
+        self.assertEqual((again.status_code, again.get_json()["draft"]["draft_id"]), (200, draft_id))
+        self.assertEqual(self._put(draft_id, cid, WEBM).status_code, 201)
+        drafts = self._drafts_count()
+
+        sent = self._device_submit(cdid, self._complete_data(Id10476_audio=self._reference(cid)))
+        self.assertEqual(sent.status_code, 201, sent.get_json())
+        self.assertEqual(sent.get_json()["case"]["death_id"], case_id)
+        self.assertEqual(self._drafts_count(), drafts)  # no second draft
+        va_sid = sent.get_json()["va_sid"]
+        self.assertIsNotNone(db.session.get(VaSubmissionAttachments, (va_sid, f"{cid}.webm")))
+        version = db.session.scalar(sa.select(VaSubmissionPayloadVersion).where(VaSubmissionPayloadVersion.va_sid == va_sid))
+        self.assertEqual(version.payload_data["AttachmentsPresent"], 1)
+        # A resend is the first result.
+        resend = self._device_submit(cdid, self._complete_data(Id10476_audio=self._reference(cid)))
+        self.assertEqual(resend.status_code, 200, resend.get_json())
+        self.assertEqual(resend.get_json()["va_sid"], va_sid)
+        # The draft is closed: the id no longer starts anything.
+        self.assertEqual(self._direct_start(cdid).status_code, 409)
+
+    def test_a_direct_submit_without_a_started_draft_still_works(self):
+        self._login(self.interviewer_id)
+        sent = self._device_submit(uuid.uuid4(), self._complete_data())
+        self.assertEqual(sent.status_code, 201, sent.get_json())
+
+    def test_another_interviewers_client_draft_id_cannot_be_used(self):
+        cdid = uuid.uuid4()
+        self._login(self.interviewer_id)
+        self.assertEqual(self._direct_start(cdid).status_code, 201)
+        self._login(self.other_id)
+        self.assertEqual(self._direct_start(cdid).status_code, 409)
+        self.assertEqual(self._device_submit(cdid, self._complete_data()).status_code, 409)
+
+    def test_a_direct_start_id_with_another_project_or_site_is_refused(self):
+        self._login(self.interviewer_id)
+        cdid = uuid.uuid4()
+        self.assertEqual(self._direct_start(cdid).status_code, 201)
+        self.assertEqual(self._direct_start(cdid, site_id="ZZ99").status_code, 409)
+        self.assertEqual(self._device_submit(cdid, self._complete_data(), site_id="ZZ99").status_code, 409)
+        # Still usable with the right ones.
+        self.assertEqual(self._device_submit(cdid, self._complete_data()).status_code, 201)
+
+    def test_a_malformed_client_draft_id_is_400(self):
+        self._login(self.interviewer_id)
+        response = self.client.post("/api/v1/intake/drafts", headers=self._csrf_headers(), json={
+            "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "client_draft_id": "nope"})
+        self.assertEqual(response.status_code, 400, response.get_json())
+
+    def test_a_case_based_start_ignores_client_draft_id_and_stays_as_it_was(self):
+        self._login(self.interviewer_id)
+        case = self.client.post("/api/v1/intake/deaths", headers=self._csrf_headers(), json={
+            "project_id": self.PROJECT_ID, "site_id": self.SITE_ID, "deceased_name": "Bina Sahu",
+            "deceased_sex": "female", "date_of_death": (date.today() - timedelta(days=5)).isoformat(), "age_years": 71})
+        self.assertEqual(case.status_code, 201, case.get_json())
+        death_id = case.get_json()["case"]["death_id"]
+        started = self._direct_start(uuid.uuid4(), death_id=death_id)
+        self.assertEqual(started.status_code, 201, started.get_json())
+        row = db.session.get(VaWebIntakeDraft, uuid.UUID(started.get_json()["draft"]["draft_id"]))
+        self.assertIsNone(row.client_draft_id)
 
     def test_a_web_submit_naming_a_file_never_uploaded_is_refused_and_stores_nothing(self):
         self._login(self.interviewer_id)

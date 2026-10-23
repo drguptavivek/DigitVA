@@ -669,13 +669,36 @@ def list_drafts():
 @bp.post("/drafts")
 @role_required("interviewer")
 def start_draft():
+    """Open (or return) the caller's draft of a case, 201. Without ``death_id``
+    the phone's direct start may send ``client_draft_id`` (UUID): the draft is
+    then the one ``POST /submissions`` with that id completes (so files PUT to
+    it are on the submission); a repeat returns it with 200, another
+    interviewer's or an uploaded id or another project/site/unit is 409."""
     p = parse_body()
+    project_id = str(p.get("project_id") or "")
+    site_id = str(p.get("site_id") or "")
+    org_unit_id = p.get("org_unit_id") or None
+    death_id = p.get("death_id") or None
+    if p.get("client_draft_id") is not None and not death_id:
+        client_draft_id = _client_id(p, "client_draft_id")
+        if client_draft_id is None:
+            return error("client_draft_id must be a UUID.", "invalid_request", 400)
+        try:
+            draft, created = intake_svc.start_attachment_draft(
+                current_user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
+                client_draft_id=client_draft_id,
+            )
+            db.session.commit()
+        except IntegrityError:
+            # A concurrent start with the same client_draft_id won the unique index.
+            db.session.rollback()
+            draft, created = intake_svc.start_attachment_draft(
+                current_user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
+                client_draft_id=client_draft_id,
+            )
+        return jsonify({"draft": intake_svc.serialize_draft(draft)}), 201 if created else 200
     draft = intake_svc.start_draft(
-        current_user,
-        project_id=str(p.get("project_id") or ""),
-        site_id=str(p.get("site_id") or ""),
-        org_unit_id=p.get("org_unit_id") or None,
-        death_id=p.get("death_id") or None,
+        current_user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id, death_id=death_id,
     )
     db.session.commit()
     return jsonify({"draft": intake_svc.serialize_draft(draft)}), 201
@@ -1054,7 +1077,7 @@ def submit_interview():
         return _upload_reply(existing, kept=kept, received_sha256=answers_sha256, locked=locked, status=200)
 
     existing = intake_svc.find_device_upload(current_user, client_draft_id)
-    if existing is not None:
+    if existing is not None and not intake_svc.is_attachment_draft(existing):
         return resend(existing)
     session = g.get("device_session")
     device = db.session.get(AuthDevice, session.device_id) if session is not None else None
@@ -1078,7 +1101,7 @@ def submit_interview():
         # A concurrent resend of the same client_draft_id won the unique index.
         db.session.rollback()
         existing = intake_svc.find_device_upload(current_user, client_draft_id)
-        if existing is None:
+        if existing is None or intake_svc.is_attachment_draft(existing):
             raise
         return resend(existing)
     return _upload_reply(draft, kept=kept, received_sha256=answers_sha256, locked=locked, status=201)

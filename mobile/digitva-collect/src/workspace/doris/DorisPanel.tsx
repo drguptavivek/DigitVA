@@ -35,6 +35,8 @@ type CertificateState = {
   adminSeen: boolean;
   /** EstimatedAge value this editor derived from the two dates last (rules.ts deriveEstimatedAge); null when none. */
   derivedAge: string | null;
+  /** The coder's or reviewer's final-COD remark; sent only with the final save. */
+  remark: string;
 };
 
 type CertificateLine = JsonObject & { Conditions: JsonObject[] };
@@ -141,6 +143,11 @@ function forgetDraft(owner: CertificateState["owner"]): void {
   drafts.get(owner.request)?.delete(draftKey(owner));
 }
 
+/** The remark this coder or reviewer last saved with their final COD. */
+function savedRemark(workspace: WorkspacePayload, mode: WorkspaceIdentity["mode"]): string {
+  return (mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final)?.remark ?? "";
+}
+
 /** The saved draft for this owner, else the server seed. */
 function initialState(owner: CertificateState["owner"], workspace: WorkspacePayload): CertificateState {
   const draft = drafts.get(owner.request)?.get(draftKey(owner));
@@ -153,6 +160,7 @@ function initialState(owner: CertificateState["owner"], workspace: WorkspacePayl
     certificate,
     adminSeen: hasAdministrativeData(certificate),
     derivedAge: seeded.derivedAge,
+    remark: savedRemark(workspace, owner.mode),
     revision: 0,
     processing: null,
     selectedCause: null,
@@ -279,12 +287,12 @@ export function DorisPanel({
     // A busy state only flags an in-flight request; persisting it could re-save a draft a successful save just forgot.
     if (stored.cleared || stored.busy || !sameOwner(stored.owner, ownerRef.current)) return;
     // Back to the server seed (a masked Step 2 choice cleared): nothing unsaved to keep.
-    if (stored.revision === 0 && !stored.selectedCause) {
+    if (stored.revision === 0 && !stored.selectedCause && stored.remark === savedRemark(workspaceRef.current, stored.owner.mode)) {
       forgetDraft(stored.owner);
       return;
     }
-    const { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge } = stored;
-    draftsFor(stored.owner.request).set(draftKey(stored.owner), { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge });
+    const { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark } = stored;
+    draftsFor(stored.owner.request).set(draftKey(stored.owner), { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark });
   }, [stored]);
 
   useEffect(() => {
@@ -404,7 +412,7 @@ export function DorisPanel({
         if (!currentRequest(requestId, sentRevision)) return;
         await onSaved();
       } else {
-        const body: JsonObject = { conclusive_cod: state.selectedCause.code };
+        const body: JsonObject = { conclusive_cod: state.selectedCause.code, remark: state.remark };
         Object.assign(body, dorisFields);
         await api.saveFinal(identity.vaSid, body, identity.mode === "reviewing" ? "reviewing" : "coding");
         forgetDraft(owner);
@@ -533,6 +541,7 @@ export function DorisPanel({
         {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
         <FinalCausePicker label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
           quick={step2QuickChoices(ownInitial, workspace.smartva)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
+        <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={(value) => update((current) => ({ ...current, remark: value }))} />
         {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
         <Button label="Save final cause" disabled={!selected || state.busy} loading={state.busy} onPress={() => void saveMaskedFinal()} />
         <Separator testID="doris-actions-separator" />
@@ -558,7 +567,7 @@ export function DorisPanel({
     if (!state.selectedCause) return;
     update((current) => ({ ...current, busy: true, error: "" }));
     try {
-      await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code }, identity.mode === "reviewing" ? "reviewing" : "coding");
+      await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code, remark: state.remark }, identity.mode === "reviewing" ? "reviewing" : "coding");
       forgetDraft(owner);
       if (!currentRequest(requestId, sentRevision)) return;
       onDone();
@@ -604,6 +613,7 @@ export function DorisPanel({
           quick={dorisQuickChoices(processing, dorisTitle)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
       ) : null}
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
+      {isInitial ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={(value) => update((current) => ({ ...current, remark: value }))} />}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
       <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />

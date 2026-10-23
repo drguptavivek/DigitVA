@@ -256,7 +256,7 @@ it("keeps masked Step 2 readonly and sends only its final choice", async () => {
   await pickViaPicker("Y55");
   await act(async () => { byLabel(tree, "Save final cause").props.onPress(); await flush(); });
   expect(api.processDoris).not.toHaveBeenCalled();
-  expect(api.saveFinal).toHaveBeenCalledWith("sid-1", { conclusive_cod: "Y55" }, "coding");
+  expect(api.saveFinal).toHaveBeenCalledWith("sid-1", { conclusive_cod: "Y55", remark: "" }, "coding");
   await act(async () => tree.unmount());
 });
 
@@ -956,5 +956,53 @@ describe("unsaved draft across remounts (digitva-yeg3.20)", () => {
     expect(byLabel(again.tree, "Process current certificate")).toBeTruthy();
     expect(removePart2(again.tree)).toHaveLength(0);
     await act(async () => again.tree.unmount());
+  });
+});
+
+describe("final COD remark (digitva-p9j0)", () => {
+  const withSavedRemark = (workspace: WorkspacePayload, remark: string): WorkspacePayload => ({ ...workspace, assessments: { ...workspace.assessments, final: { conclusive_cod: "A00", remark } as never } });
+  const setRemark = (tree: ReactTestRenderer, value: string) => {
+    expect(tree.root.findAllByProps({ accessibilityLabel: "COD remark" }).length).toBeGreaterThan(0);
+    act(() => byLabel(tree, "COD remark").props.onChangeText(value));
+  };
+
+  it("sends the remark with the certificate final save", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ step: "final" }), api);
+    setRemark(tree, "checked twice");
+    expect(byLabel(tree, "COD remark").props.value).toBe("checked twice");
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+    await pickViaPicker("Y55");
+    await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+    expect((api.saveFinal as jest.Mock).mock.calls[0][1]).toMatchObject({ conclusive_cod: "Y55", remark: "checked twice" });
+    await act(async () => tree.unmount());
+  });
+
+  it("sends the remark with the masked final save", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ step: "final", masked: true }), api);
+    setRemark(tree, "masked note");
+    await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+    await pickViaPicker("Y55");
+    await act(async () => { byLabel(tree, "Save final cause").props.onPress(); await flush(); });
+    expect(api.saveFinal).toHaveBeenCalledWith("sid-1", { conclusive_cod: "Y55", remark: "masked note" }, "coding");
+    await act(async () => tree.unmount());
+  });
+
+  it("prefills the saved final remark, masked and certificate", async () => {
+    for (const masked of [false, true]) {
+      const { tree } = renderPanel(withSavedRemark(makeWorkspace({ step: "final", masked }), "earlier remark"), apiFor());
+      expect(tree.root.findAllByProps({ accessibilityLabel: "COD remark" }).length).toBeGreaterThan(0);
+      expect(byLabel(tree, "COD remark").props.value).toBe("earlier remark");
+      await act(async () => tree.unmount());
+    }
+  });
+
+  it("has no remark box on the initial save", async () => {
+    const { tree } = renderPanel(makeWorkspace(), apiFor());
+    expect(tree.root.findAllByProps({ accessibilityLabel: "Process current certificate" }).length).toBeGreaterThan(0);
+    expect(tree.root.findAllByProps({ accessibilityLabel: "COD remark" })).toHaveLength(0);
+    await act(async () => tree.unmount());
   });
 });

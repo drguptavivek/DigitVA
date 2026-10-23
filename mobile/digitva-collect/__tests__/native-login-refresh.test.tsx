@@ -22,6 +22,8 @@ const mockEnableScreenLock = jest.fn(async () => undefined);
 const mockOfferCount = jest.fn(async () => 0);
 const mockNoteOffer = jest.fn(async () => undefined);
 let mockCanUseBiometric = false;
+const mockStoredPinLength = jest.fn<Promise<number | null>, []>(async () => null);
+const mockRecordPinLength = jest.fn(async (..._args: unknown[]) => undefined);
 let mockParams: { userId?: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string } = { userId: "u1", refresh: "1" };
 
 jest.mock("expo-router", () => ({
@@ -60,6 +62,9 @@ jest.mock("../src/vault", () => ({
   unlockOfferCount: () => mockOfferCount(),
   noteUnlockOffer: () => mockNoteOffer(),
   UNLOCK_OFFER_MAX: 2,
+  PIN_MAX_LENGTH: 16,
+  storedPinLength: () => mockStoredPinLength(),
+  recordPinLength: (...args: unknown[]) => mockRecordPinLength(...args),
   WARN_AFTER_FAILURES: 3,
   WIPE_AFTER_FAILURES: 5,
   pinProblem: () => undefined
@@ -118,6 +123,7 @@ describe("native login refresh handoff", () => {
     mockReadScreenLockPin.mockResolvedValue(null);
     mockOfferCount.mockResolvedValue(0);
     mockCanUseBiometric = false;
+    mockStoredPinLength.mockResolvedValue(null);
     mockUnlockInterviewer.mockResolvedValue({ ok: true });
     mockLockNow.mockClear();
     mockLockNow.mockImplementation(async () => {
@@ -388,6 +394,69 @@ describe("native login refresh handoff", () => {
     act(() => editableInputs(tree!)[0].props.onChangeText("123456"));
     await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    await act(async () => tree!.unmount());
+  });
+
+  const longField = (tree: ReturnType<typeof create>) =>
+    tree.root.findAll((node) => typeof node.props.onChangeText === "function" && node.props.maxLength === 16 && node.parent?.props.maxLength !== 16)[0];
+
+  it("shows the long-PIN link beside the boxes when the length is unknown, and unlocks a 7-digit PIN untruncated", async () => {
+    mockParams = { userId: "u1" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    expect(editableInputs(tree!)).toHaveLength(6);
+    expect(longField(tree!)).toBeUndefined();
+    act(() => tree!.root.findAll((n) => n.props.accessibilityRole === "link" && typeof n.props.onPress === "function")[0].props.onPress());
+    expect(editableInputs(tree!)).toHaveLength(0);
+    act(() => longField(tree!).props.onChangeText("1234567"));
+    expect(tree!.root.findByProps({ "data-label": "unlock" }).props.disabled).toBe(false);
+    await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
+    expect(mockUnlockInterviewer).toHaveBeenCalledWith("u1", "1234567");
+    await act(async () => tree!.unmount());
+  });
+
+  it("opens directly in the long-PIN field when the stored length is above six, and keeps Unlock off below six digits", async () => {
+    mockParams = { userId: "u1" };
+    mockStoredPinLength.mockResolvedValue(8);
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    expect(editableInputs(tree!)).toHaveLength(0);
+    act(() => longField(tree!).props.onChangeText("12345"));
+    expect(tree!.root.findByProps({ "data-label": "unlock" }).props.disabled).toBe(true);
+    act(() => longField(tree!).props.onChangeText("12345678"));
+    await act(async () => tree!.root.findByProps({ "data-label": "unlock" }).props.onClick());
+    expect(mockUnlockInterviewer).toHaveBeenCalledWith("u1", "12345678");
+    await act(async () => tree!.unmount());
+  });
+
+  it("opens in the boxes when the stored length is six", async () => {
+    mockParams = { userId: "u1" };
+    mockStoredPinLength.mockResolvedValue(6);
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    expect(editableInputs(tree!)).toHaveLength(6);
+    await act(async () => tree!.unmount());
+  });
+
+  it("records the PIN length at setup", async () => {
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<PinSetup />);
+    });
+    const fields = editableInputs(tree!);
+    act(() => fields[0].props.onChangeText("123456"));
+    act(() => fields[6].props.onChangeText("123456"));
+    await act(async () => tree!.root.findByProps({ "data-label": "pinSave" }).props.onClick());
+    expect(mockRecordPinLength).toHaveBeenCalledWith("u1", 6);
     await act(async () => tree!.unmount());
   });
 });

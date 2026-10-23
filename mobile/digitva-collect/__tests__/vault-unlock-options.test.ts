@@ -24,6 +24,8 @@ import {
   enableScreenLock,
   forgetStoreKeys,
   noteUnlockOffer,
+  recordPinLength,
+  storedPinLength,
   readScreenLockPin,
   screenLockAvailable,
   screenLockEnabled,
@@ -90,4 +92,16 @@ it("counts how often the unlock offer was shown", async () => {
   await noteUnlockOffer("u1");
   expect(await unlockOfferCount("u1")).toBe(2);
   expect(await unlockOfferCount("u2")).toBe(0);
+});
+
+it("records the PIN length, rejects out-of-range values as unknown, and the wipe erases it", async () => {
+  expect(await storedPinLength("u1")).toBeNull();
+  await recordPinLength("u1", 9);
+  expect(await storedPinLength("u1")).toBe(9);
+  mockSecure.set([...mockSecure.keys()][0], "99");
+  expect(await storedPinLength("u1")).toBeNull();
+  await recordPinLength("u1", 7);
+  await forgetStoreKeys("u1");
+  expect(await storedPinLength("u1")).toBeNull();
+  expect(mockSecure.size).toBe(0);
 });

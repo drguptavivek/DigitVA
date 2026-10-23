@@ -1107,5 +1107,6 @@
   "biometricOff": "Turn off fingerprint",
   "screenLockPrompt": "Unlock DigitVA Collect with your phone screen lock",
   "unlockOptionsOffer": "Unlock faster next time? Use your fingerprint or your phone's screen lock. The PIN always works too.",
-  "unlockOptionFailed": "Could not turn this on. You can try again, or skip and use the PIN."
+  "unlockOptionFailed": "Could not turn this on. You can try again, or skip and use the PIN.",
+  "pinLonger": "My PIN is longer than 6 digits"
 }

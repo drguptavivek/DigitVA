@@ -6,7 +6,7 @@
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Text } from "react-native";
+import { Alert, Pressable, Text, TextInput } from "react-native";
 
 import { useAppState } from "../AppState";
 import { unlockInterviewer } from "../auth";
@@ -21,8 +21,10 @@ import {
   enableScreenLock,
   failedAttempts,
   readBiometricPin,
+  PIN_MAX_LENGTH,
   readScreenLockPin,
   screenLockEnabled,
+  storedPinLength,
   WARN_AFTER_FAILURES,
   WIPE_AFTER_FAILURES
 } from "../vault";
@@ -46,6 +48,8 @@ export default function Unlock() {
   const [biometric, setBiometric] = useState(false);
   const [screenLock, setScreenLock] = useState(false);
   const [shake, setShake] = useState(0);
+  // The vault allows 6 to 16 digits; the boxes take 6, so a longer PIN is typed in one field (never cut silently).
+  const [longPin, setLongPin] = useState(false);
   const [offer, setOffer] = useState<{ pin: string; options: { biometric: boolean; screenLock: boolean } }>();
 
   const toWorklist = useCallback(
@@ -147,6 +151,8 @@ export default function Unlock() {
           setBiometric(bio);
           setScreenLock(lock);
         }
+        const length = await storedPinLength(userId);
+        if (active && length !== null && length > PIN_BOXES) setLongPin(true);
         if (enabling) return;
         if (bio) await tryBiometric();
         else if (lock) await tryScreenLock();
@@ -172,7 +178,26 @@ export default function Unlock() {
     <Screen title={t("unlockTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
       <Text style={styles.muted}>{t("pin")}</Text>
-      <PinBoxes value={pin} onChange={setPin} label={t("pin")} shakeSignal={shake} />
+      {longPin ? (
+        <TextInput
+          style={styles.input}
+          accessibilityLabel={t("pin")}
+          secureTextEntry
+          keyboardType="number-pad"
+          autoFocus
+          maxLength={PIN_MAX_LENGTH}
+          value={pin}
+          onChangeText={(text) => setPin(text.replace(/\D/g, "").slice(0, PIN_MAX_LENGTH))}
+          onSubmitEditing={() => pin.length >= PIN_BOXES && void tryPin(pin)}
+        />
+      ) : (
+        <>
+          <PinBoxes value={pin} onChange={setPin} label={t("pin")} shakeSignal={shake} />
+          <Pressable accessibilityRole="link" onPress={() => setLongPin(true)} hitSlop={8}>
+            <Text style={styles.muted}>{t("pinLonger")}</Text>
+          </Pressable>
+        </>
+      )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button label={t("unlock")} disabled={busy || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
       {biometric ? (

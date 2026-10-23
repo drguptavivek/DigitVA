@@ -13,7 +13,7 @@ import { createInterviewerDb } from "../interviewerDb";
 import { PinBoxes } from "../PinBoxes";
 import { Button, Screen, useUiStyles } from "../ui";
 import { pendingUnlockOffer, UnlockOffer } from "../UnlockOffer";
-import { pinProblem } from "../vault";
+import { pinProblem, recordPinLength } from "../vault";
 
 export default function PinSetup() {
   const styles = useUiStyles();
@@ -41,6 +41,7 @@ export default function PinSetup() {
     setError("");
     try {
       await createInterviewerDb(account.user_id, pin);
+      await recordPinLength(account.user_id, pin.length).catch(() => undefined);
       unlocked();
       const pending = await pendingUnlockOffer(account.user_id).catch(() => null);
       if (pending) setOffer(pending);

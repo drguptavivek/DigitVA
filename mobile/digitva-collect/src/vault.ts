@@ -18,7 +18,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
 export const PIN_MIN_LENGTH = 6;
-const PIN_MAX_LENGTH = 16;
+export const PIN_MAX_LENGTH = 16;
 export const WARN_AFTER_FAILURES = 3;
 export const WIPE_AFTER_FAILURES = 5;
 
@@ -64,6 +64,7 @@ const biometricKey = (hash: string) => `pin_bio_${hash}`;
 const screenLockFlagKey = (hash: string) => `pin_lock_on_${hash}`;
 const screenLockKey = (hash: string) => `pin_lock_${hash}`;
 const offerKey = (hash: string) => `unlock_offer_${hash}`;
+const pinLengthKey = (hash: string) => `pin_len_${hash}`;
 /** Its own Keystore alias: an authentication-bound key cannot share the default one. */
 const biometricOptions = (hash: string, prompt?: string): SecureStore.SecureStoreOptions => ({
   ...OPTIONS,
@@ -205,12 +206,23 @@ export async function noteUnlockOffer(userId: string): Promise<void> {
 /** First offer after PIN setup, one more on a later PIN unlock, then never. */
 export const UNLOCK_OFFER_MAX = 2;
 
+/** The length of the PIN set on this phone, or null when unknown (a phone set up before this was recorded). */
+export async function storedPinLength(userId: string): Promise<number | null> {
+  const n = Number(await SecureStore.getItemAsync(pinLengthKey(await storeHash(userId)), OPTIONS));
+  return Number.isInteger(n) && n >= PIN_MIN_LENGTH && n <= PIN_MAX_LENGTH ? n : null;
+}
+
+export async function recordPinLength(userId: string, length: number): Promise<void> {
+  await SecureStore.setItemAsync(pinLengthKey(await storeHash(userId)), String(length), OPTIONS);
+}
+
 /** Forget this interviewer's secret, counter and biometric / screen-lock PIN. Other interviewers are untouched. */
 export async function forgetStoreKeys(userId: string): Promise<void> {
   const hash = await storeHash(userId);
   await SecureStore.deleteItemAsync(secretKey(hash), OPTIONS);
   await SecureStore.deleteItemAsync(failuresKey(hash), OPTIONS);
   await SecureStore.deleteItemAsync(offerKey(hash), OPTIONS);
+  await SecureStore.deleteItemAsync(pinLengthKey(hash), OPTIONS);
   await disableBiometric(hash);
   await turnOffScreenLock(userId);
 }

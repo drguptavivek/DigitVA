@@ -302,7 +302,11 @@ PIN in a row are unchanged.
 - **Entry.** PIN entry and PIN setup use six separate boxes: one digit each,
   moving on as a digit is typed, backspace stepping back, the numeric keypad
   opening at once, masked with a Show / Hide toggle, and a pasted six-digit
-  PIN filling every box. A wrong PIN clears the boxes and shakes them.
+  PIN filling every box. A wrong PIN clears the boxes and shakes them. A PIN
+  of 7 to 16 digits (set before the boxes existed) is typed through "My PIN is
+  longer than 6 digits", one masked numeric field accepting 6 to 16 digits; the
+  PIN length is recorded at setup (never the PIN) so the field opens directly,
+  and an entry is never cut to six digits.
 - **Unlock options**, per account on this phone, all optional; the app PIN is
   always the fallback (cancelled or failed prompt, a lost option such as a new
   fingerprint enrolment or a removed screen lock):
@@ -313,8 +317,10 @@ PIN in a row are unchanged.
     phone allows, device-credential fallback). On success the app releases
     the PIN it holds in Keystore-backed SecureStore. Weaker than the
     fingerprint option, which binds the key itself to the biometric: the PIN
-    sits in Keystore without per-use authentication and the prompt is an app
-    check, so a rooted phone running modified code could skip it. It is
+    sits in Keystore **without per-use key authentication** and the prompt is
+    an app check, so this option is weaker than fingerprint, and the weakness
+    matters only on a compromised (for example rooted) phone running modified
+    code, which could skip the prompt. It is
     offered only when the phone has a screen lock set.
   Turning an option on needs the PIN (or the first-run PIN just set) and one
   successful prompt. Wipe, sign-out and re-enrolment erase both entries.

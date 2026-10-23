@@ -144,14 +144,20 @@ def filter_hash(*, export_kind: str, user_id, filters: dict) -> str:
 # Writing
 # ---------------------------------------------------------------------------
 
-def write_export(*, export_kind: str, user_id, filters: dict, csv_text: str) -> ExportRef:
+def write_export(
+    *, export_kind: str, user_id, filters: dict, csv_text: str | None = None, csv_file=None
+) -> ExportRef:
     """Store one CSV export and return the reference to it.
 
-    The CSV is streamed to a bounded temporary file first — never handed to the
-    store as one in-memory body — so the only whole copy in this process is the
-    string the export query already built. The temporary file is removed on
-    every path, including a failed upload.
+    The CSV is given as ``csv_text`` or as ``csv_file``, a readable text handle
+    (``newline=""``, utf-8) that is rewound and read in ``CHUNK_SIZE`` pieces,
+    so a large export is never one in-memory string. Either way it is streamed
+    to a bounded temporary file first — never handed to the store as one
+    in-memory body. The temporary file is removed on every path, including a
+    failed upload; closing ``csv_file`` stays with the caller.
     """
+    if (csv_text is None) == (csv_file is None):
+        raise ValueError("write_export needs exactly one of csv_text or csv_file")
     created_at = datetime.now(timezone.utc)
     key = _export_key(
         export_kind=export_kind,
@@ -164,7 +170,7 @@ def write_export(*, export_kind: str, user_id, filters: dict, csv_text: str) -> 
     handle, tmp_path = tempfile.mkstemp(prefix="dm_export_", suffix=".csv", dir=tmp_dir)
     os.close(handle)
     try:
-        size_bytes, digest = _write_temp_csv(tmp_path, csv_text)
+        size_bytes, digest = _write_temp_csv(tmp_path, csv_text, csv_file)
         _put(key, tmp_path)
     finally:
         _remove_quietly(tmp_path)
@@ -327,16 +333,25 @@ def _segment(value) -> str:
     return cleaned[:80]
 
 
-def _write_temp_csv(tmp_path: str, csv_text: str) -> tuple[int, str]:
+def _write_temp_csv(tmp_path: str, csv_text: str | None, csv_file=None) -> tuple[int, str]:
     """Write the CSV (BOM first) to *tmp_path*, returning its size and sha256."""
     digest = hashlib.sha256()
     size = 0
+    chunks = _encoded_chunks(csv_text) if csv_file is None else encoded_file_chunks(csv_file)
     with open(tmp_path, "wb") as handle:
-        for chunk in _encoded_chunks(csv_text):
+        for chunk in chunks:
             handle.write(chunk)
             digest.update(chunk)
             size += len(chunk)
     return size, digest.hexdigest()
+
+
+def encoded_file_chunks(csv_file):
+    """The BOM then a text file's CSV, rewound and encoded one chunk at a time."""
+    yield UTF8_BOM.encode("utf-8")
+    csv_file.seek(0)
+    while chunk := csv_file.read(CHUNK_SIZE):
+        yield chunk.encode("utf-8")
 
 
 def _encoded_chunks(csv_text: str):

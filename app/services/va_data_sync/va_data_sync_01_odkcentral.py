@@ -49,6 +49,7 @@ from app.services.submission_payload_version_service import (
     create_or_update_pending_upstream_payload_version,
     ensure_active_payload_version,
     get_active_payload_version,
+    get_active_payload_versions_by_sid,
     payload_matches,
 )
 from app.models import (
@@ -60,13 +61,14 @@ from app.utils import (
     va_odk_clientsetup,
     va_odk_delta_count,
     va_odk_fetch_instance_ids,
-    va_odk_fetch_submissions,
+    va_odk_fetch_submissions_page,
     va_odk_fetch_submissions_by_ids,
     va_odk_sync_form_attachments,
     va_preprocess_summcatenotification,
     va_preprocess_categoriestodisplay,
 )
 from app.utils.national_id import redact_payload_national_ids
+from app.utils.va_odk.va_odk_06_fetchsubmissions import _PAGE_SIZE as _ODK_FETCH_PAGE_SIZE
 from app.utils.va_form.va_form_02_formtyperesolution import (
     va_get_form_type_code_from_form,
 )
@@ -669,50 +671,131 @@ def reset_org_field_check_cache() -> None:
     _warn_on_missing_org_fields.__dict__.pop(_ORG_FIELD_CHECK_CACHE_KEY, None)
 
 
+# IN-list size for the bulk sync-issue update and the upsert's per-chunk prefetch.
+_SYNC_IN_CHUNK = 1000
+_UPSERT_CHUNK_SIZE = 250
+
+
 def _mark_form_sync_issues(va_form, odk_instance_ids: list[str], *, by_role: str = "vaadmin"):
-    """Mark local submissions that no longer exist in ODK for a form."""
+    """Mark local submissions that no longer exist in ODK for a form.
+
+    Reads only (sid, issue code) per row and updates just the rows that change,
+    so a form of any size costs two small queries when nothing changed.
+    """
     expected_sids = {
         f"{instance_id}-{va_form.form_id.lower()}"
         for instance_id in (odk_instance_ids or [])
     }
     now = datetime.now(timezone.utc)
 
-    local_rows = db.session.scalars(
-        sa.select(VaSubmissions).where(VaSubmissions.va_form_id == va_form.form_id)
+    local_rows = db.session.execute(
+        sa.select(VaSubmissions.va_sid, VaSubmissions.va_sync_issue_code).where(
+            VaSubmissions.va_form_id == va_form.form_id
+        )
     ).all()
 
-    for submission in local_rows:
-        if submission.va_sid in expected_sids:
-            if submission.va_sync_issue_code == SYNC_ISSUE_MISSING_IN_ODK:
-                submission.va_sync_issue_code = None
-                submission.va_sync_issue_detail = None
-                submission.va_sync_issue_updated_at = now
-                db.session.add(
-                    VaSubmissionsAuditlog(
-                        va_sid=submission.va_sid,
-                        va_audit_byrole=by_role,
-                        va_audit_operation="u",
-                        va_audit_action="submission restored from ODK sync issue",
-                    )
-                )
-            continue
+    restore_sids = [
+        va_sid
+        for va_sid, code in local_rows
+        if va_sid in expected_sids and code == SYNC_ISSUE_MISSING_IN_ODK
+    ]
+    flag_sids = [
+        va_sid
+        for va_sid, code in local_rows
+        if va_sid not in expected_sids and code != SYNC_ISSUE_MISSING_IN_ODK
+    ]
 
-        if submission.va_sync_issue_code == SYNC_ISSUE_MISSING_IN_ODK:
-            continue
-
-        submission.va_sync_issue_code = SYNC_ISSUE_MISSING_IN_ODK
-        submission.va_sync_issue_detail = (
-            "Submission exists locally but is missing from active ODK submissions."
-        )
-        submission.va_sync_issue_updated_at = now
-        db.session.add(
+    # (sids, new column values, audit action) for each change.
+    changes = (
+        (
+            restore_sids,
+            {
+                "va_sync_issue_code": None,
+                "va_sync_issue_detail": None,
+                "va_sync_issue_updated_at": now,
+            },
+            "submission restored from ODK sync issue",
+        ),
+        (
+            flag_sids,
+            {
+                "va_sync_issue_code": SYNC_ISSUE_MISSING_IN_ODK,
+                "va_sync_issue_detail": (
+                    "Submission exists locally but is missing from active ODK submissions."
+                ),
+                "va_sync_issue_updated_at": now,
+            },
+            "submission missing from ODK detected during sync",
+        ),
+    )
+    for sids, values, audit_action in changes:
+        for start in range(0, len(sids), _SYNC_IN_CHUNK):
+            chunk = sids[start:start + _SYNC_IN_CHUNK]
+            # ORM-enabled update: objects already in the session are synchronized.
+            db.session.execute(
+                sa.update(VaSubmissions)
+                .where(VaSubmissions.va_sid.in_(chunk))
+                .values(**values)
+            )
+        db.session.add_all(
             VaSubmissionsAuditlog(
-                va_sid=submission.va_sid,
+                va_sid=va_sid,
                 va_audit_byrole=by_role,
                 va_audit_operation="u",
-                va_audit_action="submission missing from ODK detected during sync",
+                va_audit_action=audit_action,
             )
+            for va_sid in sids
         )
+
+
+def _prepared_submissions(
+    va_form,
+    va_submissions,
+    *,
+    client,
+    enrich_payloads: bool,
+):
+    """Yield (record, projection fields, prefetched) for each incoming record.
+
+    Works a chunk at a time: prepares the chunk's records, then loads their
+    VaSubmissions and active payload versions in two queries instead of two
+    per record. ``prefetched`` is ``(existing, active_payload_version)``, or
+    None for a sid already seen in this call: its prefetched rows predate the
+    earlier occurrence's insert or new version, so the caller looks it up.
+    """
+    seen_sids: set[str] = set()
+    records = va_submissions or []
+    for start in range(0, len(records), _UPSERT_CHUNK_SIZE):
+        prepared = []
+        for va_submission in records[start:start + _UPSERT_CHUNK_SIZE]:
+            if enrich_payloads:
+                va_submission = _enrich_submission_payload_for_storage(
+                    va_form,
+                    va_submission,
+                    client=client,
+                )
+            else:
+                va_submission = _reduce_incoming_national_ids(va_submission)
+            prepared.append(
+                (va_submission, _submission_projection_fields(va_form, va_submission))
+            )
+
+        chunk_sids = [fields["va_sid"] for _, fields in prepared if fields["va_sid"] is not None]
+        existing_by_sid = {
+            submission.va_sid: submission
+            for submission in db.session.scalars(
+                sa.select(VaSubmissions).where(VaSubmissions.va_sid.in_(chunk_sids))
+            )
+        }
+        active_by_sid = get_active_payload_versions_by_sid(chunk_sids)
+
+        for va_submission, fields in prepared:
+            va_sid = fields["va_sid"]
+            if va_sid in seen_sids:
+                yield va_submission, fields, None
+                continue
+            seen_sids.add(va_sid)
+            yield va_submission, fields, (existing_by_sid.get(va_sid), active_by_sid.get(va_sid))
 
 
 def _upsert_form_submissions(
@@ -743,30 +826,33 @@ def _upsert_form_submissions(
     # See app/services/org_unit_routing_service.py.
     routing_context = org_routing.context_for_form(va_form)
 
-    for va_submission in (va_submissions or []):
-        if enrich_payloads:
-            va_submission = _enrich_submission_payload_for_storage(
-                va_form,
-                va_submission,
-                client=client,
-            )
-        else:
-            va_submission = _reduce_incoming_national_ids(va_submission)
+    for va_submission, fields, prefetched in _prepared_submissions(
+        va_form,
+        va_submissions,
+        client=client,
+        enrich_payloads=enrich_payloads,
+    ):
         va_submission_amended = False
         created_submission = None
 
-        fields = _submission_projection_fields(va_form, va_submission)
         va_submission_sid = fields["va_sid"]
         va_submission_formid = fields["va_form_id"]
         va_submission_updatedat = fields["va_odk_updatedat"]
         va_submission_consent = fields["va_consent"]
 
-        existing = db.session.scalar(
-            sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_submission_sid)
-        )
+        if prefetched is not None:
+            existing, prefetched_active_version = prefetched
+        else:
+            existing = db.session.scalar(
+                sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_submission_sid)
+            )
 
         if existing:
-            active_payload_version = get_active_payload_version(va_submission_sid)
+            active_payload_version = (
+                prefetched_active_version
+                if prefetched is not None
+                else get_active_payload_version(va_submission_sid)
+            )
             if active_payload_version is not None:
                 # Both sides through the one rule (flag on: version_fingerprint
                 # on the split incoming record vs the stored stripped payload
@@ -785,9 +871,9 @@ def _upsert_form_submissions(
                 va_submission_amended = True
                 updated += 1
                 if not defer_protected_updates:
-                    print(
-                        f"DataSync Process [Revoked protected VA submission "
-                        f"'{va_submission_formid}: {va_submission_sid}' (was {current_state})]"
+                    log.debug(
+                        "DataSync Process [Revoked protected VA submission '%s: %s' (was %s)]",
+                        va_submission_formid, va_submission_sid, current_state,
                     )
             else:
                 _apply_submission_projection(existing, fields, va_submission)
@@ -816,7 +902,10 @@ def _upsert_form_submissions(
                     reason="odk_submission_updated",
                     actor=system_actor(),
                 )
-                print(f"DataSync Process [Updated VA submission '{va_submission_formid}: {va_submission_sid}']")
+                log.debug(
+                    "DataSync Process [Updated VA submission '%s: %s']",
+                    va_submission_formid, va_submission_sid,
+                )
 
         elif not existing:
             db.session.add(
@@ -870,7 +959,10 @@ def _upsert_form_submissions(
                     va_audit_action="va_submission_creation_during_datasync",
                 )
             )
-            print(f"DataSync Process [Added VA submission '{va_submission_formid}: {va_submission_sid}']")
+            log.debug(
+                "DataSync Process [Added VA submission '%s: %s']",
+                va_submission_formid, va_submission_sid,
+            )
 
         elif existing and va_submission_updatedat != existing.va_odk_updatedat:
             existing.va_odk_updatedat = va_submission_updatedat
@@ -1289,45 +1381,66 @@ def va_data_sync_odkcentral(
                                 )
                     continue  # skip the normal upsert/attachment flow below
                 else:
-                    # Normal delta or first-sync fetch
+                    # Normal delta or first-sync fetch. Pages are fetched and upserted
+                    # one at a time so a form's records are never all held in memory;
+                    # the form is still one transaction (one commit below, a failure on
+                    # any page rolls the whole form back).
                     log.info("DataSync [Fetching submissions via OData: %s].", va_form.form_id)
                     _progress(f"[{va_form.form_id}] fetch: downloading submissions from ODK…")
-                    va_submissions_raw = _run_with_odk_connectivity_backoff(
-                        f"[{va_form.form_id}] ODK fetch",
-                        lambda attempt: va_odk_fetch_submissions(
-                            va_form,
-                            since=mapping.last_synced_at if mapping else None,
-                            client=_get_or_create_sync_odk_client(
-                                clients_by_group,
-                                connection_by_project,
+                    since = mapping.last_synced_at if mapping else None
+                    upserted_map: dict[str, str] = {}  # {va_sid: instance_id}
+                    form_added = form_updated = form_discarded = form_skipped = 0
+                    fetched_total = 0
+                    # Only the no-dispatcher path enriches from the full list later;
+                    # with a dispatcher no page outlives its upsert.
+                    va_submissions_raw: list[dict] = []
+                    skip = 0
+                    while True:
+                        page = _run_with_odk_connectivity_backoff(
+                            f"[{va_form.form_id}] ODK fetch (from record {skip})",
+                            lambda attempt, skip=skip: va_odk_fetch_submissions_page(
                                 va_form,
-                                mapping,
-                                force_refresh=(attempt > 1),
+                                since=since,
+                                skip=skip,
+                                client=_get_or_create_sync_odk_client(
+                                    clients_by_group,
+                                    connection_by_project,
+                                    va_form,
+                                    mapping,
+                                    force_refresh=(attempt > 1),
+                                ),
                             ),
-                        ),
-                        log_progress=_progress,
-                    )
+                            log_progress=_progress,
+                        )
+                        if not page:
+                            break
+                        fetched_total += len(page)
+                        log.info("DataSync [Upserting submissions: %s].", va_form.form_id)
+                        _progress(
+                            f"[{va_form.form_id}] upsert: saving basic submission data for "
+                            f"{len(page)} submission(s) ({fetched_total} fetched so far)…"
+                        )
+                        page_added, page_updated, page_discarded, page_skipped = _upsert_form_submissions(
+                            va_form,
+                            page,
+                            amended_sids,
+                            upserted_map,
+                            enrich_payloads=False,
+                            defer_protected_updates=True,
+                        )
+                        form_added += page_added
+                        form_updated += page_updated
+                        form_discarded += page_discarded
+                        form_skipped += page_skipped
+                        if enrichment_sync_dispatcher is None:
+                            va_submissions_raw.extend(page)
+                        if len(page) < _ODK_FETCH_PAGE_SIZE:
+                            break
+                        skip += _ODK_FETCH_PAGE_SIZE
                     _progress(
                         f"[{va_form.form_id}] fetch: downloaded "
-                        f"{len(va_submissions_raw)} submission(s) from ODK"
+                        f"{fetched_total} submission(s) from ODK"
                     )
-
-
-                # Upsert submissions for this form only
-                log.info("DataSync [Upserting submissions: %s].", va_form.form_id)
-                _progress(
-                    f"[{va_form.form_id}] upsert: saving basic submission data for "
-                    f"{len(va_submissions_raw)} submission(s)…"
-                )
-                upserted_map: dict[str, str] = {}  # {va_sid: instance_id}
-                form_added, form_updated, form_discarded, form_skipped = _upsert_form_submissions(
-                    va_form,
-                    va_submissions_raw,
-                    amended_sids,
-                    upserted_map,
-                    enrich_payloads=False,
-                    defer_protected_updates=True,
-                )
                 va_submissions_added += form_added
                 va_submissions_updated += form_updated
                 va_discarded_relrecords += form_discarded

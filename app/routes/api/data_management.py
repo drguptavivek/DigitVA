@@ -11,6 +11,8 @@ Resources:
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 import uuid
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -44,15 +46,15 @@ from app.services.data_management_service import (
     dm_screening_reject,
     dm_reject_upstream_change,
     dm_scoped_forms,
-    dm_smartva_input_export_csv,
     dm_smartva_likelihoods_export_csv,
     dm_smartva_results_export_csv,
-    dm_submissions_export_csv,
     dm_submissions_page,
     dm_upstream_change_details,
     filter_scoped_forms,
     sync_run_entries,
     sync_run_target_label,
+    write_dm_smartva_input_export_csv,
+    write_dm_submissions_export_csv,
 )
 from app.services import smartva_service
 from app.services.authz import Action, AuthzError, can, require, scope_filter
@@ -146,10 +148,13 @@ def _export_cache_ttl_seconds() -> int:
         return _EXPORT_CACHE_TTL
 
 
-def _csv_response(csv_text: str, filename: str, cache_status: str) -> Response:
-    """The CSV inline. Only a fallback now — see ``_deliver_export``."""
-    return Response(
-        UTF8_BOM + csv_text,
+def _csv_response(csv_file, filename: str, cache_status: str) -> Response:
+    """The CSV inline, streamed from *csv_file* (closed when the body is sent).
+
+    Only a fallback now — see ``_deliver_export``.
+    """
+    response = Response(
+        export_store.encoded_file_chunks(csv_file),
         content_type=EXPORT_CONTENT_TYPE,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
@@ -157,6 +162,20 @@ def _csv_response(csv_text: str, filename: str, cache_status: str) -> Response:
             "X-Export-Cache": cache_status,
         },
     )
+    # utf-8 text written with newline="": the file's size is its byte count.
+    csv_file.flush()
+    response.content_length = len(UTF8_BOM.encode("utf-8")) + os.fstat(csv_file.fileno()).st_size
+    # The WSGI server closes the response even when the client disconnects
+    # before the body starts, which a generator's ``finally`` would miss.
+    response.call_on_close(csv_file.close)
+    return response
+
+
+def _write_str_export(export_csv_fn):
+    """Adapt a ``-> str`` export to the ``(out, user, **filters)`` writer shape."""
+    def write(out, user, **filters):
+        out.write(export_csv_fn(user, **filters))
+    return write
 
 
 def _deliver_export(ref, filename: str, cache_status: str) -> Response | None:
@@ -186,8 +205,11 @@ def _deliver_export(ref, filename: str, cache_status: str) -> Response | None:
     return response
 
 
-def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) -> Response:
+def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -> Response:
     """Serve one filtered CSV export for the signed-in data manager.
+
+    ``write_fn(out, user, **filters)`` writes the CSV to the text handle
+    ``out``; the export is built in a scratch file, never one string.
 
     The export object in the store *is* the cache: a still-fresh object for the
     same kind, user and filters is reused rather than recomputed, exactly as
@@ -213,21 +235,41 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, export_fn) 
         if response is not None:
             return response
 
-    csv_text = export_fn(current_user, **filters)
+    # newline="" so the csv module's own line endings reach the file untouched.
+    csv_file = tempfile.TemporaryFile(
+        mode="w+",
+        encoding="utf-8",
+        newline="",
+        dir=current_app.config.get("DB_BACKUP_TMP_DIR") or tempfile.gettempdir(),
+    )
+    try:
+        write_fn(csv_file, current_user, **filters)
+        csv_file.flush()
+    except BaseException:
+        csv_file.close()
+        raise
     try:
         ref = export_store.write_export(
             export_kind=export_kind,
             user_id=current_user.user_id,
             filters=cache_filters,
-            csv_text=csv_text,
+            csv_file=csv_file,
         )
     except (ExportStoreError, AttachmentStoreError, OSError) as exc:
         log.warning("Export store write failed for kind=%s: %s", export_kind, exc)
-        return _csv_response(csv_text, filename, cache_status="BYPASS")
+        return _csv_response(csv_file, filename, cache_status="BYPASS")
+    except BaseException:
+        csv_file.close()
+        raise
 
-    response = _deliver_export(ref, filename, cache_status="MISS")
+    try:
+        response = _deliver_export(ref, filename, cache_status="MISS")
+    except BaseException:
+        csv_file.close()
+        raise
     if response is None:
-        return _csv_response(csv_text, filename, cache_status="BYPASS")
+        return _csv_response(csv_file, filename, cache_status="BYPASS")
+    csv_file.close()
     return response
 
 
@@ -277,7 +319,7 @@ def submissions_export_csv():
     return _serve_cached_export_csv(
         export_kind="submissions",
         filename_prefix="data-management-submissions",
-        export_fn=dm_submissions_export_csv,
+        write_fn=write_dm_submissions_export_csv,
     )
 
 
@@ -288,7 +330,7 @@ def submissions_export_smartva_input_csv():
     return _serve_cached_export_csv(
         export_kind="smartva_input",
         filename_prefix="data-management-smartva-input",
-        export_fn=dm_smartva_input_export_csv,
+        write_fn=write_dm_smartva_input_export_csv,
     )
 
 
@@ -299,7 +341,7 @@ def submissions_export_smartva_results_csv():
     return _serve_cached_export_csv(
         export_kind="smartva_results",
         filename_prefix="data-management-smartva-results",
-        export_fn=dm_smartva_results_export_csv,
+        write_fn=_write_str_export(dm_smartva_results_export_csv),
     )
 
 
@@ -310,7 +352,7 @@ def submissions_export_smartva_likelihoods_csv():
     return _serve_cached_export_csv(
         export_kind="smartva_likelihoods",
         filename_prefix="data-management-smartva-likelihoods",
-        export_fn=dm_smartva_likelihoods_export_csv,
+        write_fn=_write_str_export(dm_smartva_likelihoods_export_csv),
     )
 
 
@@ -321,7 +363,7 @@ def submissions_export_coded_cod_snapshot_csv():
     return _serve_cached_export_csv(
         export_kind="coded_cod_snapshot",
         filename_prefix="data-management-coded-cod-snapshot",
-        export_fn=dm_coded_cod_snapshot_export_csv,
+        write_fn=_write_str_export(dm_coded_cod_snapshot_export_csv),
     )
 
 

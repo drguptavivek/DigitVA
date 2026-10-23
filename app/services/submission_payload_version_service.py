@@ -407,6 +407,23 @@ def get_active_payload_version(va_sid: str) -> VaSubmissionPayloadVersion | None
     )
 
 
+def get_active_payload_versions_by_sid(
+    va_sids: list[str],
+) -> dict[str, VaSubmissionPayloadVersion]:
+    """The active version of each of *va_sids* in one query (sids without one
+    are absent): ``get_active_payload_version`` for a batch. At most one row
+    per sid, by ``ix_va_submission_payload_versions_active_unique``."""
+    if not va_sids:
+        return {}
+    versions = db.session.scalars(
+        sa.select(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid.in_(va_sids),
+            VaSubmissionPayloadVersion.version_status == PAYLOAD_VERSION_STATUS_ACTIVE,
+        )
+    )
+    return {version.va_sid: version for version in versions}
+
+
 def get_latest_pending_upstream_payload_version(
     va_sid: str,
 ) -> VaSubmissionPayloadVersion | None:

@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Streaming exports and paged ODK sync** (`digitva-lj7u`;
+  `docs/current-state/data-manager-dashboard.md`, `odk-sync.md`). The
+  data-manager submissions and SmartVA-input CSV exports stream rows through a
+  server-side cursor into a temporary file: peak memory ~+60 MB at any size
+  (was ~+500 MB for 7k rows), byte-identical output. The main ODK sync fetches
+  and upserts 250 records at a time with one commit per form, batches its
+  per-record lookups (5 -> 3 queries per record) and reads only the columns it
+  needs for sync-issue marking and repair planning (+131 -> +38 MB per form).
 - **Staging deployed at `f05091920`** and load-tested (200 users): 0
   allocation 500s, SmartVA queue ≤6, Python services −175 MB idle, COD refresh
   7.7 -> 2.6 s; request latency doubles while the SmartVA worker runs

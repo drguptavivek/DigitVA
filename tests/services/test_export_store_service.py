@@ -83,6 +83,34 @@ class LocalExportStoreTests(_ExportStoreBase):
             timedelta(hours=svc.export_retention_hours()),
         )
 
+    def test_a_csv_file_stores_the_same_bytes_size_and_digest_as_csv_text(self):
+        """Multi-chunk, multibyte and CRLF content: the file path is byte-faithful."""
+        text = "name,note\r\n" + "".join(
+            f"row{n},\"caf\u00e9, \u0928\u092e\u0938\u094d\u0924\u0947\r\nline\"\r\n"
+            for n in range(svc.CHUNK_SIZE // 8)
+        )
+        from_text = self._store_ref(csv_text=text)
+        with tempfile.TemporaryFile(mode="w+", encoding="utf-8", newline="") as handle:
+            handle.write(text)
+            from_file = svc.write_export(
+                export_kind="smartva_input",
+                user_id=self.user_id,
+                filters={"project": "P2"},
+                csv_file=handle,
+            )
+
+        self.assertGreater(len(text), 2 * svc.CHUNK_SIZE)
+        self.assertEqual(from_file.size_bytes, from_text.size_bytes)
+        self.assertEqual(from_file.sha256, from_text.sha256)
+        with open(self._path(from_file.key), "rb") as stored:
+            self.assertEqual(stored.read(), (svc.UTF8_BOM + text).encode("utf-8"))
+
+    def test_write_export_needs_exactly_one_source(self):
+        with self.assertRaises(ValueError):
+            svc.write_export(
+                export_kind="smartva_input", user_id=self.user_id, filters={}
+            )
+
     def test_the_key_carries_the_user_so_one_user_cannot_reach_another(self):
         mine = self._store_ref()
         self.user_id = uuid.uuid4()

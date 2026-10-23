@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Data Manager Dashboard
@@ -312,6 +312,21 @@ and the download starts from the bucket; no JavaScript change was needed.
 
 `BYPASS` means the store could not be written: the CSV is already in hand, so
 it is sent inline and only the caching is lost.
+
+### Export memory
+
+No export is ever one in-memory string. The route writes the CSV into a scratch
+file under `DB_BACKUP_TMP_DIR` (else the system temp dir) and hands that file to
+`write_export(csv_file=...)`, which copies it to the store in 64 KB chunks; the
+`BYPASS` response streams the same file. The two payload-bearing exports (the
+main data export and the SmartVA input export) are
+`write_dm_submissions_export_csv` / `write_dm_smartva_input_export_csv`: one
+query through a server-side cursor (`yield_per=500`, planned with
+`SET LOCAL cursor_tuple_fraction = 1.0` so the unordered result keeps the order
+the buffered query gave), each row's finished cells
+and filtered payload pickled into a second scratch file, then replayed once the
+payload column union and the org-unit labels are known. Memory is flat in the
+row count; the `dm_*_export_csv` string functions are thin wrappers for tests.
 
 ### The export cache
 

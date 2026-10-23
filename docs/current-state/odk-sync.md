@@ -3,7 +3,7 @@ title: ODK Sync And Attachments
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-23
 ---
 
 # ODK Sync And Attachments
@@ -364,6 +364,18 @@ GET /v1/projects/{id}/forms/{formId}/submissions.svc/Submissions
 For first-ever syncs (`last_synced_at` is NULL), no filter is applied — all submissions are fetched.
 
 Implemented in [`va_odk_fetch_submissions()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py).
+
+The main sync does not hold a form's records in memory. It loops over
+[`va_odk_fetch_submissions_page()`](../../app/utils/va_odk/va_odk_06_fetchsubmissions.py)
+(one page, each fetch wrapped in the connectivity backoff so a retry re-fetches
+that page) and upserts each page with `_upsert_form_submissions` before fetching
+the next. The form is still one transaction: one commit after the last page, and
+a failure on any page rolls the whole form back. Only when no enrichment
+dispatcher is passed are the pages also kept, for the in-process comment and
+enrichment steps. `va_odk_fetch_submissions()` (single-form sync, backfill, gap
+sync) is the same page function in a loop that returns the full list.
+`_upsert_form_submissions` works 250 records at a time, loading the chunk's
+`va_submissions` rows and active payload versions in two queries.
 
 ### OData JSON normalization
 

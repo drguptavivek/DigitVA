@@ -63,6 +63,20 @@ from app.services.submission_analytics_mv import (
 from tests.base import BaseTestCase
 
 
+def _writes(*texts):
+    """``side_effect`` for a patched streaming export writer.
+
+    Each call writes the next text to the handle the route passes in, as the
+    real writer does, so the route's scratch-file path is what is under test.
+    """
+    queue = list(texts)
+
+    def write(out, user, **filters):
+        out.write(queue.pop(0))
+
+    return write
+
+
 class DataManagerDashboardTests(BaseTestCase):
     FORM_ID = f"{BaseTestCase.BASE_PROJECT_ID}{BaseTestCase.BASE_SITE_ID}01"
     SID = "uuid:data-manager-dashboard"
@@ -1687,8 +1701,8 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(header[-3:], ["org_unit_code", "org_unit_name", "org_unit_level_path"])
 
     @patch(
-        "app.routes.api.data_management.dm_smartva_input_export_csv",
-        return_value="sid,result\nuuid:data-manager-dashboard,ok\n",
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes("sid,result\nuuid:data-manager-dashboard,ok\n"),
     )
     def test_smartva_input_export_csv_route_returns_excel_safe_csv(
         self,
@@ -1805,11 +1819,11 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("uuid:data-manager-dashboard", body)
 
     @patch(
-        "app.routes.api.data_management.dm_smartva_input_export_csv",
-        side_effect=[
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes(
             "sid,result\nuuid:data-manager-dashboard,first\n",
             "sid,result\nuuid:data-manager-dashboard,second\n",
-        ],
+        ),
     )
     def test_export_route_reuses_disk_cache_for_same_filters(self, mocked_export):
         self._login(self.dm_user_id)
@@ -1838,11 +1852,11 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(mocked_export.call_count, 1)
 
     @patch(
-        "app.routes.api.data_management.dm_smartva_input_export_csv",
-        side_effect=[
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes(
             "sid,result\nuuid:data-manager-dashboard,first\n",
             "sid,result\nuuid:data-manager-dashboard,second\n",
-        ],
+        ),
     )
     def test_export_cache_ignores_sort_query_params(self, mocked_export):
         self._login(self.dm_user_id)
@@ -1871,8 +1885,8 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(mocked_export.call_count, 1)
 
     @patch(
-        "app.routes.api.data_management.dm_smartva_input_export_csv",
-        return_value="sid,result\nuuid:data-manager-dashboard,ok\n",
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes("sid,result\nuuid:data-manager-dashboard,ok\n"),
     )
     def test_export_route_redirects_to_a_presigned_url_on_the_s3_store(self, _export):
         """The contract data_manager_dashboard.js relies on for an S3 export.
@@ -1911,11 +1925,11 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertTrue(filename.endswith(".csv"))
 
     @patch(
-        "app.routes.api.data_management.dm_smartva_input_export_csv",
-        side_effect=[
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes(
             "sid,result\nuuid:data-manager-dashboard,mine\n",
             "sid,result\nuuid:data-manager-dashboard,theirs\n",
-        ],
+        ),
     )
     def test_export_cache_is_scoped_to_the_requesting_user(self, mocked_export):
         """A second data manager never gets the first one's stored export."""
@@ -1972,8 +1986,8 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertIn("theirs", theirs.get_data(as_text=True))
 
     @patch(
-        "app.routes.api.data_management.dm_smartva_input_export_csv",
-        return_value="sid,result\nuuid:data-manager-dashboard,ok\n",
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes("sid,result\nuuid:data-manager-dashboard,ok\n"),
     )
     def test_a_store_failure_still_serves_the_csv_inline(self, _export):
         """The CSV is already in hand; only the caching is lost."""

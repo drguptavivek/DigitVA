@@ -1,2 +1,5 @@
 # WHO ICD-11 Simple Tabulation exports are frozen upstream artifacts: keep bytes exact, no EOL conversion.
 docs/icd-causegrp-mappings/migration-artifacts/icd11-*/*.txt -text
+
+# DM export goldens are byte-for-byte csv module output (CRLF): no EOL conversion.
+tests/fixtures/dm_export_streaming/*.csv -text

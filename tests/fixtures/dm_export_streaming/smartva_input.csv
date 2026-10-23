@@ -1,0 +1,6 @@
+project_id,site_id,va_form_id,va_uniqueid_masked,workflow_state,Id10004,Id10019,Id10023,Id10099,Id10147,Id10148,sid
+LJ7U01,LJA1,LJ7U01LJA101,uuid:lj7u-1,coder_finalized,,female,,"quoted ""x"", y
+z",,,uuid:lj7u-1
+LJ7U01,LJA1,LJ7U01LJA101,uuid:lj7u-2,coder_finalized,,male,,,7,,uuid:lj7u-2
+LJ7U01,LJA1,LJ7U01LJA101,uuid:lj7u-4,coder_finalized,,,,,,,uuid:lj7u-4
+LJ7U01,LJB1,LJ7U01LJB101,uuid:lj7u-3,coder_finalized,,,,,unconfirmed-form value,1,uuid:lj7u-3

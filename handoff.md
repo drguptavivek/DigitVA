@@ -34,11 +34,10 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
-0. **Landing queue** (owner 2026-10-23: land the optimizations; one committer
-   session lands them, each after its own targeted tests, one full suite per
-   landing): streaming exports and paged ODK sync
-   `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
-   (EXPLAIN a real staging bucket report before more MV work).
+0. **Landing queue** (one committer session lands, one full suite per
+   landing): `digitva-295w` (nice the Celery workers; staging A/B re-test
+   after it lands) → `digitva-nw4b` + `digitva-hbrs` (allocation lock order;
+   INVALID-index guard inside `c5e7a9b1d3f6`).
 1. **`digitva-295w` (P1)**: run the Celery worker under `nice -n 10` so web
    requests win the CPU and SmartVA catches up in idle gaps; verify with the
    same staging A/B harness (worker paused vs running). Alternative: 4 vCPU.
@@ -76,6 +75,9 @@ worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
     completion; deceased section saved only on the second try. Unreproduced:
     need the message, device and tabs. Her empty drafts `5d31cbd0`, `cd39dff7`.
 11. Older: `owqc`, `en2g`, `2s6p`, `hs7e` (digitva-coder, deferred), `a6q9`.
+   Also: `mubf` (COD bucket rule mismatch), `xp9w` (EXPLAIN a staging bucket
+   report before more MV work), `8dzk` (allocation_exists 403 vs 409), `f0ys`
+   (spelling-fold tests flaky under xdist).
 
 ## Open owner decisions
 
@@ -102,6 +104,11 @@ ICD container stays on servers.
 
 ## Caveats
 
+- ODK sync (`digitva-lj7u`): a form syncs in one transaction, so row locks from
+  its first page are held through later ODK fetches; a coder saving a case a
+  large, slow delta sync updates waits until the form commits. Single-form sync
+  and backfill in `sync_tasks.py` still fetch a whole form, and an unchanged
+  rerun still does 3 uncached master-data reads per record.
 - After an image rebuild, refresh the shared venv volume `digitva_minerva_venv`
   (stop app/worker/beat, `docker volume rm`, `up -d`).
 - `.dockerignore` excludes `desktop/` and `vendor/who-icd11-api/` (6 GB+ images).

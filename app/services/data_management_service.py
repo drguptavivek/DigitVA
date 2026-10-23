@@ -11,13 +11,16 @@ import io
 import logging
 import math
 import json
+import pickle
 import re
+import tempfile
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
 import pytz
 import sqlalchemy as sa
+from flask import current_app
 from flask_login import current_user
 
 from app import db
@@ -1229,13 +1232,14 @@ CSV_EXPORT_OMIT_PAYLOAD_FIELDS = frozenset(
 )
 
 
-def _pii_status_by_form(
-    rows, *, withhold_unconfirmed: bool = True
-) -> dict[str, "PiiSetStatus"]:
-    """Resolve each row's form to its form type's PII set status, once per form.
+def _pii_status_for_form(
+    form_id, status_by_form: dict, *, withhold_unconfirmed: bool = True
+):
+    """Resolve one form's PII set status into *status_by_form*, once per form.
 
-    A form whose form type cannot be resolved gets an unconfirmed status, so
-    an unknown form type withholds its payload rather than exporting it whole.
+    Returns the status, or None for an empty form id (nothing is cached, so
+    :func:`_filter_export_payload` treats it as unconfirmed). The unconfirmed
+    warning is logged on the first sight of the form only.
 
     ``withhold_unconfirmed`` only selects the warning this logs; it must match
     the value the caller passes to :func:`_filter_export_payload`, so the log
@@ -1244,32 +1248,65 @@ def _pii_status_by_form(
     from app.services.field_mapping_service import PiiSetStatus, get_mapping_service
     from app.utils import va_get_form_type_code_for_form
 
-    unconfirmed = PiiSetStatus(
-        confirmed=False, field_ids=frozenset(), owned_flagged_count=0
+    if not form_id:
+        return None
+    if form_id in status_by_form:
+        return status_by_form[form_id]
+    form_type_code = va_get_form_type_code_for_form(form_id)
+    status = (
+        get_mapping_service().get_pii_set_status(form_type_code)
+        if form_type_code
+        else PiiSetStatus(confirmed=False, field_ids=frozenset(), owned_flagged_count=0)
     )
-    status_by_form: dict[str, PiiSetStatus] = {}
-    for row in rows:
-        form_id = row.get("va_form_id")
-        if not form_id or form_id in status_by_form:
-            continue
-        form_type_code = va_get_form_type_code_for_form(form_id)
-        status = (
-            get_mapping_service().get_pii_set_status(form_type_code)
-            if form_type_code
-            else unconfirmed
+    if not status.confirmed:
+        # Once per form, not once per row: an export of an unconfirmed
+        # form type is thousands of withheld rows.
+        log.warning(
+            "pii set unconfirmed | %s | %s",
+            form_type_code or form_id,
+            "export payload withheld"
+            if withhold_unconfirmed
+            else "smartva input export not withheld",
         )
-        if not status.confirmed:
-            # Once per form, not once per row: an export of an unconfirmed
-            # form type is thousands of withheld rows.
-            log.warning(
-                "pii set unconfirmed | %s | %s",
-                form_type_code or form_id,
-                "export payload withheld"
-                if withhold_unconfirmed
-                else "smartva input export not withheld",
-            )
-        status_by_form[form_id] = status
-    return status_by_form
+    status_by_form[form_id] = status
+    return status
+
+
+def _export_spool():
+    """A binary scratch file for one export's rows, deleted when closed.
+
+    Lives beside the export store's own scratch files so one setting moves
+    both off a small root disk.
+    """
+    return tempfile.TemporaryFile(
+        dir=current_app.config.get("DB_BACKUP_TMP_DIR") or tempfile.gettempdir()
+    )
+
+
+def _stream_export_rows(query):
+    """The export query as Core mapping rows from one server-side cursor.
+
+    ``yield_per`` keeps the driver from materialising the result, and a
+    mapping row holds no ORM identity, so a 100k-row export never exists in
+    memory at once. Nothing may commit or roll back while this is iterated: it
+    closes the cursor.
+    """
+    # A server-side cursor is otherwise planned for fast start
+    # (cursor_tuple_fraction defaults to 0.1), which changes the join plan and
+    # so the row order of this unordered query. 1.0 plans it like the buffered
+    # query. SET LOCAL ends with the transaction and affects cursor planning only.
+    db.session.execute(sa.text("SET LOCAL cursor_tuple_fraction = 1.0"))
+    return db.session.execute(query.execution_options(yield_per=500)).mappings()
+
+
+def _read_spool(spool):
+    """Yield the pickled rows written to *spool*, in write order."""
+    spool.seek(0)
+    while True:
+        try:
+            yield pickle.load(spool)
+        except EOFError:
+            return
 
 
 def _filter_export_payload(
@@ -1307,7 +1344,86 @@ def _filter_export_payload(
     }
 
 
-def dm_submissions_export_csv(
+def _dm_submission_export_row(row, export_tz: str, redact_pii: bool) -> dict:
+    """One submissions-export row's base cells, staff identity redacted."""
+    export_row = {
+        "va_sid": row.get("va_sid"),
+        "project_id": row.get("project_id"),
+        "site_id": row.get("site_id"),
+        "va_form_id": row.get("va_form_id"),
+        "va_uniqueid_masked": row.get("va_uniqueid_masked"),
+        "va_submission_date": _local_wall_time(
+            row.get("va_submission_date"), export_tz
+        ),
+        "va_odk_updatedat": row.get("va_odk_updatedat"),
+        "va_odk_reviewstate": row.get("va_odk_reviewstate"),
+        "va_odk_reviewcomments": _serialize_csv_cell(row.get("va_odk_reviewcomments")),
+        "va_sync_issue_code": row.get("va_sync_issue_code"),
+        "va_sync_issue_detail": row.get("va_sync_issue_detail"),
+        "va_sync_issue_updated_at": row.get("va_sync_issue_updated_at"),
+        "va_consent": row.get("va_consent"),
+        "va_narration_language": row.get("va_narration_language"),
+        "va_deceased_age": row.get("va_deceased_age"),
+        "va_deceased_gender": row.get("va_deceased_gender"),
+        "va_deceased_age_normalized_days": row.get("va_deceased_age_normalized_days"),
+        "va_deceased_age_normalized_years": row.get("va_deceased_age_normalized_years"),
+        "va_deceased_age_source": row.get("va_deceased_age_source"),
+        "attachment_count": row.get("attachment_count"),
+        "has_smartva": row.get("has_smartva"),
+        "has_smartva_failed": row.get("has_smartva_failed"),
+        "analytics_age_band": row.get("analytics_age_band"),
+        "workflow_state": row.get("workflow_state"),
+        "workflow_reason": row.get("workflow_reason"),
+        "workflow_updated_by_role": row.get("workflow_updated_by_role"),
+        "workflow_updated_at": row.get("workflow_updated_at"),
+        "dm_review_by": row.get("va_dmreview_by"),
+        "dm_review_reason": row.get("va_dmreview_reason"),
+        "dm_review_other": row.get("va_dmreview_other"),
+        "dm_review_created_at": row.get("va_dmreview_createdat"),
+        "dm_review_updated_at": row.get("va_dmreview_updatedat"),
+        "initial_assess_by": row.get("va_iniassess_by"),
+        "initial_immediate_cod": row.get("va_immediate_cod"),
+        "initial_antecedent_cod": row.get("va_antecedent_cod"),
+        "initial_other_conditions": row.get("va_other_conditions"),
+        "initial_assess_created_at": row.get("va_iniassess_createdat"),
+        "initial_assess_updated_at": row.get("va_iniassess_updatedat"),
+        "coder_review_by": row.get("va_creview_by"),
+        "coder_review_reason": row.get("va_creview_reason"),
+        "coder_review_other": row.get("va_creview_other"),
+        "coder_review_created_at": row.get("va_creview_createdat"),
+        "coder_review_updated_at": row.get("va_creview_updatedat"),
+        "reviewer_review_by": row.get("va_rreview_by"),
+        "reviewer_review_narrpos": row.get("va_rreview_narrpos"),
+        "reviewer_review_narrneg": row.get("va_rreview_narrneg"),
+        "reviewer_review_narrchrono": row.get("va_rreview_narrchrono"),
+        "reviewer_review_narrdoc": row.get("va_rreview_narrdoc"),
+        "reviewer_review_narrcomorb": row.get("va_rreview_narrcomorb"),
+        "reviewer_review_result": row.get("va_rreview"),
+        "reviewer_review_fail": row.get("va_rreview_fail"),
+        "reviewer_review_remark": row.get("va_rreview_remark"),
+        "reviewer_review_created_at": row.get("va_rreview_createdat"),
+        "reviewer_review_updated_at": row.get("va_rreview_updatedat"),
+        "final_assess_by": row.get("va_finassess_by"),
+        "final_conclusive_cod": row.get("va_conclusive_cod"),
+        "final_assess_remark": row.get("va_finassess_remark"),
+        "final_assess_created_at": row.get("va_finassess_createdat"),
+        "final_assess_updated_at": row.get("va_finassess_updatedat"),
+        "reviewer_final_assess_by": row.get("va_rfinassess_by"),
+        "reviewer_final_conclusive_cod": row.get("reviewer_conclusive_cod"),
+        "reviewer_final_assess_remark": row.get("va_rfinassess_remark"),
+        "reviewer_final_assess_created_at": row.get("va_rfinassess_createdat"),
+        "reviewer_final_assess_updated_at": row.get("va_rfinassess_updatedat"),
+    }
+    _redact_staff_identity_export_row(
+        export_row,
+        redact=redact_pii,
+        headers=CSV_EXPORT_STAFF_IDENTITY_HEADERS,
+    )
+    return export_row
+
+
+def write_dm_submissions_export_csv(
+    out,
     user,
     *,
     search: str = "",
@@ -1323,11 +1439,17 @@ def dm_submissions_export_csv(
     workflow: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
-) -> str:
-    """Return a CSV export for all filtered DM submissions.
+) -> None:
+    """Write a CSV export for all filtered DM submissions to the text handle *out*.
 
     ``va_submission_date`` is written in the user's local time, matching the
     grid and the date filters (the column was UTC).
+
+    Two passes so memory stays flat: the query streams once, each row's
+    finished cells and filtered payload are spooled to a scratch file, and the
+    spool is replayed once the payload header union and the org-unit labels are
+    known. ``out`` needs ``newline=""`` semantics (``io.StringIO`` or a
+    ``newline=""`` file) because the csv module writes its own line endings.
     """
     export_tz = va_user_timezone_name(user)
     redact_pii = should_redact_pii(user)
@@ -1524,189 +1646,128 @@ def dm_submissions_export_csv(
     )
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
-    rows = db.session.execute(query).mappings().all()
-    pii_payload_status_by_form = _pii_status_by_form(rows)
-    org_unit_labels = resolve_org_unit_export_labels(
-        row.get("org_unit_id") for row in rows
-    )
+    pii_payload_status_by_form: dict = {}
+    payload_key_union: set = set()
+    org_unit_ids: set = set()
+    with _export_spool() as spool:
+        result = _stream_export_rows(query)
+        try:
+            for row in result:
+                _pii_status_for_form(row.get("va_form_id"), pii_payload_status_by_form)
+                payload = _filter_export_payload(
+                    row.get("payload_data") or {},
+                    form_id=row.get("va_form_id"),
+                    pii_status_by_form=pii_payload_status_by_form,
+                )
+                payload_key_union.update(payload.keys())
+                org_unit_ids.add(row.get("org_unit_id"))
+                pickle.dump(
+                    (
+                        _dm_submission_export_row(row, export_tz, redact_pii),
+                        payload,
+                        row.get("org_unit_id"),
+                    ),
+                    spool,
+                    protocol=pickle.HIGHEST_PROTOCOL,
+                )
+        finally:
+            result.close()
+        org_unit_labels = resolve_org_unit_export_labels(org_unit_ids)
+        payload_headers = sorted(payload_key_union)
 
-    base_headers = [
-        "va_sid",
-        "project_id",
-        "site_id",
-        "va_form_id",
-        "va_uniqueid_masked",
-        "va_uniqueid_real",
-        "va_submission_date",
-        "va_odk_updatedat",
-        "va_data_collector",
-        "va_instance_name",
-        "va_odk_reviewstate",
-        "va_odk_reviewcomments",
-        "va_sync_issue_code",
-        "va_sync_issue_detail",
-        "va_sync_issue_updated_at",
-        "va_consent",
-        "va_narration_language",
-        "va_deceased_age",
-        "va_deceased_gender",
-        "va_deceased_age_normalized_days",
-        "va_deceased_age_normalized_years",
-        "va_deceased_age_source",
-        "attachment_count",
-        "has_smartva",
-        "analytics_age_band",
-        "workflow_state",
-        "workflow_reason",
-        "workflow_updated_by_role",
-        "workflow_updated_at",
-        "dm_review_by",
-        "dm_review_reason",
-        "dm_review_other",
-        "dm_review_created_at",
-        "dm_review_updated_at",
-        "initial_assess_by",
-        "initial_immediate_cod",
-        "initial_antecedent_cod",
-        "initial_other_conditions",
-        "initial_assess_created_at",
-        "initial_assess_updated_at",
-        "coder_review_by",
-        "coder_review_reason",
-        "coder_review_other",
-        "coder_review_created_at",
-        "coder_review_updated_at",
-        "reviewer_review_by",
-        "reviewer_review_narrpos",
-        "reviewer_review_narrneg",
-        "reviewer_review_narrchrono",
-        "reviewer_review_narrdoc",
-        "reviewer_review_narrcomorb",
-        "reviewer_review_result",
-        "reviewer_review_fail",
-        "reviewer_review_remark",
-        "reviewer_review_created_at",
-        "reviewer_review_updated_at",
-        "final_assess_by",
-        "final_conclusive_cod",
-        "final_assess_remark",
-        "final_assess_created_at",
-        "final_assess_updated_at",
-        "reviewer_final_assess_by",
-        "reviewer_final_conclusive_cod",
-        "reviewer_final_assess_remark",
-        "reviewer_final_assess_created_at",
-        "reviewer_final_assess_updated_at",
-    ]
-    base_headers = [
-        header for header in base_headers if header not in CSV_EXPORT_OMIT_BASE_HEADERS
-    ]
+        base_headers = [
+            "va_sid",
+            "project_id",
+            "site_id",
+            "va_form_id",
+            "va_uniqueid_masked",
+            "va_uniqueid_real",
+            "va_submission_date",
+            "va_odk_updatedat",
+            "va_data_collector",
+            "va_instance_name",
+            "va_odk_reviewstate",
+            "va_odk_reviewcomments",
+            "va_sync_issue_code",
+            "va_sync_issue_detail",
+            "va_sync_issue_updated_at",
+            "va_consent",
+            "va_narration_language",
+            "va_deceased_age",
+            "va_deceased_gender",
+            "va_deceased_age_normalized_days",
+            "va_deceased_age_normalized_years",
+            "va_deceased_age_source",
+            "attachment_count",
+            "has_smartva",
+            "analytics_age_band",
+            "workflow_state",
+            "workflow_reason",
+            "workflow_updated_by_role",
+            "workflow_updated_at",
+            "dm_review_by",
+            "dm_review_reason",
+            "dm_review_other",
+            "dm_review_created_at",
+            "dm_review_updated_at",
+            "initial_assess_by",
+            "initial_immediate_cod",
+            "initial_antecedent_cod",
+            "initial_other_conditions",
+            "initial_assess_created_at",
+            "initial_assess_updated_at",
+            "coder_review_by",
+            "coder_review_reason",
+            "coder_review_other",
+            "coder_review_created_at",
+            "coder_review_updated_at",
+            "reviewer_review_by",
+            "reviewer_review_narrpos",
+            "reviewer_review_narrneg",
+            "reviewer_review_narrchrono",
+            "reviewer_review_narrdoc",
+            "reviewer_review_narrcomorb",
+            "reviewer_review_result",
+            "reviewer_review_fail",
+            "reviewer_review_remark",
+            "reviewer_review_created_at",
+            "reviewer_review_updated_at",
+            "final_assess_by",
+            "final_conclusive_cod",
+            "final_assess_remark",
+            "final_assess_created_at",
+            "final_assess_updated_at",
+            "reviewer_final_assess_by",
+            "reviewer_final_conclusive_cod",
+            "reviewer_final_assess_remark",
+            "reviewer_final_assess_created_at",
+            "reviewer_final_assess_updated_at",
+        ]
+        base_headers = [
+            header for header in base_headers if header not in CSV_EXPORT_OMIT_BASE_HEADERS
+        ]
 
-    payload_headers = sorted({
-        key
-        for row in rows
-        for key in _filter_export_payload(
-            row.get("payload_data") or {},
-            form_id=row.get("va_form_id"),
-            pii_status_by_form=pii_payload_status_by_form,
-        ).keys()
-    })
-    # Appended after every existing column (base and payload): downstream
-    # consumers depend on the existing column order and offsets.
-    org_unit_headers = ["org_unit_code", "org_unit_name", "org_unit_level_path"]
-    headers = base_headers + payload_headers + org_unit_headers
+        # Appended after every existing column (base and payload): downstream
+        # consumers depend on the existing column order and offsets.
+        org_unit_headers = ["org_unit_code", "org_unit_name", "org_unit_level_path"]
+        headers = base_headers + payload_headers + org_unit_headers
 
+        writer = csv.DictWriter(out, fieldnames=headers, extrasaction="ignore")
+        writer.writeheader()
+        for export_row, payload, org_unit_id in _read_spool(spool):
+            for key in payload_headers:
+                export_row[key] = _serialize_csv_cell(payload.get(key))
+            org_unit_label = org_unit_labels.get(org_unit_id) or {}
+            export_row["org_unit_code"] = org_unit_label.get("unit_code", "")
+            export_row["org_unit_name"] = org_unit_label.get("unit_name", "")
+            export_row["org_unit_level_path"] = org_unit_label.get("level_path", "")
+            writer.writerow(export_row)
+
+
+def dm_submissions_export_csv(user, **filters) -> str:
+    """The submissions export as one string; see ``write_dm_submissions_export_csv``."""
     handle = io.StringIO()
-    writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
-    writer.writeheader()
-
-    for row in rows:
-        payload = _filter_export_payload(
-            row.get("payload_data") or {},
-            form_id=row.get("va_form_id"),
-            pii_status_by_form=pii_payload_status_by_form,
-        )
-        export_row = {
-            "va_sid": row.get("va_sid"),
-            "project_id": row.get("project_id"),
-            "site_id": row.get("site_id"),
-            "va_form_id": row.get("va_form_id"),
-            "va_uniqueid_masked": row.get("va_uniqueid_masked"),
-            "va_submission_date": _local_wall_time(
-                row.get("va_submission_date"), export_tz
-            ),
-            "va_odk_updatedat": row.get("va_odk_updatedat"),
-            "va_odk_reviewstate": row.get("va_odk_reviewstate"),
-            "va_odk_reviewcomments": _serialize_csv_cell(row.get("va_odk_reviewcomments")),
-            "va_sync_issue_code": row.get("va_sync_issue_code"),
-            "va_sync_issue_detail": row.get("va_sync_issue_detail"),
-            "va_sync_issue_updated_at": row.get("va_sync_issue_updated_at"),
-            "va_consent": row.get("va_consent"),
-            "va_narration_language": row.get("va_narration_language"),
-            "va_deceased_age": row.get("va_deceased_age"),
-            "va_deceased_gender": row.get("va_deceased_gender"),
-            "va_deceased_age_normalized_days": row.get("va_deceased_age_normalized_days"),
-            "va_deceased_age_normalized_years": row.get("va_deceased_age_normalized_years"),
-            "va_deceased_age_source": row.get("va_deceased_age_source"),
-            "attachment_count": row.get("attachment_count"),
-            "has_smartva": row.get("has_smartva"),
-            "has_smartva_failed": row.get("has_smartva_failed"),
-            "analytics_age_band": row.get("analytics_age_band"),
-            "workflow_state": row.get("workflow_state"),
-            "workflow_reason": row.get("workflow_reason"),
-            "workflow_updated_by_role": row.get("workflow_updated_by_role"),
-            "workflow_updated_at": row.get("workflow_updated_at"),
-            "dm_review_by": row.get("va_dmreview_by"),
-            "dm_review_reason": row.get("va_dmreview_reason"),
-            "dm_review_other": row.get("va_dmreview_other"),
-            "dm_review_created_at": row.get("va_dmreview_createdat"),
-            "dm_review_updated_at": row.get("va_dmreview_updatedat"),
-            "initial_assess_by": row.get("va_iniassess_by"),
-            "initial_immediate_cod": row.get("va_immediate_cod"),
-            "initial_antecedent_cod": row.get("va_antecedent_cod"),
-            "initial_other_conditions": row.get("va_other_conditions"),
-            "initial_assess_created_at": row.get("va_iniassess_createdat"),
-            "initial_assess_updated_at": row.get("va_iniassess_updatedat"),
-            "coder_review_by": row.get("va_creview_by"),
-            "coder_review_reason": row.get("va_creview_reason"),
-            "coder_review_other": row.get("va_creview_other"),
-            "coder_review_created_at": row.get("va_creview_createdat"),
-            "coder_review_updated_at": row.get("va_creview_updatedat"),
-            "reviewer_review_by": row.get("va_rreview_by"),
-            "reviewer_review_narrpos": row.get("va_rreview_narrpos"),
-            "reviewer_review_narrneg": row.get("va_rreview_narrneg"),
-            "reviewer_review_narrchrono": row.get("va_rreview_narrchrono"),
-            "reviewer_review_narrdoc": row.get("va_rreview_narrdoc"),
-            "reviewer_review_narrcomorb": row.get("va_rreview_narrcomorb"),
-            "reviewer_review_result": row.get("va_rreview"),
-            "reviewer_review_fail": row.get("va_rreview_fail"),
-            "reviewer_review_remark": row.get("va_rreview_remark"),
-            "reviewer_review_created_at": row.get("va_rreview_createdat"),
-            "reviewer_review_updated_at": row.get("va_rreview_updatedat"),
-            "final_assess_by": row.get("va_finassess_by"),
-            "final_conclusive_cod": row.get("va_conclusive_cod"),
-            "final_assess_remark": row.get("va_finassess_remark"),
-            "final_assess_created_at": row.get("va_finassess_createdat"),
-            "final_assess_updated_at": row.get("va_finassess_updatedat"),
-            "reviewer_final_assess_by": row.get("va_rfinassess_by"),
-            "reviewer_final_conclusive_cod": row.get("reviewer_conclusive_cod"),
-            "reviewer_final_assess_remark": row.get("va_rfinassess_remark"),
-            "reviewer_final_assess_created_at": row.get("va_rfinassess_createdat"),
-            "reviewer_final_assess_updated_at": row.get("va_rfinassess_updatedat"),
-        }
-        _redact_staff_identity_export_row(
-            export_row,
-            redact=redact_pii,
-            headers=CSV_EXPORT_STAFF_IDENTITY_HEADERS,
-        )
-        for key in payload_headers:
-            export_row[key] = _serialize_csv_cell(payload.get(key))
-        org_unit_label = org_unit_labels.get(row.get("org_unit_id")) or {}
-        export_row["org_unit_code"] = org_unit_label.get("unit_code", "")
-        export_row["org_unit_name"] = org_unit_label.get("unit_name", "")
-        export_row["org_unit_level_path"] = org_unit_label.get("level_path", "")
-        writer.writerow(export_row)
-
+    write_dm_submissions_export_csv(handle, user, **filters)
     return handle.getvalue()
 
 
@@ -1983,7 +2044,8 @@ def dm_coded_cod_snapshot_export_csv(
     return handle.getvalue()
 
 
-def dm_smartva_input_export_csv(
+def write_dm_smartva_input_export_csv(
+    out,
     user,
     *,
     search: str = "",
@@ -1999,8 +2061,11 @@ def dm_smartva_input_export_csv(
     workflow: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
-) -> str:
-    """Return the SmartVA input CSV shape for all filtered submissions."""
+) -> None:
+    """Write the SmartVA input CSV shape for all filtered submissions to *out*.
+
+    Streams and spools exactly as :func:`write_dm_submissions_export_csv` does.
+    """
     from app.utils.va_smartva.va_smartva_02_prepdata import _clean_payload_for_smartva
 
     attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
@@ -2040,33 +2105,6 @@ def dm_smartva_input_export_csv(
     )
     if _mv_ref is not None:
         query = query.outerjoin(_mv_ref, _mv_ref.c.va_sid == VaSubmissions.va_sid)
-    rows = db.session.execute(query).mappings().all()
-    pii_payload_status_by_form = _pii_status_by_form(
-        rows, withhold_unconfirmed=False
-    )
-
-    prepared_rows = []
-    for row in rows:
-        filtered_payload = _filter_export_payload(
-            row.get("payload_data") or {},
-            form_id=row.get("va_form_id"),
-            pii_status_by_form=pii_payload_status_by_form,
-            # Processing feed, not a viewer surface: strip the flagged fields
-            # but never withhold the whole payload. See the docstring.
-            withhold_unconfirmed=False,
-        )
-        prepared = _clean_payload_for_smartva(filtered_payload, va_sid=row["va_sid"])
-        prepared.update(
-            {
-                "project_id": row.get("project_id"),
-                "site_id": row.get("site_id"),
-                "va_form_id": row.get("va_form_id"),
-                "va_uniqueid_masked": row.get("va_uniqueid_masked"),
-                "workflow_state": row.get("workflow_state"),
-            }
-        )
-        prepared_rows.append(prepared)
-
     preferred_front = [
         "project_id",
         "site_id",
@@ -2074,18 +2112,56 @@ def dm_smartva_input_export_csv(
         "va_uniqueid_masked",
         "workflow_state",
     ]
-    payload_headers = []
-    for row in prepared_rows:
-        for key in row.keys():
-            if key not in preferred_front and key not in payload_headers and key != "sid":
-                payload_headers.append(key)
-    headers = preferred_front + payload_headers + ["sid"]
+    pii_payload_status_by_form: dict = {}
+    # First-seen order is the column order, so a list beside the set.
+    payload_headers: list = []
+    seen_headers: set = set(preferred_front) | {"sid"}
+    with _export_spool() as spool:
+        result = _stream_export_rows(query)
+        try:
+            for row in result:
+                _pii_status_for_form(
+                    row.get("va_form_id"),
+                    pii_payload_status_by_form,
+                    withhold_unconfirmed=False,
+                )
+                filtered_payload = _filter_export_payload(
+                    row.get("payload_data") or {},
+                    form_id=row.get("va_form_id"),
+                    pii_status_by_form=pii_payload_status_by_form,
+                    # Processing feed, not a viewer surface: strip the flagged fields
+                    # but never withhold the whole payload. See the docstring.
+                    withhold_unconfirmed=False,
+                )
+                prepared = _clean_payload_for_smartva(filtered_payload, va_sid=row["va_sid"])
+                prepared.update(
+                    {
+                        "project_id": row.get("project_id"),
+                        "site_id": row.get("site_id"),
+                        "va_form_id": row.get("va_form_id"),
+                        "va_uniqueid_masked": row.get("va_uniqueid_masked"),
+                        "workflow_state": row.get("workflow_state"),
+                    }
+                )
+                for key in prepared:
+                    if key not in seen_headers:
+                        seen_headers.add(key)
+                        payload_headers.append(key)
+                pickle.dump(prepared, spool, protocol=pickle.HIGHEST_PROTOCOL)
+        finally:
+            result.close()
 
+        headers = preferred_front + payload_headers + ["sid"]
+        writer = csv.DictWriter(out, fieldnames=headers, extrasaction="ignore")
+        writer.writeheader()
+        for prepared in _read_spool(spool):
+            writer.writerow({key: _serialize_csv_cell(value) for key, value in prepared.items()})
+
+
+def dm_smartva_input_export_csv(user, **filters) -> str:
+    """The SmartVA input export as one string; see ``write_dm_smartva_input_export_csv``."""
     handle = io.StringIO()
-    writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
-    writer.writeheader()
-    for row in prepared_rows:
-        writer.writerow({key: _serialize_csv_cell(value) for key, value in row.items()})
+    write_dm_smartva_input_export_csv(handle, user, **filters)
     return handle.getvalue()
 
 

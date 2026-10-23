@@ -149,6 +149,60 @@ def va_odk_fetch_submissions_by_ids(
     return all_records
 
 
+def _since_filter(since: datetime | None) -> tuple[str | None, str | None]:
+    """Return (since_str, $filter) for an incremental fetch, (None, None) for a full one."""
+    if since is None:
+        return None, None
+    if since.tzinfo is None:
+        raise ValueError("va_odk_fetch_submissions: `since` must be timezone-aware")
+    since_str = since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return since_str, (
+        f"(__system/submissionDate gt {since_str})"
+        f" or (__system/updatedAt gt {since_str})"
+    )
+
+
+def va_odk_fetch_submissions_page(
+    va_form,
+    *,
+    since: datetime | None,
+    skip: int,
+    client=None,
+) -> list[dict]:
+    """Fetch one page (at most _PAGE_SIZE records, from offset `skip`) as normalized dicts.
+
+    A page shorter than _PAGE_SIZE is the last one. Lets a caller process each
+    page as it arrives instead of holding a whole form's records in memory.
+    Raises on a non-200 response and on a naive `since`.
+    """
+    client = client or va_odk_clientsetup(project_id=va_form.project_id)
+    base_url = (
+        f"projects/{va_form.odk_project_id}"
+        f"/forms/{va_form.odk_form_id}.svc/Submissions"
+    )
+    request_timeout = _request_timeout()
+
+    params: dict = {"$top": _PAGE_SIZE, "$skip": skip}
+    _, odata_filter = _since_filter(since)
+    if odata_filter is not None:
+        params["$filter"] = odata_filter
+
+    response = guarded_odk_call(
+        lambda: client.session.get(base_url, params=params, timeout=request_timeout),
+        client=client,
+    )
+    if response.status_code != 200:
+        raise Exception(
+            f"OData submissions fetch failed HTTP {response.status_code} "
+            f"for {va_form.form_id}: {response.text[:200]}"
+        )
+    data = response.json()
+    return [
+        _normalize_odata_record(record, va_form.form_id)
+        for record in data.get("value", [])
+    ]
+
+
 def va_odk_fetch_submissions(
     va_form,
     since: datetime | None = None,
@@ -164,21 +218,9 @@ def va_odk_fetch_submissions(
     normalized flat dicts ready for va_preprocess_prepdata / upsert.
     """
     client = client or va_odk_clientsetup(project_id=va_form.project_id)
-    base_url = (
-        f"projects/{va_form.odk_project_id}"
-        f"/forms/{va_form.odk_form_id}.svc/Submissions"
-    )
-    request_timeout = _request_timeout()
 
-    params: dict = {"$top": _PAGE_SIZE}
-    if since is not None:
-        if since.tzinfo is None:
-            raise ValueError("va_odk_fetch_submissions: `since` must be timezone-aware")
-        since_str = since.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        params["$filter"] = (
-            f"(__system/submissionDate gt {since_str})"
-            f" or (__system/updatedAt gt {since_str})"
-        )
+    since_str, _ = _since_filter(since)
+    if since_str is not None:
         log.info("va_odk_fetch_submissions [%s]: incremental since=%s", va_form.form_id, since_str)
     else:
         log.info("va_odk_fetch_submissions [%s]: full fetch (no since filter)", va_form.form_id)
@@ -187,22 +229,12 @@ def va_odk_fetch_submissions(
     skip = 0
 
     while True:
-        params["$skip"] = skip
-        response = guarded_odk_call(
-            lambda: client.session.get(base_url, params=params, timeout=request_timeout),
-            client=client,
+        page = va_odk_fetch_submissions_page(
+            va_form, since=since, skip=skip, client=client
         )
-        if response.status_code != 200:
-            raise Exception(
-                f"OData submissions fetch failed HTTP {response.status_code} "
-                f"for {va_form.form_id}: {response.text[:200]}"
-            )
-        data = response.json()
-        page = data.get("value", [])
         if not page:
             break
-        for record in page:
-            all_records.append(_normalize_odata_record(record, va_form.form_id))
+        all_records.extend(page)
         log.info(
             "va_odk_fetch_submissions [%s]: page skip=%d got %d (running total: %d)",
             va_form.form_id, skip, len(page), len(all_records),
@@ -216,6 +248,8 @@ def va_odk_fetch_submissions(
         va_form.form_id, len(all_records),
     )
     return all_records
+
+
 def _normalize_odata_record(record: dict, form_id: str) -> dict:
     """Normalize an OData submission record to flat dict matching CSV groupPaths=false.
 

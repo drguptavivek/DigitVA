@@ -102,6 +102,10 @@ EXEMPT = {
         "not a list or count of coding work"
     ),
     "models/va_submission_workflow.py::VaSubmissionWorkflow.__repr__": "debug repr",
+    "services/data_management_service.py::_dm_submission_export_row": (
+        "formats one row of write_dm_submissions_export_csv's query, which already "
+        "excludes confirmed duplicates through _dm_submission_query_parts"
+    ),
     "services/case_list_service.py::combined_status_case": (
         "case list is a register view (death registrations, not coding pools): a confirmed duplicate is shown by its register status, only in the supervision preset or when filtered for, and the combined status reads register status first so its workflow state never surfaces; it is excluded from every coding pool"
     ),

@@ -833,6 +833,17 @@ def _build_repair_map_for_form(
     from app.models.va_selectives import VaStatuses
     from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
 
+    # The payload keys the repair decision reads (metadata completeness, instance id).
+    _REPAIR_PAYLOAD_KEYS = (
+        "KEY",
+        "FormVersion",
+        "DeviceID",
+        "SubmitterID",
+        "instanceID",
+        "AttachmentsExpected",
+        "AttachmentsPresent",
+    )
+
     raw_by_sid = {
         submission.get("sid"): submission
         for submission in (raw_submissions or [])
@@ -870,7 +881,11 @@ def _build_repair_map_for_form(
     stmt = (
         sa.select(
             VaSubmissions.va_sid,
-            VaSubmissionPayloadVersion.payload_data,
+            # Only the keys read below, not the whole payload (~50 KB a row).
+            *[
+                VaSubmissionPayloadVersion.payload_data[key]
+                for key in _REPAIR_PAYLOAD_KEYS
+            ],
             VaSubmissions.va_summary,
             VaSubmissions.va_category_list,
             smartva_current_sq.c.va_sid.label("smartva_present_sid"),
@@ -905,8 +920,8 @@ def _build_repair_map_for_form(
         "smartva_missing": 0,
         "legacy_attachment_rows": 0,
     }
-    for va_sid, payload_data, va_summary, va_category_list, smartva_present_sid in rows:
-        payload = payload_data or {}
+    for va_sid, *payload_values, va_summary, va_category_list, smartva_present_sid in rows:
+        payload = dict(zip(_REPAIR_PAYLOAD_KEYS, payload_values))
         instance_id = (
             raw_by_sid.get(va_sid, {}).get("KEY")
             or payload.get("KEY")

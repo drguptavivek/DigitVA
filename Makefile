@@ -19,9 +19,12 @@ PROD_BUNDLE_SERVER_SIGNING_KEY_PATH ?= /data/digitva-secrets/bundle_server_signi
 PROD_BUNDLE_KEY_PATH = $(or $(BUNDLE_SERVER_SIGNING_KEY_PATH),$(shell sed -n 's/^BUNDLE_SERVER_SIGNING_KEY_PATH=//p' .env 2>/dev/null | tail -n1),$(PROD_BUNDLE_SERVER_SIGNING_KEY_PATH))
 COMPOSE_PROD := BUNDLE_SERVER_SIGNING_KEY_PATH=$(PROD_BUNDLE_KEY_PATH) $(COMPOSE_PROD)
 APP_SERVICE  = minerva_app_service
+# Servers run CI-built images (docs/policy/server-builds.md): the images
+# overlay swaps build: for image: ...:$DIGITVA_IMAGE_TAG (set in .env).
+COMPOSE_PROD_IMAGES = $(COMPOSE_PROD) -f docker-compose.images.yml
 
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
-        prod prod-build prod-rebuild prod-down \
+        prod prod-build prod-rebuild prod-down prod-pull prod-rollback \
         logs logs-app ps shell \
         migrate db-head test test-parallel test-projects \
         restart-celery backup-db ensure-secrets ensure-secrets-prod help
@@ -41,9 +44,11 @@ help:
 	@echo "  make dev-restart     Restart app service only"
 	@echo ""
 	@echo "Prod"
-	@echo "  make prod            Start prod stack (no override)"
-	@echo "  make prod-build      Build (cached) then start prod"
-	@echo "  make prod-rebuild    Force full rebuild then start prod"
+	@echo "  make prod            Start prod stack from the pinned CI image (no build)"
+	@echo "  make prod-pull       Pull the CI image named by DIGITVA_IMAGE_TAG (.env), start prod; never builds"
+	@echo "  make prod-rollback TAG=<sha>  Check out <sha>, pin it, pull and start (scripts/deploy-server.sh)"
+	@echo "  make prod-build      DEV/EMERGENCY ONLY: build on this host, then start prod"
+	@echo "  make prod-rebuild    DEV/EMERGENCY ONLY: forced full build on this host"
 	@echo "  make prod-down       Stop prod stack"
 	@echo ""
 	@echo "Logs"
@@ -160,8 +165,20 @@ dev-restart:
 # ---------------------------------------------------------------------------
 
 prod: ensure-secrets-prod
-	$(COMPOSE_PROD) up -d
+	$(COMPOSE_PROD_IMAGES) up -d --no-build
 
+# Servers deploy with scripts/deploy-server.sh -> prod-pull. No build, no
+# build cache. Rollback re-runs the same script on an older sha.
+prod-pull: ensure-secrets-prod
+	$(COMPOSE_PROD_IMAGES) pull
+	$(COMPOSE_PROD_IMAGES) up -d --no-build
+
+prod-rollback:
+	@test -n "$(TAG)" || { echo "usage: make prod-rollback TAG=<full git sha>" >&2; exit 1; }
+	SKIP_BACKUP=1 scripts/deploy-server.sh "$(TAG)"
+
+# DEV/EMERGENCY ONLY: builds on this host (a build filled the 29 GB staging
+# disk, 2026-10-23). Servers use prod-pull; the policy forbids server builds.
 prod-build: ensure-secrets-prod
 	$(COMPOSE_PROD) build && $(COMPOSE_PROD) up -d
 

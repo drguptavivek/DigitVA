@@ -1,0 +1,21 @@
+# Production overlay: run the CI-built image, build nothing on the host.
+# app, worker, beat and the public DORIS service are one Dockerfile with
+# identical build args, so they share one image, digitva-app, built by
+# .github/workflows/server-images.yml. Dev never lists this file and keeps
+# building from source. Layer it last:
+#
+#   docker compose ... -f docker-compose.yml [-f docker-compose.external-db.yml] \
+#     -f docker-compose.images.yml up -d --no-build
+#
+# DIGITVA_IMAGE_TAG (the full git sha) has no default: a missing pin fails
+# instead of running whatever "latest" is. Set it in the server .env.
+x-server-image: &server-image
+  image: ${DIGITVA_IMAGE_REGISTRY:-ghcr.io/drguptavivek}/digitva-app:${DIGITVA_IMAGE_TAG:?set DIGITVA_IMAGE_TAG to the git sha of a server-images build}
+  build: !reset null
+  pull_policy: missing
+
+services:
+  minerva_app_service: *server-image
+  minerva_celery_worker: *server-image
+  minerva_celery_beat: *server-image
+  doris_public_service: *server-image

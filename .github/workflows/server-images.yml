@@ -1,0 +1,115 @@
+name: Server images
+
+# Servers never build images (docs/policy/server-builds.md). This workflow
+# builds the one server image on a native arm64 runner and pushes it to GHCR as
+# ghcr.io/drguptavivek/digitva-app:<full git sha>. docker-compose runs that one
+# image as the app, Celery worker, Celery beat and public DORIS services
+# (docker-compose.images.yml). The Dockerfile and its build args (the
+# x-release-pins in docker-compose.yml) are exactly what a server built before.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or full commit SHA to build
+        required: false
+        default: main
+        type: string
+  push:
+    tags:
+      - "server-v*"
+
+# Read the repository, write only the package. Nothing else is granted.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/drguptavivek/digitva-app
+
+jobs:
+  build:
+    # A protected environment (required reviewers, allowed branches/tags) gates
+    # every push to the registry, as android-release does for signing.
+    environment: server-images
+    # Native arm64 runner (free for public repositories): no QEMU, no
+    # cross-compile. Staging and production are arm64, so linux/arm64 only.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      # The Dockerfile copies vendor/smartva-analyze (a path dependency). The
+      # other submodule, vendor/who-icd11-api, is in .dockerignore.
+      - name: Fetch the SmartVA submodule
+        run: git submodule update --init --depth 1 vendor/smartva-analyze
+
+      - name: Resolve revision, tags and build args
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          tags="$IMAGE:$sha"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ -z "${{ inputs.ref }}" ]; then
+            tags="$tags"$'\n'"$IMAGE:${GITHUB_REF_NAME}"
+          fi
+          {
+            echo "sha=$sha"
+            echo "tags<<EOF_TAGS"; echo "$tags"; echo "EOF_TAGS"
+            # Same pins the server build used: x-release-pins, taken from compose.
+            echo "args<<EOF_ARGS"
+            docker compose -f docker-compose.yml config --format json 2>/dev/null \
+              | jq -r '.services.minerva_app_service.build.args | to_entries[] | "\(.key)=\(.value)"'
+            echo "EOF_ARGS"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push linux/arm64
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          build-args: ${{ steps.meta.outputs.args }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.sha }}
+            org.opencontainers.image.title=digitva-app
+          cache-from: type=gha,scope=digitva-app
+          cache-to: type=gha,scope=digitva-app,mode=max
+
+      - name: Summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          SHA: ${{ steps.meta.outputs.sha }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          {
+            echo "## Server image"
+            echo
+            echo "| Image | Digest |"
+            echo "| --- | --- |"
+            echo "| \`$IMAGE\` (app, worker, beat, DORIS) | \`$DIGEST\` |"
+            echo
+            echo "Tags:"
+            echo '```'; echo "$TAGS"; echo '```'
+            echo "Deploy: set \`DIGITVA_IMAGE_TAG=$SHA\` in the server .env, then \`scripts/deploy-server.sh $SHA\`."
+          } >> "$GITHUB_STEP_SUMMARY"

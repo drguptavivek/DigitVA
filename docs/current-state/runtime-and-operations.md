@@ -115,6 +115,22 @@ Why the extra system packages exist:
 - `postgresql-client` is needed for `pg_dump`/`psql` in DB backup and Celery beat startup
 - `sox` and `libsox-fmt-all` handle AMR→M4A/AAC audio conversion (replaces `ffmpeg`)
 
+### Image sources
+
+The app, Celery worker, Celery beat and `doris_public_service` are built from
+the same Dockerfile with the same args (`x-release-pins`), so they are one
+image, `ghcr.io/drguptavivek/digitva-app`. Dev (`docker compose up`) builds it
+from source. Servers never build ([policy](../policy/server-builds.md)): the
+`Server images` workflow (`.github/workflows/server-images.yml`, native
+`ubuntu-24.04-arm` runner, `linux/arm64`, Actions cache) pushes it tagged with
+the full git sha (and `server-v*` tags), and `docker-compose.images.yml`
+(layered last in production) replaces `build:` with
+`image: ${DIGITVA_IMAGE_REGISTRY:-ghcr.io/drguptavivek}/digitva-app:${DIGITVA_IMAGE_TAG}`,
+which has no default. `make prod-pull` / `scripts/deploy-server.sh` deploy it
+([runbook](split-production-deploy.md)). `icd_api_rust_service` (opt-in, never
+staging or production) still builds from `docker/icd11/Dockerfile`.
+`make prod-build` and `prod-rebuild` are dev/emergency only.
+
 ### Compose setup
 
 The local/container runtime is defined in [`docker-compose.yml`](../../docker-compose.yml).
@@ -209,7 +225,7 @@ its own `npm run export:web` build from the checkout instead. To publish a new
 export: build it on a developer machine (`vendor/who-va-2022` `npm run build`,
 then `npm run export:web` in `mobile/digitva-collect`), tar the `dist`
 contents, `gh release create` with the tarball and its `.sha256`, bump the two
-pins, rebuild the images.
+pins, run `Server images`.
 
 ### Android APK download
 
@@ -226,7 +242,7 @@ every server page's footer and the help home):
   `ANDROID_APK_SHA256`), which the Dockerfile `android_apk` stage downloads and
   checks into `/opt/digitva/android` (`DIGITVA_ANDROID_APK_DIR`). Empty pins
   build an empty folder and the route answers 404; a partial pin fails the
-  build. Bumping is an edit to the pins and an image rebuild.
+  build. Bumping is an edit to the pins and a new `Server images` run.
 
 ### WHO ICD-11 service
 

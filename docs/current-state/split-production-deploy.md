@@ -35,8 +35,15 @@ are checked, not changed.
 DC="docker compose --env-file .env --env-file /data/digitva-db.env -f docker-compose.yml -f docker-compose.external-db.yml"
 ```
 
-`make prod`, `make prod-build` and `make prod-down` use exactly this command on
-this host (they add the overlay because `/data/digitva-db.env` exists).
+`make prod`, `make prod-pull` and `make prod-down` use this command on this
+host (they add the external-db overlay because `/data/digitva-db.env` exists)
+plus `docker-compose.images.yml`, so `$DC` for `ps`, `exec` and `logs` below
+also needs `-f docker-compose.images.yml` appended. **Nothing is built on the
+host** ([policy](../policy/server-builds.md)): the app, worker, beat and DORIS
+services run `ghcr.io/drguptavivek/digitva-app:<git sha>`, built by the
+`Server images` GitHub workflow (native arm64 runner) from the commit being
+deployed. Before a deploy, run that workflow for the release commit
+(Actions, Server images, ref = the commit or `main`) and note the full sha.
 
 ## 1. Checks on the proxy and database hosts (no changes)
 
@@ -88,12 +95,12 @@ test ! -e private/pii_kem_private_key || echo "MOVE private/pii_kem_private_key 
 
 **First deploy after the key move (2026-10-21 fix batch).** Hosts that kept
 the key at the old default `./private/pii_kem_private_key` must move it before
-`make prod-build`, or `make ensure-secrets-prod` stops the deploy:
+`make prod-pull`, or `make ensure-secrets-prod` stops the deploy:
 `sudo install -d -m 700 -o <deploy user> /data/digitva-secrets && mv
 private/pii_kem_private_key /data/digitva-secrets/ && chmod 600
 /data/digitva-secrets/pii_kem_private_key` (back it up apart first). Beat then
-starts with `private/` masked; DORIS runs the image's code (rebuilt by
-`make prod-build`).
+starts with `private/` masked; DORIS runs the image's code (a new image on
+every deploy).
 
 Certificates (expiry dates; renew first if either is within 30 days):
 
@@ -127,26 +134,26 @@ database volume's EBS snapshot is an independent second copy.
 
 ## 4. Deploy
 
+New `.env` keys from the release notes go in first (and bump
+`STATIC_ASSET_VERSION`). Then one command, which repeats step 3's verified
+backup, checks out the sha, pins it and pulls:
+
 ```bash
-git fetch origin && git status -sb          # no local changes
-git pull --ff-only
-git submodule sync vendor/smartva-analyze           # remote URL from .gitmodules
-git submodule update --init vendor/smartva-analyze   # pull does not move it
-# New .env keys from the release notes go in now (and bump STATIC_ASSET_VERSION).
-make prod-build
+scripts/deploy-server.sh <full git sha of the Server images build>
 ```
 
-`git pull` leaves submodule checkouts where they were, so without the
-submodule update `git status` shows ` M vendor/smartva-analyze` and the image's
-Python SmartVA path dependency is built from the old checkout. `git submodule
-sync` first: an old checkout's `.git/config` can still point at upstream
-`ihmeuw/SmartVA-Analyze`, which lacks commits that exist only on the
-`drguptavivek` fork named in `.gitmodules` (staging, 2026-10-23). The smartva-rs
-engine itself comes from the pinned release tarball, not from this checkout.
-
-`make prod-build` builds the images and recreates the changed containers. The
-app container runs `flask db upgrade` before gunicorn starts; the worker and
-beat wait for the app to be healthy.
+It refuses a sha whose image is not in GHCR (`docker manifest inspect`),
+stops if the dump is not a success or the checkout has local changes, runs
+`git checkout --detach <sha>` (the checkout is bind-mounted into the app,
+worker and beat, so code and image must be the same commit), updates the
+submodule, writes `DIGITVA_IMAGE_TAG=<sha>` to `.env`, runs `make prod-pull`
+(`compose pull` and `up -d --no-build`; no builder, no build cache), waits for
+`minerva_app` to be healthy, checks `flask db current` equals `flask db heads`,
+prints disk use, and removes images other than this sha and the previous one.
+The app container runs `flask db upgrade` before gunicorn starts; the worker
+and beat wait for the app to be healthy. First deploy on a host: do the
+one-time GHCR login in "Registry access" below; the script sets
+`DIGITVA_IMAGE_TAG`.
 
 Watch it come up:
 
@@ -183,14 +190,16 @@ Through the public hostname, from any browser:
 
 ## 6. Rollback
 
-If the post-checks fail and the cause is not obvious within minutes:
+If the post-checks fail and the cause is not obvious within minutes, redeploy
+the previous sha (the script prints it on failure; it is also the old
+`DIGITVA_IMAGE_TAG`, kept on the host with its image):
 
 ```bash
-git checkout "$(cat ~/deploy-previous-commit)"
-git submodule sync vendor/smartva-analyze
-git submodule update --init vendor/smartva-analyze
-make prod-build
+make prod-rollback TAG=<previous full sha>
 ```
+
+This is the same script without a new backup (`SKIP_BACKUP=1`): detached
+checkout of that commit, pin, pull, start. Never `make prod-build`.
 
 Migrations are additive, so the previous code runs against the newer schema;
 do not run `flask db downgrade` unless the release notes say a migration must
@@ -199,9 +208,30 @@ be reversed. If data was damaged, restore the step 3 dump on the database host
 over, then `pg_restore --no-owner --no-privileges` into a fresh database and
 switch `DATABASE_URL`), never over the live database.
 
-Return to `main` afterwards with `git checkout main` once the fix is released.
+The checkout stays detached at the deployed sha; each deploy names its sha, so
+no `git checkout main` is needed.
+
+## Registry access (one-time, owner)
+
+Images are pulled from GHCR, so the host must be able to read the package
+`digitva-app`. Options:
+
+| Option | Trade-off |
+| --- | --- |
+| Read-only token (recommended): a classic PAT with only `read:packages` (fine-grained tokens cannot read GHCR packages), `echo $TOKEN \| docker login ghcr.io -u <user> --password-stdin` on each host | Packages stay private; a leaked token reads images only. Tied to a person; rotate yearly. Stored in `~/.docker/config.json`, mode 0600. |
+| Public package (Package settings, change visibility) | No credentials on hosts. Safe only because the repository is public and `.dockerignore` keeps `.env` and `private/` out; anyone can pull. |
+| `GITHUB_TOKEN` from CI | Not usable on servers (expires with the job). |
+
+The first `Server images` run creates the package private and links it to the
+repository (`org.opencontainers.image.source`). Create the GitHub environment
+`server-images` (Settings, Environments) with required reviewers and the
+allowed branch (`main`) and tag (`server-v*`) before the first run.
 
 ## Notes
+
+- `.env` on each host carries `DIGITVA_IMAGE_TAG=<sha>` (written by the
+  script; optional `DIGITVA_IMAGE_REGISTRY`, default `ghcr.io/drguptavivek`).
+  The repo pins no sha.
 
 - One deploy at a time; nobody runs `docker compose` on the app host with a
   different file set during a deploy (a bare `docker compose up` would start

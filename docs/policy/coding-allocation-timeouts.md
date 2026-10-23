@@ -3,7 +3,7 @@ title: Coding Allocation Timeout Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Coding Allocation Timeout Policy
@@ -20,6 +20,16 @@ Current baseline:
 - stale allocations must be released automatically
 - stale allocation release must distinguish first-pass coding, recode episodes,
   and reviewer sessions
+
+Release runs through the Celery beat sweep and, at most once per
+`CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS` (30 s, shared across workers through
+the cache), on a coder's allocation request. The throttle only delays the
+release of a timed-out case by up to that interval; a case a coder validly
+holds (`coding_in_progress`, `coder_step1_saved`) is never in the pool, so it
+cannot be handed out meanwhile. The throttle also delays the release of the
+requesting coder's own allocation if it timed out inside the last 30 s: in
+that window a pick of another case gets 409 `allocation_exists`, and a random
+start resumes the timed-out case until the next sweep releases it.
 
 ## Required behavior — first-pass coder
 

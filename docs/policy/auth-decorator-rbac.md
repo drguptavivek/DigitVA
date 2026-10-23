@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-23
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -263,7 +263,7 @@ They are NOT replaced by `@role_required()`.
 
 ### Session lifetime
 
-- 30 minutes (`PERMANENT_SESSION_LIFETIME` in `config.py`)
+- 30 minutes (`PERMANENT_SESSION_LIFETIME` in `config.py`). The stored expiry slides at most once per 60 s (`SESSION_REFRESH_WINDOW_SECONDS` in `app/utils/bearer_session.py`; a session whose data changed is written at once), so the idle timeout is 30 minutes measured to the minute (29-30).
 - Backend: SQLAlchemy (`va_sessions` table)
 - Flask-login: Stores `_user_id` in session; `load_user()` does a fresh DB lookup per request
 

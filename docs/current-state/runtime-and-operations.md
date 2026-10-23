@@ -78,7 +78,7 @@ Key current libraries:
 Operational implication:
 
 - this is a synchronous Flask application with ORM-backed DB access and file-based integration steps.
-- **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login.
+- **Session Timeout**: Sessions have a 30-minute inactivity timeout (`PERMANENT_SESSION_LIFETIME = 30 mins`). This is enforced via `session.permanent = True` on login. The stored expiry slides at most once per 60 s, so the idle timeout is 30 minutes measured to the minute (29-30).
 - password creation and reset flows now reject passwords found in the Have I Been Pwned breach corpus using the shared password policy helper
 - SmartVA form-run evidence is written under the configured `APP_SMARTVA_RUNS`
   directory, which defaults to `/app/smartva_runs` in the container, and is

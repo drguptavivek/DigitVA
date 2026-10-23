@@ -239,8 +239,9 @@ def return_tester_coding_to_pool(record: VaAllocations, *, reason: str) -> None:
 def release_stale_coding_allocations(timeout_hours: int = 1) -> int:
     """Release stale active coding allocations without discarding coding work.
 
-    Runs on every allocation request, so it loads only allocations past the
-    shorter of the two timeouts and classifies demo sessions in one batch.
+    Runs from beat, and from allocation requests throttled to once per
+    CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS, so it loads only allocations past
+    the shorter of the two timeouts and classifies demo sessions in one batch.
     """
     now = _naive_utc_now()
     normal_cutoff = now - timedelta(hours=timeout_hours)

@@ -43,6 +43,13 @@ class VaSubmissions(db.Model):
             "org_unit_resolution = 'manual'",
             name="org_unit_pin_manual",
         ),
+        # The unit coding-gate scan: distinct routed units of a form set.
+        sa.Index(
+            "ix_va_submissions_form_org_unit",
+            "va_form_id",
+            "org_unit_id",
+            postgresql_where=sa.text("org_unit_id IS NOT NULL"),
+        ),
         sa.Index(
             "ix_va_submissions_org_unit_resolution",
             "org_unit_id",

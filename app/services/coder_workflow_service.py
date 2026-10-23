@@ -12,8 +12,9 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import sqlalchemy as sa
+from flask import current_app
 
-from app import db
+from app import cache, db
 from app.models import (
     VaAllocation,
     VaAllocations,
@@ -338,10 +339,25 @@ def _get_excluded_org_units_for_coding(form_ids: list, user, *, waivers=None) ->
     against that gate's own ``daily_coder_limit`` -- a second ceiling beside
     the site's, never a replacement for it.
     """
-    from app.models import MasOrgUnit
+    from app.models import MapOrgUnitCodingGate, MasOrgUnit
     from app.services.org_grant_service import resolve_unit_coding_gates
 
     if not form_ids:
+        return set()
+
+    # No unit gate in these forms' projects: resolve_unit_coding_gates would
+    # return {} for every unit, so skip the per-submission scan below.
+    has_gate = db.session.scalar(
+        sa.select(
+            sa.exists().where(
+                MapOrgUnitCodingGate.org_unit_id == MasOrgUnit.org_unit_id,
+                MasOrgUnit.project_id.in_(
+                    sa.select(VaForms.project_id).where(VaForms.form_id.in_(form_ids))
+                ),
+            )
+        )
+    )
+    if not has_gate:
         return set()
 
     today = datetime.utcnow().date()
@@ -687,6 +703,26 @@ def require_active_coding_allocation(user) -> str | None:
     return va_sid
 
 
+def _release_stale_coding_allocations_throttled() -> None:
+    """Run the stale-allocation sweep at most once per
+    ``CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS`` across all workers.
+
+    Beat runs the sweep unthrottled; this inline run only shortens how long a
+    timed-out case waits, so skipping it delays a release by at most the
+    interval. A case a coder validly holds is never handed out meanwhile: it is
+    in coding_in_progress, which the pool excludes. A cache failure runs the
+    sweep, as before throttling.
+    """
+    interval = current_app.config.get("CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS", 30)
+    if interval > 0:
+        try:
+            if not cache.add("coding:stale_sweep", 1, timeout=interval):
+                return
+        except Exception:
+            current_app.logger.warning("coding stale-sweep throttle unavailable", exc_info=True)
+    release_stale_coding_allocations(timeout_hours=1)
+
+
 def allocate_random_form(user, project_id: str | None = None) -> AllocationResult:
     """Allocate a random available form for coding.
 
@@ -696,7 +732,7 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
     the caller must have already validated the user has access to it.
     Raises AllocationError if no forms are available.
     """
-    release_stale_coding_allocations(timeout_hours=1)
+    _release_stale_coding_allocations_throttled()
 
     existing_sid = require_active_coding_allocation(user)
     if existing_sid:
@@ -723,6 +759,10 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
         .where(sa.and_(*base_filters))
         .order_by(sa.func.random())
         .limit(1)
+        # Lock the workflow row the coding_started transition locks, and skip
+        # one a concurrent coder has: no two requests pick the same case. The
+        # lock is held until the commit below (digitva-kxit).
+        .with_for_update(skip_locked=True, of=VaSubmissionWorkflow)
     )
     if not va_new_sid:
         msg = (
@@ -741,6 +781,11 @@ def allocate_random_form(user, project_id: str | None = None) -> AllocationResul
             "vacoder",
             demo_session=(actiontype == "vademo_start_coding"),
         )
+    except WorkflowTransitionError:
+        # Taken between the locked pick and the transition (a state changed
+        # by a writer that does not hold this lock): a 409, not a 500.
+        db.session.rollback()
+        raise _unavailable(get_submission_workflow_state(va_new_sid)) from None
     except ActiveAllocationHeld:
         # A concurrent request of this user allocated first: resume it.
         existing_sid = require_active_coding_allocation(user)
@@ -776,7 +821,7 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
     (``allocate_own_case``), which also works in a random-allocation project.
     Raises AllocationError if the form is ineligible.
     """
-    release_stale_coding_allocations(timeout_hours=1)
+    _release_stale_coding_allocations_throttled()
 
     if user.vacode_formcount >= 200:
         raise AllocationError("You have reached your yearly limit of 200 coded VA forms.")
@@ -835,9 +880,7 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
         )
     except WorkflowTransitionError:
         # The case was taken between the check above and the row-locked
-        # transition; for "Code this case now" that is a 409, not a 500.
-        if not own_case:
-            raise
+        # transition: a 409, not a 500 (digitva-kxit).
         db.session.rollback()
         raise _unavailable(get_submission_workflow_state(va_sid)) from None
     except ActiveAllocationHeld:

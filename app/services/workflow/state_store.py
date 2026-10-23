@@ -45,7 +45,9 @@ def get_submission_workflow_record(
     """Return the canonical workflow row for a submission, optionally locked."""
     stmt = sa.select(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == va_sid)
     if for_update:
-        stmt = stmt.with_for_update()
+        # A row loaded earlier in this session keeps its old state unless
+        # refreshed: the lock may have waited out another transaction's commit.
+        stmt = stmt.with_for_update().execution_options(populate_existing=True)
     return db.session.scalar(stmt)
 
 

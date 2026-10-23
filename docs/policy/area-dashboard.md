@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Area Dashboard Policy
@@ -241,6 +241,12 @@ viewing scope):
 Totals only, no unit or site rows, and no names. Each grant's root units
 (or, in sites mode, the active sites in scope) are summed; the unrouted
 bucket counts for a project-wide scope. Cached per user for 60 seconds. A grant added or revoked shows in the strip within that minute; the strip carries counts and project names only, so this window is accepted rather than clearing the cache on every grant write.
+
+## Area summary cache
+
+`area_summary` is cached per user, project, unit, site and period for 60
+seconds, as Home KPIs are. A grant added or revoked, or a count that moves,
+shows within that minute. AreaNotFound and ValueError are never cached.
 
 ## Performance
 

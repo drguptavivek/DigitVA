@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Per-request DB work cut; lost allocation race is 409** (`digitva-lb6b`,
+  `digitva-kxit`, migration `c5e7a9b1d3f6`). The unit coding-gate scan returns
+  early when no gate exists; the stale-allocation sweep on allocation requests
+  runs at most every 30 s (`CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS`); an
+  unchanged cookie session is re-saved at most once a minute
+  (`SESSION_REFRESH_WINDOW_SECONDS`; idle timeout still 30 min); `area_summary`
+  cached 60 s per user. Allocation 39 -> 34 statements, session-store writes
+  1 -> 0 per request (`tests/test_request_query_counts.py`). Two coders racing
+  for one case: the loser gets 409, not 500.
 - **COD snapshot refresh ~2.5x faster** (`digitva-o7a6`, migration
   `b7e2d4f6a8c1`; `docs/current-state/submission-analytics.md`). The 34 payload
   fields come from one `jsonb_to_record` decode instead of 34 detoasts, and

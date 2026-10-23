@@ -604,6 +604,10 @@ class Config:
     # <prefix><user_id>. Off in tests, which turn it on with a prefix of their own.
     NOTIFICATION_CACHE_ENABLED = True
     NOTIFICATION_CACHE_PREFIX = "digitva_msg:last:"
+    # An allocation request runs the stale-allocation sweep at most this often
+    # (coder_workflow_service); beat runs it unthrottled. 0 or less: every
+    # request. Tests share a real Redis, so TestConfig sets 0.
+    CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS = 30
     ICD11_API_BASE_URL = os.environ.get(
         "ICD11_API_BASE_URL", "http://icd_api_service"
     ).rstrip("/")
@@ -631,6 +635,7 @@ class TestConfig(Config):
     AUTHZ_ENFORCE_CONSULTED = False
     AUTHZ_GRANT_CACHE_ENABLED = False
     NOTIFICATION_CACHE_ENABLED = False
+    CODING_STALE_SWEEP_MIN_INTERVAL_SECONDS = 0
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
     WTF_CSRF_SSL_STRICT = False

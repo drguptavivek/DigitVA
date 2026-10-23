@@ -1064,8 +1064,29 @@ def area_summary(
     stations), None otherwise. *period* (a ``PERIOD_DAYS`` key) filters
     deaths reported, submitted and causes; ValueError for any other value.
 
+    Cached per user and argument set for a minute, like ``home_kpis``; a grant
+    change shows within that minute. AreaNotFound and ValueError are never
+    cached. Policy: "Area summary cache" in docs/policy/area-dashboard.md.
+
     Raises AreaNotFound for a project, unit or site outside the user's area.
     """
+    mark_consulted()
+    cache_key = f"{AREA_SUMMARY_CACHE_PREFIX}{user.user_id}:{project_id}:{unit_id}:{site_id}:{period}"
+    try:
+        cached = cache.get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached
+    result = _area_summary(user, project_id, unit_id, site_id, period)
+    try:
+        cache.set(cache_key, result, timeout=HOME_KPI_CACHE_TTL)
+    except Exception:
+        pass
+    return result
+
+
+def _area_summary(user, project_id, unit_id, site_id, period) -> dict:
     since = period_start(period)
     scope = resolve_area_scope(user, project_id)
     if scope is None:
@@ -1180,6 +1201,7 @@ def summary_csv(summary: dict) -> str:
 # ---------------------------------------------------------------------------
 
 HOME_KPI_CACHE_PREFIX = "home_kpis:"
+AREA_SUMMARY_CACHE_PREFIX = "area_summary:"
 #: Seconds a user's home strip may trail the live counts.
 HOME_KPI_CACHE_TTL = 60
 

@@ -10,6 +10,8 @@ docs/policy/organization-model.md ("Per-unit coding gates").
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import (
     VaAccessRoles,
@@ -348,6 +350,99 @@ class OrgUnitCodingGateTests(BaseTestCase):
         )
         # The no-tree project's form is untouched by it.
         self.assertEqual(_get_excluded_org_units_for_coding([no_tree_form], self.coder_user), set())
+
+    # -- early return when the forms' project has no unit gate ---------------
+
+    def _other_project_with_routed_submission(self) -> str:
+        """A second project with an org tree and a routed submission, no gate."""
+        other = f"OG{_RUN_SUFFIX}"
+        other_form = f"OF{_RUN_SUFFIX}0001"
+        now = datetime.now(UTC)
+        for model in (VaProjectMaster, VaResearchProjects):
+            db.session.add(
+                model(
+                    project_id=other,
+                    project_code=other,
+                    project_name="Other Gate Project",
+                    project_nickname="OtherGate",
+                    project_status=VaStatuses.active,
+                    project_registered_at=now,
+                    project_updated_at=now,
+                )
+            )
+        db.session.flush()  # see the table-sort note in test_project_with_no_org_tree
+        db.session.add(
+            VaProjectSites(
+                project_id=other,
+                site_id=self.SITE,
+                project_site_status=VaStatuses.active,
+                project_site_registered_at=now,
+                project_site_updated_at=now,
+                coding_enabled=True,
+            )
+        )
+        db.session.add(
+            VaForms(
+                form_id=other_form,
+                project_id=other,
+                site_id=self.SITE,
+                odk_form_id="TEST_FORM_OG",
+                odk_project_id="1",
+                form_type="WHO_2022_VA",
+                form_status=VaStatuses.active,
+            )
+        )
+        db.session.flush()
+        org.seed_default_organization(other)
+        level = {lv.level_code: lv for lv in org.list_levels(other)}["district"]
+        unit = org.create_unit(
+            other, org_level_id=level.org_level_id, unit_code="D01", unit_name="Other District"
+        )
+        self._submission("uuid:other-project-routed", org_unit_id=unit.org_unit_id, form_id=other_form)
+        db.session.commit()
+        return other_form
+
+    def _statements_for_excluded_units(self, form_ids):
+        self.coder_user.user_id  # load it now: the count is for the function only
+        statements = []
+
+        def record(conn, cursor, statement, parameters, ctx, executemany):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", record)
+        try:
+            excluded = _get_excluded_org_units_for_coding(form_ids, self.coder_user)
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", record)
+        return excluded, statements
+
+    def test_no_unit_gate_in_the_forms_project_costs_one_statement(self):
+        other_form = self._other_project_with_routed_submission()
+
+        excluded, statements = self._statements_for_excluded_units([other_form])
+
+        self.assertEqual(excluded, set())
+        self.assertEqual(len(statements), 1, statements)
+
+    def test_a_unit_gate_in_a_different_project_changes_nothing(self):
+        other_form = self._other_project_with_routed_submission()
+        org.set_unit_coding_gate(self.PROJECT, self.phc.org_unit_id, coding_enabled=False)
+        db.session.commit()
+
+        excluded, statements = self._statements_for_excluded_units([other_form])
+
+        self.assertEqual(excluded, set())
+        self.assertEqual(len(statements), 1, statements)
+
+    def test_a_closed_gate_in_the_forms_own_project_still_excludes_its_unit(self):
+        self._submission("uuid:own-project-closed", org_unit_id=self.phc.org_unit_id)
+        org.set_unit_coding_gate(self.PROJECT, self.phc.org_unit_id, coding_enabled=False)
+        db.session.commit()
+
+        excluded, statements = self._statements_for_excluded_units([self.FORM_ID])
+
+        self.assertEqual(excluded, {self.phc.org_unit_id})
+        self.assertGreater(len(statements), 1)
 
     # -- waivers --------------------------------------------------------------
 

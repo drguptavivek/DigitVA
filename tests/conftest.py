@@ -291,6 +291,24 @@ def _no_real_icd11_titles():
 
 
 @pytest.fixture(autouse=True)
+def _no_real_area_cache():
+    """The area dashboard caches summaries and home KPIs for a minute in the
+    shared cache; tests change data between calls, so none may read or fill
+    it. The cache test patches a real in-process cache back in."""
+    from unittest import mock
+
+    class _NoCache:
+        def get(self, key):
+            return None
+
+        def set(self, key, value, timeout=None):
+            return None
+
+    with mock.patch("app.services.area_dashboard_service.cache", _NoCache()):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def _no_real_smartva_queue():
     """A completed interview queues SmartVA after commit; no test may reach
     the broker the dev worker also reads. Tests that assert the queueing

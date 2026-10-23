@@ -5,9 +5,11 @@ rollup in app/services/submission_analytics_mv.py and the bucket mapping in
 app/services/workflow/definition.py. Policy: docs/policy/area-dashboard.md.
 """
 import uuid
+from unittest import mock
 from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
+from flask_caching.backends.simplecache import SimpleCache
 
 from app import db
 from app.models import (
@@ -557,6 +559,33 @@ class AreaSummaryTests(AreaDashboardFixture):
         self.assertNotIn(self.SITE_TWO, rows)
         with self.assertRaises(area.AreaNotFound):
             area.area_summary(self.sites_mode_site_user, self.SITES, site_id=self.SITE_TWO)
+
+
+class AreaSummaryCacheTests(AreaDashboardFixture):
+    """The summary is cached for a minute per user and arguments."""
+
+    def test_second_call_runs_no_sql_and_refusals_are_not_cached(self):
+        statements = []
+
+        def count(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", count)
+        self.addCleanup(sa.event.remove, db.engine, "before_cursor_execute", count)
+        with mock.patch.object(area, "cache", SimpleCache()):
+            first = area.area_summary(self.unit_user, self.TREE)
+            self.assertTrue(first["rows"])
+            self.assertTrue(statements)  # the listener sees this connection
+            statements.clear()
+            second = area.area_summary(self.unit_user, self.TREE)
+            self.assertEqual(statements, [])
+            self.assertEqual(second, first)
+
+            for _ in range(2):
+                with self.assertRaises(area.AreaNotFound):
+                    area.area_summary(self.no_grant_user, self.TREE)
+            with self.assertRaises(ValueError):
+                area.area_summary(self.unit_user, self.TREE, period="bogus")
 
 
 class AreaCardTests(AreaDashboardFixture):

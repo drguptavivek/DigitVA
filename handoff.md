@@ -33,15 +33,16 @@ CPU-bound (2 cores), not memory-bound.
 
 0. **Landing queue** (owner 2026-10-23: land the optimizations; one committer
    session lands them, each after its own targeted tests, one full suite per
-   landing): per-request trim `digitva-lb6b` incl. `digitva-kxit` (migration
-   `c5e7a9b1d3f6`) → SmartVA coalescing `digitva-96ik`
+   landing): SmartVA coalescing `digitva-96ik`
    (`claude/cool-haibt-16aa88`, ICMR parity pending) → smartva-rust 3.0.2
    `digitva-kyxr` (`claude/clever-kowalevski-f5fc5a`, with its
    `SMARTVA_RS_*` pin bump) → streaming exports and paged ODK sync
    `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
    (EXPLAIN a real staging bucket report before more MV work).
-1. **`digitva-kxit` (P1)**: two coders can allocate the same case; the slower
-   one gets HTTP 500 instead of 409. Seen 4 times in the staging load test.
+1. Coding allocation follow-ups from the 2026-10-23 security review:
+   `digitva-nw4b` (random vs pick lock order can deadlock -> 500 for one user
+   firing both at once), `digitva-hbrs` (a failed concurrent index build leaves
+   an INVALID index that a re-run keeps).
 2. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays

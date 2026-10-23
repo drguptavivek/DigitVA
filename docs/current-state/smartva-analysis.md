@@ -404,11 +404,128 @@ naming the output folder. The library's RSS settles at ~66 MB in a bare
 interpreter and stays there over 400 runs (no growth). The extra ~55 MiB per
 worker child is why `--max-memory-per-child` is 300000 KB (docker-compose.yml).
 
-The ceiling is about 2x: the task's own database and file work is now half of
-its time, and the engine still writes a full output tree per case. The sweep
-gains little because it already batches 50 cases per run. The next lever is
-running queued cases together (the per-case task picking up other pending
-cases of the same form), since an extra case in a run costs ~1 ms.
+On its own the in-process engine gains about 2x: the task's own database and
+file work is then half of its time, and the engine still writes a full output
+tree per case. The sweep gains little because it already batches 50 cases per
+run.
+
+#### Queued cases run together
+
+An extra case in a run costs ~1 ms, so a starting plain task (neither
+`regenerate` nor `requested_by`; bead digitva-96ik) also takes the other queued
+plain runs of its form into its batch, up to `SMARTVA_BATCH_SIZE` (50) cases.
+`enqueue_smartva` marks a plain run with a second Redis key,
+`smartva-plain:<va_sid>` (value: the trigger). The lead's
+`claim_queued_plain_runs` takes `smartva_pending` cases of the same form that
+have no active current-payload result, are not confirmed duplicates, have the
+marker `queued` and carry the same trigger. That keeps each case's stored
+`trigger_source` its own. It sets their markers to `running`, drops their
+flags, runs everything through `_generate_batch`, and clears their markers
+afterwards. Their own tasks then skip: while the batch runs on the
+`running` marker, afterwards on `has_current_payload_result`. A claimed case
+the batch wrote nothing for has neither, so its own task (or the sweep) runs
+it. A claimed case's `running` marker lasts 660 s
+(`SMARTVA_CLAIMED_MARKER_TTL_SECONDS`), just past the task's 600 s hard limit.
+If the lead is killed, its claimed cases' own tasks have already skipped, and
+the sweep runs those cases once their markers expire. Regenerate and Run-button
+requests are never taken along and never take others. The claim is not
+atomic; with one worker process (concurrency 1) that does not matter.
+
+Measured on the dev stack with the in-process engine 3.0.1 and a real Celery
+worker (concurrency 1, 300000 KB memory cap). The cases were queued as
+completion runs, with marker and flag set as `enqueue_smartva` sets them, all
+before the worker started: a backlog, as on staging. Wall time runs from the
+first task's start to the last task's end in the worker log, and includes the
+first child's cold model build.
+
+| Backlog | Main: one run per task, child recycled every 100 tasks | Queued cases together, child recycled on memory only |
+|---|---|---|
+| 965 UNSW01 cases: tasks/s | 20.2 | 195.5 |
+| 6,932 ICMR01 cases (7 forms): tasks/s | 11.6 | 135.7 |
+| ICMR01: engine runs | 6,932 | 143 (136 of 50) |
+| ICMR01: worker busy / idle between tasks | 383 s / 216 s | 49 s / 2 s |
+| Worker child peak RSS | 239 MiB | 242 MiB |
+
+The two halves of the change only work together:
+
+- With the 100-task recycle, batching alone gave 21-24 tasks/s on UNSW01. A
+  skipped duplicate task takes ~1.5 ms, but it still counts toward the 100,
+  and each recycle left the worker idle for ~4 s before the new child started
+  (~1-3 s on main). That idle time is inside Celery's prefork pool, after the
+  old child has exited. Each recycle also dropped the cached models.
+- With no recycle, one run per task reached only 26.5 tasks/s on UNSW01. The
+  ~40 ms per task is the task's own work.
+
+So `config.py` now recycles a worker child on memory only:
+`worker_max_tasks_per_child` is None, and `worker_max_memory_per_child` is
+300000 KB, the same as the worker's command-line flag. A worker started
+without that flag, such as the demo stack's, is capped too.
+
+Parity: the stored results of all 965 UNSW01 cases (914 adult, 27 child,
+24 neonate) are identical field by field, raw likelihood rows included; on 304
+inputs every output CSV and `report.txt` matches the CLI's except the line
+naming the output folder. The library's RSS settles at ~66 MB in a bare
+interpreter and stays there over 400 runs (no growth). The extra ~55 MiB per
+worker child is why `--max-memory-per-child` is 300000 KB (docker-compose.yml).
+
+On its own the in-process engine gains about 2x: the task's own database and
+file work is then half of its time, and the engine still writes a full output
+tree per case. The sweep gains little because it already batches 50 cases per
+run.
+
+#### Queued cases run together
+
+An extra case in a run costs ~1 ms, so a starting plain task (neither
+`regenerate` nor `requested_by`; bead digitva-96ik) also takes the other queued
+plain runs of its form into its batch, up to `SMARTVA_BATCH_SIZE` (50) cases.
+`enqueue_smartva` marks a plain run with a second Redis key,
+`smartva-plain:<va_sid>` (value: the trigger). The lead's
+`claim_queued_plain_runs` takes `smartva_pending` cases of the same form that
+have no active current-payload result, are not confirmed duplicates, have the
+marker `queued` and carry the same trigger. That keeps each case's stored
+`trigger_source` its own. It sets their markers to `running`, drops their
+flags, runs everything through `_generate_batch`, and clears their markers
+afterwards. Their own tasks then skip: while the batch runs on the
+`running` marker, afterwards on `has_current_payload_result`. A claimed case
+the batch wrote nothing for has neither, so its own task (or the sweep) runs
+it. A claimed case's `running` marker lasts 660 s
+(`SMARTVA_CLAIMED_MARKER_TTL_SECONDS`), just past the task's 600 s hard limit.
+If the lead is killed, its claimed cases' own tasks have already skipped, and
+the sweep runs those cases once their markers expire. Regenerate and Run-button
+requests are never taken along and never take others. The claim is not
+atomic; with one worker process (concurrency 1) that does not matter.
+
+Measured on the dev stack with the in-process engine 3.0.1, a real Celery
+worker (concurrency 1, `--max-memory-per-child=300000`), 965 UNSW01 cases
+queued as completion runs (plain, marker and flag set as `enqueue_smartva`
+does). The first case ran alone and is not counted:
+
+| Measure | One run per task | Queued cases together |
+|---|---|---|
+| Tasks/s, cases queued in sid order | 10.1 | 35.8 |
+| Tasks/s, cases queued in shuffled order | | 26.3 |
+| Engine runs for 964 cases | 964 | 23 (18 of 50) |
+| Worker child RSS: idle / peak while draining | 128 / 237 MiB | 128 / 242 MiB |
+| ICMR01, all 7 forms, 6,931 cases, sid order: tasks/s | 16.7 | 27.9 |
+| ICMR01: engine runs (child peak RSS) | 6,931 (239 MiB) | 195, 135 of 50 (243 MiB) |
+
+(This harness queues plain runs, which check for an existing result first, so
+its one-run-per-task figure is lower than the 17.7 above, which was measured
+with regenerate tasks.) Most of the remaining time is the skipped tasks
+themselves: Celery delivery, an app context, one Redis read and one indexed
+query each.
+
+Parity: the stored results of all 965 UNSW01 cases are identical field by
+field to one-case runs, raw likelihood rows, trigger and run metadata included.
+That holds over several drains, with the cases queued in sid order and in
+shuffled order, which gave different batch compositions (runs of 3 to 50
+cases). The same holds for all 6,932 ICMR01 cases over seven forms, in runs of
+1 to 50 cases. A run can hold a single case: when the worker catches up with
+the queue, a lead finds nothing else queued yet. A case's
+result does not depend on the other cases in its run. One difference remains,
+and the sweep and `generate_for_form` already have it: a failure of a whole
+run (option resolution, input preparation, the engine call) records a failure
+for every case in the batch, not only for the case that caused it.
 
 ---
 

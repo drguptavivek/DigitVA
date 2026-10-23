@@ -626,7 +626,14 @@ class Config:
         "timezone": "UTC",
         "enable_utc": True,
         "worker_prefetch_multiplier": 1,    # Fetch one task at a time — prevents memory hoarding
-        "worker_max_tasks_per_child": 100,  # Recycle worker after 100 tasks to prevent memory drift
+        # Recycle a worker child on memory, not on task count: a child keeps
+        # SmartVA's trained models (~240 MiB peak), and a count recycle every
+        # 100 tasks idled the worker ~4 s each time while a SmartVA backlog
+        # drained (skipped duplicate tasks count too). Same value as the
+        # worker's --max-memory-per-child, so a worker started without that
+        # flag (the demo stack's) is still capped.
+        "worker_max_tasks_per_child": None,
+        "worker_max_memory_per_child": 300000,  # KB
     }
 
 

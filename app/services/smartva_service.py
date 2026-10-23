@@ -858,6 +858,7 @@ def _form_run_outcome(success_count: int, failure_count: int) -> str:
 
 SMARTVA_BATCH_SIZE = 50  # max submissions per SmartVA binary invocation
 SMARTVA_INTER_BATCH_SLEEP = 2  # seconds between batches to allow memory to settle
+SMARTVA_COALESCE_SCAN_LIMIT = 500  # pending sids one starting run looks at for others to take along
 
 
 def _generate_batch(
@@ -1319,6 +1320,7 @@ def generate_for_submission(
     log_progress=None,
     regenerate: bool = False,
     requested_by: tuple[str, str] | None = None,
+    coalesce: bool = False,
 ) -> int:
     """Run SmartVA for one submission; returns the result rows saved.
 
@@ -1326,7 +1328,10 @@ def generate_for_submission(
     coder's or data manager's request) once the new run succeeds; a failed
     one leaves the old result active. It does not bypass the duplicate and
     protected-state refusals, which only *force* does. *requested_by* is the
-    requester's ``(user_id, role)`` for the audit rows.
+    requester's ``(user_id, role)`` for the audit rows. *coalesce* lets a
+    plain run (neither *regenerate* nor *requested_by*) take the form's other
+    queued plain runs along in the same batch (``claim_queued_plain_runs``);
+    the count returned includes theirs.
     """
     from app.models import VaForms, VaSubmissionWorkflow
 
@@ -1362,18 +1367,30 @@ def generate_for_submission(
         )
         return 0
 
-    saved = _generate_batch(
-        va_form,
-        {va_sid},
-        trigger_source=trigger_source,
-        log_progress=log_progress,
-        replace_existing=regenerate,
-        requested_by=requested_by,
-    )
+    extra: set[str] = set()
+    if coalesce and not regenerate and requested_by is None:
+        extra = claim_queued_plain_runs(
+            va_form.form_id, va_sid, trigger_source, SMARTVA_BATCH_SIZE - 1
+        )
+    try:
+        saved = _generate_batch(
+            va_form,
+            {va_sid} | extra,
+            trigger_source=trigger_source,
+            log_progress=log_progress,
+            replace_existing=regenerate,
+            requested_by=requested_by,
+        )
+    finally:
+        # Each claimed case's own task then finds its result (skips) or, if
+        # the batch recorded nothing for it, runs it.
+        for extra_sid in extra:
+            clear_run_marker(extra_sid)
     log.info(
-        "SmartVA [%s]: single-submission committed %d result row(s).",
+        "SmartVA [%s]: single-submission committed %d result row(s) (%d coalesced).",
         va_sid,
         saved,
+        len(extra),
     )
     return saved
 
@@ -1421,6 +1438,10 @@ def generate_all_pending(*, log_progress=None) -> dict:
 #: Lifetime of the "queued"/"running" marker; a worker that dies mid-run
 #: leaves the page reading "running" for at most this long.
 SMARTVA_RUN_MARKER_TTL_SECONDS = 1800
+#: A claimed case's ``running`` marker outlives the lead task's hard time
+#: limit (600 s) but not by much: if the lead is killed, the case's own task
+#: has already skipped on it, and the sweep runs the case once it expires.
+SMARTVA_CLAIMED_MARKER_TTL_SECONDS = 660
 
 SMARTVA_NOT_REQUESTED = "not_requested"
 SMARTVA_QUEUED = "queued"
@@ -1446,11 +1467,90 @@ def set_run_marker(va_sid: str, state: str) -> None:
         log.warning("SmartVA [%s]: could not set the run marker.", va_sid, exc_info=True)
 
 
-def clear_run_marker(va_sid: str) -> None:
+def run_marker(va_sid: str) -> str | None:
+    """The sid's ``queued``/``running`` marker, None when absent or Redis fails."""
     try:
-        flask_cache.delete(run_marker_key(va_sid))
+        return flask_cache.get(run_marker_key(va_sid))
+    except Exception:
+        return None
+
+
+def plain_run_key(va_sid: str) -> str:
+    return f"smartva-plain:{va_sid}"
+
+
+def clear_run_marker(va_sid: str) -> None:
+    """Drop the run marker and the plain-run flag with it."""
+    try:
+        flask_cache.delete_many(run_marker_key(va_sid), plain_run_key(va_sid))
     except Exception:
         log.warning("SmartVA [%s]: could not clear the run marker.", va_sid, exc_info=True)
+
+
+def claim_queued_plain_runs(
+    form_id: str, lead_sid: str, triggered_by: str, limit: int
+) -> set[str]:
+    """Take up to *limit* other queued plain runs of *form_id* for the lead's
+    batch: ``smartva_pending`` cases without a current-payload result whose
+    marker is ``queued`` and whose plain flag carries the same *triggered_by*
+    (so each case's stored trigger stays its own). Each claimed sid is marked
+    ``running`` and loses its flag; the caller clears the markers afterwards.
+    Empty on any Redis failure: the lead then runs alone, as before.
+    """
+    from app.models import VaSubmissionWorkflow
+    from app.services.workflow.definition import WORKFLOW_SMARTVA_PENDING
+
+    if limit <= 0:
+        return set()
+    has_current_result = sa.exists().where(
+        VaSmartvaResults.va_sid == VaSubmissions.va_sid,
+        VaSmartvaResults.payload_version_id == VaSubmissions.active_payload_version_id,
+        VaSmartvaResults.va_smartva_status == VaStatuses.active,
+    )
+    try:
+        candidates = db.session.scalars(
+            sa.select(VaSubmissions.va_sid)
+            .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+            .where(
+                VaSubmissions.va_form_id == form_id,
+                VaSubmissions.va_sid != lead_sid,
+                VaSubmissionWorkflow.workflow_state == WORKFLOW_SMARTVA_PENDING,
+                not_confirmed_duplicate_condition(VaSubmissions.va_sid),
+                ~has_current_result,
+            )
+            .order_by(VaSubmissions.va_sid)
+            .limit(SMARTVA_COALESCE_SCAN_LIMIT)
+        ).all()
+    except Exception:
+        # The lead still runs alone.
+        db.session.rollback()
+        log.warning("SmartVA [%s]: could not list queued runs to take along.", lead_sid, exc_info=True)
+        return set()
+    if not candidates:
+        return set()
+
+    claimed: list[str] = []
+    try:
+        keys = [k for sid in candidates for k in (run_marker_key(sid), plain_run_key(sid))]
+        held = flask_cache.get_many(*keys)
+        for sid, marker, plain in zip(candidates, held[0::2], held[1::2]):
+            if marker == SMARTVA_QUEUED and plain == triggered_by:
+                claimed.append(sid)
+                if len(claimed) == limit:
+                    break
+        # ponytail: the claim is not atomic. With worker concurrency > 1 two
+        # workers can rarely take the same case; the task's running-marker
+        # skip narrows that. Lua compare-and-set if it ever matters.
+        for sid in claimed:
+            flask_cache.set(run_marker_key(sid), SMARTVA_RUNNING, timeout=SMARTVA_CLAIMED_MARKER_TTL_SECONDS)
+        if claimed:
+            flask_cache.delete_many(*(plain_run_key(sid) for sid in claimed))
+    except Exception:
+        log.warning("SmartVA [%s]: could not claim queued runs.", lead_sid, exc_info=True)
+        for sid in claimed:
+            clear_run_marker(sid)
+        return set()
+    return set(claimed)
 
 
 def _current_payload_result_outcome(va_sid: str) -> str | None:
@@ -1484,10 +1584,7 @@ def smartva_status(va_sid: str) -> str:
     marker (queued/running) and the active result of the current payload. One
     indexed query; the marker wins so a regeneration reads as queued while the
     old result still exists."""
-    try:
-        marker = flask_cache.get(run_marker_key(va_sid))
-    except Exception:
-        marker = None
+    marker = run_marker(va_sid)
     if marker in (SMARTVA_QUEUED, SMARTVA_RUNNING):
         return marker
     outcome = _current_payload_result_outcome(va_sid)
@@ -1523,10 +1620,17 @@ def enqueue_smartva(
 ) -> bool:
     """Queue ``run_smartva_for_submission`` and mark the run queued; False when
     the broker refused. Call only once the case change is committed.
-    *requested_by* is the ``(user_id, role)`` of a person's regenerate request."""
+    *requested_by* is the ``(user_id, role)`` of a person's regenerate request.
+    A plain run (neither) also gets the ``smartva-plain`` flag, which lets
+    another starting plain run of the form take it into its batch."""
     from app.tasks.sync_tasks import run_smartva_for_submission
 
     set_run_marker(va_sid, SMARTVA_QUEUED)
+    if not regenerate and not requested_by:
+        try:
+            flask_cache.set(plain_run_key(va_sid), triggered_by, timeout=SMARTVA_RUN_MARKER_TTL_SECONDS)
+        except Exception:
+            log.warning("SmartVA [%s]: could not set the plain-run flag.", va_sid, exc_info=True)
     try:
         extra = {"requested_by": requested_by} if requested_by else {}
         run_smartva_for_submission.delay(

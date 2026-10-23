@@ -330,13 +330,15 @@ class SmartvaOnCompletionTests(BaseTestCase):
         smartva_service.set_run_marker(va_sid, smartva_service.SMARTVA_QUEUED)
         with mock.patch.object(smartva_service, "generate_for_submission", return_value=1) as generate:
             run_smartva_for_submission.run(va_sid, "web_intake_submit")
-        generate.assert_called_once_with(va_sid, trigger_source="web_intake_submit", regenerate=False)
+        generate.assert_called_once_with(
+            va_sid, trigger_source="web_intake_submit", regenerate=False, coalesce=True)
         self.assertEqual(smartva_service.smartva_status(va_sid), smartva_service.SMARTVA_NOT_REQUESTED)
 
         self._result(va_sid)
         with mock.patch.object(smartva_service, "generate_for_submission", return_value=1) as generate:
             run_smartva_for_submission.run(va_sid, "coding_page", regenerate=True)
-        generate.assert_called_once_with(va_sid, trigger_source="coding_page", regenerate=True)
+        generate.assert_called_once_with(
+            va_sid, trigger_source="coding_page", regenerate=True, coalesce=False)
 
         smartva_service.set_run_marker(va_sid, smartva_service.SMARTVA_QUEUED)
         with mock.patch.object(smartva_service, "generate_for_submission", side_effect=RuntimeError("boom")):
@@ -483,7 +485,8 @@ class SmartvaOnCompletionTests(BaseTestCase):
         with mock.patch.object(smartva_service, "generate_for_submission", return_value=1) as generate:
             run_smartva_for_submission.run(va_sid, "coding_page", regenerate=True, requested_by=[self.coder_id, "vacoder"])
         generate.assert_called_once_with(
-            va_sid, trigger_source="coding_page", regenerate=True, requested_by=(self.coder_id, "vacoder"))
+            va_sid, trigger_source="coding_page", regenerate=True, coalesce=False,
+            requested_by=(self.coder_id, "vacoder"))
 
     # ── status ─────────────────────────────────────────────────────────────
 
@@ -832,3 +835,232 @@ class SmartvaOnCompletionTests(BaseTestCase):
                 "va_frontpages/_smartva_status_panel.html", va_sid=va_sid, va_action="vacode",
                 back_dashboard_role="coder", **context,
             )
+
+    # ── coalescing queued plain runs into one batch (digitva-96ik) ─────────
+
+    def _queue_plain(self, va_sid, trigger="web_intake_submit"):
+        """What ``enqueue_smartva`` leaves for a plain run: marker + flag."""
+        from app import cache
+
+        smartva_service.set_run_marker(va_sid, smartva_service.SMARTVA_QUEUED)
+        cache.set(smartva_service.plain_run_key(va_sid), trigger, timeout=60)
+        self._markers.append(va_sid)  # tearDown clears the marker and the flag together
+
+    def _claim(self, lead, limit=10, trigger="web_intake_submit"):
+        form_id = db.session.get(VaSubmissions, lead).va_form_id
+        return smartva_service.claim_queued_plain_runs(form_id, lead, trigger, limit)
+
+    def test_a_plain_lead_takes_queued_plain_runs_into_one_batch_and_their_tasks_skip(self):
+        from app import cache
+        from app.tasks.sync_tasks import run_smartva_for_submission
+
+        _d, lead = self._submitted()
+        _d, one = self._submitted()
+        _d, two = self._submitted()
+        for sid in (one, two):
+            self._queue_plain(sid)
+        seen = {}
+
+        def batch(form, sids, **kwargs):
+            seen["sids"] = set(sids)
+            seen["kwargs"] = kwargs
+            # The claimed cases read as running while the batch runs, with no flag left.
+            seen["markers"] = {s: smartva_service.run_marker(s) for s in (one, two)}
+            seen["flags"] = [cache.get(smartva_service.plain_run_key(s)) for s in (one, two)]
+            for sid in sids:
+                self._result(sid)
+            return len(sids)
+
+        with mock.patch.object(smartva_service, "_generate_batch", side_effect=batch) as generate:
+            result = run_smartva_for_submission.run(lead, "web_intake_submit")
+
+        generate.assert_called_once()
+        self.assertEqual(seen["sids"], {lead, one, two})
+        self.assertEqual(seen["kwargs"]["trigger_source"], "web_intake_submit")
+        self.assertFalse(seen["kwargs"]["replace_existing"])
+        self.assertEqual(seen["markers"], {one: "running", two: "running"})
+        self.assertEqual(seen["flags"], [None, None])
+        self.assertEqual(result["smartva_updated"], 3)
+        for sid in (one, two):
+            self.assertIsNone(smartva_service.run_marker(sid))
+            self.assertIsNone(cache.get(smartva_service.plain_run_key(sid)))
+            self.assertEqual(
+                run_smartva_for_submission.run(sid, "web_intake_submit"),
+                {"va_sid": sid, "smartva_updated": 0, "skipped": True})
+
+    def test_the_claim_leaves_alone_what_is_not_a_queued_plain_run_of_the_same_form_and_trigger(self):
+        from app import cache
+        from app.models import VaDeathRegister
+
+        _d, lead = self._submitted()
+        _d, eligible = self._submitted()
+        self._queue_plain(eligible)
+        _d, requested = self._submitted()  # a Run click: queued marker, no plain flag
+        smartva_service.set_run_marker(requested, smartva_service.SMARTVA_QUEUED)
+        self._markers.append(requested)
+        _d, other_trigger = self._submitted()
+        self._queue_plain(other_trigger, trigger="interview_revision")
+        _d, running = self._submitted()
+        self._queue_plain(running)
+        smartva_service.set_run_marker(running, smartva_service.SMARTVA_RUNNING)
+        other_form = self._odk_pending()
+        self._queue_plain(other_form)
+        _d, not_pending = self._submitted()
+        self._queue_plain(not_pending)
+        self._state(not_pending, WORKFLOW_READY_FOR_CODING)
+        _d, duplicate = self._submitted()
+        self._queue_plain(duplicate)
+        db.session.execute(
+            sa.update(VaDeathRegister).where(VaDeathRegister.va_sid == duplicate).values(status="duplicate"))
+        _d, has_result = self._submitted()
+        self._queue_plain(has_result)
+        self._result(has_result)
+
+        # Every subject is in place before it is asserted absent.
+        subjects = (requested, other_trigger, running, other_form, not_pending, duplicate, has_result)
+        for sid in subjects:
+            self.assertIsNotNone(db.session.get(VaSubmissions, sid))
+            self.assertIsNotNone(smartva_service.run_marker(sid))
+        self.assertIsNone(cache.get(smartva_service.plain_run_key(requested)))
+        self.assertEqual(cache.get(smartva_service.plain_run_key(other_trigger)), "interview_revision")
+        self.assertEqual(smartva_service.run_marker(running), "running")
+        self.assertNotEqual(db.session.get(VaSubmissions, other_form).va_form_id,
+                            db.session.get(VaSubmissions, lead).va_form_id)
+        self.assertEqual(get_submission_workflow_state(not_pending), WORKFLOW_READY_FOR_CODING)
+        self.assertTrue(smartva_service.has_current_payload_result(has_result))
+        self.assertEqual(
+            db.session.scalar(sa.select(VaDeathRegister.status).where(VaDeathRegister.va_sid == duplicate)),
+            "duplicate")
+
+        self.assertEqual(self._claim(lead), {eligible})
+        self.assertEqual(smartva_service.run_marker(eligible), "running")
+        self.assertIsNone(cache.get(smartva_service.plain_run_key(eligible)))
+        # The refused ones keep their marker and flag.
+        self.assertEqual(smartva_service.run_marker(requested), "queued")
+        self.assertEqual(cache.get(smartva_service.plain_run_key(other_trigger)), "interview_revision")
+        self.assertEqual(smartva_service.run_marker(running), "running")
+        self.assertEqual(cache.get(smartva_service.plain_run_key(has_result)), "web_intake_submit")
+
+    def test_the_lead_itself_is_never_claimed(self):
+        _d, lead = self._submitted()
+        self._queue_plain(lead)
+        self.assertEqual(self._claim(lead), set())
+        self.assertEqual(smartva_service.run_marker(lead), "queued")
+
+    def test_the_claim_is_capped_at_the_limit_and_the_task_asks_for_one_batch_less_the_lead(self):
+        from app.tasks.sync_tasks import run_smartva_for_submission
+
+        _d, lead = self._submitted()
+        others = [self._submitted()[1] for _ in range(3)]
+        for sid in others:
+            self._queue_plain(sid)
+        self.assertEqual(self._claim(lead, limit=2), set(sorted(others)[:2]))
+        self.assertEqual(smartva_service.run_marker(sorted(others)[2]), "queued")
+
+        with mock.patch.object(smartva_service, "claim_queued_plain_runs", return_value=set()) as claim, \
+                mock.patch.object(smartva_service, "_generate_batch", return_value=1):
+            run_smartva_for_submission.run(lead, "web_intake_submit")
+        self.assertEqual(claim.call_args.args[1:], (lead, "web_intake_submit", smartva_service.SMARTVA_BATCH_SIZE - 1))
+
+    def test_the_claim_is_empty_when_redis_fails(self):
+        _d, lead = self._submitted()
+        _d, other = self._submitted()
+        self._queue_plain(other)
+        with mock.patch.object(smartva_service.flask_cache, "get_many", side_effect=ConnectionError("redis")):
+            self.assertEqual(self._claim(lead), set())
+        self.assertEqual(smartva_service.run_marker(other), "queued")
+
+    def test_the_claim_is_empty_when_its_query_fails_and_marks_nothing_running(self):
+        _d, lead = self._submitted()
+        _d, other = self._submitted()
+        self._queue_plain(other)
+        self.assertEqual(smartva_service.run_marker(other), "queued")
+        with mock.patch.object(smartva_service.db.session, "scalars", side_effect=RuntimeError("db")):
+            self.assertEqual(self._claim(lead), set())
+        self.assertEqual(smartva_service.run_marker(other), "queued")
+
+    def test_a_claimed_marker_expires_soon_after_the_lead_task_limit(self):
+        _d, lead = self._submitted()
+        _d, other = self._submitted()
+        self._queue_plain(other)
+        with mock.patch.object(smartva_service.flask_cache, "set", wraps=smartva_service.flask_cache.set) as cache_set:
+            self.assertEqual(self._claim(lead), {other})
+        cache_set.assert_any_call(
+            smartva_service.run_marker_key(other), "running",
+            timeout=smartva_service.SMARTVA_CLAIMED_MARKER_TTL_SECONDS,
+        )
+        self.assertLess(smartva_service.SMARTVA_CLAIMED_MARKER_TTL_SECONDS, smartva_service.SMARTVA_RUN_MARKER_TTL_SECONDS)
+
+    def test_a_regenerate_or_requested_lead_never_coalesces(self):
+        from app.tasks.sync_tasks import run_smartva_for_submission
+
+        _d, lead = self._submitted()
+        _d, other = self._submitted()
+        self._queue_plain(other)
+        for kwargs in ({"regenerate": True}, {"requested_by": [self.coder_id, "vacoder"]}):
+            with self.subTest(kwargs=kwargs), \
+                    mock.patch.object(smartva_service, "claim_queued_plain_runs") as claim, \
+                    mock.patch.object(smartva_service, "_generate_batch", return_value=1) as generate:
+                run_smartva_for_submission.run(lead, "coding_page", **kwargs)
+            claim.assert_not_called()
+            self.assertEqual(generate.call_args.args[1], {lead})
+        self.assertEqual(smartva_service.run_marker(other), "queued")
+
+    def test_a_plain_task_whose_marker_is_running_skips_and_a_regenerate_still_runs(self):
+        from app.tasks.sync_tasks import run_smartva_for_submission
+
+        _d, va_sid = self._submitted()
+        smartva_service.set_run_marker(va_sid, smartva_service.SMARTVA_RUNNING)
+        with mock.patch.object(smartva_service, "generate_for_submission", return_value=1) as generate:
+            skipped = run_smartva_for_submission.run(va_sid, "web_intake_submit")
+        generate.assert_not_called()
+        self.assertEqual(skipped, {"va_sid": va_sid, "smartva_updated": 0, "skipped": True})
+        self.assertEqual(smartva_service.run_marker(va_sid), "running")  # the holder's marker stays
+
+        with mock.patch.object(smartva_service, "generate_for_submission", return_value=1) as generate:
+            run_smartva_for_submission.run(va_sid, "coding_page", regenerate=True)
+        generate.assert_called_once()
+        self.assertIsNone(smartva_service.run_marker(va_sid))
+
+    def test_enqueue_sets_the_plain_flag_only_for_plain_runs_and_drops_it_when_the_broker_refuses(self):
+        from app import cache
+
+        _d, va_sid = self._submitted()
+        flag = smartva_service.plain_run_key(va_sid)
+        with mock.patch(DELAY):
+            self.assertTrue(smartva_service.enqueue_smartva(va_sid, "web_intake_submit"))
+            self.assertEqual(cache.get(flag), "web_intake_submit")
+            smartva_service.clear_run_marker(va_sid)
+            self.assertIsNone(cache.get(flag))  # cleared with the marker
+            smartva_service.enqueue_smartva(va_sid, "coding_page", regenerate=True)
+            self.assertIsNone(cache.get(flag))
+            smartva_service.enqueue_smartva(va_sid, "coding_page", requested_by=(self.coder_id, "vacoder"))
+            self.assertIsNone(cache.get(flag))
+            self.assertEqual(smartva_service.run_marker(va_sid), "queued")  # subject is in place
+        with mock.patch(DELAY, side_effect=ConnectionError("broker down")):
+            self.assertFalse(smartva_service.enqueue_smartva(va_sid, "web_intake_submit"))
+        self.assertIsNone(cache.get(flag))
+        self.assertIsNone(smartva_service.run_marker(va_sid))
+
+    def test_a_claimed_case_the_batch_did_not_record_loses_its_marker_and_its_own_task_runs_it(self):
+        from app.tasks.sync_tasks import run_smartva_for_submission
+
+        _d, lead = self._submitted()
+        _d, claimed = self._submitted()
+        self._queue_plain(claimed)
+        with mock.patch.object(smartva_service, "_generate_batch", return_value=0):
+            run_smartva_for_submission.run(lead, "web_intake_submit")
+        self.assertIsNone(smartva_service.run_marker(claimed))
+        with mock.patch.object(smartva_service, "generate_for_submission", return_value=1) as generate:
+            result = run_smartva_for_submission.run(claimed, "web_intake_submit")
+        generate.assert_called_once()
+        self.assertEqual(result["smartva_updated"], 1)
+
+        # A batch that raises clears the claimed marker too.
+        _d, lead = self._submitted()
+        _d, claimed = self._submitted()
+        self._queue_plain(claimed)
+        with mock.patch.object(smartva_service, "_generate_batch", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                run_smartva_for_submission.run(lead, "web_intake_submit")
+        self.assertIsNone(smartva_service.run_marker(claimed))

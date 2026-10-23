@@ -2247,16 +2247,23 @@ def run_smartva_for_submission(
     accepts an upstream ODK change, and by the coding page's Run SmartVA and
     Regenerate buttons. Idempotent: a submission that already has an active
     result for its current payload is skipped unless *regenerate*, so a
-    redelivered or doubly queued task writes nothing. *requested_by* is the
-    requester's ``[user_id, role]`` of a coding-page request (it attributes
-    the audit rows; a failed *regenerate* keeps the old result active). The
-    Redis run marker the
-    coding page reads is set here to ``running`` and cleared on every exit.
+    redelivered or doubly queued task writes nothing. A plain run (neither
+    *regenerate* nor *requested_by*) also takes the form's other queued plain
+    runs into its batch; their own tasks then skip. A non-regenerate task
+    that finds the sid's marker ``running`` skips: another run holds the
+    case. *requested_by* is the requester's ``[user_id, role]`` of a
+    coding-page request (it attributes the audit rows; a failed *regenerate*
+    keeps the old result active). The Redis run marker the coding page reads
+    is set here to ``running`` and cleared on every exit.
     """
     from app import db
     from app.services import smartva_service
 
     log.info("SmartVA task [%s]: starting (triggered_by=%s).", va_sid, triggered_by)
+    if not regenerate and smartva_service.run_marker(va_sid) == smartva_service.SMARTVA_RUNNING:
+        # A coalescing lead, the sweep or a regenerate has the case; leave its marker.
+        log.info("SmartVA task [%s]: skipped, another run holds the case.", va_sid)
+        return {"va_sid": va_sid, "smartva_updated": 0, "skipped": True}
     try:
         if not regenerate and smartva_service.has_current_payload_result(va_sid):
             log.info("SmartVA task [%s]: skipped, a result exists for the current payload.", va_sid)
@@ -2264,6 +2271,7 @@ def run_smartva_for_submission(
         smartva_service.set_run_marker(va_sid, smartva_service.SMARTVA_RUNNING)
         saved = smartva_service.generate_for_submission(
             va_sid, trigger_source=triggered_by, regenerate=regenerate,
+            coalesce=not regenerate and not requested_by,
             **({"requested_by": tuple(requested_by)} if requested_by else {}),
         )
         log.info("SmartVA task [%s]: %d result(s) saved.", va_sid, saved)

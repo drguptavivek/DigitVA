@@ -95,11 +95,28 @@ def _run_in_process(va_form, hiv_value, malaria_value, inputfile, outputdir, lib
 
 
 @functools.lru_cache(maxsize=4)
-def _engine_version(engine: str, rs_bin: str) -> str | None:
-    """The engine's version string, or None when it cannot be read (never raises)."""
+def _engine_version(engine: str, rs_bin: str, lib_path: str = "") -> str | None:
+    """The engine's version string, or None when it cannot be read (never raises).
+    With the rust library in use (*lib_path*) it is the library's own
+    smartva_version(); a library that predates that symbol falls back to the
+    binary's --version."""
     try:
         if engine == "python":
             return importlib.metadata.version("smartva")
+        if lib_path:
+            lib = _rs_lib(lib_path)
+            try:
+                read_version = lib.smartva_version
+            except AttributeError:
+                log.warning(
+                    "SmartVA: %s predates smartva_version (and panic-safe calls); "
+                    "reading the version from the smartva-rs binary.", lib_path,
+                )
+            else:
+                # c_char_p copies the static string: it is not ours to free.
+                read_version.restype = ctypes.c_char_p
+                read_version.argtypes = []
+                return read_version().decode(errors="replace").strip() or None
         result = subprocess.run(
             [rs_bin, "--version"], capture_output=True, text=True, timeout=10, check=True
         )
@@ -111,10 +128,11 @@ def _engine_version(engine: str, rs_bin: str) -> str | None:
 
 def smartva_engine_info() -> dict:
     """``{"name": "rust"|"python", "version": str|None}`` recorded on each run.
-    The rust version is read from the binary; the library ships in the same
-    verified release tarball, so it is the version the library runs too."""
+    The rust version is the library's own when the library is in use
+    (SMARTVA_RS_LIB set), else the binary's."""
     engine, rs_bin = _engine_settings()
-    return {"name": engine, "version": _engine_version(engine, rs_bin)}
+    lib_path = _rs_lib_path() if engine == "rust" else ""
+    return {"name": engine, "version": _engine_version(engine, rs_bin, lib_path)}
 
 
 def _smartva_command(va_form, hiv_value, malaria_value, inputfile, outputdir) -> list[str]:

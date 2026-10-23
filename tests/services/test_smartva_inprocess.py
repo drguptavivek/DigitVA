@@ -149,6 +149,64 @@ class InProcessRunTests(BaseTestCase):
         run.assert_called_once()
 
 
+class EngineVersionTests(BaseTestCase):
+    """smartva_engine_info reads the library's own version when the library is
+    in use, the binary's --version otherwise."""
+
+    def setUp(self):
+        super().setUp()
+        for key in ("SMARTVA_ENGINE", "SMARTVA_RS_LIB", "SMARTVA_RS_BIN"):
+            self.addCleanup(self.app.config.__setitem__, key, self.app.config.get(key))
+        runner._engine_version.cache_clear()
+        self.addCleanup(runner._engine_version.cache_clear)
+        self.app.config["SMARTVA_ENGINE"] = "rust"
+        self.app.config["SMARTVA_RS_BIN"] = "/opt/bin/smartva-rs"
+        self.app.config["SMARTVA_RS_LIB"] = "/opt/lib/libsmartva_rust.so"
+        self.cli = subprocess.CompletedProcess([], 0, stdout="binary 3.0.1\n", stderr="")
+
+    def test_library_version_is_used_and_no_subprocess_runs(self):
+        fn = mock.Mock(return_value=b"SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)\n")
+        lib = SimpleNamespace(smartva_version=fn)
+        with mock.patch.object(runner, "_rs_lib", return_value=lib) as load, \
+                mock.patch.object(runner.subprocess, "run") as run:
+            info = runner.smartva_engine_info()
+        load.assert_called_once_with("/opt/lib/libsmartva_rust.so")
+        fn.assert_called_once_with()
+        self.assertEqual(fn.restype, ctypes.c_char_p)
+        self.assertEqual(fn.argtypes, [])
+        self.assertEqual(
+            info, {"name": "rust", "version": "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)"}
+        )
+        run.assert_not_called()
+
+    def test_library_without_the_symbol_falls_back_to_the_binary(self):
+        lib = SimpleNamespace()  # attribute access raises AttributeError, like a 3.0.1 .so
+        with mock.patch.object(runner, "_rs_lib", return_value=lib), \
+                mock.patch.object(runner.subprocess, "run", return_value=self.cli) as run, \
+                self.assertLogs(runner.log, "WARNING") as logs:
+            info = runner.smartva_engine_info()
+        self.assertEqual(run.call_args.args[0], ["/opt/bin/smartva-rs", "--version"])
+        self.assertEqual(info, {"name": "rust", "version": "binary 3.0.1"})
+        self.assertIn("predates smartva_version", logs.output[0])
+
+    def test_library_load_failure_returns_none_without_raising(self):
+        with mock.patch.object(runner, "_rs_lib", side_effect=OSError("bad elf")), \
+                mock.patch.object(runner.subprocess, "run") as run, \
+                self.assertLogs(runner.log, "WARNING"):
+            info = runner.smartva_engine_info()
+        self.assertEqual(info, {"name": "rust", "version": None})
+        run.assert_not_called()
+
+    def test_empty_library_path_reads_the_binary(self):
+        self.app.config["SMARTVA_RS_LIB"] = ""
+        with mock.patch.object(runner, "_rs_lib") as load, \
+                mock.patch.object(runner.subprocess, "run", return_value=self.cli) as run:
+            info = runner.smartva_engine_info()
+        self.assertEqual(run.call_args.args[0], ["/opt/bin/smartva-rs", "--version"])
+        self.assertEqual(info, {"name": "rust", "version": "binary 3.0.1"})
+        load.assert_not_called()
+
+
 def _likelihoods(root):
     pattern = os.path.join(root, "4-monitoring-and-quality", "intermediate-files", "*-likelihoods.csv")
     return {os.path.basename(p): open(p, "rb").read() for p in sorted(glob.glob(pattern))}

@@ -721,12 +721,14 @@ are unchanged. Python SmartVA stays installed as the rollback.
 
 Hosts never compile it. The app image downloads the pinned release asset of
 [drguptavivek/SmartVA-Analyze-rust](https://github.com/drguptavivek/SmartVA-Analyze-rust)
-(`v3.0.1`, `smartva-rs-linux-arm64.tar.gz` or `-linux-x86_64.tar.gz` by build
+(`v3.0.2`, `smartva-rs-linux-arm64.tar.gz` or `-linux-x86_64.tar.gz` by build
 architecture) and verifies its SHA-256; an unset or wrong pin fails the build.
 The pins are `x-release-pins` in `docker-compose.yml`, the one place to bump.
 `SMARTVA_RS_SOURCE=source` in `.env` compiles `vendor/smartva-analyze/rust`
 instead, for developers only (it made the staging host unresponsive).
-`smartva-rs --version` in the image reports `SmartVA-Analyze 3.0.1-rust`.
+`smartva-rs --version` in the image reports
+`SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)`: the algorithm mirrors
+upstream SmartVA-Analyze 3.0.1, the crate is 3.0.2.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -739,10 +741,12 @@ instead, for developers only (it made the staging host unresponsive).
   failure detail naming the path and the rollback; it never falls back to
   Python silently, so the engine recorded on the run is the one that ran.
 - Each `va_smartva_runs.run_metadata` records
-  `"smartva_engine": {"name": "rust"|"python", "version": ...}` (version from
+  `"smartva_engine": {"name": "rust"|"python", "version": ...}`: the loaded
+  library's own `smartva_version()` when `SMARTVA_RS_LIB` is in use, else
   `smartva-rs --version`, or the installed `smartva` package; `null` when it
-  cannot be read). The library exports no version; it comes from the same
-  verified tarball as the binary, so the binary's version is the library's.
+  cannot be read. Both rust sources print the same string. A library older
+  than 3.0.2 has no `smartva_version()`; the worker logs a warning and reads
+  the binary instead.
 - `SMARTVA_CHARTS=1` passes `--charts True` to `smartva-rs` (else
   `--no-charts`). Charts are debug-only; the slim image ships no system fonts
   for the Rust chart renderer, so expect chart drawing to need fonts added.
@@ -750,9 +754,11 @@ instead, for developers only (it made the staging host unresponsive).
   (about +55 MiB RSS, see
   [SmartVA throughput](smartva-analysis.md#throughput)), so
   `--max-memory-per-child` must leave room for it: a child recycled after
-  every task pays the ~100 ms model build again on its first run. A Rust panic
-  inside the library ends the worker child (Celery replaces it) instead of
-  failing one run.
+  every task pays the ~100 ms model build again on its first run. From
+  smartva-rust 3.0.2 every C entry point catches a Rust panic and returns it
+  as an error code and message, so a panic fails that one run (an `execution`
+  failure row with the panic text) and the worker child keeps going; the
+  model cache's lock ignores poisoning so later runs still score.
 - Rollback to the subprocess: set `SMARTVA_RS_LIB=` (empty) in `.env` and
   restart `minerva_app_service`, `minerva_celery_worker` and
   `minerva_celery_beat`.

@@ -21,7 +21,10 @@ vi.mock("react-native", () => {
           accessibilityRole,
           accessibilityState,
           children,
+          onChangeText,
+          onLongPress,
           onPress,
+          onPressOut,
           style,
           testID,
           ...props
@@ -36,7 +39,16 @@ vi.mock("react-native", () => {
           "data-style": style === undefined ? undefined : JSON.stringify(style),
           ...(accessibilityRole ? { role: accessibilityRole } : {}),
           ...(state?.disabled !== undefined ? { disabled: state.disabled } : {}),
-          ...(onPress ? { onClick: onPress } : {})
+          ...(onPress ? { onClick: onPress } : {}),
+          // A long press is a contextmenu event here; releasing is mouseup.
+          ...(onChangeText
+            ? {
+                onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+                  (onChangeText as (value: string) => void)(event.currentTarget.value)
+              }
+            : {}),
+          ...(onLongPress ? { onContextMenu: onLongPress } : {}),
+          ...(onPressOut ? { onMouseUp: onPressOut } : {})
         };
         const safeProps = Object.fromEntries(
           Object.entries(props).filter(([name]) =>
@@ -196,5 +208,83 @@ describe("native partial-date select", () => {
     await act(async () => trigger?.click());
     expect(container.querySelector('[data-testid="question-birth_year-year-options"]')).toBeNull();
     await act(async () => root.unmount());
+  });
+});
+
+describe("native year stepper", () => {
+  const thisYear = new Date().getFullYear();
+  const byId = (container: HTMLElement, id: string) =>
+    container.querySelector<HTMLButtonElement>(`[data-testid="question-birth_year-year${id}"]`);
+
+  it("shows a bordered field with a placeholder between - and + buttons", async () => {
+    const { container, root } = await renderYear();
+    expect(byId(container, "-decrease")).not.toBeNull();
+    expect(byId(container, "-increase")).not.toBeNull();
+    expect(byId(container, "")?.textContent).toContain("Select year");
+    expect(byId(container, "")?.textContent).toContain("▾");
+    await act(async () => root.unmount());
+  });
+
+  it("steps one year at a time and starts at the newest year from empty", async () => {
+    const empty = await renderYear();
+    await act(async () => byId(empty.container, "-decrease")?.click());
+    expect(empty.onAnswer).toHaveBeenLastCalledWith(`${thisYear}-01-01`);
+    await act(async () => empty.root.unmount());
+
+    const set = await renderYear("2021-01-01");
+    await act(async () => byId(set.container, "-decrease")?.click());
+    expect(set.onAnswer).toHaveBeenLastCalledWith("2020-01-01");
+    await act(async () => byId(set.container, "-increase")?.click());
+    expect(set.onAnswer).toHaveBeenLastCalledWith("2022-01-01");
+    await act(async () => set.root.unmount());
+  });
+
+  it("lets a year be typed in the picker, and ignores a year outside the bounds", async () => {
+    const { container, onAnswer, root } = await renderYear("2000-01-01");
+    await act(async () => byId(container, "")?.click());
+    const typed = container.querySelector<HTMLInputElement>('[data-testid="question-birth_year-year-typed"]')!;
+    const type = async (text: string) =>
+      act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+        setter.call(typed, text);
+        typed.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    await type("3999");
+    expect(onAnswer).not.toHaveBeenCalled();
+    await type("1987");
+    expect(onAnswer).toHaveBeenLastCalledWith("1987-01-01");
+    await act(async () => root.unmount());
+  });
+
+  it("disables + at the newest year", async () => {
+    const { container, root } = await renderYear(`${thisYear}-01-01`);
+    expect(byId(container, "-increase")?.disabled).toBe(true);
+    expect(byId(container, "-decrease")?.disabled).toBe(false);
+    await act(async () => root.unmount());
+  });
+
+  it("repeats while held, faster over time, and stops on release", async () => {
+    vi.useFakeTimers();
+    try {
+      const { container, onAnswer, root } = await renderYear("2000-01-01");
+      const decrease = byId(container, "-decrease");
+      await act(async () => {
+        decrease?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      });
+      expect(onAnswer).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+      const held = onAnswer.mock.calls.length;
+      expect(held).toBeGreaterThan(3);
+      await act(async () => {
+        decrease?.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+        vi.advanceTimersByTime(1000);
+      });
+      expect(onAnswer.mock.calls.length).toBe(held);
+      await act(async () => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

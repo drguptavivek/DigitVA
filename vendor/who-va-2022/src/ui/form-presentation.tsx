@@ -175,13 +175,16 @@ export const formStyles = {
     alignItems: "flex-start" as const,
     columnGap: 8,
     flexDirection: "row" as const,
-    justifyContent: "space-between" as const
+    justifyContent: "space-between" as const,
+    maxWidth: "100%" as const,
+    minWidth: 0
   },
   label: withWebTheme(
     { color: "#142a24", fontSize: 16, fontWeight: "600" as const, lineHeight: 24, marginBottom: 8 },
     { color: "ink" }
   ),
-  labelWithStatus: { flex: 1 },
+  // The answered badge keeps its size; a long label wraps inside the space left.
+  labelWithStatus: { flex: 1, flexShrink: 1, minWidth: 0 },
   // An interviewer instruction: read by the interviewer, not to the respondent.
   labelInstruction: withWebTheme(
     { color: "#315e73", fontStyle: "italic" as const, fontWeight: "500" as const },
@@ -226,6 +229,8 @@ export const formStyles = {
       borderRadius: 999,
       height: 22,
       justifyContent: "center" as const,
+      flexGrow: 0,
+      flexShrink: 0,
       marginTop: 1,
       width: 22
     },
@@ -233,6 +238,39 @@ export const formStyles = {
   ),
   questionStatusBadgeText: { color: "#ffffff", fontSize: 13, fontWeight: "700" as const, lineHeight: 16 },
   required: withWebTheme({ color: "#a23a2a" }, { color: "danger" }),
+  // The question a problems-list "Go" just opened.
+  questionHighlight: withWebTheme({ backgroundColor: "#fff6d6" }, { backgroundColor: "brandSoft" }),
+  assistHint: withWebTheme({ color: "#315e73", fontSize: 13, lineHeight: 18, marginTop: 4 }, { color: "guidance" }),
+  assistBox: withWebTheme(
+    {
+      backgroundColor: "#e6f1f6",
+      borderRadius: 8,
+      marginTop: 8,
+      padding: 10,
+      rowGap: 8
+    },
+    { backgroundColor: "brandSoft", borderRadius: "controlRadius" }
+  ),
+  assistText: withWebTheme({ color: "#183d33", fontSize: 14, lineHeight: 20 }, { color: "ink" }),
+  assistButtons: { columnGap: 8, flexDirection: "row" as const, flexWrap: "wrap" as const, rowGap: 8 },
+  assistButton: withWebTheme(
+    {
+      alignItems: "center" as const,
+      alignSelf: "flex-start" as const,
+      backgroundColor: "#ffffff",
+      borderColor: "#147d64",
+      borderRadius: 8,
+      borderWidth: 1,
+      justifyContent: "center" as const,
+      minHeight: 44,
+      paddingHorizontal: 14
+    },
+    { backgroundColor: "surface", borderColor: "brand", borderRadius: "controlRadius" }
+  ),
+  assistButtonText: withWebTheme(
+    { color: "#147d64", fontSize: 14, fontWeight: "700" as const, lineHeight: 20 },
+    { color: "brand" }
+  ),
   hint: withWebTheme({ color: "#536b64", fontSize: 14, lineHeight: 20, marginBottom: 8 }, { color: "muted" }),
   guidance: withWebTheme(
     { color: "#315e73", fontSize: 14, lineHeight: 20, marginBottom: 8 },
@@ -276,6 +314,20 @@ export const formStyles = {
     marginTop: 16,
     marginBottom: 8
   },
+  // The phone's bar: Back and Next only, fixed under the questions, ~56dp.
+  footerBar: withWebTheme(
+    {
+      alignItems: "center" as const,
+      backgroundColor: "#ffffff",
+      borderTopColor: "#dce6e1",
+      borderTopWidth: 1,
+      columnGap: 8,
+      flexDirection: "row" as const,
+      height: 56,
+      paddingHorizontal: 12
+    },
+    { backgroundColor: "surface", borderTopColor: "border" }
+  ),
   navButton: {
     alignItems: "center" as const,
     columnGap: 6,

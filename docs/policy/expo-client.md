@@ -191,9 +191,10 @@ as the web does, instead of reopening it silently.
   message is the server's fixed rule text, never answers. The error log gets
   the Ref line only.
 - **422 on an interview** reopens it as in progress, answers kept, and shows
-  "Not accepted: <message>" on its Interviews card and as a banner at the top
-  of the questionnaire with the web's "Fix: Section > Question (name)" line
-  and a button that jumps to the first section named. A `consent_required`
+  "Not accepted: <message>" on its Interviews card and, in the questionnaire,
+  as rows of the problems list (below), one per question named, each with the
+  server's message and Ref and a Go button; there is no banner in the flow any
+  more (`digitva-man7`). A `consent_required`
   refusal opens the consent screen first. The refusal clears when the
   interview is marked ready again.
 - **409 on an interview** (`conflict`, the case is closed, already submitted
@@ -211,6 +212,45 @@ as the web does, instead of reopening it silently.
   when consent (`Id10013`) is no; and the consent question (`Id10013`) when
   the form is complete. A failing interview stays in progress with the reason
   and the "Fix:" line shown.
+
+## Phone form screens (interview and revision)
+
+Owner decisions after the 360 dp field test, 2026-10-24 (`digitva-e49e`,
+`digitva-man7`). The interview and revision forms share these rules; the form
+engine (`vendor/who-va-2022`) draws the questions and the host screens draw the
+top bar.
+
+- **Bottom bar:** one ~56 dp bar fixed under the questions with Back and
+  Next/Complete only, single-line labels (`compactFooter`). Save draft and
+  Preview answers are in the top bar's ⋮ menu (Save now, Preview answers).
+- **Title:** the deceased's name, with "Revision" as a small line above it on
+  the revision screen; "DigitVA Collect" when the name is unknown.
+- **Revision reason:** the reason sheet opens when a revision opens. Complete
+  without a reason opens it again and marks the field invalid (red outline and
+  "Choose a reason for the revision.") until one is chosen.
+- **Section change** (Next, Back, Sections list, Go) scrolls the questions to
+  the top and moves screen-reader focus to the section title.
+- **Sheets** (⋮ menu, form language, revision reason, account, Help, Sync, site
+  picker) and the engine's Sections list are padded by the bottom system-bar
+  inset, scroll when longer than the screen, and the modals are laid out edge
+  to edge (`statusBarTranslucent`, `navigationBarTranslucent`).
+- **Problems list:** one popup lists every problem: the engine's own
+  validation issues plus the stored server refusal (`digitva-3nui`). Each row
+  reads Section › Question, the reason and a Go button that opens the section,
+  scrolls to the question, focuses and highlights it. A question hidden by skip
+  logic opens the earlier answer that controls it and says so. It opens when
+  Complete finds errors, from the "N problems" chip in the top bar, and when
+  the phone's own pre-send check fails. The web interview uses the same popup
+  (a refused 422 lists what the server named). `controller.goToQuestion(name)`
+  and `session.goToQuestion(name)` are the engine API; `serverProblems` and
+  `onProblemsChange` the host props.
+- **Year-only questions** show `[ − ]  2021  [ + ]` with a bordered, ▾ field that
+  opens a list of years (newest first, within the constraint); the buttons
+  repeat while held and stop at the bounds. Ranged numbers without a picker
+  get the same − / + buttons.
+- **Interviewer assists** (age group and ages from the dates, narration
+  language from the script, voice-typing tip) are described in
+  [DigitVA overrides](digitva-who-form-overrides.md), "Interviewer assists".
 
 ## Phone shell: header, tabs and Help
 

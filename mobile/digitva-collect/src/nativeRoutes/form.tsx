@@ -27,6 +27,7 @@ import { randomUUID } from "expo-crypto";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
 import { useStableAccount } from "../useStableAccount";
@@ -95,7 +96,7 @@ import {
 } from "../consentStore";
 import type { ConsentRecordEnvelope, ProjectConsentConfig } from "../consent";
 import { recordError } from "../errorLog";
-import { refusalFieldsText, refusalFirstSection } from "../refusalText";
+import { refusalProblems } from "../refusalText";
 import { preSendIssues } from "../submissionChecks";
 import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
@@ -288,6 +289,10 @@ export default function Form() {
   const [consentView, setConsentView] = useState<ConsentView>({ kind: "checking" });
   // Why the server (or the phone's own check) would not take this interview, shown above the questionnaire.
   const [refusal, setRefusal] = useState<SendRefusal | undefined>();
+  // The "N problems" chip and the safe-area insets the form's own overlays (Sections drawer, problems list) need.
+  const [problemCount, setProblemCount] = useState(0);
+  const insets = useSafeAreaInsets();
+  const serverProblems = useMemo(() => refusalProblems(refusal, t("refusalNotAcceptedNoReason")), [refusal]);
 
   useEffect(() => {
     const generation = ++loadGeneration.current;
@@ -939,6 +944,7 @@ export default function Form() {
         fields: [...new Set(issues.flatMap((issue) => issue.fields))],
         at: new Date().toISOString(),
       });
+      controller.current?.showProblems();
       return;
     }
     await controller.current?.saveDraft();
@@ -960,6 +966,7 @@ export default function Form() {
     { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
     ...(locales.length > 1 ? [{ key: "language", label: t("questionnaireLanguage"), onPress: () => setLanguageOpen(true) }] : []),
     { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
+    { key: "preview", label: t("formPreviewAnswers"), onPress: () => controller.current?.openPreview() },
     { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
   ];
   return (
@@ -969,22 +976,11 @@ export default function Form() {
         saveState={saveState}
         onBack={() => void leave()}
         menuItems={menuItems}
+        problemCount={problemCount}
+        onProblems={() => controller.current?.showProblems()}
       />
       {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1}>{t("questionnaireEnglishFallback")}</Text> : null}
       {consentView.unavailable ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} testID="consent-unavailable">{t("consentUnavailableInterview")}</Text> : null}
-      {refusal ? (
-        <View style={[styles.card, { marginHorizontal: 16 }]} accessibilityRole="alert" testID="refusal-banner">
-          <Text style={styles.error}>{t("refusalBannerTitle")}</Text>
-          <Text style={styles.text}>{refusal.message ?? t("refusalNotAcceptedNoReason")}</Text>
-          {refusalFieldsText(refusal.fields, instrument, locale) ? (
-            <Text style={styles.muted}>{t("fixFields")} {refusalFieldsText(refusal.fields, instrument, locale)}</Text>
-          ) : null}
-          {refusal.ref !== "precheck" ? <Text style={styles.muted}>{`Ref: ${refusal.ref}${refusal.at ? ` · ${refusal.at.slice(11, 16)}Z` : ""}`}</Text> : null}
-          {refusalFirstSection(refusal.fields, instrument) ? (
-            <Button size="sm" kind="secondary" label={t("refusalGoToSection")} onPress={() => session.current?.goToSection(refusalFirstSection(refusal.fields, instrument)!)} />
-          ) : null}
-        </View>
-      ) : null}
       <Sheet
         visible={languageOpen}
         title={t("questionnaireLanguage")}
@@ -1003,6 +999,10 @@ export default function Form() {
           {...(lockedNames ? { lockedQuestionNames: lockedNames } : {})}
           platform={formServices}
           condensePrompts
+          compactFooter
+          safeInsets={{ top: insets.top, bottom: insets.bottom }}
+          {...(serverProblems ? { serverProblems } : {})}
+          onProblemsChange={setProblemCount}
           autoSaveDraftOnChange
           onDraftController={(next) => {
             if (loaded.accessVersion === lockVersionRef.current) {

@@ -143,6 +143,7 @@ const mockToast = jest.fn();
 const mockOpenSheet = jest.fn();
 jest.mock("../src/nativeShell/shellContext", () => ({ useShell: () => ({ openSheet: mockOpenSheet, header: false, tabs: false }) }));
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
@@ -522,6 +523,62 @@ describe("native submitted-interview revisions", () => {
       await act(async () => { rows[2].props.onPress(); });
       const notice = tree.root.findAll((n) => n.props.numberOfLines === 1 && JSON.stringify(n.props.children) === '"revisionReasonMessageMoreInformation"');
       expect(notice.length).toBeGreaterThan(0);
+    });
+
+    const sheetVisible = (tree: ReturnType<typeof create>) =>
+      tree.root.findAll((n) => n.props.transparent === true && typeof n.props.onRequestClose === "function").some((n) => n.props.visible === true);
+
+    it("asks for the reason when the revision opens", async () => {
+      const tree = await openForm();
+      expect(sheetVisible(tree)).toBe(true);
+    });
+
+    it("on Complete without a reason opens the reason sheet and marks the field invalid until one is chosen", async () => {
+      mockLocalRow = { ...mockRow, original_outcome: "completed" };
+      const tree = await openForm();
+      // Dismiss the opening prompt without choosing.
+      await act(async () => {
+        tree.root.findAll((n) => n.props.accessibilityLabel === "cancel" && typeof n.props.onPress === "function")[0].props.onPress();
+      });
+      expect(sheetVisible(tree)).toBe(false);
+      expect(tree.root.findAllByProps({ testID: "revision-reason-error" })).toHaveLength(0);
+
+      await act(async () => {
+        (mockFormProps.onComplete as (result: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "completed" } });
+      });
+      expect(sheetVisible(tree)).toBe(true);
+      expect(tree.root.findAll((n) => n.props.testID === "revision-reason-error" && typeof n.type === "string").length).toBeGreaterThan(0);
+      const field = tree.root.findAll((n) => n.props.testID === "revision-reason" && typeof n.props.onPress === "function")[0];
+      expect(JSON.stringify(field.props.style)).toContain("borderWidth");
+
+      await chooseReason(tree, "revisionReasonInterviewerCorrection");
+      expect(tree.root.findAllByProps({ testID: "revision-reason-error" })).toHaveLength(0);
+      expect(mockQueue).not.toHaveBeenCalled();
+    });
+
+    it("titles the screen with the deceased's name and a small Revision label, and gives the form a phone bar", async () => {
+      mockLocalRow = { ...mockRow, deceased_name: "Asha Devi" };
+      const tree = await openForm();
+      const header = tree.root.findAll((n) => n.props.accessibilityRole === "header" && typeof n.type === "string")[0];
+      expect(header.props.children).toBe("Asha Devi");
+      expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.children === "formRevisionLabel").length).toBeGreaterThan(0);
+      expect(mockFormProps.compactFooter).toBe(true);
+      expect(mockFormProps.safeInsets).toEqual({ top: 0, bottom: 0 });
+    });
+
+    it("shows the problems count as a chip that opens the list, and offers Preview answers in the menu", async () => {
+      const showProblems = jest.fn();
+      const openPreview = jest.fn();
+      const tree = await openForm();
+      await act(async () => { (mockFormProps.onDraftController as (value: unknown) => void)?.({ saveDraft: mockSaveDraft, showProblems, openPreview }); });
+      await act(async () => { (mockFormProps.onProblemsChange as (count: number) => void)(3); });
+      await press(tree, "problemsChip");
+      expect(showProblems).toHaveBeenCalledTimes(1);
+      await press(tree, "moreActions");
+      await act(async () => {
+        tree.root.findAll((n) => n.props.accessibilityRole === "menuitem" && n.props.accessibilityLabel === "formPreviewAnswers")[0].props.onPress();
+      });
+      expect(openPreview).toHaveBeenCalledTimes(1);
     });
 
     it("overflow menu runs Save now, Finish as incomplete and Help; Back leaves after a save", async () => {

@@ -370,9 +370,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
               : String(value)
         }
         multiline={multiline}
-        secureTextEntry={masked || undefined}
+        // The typed narrative must keep the keyboard's microphone (voice
+        // typing, digitva-kkdb): never secure, never a restricted keyboard,
+        // and autocorrect / sentence capitals left to the keyboard.
+        secureTextEntry={masked && !multiline ? true : undefined}
+        autoCapitalize={multiline ? "sentences" : undefined}
         keyboardType={numbersOnly ? "number-pad" : undefined}
-        inputMode={numbersOnly ? "numeric" : undefined}
+        inputMode={numbersOnly ? "numeric" : multiline ? "text" : undefined}
         onChangeText={(text: string) => {
           if (readOnly) return;
           // `numbers` restricts what can be typed but still stores text.
@@ -388,12 +392,67 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
   }
 
   /**
+   * A "-" or "+" button. A tap steps once; holding it repeats, faster the
+   * longer it is held, until released or the caller disables it at a bound.
+   */
+  function StepButton({
+    disabled,
+    glyph,
+    label,
+    onStep,
+    testID
+  }: {
+    disabled: boolean;
+    glyph: string;
+    label: string;
+    onStep: () => void;
+    testID: string;
+  }) {
+    const stepRef = useRef(onStep);
+    stepRef.current = onStep;
+    const disabledRef = useRef(disabled);
+    disabledRef.current = disabled;
+    const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const stop = () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = undefined;
+    };
+    useEffect(() => stop, []);
+    const run = (delay: number) => {
+      if (disabledRef.current) {
+        stop();
+        return;
+      }
+      stepRef.current();
+      timer.current = setTimeout(() => run(Math.max(60, delay * 0.85)), delay);
+    };
+    return (
+      <Pressable
+        accessibilityLabel={label}
+        accessibilityRole="button"
+        delayLongPress={400}
+        disabled={disabled}
+        onLongPress={() => run(320)}
+        onPress={() => stepRef.current()}
+        onPressOut={stop}
+        style={[questionControlStyles.stepButton, disabled && questionControlStyles.buttonDisabled]}
+        testID={testID}
+      >
+        <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
+          {glyph}
+        </PrimitiveText>
+      </Pressable>
+    );
+  }
+
+  /**
    * A numeric box sized to its expected digits, between "-" and "+" buttons
    * and followed by its unit. The buttons never go below the constraint's
    * minimum and stop at its maximum; typing is unrestricted, so a special
    * code such as 99 for "does not wish to disclose" still goes in.
    */
   function NumberField({
+    bounds,
     decimal,
     issues,
     locale,
@@ -404,9 +463,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     onStep,
     placeholder,
     question,
+    stepSize,
     text,
     value
   }: {
+    /** Bounds that are not in the constraint (a `range` question's start and end). */
+    bounds?: { min?: number; max?: number };
+    stepSize?: number;
     decimal: boolean;
     issues: ValidationIssue[];
     locale: string;
@@ -421,9 +484,9 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     value: AnswerValue | undefined;
   }) {
     const readOnly = question.readOnly;
-    const { min, max } = constraintBounds(question);
+    const { min, max } = bounds ?? constraintBounds(question);
     const current = typeof value === "number" ? value : undefined;
-    const step = decimal ? 0.1 : 1;
+    const step = stepSize ?? (decimal ? 0.1 : 1);
     const canDecrease =
       !readOnly && (current === undefined ? min === undefined || false : min === undefined || current > min);
     const canIncrease = !readOnly && (current === undefined || max === undefined || current < max);
@@ -437,18 +500,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     };
     return (
       <View style={questionControlStyles.numberRow}>
-        <Pressable
-          accessibilityLabel={messages.decrease}
-          accessibilityRole="button"
+        <StepButton
           disabled={!canDecrease}
-          onPress={() => stepTo(-step)}
-          style={[questionControlStyles.stepButton, !canDecrease && questionControlStyles.buttonDisabled]}
+          glyph="−"
+          label={messages.decrease}
+          onStep={() => stepTo(-step)}
           testID={`question-${question.name}-decrease`}
-        >
-          <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
-            −
-          </PrimitiveText>
-        </Pressable>
+        />
         <TextInput
           accessibilityLabel={questionLabel(question, locale)}
           testID={`question-${question.name}`}
@@ -474,18 +532,13 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           spellCheck={false}
           value={text}
         />
-        <Pressable
-          accessibilityLabel={messages.increase}
-          accessibilityRole="button"
+        <StepButton
           disabled={!canIncrease}
-          onPress={() => stepTo(step)}
-          style={[questionControlStyles.stepButton, !canIncrease && questionControlStyles.buttonDisabled]}
+          glyph="+"
+          label={messages.increase}
+          onStep={() => stepTo(step)}
           testID={`question-${question.name}-increase`}
-        >
-          <PrimitiveText aria-hidden="true" style={questionControlStyles.stepGlyph}>
-            +
-          </PrimitiveText>
-        </Pressable>
+        />
         {numericUnit(question, messages) ? (
           <PrimitiveText style={questionControlStyles.unit} testID={`question-${question.name}-unit`}>
             {numericUnit(question, messages)}
@@ -697,7 +750,14 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
-  function Range({ question, value, locale, issues, onAnswer }: WhoVaQuestionControlProps) {
+  function Range({
+    question,
+    value,
+    locale,
+    messages = ENGLISH_UI_MESSAGES,
+    issues,
+    onAnswer
+  }: WhoVaQuestionControlProps) {
     const readOnly = question.readOnly;
     const { start, end, step } = rangeParameters(question);
     const fractional = !Number.isInteger(step);
@@ -774,21 +834,15 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
       );
     }
 
+    // No picker or rating: a numeric box with - / + buttons stepping by the
+    // range's step and stopping at its ends, so the control is visible.
     return (
-      <TextInput
-        accessibilityLabel={questionLabel(question, locale)}
-        testID={`question-${question.name}`}
-        style={[
-          questionControlStyles.input,
-          hasIssues && questionControlStyles.inputError,
-          readOnly && questionControlStyles.inputReadOnly
-        ]}
-        aria-invalid={hasIssues || undefined}
-        editable={!readOnly}
-        readOnly={readOnly || undefined}
-        value={value == null ? "" : String(value)}
-        keyboardType={fractional ? "decimal-pad" : "number-pad"}
-        {...({ min: start, max: end, step } as Record<string, unknown>)}
+      <NumberField
+        bounds={{ min: Math.min(start, end), max: Math.max(start, end) }}
+        decimal={fractional}
+        issues={issues}
+        locale={locale}
+        messages={messages}
         onChangeText={(text: string) => {
           if (readOnly) return;
           if (text === "") {
@@ -800,6 +854,11 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
           const parsed = Number(text);
           if (Number.isFinite(parsed)) onAnswer(parsed);
         }}
+        onStep={(next) => onAnswer(next)}
+        question={question}
+        stepSize={Math.abs(step)}
+        text={value == null ? "" : String(value)}
+        value={value}
       />
     );
   }
@@ -1088,6 +1147,104 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
     );
   }
 
+  /**
+   * A year-only date on a phone: [ - ] 2021 [ + ] with the year a bordered
+   * field that opens a list of years (newest first, within the constraint's
+   * bounds). The buttons stop at the bounds and repeat while held. Stored as
+   * `YYYY-01-01`, as the `year` appearance always is.
+   */
+  function YearStepper({
+    data,
+    hasIssues,
+    label,
+    locale,
+    messages,
+    onAnswer,
+    onDraftIssue,
+    question,
+    readOnly,
+    value
+  }: {
+    data: SubmissionData;
+    hasIssues: boolean;
+    label: string;
+    locale: string;
+    messages: WhoVaUiMessages;
+    onAnswer: (value: AnswerValue | undefined) => void;
+    onDraftIssue: (draft: string | undefined, issue?: ValidationIssue) => void;
+    question: InstrumentQuestion;
+    readOnly: boolean | undefined;
+    value: string | undefined;
+  }) {
+    const SelectControl = PartialSelect as React.ElementType;
+    const { min, max } = dateBounds(question);
+    const thisYear = new globalThis.Date().getFullYear();
+    const minYear = min ? Number(min.slice(0, 4)) : thisYear - 151;
+    const maxYear = max ? Number(max.slice(0, 4)) : thisYear;
+    const match = value ? /^(\d{4})-\d{2}-\d{2}$/.exec(value) : null;
+    const current = match ? Number(match[1]) : undefined;
+    const years = useMemo(
+      () => Array.from({ length: Math.max(0, maxYear - minYear + 1) }, (_, index) => String(maxYear - index)),
+      [maxYear, minYear]
+    );
+    const commit = (year: number) => {
+      const iso = `${String(year).padStart(4, "0")}-01-01`;
+      const issue = validateAnswer(question, iso, data, locale, messages)[0];
+      if (issue) {
+        onDraftIssue(undefined, issue);
+        return;
+      }
+      onAnswer(iso);
+      onDraftIssue(undefined);
+    };
+    // From empty either button starts at the newest year.
+    const stepTo = (delta: number) =>
+      commit(current === undefined ? maxYear : Math.min(maxYear, Math.max(minYear, current + delta)));
+    const canDecrease = !readOnly && (current === undefined || current > minYear);
+    const canIncrease = !readOnly && (current === undefined || current < maxYear);
+    return (
+      <View
+        accessibilityRole="none"
+        role="group"
+        aria-label={label}
+        style={[questionControlStyles.numberRow, { flexWrap: "nowrap" }]}
+      >
+        <StepButton
+          disabled={!canDecrease}
+          glyph="−"
+          label={messages.decrease}
+          onStep={() => stepTo(-1)}
+          testID={`question-${question.name}-year-decrease`}
+        />
+        <SelectControl
+          accessibilityLabel={`${label}: ${messages.year}`}
+          disabled={readOnly}
+          emptyOptionLabel={messages.selectYear}
+          onValueChange={(year: string) => {
+            if (!readOnly && /^\d{4}$/.test(year)) commit(Number(year));
+          }}
+          options={years.map((year) => ({ value: year, label: year }))}
+          style={[
+            questionControlStyles.input,
+            hasIssues && questionControlStyles.inputError,
+            readOnly && questionControlStyles.inputReadOnly,
+            { flexGrow: 1, flexShrink: 1, minWidth: 120 }
+          ]}
+          testID={`question-${question.name}-year`}
+          typedEntry
+          value={current === undefined ? "" : String(current)}
+        />
+        <StepButton
+          disabled={!canIncrease}
+          glyph="+"
+          label={messages.increase}
+          onStep={() => stepTo(1)}
+          testID={`question-${question.name}-year-increase`}
+        />
+      </View>
+    );
+  }
+
   function DatePickerButton({
     question,
     value,
@@ -1209,6 +1366,23 @@ export function createWhoVaQuestionControls(primitives: WhoVaQuestionControlPrim
               onAnswer
             );
           }}
+        />
+      );
+    }
+
+    if (hasAppearance(question, "year") && PartialSelect && !Select) {
+      return (
+        <YearStepper
+          data={data}
+          hasIssues={hasIssues}
+          label={label}
+          locale={locale}
+          messages={messages}
+          onDraftIssue={updateDraft}
+          onAnswer={onAnswer}
+          question={question}
+          readOnly={readOnly}
+          value={typeof value === "string" ? value : undefined}
         />
       );
     }

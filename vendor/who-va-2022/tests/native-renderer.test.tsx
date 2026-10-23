@@ -217,4 +217,69 @@ describe("native renderer integration", () => {
     expect(container.textContent).toContain("Section 1 of 2");
     await act(async () => root.unmount());
   });
+
+  it("compactFooter shows Back and Next only, and the controller offers Preview", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    let controller: { openPreview(): void; saveDraft(): Promise<void> } | undefined;
+
+    await act(async () => {
+      root.render(
+        <WhoVaForm
+          instrument={nativeInstrument}
+          compactFooter
+          onDraftController={(next) => {
+            controller = next;
+          }}
+        />
+      );
+    });
+
+    const footer = container.querySelector('[data-testid="form-footer"]')!;
+    expect(Array.from(footer.querySelectorAll("button")).map((b) => b.textContent)).toEqual(["Back", "Next"]);
+    expect(container.textContent).not.toContain("Save draft");
+    expect(container.textContent).not.toContain("Preview answers");
+
+    await act(async () => controller?.openPreview());
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container.textContent).toContain("Answer preview");
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the full four-button footer by default", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<WhoVaForm instrument={nativeInstrument} />);
+    });
+    const footer = container.querySelector('[data-testid="form-footer"]')!;
+    expect(footer.querySelectorAll("button")).toHaveLength(4);
+    await act(async () => root.unmount());
+  });
+
+  it("scrolls the form to the top whenever the section changes (Next lands at the title, not the bottom)", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const scrollTo = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, value: scrollTo });
+    await act(async () => {
+      root.render(<WhoVaForm instrument={nativeInstrument} />);
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    await act(async () => {
+      button(container, "Next")?.click();
+    });
+    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+    await act(async () => {
+      button(container, "Back")?.click();
+    });
+    expect(scrollTo).toHaveBeenCalledTimes(2);
+    delete (HTMLElement.prototype as unknown as Record<string, unknown>).scrollTo;
+    await act(async () => root.unmount());
+  });
 });

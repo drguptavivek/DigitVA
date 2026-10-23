@@ -278,8 +278,14 @@ describe("validation navigation", () => {
     await vi.waitFor(() => expect(scrollIntoView).toHaveBeenCalledOnce());
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
 
+    // Complete with errors opens the problems list; its Go button focuses the question.
+    const go = document.querySelector<HTMLElement>('[data-testid="problem-go-required_name"]');
+    expect(go).not.toBeNull();
+    await act(async () => {
+      go?.click();
+    });
     const input = container.querySelector<HTMLInputElement>('[data-testid="question-required_name"]');
-    expect(document.activeElement).toBe(input);
+    await vi.waitFor(() => expect(document.activeElement).toBe(input));
 
     root.unmount();
   });

@@ -106,3 +106,17 @@ describe("date picker bounds", () => {
     ).toEqual({ max: iso });
   });
 });
+
+describe("question header on a narrow phone", () => {
+  it("lets a long label shrink and keeps the answered badge a fixed size", async () => {
+    const { formStyles } = await import("../src/ui/form-presentation.js");
+    expect(formStyles.labelWithStatus).toMatchObject({ flex: 1, flexShrink: 1, minWidth: 0 });
+    expect(formStyles.questionStatusBadge).toMatchObject({ flexShrink: 0, flexGrow: 0, width: 22 });
+    expect(formStyles.questionHeader).toMatchObject({ minWidth: 0, maxWidth: "100%" });
+  });
+
+  it("sizes the phone bottom bar at 56dp", async () => {
+    const { formStyles } = await import("../src/ui/form-presentation.js");
+    expect(formStyles.footerBar).toMatchObject({ height: 56, flexDirection: "row" });
+  });
+});

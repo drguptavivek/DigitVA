@@ -2,8 +2,9 @@
  * Stateful, UI-independent interview session engine for answers, calculations,
  * section navigation, localization, and submission validation.
  */
+import { evaluateExpression } from "./expression.js";
 import { getInstrumentRuntimeIndex } from "./instrument-index.js";
-import { compileInstrumentDefinition } from "./instrument-model.js";
+import { compileInstrumentDefinition, getCompiledExpressionAst } from "./instrument-model.js";
 import {
   applyCalculations,
   getQuestion,
@@ -24,6 +25,7 @@ import type {
   SubmissionData,
   SubmissionValidationResult,
   ValidationIssue,
+  GoToQuestionResult,
   WhoVaSession,
   WhoVaSessionOptions
 } from "../types.js";
@@ -61,6 +63,17 @@ function issueSection(
     if (section) return section;
   }
   return undefined;
+}
+
+/** Every question name an expression refers to, in order of appearance. */
+function referencedNames(node: unknown, found: string[] = []): string[] {
+  if (Array.isArray(node)) node.forEach((child) => referencedNames(child, found));
+  else if (node && typeof node === "object") {
+    const record = node as Record<string, unknown>;
+    if (record.type === "reference" && typeof record.name === "string") found.push(record.name);
+    else Object.values(record).forEach((child) => referencedNames(child, found));
+  }
+  return found;
 }
 
 class UniversalWhoVaSession implements WhoVaSession {
@@ -277,6 +290,63 @@ class UniversalWhoVaSession implements WhoVaSession {
     this.issues = [];
     this.notify();
     return true;
+  }
+
+  goToQuestion(name: string): GoToQuestionResult {
+    const index = getInstrumentRuntimeIndex(this.instrument);
+    const open = (question: InstrumentQuestion): string | undefined => {
+      const section = issueSection(this.instrument, this.visibleSections(), {
+        question: question.name,
+        code: "required",
+        message: ""
+      });
+      if (section && section.name !== this.currentSectionName) {
+        this.currentSectionName = section.name;
+        this.notify();
+      }
+      return section?.name;
+    };
+    const requested = index.questionsByName.get(name);
+    if (!requested) return { status: "unavailable", requested: name };
+    const shown = (question: InstrumentQuestion) =>
+      !["calculated", "system"].includes(question.control) &&
+      isQuestionRelevantWithCalculatedData(this.instrument, question, this.data);
+    if (shown(requested)) {
+      const section = open(requested);
+      return section
+        ? { status: "shown", question: name, section }
+        : { status: "unavailable", requested: name };
+    }
+    // Hidden: walk to the earlier answer its relevance (and its groups') rests on.
+    let current = requested;
+    for (let depth = 0; depth < 6; depth += 1) {
+      // Only the conditions that are false right now hide it.
+      const failing = [
+        ...current.sectionPath.map((sectionName) => index.sectionsByName.get(sectionName)?.relevant),
+        current.relevant
+      ].filter(
+        (expression): expression is NonNullable<typeof expression> =>
+          expression !== undefined && !evaluateExpression(getCompiledExpressionAst(expression), this.data)
+      );
+      const controller = failing
+        .flatMap((expression) => referencedNames(getCompiledExpressionAst(expression)))
+        .map((reference) => index.questionsByName.get(reference))
+        .find(
+          (candidate): candidate is InstrumentQuestion =>
+            candidate !== undefined &&
+            candidate.name !== current.name &&
+            !["calculated", "system", "note"].includes(candidate.control)
+        );
+      if (!controller) break;
+      if (shown(controller)) {
+        const section = open(controller);
+        return section
+          ? { status: "hidden", question: controller.name, requested: name, section }
+          : { status: "unavailable", requested: name };
+      }
+      current = controller;
+    }
+    return { status: "unavailable", requested: name };
   }
 
   setLocale(locale: string, uiTranslations?: WhoVaUiTranslations): void {

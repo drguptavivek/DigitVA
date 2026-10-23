@@ -21,7 +21,7 @@ import { FormDefinitionError, type DefinitionRequest } from "../formDefinitions"
 import { FormDefinitionHistoryError } from "../formDefinitionHistory";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
-import { refusalFieldsText } from "../refusalText";
+import { refusalFieldsText, refusalProblems } from "../refusalText";
 import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type ConsentRecordEnvelope, type DraftConsentStatus, type ProjectConsentConfig } from "../consent";
 import { useAppState } from "../AppState";
 import { questionnaireDefault, questionnaireLocales, t, type StringKey } from "../i18n";
@@ -241,6 +241,8 @@ export default function InterviewScreen() {
   const [locales, setLocales] = useState<FormOptions["available_locales"]>([]);
   const [store, setStore] = useState<ServerDraftStore | RevisionMemoryStore>();
   const [controller, setController] = useState<WhoVaDraftController>();
+  // What a refused submit named, listed in the form's problems popup instead of a red banner.
+  const [serverProblems, setServerProblems] = useState<ReturnType<typeof refusalProblems>>();
   // Changed since the last acknowledged save. A ref, not state: the navigation guard reads it in the same tick a
   // save or submit settles, and nothing renders from it.
   const dirtyRef = useRef(false);
@@ -668,6 +670,7 @@ export default function InterviewScreen() {
     const isCurrent = () => generationRef.current === accountGeneration && bootstrapRef.current === bootstrap;
     setBusy(true);
     setMessage("");
+    setServerProblems(undefined);
     try {
       try {
         await controller?.saveDraft();
@@ -759,7 +762,25 @@ export default function InterviewScreen() {
     } catch (error) {
       // The project began requiring consent after this page checked: ask for it now.
       if (isCurrent() && error instanceof ClientApiError && error.code === "consent_required") setConsentCheck((n) => n + 1);
-      if (isCurrent()) setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error, instrument, locale));
+      // A refused submit that names what to fix goes to the problems popup; any other error stays a message.
+      const refused =
+        isCurrent() && error instanceof ClientApiError && error.status === 422 && !(store instanceof RevisionMemoryStore)
+          ? refusalProblems(
+              {
+                message: [typeof error.payload?.error === "string" ? error.payload.error.trim().slice(0, 500) : "", errorReference(error)]
+                  .filter(Boolean)
+                  .join(" · "),
+                fields: error.payload?.fields
+              },
+              t("refusalNotAcceptedNoReason")
+            )
+          : undefined;
+      if (refused) {
+        setServerProblems(refused);
+        controller?.showProblems();
+      } else if (isCurrent()) {
+        setMessage(store instanceof RevisionMemoryStore ? revisionErrorText(error) : interviewErrorText(error, instrument, locale));
+      }
     } finally {
       if (isCurrent()) setBusy(false);
     }
@@ -936,6 +957,7 @@ export default function InterviewScreen() {
                 setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
               }}
               onComplete={complete}
+              {...(serverProblems ? { serverProblems } : {})}
               lockedQuestionNames={lockedQuestionNames}
               portalThemeStyle={webFormStyle}
             />

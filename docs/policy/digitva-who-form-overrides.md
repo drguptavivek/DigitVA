@@ -54,6 +54,28 @@ The desktop station (`desktop/crates/digitva-db`) still prefills `Id10057` and `
 
 Generated project XLSForms derive this narrative override from the composed web definition. Export retains required multiline text and clears the obsolete audio hint in every exported language. This applies to newly generated workbooks; existing ODK Central deployments need the updated form published. Web-only intake workflow and host-supplied identifiers still have their documented ODK equivalents rather than identical screen behavior.
 
+## Interviewer assists (presentation only; owner decisions 2026-10-23, added 2026-10-24)
+
+The form engine (`vendor/who-va-2022/src/ui/assists.ts`, wired in
+`create-who-va-form.tsx`) suggests answers from other answers. These are **not**
+changes to the WHO or DigitVA instrument: no question, choice, relevance or
+constraint changes, WHO message text is unchanged, the definition hash is
+unchanged, and nothing extra enters the payload (the form only calls
+`setAnswer` on the question's own answer, and remembers in memory which ones
+it filled). They act only on a question that is on screen, never on a locked
+(read-only) one, and never over an answer the interviewer chose.
+
+| Assist | Behavior | Beads |
+|---|---|---|
+| `age_group` from the dates | Unanswered: pre-select the group the dates give and show "Suggested from the dates". Exact dates (birth and death to the day): `ageInDays` with the WHO thresholds (27 days or fewer neonate, under 12 × 365.25 child, else adult). Year only (`dob_year`/`Id10024`, or a year with an exact date): the year difference, 13 or more adult, 1 to 11 child, 0 and 12 no suggestion. A month-precision birth: a group only when every day in the month range agrees. An answer that contradicts it asks "The dates suggest Child (about 4 years). Keep Adult?" with Keep / Use suggestion; Keep is remembered for that suggestion, a changed date asks again | `digitva-12ks` |
+| Ages from exact dates | `age_neonate_days`, `age_child_unit` and its days/months/years number, `age_adult` are pre-filled when empty with "Calculated from the dates": child unit days up to 60 days, months under 24 months, else years; adult years floor(days / 365.25). Years only: unit Years and the year difference for child, `age_adult` for adult, hint "Estimate from the years"; never days or months. A number more than one unit away from the calculation asks to confirm like the group | `digitva-12ks` |
+| Boundary fixes | Shown under the WHO constraint message with a one-tap button: child days under 28 move to Neonate (`age_neonate_days`), child days over 60 switch to months (converted), child years 12 or more switch to Adult, neonate days over 27 switch to Child. The clearer wording is DigitVA's; the WHO message beside it is untouched | `digitva-12ks` |
+| `narr_language` | Pre-selected from the typed narrative `Id10476`: Devanagari is Hindi (Marathi shares the script; change it by hand), Latin is English (Hinglish in Latin letters stays English), Bengali, Kannada and Malayalam scripts their language; an empty narrative takes the questionnaire language; only a language the question offers; only until the interviewer picks one | `digitva-v5zz` |
+| Voice-typing tip | Under `Id10476`: "Tip: tap the microphone on your keyboard to dictate (Hindi or English)." The typed narrative stays a plain multiline input (never secure, no restricted keyboard) so the keyboard's microphone stays. An in-app Dictate button (on-device recognition only) is step 2 and needs its own policy first | `digitva-kkdb` |
+
+Hindi strings for these are machine-drafted candidates (`src/languages/ui.ts`):
+review before production.
+
 ## Extensions grouped by purpose
 
 | Purpose | Fields or behavior | DigitVA layer | ND01 evidence and differences |

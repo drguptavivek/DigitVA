@@ -3,7 +3,8 @@
  * a save-state dot and an overflow menu. `Sheet` is the bottom list also used for the revision reason select.
  */
 import { useState } from "react";
-import { Modal, Pressable, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { t } from "./i18n";
 import { radius, spacing, typography, useTheme } from "./theme";
@@ -19,15 +20,21 @@ export interface SheetItem {
 }
 
 const BAR_HEIGHT = 48;
+const BAR_HEIGHT_WITH_LABEL = 56;
 
-/** A bottom sheet of choices; choosing one closes the sheet, then calls its handler. */
+/**
+ * A bottom sheet of choices; choosing one closes the sheet, then calls its handler. The sheet is laid out above the
+ * system navigation bar (Android draws the Modal edge to edge) and scrolls when the list is taller than the screen.
+ */
 export function Sheet({ visible, title, items, onClose }: { visible: boolean; title?: string; items: SheetItem[]; onClose(): void }) {
   const { ui } = useTheme();
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
-        <View style={{ backgroundColor: ui.popover, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: spacing.lg }}>
+        <View testID="sheet-panel" style={{ maxHeight: "85%", backgroundColor: ui.popover, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: insets.bottom + spacing.lg }}>
           {title ? <Text style={{ ...typography.subhead, color: ui.mutedForeground, padding: spacing.md }}>{title}</Text> : null}
+          <ScrollView keyboardShouldPersistTaps="handled" bounces={false}>
           {items.map((item) => (
             <Pressable
               key={item.key}
@@ -47,6 +54,7 @@ export function Sheet({ visible, title, items, onClose }: { visible: boolean; ti
               </Text>
             </Pressable>
           ))}
+          </ScrollView>
         </View>
       </Pressable>
     </Modal>
@@ -57,32 +65,54 @@ const SAVE_LABEL = { saved: "saveStateSaved", saving: "saveStateSaving", unsaved
 
 export function FormTopBar({
   title,
+  label,
   saveState,
   onBack,
   menuItems,
-  disabled
+  disabled,
+  problemCount = 0,
+  onProblems
 }: {
   title: string;
+  /** A small line above the title (the revision screen's "Revision"). */
+  label?: string;
   saveState: SaveState;
   onBack(): void;
   menuItems: SheetItem[];
   disabled?: boolean;
+  /** When above zero, a "N problems" chip opens the problems list (`onProblems`). */
+  problemCount?: number;
+  onProblems?(): void;
 }) {
   const { ui } = useTheme();
   const [open, setOpen] = useState(false);
   const dot = saveState === "saved" ? ui.success : saveState === "saving" ? ui.warningText : ui.destructiveText;
   const state = t(SAVE_LABEL[saveState]);
   return (
-    <View style={{ height: BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xs, gap: spacing.xs, borderBottomWidth: 1, borderColor: ui.border, backgroundColor: ui.background }}>
+    <View style={{ height: label ? BAR_HEIGHT_WITH_LABEL : BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xs, gap: spacing.xs, borderBottomWidth: 1, borderColor: ui.border, backgroundColor: ui.background }}>
       <Pressable accessibilityRole="button" accessibilityLabel={t("back")} disabled={disabled} onPress={onBack} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: 22, color: ui.foreground }}>‹</Text>
       </Pressable>
-      <Text numberOfLines={1} accessibilityRole="header" style={{ flex: 1, ...typography.headline, color: ui.foreground }}>
-        {title}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {label ? <Text numberOfLines={1} style={{ ...typography.caption, color: ui.mutedForeground }}>{label}</Text> : null}
+        <Text numberOfLines={1} accessibilityRole="header" style={{ ...typography.headline, color: ui.foreground }}>
+          {title}
+        </Text>
+      </View>
+      {problemCount > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("problemsChip", { count: problemCount })}
+          testID="problems-chip"
+          onPress={onProblems}
+          style={{ minHeight: 36, paddingHorizontal: spacing.sm, borderRadius: radius.lg * 2, borderWidth: 1, borderColor: ui.destructiveText, justifyContent: "center" }}
+        >
+          <Text numberOfLines={1} style={{ ...typography.caption, fontWeight: "700", color: ui.destructiveText }}>{t("problemsChip", { count: problemCount })}</Text>
+        </Pressable>
+      ) : null}
       <View accessible accessibilityLabel={state} style={{ flexDirection: "row", alignItems: "center", gap: spacing.xxs }}>
         <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: dot }} />
-        <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{state}</Text>
+        {problemCount > 0 ? null : <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{state}</Text>}
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel={t("moreActions")} disabled={disabled} onPress={() => setOpen(true)} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
         <Text style={{ fontSize: 22, color: ui.foreground }}>⋮</Text>

@@ -313,8 +313,24 @@ export interface WhoVaSessionOptions {
   audit?: AuditAnswer;
 }
 
+/**
+ * Where `goToQuestion` landed. `hidden`: the question is hidden by skip logic,
+ * so the session moved to `question` -- the earlier answer that controls it --
+ * and `requested` names what the caller asked for.
+ */
+export type GoToQuestionResult =
+  | { status: "shown"; question: string; section: string }
+  | { status: "hidden"; question: string; requested: string; section: string }
+  | { status: "unavailable"; requested: string };
+
 export interface WhoVaSession {
   getSnapshot(): SessionSnapshot;
+  /**
+   * Open the section that shows `name`. A question skipped by relevance moves
+   * to the question that controls it instead (see GoToQuestionResult). Keeps
+   * the current issues, unlike goToSection, so error highlights survive.
+   */
+  goToQuestion(name: string): GoToQuestionResult;
   setInstrument(instrument: InstrumentDefinition): void;
   setLockedQuestionNames(names: Iterable<string>): void;
   setAnswer(name: string, value: AnswerValue | undefined): void;

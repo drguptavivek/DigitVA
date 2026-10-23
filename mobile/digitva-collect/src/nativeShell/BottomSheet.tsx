@@ -14,7 +14,7 @@ export function BottomSheet({ visible, title, onClose, children, full = false }:
   const { ui } = useTheme();
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15,27,45,0.55)" }} />
         <View style={{ ...(full ? { height: "92%" } : { maxHeight: "85%" }), backgroundColor: ui.popover, borderTopLeftRadius: radius.lg * 2, borderTopRightRadius: radius.lg * 2, paddingTop: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: insets.bottom + spacing.md }}>

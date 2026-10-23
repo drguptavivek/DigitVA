@@ -13,6 +13,7 @@ import {
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
 import { useStableAccount } from "../useStableAccount";
@@ -58,6 +59,7 @@ import { applyTranslations, type Translations } from "../translations";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
 import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
+import { useTheme } from "../theme";
 import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
 
 const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
@@ -262,6 +264,7 @@ async function resolveRevisionInstrument(
 
 export default function Revision() {
   const styles = useUiStyles();
+  const { ui } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{
     userId?: string;
@@ -283,6 +286,11 @@ export default function Revision() {
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [reasonOpen, setReasonOpen] = useState(false);
+  // Complete without a reason opens the sheet and marks the field until one is chosen.
+  const [reasonInvalid, setReasonInvalid] = useState(false);
+  const askedForReason = useRef(false);
+  const [problemCount, setProblemCount] = useState(0);
+  const insets = useSafeAreaInsets();
   const [noticeOpen, setNoticeOpen] = useState(false);
   const toast = useToast();
   const shell = useShell();
@@ -308,6 +316,8 @@ export default function Revision() {
     setLoaded(undefined);
     setInstrument(undefined);
     setReason(undefined);
+    setReasonInvalid(false);
+    askedForReason.current = false;
     setMessage("");
     controller.current = undefined;
     session.current = undefined;
@@ -513,6 +523,12 @@ export default function Revision() {
 
   // With the editor open, a message is a toast so the form never shifts; the other screens show it in place.
   const editorShown = Boolean(loaded && loaded.row.state !== "attention" && draftStore && instrument);
+  // A revision opens by asking why, once, so the reason is never an afterthought.
+  useEffect(() => {
+    if (!editorShown || reason || askedForReason.current) return;
+    askedForReason.current = true;
+    setReasonOpen(true);
+  }, [editorShown, reason]);
   useEffect(() => {
     if (!message || !editorShown) return;
     toast.show({ kind: message === t("revisionSaved") ? "success" : "error", text: message });
@@ -603,6 +619,7 @@ export default function Revision() {
     );
   }
 
+  const deceasedName = revisionName(loaded.row);
   const originalOutcome = loaded.row.original_outcome;
   const originalNeedsFinishPartial =
     originalOutcome === null ||
@@ -615,10 +632,16 @@ export default function Revision() {
   const initialData = initialDataFromPrefill(prefill);
   const current = loaded;
   const userId = account.user_id;
+  function askForReason() {
+    setReasonInvalid(true);
+    setReasonOpen(true);
+    setMessage(t("revisionInvalidReason"));
+  }
+
   async function complete(result: SubmissionValidationResult) {
     if (busy || !isCurrentRevision(current.generation)) return;
     if (!reason) {
-      setMessage(t("revisionInvalidReason"));
+      askForReason();
       return;
     }
     const completion: Completion = { valid: result.valid, issues: result.issues };
@@ -628,11 +651,11 @@ export default function Revision() {
       return;
     }
     if (originalNeedsFinishPartial && nextOutcome === "completed" && reason !== "finish_partial") {
-      setMessage(t("revisionInvalidReason"));
+      askForReason();
       return;
     }
     if (reason === "finish_partial" && (!originalNeedsFinishPartial || nextOutcome !== "completed")) {
-      setMessage(t("revisionInvalidReason"));
+      askForReason();
       return;
     }
     if (!isUploadable(result.data, completion)) {
@@ -703,13 +726,17 @@ export default function Revision() {
   return (
     <Screen title={t("revisionTitle")} variant="immersive">
       <FormTopBar
-        title={revisionName(loaded.row) ?? t("revisionTitle")}
+        title={deceasedName ?? t("revisionTitle")}
+        {...(deceasedName ? { label: t("formRevisionLabel") } : {})}
         saveState={saveState}
         disabled={busy}
         onBack={leave}
+        problemCount={problemCount}
+        onProblems={() => controller.current?.showProblems()}
         menuItems={[
           { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
           { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
+          { key: "preview", label: t("formPreviewAnswers"), onPress: () => controller.current?.openPreview() },
           { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
         ] satisfies SheetItem[]}
       />
@@ -719,13 +746,24 @@ export default function Revision() {
           accessibilityLabel={t("revisionReason")}
           disabled={busy}
           onPress={() => setReasonOpen(true)}
-          style={{ minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 }}
+          testID="revision-reason"
+          style={{
+            minHeight: 44,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 8,
+            ...(reasonInvalid && !reason ? { borderWidth: 2, borderColor: ui.destructiveText, borderRadius: 8, paddingHorizontal: 8 } : {}),
+          }}
         >
           <Text numberOfLines={1} style={[reason ? styles.text : styles.muted, { flex: 1 }]}>
             {reason ? t(REASONS.find((item) => item.code === reason)!.label as never) : t("revisionReason")}
           </Text>
           <Text style={styles.text}>▾</Text>
         </Pressable>
+        {reasonInvalid && !reason ? (
+          <Text accessibilityRole="alert" style={styles.error} testID="revision-reason-error">{t("revisionReasonRequired")}</Text>
+        ) : null}
         {reason ? (
           <Pressable accessibilityRole="button" onPress={() => setNoticeOpen((open) => !open)}>
             <Text numberOfLines={noticeOpen ? undefined : 1} style={styles.muted}>
@@ -743,7 +781,10 @@ export default function Revision() {
           key: item.code,
           label: t(item.label as never),
           selected: reason === item.code,
-          onPress: () => setReason(item.code),
+          onPress: () => {
+            setReason(item.code);
+            setReasonInvalid(false);
+          },
         }))}
       />
       <View style={{ flex: 1 }}>
@@ -758,6 +799,9 @@ export default function Revision() {
           {...(prefill?.lockedQuestionNames
             ? { lockedQuestionNames: prefill.lockedQuestionNames }
             : {})}
+          compactFooter
+          safeInsets={{ top: insets.top, bottom: insets.bottom }}
+          onProblemsChange={setProblemCount}
           autoSaveDraftOnChange
           onDraftController={(next) => {
             if (isCurrentRevision(current.generation)) controller.current = next;

@@ -1779,23 +1779,24 @@ describe("respondent consent in the interview form", () => {
     await act(async () => tree.unmount());
   });
 
-  it("shows a stored refusal at the top with the Fix line and jumps to its section; a consent refusal opens the consent screen", async () => {
+  it("hands a stored refusal to the form's problems list (no in-flow banner); a consent refusal opens the consent screen", async () => {
     const refusal = { ref: "HTTP 422 invalid_interview", status: 422, message: "Record the name, date of death and sex of the deceased before submitting.", fields: ["Id10019"], at: "2026-10-23T10:15:00Z" };
     setup(consentConfig(false), [{ key: `senderr:${FORM_ID}`, value: refusal }]);
-    const servedInstrument = mockResolvedDefinition.instrument;
-    mockResolvedDefinition.instrument = { ...mockServedInstrument, sections: [{ name: "start", label: { en: "Identity" } }], questions: [{ name: "Id10019", label: { en: "Sex" }, sectionPath: ["start"] }] } as never;
     const tree = await open();
-    mockResolvedDefinition.instrument = servedInstrument;
-    const banner = tree.root.findAll((n) => n.props.testID === "refusal-banner")[0];
-    expect(banner).toBeTruthy();
-    const text = JSON.stringify(tree.toJSON());
-    expect(text).toContain("Record the name, date of death and sex of the deceased before submitting.");
-    expect(text).toContain("Identity › Sex (Id10019)");
-    expect(text).toContain("Ref: HTTP 422 invalid_interview");
-    const goTo = jest.fn();
-    await act(async () => { (mockFormProps.onReady as (s: unknown) => void)({ getSnapshot: () => ({ data: {} }), goToSection: goTo }); });
-    await act(async () => { tree.root.findAll((n) => n.props["data-label"] === "refusalGoToSection")[0].props.onClick(); });
-    expect(goTo).toHaveBeenCalledWith("start");
+    expect(tree.root.findAll((n) => n.props.testID === "refusal-banner")).toHaveLength(0);
+    expect(mockFormProps.serverProblems).toEqual([
+      {
+        question: "Id10019",
+        message: "Record the name, date of death and sex of the deceased before submitting. · Ref: HTTP 422 invalid_interview · 10:15Z",
+      },
+    ]);
+    expect(mockFormProps.compactFooter).toBe(true);
+    // The chip shows the form's count and opens the list.
+    const showProblems = jest.fn();
+    await act(async () => { (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft: jest.fn(), showProblems }); });
+    await act(async () => { (mockFormProps.onProblemsChange as (n: number) => void)(2); });
+    await act(async () => { tree.root.findAll((n) => n.props.testID === "problems-chip" && typeof n.props.onPress === "function")[0].props.onPress(); });
+    expect(showProblems).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 
@@ -1815,12 +1816,16 @@ describe("respondent consent in the interview form", () => {
   it("shows every pre-send issue at once, in the server's order", async () => {
     setup(consentConfig(false));
     const tree = await open();
+    const showProblems = jest.fn();
+    await act(async () => { (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft: jest.fn(), showProblems }); });
     await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "refused" } }); });
     await settle();
-    const text = JSON.stringify(tree.toJSON());
-    expect(text).toContain("preOutcomeConflictsConsent");
-    expect(text).toContain("preIdentityMissing");
-    expect(text.indexOf("preOutcomeConflictsConsent")).toBeLessThan(text.indexOf("preIdentityMissing"));
+    // Both messages travel to the form's problems list, in the server's order, and the list opens.
+    const message = (mockFormProps.serverProblems as Array<{ message: string }>)[0]!.message;
+    expect(message).toContain("preOutcomeConflictsConsent");
+    expect(message).toContain("preIdentityMissing");
+    expect(message.indexOf("preOutcomeConflictsConsent")).toBeLessThan(message.indexOf("preIdentityMissing"));
+    expect(showProblems).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 
@@ -1829,13 +1834,13 @@ describe("respondent consent in the interview form", () => {
     const tree = await open();
     const saveDraft = jest.fn(async () => undefined);
     await act(async () => {
-      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft });
+      (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft, showProblems: jest.fn() });
       (mockFormProps.onReady as (s: unknown) => void)({ getSnapshot: () => ({ data: {} }) });
     });
     await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes" } }); });
     await settle();
     expect(jest.requireMock("../src/drafts").markCompleted).not.toHaveBeenCalled();
-    expect(JSON.stringify(tree.toJSON())).toContain("preIdentityMissing");
+    expect((mockFormProps.serverProblems as Array<{ message: string }>)[0]!.message).toContain("preIdentityMissing");
     await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)({ valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } }); });
     await settle();
     expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);

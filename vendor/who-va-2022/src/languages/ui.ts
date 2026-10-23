@@ -108,7 +108,30 @@ export const hindiUiMessages: Partial<WhoVaUiMessageTemplates> = {
   pdfRenderFailed: "इस PDF को सुरक्षित रूप से पृष्ठ चित्रों में बदला नहीं जा सका और इसे हटा दिया गया।",
   pdfTooManyPages: "इस PDF में बहुत अधिक पृष्ठ हैं। अधिकतम 10 पृष्ठ वाला दस्तावेज़ चुनें।",
   pdfOutputTooLarge: "बदले गए PDF पृष्ठ बहुत बड़े हैं और उन्हें हटा दिया गया।",
-  pdfProcessingUnavailable: "PDF रूपांतरण उपलब्ध नहीं है। मूल PDF सहेजा नहीं गया।"
+  pdfProcessingUnavailable: "PDF रूपांतरण उपलब्ध नहीं है। मूल PDF सहेजा नहीं गया।",
+  selectYear: "वर्ष चुनें",
+  problemsTitle: "ठीक करने योग्य समस्याएँ",
+  problemsCount: "{count} समस्याएँ",
+  problemsNone: "कोई समस्या नहीं मिली।",
+  problemGo: "जाएँ",
+  problemGeneral: "सामान्य",
+  problemHiddenBy: "यह प्रश्न “{question}” के आपके उत्तर के कारण छिपा है। इसके बजाय वह प्रश्न दिखाया जा रहा है।",
+  assistSuggested: "तिथियों के आधार पर सुझाया गया",
+  assistCalculated: "तिथियों से गणना की गई",
+  assistEstimate: "वर्षों से अनुमान",
+  assistMismatch: "तिथियों के अनुसार {suggested} लगता है। क्या {entered} रखें?",
+  assistKeep: "रखें",
+  assistUseSuggestion: "सुझाव लें",
+  assistAbout: "लगभग {value}",
+  fixToNeonate: "{days} दिन नवजात की आयु है। आयु समूह नवजात में बदलें?",
+  fixToNeonateAction: "नवजात चुनें",
+  fixToMonths: "60 दिन से अधिक की आयु महीनों में बताई जाती है। इकाई महीने करें?",
+  fixToMonthsAction: "महीने चुनें",
+  fixToAdult: "{years} वर्ष वयस्क की आयु है। आयु समूह वयस्क में बदलें?",
+  fixToAdultAction: "वयस्क चुनें",
+  fixToChild: "{days} दिन नवजात से अधिक है। आयु समूह बच्चा में बदलें?",
+  fixToChildAction: "बच्चा चुनें",
+  narrativeTip: "सुझाव: बोलकर लिखने के लिए कीबोर्ड पर माइक्रोफ़ोन दबाएँ (हिंदी या अंग्रेज़ी)।"
 };
 
 export const frenchUiMessages: Partial<WhoVaUiMessageTemplates> = {

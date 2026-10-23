@@ -401,6 +401,7 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     onSelect,
     open,
     portalThemeStyle,
+    safeInsets,
     toggleRef
   }: {
     items: readonly SectionNavItem[];
@@ -410,6 +411,8 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
     onSelect: (name: string) => void;
     open: boolean;
     portalThemeStyle?: unknown;
+    /** System bars the drawer draws behind (Android edge to edge): the list stays clear of them. */
+    safeInsets?: { top: number; bottom: number } | undefined;
     toggleRef: React.MutableRefObject<unknown>;
   }) {
     const panelRef = useRef<unknown>(null);
@@ -467,7 +470,10 @@ export function createSectionNavigation({ View, Text, Pressable, ScrollView, Mod
           aria-modal="true"
           onKeyDown={onKeyDown}
           role="dialog"
-          style={navStyles.panel}
+          style={[
+            navStyles.panel,
+            safeInsets ? { paddingBottom: 10 + safeInsets.bottom, paddingTop: 10 + safeInsets.top } : null
+          ]}
           testID="section-drawer"
         >
           <View style={navStyles.panelHeader}>

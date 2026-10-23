@@ -39,3 +39,26 @@ export function refusalFirstSection(fields: unknown, instrument: InstrumentDefin
   const question = namedQuestions(fields, instrument)[0];
   return question ? (question.sectionPath[0] ?? question.sectionPath.at(-1)) : undefined;
 }
+
+/**
+ * A refusal as rows for the form's problems list: one per question it names
+ * (unknown names such as "consent" become general rows), each with the
+ * server's reason and Ref. Without a refusal, nothing.
+ */
+export function refusalProblems(
+  refusal: { message?: string | null; fields?: unknown; ref?: string; at?: string } | undefined,
+  fallbackReason = ""
+): Array<{ question?: string; message: string }> | undefined {
+  if (!refusal) return undefined;
+  const reason = [
+    refusal.message?.trim() || fallbackReason || undefined,
+    refusal.ref && refusal.ref !== "precheck" ? `Ref: ${refusal.ref}${refusal.at ? ` · ${refusal.at.slice(11, 16)}Z` : ""}` : undefined
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  if (!reason) return undefined;
+  const fields = Array.isArray(refusal.fields)
+    ? [...new Set(refusal.fields.filter((field): field is string => typeof field === "string"))]
+    : [];
+  return fields.length ? fields.map((question) => ({ question, message: reason })) : [{ message: reason }];
+}

@@ -92,6 +92,7 @@ The session exposes:
 | `replaceData(data)`                | Replace session answers as a unit                                                 |
 | `setInstrument(instrument)`        | Switch to another compatible instrument, such as a translated instance            |
 | `goToSection(name)`                | Navigate to a visible section by name                                             |
+| `goToQuestion(name)`               | Open the section that shows a question; a question hidden by skip logic opens the earlier question that controls it (`GoToQuestionResult`: `shown`, `hidden` or `unavailable`). Keeps the current issues |
 | `setLocale(locale, translations?)` | Change display locale and UI messages                                             |
 | `next()` / `previous()`            | Validate and navigate the interview                                               |
 | `validate()` / `complete()`        | Return normalized data and validation issues                                      |
@@ -132,6 +133,13 @@ Prefer `validateSubmission()` at server ingress even if the client already valid
 | `onDraftSaved` / `onDraftError` | Observe draft persistence                                                         |
 | `onInstrumentError`             | Handle default-instrument loading failures                                        |
 | `onComplete`                    | Receive the normalized submission result                                          |
+| `compactFooter`                 | A ~56 dp bar fixed under the questions with Back and Next/Complete only (phones); Save draft and Preview move to the host's menu |
+| `safeInsets`                    | `{ top, bottom }` system-bar insets for the overlays that draw behind them (Sections list, problems list) |
+| `serverProblems`                | Problems the host knows (a refused submit): `{ question?, message }`; listed with the form's own and dropped when the named answer changes |
+| `onProblemsChange`              | Receive the number of problems in the list whenever it changes                    |
+| `onDraftController`             | Receive `{ saveDraft, showProblems, goToQuestion(name), openPreview }`            |
+
+Complete with errors opens one problems list naming every question that needs fixing (section › question, reason, Go). Go opens the section, scrolls to the question, focuses and highlights it. The list is `showProblems()` on the controller; the host may show its count (`onProblemsChange`) as a chip. The form also suggests the age group, the ages from the dates and the narration language, and offers one-tap fixes at the WHO age boundaries; none of this changes the instrument or the payload (see the host's overrides policy).
 
 Web and native forms are in-memory by default. Hosts must inject a `WhoVaDraftStore` to enable durable saves and platform services to enable binary capture. Web exports `createInsecureWhoVaBrowserDefaults()` only for demos and low-risk prototypes that deliberately accept plaintext `localStorage` and unencrypted IndexedDB.
 

@@ -132,6 +132,29 @@ export interface WhoVaUiMessageTemplates {
   pdfTooManyPages: string;
   pdfOutputTooLarge: string;
   pdfProcessingUnavailable: string;
+  selectYear: string;
+  problemsTitle: string;
+  problemsCount: string;
+  problemsNone: string;
+  problemGo: string;
+  problemGeneral: string;
+  problemHiddenBy: string;
+  assistSuggested: string;
+  assistCalculated: string;
+  assistEstimate: string;
+  assistMismatch: string;
+  assistKeep: string;
+  assistUseSuggestion: string;
+  assistAbout: string;
+  fixToNeonate: string;
+  fixToNeonateAction: string;
+  fixToMonths: string;
+  fixToMonthsAction: string;
+  fixToAdult: string;
+  fixToAdultAction: string;
+  fixToChild: string;
+  fixToChildAction: string;
+  narrativeTip: string;
 }
 
 /** One independently importable language file. */
@@ -267,6 +290,29 @@ export interface WhoVaUiMessages {
   pdfTooManyPages: string;
   pdfOutputTooLarge: string;
   pdfProcessingUnavailable: string;
+  selectYear: string;
+  problemsTitle: string;
+  problemsCount: (count: number) => string;
+  problemsNone: string;
+  problemGo: string;
+  problemGeneral: string;
+  problemHiddenBy: (question: string) => string;
+  assistSuggested: string;
+  assistCalculated: string;
+  assistEstimate: string;
+  assistMismatch: (suggested: string, entered: string) => string;
+  assistKeep: string;
+  assistUseSuggestion: string;
+  assistAbout: (value: string) => string;
+  fixToNeonate: (days: number) => string;
+  fixToNeonateAction: string;
+  fixToMonths: string;
+  fixToMonthsAction: string;
+  fixToAdult: (years: number) => string;
+  fixToAdultAction: string;
+  fixToChild: (days: number) => string;
+  fixToChildAction: string;
+  narrativeTip: string;
 }
 
 export type WhoVaUiTranslations = Record<string, Partial<WhoVaUiMessageTemplates>>;
@@ -388,7 +434,30 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   pdfRenderFailed: "This PDF could not be safely converted to page images and was discarded.",
   pdfTooManyPages: "This PDF has too many pages. Select a document with no more than 10 pages.",
   pdfOutputTooLarge: "The converted PDF pages are too large and were discarded.",
-  pdfProcessingUnavailable: "PDF conversion is unavailable. The original PDF was not saved."
+  pdfProcessingUnavailable: "PDF conversion is unavailable. The original PDF was not saved.",
+  selectYear: "Select year",
+  problemsTitle: "Problems to fix",
+  problemsCount: "{count} problems",
+  problemsNone: "No problems found.",
+  problemGo: "Go",
+  problemGeneral: "General",
+  problemHiddenBy: "This question is hidden because of your answer to “{question}”. Showing that question instead.",
+  assistSuggested: "Suggested from the dates",
+  assistCalculated: "Calculated from the dates",
+  assistEstimate: "Estimate from the years",
+  assistMismatch: "The dates suggest {suggested}. Keep {entered}?",
+  assistKeep: "Keep",
+  assistUseSuggestion: "Use suggestion",
+  assistAbout: "about {value}",
+  fixToNeonate: "{days} days is a neonate’s age. Switch age group to Neonate?",
+  fixToNeonateAction: "Switch to Neonate",
+  fixToMonths: "Ages over 60 days are reported in months. Switch the unit to months?",
+  fixToMonthsAction: "Switch to months",
+  fixToAdult: "{years} years is an adult’s age. Switch age group to Adult?",
+  fixToAdultAction: "Switch to Adult",
+  fixToChild: "{days} days is older than a neonate. Switch age group to Child?",
+  fixToChildAction: "Switch to Child",
+  narrativeTip: "Tip: tap the microphone on your keyboard to dictate (Hindi or English)."
 };
 
 function format(template: string, values: Record<string, string | number>): string {
@@ -413,7 +482,14 @@ function messagesFromTemplates(templates: WhoVaUiMessageTemplates): WhoVaUiMessa
     answeredQuestions: (count) => format(templates.answeredQuestions, { count }),
     replaceAttachment: (kind) => format(templates.replaceAttachment, { kind }),
     chooseAttachment: (kind) => format(templates.chooseAttachment, { kind }),
-    removeAttachment: (kind) => format(templates.removeAttachment, { kind })
+    removeAttachment: (kind) => format(templates.removeAttachment, { kind }),
+    problemsCount: (count) => format(templates.problemsCount, { count }),
+    problemHiddenBy: (question) => format(templates.problemHiddenBy, { question }),
+    assistMismatch: (suggested, entered) => format(templates.assistMismatch, { suggested, entered }),
+    assistAbout: (value) => format(templates.assistAbout, { value }),
+    fixToNeonate: (days) => format(templates.fixToNeonate, { days }),
+    fixToAdult: (years) => format(templates.fixToAdult, { years }),
+    fixToChild: (days) => format(templates.fixToChild, { days })
   };
 }
 

@@ -3,7 +3,18 @@
  * factories to native primitives while re-exporting the headless API.
  */
 import React, { useState } from "react";
-import { Image, Modal, Pressable, ScrollView, Text, TextInput, useColorScheme, View } from "react-native";
+import {
+  AccessibilityInfo,
+  findNodeHandle,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  useColorScheme,
+  View
+} from "react-native";
 import Svg, { Circle as SvgCircle, Path as SvgPath } from "react-native-svg";
 
 import { createWhoVaForm } from "./ui/create-who-va-form.js";
@@ -18,12 +29,14 @@ interface NativeSelectProps {
   options: ReadonlyArray<{ value: string; label: string }>;
   style?: unknown;
   testID?: string;
+  /** A box above the list for typing a value that is in `options` (a year). */
+  typedEntry?: boolean;
   value: string;
 }
 
 /** A dependency-free select primitive used by shared date selectors on native. */
 const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function NativeSelect(
-  { accessibilityLabel, disabled, emptyOptionLabel, onValueChange, options, style, testID, value },
+  { accessibilityLabel, disabled, emptyOptionLabel, onValueChange, options, style, testID, typedEntry, value },
   _ref
 ) {
   const [open, setOpen] = useState(false);
@@ -42,9 +55,20 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
         accessibilityState={{ disabled: disabled || undefined, expanded: open }}
         disabled={disabled}
         onPress={() => setOpen((current) => !current)}
+        // The wrapper's style draws the bordered field; the slop makes its padding tappable too.
+        hitSlop={{ top: 9, bottom: 9, left: 12, right: 12 }}
+        style={{ alignItems: "center", flexDirection: "row", justifyContent: "space-between", minHeight: 26 }}
         testID={testID}
       >
-        <Text>{selected}</Text>
+        <Text
+          numberOfLines={1}
+          style={{ color: selected ? (darkMode ? "#f9fafb" : "#142a24") : darkMode ? "#9ca3af" : "#667085", flexShrink: 1, fontSize: 16 }}
+        >
+          {selected || emptyOptionLabel || ""}
+        </Text>
+        <Text aria-hidden style={{ color: darkMode ? "#d1d5db" : "#475467", fontSize: 14, marginLeft: 8 }}>
+          ▾
+        </Text>
       </Pressable>
       {open ? (
         <Modal transparent animationType="fade" visible onRequestClose={() => setOpen(false)}>
@@ -81,6 +105,32 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
               }}
               testID={testID ? `${testID}-surface` : undefined}
             >
+              {typedEntry ? (
+                <TextInput
+                  accessibilityLabel={accessibilityLabel}
+                  autoCorrect={false}
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  onChangeText={(text: string) => {
+                    // A whole four-digit year the list offers is chosen at once; anything else is ignored.
+                    if (/^\d{4}$/.test(text) && options.some((option) => option.value === text)) {
+                      onValueChange(text);
+                      setOpen(false);
+                    }
+                  }}
+                  placeholder="YYYY"
+                  placeholderTextColor={darkMode ? "#9ca3af" : "#667085"}
+                  style={{
+                    borderBottomColor: darkMode ? "#4b5563" : "#cbd5e1",
+                    borderBottomWidth: 1,
+                    color: darkMode ? "#f9fafb" : "#111827",
+                    fontSize: 16,
+                    minHeight: 48,
+                    paddingHorizontal: 20
+                  }}
+                  testID={testID ? `${testID}-typed` : undefined}
+                />
+              ) : null}
               <ScrollView showsVerticalScrollIndicator testID={testID ? `${testID}-options` : undefined}>
                 {selectableOptions.map((option) => {
                   const selectedOption = option.value === value;
@@ -119,6 +169,41 @@ const NativeSelect = React.forwardRef<unknown, NativeSelectProps>(function Nativ
   );
 });
 
+/**
+ * Scroll a question to the top of the form's ScrollView. The row's own `y` is
+ * relative to its card, so measure against the scroll content instead and
+ * fall back to `y` when measuring is not possible.
+ */
+function scrollToNativeQuestion(questionNode: unknown, scrollViewNode: unknown, y: number): void {
+  const scroll = scrollViewNode as {
+    scrollTo?: (options: { animated: boolean; y: number }) => void;
+    getInnerViewRef?: () => unknown;
+    getInnerViewNode?: () => unknown;
+  } | null;
+  if (!scroll?.scrollTo) return;
+  const fallback = () => scroll.scrollTo?.({ y: Math.max(0, y - 12), animated: true });
+  const question = questionNode as {
+    measureLayout?: (relativeTo: unknown, onSuccess: (x: number, y: number) => void, onFail: () => void) => void;
+  } | null;
+  const inner = scroll.getInnerViewRef?.() ?? scroll.getInnerViewNode?.();
+  if (!question?.measureLayout || !inner) return fallback();
+  try {
+    question.measureLayout(inner, (_x, top) => scroll.scrollTo?.({ y: Math.max(0, top - 12), animated: true }), fallback);
+  } catch {
+    fallback();
+  }
+}
+
+/** Move TalkBack / VoiceOver focus to a node (the section title, a question). */
+function focusNativeNode(node: unknown): void {
+  try {
+    const handle = findNodeHandle(node as never);
+    if (handle != null) AccessibilityInfo.setAccessibilityFocus(handle);
+  } catch {
+    // Focus is a courtesy; the scroll already happened.
+  }
+}
+
 export * from "./core.js";
 export {
   WHO_VA_2022_LANGUAGES,
@@ -141,7 +226,9 @@ export const WhoVaForm = createWhoVaForm(
     Svg,
     SvgCircle,
     SvgPath,
-    PartialSelect: NativeSelect
+    PartialSelect: NativeSelect,
+    scrollToQuestion: scrollToNativeQuestion,
+    focusNode: focusNativeNode
   },
   loadWhoVa2022Instrument
 );

@@ -9,6 +9,7 @@ number of queries and the amount held in memory change.
 
 import gc
 import re
+import uuid
 import weakref
 from contextlib import ExitStack
 from datetime import UTC, datetime, timedelta
@@ -21,6 +22,11 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasCategoryDisplayConfig,
+    MasCategoryOrder,
+    MasFieldDisplayConfig,
+    MasFormTypes,
+    MasSubcategoryOrder,
     VaForms,
     VaSubmissionPayloadVersion,
     VaSubmissions,
@@ -32,6 +38,7 @@ from app.services.submission_payload_version_service import ensure_active_payloa
 from app.services.va_data_sync import va_data_sync_01_odkcentral as sync_module
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     SYNC_ISSUE_MISSING_IN_ODK,
+    _finalize_enriched_submissions_for_form,
     _mark_form_sync_issues,
     _upsert_form_submissions,
     va_data_sync_odkcentral,
@@ -42,6 +49,7 @@ from app.services.workflow.definition import (
 )
 from app.services.workflow.state_store import set_submission_workflow_state
 from app.tasks.sync_tasks import _build_repair_map_for_form
+from app.utils import va_preprocess_categoriestodisplay
 from app.utils.va_odk import va_odk_06_fetchsubmissions as fetch_module
 from tests.base import BaseTestCase
 from tests.services.test_national_id_sync_rerun import create_form
@@ -161,7 +169,8 @@ class UpsertChunkingTests(BaseTestCase):
 
         def lookups(counter):
             # The submission and payload-version lookups this change batches.
-            # (The projection's own form-type/category queries are separate.)
+            # (The projection's form-type/category reads are counted in
+            # ProjectionMasterDataTests.)
             return [
                 s for s in counter.statements
                 if "FROM va_submissions " in s or "FROM va_submission_payload_versions " in s
@@ -269,6 +278,135 @@ class UpsertChunkingTests(BaseTestCase):
         self.assertEqual(self._signature(together), self._signature(sequential))
         self.assertEqual(self._signature(together)["versions"], 3)
         self.assertEqual(self._signature(together)["active_gender"], "other")
+
+
+class ProjectionMasterDataTests(BaseTestCase):
+    """digitva-tn21: the projection's form-type and category config are read
+    once per upsert/finalize call, not once per record."""
+
+    PROJECT_ID = "TN21A"
+    SITE_ID = "TN01"
+    FORM_ID = "TN21ATN0101"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        create_form(cls.PROJECT_ID, cls.SITE_ID, cls.FORM_ID)
+        # A form type with one always-included category and one that depends on
+        # the record's data, so the category query runs and the list is non-trivial.
+        form_type = MasFormTypes(
+            form_type_id=uuid.uuid4(),
+            form_type_code="TN21_FT",
+            form_type_name="TN21 form type",
+            is_active=True,
+        )
+        db.session.add(form_type)
+        db.session.flush()
+        ft_id = form_type.form_type_id
+        for order, (code, always) in enumerate((("tn21cataa", False), ("tn21catbb", True)), 1):
+            db.session.add(MasCategoryOrder(
+                form_type_id=ft_id, category_code=code, category_name=code,
+                display_order=order, is_active=True,
+            ))
+            db.session.add(MasCategoryDisplayConfig(
+                form_type_id=ft_id, category_code=code, display_label=code, nav_label=code,
+                display_order=order, render_mode="table_sections",
+                show_to_coder=True, show_to_reviewer=True, show_to_site_pi_datamanager=True,
+                always_include=always, is_active=True,
+            ))
+        db.session.add(MasSubcategoryOrder(
+            form_type_id=ft_id, category_code="tn21cataa", subcategory_code="general",
+            subcategory_name="General", display_order=1, is_active=True,
+        ))
+        db.session.add(MasFieldDisplayConfig(
+            form_type_id=ft_id, field_id="tn21_field", category_code="tn21cataa",
+            subcategory_code="general", short_label="TN21 field", display_order=1, is_active=True,
+        ))
+        db.session.get(VaForms, cls.FORM_ID).form_type_id = ft_id
+        db.session.commit()
+
+    def _form(self):
+        return db.session.get(VaForms, self.FORM_ID)
+
+    def _records(self, prefix, count=30):
+        return [_record(self.FORM_ID, f"uuid:tn21-{prefix}-{i:02d}", tn21_field="present") for i in range(count)]
+
+    def _upsert(self, records):
+        counts = _upsert_form_submissions(
+            self._form(), records, set(), {}, enrich_payloads=False
+        )
+        db.session.flush()
+        return counts
+
+    @staticmethod
+    def _master_reads(counter):
+        form_types = [s for s in counter.statements if "FROM mas_form_types" in s]
+        categories = [s for s in counter.statements if "FROM mas_category_display_config" in s]
+        return len(form_types), len(categories)
+
+    def test_steady_state_master_data_reads_do_not_grow_with_the_batch(self):
+        records = self._records("upsert")
+        with patch.object(sync_module, "_UPSERT_CHUNK_SIZE", 10):
+            self._upsert(records)  # seed: 30 added
+            # The first rerun also pays the payload-PII side-table probe, which
+            # is cached for the process; warm it so both counted calls are alike.
+            self._upsert(records[:10])
+
+            with _StatementCounter() as ten:
+                counts10 = self._upsert(records[:10])
+            with _StatementCounter() as thirty:
+                counts30 = self._upsert(records)
+
+        self.assertEqual((counts10, counts30), ((0, 0, 0, 0), (0, 0, 0, 0)))
+        # Assert the reads happen before asserting they are bounded.
+        form_types10, categories10 = self._master_reads(ten)
+        form_types30, categories30 = self._master_reads(thirty)
+        self.assertEqual(categories10, 1)
+        self.assertGreaterEqual(form_types10, 1)
+        self.assertLessEqual(form_types10, 2)
+        self.assertEqual((form_types30, categories30), (form_types10, categories10))
+        # Beyond one call's master-data reads, 2 more chunks cost only their
+        # batched VaSubmissions + active-version lookups (2 each).
+        self.assertEqual(len(thirty.statements) - len(ten.statements), 4)
+
+    def test_stored_category_list_is_what_the_per_record_call_produces(self):
+        records = self._records("cats", count=3)
+        self._upsert(records)
+
+        for record in records:
+            stored = db.session.get(VaSubmissions, record["sid"]).va_category_list
+            self.assertEqual(
+                stored, va_preprocess_categoriestodisplay(record, self.FORM_ID)
+            )
+        self.assertEqual(stored, ["tn21cataa", "tn21catbb"])  # not trivially empty
+
+    def test_finalize_reads_master_data_once_per_call(self):
+        records = self._records("final")
+        self._upsert(records)
+        db.session.commit()
+
+        def finalize(subset):
+            with patch.object(
+                sync_module,
+                "_enrich_submission_payload_for_storage",
+                side_effect=lambda va_form, record, client=None: record,
+            ), _StatementCounter() as counter:
+                finalized = _finalize_enriched_submissions_for_form(
+                    self._form(),
+                    subset,
+                    {r["sid"]: r["KEY"] for r in subset},
+                    set(),
+                    client=None,
+                )
+            return finalized, self._master_reads(counter)
+
+        finalized10, reads10 = finalize(records[:10])
+        finalized30, reads30 = finalize(records)
+
+        self.assertEqual((finalized10, finalized30), (10, 30))
+        self.assertEqual(reads10[1], 1)
+        self.assertLessEqual(reads10[0], 2)
+        self.assertEqual(reads30, reads10)
 
 
 class MarkFormSyncIssuesTests(BaseTestCase):
@@ -438,7 +576,7 @@ class BuildRepairMapPayloadKeysTests(BaseTestCase):
             self._add(name, payload)
 
         with _StatementCounter() as counter:
-            repair_map, summary = _build_repair_map_for_form(self.FORM_ID, [], {})
+            repair_map, summary = _build_repair_map_for_form(self.FORM_ID, {}, {})
 
         for name, (_, needs_metadata, needs_attachments) in cases.items():
             with self.subTest(name):

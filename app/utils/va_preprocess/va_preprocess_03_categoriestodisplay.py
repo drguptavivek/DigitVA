@@ -5,7 +5,14 @@ from app.utils.va_form.va_form_02_formtyperesolution import (
 from app.utils.va_render.va_render_06_processcategorydata import va_render_processcategorydata
 
 
-def va_preprocess_categoriestodisplay(va_data, va_form_id, *, form_type_code=None):
+def va_preprocess_categoriestodisplay(
+    va_data, va_form_id, *, form_type_code=None, active_categories=None
+):
+    """Return the category codes a submission has data for.
+
+    ``active_categories`` lets a bulk caller read the form type's category
+    config once and share it across records; None reads it here.
+    """
     category_list = []
     try:
         from app.services.category_rendering_service import get_category_rendering_service
@@ -17,7 +24,11 @@ def va_preprocess_categoriestodisplay(va_data, va_form_id, *, form_type_code=Non
         )
         va_mapping_fieldsitepi = mapping_svc.get_fieldsitepi(effective_form_type_code)
         va_mapping_choice = mapping_svc.get_choices(effective_form_type_code)
-        for category in category_svc.get_all_active_categories(effective_form_type_code):
+        if active_categories is None:
+            active_categories = category_svc.get_all_active_categories(
+                effective_form_type_code
+            )
+        for category in active_categories:
             if category.always_include:
                 category_list.append(category.category_code)
                 continue

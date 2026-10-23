@@ -517,10 +517,28 @@ def _enrich_submission_payload_for_storage(va_form, va_submission: dict, *, clie
     return _reduce_incoming_national_ids(_sanitize_payload_value(enriched))
 
 
-def _submission_projection_fields(va_form, va_submission: dict) -> dict:
+def _projection_master_data(va_form):
+    """Return (form_type_code, active_categories) for a form's projections.
+
+    Bulk loops call this once and pass the result to every
+    ``_submission_projection_fields`` call; both are master-data reads that
+    do not vary per record. Never cached across calls: admins edit these tables.
+    """
+    from app.services.category_rendering_service import get_category_rendering_service
+
+    form_type_code = va_get_form_type_code_from_form(va_form)
+    return form_type_code, get_category_rendering_service().get_all_active_categories(
+        form_type_code
+    )
+
+
+def _submission_projection_fields(
+    va_form, va_submission: dict, *, form_type_code=None, active_categories=None
+) -> dict:
     va_submission_sid = va_submission.get("sid")
     va_submission_formid = va_submission.get("form_def")
-    form_type_code = va_get_form_type_code_from_form(va_form)
+    if form_type_code is None:
+        form_type_code = va_get_form_type_code_from_form(va_form)
     va_submission_date = parser.isoparse(va_submission.get("SubmissionDate"))
     va_submission_updatedat = (
         parser.isoparse(va_submission.get("updatedAt")).replace(tzinfo=None)
@@ -541,6 +559,7 @@ def _submission_projection_fields(va_form, va_submission: dict) -> dict:
     )
     va_submission_narrlang = _normalize_language(_raw_lang)
     normalized_age = normalize_who_2022_age(va_submission)
+    va_summary, va_catcount = va_preprocess_summcatenotification(va_submission)
     va_submission_age = normalized_age.legacy_age_years
     va_submission_gender = va_submission.get("Id10019") or "unknown"
     return {
@@ -561,12 +580,13 @@ def _submission_projection_fields(va_form, va_submission: dict) -> dict:
         "va_deceased_age_normalized_years": normalized_age.normalized_age_years,
         "va_deceased_age_source": normalized_age.normalized_age_source,
         "va_deceased_gender": va_submission_gender,
-        "va_summary": va_preprocess_summcatenotification(va_submission)[0],
-        "va_catcount": va_preprocess_summcatenotification(va_submission)[1],
+        "va_summary": va_summary,
+        "va_catcount": va_catcount,
         "va_category_list": va_preprocess_categoriestodisplay(
             va_submission,
             va_submission_formid,
             form_type_code=form_type_code,
+            active_categories=active_categories,
         ),
     }
 
@@ -765,6 +785,7 @@ def _prepared_submissions(
     """
     seen_sids: set[str] = set()
     records = va_submissions or []
+    form_type_code, active_categories = _projection_master_data(va_form)
     for start in range(0, len(records), _UPSERT_CHUNK_SIZE):
         prepared = []
         for va_submission in records[start:start + _UPSERT_CHUNK_SIZE]:
@@ -777,7 +798,15 @@ def _prepared_submissions(
             else:
                 va_submission = _reduce_incoming_national_ids(va_submission)
             prepared.append(
-                (va_submission, _submission_projection_fields(va_form, va_submission))
+                (
+                    va_submission,
+                    _submission_projection_fields(
+                        va_form,
+                        va_submission,
+                        form_type_code=form_type_code,
+                        active_categories=active_categories,
+                    ),
+                )
             )
 
         chunk_sids = [fields["va_sid"] for _, fields in prepared if fields["va_sid"] is not None]
@@ -1018,6 +1047,7 @@ def _finalize_enriched_submissions_for_form(
 ):
     finalized = 0
     total = len(upserted_map or {})
+    form_type_code, active_categories = _projection_master_data(va_form)
     raw_by_sid = {
         submission.get("sid"): submission
         for submission in (raw_submissions or [])
@@ -1034,7 +1064,12 @@ def _finalize_enriched_submissions_for_form(
             raw_submission,
             client=client,
         )
-        fields = _submission_projection_fields(va_form, enriched_submission)
+        fields = _submission_projection_fields(
+            va_form,
+            enriched_submission,
+            form_type_code=form_type_code,
+            active_categories=active_categories,
+        )
         existing = db.session.scalar(
             sa.select(VaSubmissions).where(VaSubmissions.va_sid == va_sid)
         )

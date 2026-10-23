@@ -6,17 +6,28 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { t } from "../i18n";
 import { radius, spacing, typography, useTheme } from "../theme";
 
-export function BottomSheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose(): void; children: ReactNode }) {
+/**
+ * `full` makes the sheet 92% high with a Close button (the searchable pickers); its children then own the scrolling
+ * (a FlatList), so they are not wrapped in a ScrollView.
+ */
+export function BottomSheet({ visible, title, onClose, children, full = false }: { visible: boolean; title: string; onClose(): void; children: ReactNode; full?: boolean }) {
   const { ui } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: "flex-end" }}>
         <Pressable accessibilityLabel={t("cancel")} onPress={onClose} style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15,27,45,0.55)" }} />
-        <View style={{ maxHeight: "85%", backgroundColor: ui.popover, borderTopLeftRadius: radius.lg * 2, borderTopRightRadius: radius.lg * 2, paddingTop: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: insets.bottom + spacing.md }}>
+        <View style={{ ...(full ? { height: "92%" } : { maxHeight: "85%" }), backgroundColor: ui.popover, borderTopLeftRadius: radius.lg * 2, borderTopRightRadius: radius.lg * 2, paddingTop: spacing.xs, paddingHorizontal: spacing.md, paddingBottom: insets.bottom + spacing.md }}>
           <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: ui.border, alignSelf: "center", marginBottom: spacing.xs }} />
-          <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, marginBottom: spacing.xs }}>{title}</Text>
-          <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs }}>
+            <Text accessibilityRole="header" style={{ ...typography.headline, color: ui.popoverForeground, flex: 1 }}>{title}</Text>
+            {full ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={t("pickerClose")} onPress={onClose} style={{ minHeight: 48, minWidth: 48, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ ...typography.body, color: ui.primary }}>{t("pickerClose")}</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          {full ? <View style={{ flex: 1 }}>{children}</View> : <ScrollView keyboardShouldPersistTaps="handled">{children}</ScrollView>}
         </View>
       </View>
     </Modal>

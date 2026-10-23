@@ -1,9 +1,10 @@
 /**
  * One interviewer's in-flight work: the cases downloaded for offline visits,
  * deaths registered on this phone and not yet sent, and interviews on this
- * phone. "New interview" (site/unit from the cached bootstrap), "Register a
- * death", sync (send everything, then refresh the case list), lock, and
- * sign out. Reached only while the interviewer's store is unlocked.
+ * phone. Two tabs share this route (`view`): Home, a dashboard (next step,
+ * unsent, cases needing a visit, Register a death), and Interviews, the
+ * searchable list. The data, sync and refresh logic is one; the views are in
+ * worklistParts.tsx. Reached only while the interviewer's store is unlocked.
  */
 import { randomUUID } from "expo-crypto";
 import {
@@ -13,7 +14,7 @@ import {
   useRouter,
 } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, AppState, Pressable, Text, View } from "react-native";
+import { Alert, AppState } from "react-native";
 
 import { useAppState } from "../AppState";
 import { SessionRevokedError, SignInRequiredError } from "../auth";
@@ -28,7 +29,6 @@ import {
 } from "../cases";
 import { listDrafts, retryDemoLimitDraft, type Db, type DraftRow } from "../drafts";
 import { t } from "../i18n";
-import { revisionName } from "../revisionLabel";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import {
   fetchSubmittedRevisions,
@@ -49,76 +49,32 @@ import {
   targetsFrom,
 } from "../sync";
 import { useToast } from "../toast";
-import { Button, errorText, Row, Screen, stateLabel, useUiStyles } from "../ui";
+import { Button, errorText, Screen } from "../ui";
+import { buildInterviewItems, interviewCounts, type InterviewAction, type InterviewItem } from "../ui/interviewRows";
+import { homeSummary } from "../ui/homeSummary";
+import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
+import type { PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
-
-function displayDate(value: string | null | undefined): string | undefined {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleDateString();
-}
-
-/** Format a server timestamp for the other-interviewer warning, if valid. */
-function otherDraftDate(value: string | null | undefined): string | undefined {
-  if (!value) return undefined;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? undefined : date.toLocaleString();
-}
-
-/** Show the server time when usable, otherwise the generic active warning. */
-function otherDraftWarning(value: string | null | undefined): string {
-  const date = otherDraftDate(value);
-  return date ? t("otherDraftActiveAt", { date }) : t("otherDraftActive");
-}
-
-function localRevisionStatus(row: RevisionRow): string {
-  switch (row.refusal_code) {
-    case "revision_locked":
-      return t("revisionLocked");
-    case "case_already_submitted":
-      return t("revisionAlreadySubmitted");
-    case "case_closed":
-      return t("revisionCaseClosed");
-    case "case_state_conflict":
-      return t("revisionCaseConflict");
-    case "invalid_reason":
-    case "required_finish_partial":
-      return t("revisionInvalidReason");
-    case "not_found":
-      return t("revisionUnavailable");
-    default:
-      if (row.state === "ready") return t("revisionSaved");
-      return row.state === "attention" ? t("revisionRetry") : t("draftInProgress");
-  }
-}
-
-function fieldValue(
-  label: string,
-  value: string | number | null | undefined,
-): string | undefined {
-  if (value === null || value === undefined || value === "") return undefined;
-  return `${label}: ${value}`;
-}
+import { HomeView, InterviewsView, Notice, ProjectLine, ProjectSheet, SitePickerSheet } from "./worklistParts";
 
 export default function Worklist() {
-  const { userId, registeredMine } = useLocalSearchParams<{ userId: string; registeredMine?: string }>();
+  const { userId, registeredMine, view, filter } = useLocalSearchParams<{ userId: string; registeredMine?: string; view?: string; filter?: string }>();
   const { accounts } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
   const reporterOnly = account?.collection_access !== true && account?.registration_access === true;
   if (reporterOnly || (registeredMine === "1" && account?.registered_deaths_access === true)) {
     return <RegisteredDeaths userId={userId} registeredMine={!reporterOnly} />;
   }
-  return <InterviewWorklist />;
+  return <InterviewWorklist interviews={(Array.isArray(view) ? view[0] : view) === "interviews"} filter={filter} />;
 }
 
-function InterviewWorklist() {
-  const styles = useUiStyles();
+function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter?: string | string[] }) {
   const router = useRouter();
   const { userId, refresh: refreshOnFocus } = useLocalSearchParams<{
     userId: string;
     refresh?: string;
   }>();
-  const { accounts, reload, lockVersion, syncAccount } = useAppState();
+  const { accounts, reload, lockVersion, syncAccount, offline } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
   const [db, setDb] = useState<Db | undefined>();
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
@@ -137,6 +93,8 @@ function InterviewWorklist() {
   const [referenceData, setReferenceData] =
     useState<Awaited<ReturnType<typeof getCachedReferenceData>>>();
   const [picking, setPicking] = useState(false);
+  const [choosingProject, setChoosingProject] = useState(false);
+  const [recent, setRecent] = useState<RecentTarget>();
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // Results and failures are toasts, so the list never shifts under the user's thumb. A clear ("") is a no-op.
@@ -224,6 +182,7 @@ function InterviewWorklist() {
     setOnlineCursor(null);
     setSelectedProjectId(undefined);
     setPicking(false);
+    setChoosingProject(false);
     setSupersededUniqueIds([]);
     setServerKeptUploads([]);
     setCanCodeNowUniqueIds([]);
@@ -564,6 +523,14 @@ function InterviewWorklist() {
     setReference,
   ]);
 
+  // "Recent" in the site picker: the last choice for this project, read from the interviewer's own store.
+  useEffect(() => {
+    let active = true;
+    setRecent(undefined);
+    if (db && selectedProjectId) void readRecentTarget(db, selectedProjectId).then((value) => { if (active) setRecent(value); });
+    return () => { active = false; };
+  }, [db, selectedProjectId]);
+
   if (!account) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) {
     return (
@@ -622,15 +589,6 @@ function InterviewWorklist() {
       setBusy(false);
       setRefreshing(false);
     }
-  }
-
-  async function refreshSubmittedInterviews() {
-    const currentReference = referenceDataRef.current;
-    if (!currentReference) return;
-    await loadSubmittedInterviews(
-      new Set(currentReference.projects.map(({ project }) => project.project_id)),
-      isCurrent,
-    );
   }
 
   function openRevision(summary: SubmittedRevisionSummary | RevisionRow) {
@@ -806,310 +764,79 @@ function InterviewWorklist() {
       authorizedProjectIds.has(row.project_id) &&
       (!selectedProjectId || row.project_id === selectedProjectId),
   );
-  return (
-    <Screen title={t("worklistTitle")}>
-      <Text style={styles.muted}>{account.name}</Text>
-      {account.registered_deaths_access ? (
-        <Button
-          kind="secondary"
-          label={t("myRegisteredDeaths")}
-          onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })}
-        />
-      ) : null}
-      {projects.length > 1 ? (
-        <View style={{ gap: 8 }}>
-          <Text style={styles.text}>{t("chooseProject")}</Text>
-          {projects.map((project) => (
-            <Button
-              key={project.project_id}
-              kind={
-                project.project_id === selectedProjectId
-                  ? "primary"
-                  : "secondary"
-              }
-              label={project.project_name}
-              onPress={() => {
-                onlineRequestGenerationRef.current += 1;
-                setSelectedProjectId(project.project_id);
-                setOnlineCases([]);
-                setOnlineCursor(null);
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
-      {picking ? (
-        <View style={{ gap: 8 }}>
-          <Text style={styles.text}>{t("chooseSite")}</Text>
-          {targets.length === 0 ? (
-            <Text style={styles.muted}>{t("noSites")}</Text>
-          ) : null}
-          {targets.map((target) => (
-            <Button
-              key={target.key}
-              kind="secondary"
-              label={target.label}
-              onPress={() => {
-                setPicking(false);
-                router.push({
-                  pathname: "/form",
-                  params: {
-                    userId: account.user_id,
-                    draftId: randomUUID(),
-                    projectId: target.projectId,
-                    siteId: target.siteId,
-                    ...(target.orgUnitId
-                      ? { orgUnitId: target.orgUnitId }
-                      : {}),
-                  },
-                });
-              }}
-            />
-          ))}
-          <Button
-            kind="secondary"
-            label={t("cancel")}
-            onPress={() => setPicking(false)}
-          />
-        </View>
-      ) : (
-        <Row>
-          <Button
-            label={t("newInterview")}
-            disabled={!db || !referenceData || targets.length === 0}
-            onPress={() => setPicking(true)}
-          />
-          <Button
-            kind="secondary"
-            label={t("registerDeath")}
-            disabled={
-              !db ||
-              !selectedProject ||
-              !registersDeaths(selectedProject.project)
-            }
-            onPress={() =>
-              router.push({
-                pathname: "/register",
-                params: {
-                  userId: account.user_id,
-                  projectId: selectedProject?.project.project_id ?? "",
-                },
-              })
-            }
-          />
-        </Row>
-      )}
-      <Text style={styles.text} accessibilityRole="header">
-        {t("reportedDeaths")}
-      </Text>
-      <Text style={styles.muted}>{t("followUpDeathsOnly")}</Text>
-      {visibleCases.length === 0 ? (
-        <Text style={styles.muted}>{t("noReportedDeaths")}</Text>
-      ) : null}
-      {visibleCases.map((row) => (
-        <View key={row.death_id} style={styles.card}>
-          <Text style={styles.text}>{row.deceased?.name ?? row.unique_id}</Text>
-          <Text style={styles.muted}>{row.unique_id}</Text>
-          {row.other_draft_active === true ? (
-            <>
-              <Text style={styles.muted}>
-                {otherDraftWarning(row.other_draft_started_at)}
-              </Text>
-              <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
-            </>
-          ) : null}
-          {row.other_complete_interview === true ? (
-            <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
-          ) : null}
-          {row.code_now === true ? (
-            <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
-          ) : null}
-          {(() => {
-            const metaSummary = [
-              fieldValue(
-                t("fieldAge").replace(/\s*\*\s*$/, ""),
-                row.deceased?.age_years,
-              ),
-              fieldValue(
-                t("fieldSex").replace(/\s*\*\s*$/, ""),
-                row.deceased?.sex,
-              ),
-              fieldValue(
-                t("fieldDateOfDeath").replace(/\s*\*\s*$/, ""),
-                displayDate(row.deceased?.date_of_death),
-              ),
-              fieldValue(t("chooseUnit"), row.unit_name),
-              fieldValue(t("deathStatus"), stateLabel(row.state)),
-              row.next_visit_at
-                ? t("nextVisit", {
-                    date: displayDate(row.next_visit_at) ?? row.next_visit_at,
-                  })
-                : undefined,
-            ]
-              .filter((value): value is string => Boolean(value))
-              .join(" · ");
-            return metaSummary ? (
-              <Text style={styles.muted}>{metaSummary}</Text>
-            ) : null;
-          })()}
-          <Button
-            size="sm"
-            kind="secondary"
-            label={t("viewDetails")}
-            onPress={() =>
-              router.push({
-                pathname: "/case",
-                params: {
-                  userId: account.user_id,
-                  projectId: row.project_id,
-                  deathId: row.death_id,
-                },
-              })
-            }
-          />
-        </View>
+  const items = buildInterviewItems({
+    drafts: visibleDrafts,
+    registrations: visibleRegistrations,
+    cases: visibleCases,
+    onlineCases: selectedProjectId ? onlineCases : [],
+    submitted: visibleSubmittedRevisions,
+    revisions: visibleRevisions,
+  });
+  const queuedActions = actions.filter((row) => authorizedProjectIds.has(row.project_id) && (!selectedProjectId || row.project_id === selectedProjectId)).length;
+  const summary = homeSummary(items, interviewCounts(items), queuedActions);
+  const canRegister = Boolean(selectedProject && registersDeaths(selectedProject.project) && account.registration_access);
+  const loaded = Boolean(db && referenceData);
+  const isOffline = Boolean(offline);
+
+  function startInterview(target: PickerTarget) {
+    setPicking(false);
+    if (db) void writeRecentTarget(db, target.projectId, { siteId: target.siteId, orgUnitId: target.orgUnitId });
+    router.push({
+      pathname: "/form",
+      params: {
+        userId: account!.user_id,
+        draftId: randomUUID(),
+        projectId: target.projectId,
+        siteId: target.siteId,
+        ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}),
+      },
+    });
+  }
+
+  function openRegister() {
+    router.push({ pathname: "/register", params: { userId: account!.user_id, projectId: selectedProject?.project.project_id ?? "" } });
+  }
+
+  function runAction(action: InterviewAction) {
+    if (action.type === "resume") {
+      router.push({
+        pathname: "/form",
+        params: { userId: account!.user_id, draftId: action.draft.id, ...(action.draft.project_id ? { projectId: action.draft.project_id } : {}) },
+      });
+    } else if (action.type === "case") {
+      router.push({ pathname: "/case", params: { userId: account!.user_id, projectId: action.projectId, deathId: action.deathId } });
+    } else if (action.type === "registration") {
+      router.push({ pathname: "/case", params: { userId: account!.user_id, clientDeathId: action.clientDeathId } });
+    } else {
+      openRevision(action.source);
+    }
+  }
+
+  function retryDemo(item: InterviewItem) {
+    const handle = dbRef.current;
+    if (handle && item.retryDemo) void retryDemoLimitDraft(handle, item.retryDemo.id).then(() => loadLocal(handle));
+  }
+
+  // Sync outcomes the old list showed under its buttons; kept as notices on both tabs.
+  const notices = (
+    <>
+      {draftConflict ? <Notice>{t("draftConflictNotice")}</Notice> : null}
+      {canCodeNowUniqueIds
+        .filter((uniqueId) =>
+          !cases.some((row) => row.unique_id === uniqueId && row.code_now === true) &&
+          !onlineCases.some((row) => row.unique_id === uniqueId && row.code_now === true)
+        )
+        .map((uniqueId) => <Notice key={`code-now-${uniqueId}`}>{t("readyForCodeOnWeb")}</Notice>)}
+      {supersededUniqueIds.map((uniqueId, index) => (
+        <Notice key={`${uniqueId}-${index}`}>{t("supersededInterviewNotice")} {t("storedInterviewId", { uniqueId })}</Notice>
       ))}
-      {onlineCases.length > 0 ? (
-        <>
-          <Text style={styles.text} accessibilityRole="header">
-            {t("reportedDeaths")} · {selectedProject?.project.project_name}
-          </Text>
-          {onlineCases.map((row) => (
-            <View key={"online-" + row.death_id} style={styles.card}>
-              <Text style={styles.text}>
-                {row.deceased_name ?? row.unique_id}
-              </Text>
-              <Text style={styles.muted}>
-                {row.unique_id} · {stateLabel(row.state)}
-              </Text>
-              {row.other_draft_active === true ? (
-                <>
-                  <Text style={styles.muted}>
-                    {otherDraftWarning(row.other_draft_started_at)}
-                  </Text>
-                  <Text style={styles.muted}>{t("otherDraftSyncNotice")}</Text>
-                </>
-              ) : null}
-              {row.other_complete_interview === true ? (
-                <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
-              ) : null}
-              {row.code_now === true ? (
-                <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
-              ) : null}
-              <Button
-                size="sm"
-                kind="secondary"
-                label={t("viewDetails")}
-                onPress={() =>
-                  router.push({
-                    pathname: "/case",
-                    params: {
-                      userId: account.user_id,
-                      projectId: row.project_id,
-                      deathId: row.death_id,
-                    },
-                  })
-                }
-              />
-            </View>
-          ))}
-        </>
-      ) : null}
-      {selectedProject ? (
-        <Button
-          kind="secondary"
-          loading={onlineBusy}
-          label={t("refresh")}
-          onPress={() => void loadOnlineMore()}
-        />
-      ) : null}
-      {onlineCursor ? (
-        <Button
-          kind="secondary"
-          loading={onlineBusy}
-          label={t("loadMore")}
-          onPress={() => void loadOnlineMore()}
-        />
-      ) : null}
-      {visibleRegistrations.length > 0 ? (
-        <Text style={styles.text} accessibilityRole="header">
-          {t("registrationsTitle")}
-        </Text>
-      ) : null}
-      {visibleRegistrations.map((reg) => (
-        <Pressable
-          key={reg.client_death_id}
-          accessibilityRole="button"
-          style={styles.card}
-          onPress={() =>
-            router.push({
-              pathname: "/case",
-              params: {
-                userId: account.user_id,
-                clientDeathId: reg.client_death_id,
-              },
-            })
-          }
-        >
-          <Text style={styles.text}>{reg.fields.deceased_name}</Text>
-          <Text
-            style={reg.state === "needs_edit" ? styles.error : styles.muted}
-          >
-            {reg.state === "needs_edit" ? t("needsEdit") : t("pendingSend")}
-          </Text>
-        </Pressable>
-      ))}
-      <Text style={styles.text} accessibilityRole="header">
-        {t("interviewsTitle")}
-      </Text>
-      {visibleDrafts.length === 0 ? (
-        <Text style={styles.muted}>{t("noDrafts")}</Text>
-      ) : null}
-      {visibleDrafts.map((draft) => (
-        <View key={draft.id} style={{ gap: 8 }}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={draft.completed === 1}
-          style={styles.card}
-          onPress={() =>
-            router.push({
-              pathname: "/form",
-              params: {
-                userId: account.user_id,
-                draftId: draft.id,
-                ...(draft.project_id
-                  ? { projectId: draft.project_id }
-                  : {}),
-              },
-            })
-          }
-        >
-          <Text style={styles.text}>
-            {draft.completed ? t("draftReady") : t("draftInProgress")}
-          </Text>
-          <Text style={styles.muted}>
-            {new Date(draft.updated_at).toLocaleString()} ·{" "}
-            {draft.unique_id ?? draft.id.slice(0, 8)}
-          </Text>
-          {draft.upload_issue === "answers_hash_invalid" ? (
-            <Text style={styles.error}>{t("draftHashInvalidAttention")}</Text>
-          ) : null}
-          {draft.upload_issue === "demo_limit" ? (
-            <Text style={styles.error}>{t("demoDraftLimit")}</Text>
-          ) : null}
-        </Pressable>
-        {draft.upload_issue === "demo_limit" ? (
-          <Button
-            kind="secondary"
-            label={t("demoDraftRetry")}
-            onPress={() => {
-              const handle = dbRef.current;
-              if (handle) void retryDemoLimitDraft(handle, draft.id).then(() => loadLocal(handle));
-            }}
-          />
-        ) : null}
-        </View>
-      ))}
+      {serverKeptUploads
+        .filter((notice) => !supersededUniqueIds.includes(notice.uniqueId))
+        .map(({ uniqueId, locked }) => (
+          <Notice key={`server-kept-${uniqueId}`}>
+            {t("submissionHistoryNotice")} {locked ? t("submissionLockedNotice") : ""} {t("storedInterviewId", { uniqueId })}
+          </Notice>
+        ))}
       {pausedProjects.map((paused) => {
         const count =
           drafts.filter((row) => row.project_id === paused.projectId).length +
@@ -1117,122 +844,95 @@ function InterviewWorklist() {
           actions.filter((row) => row.project_id === paused.projectId).length +
           revisions.filter((row) => row.project_id === paused.projectId).length;
         return (
-          <View key={`paused-${paused.projectId}`} style={styles.card}>
-            <Text style={styles.text} accessibilityRole="header">
-              {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })}
-            </Text>
-            <Text style={styles.muted}>{t("pausedProjectReason")}</Text>
-            {paused.refusal ? (
-              <Text style={styles.error}>
-                {t("pausedProjectRefused", { code: paused.refusal.code ?? String(paused.refusal.status) })}
-              </Text>
-            ) : null}
-          </View>
+          <Notice key={`paused-${paused.projectId}`}>
+            {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })} {t("pausedProjectReason")}
+            {paused.refusal ? ` ${t("pausedProjectRefused", { code: paused.refusal.code ?? String(paused.refusal.status) })}` : ""}
+          </Notice>
         );
       })}
-      <Text style={styles.text} accessibilityRole="header">
-        {t("submittedInterviewsTitle")}
-      </Text>
-      {submittedRevisionsError ? (
-        <>
-          <Text style={styles.muted}>{t("revisionRetry")}</Text>
+    </>
+  );
+
+  const projectLine = (
+    <ProjectLine
+      project={selectedProject?.project.project_name}
+      name={account.name}
+      onPress={projects.length > 1 ? () => setChoosingProject(true) : undefined}
+    />
+  );
+  const sheets = (
+    <>
+      <SitePickerSheet visible={picking} targets={targets} recent={recent} onPick={startInterview} onClose={() => setPicking(false)} />
+      <ProjectSheet
+        visible={choosingProject}
+        projects={projects}
+        selectedId={selectedProjectId}
+        onClose={() => setChoosingProject(false)}
+        onPick={(projectId) => {
+          setChoosingProject(false);
+          onlineRequestGenerationRef.current += 1;
+          setSelectedProjectId(projectId);
+          setOnlineCases([]);
+          setOnlineCursor(null);
+        }}
+      />
+    </>
+  );
+
+  if (interviews) {
+    return (
+      <Screen title={t("tabInterviews")} scroll={false}>
+        <InterviewsView
+          loaded={Boolean(db)}
+          offline={isOffline}
+          items={items}
+          initialFilter={filter}
+          canRegister={canRegister}
+          refreshing={refreshing}
+          busy={busy}
+          canRefresh={Boolean(db)}
+          hasMore={Boolean(onlineCursor)}
+          loadingMore={onlineBusy}
+          loadFailed={submittedRevisionsError}
+          onAction={runAction}
+          onRetryDemo={retryDemo}
+          onRegister={openRegister}
+          onRefresh={() => void refresh()}
+          onSend={() => void send()}
+          onLoadMore={() => void loadOnlineMore()}
+          header={projectLine}
+          footer={notices}
+        />
+        {sheets}
+      </Screen>
+    );
+  }
+  return (
+    <Screen title={t("home")}>
+      {projectLine}
+      <HomeView
+        loaded={Boolean(db)}
+        offline={isOffline}
+        summary={summary}
+        canStart={Boolean(db && referenceData && targets.length > 0)}
+        canRegister={canRegister}
+        busy={busy}
+        onResume={(item) => item.action && runAction(item.action)}
+        onStart={() => setPicking(true)}
+        onRegister={openRegister}
+        onSend={() => void send()}
+        onViewTodo={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "todo" } })}
+      >
+        {account.registered_deaths_access ? (
           <Button
             kind="secondary"
-            label={t("refresh")}
-            disabled={!referenceData}
-            onPress={() => void refreshSubmittedInterviews()}
+            label={t("myRegisteredDeaths")}
+            onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })}
           />
-        </>
-      ) : null}
-      {submittedRevisionsLoaded && visibleSubmittedRevisions.length === 0 ? (
-        <Text style={styles.muted}>{t("noSubmittedInterviews")}</Text>
-      ) : null}
-      {visibleSubmittedRevisions.map((row) => (
-        <View key={row.draft_id} style={styles.card}>
-          <Text style={styles.text}>{revisionName(row) ?? row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
-          {revisionName(row) ? <Text style={styles.muted}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text> : null}
-          {otherDraftDate(row.updated_at) ? (
-            <Text style={styles.muted}>{otherDraftDate(row.updated_at)}</Text>
-          ) : null}
-          <Button
-            size="sm"
-            kind="secondary"
-            label={t("reviseInterview")}
-            disabled={!db || !isUnlocked(account.user_id)}
-            onPress={() => openRevision(row)}
-          />
-        </View>
-      ))}
-      {visibleRevisions.length > 0 ? (
-        <Text style={styles.text} accessibilityRole="header">
-          {t("revisionTitle")}
-        </Text>
-      ) : null}
-      {visibleRevisions.map((row) => (
-        <Pressable
-          key={`revision-${row.draft_id}`}
-          accessibilityRole="button"
-          style={styles.card}
-          onPress={() => openRevision(row)}
-        >
-          <Text style={styles.text}>{revisionName(row) ?? row.unique_id ?? row.draft_id.slice(0, 8)}</Text>
-          {revisionName(row) ? <Text style={styles.muted}>{row.unique_id ?? row.draft_id.slice(0, 8)}</Text> : null}
-          <Text style={row.state === "attention" ? styles.error : styles.muted}>
-            {localRevisionStatus(row)}
-          </Text>
-          {otherDraftDate(row.updated_at) ? (
-            <Text style={styles.muted}>{otherDraftDate(row.updated_at)}</Text>
-          ) : null}
-        </Pressable>
-      ))}
-      <Row>
-        <Button
-          label={t("sync")}
-          disabled={busy || !db}
-          onPress={() => void send()}
-        />
-        <Button
-          kind="secondary"
-          label={t("refresh")}
-          loading={refreshing}
-          disabled={busy || !db}
-          onPress={() => void refresh()}
-        />
-      </Row>
-      {draftConflict ? (
-        <Text style={styles.text}>{t("draftConflictNotice")}</Text>
-      ) : null}
-      {canCodeNowUniqueIds
-        .filter((uniqueId) =>
-          !cases.some((row) => row.unique_id === uniqueId && row.code_now === true) &&
-          !onlineCases.some((row) => row.unique_id === uniqueId && row.code_now === true)
-        )
-        .map((uniqueId) => (
-          <Text key={`code-now-${uniqueId}`} style={styles.muted}>
-            {t("readyForCodeOnWeb")}
-          </Text>
-        ))}
-      {supersededUniqueIds.map((uniqueId, index) => (
-        <View key={`${uniqueId}-${index}`} style={styles.card}>
-          <Text style={styles.text}>{t("supersededInterviewNotice")}</Text>
-          <Text style={styles.muted}>
-            {t("storedInterviewId", { uniqueId })}
-          </Text>
-        </View>
-      ))}
-      {serverKeptUploads
-        .filter((notice) => !supersededUniqueIds.includes(notice.uniqueId))
-        .map(({ uniqueId, locked }) => (
-          <View key={`server-kept-${uniqueId}`} style={styles.card}>
-            <Text style={styles.text}>{t("submissionHistoryNotice")}</Text>
-            {locked ? (
-              <Text style={styles.muted}>{t("submissionLockedNotice")}</Text>
-            ) : null}
-            <Text style={styles.muted}>
-              {t("storedInterviewId", { uniqueId })}
-            </Text>
-          </View>
-        ))}
+        ) : null}
+        {notices}
+      </HomeView>
+      {sheets}
     </Screen>
   );
 }

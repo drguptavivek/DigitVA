@@ -1331,6 +1331,9 @@ export interface Target {
   projectId: string;
   siteId: string;
   orgUnitId?: string;
+  /** The parts of `label`, so a picker can show the unit alone under a site header. */
+  siteName?: string;
+  unitName?: string;
 }
 
 /**
@@ -1345,13 +1348,15 @@ export function targetsFrom(project: ProjectSettings | undefined, units: Units |
   const choices = units.units.filter((unit) => unit.selectable && unit.is_active !== false);
   return sites.flatMap((entry) => {
     const site = entry.site_name ?? entry.site_id;
-    if (units.levels.length === 0) return [{ key: `${project.project_id}:${entry.site_id}`, label: site, projectId: project.project_id, siteId: entry.site_id }];
+    if (units.levels.length === 0) return [{ key: `${project.project_id}:${entry.site_id}`, label: site, projectId: project.project_id, siteId: entry.site_id, siteName: site }];
     return choices.map((unit) => ({
       key: `${project.project_id}:${entry.site_id}:${unit.org_unit_id}`,
       label: `${site} · ${unit.unit_name}`,
       projectId: project.project_id,
       siteId: entry.site_id,
-      orgUnitId: unit.org_unit_id
+      orgUnitId: unit.org_unit_id,
+      siteName: site,
+      unitName: unit.unit_name
     }));
   });
 }

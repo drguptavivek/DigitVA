@@ -5,6 +5,7 @@ import type { AccessProject, IntakeContextEntry } from "../api";
 import { t } from "../i18n";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button } from "../ui";
+import { isInternalPlaceholderUnit } from "../ui/placeholderUnit";
 
 /** Filters the "Advanced filters" sheet applies on both VA Interview tabs. Empty string = not set. */
 export type AdvancedFilters = {
@@ -552,10 +553,7 @@ export function withinLastDays(value: string | null | undefined, days: number, n
   return Boolean(day) && day! >= formatLocal(new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1)));
 }
 
-/** A placeholder unit the server names for a sites-mode project; never shown. */
-export function isInternalPlaceholderUnit(name: string | null | undefined): boolean {
-  return !name || /^sites_in_project_/i.test(name.trim());
-}
+export { isInternalPlaceholderUnit };
 
 type UnitInfo = { code: string; name: string; path: string; breadcrumb: string };
 export type OrgLookup = { byId: Map<string, UnitInfo>; byName: Map<string, UnitInfo> };

@@ -10,6 +10,7 @@ import { t } from "../i18n";
 import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import type { CaseRow } from "../api";
 import { Button, Screen, useUiStyles } from "../ui";
+import { OfflineNotice, SkeletonCards, StateView } from "../ui/StateView";
 import { isUnlocked } from "../interviewerDb";
 
 export default function RegisteredDeaths({
@@ -21,7 +22,7 @@ export default function RegisteredDeaths({
 }) {
   const router = useRouter();
   const styles = useUiStyles();
-  const { accounts, lockNow, reload, lockVersion } = useAppState();
+  const { accounts, lockNow, reload, lockVersion, offline } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
   const ownerKey = `${userId}:${registeredMine ? "mine" : "all"}`;
   const renderContextRef = useRef({
@@ -138,9 +139,12 @@ export default function RegisteredDeaths({
         <Button kind="secondary" label={t("worklistTitle")} onPress={() => router.replace({ pathname: "/worklist", params: { userId } })} />
       ) : null}
       <Button label={t("newDeath")} onPress={() => router.push({ pathname: "/register", params: { userId } })} />
-      <Button kind="secondary" label={t("refresh")} loading={busy} onPress={() => void load()} />
-      {message ? <Text style={styles.error}>{message}</Text> : null}
-      {visibleDeaths.length === 0 && !busy ? <Text style={styles.muted}>{t("noReportedDeaths")}</Text> : null}
+      {offline ? <OfflineNotice /> : null}
+      <Button kind="secondary" label={t("refresh")} loading={busy} disabled={Boolean(offline)} onPress={() => void load()} />
+      {offline ? <Text style={styles.muted}>{t("refreshNeedsConnection")}</Text> : null}
+      {message ? <StateView kind="error" title={t("stateErrorTitle")} hint={message} actionLabel={t("refresh")} onAction={() => void load()} /> : null}
+      {visibleDeaths.length === 0 && busy && !message ? <SkeletonCards count={2} /> : null}
+      {visibleDeaths.length === 0 && !busy && !message ? <StateView title={t("stateNoDeathsTitle")} hint={t("stateNoDeathsHint")} actionLabel={t("newDeath")} onAction={() => router.push({ pathname: "/register", params: { userId } })} /> : null}
       {visibleDeaths.map((death) => (
         <View key={death.death_id} style={styles.card}>
           <Text style={styles.text}>{death.deceased_name ?? death.unique_id}</Text>

@@ -1337,7 +1337,7 @@ describe("sync upload ordering", () => {
         { org_unit_id: "P1", unit_code: "P1", unit_name: "Unit P1", level_code: "phc", path: "P1", selectable: true }
       ]
     };
-    expect(targetsFrom(selected, units)).toEqual([{ key: "P2:S2:P1", label: "Site 2 · Unit P1", projectId: "P2", siteId: "S2", orgUnitId: "P1" }]);
+    expect(targetsFrom(selected, units)).toEqual([{ key: "P2:S2:P1", label: "Site 2 · Unit P1", projectId: "P2", siteId: "S2", orgUnitId: "P1", siteName: "Site 2", unitName: "Unit P1" }]);
   });
 
   it("downloads active cases page by page, then fetches and stores each full detail", async () => {

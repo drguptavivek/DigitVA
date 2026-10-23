@@ -38,6 +38,8 @@ let mockParams: {
   clientDeathId?: string;
   deathId?: string;
   refresh?: string;
+  view?: string;
+  filter?: string;
 } = { userId: "u1" };
 let mockReference: unknown;
 let mockCachedReference: unknown;
@@ -113,6 +115,10 @@ jest.mock("expo-crypto", () => {
   };
 });
 
+jest.mock("react-native-safe-area-context", () => ({
+  ...jest.requireActual("react-native-safe-area-context"),
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
 jest.mock("expo-router", () => ({
   Redirect: () => null,
   useRouter: () => mockRouter,
@@ -437,6 +443,14 @@ import {
 } from "../src/sync";
 import { saveRegistration } from "../src/cases";
 
+/** The rendered tree as JSON without the FlatList's own `data` prop, which repeats every row's fields. */
+const dump = (tree: ReturnType<typeof create>) =>
+  JSON.stringify(tree.toJSON(), (key, value) => (key === "data" && Array.isArray(value) ? undefined : value));
+const press = (tree: ReturnType<typeof create>, label: string) =>
+  tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0].props.onPress();
+const pressStarting = (tree: ReturnType<typeof create>, prefix: string) =>
+  tree.root.findAll((n) => String(n.props.accessibilityLabel ?? "").startsWith(prefix) && typeof n.props.onPress === "function")[0].props.onPress();
+
 const settle = async () =>
   act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -444,7 +458,7 @@ const settle = async () =>
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockParams = { userId: "u1" };
+  mockParams = { userId: "u1", view: "interviews" };
   mockReference = pack();
   mockCachedReference = mockReference;
   mockCachedCases = [];
@@ -496,7 +510,7 @@ describe("native project-aware routes", () => {
     await settle();
 
     expect(jest.requireMock("../src/revisions").fetchSubmittedRevisions).toHaveBeenCalledWith("u1");
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("VA-SUBMITTED");
     expect(rendered).not.toContain('"other"');
     expect(mockRouter.push).not.toHaveBeenCalled();
@@ -522,7 +536,7 @@ describe("native project-aware routes", () => {
     await act(async () => { tree = create(<Worklist />); });
     await settle();
     await settle();
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("Asha Rao");
     expect(rendered.split("VA-NAMED").length - 1).toBe(1);
     expect(rendered).toContain("VA-NONAME");
@@ -548,10 +562,9 @@ describe("native project-aware routes", () => {
     await settle();
     await settle();
 
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("revisionRetry");
     expect(rendered).toContain("VA-LOCAL");
-    expect(rendered).toContain("interviewsTitle");
     await act(async () => tree!.unmount());
   });
 
@@ -614,7 +627,7 @@ describe("native project-aware routes", () => {
     await settle();
 
     expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(2);
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("VA-REVOKED");
+    expect(dump(tree!)).not.toContain("VA-REVOKED");
     mockReference = pack("both", "P2");
     const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
     await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
@@ -622,8 +635,8 @@ describe("native project-aware routes", () => {
     await settle();
 
     expect(fetchSubmittedRevisions).toHaveBeenCalledTimes(3);
-    expect(JSON.stringify(tree!.toJSON())).toContain("VA-CURRENT");
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("VA-REVOKED");
+    expect(dump(tree!)).toContain("VA-CURRENT");
+    expect(dump(tree!)).not.toContain("VA-REVOKED");
     await act(async () => {
       resolveOldList([{
         draft_id: "revoked-draft",
@@ -637,7 +650,7 @@ describe("native project-aware routes", () => {
     });
     await settle();
 
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("VA-CURRENT");
     expect(rendered).not.toContain("VA-REVOKED");
     expect(tree!.root.findAllByProps({ "data-label": "reviseInterview" })).toHaveLength(1);
@@ -683,7 +696,7 @@ describe("native project-aware routes", () => {
     await settle();
     await settle();
 
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("referenceDataUnavailable");
+    expect(dump(tree!)).not.toContain("referenceDataUnavailable");
     expect(jest.requireMock("../src/drafts").setMeta).toHaveBeenCalledWith(
       mockDb,
       `draft-config:${id}`,
@@ -944,7 +957,7 @@ describe("native project-aware routes", () => {
     });
     await settle();
 
-    expect(JSON.stringify(tree!.toJSON())).toContain("error");
+    expect(dump(tree!)).toContain("error");
     expect(jest.requireMock("../src/drafts").createDraftStore).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
@@ -984,7 +997,7 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain(
       `otherDraftActiveAt ${new Date(startedAt).toLocaleString()}`,
     );
@@ -993,7 +1006,7 @@ describe("native project-aware routes", () => {
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered.match(/Another complete interview of this case is with the supervisor\./g)).toHaveLength(1);
     const viewDetails = tree!.root.findAllByProps({
-      "data-label": "viewDetails",
+      "data-label": "actionStart",
     })[0];
     expect(Boolean(viewDetails.props.disabled)).toBe(false);
     await act(async () => viewDetails.props.onClick());
@@ -1044,14 +1057,14 @@ describe("native project-aware routes", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<Case />); });
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("Another complete interview of this case is with the supervisor.");
+    expect(dump(tree!)).not.toContain("Another complete interview of this case is with the supervisor.");
     await act(async () => tree!.unmount());
 
     (fetchCaseDetail as jest.Mock).mockResolvedValueOnce({ ...detail, other_complete_interview: true, code_now: true });
     await act(async () => { tree = create(<Case />); });
     await settle();
 
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("Another complete interview of this case is with the supervisor.");
     expect(rendered).toContain("readyForCode");
     expect(rendered).toContain("logAttempt");
@@ -1092,7 +1105,7 @@ describe("native project-aware routes", () => {
       tree!.root.findAllByProps({ "data-label": "refresh" })[0].props.onClick(),
     );
     await settle();
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("otherDraftActive");
     expect(rendered).toContain("readyForCode");
     expect(rendered).toContain("otherDraftSyncNotice");
@@ -1123,24 +1136,54 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    expect(
-      tree!.root.findByProps({ "data-label": "Project P2" }),
-    ).toBeDefined();
+    await act(async () => pressStarting(tree!, "Project P1 · Interviewer"));
+    await act(async () => press(tree!, "Project P2"));
+    mockParams = { userId: "u1" };
+    await act(async () => tree!.update(<Worklist />));
     await act(async () =>
-      tree!.root.findByProps({ "data-label": "Project P2" }).props.onClick(),
+      tree!.root.findByProps({ "data-label": "homeStartInterview" }).props.onClick(),
     );
-    await act(async () =>
-      tree!.root.findByProps({ "data-label": "newInterview" }).props.onClick(),
-    );
-    await act(async () =>
-      tree!.root.findByProps({ "data-label": "Site 1" }).props.onClick(),
-    );
+    await act(async () => press(tree!, "Site 1"));
     expect(mockRouter.push).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: "/form",
         params: expect.objectContaining({ projectId: "P2" }),
       }),
     );
+    await act(async () => tree!.unmount());
+  });
+
+  it("builds Home from local data: resumes the latest draft, counts unsent, and opens Interviews filtered to to-do", async () => {
+    mockParams = { userId: "u1" };
+    mockCachedCases = [{ death_id: "C1", unique_id: "VA-C1", project_id: "P1", site_id: "S1", state: "registered", unit_name: null, my_draft_id: null, deceased: { name: "Asha Rao" }, updated_at: "2026-10-01T00:00:00Z" }];
+    (jest.requireMock("../src/drafts").listDrafts as jest.Mock).mockResolvedValue([
+      { id: "draft-1", project_id: "P1", completed: 0, updated_at: "2026-10-04T00:00:00.000Z", unique_id: "VA-X", death_id: null },
+    ]);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    const out = dump(tree!);
+    expect(out).toContain("homeDraftsOne");
+    expect(out).toContain('"1"'); // one unsent (the draft); one case needs a visit
+    await act(async () => tree!.root.findByProps({ "data-label": "homeResumeDraft" }).props.onClick());
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/form", params: { userId: "u1", draftId: "draft-1", projectId: "P1" } });
+    await act(async () => tree!.root.findByProps({ "data-label": "homeView" }).props.onClick());
+    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "todo" } });
+    await act(async () => tree!.unmount());
+  });
+
+  it("starts an interview from the site picker with the same route params, and remembers the choice", async () => {
+    mockParams = { userId: "u1" };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await act(async () => tree!.root.findByProps({ "data-label": "homeStartInterview" }).props.onClick());
+    await act(async () => press(tree!, "Site 1"));
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      pathname: "/form",
+      params: { userId: "u1", draftId: "44444444-4444-4444-8444-444444444444", projectId: "P1", siteId: "S1" },
+    });
+    expect(jest.requireMock("../src/drafts").setMeta).toHaveBeenCalledWith(mockDb, "recentTarget", { siteId: "S1" }, "P1");
     await act(async () => tree!.unmount());
   });
 
@@ -1221,19 +1264,15 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).not.toContain("This interview was already uploaded");
     expect(rendered).not.toContain("VA-STORED");
-    const buttons = tree!.root
-      .findAllByProps({ accessibilityRole: "button" });
-    const oldIssueDraft = buttons.find((button) =>
-      button.findAllByType(Text).some((node) => String(node.props.children).includes("VA-LOCAL")),
-    );
-    const completedDraft = buttons.find((button) =>
-      button.findAllByType(Text).some((node) => String(node.props.children).includes("VA-COMPLETED")),
-    );
-    expect(oldIssueDraft?.props.disabled).toBe(false);
-    expect(completedDraft?.props.disabled).toBe(true);
+    // A draft that is not finished offers Resume; one already marked ready to send offers nothing to press.
+    const resume = tree!.root.findAllByProps({ "data-label": "actionResume" });
+    expect(resume).toHaveLength(1);
+    expect(dump(tree!)).toContain("VA-COMPLETED");
+    expect(dump(tree!)).toContain("draftReady");
+    const oldIssueDraft = { props: { onPress: resume[0].props.onClick } };
     await act(async () => oldIssueDraft?.props.onPress());
     expect(mockRouter.push).toHaveBeenCalledWith(
       expect.objectContaining({ pathname: "/form", params: expect.objectContaining({ draftId: "draft-mismatch" }) }),
@@ -1267,10 +1306,10 @@ describe("native project-aware routes", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<Worklist />); });
     await settle();
-    await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
     await settle();
 
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain("A newer completed version is already with the coder; yours was saved as history.");
     expect(rendered).toContain("Coding has finished; only a send-back or reopen can change the coder's version.");
     expect(rendered).toContain("Stored interview: VA-KEPT");
@@ -1297,19 +1336,19 @@ describe("native project-aware routes", () => {
     await act(async () => { tree = create(<Worklist />); });
     await settle();
     (refreshReferenceData as jest.Mock).mockRejectedValueOnce(new TypeError("Network request failed"));
-    await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).toContain("readyForCode");
+    expect(dump(tree!)).toContain("readyForCode");
 
     const refreshButtons = tree!.root.findAllByProps({ "data-label": "refresh" });
     await act(async () => refreshButtons[refreshButtons.length - 1].props.onClick());
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCode");
+    expect(dump(tree!)).not.toContain("readyForCode");
 
     (syncInterviewer as jest.Mock).mockResolvedValueOnce({ sent: 0, failed: 0, remaining: 0, supersededUniqueIds: [] });
-    await act(async () => tree!.root.findByProps({ "data-label": "sync" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick());
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("readyForCode");
+    expect(dump(tree!)).not.toContain("readyForCode");
     await act(async () => tree!.unmount());
   });
 
@@ -1331,14 +1370,12 @@ describe("native project-aware routes", () => {
       tree = create(<Worklist />);
     });
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).toContain(
+    expect(dump(tree!)).toContain(
       "This interview could not be verified. Open it, review the answers, and try sending it again.",
     );
-    const draftButton = tree!.root
-      .findAllByProps({ accessibilityRole: "button" })
-      .find((button) => button.props.disabled === false);
+    const draftButton = tree!.root.findAllByProps({ "data-label": "actionResume" })[0];
     expect(draftButton).toBeDefined();
-    await act(async () => draftButton!.props.onPress());
+    await act(async () => draftButton!.props.onClick());
     expect(mockRouter.push).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: "/form",
@@ -1362,9 +1399,9 @@ describe("native project-aware routes", () => {
     });
     await settle();
     await act(async () =>
-      tree!.root.findByProps({ "data-label": "sync" }).props.onClick(),
+      tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick(),
     );
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain(
       "Another interview of this case is with the coder; yours was saved as history.",
     );
@@ -1390,10 +1427,10 @@ describe("native project-aware routes", () => {
     });
     await settle();
     await act(async () =>
-      tree!.root.findByProps({ "data-label": "sync" }).props.onClick(),
+      tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick(),
     );
     await settle();
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain(
       "Another interview of this case is with the coder; yours was saved as history.",
     );
@@ -1419,10 +1456,10 @@ describe("native project-aware routes", () => {
     });
     await settle();
     await act(async () =>
-      tree!.root.findByProps({ "data-label": "sync" }).props.onClick(),
+      tree!.root.findByProps({ "data-label": "homeSendNow" }).props.onClick(),
     );
     await settle();
-    const rendered = JSON.stringify(tree!.toJSON());
+    const rendered = dump(tree!);
     expect(rendered).toContain(
       "This interview was also edited on another device; the newer version was kept.",
     );
@@ -1501,7 +1538,7 @@ describe("native project-aware routes", () => {
     });
     await settle();
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("Removed contact");
+    expect(dump(tree!)).not.toContain("Removed contact");
     await act(async () => tree!.unmount());
   });
 
@@ -1551,9 +1588,8 @@ describe("native project-aware routes", () => {
       tree!.root.findAllByProps({ "data-label": "refresh" })[0].props.onClick(),
     );
     await settle();
-    await act(async () =>
-      tree!.root.findByProps({ "data-label": "Project P2" }).props.onClick(),
-    );
+    await act(async () => pressStarting(tree!, "Project P1 · Interviewer"));
+    await act(async () => press(tree!, "Project P2"));
     resolvePage({
       cases: [
         {
@@ -1567,7 +1603,7 @@ describe("native project-aware routes", () => {
       next_cursor: null,
     });
     await settle();
-    expect(JSON.stringify(tree!.toJSON())).not.toContain("Old project contact");
+    expect(dump(tree!)).not.toContain("Old project contact");
     await act(async () => tree!.unmount());
   });
 });

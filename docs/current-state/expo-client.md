@@ -125,7 +125,9 @@ it. It reads `GET /intake/cases` (the interviewer scope plus the deaths a
 `can_interview: false`). One primary action per card (Code now, else Resume,
 Start interview, Edit, View); Start, Resume and View need `can_interview`.
 
-Case cards. Both tabs render one card, `CaseCard` in `src/web/DeathsList.tsx`.
+Case cards. Both tabs render one card, `CaseCard` in `src/ui/CaseCard.tsx`
+(re-exported by `src/web/DeathsList.tsx`; the phone Interviews list uses it with
+`idBelowTitle`, the ID as a muted second line).
 Line 1: the name (the ID when there is no name), age (`51 y`), sex and the
 status badges (text, never colour alone). Line 2: `Died:` date and `Area:`.
 Line 3: `Last contact:`, `Next visit:` and, on My
@@ -300,8 +302,17 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   navigation-bar insets to the header and tabs while they show.
 - `navAdapter.ts` feeds the account's access summary to `src/web/navTabs.ts`
   and keeps Home, Interviews, Register death; Sync opens a sheet. Home and
-  Interviews both open the worklist (`view=interviews` marks the second) until
-  the Home dashboard of the design exists.
+  Interviews share the `/worklist` route (`view=interviews` marks the second;
+  `filter=todo|drafts|sent|revisions` opens it on a chip). Home is the
+  dashboard (next step, unsent, cases needing a visit, Register a death);
+  Interviews is a search box, filter chips with counts and a `FlatList` of
+  cards, one primary action each. Both are built from the same local rows
+  (`src/ui/interviewRows.ts`, pure), views in `src/nativeRoutes/worklistParts.tsx`.
+  The site/unit picker (`src/ui/ChoiceSheet.tsx`, model `src/ui/sitePicker.ts`)
+  lists unit names only, groups by site only across several real sites, hides
+  internal placeholder names, and keeps the last choice per project in the
+  interviewer's encrypted `meta` (`src/recentTarget.ts`). `src/ui/StateView.tsx`
+  holds the Empty, Loading (skeleton rows) and Offline states.
 - `sheets.tsx` holds the Account, Help and Sync sheets; Help text is
   `help_<screen>_what|do1..3` in `src/strings/*.json`, chosen by
   `helpContent.ts`, whose guide slugs a test keeps equal to

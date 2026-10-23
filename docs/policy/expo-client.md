@@ -185,6 +185,19 @@ the app's English and Hindi dictionaries, so it works offline; only "Open the
 full guide" needs the network and opens the server's help page in the phone's
 browser.
 
+Home is a dashboard from local data only: the next step (Resume draft, or Start
+an interview when none), the unsent count (Send now) and the cases needing a
+visit (View, opening Interviews on the To do chip), then Register a death when
+the account may register. Interviews searches name, ID, unit and village
+(case-insensitive, Unicode-normalised, so Hindi works), filters by All, Drafts,
+To do, Sent and Revisions with counts, and shows one card per case: the name as
+title, the ID as a muted second line, a status badge and one primary action.
+Choosing a site and unit is a searchable full-height sheet of unit names (site
+headers only across several real sites; internal placeholder names never
+shown), with the last choice under Recent. Lists show skeleton rows while
+loading, an empty state with the next action, and a persistent notice while
+offline (Refresh disabled with the reason; work stays on the phone).
+
 ## Screen capture (temporary allowance)
 
 The native app blocks screenshots and screen recording (`FLAG_SECURE`, applied

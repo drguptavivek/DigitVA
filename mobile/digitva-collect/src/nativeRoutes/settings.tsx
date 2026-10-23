@@ -18,7 +18,7 @@ import { confirmReEnrol, reEnrolDevice } from "../reEnrolConfirm";
 import { useToast } from "../toast";
 import { checkForUpdate, type UpdateResult } from "../updateCheck";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
-import { biometricEnabled } from "../vault";
+import { biometricEnabled, screenLockAvailable, screenLockEnabled, turnOffBiometric, turnOffScreenLock } from "../vault";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const styles = useUiStyles();
@@ -37,6 +37,9 @@ export default function NativeSettings() {
   const { device, accounts, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
   const styles = useUiStyles();
   const [biometricUsers, setBiometricUsers] = useState<Set<string>>(new Set());
+  const [screenLockUsers, setScreenLockUsers] = useState<Set<string>>(new Set());
+  const [screenLockPossible, setScreenLockPossible] = useState(false);
+  const [optionsVersion, setOptionsVersion] = useState(0);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -53,10 +56,16 @@ export default function NativeSettings() {
         setBiometricUsers(new Set());
         setError(t("errGeneric"));
       });
+    void Promise.all(accounts.map(async (account) => [account.user_id, await screenLockEnabled(account.user_id)] as const))
+      .then((entries) => {
+        if (active) setScreenLockUsers(new Set(entries.filter(([, enabled]) => enabled).map(([userId]) => userId)));
+      })
+      .catch(() => undefined);
+    void screenLockAvailable().then((ok) => active && setScreenLockPossible(ok)).catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [accounts]);
+  }, [accounts, optionsVersion]);
   const biometricAvailable = canUseBiometricAuthentication();
   const account = accounts.find((item) => item.user_id === shell.userId);
   async function requestBiometric(userId: string) {
@@ -72,6 +81,31 @@ export default function NativeSettings() {
       setError(t("errGeneric"));
     } finally {
       setBusy(false);
+    }
+  }
+  /** Turn the screen-lock option on (needs the PIN, as fingerprint does) or either option off. */
+  async function requestScreenLock(userId: string) {
+    setBusy(true);
+    setError("");
+    try {
+      if (!(await lockNow())) {
+        setError(t("errGeneric"));
+        return;
+      }
+      router.push({ pathname: "/unlock", params: { userId, enableScreenLock: "1" } });
+    } catch {
+      setError(t("errGeneric"));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function turnOff(turnOffOption: (userId: string) => Promise<void>, userId: string) {
+    setError("");
+    try {
+      await turnOffOption(userId);
+      setOptionsVersion((n) => n + 1);
+    } catch {
+      setError(t("errGeneric"));
     }
   }
   async function reEnrol() {
@@ -140,7 +174,10 @@ export default function NativeSettings() {
       <Section title={t("settingsSecurity")}>
         <Text style={styles.text}>{t("autoLockInfo", { minutes: Math.round(IDLE_LOCK_MS / 60_000) })}</Text>
         {biometricAvailable && accounts.map((item) => biometricUsers.has(item.user_id) ? (
-          <Text key={`biometric-on-${item.user_id}`} style={styles.muted}>{`${t("biometricOn")}: ${item.name}`}</Text>
+          <View key={`biometric-on-${item.user_id}`} style={{ gap: 8 }}>
+            <Text style={styles.muted}>{`${t("biometricOn")}: ${item.name}`}</Text>
+            <Button kind="secondary" label={`${t("biometricOff")}: ${item.name}`} onPress={() => void turnOff(turnOffBiometric, item.user_id)} />
+          </View>
         ) : (
           <Button
             key={`biometric-${item.user_id}`}
@@ -151,6 +188,21 @@ export default function NativeSettings() {
             onPress={() => void requestBiometric(item.user_id)}
           />
         ))}
+        {accounts.map((item) => screenLockUsers.has(item.user_id) ? (
+          <View key={`screen-lock-on-${item.user_id}`} style={{ gap: 8 }}>
+            <Text style={styles.muted}>{`${t("screenLockOn")}: ${item.name}`}</Text>
+            <Button kind="secondary" label={`${t("screenLockOff")}: ${item.name}`} onPress={() => void turnOff(turnOffScreenLock, item.user_id)} />
+          </View>
+        ) : screenLockPossible ? (
+          <Button
+            key={`screen-lock-${item.user_id}`}
+            kind="secondary"
+            label={`${t("screenLockEnable")}: ${item.name}`}
+            loading={busy}
+            disabled={busy}
+            onPress={() => void requestScreenLock(item.user_id)}
+          />
+        ) : null)}
       </Section>
       <Section title={t("tabSync")}>
         <Text style={styles.text}>{sync.lastAt ? t("syncChipSynced", { time: clock(sync.lastAt) }) : t("syncChipNever")}</Text>

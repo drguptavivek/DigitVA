@@ -1246,5 +1246,17 @@
   "problemsChip": "{count} समस्याएँ",
   "formRevisionLabel": "संशोधन",
   "formPreviewAnswers": "उत्तर देखें",
-  "revisionReasonRequired": "संशोधन का कारण चुनें।"
+  "revisionReasonRequired": "संशोधन का कारण चुनें।",
+  "errSignInQrInvalid": "यह साइन-इन QR अब मान्य नहीं है। अपने पर्यवेक्षक से नया QR माँगें।",
+  "enrolConfirmSignInHint": "यह QR इस फ़ोन को सेट करेगा और आपको साइन इन करेगा। केवल तभी आगे बढ़ें जब यह आपके पर्यवेक्षक ने दिया हो।",
+  "pinShow": "पिन दिखाएँ",
+  "pinHide": "पिन छिपाएँ",
+  "screenLockEnable": "फ़ोन का स्क्रीन लॉक इस्तेमाल करें",
+  "screenLockOn": "फ़ोन के स्क्रीन लॉक से खोलना चालू है",
+  "screenLockOff": "फ़ोन के स्क्रीन लॉक से खोलना बंद करें",
+  "biometricOff": "फ़िंगरप्रिंट से खोलना बंद करें",
+  "screenLockPrompt": "फ़ोन के स्क्रीन लॉक से DigitVA Collect खोलें",
+  "unlockOptionsOffer": "अगली बार जल्दी खोलना चाहते हैं? अपना फ़िंगरप्रिंट या फ़ोन का स्क्रीन लॉक इस्तेमाल करें। पिन हमेशा काम करेगा।",
+  "unlockOptionFailed": "इसे चालू नहीं किया जा सका। आप फिर कोशिश कर सकते हैं, या छोड़कर पिन इस्तेमाल करें।",
+  "pinLonger": "मेरा पिन 6 अंकों से लंबा है"
 }

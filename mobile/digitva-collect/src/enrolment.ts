@@ -141,3 +141,33 @@ export function parseEnrolmentQr(raw: string, isDev: boolean): EnrolmentPayload 
   if (!origin) throw new EnrolmentError("errServerNotAllowed");
   return { server: origin, code: enroll, project };
 }
+
+/** A scanned QR: the device-only enrolment code, or a sign-in token (docs/policy/mobile-sign-in.md section 8). */
+export type ScannedQr =
+  | ({ kind: "enroll" } & EnrolmentPayload)
+  | { kind: "sign_in"; server: string; token: string };
+
+/**
+ * Parse a scanned or pasted QR of either kind. A payload with a `sign_in`
+ * field is the sign-in QR `{"v":1,"server":...,"sign_in":<token>}`; anything
+ * else must be an enrolment QR. The server rule is the same for both.
+ * Throws EnrolmentError; the token is never put in a message.
+ */
+export function parseScannedQr(raw: string, isDev: boolean): ScannedQr {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new EnrolmentError("errBadQr");
+  }
+  if (typeof value !== "object" || value === null || !("sign_in" in value)) {
+    return { kind: "enroll", ...parseEnrolmentQr(raw, isDev) };
+  }
+  const { v, server, sign_in: token } = value as Record<string, unknown>;
+  if (v !== 1 || typeof server !== "string" || typeof token !== "string" || !/^[A-Za-z0-9_-]{16,256}$/.test(token)) {
+    throw new EnrolmentError("errBadQr");
+  }
+  const origin = acceptedServerOrigin(server, isDev);
+  if (!origin) throw new EnrolmentError("errServerNotAllowed");
+  return { kind: "sign_in", server: origin, token };
+}

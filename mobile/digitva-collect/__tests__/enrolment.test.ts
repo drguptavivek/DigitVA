@@ -1,4 +1,4 @@
-import { acceptedServerOrigin, DEFAULT_RELEASE_SERVER, normalizeHttpsOrigin, parseEnrolmentQr } from "../src/enrolment";
+import { acceptedServerOrigin, DEFAULT_RELEASE_SERVER, EnrolmentError, normalizeHttpsOrigin, parseEnrolmentQr, parseScannedQr } from "../src/enrolment";
 
 const releaseOrigin = new URL(
   process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_RELEASE_SERVER
@@ -119,6 +119,47 @@ describe("parseEnrolmentQr", () => {
       JSON.stringify({ v: 1, server: "https://digitva.causeofdeathindia.com", project: "UNSW01" })
     ]) {
       expect(() => parseEnrolmentQr(raw, true)).toThrow("errBadQr");
+    }
+  });
+});
+
+describe("parseScannedQr", () => {
+  const SERVER = "https://digitva.causeofdeathindia.com";
+  const TOKEN = "SignInTokenSignInTokenSignInToken123";
+  const signIn = (extra: Record<string, unknown> = {}) => JSON.stringify({ v: 1, server: SERVER, sign_in: TOKEN, ...extra });
+
+  it("reads an enrolment QR as before, tagged enroll", () => {
+    expect(parseScannedQr(qr(SERVER), false)).toEqual({ kind: "enroll", server: SERVER, code: "AbCdEf123456_-x", project: "UNSW01" });
+  });
+
+  it("reads a sign-in QR", () => {
+    expect(parseScannedQr(signIn(), false)).toEqual({ kind: "sign_in", server: SERVER, token: TOKEN });
+  });
+
+  it("applies the same server rule to a sign-in QR", () => {
+    for (const server of ["https://evilcauseofdeathindia.com", "http://digitva.causeofdeathindia.com", "https://digitva.causeofdeathindia.com/x"]) {
+      expect(() => parseScannedQr(signIn({ server }), false)).toThrow(expect.objectContaining({ key: "errServerNotAllowed" }));
+    }
+    expect(() => parseScannedQr(signIn({ server: "http://localhost:8051" }), false)).toThrow(EnrolmentError);
+    expect(parseScannedQr(signIn({ server: "http://localhost:8051" }), true).server).toBe("http://localhost:8051");
+  });
+
+  it.each([
+    ["not json", "nope"],
+    ["wrong version", signIn({ v: 2 })],
+    ["token too short", signIn({ sign_in: "short" })],
+    ["token with bad characters", signIn({ sign_in: "bad token bad token bad token!" })],
+    ["token not a string", signIn({ sign_in: 12345678901234567890 })],
+    ["no server", JSON.stringify({ v: 1, sign_in: TOKEN })],
+  ])("rejects a bad sign-in QR: %s", (_name, raw) => {
+    expect(() => parseScannedQr(raw, false)).toThrow(expect.objectContaining({ key: "errBadQr" }));
+  });
+
+  it("never puts the token in the error", () => {
+    try {
+      parseScannedQr(signIn({ server: "https://evil.io" }), false);
+    } catch (caught) {
+      expect(String(caught) + JSON.stringify(caught)).not.toContain(TOKEN);
     }
   });
 });

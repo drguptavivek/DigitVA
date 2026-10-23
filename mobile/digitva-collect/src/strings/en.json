@@ -1246,5 +1246,17 @@
   "problemsChip": "{count} problems",
   "formRevisionLabel": "Revision",
   "formPreviewAnswers": "Preview answers",
-  "revisionReasonRequired": "Choose a reason for the revision."
+  "revisionReasonRequired": "Choose a reason for the revision.",
+  "errSignInQrInvalid": "This sign-in QR is no longer valid. Ask your supervisor for a new one.",
+  "enrolConfirmSignInHint": "This QR will set up this phone and sign you in. Continue only if your supervisor gave it to you.",
+  "pinShow": "Show PIN",
+  "pinHide": "Hide PIN",
+  "screenLockEnable": "Use phone screen lock",
+  "screenLockOn": "Phone screen lock unlock is on",
+  "screenLockOff": "Turn off phone screen lock",
+  "biometricOff": "Turn off fingerprint",
+  "screenLockPrompt": "Unlock DigitVA Collect with your phone screen lock",
+  "unlockOptionsOffer": "Unlock faster next time? Use your fingerprint or your phone's screen lock. The PIN always works too.",
+  "unlockOptionFailed": "Could not turn this on. You can try again, or skip and use the PIN.",
+  "pinLonger": "My PIN is longer than 6 digits"
 }

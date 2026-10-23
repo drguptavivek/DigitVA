@@ -26,7 +26,16 @@ jest.mock("../src/AppState", () => ({
     reload: mockReload,
   }),
 }));
-jest.mock("../src/vault", () => ({ biometricEnabled: async () => false }));
+let mockScreenLockOn = false;
+let mockScreenLockPossible = true;
+const mockTurnOffScreenLock = jest.fn(async (_userId: string) => undefined);
+jest.mock("../src/vault", () => ({
+  biometricEnabled: async () => false,
+  screenLockEnabled: async () => mockScreenLockOn,
+  screenLockAvailable: async () => mockScreenLockPossible,
+  turnOffBiometric: jest.fn(async () => undefined),
+  turnOffScreenLock: (userId: string) => mockTurnOffScreenLock(userId),
+}));
 jest.mock("../src/errorExport", () => ({ exportErrors: () => mockExport() }));
 jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 jest.mock("../src/reEnrolConfirm", () => ({
@@ -58,6 +67,8 @@ const out = (tree: ReactTestRenderer) => JSON.stringify(tree.toJSON());
 beforeEach(() => {
   jest.clearAllMocks();
   mockBiometricAvailable = true;
+  mockScreenLockOn = false;
+  mockScreenLockPossible = true;
 });
 
 it("is titled Settings and shows every section", async () => {
@@ -119,4 +130,20 @@ it("exports errors and says how many entries were shared, or that there are none
   mockExport.mockRejectedValueOnce(new Error("share failed"));
   await pressLabel(tree, "Export errors");
   expect(mockToast.mock.calls.at(-1)?.[0]).toMatchObject({ kind: "error" });
+});
+
+it("turns the phone screen lock on through the PIN screen, and off again", async () => {
+  const tree = await render();
+  await pressLabel(tree, "Use phone screen lock: Asha");
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "a", enableScreenLock: "1" } });
+  mockScreenLockOn = true;
+  const on = await render();
+  expect(out(on)).toContain("Phone screen lock unlock is on");
+  await pressLabel(on, "Turn off phone screen lock: Asha");
+  expect(mockTurnOffScreenLock).toHaveBeenCalledWith("a");
+});
+
+it("offers no screen-lock button on a phone without a screen lock", async () => {
+  mockScreenLockPossible = false;
+  expect(out(await render())).not.toContain("Use phone screen lock");
 });

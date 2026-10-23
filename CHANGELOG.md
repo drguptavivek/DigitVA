@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **`finalAgeInYears` on web and app submissions** (`digitva-wsab`): set by
+  the ND01 rule (ageInYears, else ageInYears2, else "000") so `va_deceased_age`
+  is no longer 0 ("Age: 0" on coding cards); migration `e7b2c4d8f1a3` backfills
+  existing web/device payloads in place, reversibly. Refresh the analytics MV
+  after it runs. `docs/policy/who-2022-age-derivation.md`.
 - **Expo web `expo-web-v2026.10.23.3`** (from `d31d1ef8d`: Training menu and screens) pinned in `x-release-pins`.
 - **Training in the Expo app** (`digitva-r2pf`, `digitva-rcwt`): a Training
   menu (Interview, Coding, Review by training role) and `/app/training`;

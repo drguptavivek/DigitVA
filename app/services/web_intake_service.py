@@ -102,6 +102,7 @@ from app.services.web_form_relevance_service import (
     form_version_of,
     strip_irrelevant_answers,
 )
+from app.services.who_age_normalization import derive_final_age_in_years
 from app.services.who_va_answers import age_field, birth_answer
 from app.services.who_va_answers import choice as choice_answer
 from app.services.who_va_answers import whole as whole_answer
@@ -2249,6 +2250,10 @@ def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, sub
     payload["intake_locale"] = meta.get("locale") or DEFAULT_LOCALE
     payload["intake_translation_version"] = meta.get("translation_version") or 0
     payload["unique_id2"] = f"{draft.unique_id}_{submitted_at.strftime('%H%M%S')}{int(submitted_at.microsecond / 1000):03}"
+    # The ND01 calculate the WHO workbook lacks; coding cards, exports and the
+    # age band read it. Never replaces one the payload already carries.
+    if payload.get("finalAgeInYears") in (None, ""):
+        payload["finalAgeInYears"] = derive_final_age_in_years(payload)
     return payload, references
 
 

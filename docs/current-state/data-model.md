@@ -1149,7 +1149,7 @@ Key fields:
 - `va_uniqueid_masked`
 - `va_consent`
 - `va_narration_language`
-- `va_deceased_age`
+- `va_deceased_age` (from `finalAgeInYears`; web and device payloads get it from the server, see `docs/policy/who-2022-age-derivation.md`)
 - `va_deceased_age_normalized_days`
 - `va_deceased_age_normalized_years`
 - `va_deceased_age_source`

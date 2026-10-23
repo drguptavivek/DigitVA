@@ -1276,6 +1276,36 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(payload["intake_locale"], "hi")
         self.assertEqual(payload["intake_translation_version"], 7)
 
+    def test_build_web_payload_sets_final_age_in_years_by_the_nd01_rule(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        cases = (
+            ("device", {"ageInYears": "47", "ageInYears2": "50"}, "47"),
+            ("web", {"ageInYears": "NaN", "ageInYears2": "12"}, "12"),
+            ("web", {"ageInYears": "", "ageInYears2": ""}, "000"),
+            ("web", {"ageInYears": "47", "finalAgeInYears": "62"}, "62"),
+        )
+        for source, answers, expected in cases:
+            with self.subTest(answers=answers, source=source):
+                payload, _ = intake_svc.build_web_payload(
+                    draft, {"Id10013": "yes", **answers}, self.interviewer,
+                    submitted_at=datetime.now(timezone.utc), intake_source=source,
+                )
+                self.assertEqual(payload["finalAgeInYears"], expected)
+
+    def test_submit_stores_final_age_and_projects_it(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        submission = intake_svc.submit_draft(
+            draft, self.interviewer,
+            completion=self._completion(data={"ageInYears": "47", "finalAgeInYears": None}),
+        )
+        payload = db.session.get(VaSubmissionPayloadVersion, submission.active_payload_version_id).payload_data
+        self.assertEqual(payload["finalAgeInYears"], "47")
+        self.assertEqual(submission.va_deceased_age, 47)
+
     def test_build_web_payload_lifts_attachment_answers_out_of_the_payload(self):
         draft = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID

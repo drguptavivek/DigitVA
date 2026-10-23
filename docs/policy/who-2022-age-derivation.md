@@ -3,7 +3,7 @@ title: WHO 2022 Age Derivation Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-10-23
 ---
 
 # WHO 2022 Age Derivation Policy
@@ -59,6 +59,16 @@ The form derives `finalAgeInYears` as:
 
 - `ageInYears` when the date-derived path is available
 - otherwise `ageInYears2`
+- `"000"` when both are empty or `NaN`
+
+This is an ND01 (ICMR) site-workbook calculate; the WHO workbook the web and
+app forms are built from lacks it. So the server sets it on every web and
+device submission and revision (`build_web_payload`,
+`who_age_normalization.derive_final_age_in_years`) by the same rule, unless
+the payload already carries one. ODK payloads are never touched. Without it
+`va_submissions.va_deceased_age` (coding-card "Age", exports, analytics age
+band) was 0 for those cases. Migration `e7b2c4d8f1a3` backfilled existing ones
+(digitva-wsab).
 
 `finalAgeInYears` is therefore a fallback-compatible coarse age field, not the only authoritative age value for analytics.
 

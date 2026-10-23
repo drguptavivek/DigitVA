@@ -48,6 +48,25 @@ def _parse_decimal(value) -> Decimal | None:
     return parsed
 
 
+def derive_final_age_in_years(payload: dict | None) -> str:
+    """The ND01 ``finalAgeInYears`` calculate: ``ageInYears``, else
+    ``ageInYears2``, else ``"000"`` when both are empty or NaN.
+
+    The WHO workbook behind the web and app forms lacks this calculate (only
+    the ND01 site workbook has it), so the server applies the same rule to
+    those payloads. Returns the string an ODK calculate would store.
+    """
+    payload = payload or {}
+    for key in ("ageInYears", "ageInYears2"):
+        value = payload.get(key)
+        if value is None or isinstance(value, bool):
+            continue
+        if str(value).strip() in ("", "NaN", "nan"):
+            continue
+        return str(value)
+    return "000"
+
+
 def _flag_is_true(value) -> bool:
     return str(value).strip() in _TRUE_VALUES
 

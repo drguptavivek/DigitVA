@@ -33,13 +33,13 @@ CPU-bound (2 cores), not memory-bound.
 
 0. **Landing queue** (owner 2026-10-23: land the optimizations; one committer
    session lands them, each after its own targeted tests, one full suite per
-   landing): COD snapshot detoast `digitva-o7a6` (branch
-   `claude/cod-snapshot-detoast`, migration `b7e2d4f6a8c1`) → per-request trim
-   incl. `digitva-kxit` → SmartVA coalescing `digitva-96ik`
+   landing): per-request trim `digitva-lb6b` incl. `digitva-kxit` (migration
+   `c5e7a9b1d3f6`) → SmartVA coalescing `digitva-96ik`
    (`claude/cool-haibt-16aa88`, ICMR parity pending) → smartva-rust 3.0.2
    `digitva-kyxr` (`claude/clever-kowalevski-f5fc5a`, with its
    `SMARTVA_RS_*` pin bump) → streaming exports and paged ODK sync
-   `digitva-lj7u`. Follow-up: `digitva-mubf` (COD bucket rule mismatch).
+   `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
+   (EXPLAIN a real staging bucket report before more MV work).
 1. **`digitva-kxit` (P1)**: two coders can allocate the same case; the slower
    one gets HTTP 500 instead of 409. Seen 4 times in the staging load test.
 2. **Releases.** Each web change ships as an Expo web release (`npm run

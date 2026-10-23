@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **COD snapshot refresh ~2.5x faster** (`digitva-o7a6`, migration
+  `b7e2d4f6a8c1`; `docs/current-state/submission-analytics.md`). The 34 payload
+  fields come from one `jsonb_to_record` decode instead of 34 detoasts, and
+  analytics MV refreshes run with JIT off. Dev REFRESH CONCURRENTLY 3.3 s ->
+  1.3 s (staging estimate 7.7 s -> ~3 s); view contents identical. The upgrade
+  rebuilds `va_submission_cod_snapshot_mv` WITH DATA (~1-3 s). The ICD-11
+  ancestor-chain MV (`digitva-3xko`) was shelved: small gain, see the bead.
 - **SmartVA in-process** (`e00cd1249`, `digitva-5gsq`; `docs/current-state/smartva-analysis.md`
   Throughput). The worker calls `libsmartva_rust.so` through ctypes instead of
   a subprocess per run: 8.2 -> 17.7 tasks/s on a real worker, identical stored

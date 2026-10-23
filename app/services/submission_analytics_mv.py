@@ -570,12 +570,37 @@ def build_submission_cod_snapshot_mv_sql(
     ``WHO_2022_VA`` ICD-10-only SQL that the historical snapshot migrations
     replay; ``mas_icd11_mms`` and ``icd_classification`` do not exist when
     they run. ``ensure_submission_cod_snapshot_mv`` passes True; migration
-    ``d1a6e3b7c2f4`` holds a frozen copy of the True output.
+    ``b7e2d4f6a8c1`` holds a frozen copy of the True output. The True SQL also
+    decodes the payload once per row (``jsonb_to_record``): each ``->>`` on the
+    TOASTed jsonb would otherwise detoast the whole document again, 34 times.
     """
+    def payload_field(key: str) -> str:
+        return f'pf."{key}"' if icd11_buckets else f"ap.payload_data ->> '{key}'"
+
     social_autopsy_payload_projection = ",\n".join(
-        f"    ap.payload_data ->> '{field_id}' AS {field_id}"
+        f"    {payload_field(field_id)} AS {field_id}"
         for field_id in SOCIAL_AUTOPSY_PAYLOAD_FIELDS
     )
+    payload_decode = ""
+    if icd11_buckets:
+        pf_columns = ", ".join(
+            f'"{key}" text'
+            for key in (
+                "unique_id",
+                "survey_block",
+                "Id10476",
+                "narration",
+                "Narrative Text",
+                *SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
+            )
+        )
+        # CASE keeps ->> semantics: NULL for a non-object payload, where a bare
+        # jsonb_to_record would raise and fail every refresh.
+        payload_decode = (
+            "\nLEFT JOIN LATERAL jsonb_to_record("
+            "CASE WHEN jsonb_typeof(ap.payload_data) = 'object' THEN ap.payload_data END"
+            f") AS pf({pf_columns}) ON true"
+        )
     if icd11_buckets:
         recursive = " RECURSIVE"
         bucket_ctes, bucket_columns, bucket_joins = _who_2026_bucket_sql()
@@ -870,8 +895,8 @@ coder_actor AS (
 )
 SELECT
     s.va_sid,
-    ap.payload_data ->> 'unique_id' AS unique_id,
-    ap.payload_data ->> 'survey_block' AS survey_block,
+    {payload_field('unique_id')} AS unique_id,
+    {payload_field('survey_block')} AS survey_block,
     f.project_id,
     f.site_id,
     s.va_form_id AS form_id,
@@ -886,9 +911,9 @@ SELECT
     s.va_deceased_age_normalized_years AS age_normalized_years,
     s.va_deceased_age_source AS age_source,
     COALESCE(
-        ap.payload_data ->> 'Id10476',
-        ap.payload_data ->> 'narration',
-        ap.payload_data ->> 'Narrative Text'
+        {payload_field('Id10476')},
+        {payload_field('narration')},
+        {payload_field('Narrative Text')}
     ) AS narrative_text,
     ca.user_id AS coder_user_id,
     coder_user.name AS coder_name,
@@ -1008,7 +1033,7 @@ SELECT
 FROM va_submissions s
 JOIN va_forms f ON f.form_id = s.va_form_id
 LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-LEFT JOIN active_payload ap ON ap.va_sid = s.va_sid
+LEFT JOIN active_payload ap ON ap.va_sid = s.va_sid{payload_decode}
 LEFT JOIN latest_initial ini ON ini.va_sid = s.va_sid
 LEFT JOIN latest_coder_final cf ON cf.va_sid = s.va_sid
 LEFT JOIN latest_reviewer_final rf ON rf.va_sid = s.va_sid
@@ -1050,10 +1075,16 @@ def _refresh_one(view_name: str, *, concurrently: bool = False) -> None:
     if not exists:
         return
     sql = sa.text(_build_refresh_sql(view_name, concurrently=concurrently))
+    # JIT compilation costs more than it saves on these one-shot refreshes
+    # (staging EXPLAIN: ~0.55 s of JIT on the snapshot refresh). SET LOCAL ends
+    # with the transaction, so no pooled connection keeps jit off.
+    jit_off = sa.text("SET LOCAL jit = off")
     if concurrently:
-        with db.engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        with db.engine.begin() as conn:
+            conn.execute(jit_off)
             conn.execute(sql)
         return
+    db.session.execute(jit_off)
     db.session.execute(sql)
     db.session.commit()
 

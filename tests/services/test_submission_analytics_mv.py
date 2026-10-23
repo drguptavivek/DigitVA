@@ -1089,6 +1089,43 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(row["sa14"], "1")
         self.assertEqual(row["sa_tu14"], "Transport strike delayed referral")
 
+    def test_cod_snapshot_sql_decodes_payload_once_only_for_icd11_buckets(self):
+        """The default (frozen) SQL that historical migrations replay keeps one
+        ``->>`` per field; the live SQL decodes the payload once per row."""
+        frozen = build_submission_cod_snapshot_mv_sql()
+        live = build_submission_cod_snapshot_mv_sql(icd11_buckets=True)
+
+        self.assertIn("ap.payload_data ->>", frozen)
+        self.assertNotIn("jsonb_to_record", frozen)
+        self.assertNotIn("ap.payload_data ->>", live)
+        self.assertIn("LEFT JOIN LATERAL jsonb_to_record(", live)
+
+    def test_cod_snapshot_mv_narrative_text_falls_back_through_payload_keys(self):
+        fallbacks = {
+            "uuid:mv-narr-primary": ({"Id10476": "primary", "narration": "second"}, "primary"),
+            "uuid:mv-narr-second": ({"narration": "second", "Narrative Text": "third"}, "second"),
+            "uuid:mv-narr-third": ({"Narrative Text": "third"}, "third"),
+            "uuid:mv-narr-none": ({"ageInYears": "40"}, None),
+        }
+        for sid, (payload, _expected) in fallbacks.items():
+            self._add_submission(sid, payload)
+        db.session.commit()
+
+        refresh_submission_analytics_mv(concurrently=False)
+
+        rows = dict(
+            db.session.execute(
+                sa.text(
+                    f"SELECT va_sid, narrative_text FROM {COD_SNAPSHOT_MV_NAME} "
+                    "WHERE va_sid = ANY(:sids)"
+                ),
+                {"sids": list(fallbacks)},
+            ).all()
+        )
+        self.assertEqual(set(rows), set(fallbacks))
+        for sid, (_payload, expected) in fallbacks.items():
+            self.assertEqual(rows[sid], expected, sid)
+
     def test_cod_snapshot_mv_emits_one_row_per_submission_for_who_bucket(self):
         """Commit 5580394 deduped map_icd_cod_buckets and added the unique
         index ux_map_icd_cod_buckets_scheme_scope_icd_norm, so the duplicate

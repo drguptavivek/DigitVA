@@ -3,7 +3,7 @@ title: Submission Analytics Materialized View
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Submission Analytics Materialized Views
@@ -173,6 +173,10 @@ Current refresh behavior:
 The refresh helpers are implemented in
 [submission_analytics_mv.py](../../app/services/submission_analytics_mv.py).
 
+Every refresh runs with `SET LOCAL jit = off` in its own transaction: JIT
+compilation costs more than it saves on these one-shot refreshes, and
+`SET LOCAL` ends with the transaction, so no pooled connection keeps it off.
+
 ## Indexes
 
 The materialized views have indexes for common analytics filters, including:
@@ -312,6 +316,11 @@ state for a submission. It includes:
   - `build_submission_cod_snapshot_mv_sql()` still returns the old SQL by
     default, for the historical migrations that call it;
     `icd11_buckets=True` returns the current SQL
+  - the current SQL reads the 34 payload fields (`unique_id`, `survey_block`,
+    the narrative keys, the `sa*` answers) from one `jsonb_to_record` decode
+    in a lateral join (migration `b7e2d4f6a8c1`). A `->>` per field
+    re-detoasts the whole TOASTed payload each time, which dominated the
+    refresh; the rows are identical
 - active NQA projection, including individual NQA question columns
 - active Social Autopsy projection, including analysis summary fields and raw
   active-payload `sa*` questionnaire fields

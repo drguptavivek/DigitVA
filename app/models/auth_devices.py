@@ -68,6 +68,12 @@ class AuthDevice(db.Model):
     enrolled_via: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("auth_device_enrolment_codes.id"), nullable=True
     )
+    # Set instead of ``enrolled_via`` when a sign-in QR enrolled the device
+    # (mobile-sign-in.md section 8): the token row, not an enrolment code.
+    enrolled_via_sign_in_token: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("auth_sign_in_tokens.id", name="fk_auth_devices_enrolled_via_sign_in_token", use_alter=True),
+        nullable=True
+    )
     revoked_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     revoked_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
@@ -168,3 +174,46 @@ class AuthDeviceSession(db.Model):
     outstanding_reported_at: so.Mapped[datetime | None] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )
+
+
+class AuthSignInToken(db.Model):
+    """A sign-in QR: one single-use token that enrols a device and opens that
+    one user's normal device session (docs/policy/mobile-sign-in.md section 8).
+    Only the SHA-256 of ``secrets.token_urlsafe(32)`` is stored. At most one is
+    pending per user (a newer issue voids the old). Rules:
+    app/services/sign_in_qr_service.py."""
+
+    __tablename__ = "auth_sign_in_tokens"
+    __table_args__ = (
+        sa.Index(
+            "ix_auth_sign_in_tokens_pending_user",
+            "user_id",
+            unique=True,
+            postgresql_where=sa.text("redeemed_at IS NULL AND revoked_at IS NULL"),
+        ),
+    )
+
+    id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: so.Mapped[str] = so.mapped_column(sa.String(64), unique=True, nullable=False)
+    issued_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id", ondelete="SET NULL"), nullable=True
+    )
+    issued_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    expires_at: so.Mapped[datetime] = so.mapped_column(sa.DateTime(timezone=True), nullable=False)
+    redeemed_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    redeemed_device_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("auth_devices.device_id"), nullable=True
+    )
+    revoked_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    # The user's ``auth_session_version`` at issue: a later bump (sign out
+    # everywhere, password or factor reset) makes the token invalid.
+    user_session_version: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False)
+    # The ``sign_in_qr_expired`` audit row is written once, when first noticed.
+    expiry_noted_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)

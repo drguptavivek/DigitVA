@@ -1,0 +1,15 @@
+Hello {{ name }},
+
+This QR signs you in to the DigitVA Collect app on your phone, with no password.
+
+1. Install the DigitVA Collect app on your Android phone if you have not already.
+2. Open the app and choose to scan the sign-in QR.
+3. Scan the QR in the HTML version of this email. Open it on a computer or another phone to scan it: a phone cannot scan its own screen.
+4. Set a PIN of at least 6 digits. You will use it to open the app.
+
+Sign-in code: {{ code }}
+
+This QR works once, for one phone, for 6 hours. Whoever scans it is signed in as you, so do not share or forward it.
+If you did not expect this email, tell your supervisor.
+
+DigitVA Team

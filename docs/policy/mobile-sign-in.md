@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Sign-in by Mobile Number
@@ -219,10 +219,11 @@ that would collect an interviewer's password.
   it asks once, signs every interviewer out (the ordinary sign-out wipe) and
   drops the enrolment, then opens the enrol screen for the new server's QR.
 
-## 8. Sign-in QR (owner decision 2026-10-23, not yet built)
+## 8. Sign-in QR (owner decision 2026-10-23; server built, phone and Users-page screens pending)
 
-**Approved by the owner 2026-10-23; not yet built** (digitva-3g19). Sections
-1 to 7 stay authoritative until it ships.
+**Approved by the owner 2026-10-23; server built** (digitva-3g19: tables,
+issue, redeem, revoke, status and audit; the phone scan screen and the Users
+page controls follow). Sections 1 to 7 stay authoritative.
 
 Today a new data collector needs two things: the enrolment QR (a device
 credential, section 6) and then their own password. This proposal lets one
@@ -243,7 +244,9 @@ scan do both for the least-privileged accounts.
   or created.
 - **Token.** `secrets.token_urlsafe(32)`, stored only as its SHA-256 hash,
   never logged, never shown again after issue. Single use; bound to one user
-  and to the one device that redeems it first (that enrolment records the
+  and to the user's `auth_session_version` at issue (sign out everywhere, a
+  password or factor reset voids a pending QR), and to the one device that
+  redeems it first (that enrolment records the
   token as `enrolled_via`). Expires after **6 hours**. Issuing a new one voids the previous. Redeem is rate-limited per
   IP, per device and per token, and a wrong token gives one indistinguishable
   answer. Revocable from the Users page.
@@ -259,7 +262,10 @@ scan do both for the least-privileged accounts.
   user), `sign_in_qr_redeemed` (device id), `sign_in_qr_expired` and
   `sign_in_qr_revoked` (actor). A redeem also sends the user's email address
   a notice ("this phone was signed in with a sign-in QR; if this wasn't you,
-  tell your supervisor"), no token in it.
+  tell your supervisor"), no token in it, sent only to a **verified** address.
+  A redeem refused because the person is no longer eligible, or because their
+  sessions were reset since issue, audits `sign_in_qr_refused` (reason, no
+  token).
 - **Threat model.** Whoever holds an unredeemed token becomes that person on
   a phone: a compromised mailbox, a forwarded email or a photographed QR
   grants device-API access to the user's cases until redeemed or expired.
@@ -271,6 +277,10 @@ scan do both for the least-privileged accounts.
   are excluded outright. Residual risk: the window before redeem, and a
   stranger redeeming first. This is weaker than password sign-in, which
   needs something the person knows.
+- **Show-QR needs no verified sign-in.** Redeem does not require the person's
+  `sign_in_verified` flag: the issuer hands the on-screen QR over in person and
+  so verifies who is holding the phone. The email route is limited to a
+  verified address for the same reason.
 - **What stays.** Password sign-in (email or mobile, section 2) and the
   one-time code (section 3) are unchanged. The enrolment QR (device only,
   sections 6 and 7) continues for everyone else, including all roles above.

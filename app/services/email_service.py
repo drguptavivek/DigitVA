@@ -186,6 +186,42 @@ def send_enrolment_email(user, *, code: str, qr_png: bytes, apk_url: str | None)
     )
 
 
+SIGN_IN_QR_CID = "sign-in-qr"
+
+
+def send_sign_in_qr_email(user, *, code: str, qr_png: bytes) -> None:
+    """Send a data collector their sign-in QR *synchronously*, never through
+    Celery: the token signs them in, so it must not sit in the broker
+    (mobile-sign-in.md section 8). Raises on any failure; the caller logs ids
+    only."""
+    if not can_deliver_to(user.email):
+        raise RuntimeError("Mail is not configured, delivery is off, or this recipient is suppressed.")
+
+    _actually_send_email(
+        to=user.email,
+        subject="Sign in to the DigitVA Collect app",
+        template_name="emails/sign_in_qr",
+        context={"name": user.name, "code": code, "qr_cid": SIGN_IN_QR_CID},
+        inline_images=[(SIGN_IN_QR_CID, qr_png)],
+    )
+
+
+def send_sign_in_qr_redeemed_notice(user) -> bool:
+    """Tell the address on file that a phone was signed in with a sign-in QR.
+    Queued like the other notices: it carries no token. Only a verified
+    address is told."""
+    if not user.email or not user.email_verified or not _should_attempt_email_delivery(user.email):
+        return False
+
+    _dispatch_email.delay(
+        to=user.email,
+        subject="A phone was signed in to your DigitVA account",
+        template_name="emails/sign_in_qr_redeemed",
+        context={"name": user.name},
+    )
+    return True
+
+
 def send_code_redeemed_notice(user) -> bool:
     """Tell the address on file that a sign-in code was used to set a new
     password (security review of digitva-kmoy). Queued like the other

@@ -134,6 +134,11 @@ PUBLIC_ENDPOINTS = {
                                   "aggregates as the page, nothing per case or person.",
     "api_v1.auth_api.enroll": "Device enrol: authenticates (one-time hashed enrolment "
                             "code), does not authorize; rate-limited.",
+    "api_v1.auth_api.redeem_sign_in_qr": "Device enrol and sign-in by sign-in QR "
+                                       "(mobile-sign-in.md section 8): authenticates (one-time "
+                                       "hashed token), does not authorize; eligibility "
+                                       "re-checked, single use, 6 hours, rate-limited per IP "
+                                       "and token.",
     "api_v1.auth_api.open_session": "Device sign-in: authenticates (device secret, "
                                   "password), does not authorize.",
     "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "

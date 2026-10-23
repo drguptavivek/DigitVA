@@ -71,7 +71,7 @@ API_V1_PREFIX = "/api/v1/"
 #: Sign-in endpoints (full endpoint names) that create a session, so carry no valid bearer token.
 UNAUTHENTICATED_ENDPOINTS = frozenset({
     "api_v1.auth_api.enroll", "api_v1.auth_api.open_session", "api_v1.auth_api.refresh_session",
-    "api_v1.auth_api.demo_enroll",
+    "api_v1.auth_api.demo_enroll", "api_v1.auth_api.redeem_sign_in_qr",
 })
 ACCESS_TTL = timedelta(minutes=15)
 DEFAULT_REFRESH_TTL_DAYS = 30

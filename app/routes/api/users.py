@@ -12,6 +12,7 @@ tools"), account-onboarding-and-passwords.md ("Admin account upload").
 """
 
 import logging
+import uuid
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
@@ -19,6 +20,7 @@ from flask_login import current_user
 from app import limiter
 from app.decorators import role_required
 from app.routes.api.request_helpers import browser_session_only, error, parse_body
+from app.services import sign_in_qr_service as sign_in_qr
 from app.services import user_admin_tools_service as admin_tools
 from app.services import user_directory_service as service
 
@@ -77,6 +79,61 @@ def issue_enrolment_code(user_id):
     log.info("users enrolment-code | by=%s | user=%s | emailed=%s",
              current_user.user_id, user_id, bool(body.get("emailed")))
     return _no_store(body, 201)
+
+
+def _qr_user_id(user_id):
+    try:
+        return uuid.UUID(user_id)
+    except ValueError:
+        raise sign_in_qr.SignInQrError("User not found.", 404, "not_found") from None
+
+
+def _qr_refused(exc: sign_in_qr.SignInQrError):
+    return error(str(exc), exc.code, exc.status)
+
+
+@bp.post("/<user_id>/sign-in-qr")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("10 per minute")
+def issue_sign_in_qr(user_id):
+    """Body: ``delivery`` (show | email). Sign-in QR for a data collector or
+    death reporter with no other role (mobile-sign-in.md section 8). ``show``:
+    ``{code, qr_payload, qr_png (base64), expires_at}``, once; ``email``:
+    ``{emailed: true, expires_at}``. The token is in this response only and
+    is never logged."""
+    try:
+        body = sign_in_qr.issue(current_user, _qr_user_id(user_id), parse_body().get("delivery", "show"))
+    except sign_in_qr.SignInQrError as exc:
+        return _qr_refused(exc)
+    log.info("users sign-in-qr issue | by=%s | user=%s | emailed=%s",
+             current_user.user_id, user_id, bool(body.get("emailed")))
+    return _no_store(body, 201)
+
+
+@bp.get("/<user_id>/sign-in-qr")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("120 per minute")
+def list_sign_in_qr(user_id):
+    """The user's latest sign-in QRs: ``{items: [{status, issued_at,
+    expires_at, redeemed_at}]}``; status is pending, expired, redeemed or
+    revoked. Never the token."""
+    try:
+        return _no_store({"items": sign_in_qr.list_for_user(current_user, _qr_user_id(user_id))})
+    except sign_in_qr.SignInQrError as exc:
+        return _qr_refused(exc)
+
+
+@bp.delete("/<user_id>/sign-in-qr")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("30 per minute")
+def revoke_sign_in_qr(user_id):
+    """Void the user's pending sign-in QR: ``{revoked: bool}``."""
+    try:
+        revoked = sign_in_qr.revoke(current_user, _qr_user_id(user_id))
+    except sign_in_qr.SignInQrError as exc:
+        return _qr_refused(exc)
+    log.info("users sign-in-qr revoke | by=%s | user=%s | revoked=%s", current_user.user_id, user_id, revoked)
+    return _no_store({"revoked": revoked})
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,15 @@
+{% extends "emails/email_base.html" %}
+
+{% block email_title %}A phone was signed in to your DigitVA account{% endblock %}
+
+{% block email_body %}
+<p style="margin: 0 0 16px 0; color: #212529; font-size: 16px;">
+  Hello {{ name }},
+</p>
+<p style="margin: 0 0 16px 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  A phone was just signed in to your DigitVA account using a sign-in QR.
+</p>
+<p style="margin: 0; color: #495057; font-size: 15px; line-height: 1.6;">
+  If this wasn't you, tell your supervisor.
+</p>
+{% endblock %}

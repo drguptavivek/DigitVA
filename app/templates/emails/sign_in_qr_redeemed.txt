@@ -1,0 +1,8 @@
+Hello {{ name }},
+
+A phone was just signed in to your DigitVA account using a sign-in QR.
+
+If this wasn't you, tell your supervisor.
+
+Thank You
+DigitVA Team

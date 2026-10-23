@@ -1,0 +1,26 @@
+{% extends "emails/email_base.html" %}
+
+{% block email_title %}Sign in to the DigitVA Collect app{% endblock %}
+
+{% block email_body %}
+<p style="margin: 0 0 16px 0; color: #212529; font-size: 16px;">Hello {{ name }},</p>
+<p style="margin: 0 0 16px 0; color: #495057; font-size: 15px;">
+  This QR signs you in to the DigitVA Collect app on your phone, with no password.
+</p>
+<ol style="margin: 0 0 16px 0; padding-left: 20px; color: #495057; font-size: 15px;">
+  <li style="margin-bottom: 6px;">Install the DigitVA Collect app on your Android phone if you have not already.</li>
+  <li style="margin-bottom: 6px;">Open the app and choose to scan the sign-in QR.</li>
+  <li style="margin-bottom: 6px;">Scan the QR below. Open this email on a computer or another phone to scan it: a phone cannot scan its own screen.</li>
+  <li style="margin-bottom: 6px;">Set a PIN of at least 6 digits. You will use it to open the app.</li>
+</ol>
+<p style="margin: 0 0 8px 0; text-align: center;">
+  <img src="cid:{{ qr_cid }}" alt="DigitVA Collect sign-in QR" width="240" height="240" style="display: inline-block; border: 1px solid #dee2e6;">
+</p>
+<p style="margin: 0 0 16px 0; color: #495057; font-size: 13px; text-align: center;">
+  Sign-in code: <code>{{ code }}</code>
+</p>
+<p style="margin: 0; color: #6c757d; font-size: 13px;">
+  This QR works once, for one phone, for 6 hours. Whoever scans it is signed in as you, so do not share or forward it.
+  If you did not expect this email, tell your supervisor.
+</p>
+{% endblock %}

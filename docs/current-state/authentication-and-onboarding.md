@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-24
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -724,6 +724,69 @@ The code is consumed atomically; unknown, expired, revoked, used-up, or an
 inactive project: 404 `enrolment_invalid`. The secret is shown once and
 stored by the server only as a SHA-256 digest.
 
+### 6.1a Sign-in QR: issue, redeem, revoke (digitva-3g19)
+
+Policy: [mobile-sign-in.md](../policy/mobile-sign-in.md) section 8. Code:
+`app/services/sign_in_qr_service.py`; table `auth_sign_in_tokens`
+(`secrets.token_urlsafe(32)` stored as SHA-256 only; `user_id`, `issued_by`,
+`issued_at`, `expires_at` = issue + 6 hours, `redeemed_at`,
+`redeemed_device_id`, `revoked_at`, `expiry_noted_at`, `user_session_version` =
+the user's `auth_session_version` at issue); a device enrolled this
+way has `auth_devices.enrolled_via_sign_in_token` set (`enrolled_via` stays
+null). At most one token per user is pending (partial unique index); a new
+issue voids it.
+
+**Eligible** (checked at issue and again at redeem): active account, at least
+one active `interviewer` or `death_reporter` grant that reaches an active
+project (`interviewer_context` / `register_death_context`; the lowest such
+project id is the enrolment project), and no other active grant of any role or global
+scope in any project. Otherwise 400 `not_eligible` at issue.
+
+**Issue**, `POST /api/v1/users/<user_id>/sign-in-qr` (Users page, cookie
+session, CSRF, 10/min): body `{"delivery": "show" | "email"}` (default
+`show`). Issuer: an admin, or a project PI / data manager / In-charge who
+can manage **every** active grant the person holds
+(`authz.grant_list_filter`); anyone else, or an unknown id: 404 `not_found`
+(non-viewer roles 403). `show`: 201 `{code, qr_payload, qr_png (base64 PNG),
+expires_at}`, once, `no-store`. `email`: 201 `{emailed: true, expires_at}`,
+the QR inline plus the code text (`emails/sign_in_qr`), only to a verified
+address (400 `no_verified_email`; a failed send 502 `email_failed` and the
+token is voided). `qr_payload` is
+`{"v":1,"server":<DEVICE_PUBLIC_URL>,"sign_in":<token>}`; 503
+`device_url_insecure` as for enrolment codes.
+
+**Status / revoke**: `GET /api/v1/users/<user_id>/sign-in-qr` (120/min) returns
+`{items: [{status: pending|expired|redeemed|revoked, issued_at, expires_at,
+redeemed_at}]}` (latest 5, never the token); `DELETE` the same path (30/min,
+CSRF) voids the pending one, `{revoked: bool}`. Same issuer rule.
+
+**Redeem**, `POST /api/v1/auth/sign-in-qr/redeem` (public, CSRF-exempt, the
+device API's body caps): `{token, device_name, platform, app_version?,
+signing_public_key?}`. Atomically consumes the token (single use, unexpired,
+unrevoked, user's `auth_session_version` unchanged since issue), enrols a device on the project of the person's collector grant (as
+`/auth/enroll`) and opens the normal device session (as `/auth/sessions`:
+same scope, 15-minute access, sliding refresh, `has_device_access`, pending
+terms in `terms_required`, reuse detection). 201: `/auth/enroll`'s
+`{device_id, device_secret, signing_key_id?, project, server_time}` plus the
+`/auth/sessions` token response (`access_token`, `refresh_token`, ..., `access`).
+Every failure (unknown, used, expired, revoked, person no longer eligible or
+inactive) is 404 `sign_in_qr_invalid`; a bad `device_name`/`platform` is 400
+`invalid_request` and burns nothing. Limits: 10/min per IP and 5/min per token
+digest (no device exists yet to key on). The user's email, when present, gets a
+notice (verified address only) with no token. A person found ineligible, or whose
+session version changed, at redeem has the token voided and `sign_in_qr_refused`
+audited. Show-QR redeem does not need `sign_in_verified` (the issuer verifies in
+person). Voiding is one `UPDATE ... RETURNING` on unredeemed rows, so a redeemed
+token is never marked revoked.
+
+**Audit** (`auth_security_events`, never the token): `sign_in_qr_issued`
+(actor, user, `delivery`), `sign_in_qr_redeemed` (user, `device_id`),
+`sign_in_qr_revoked` (actor; also on a reissue or failed email, with
+`reason`), `sign_in_qr_refused` (user, `reason`: `not_eligible` /
+`session_changed`), `sign_in_qr_expired` (written once, when an expired token is next
+met at an issue, revoke or redeem attempt; there is no sweep). Plus
+`device_enrolled` and `device_session_opened`.
+
 ### 6.2 Device sign-in: `POST /api/v1/auth/sessions`
 
 Body `{"device_id", "device_secret", "email", "password"}`. The
@@ -1029,6 +1092,7 @@ signed-in user id.
 | Method, path | Auth | Request | Response | Limits | Audit |
 | --- | --- | --- | --- | --- | --- |
 | POST `/auth/enroll` | none | `{code, device_name, platform: "android", app_version?}` | 201 `{device_id, device_secret, project, server_time}`; 400 `invalid_request`; 404 `enrolment_invalid` | 10/min per IP | `device_enrolled` |
+| POST `/auth/sign-in-qr/redeem` | none (one-time token) | `{token, device_name, platform, app_version?, signing_public_key?}` | 201 enrol reply plus token response (6.1a); 400 `invalid_request`; 404 `sign_in_qr_invalid` | 10/min per IP; 5/min per token digest | `sign_in_qr_redeemed`, `device_enrolled`, `device_session_opened` |
 | POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email, mobile or, on the demo, username), password}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed` |
 | GET `/auth/demo-signup/challenge` | none; flag on only (else 404) | none | 200 `{salt, difficulty, expires, signature}` (section 6.7) | 30/min per IP | none |
 | POST `/auth/demo-signup` | none; flag on only (else 404) | `{username, password, captcha}` (section 6.7) | 201 `{user_id, username}`, no session; 400 `captcha_failed` / `invalid_username` / `invalid_password` / `breached_password` with `fields`; 409 `username_taken`; 429 `rate_limited`; 503 `cap_reached`, `breach_check_unavailable`, `project_missing`, `maintenance` | 10/min per IP (IPv6 per /64); `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` per IP and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT` demo-wide, on successes | `account_created` (`self_signup`), `terms_accepted` (`api`) |

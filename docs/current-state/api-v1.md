@@ -119,6 +119,7 @@ it 413 `payload_too_large`). Flows, audit events, lockout and the error codes:
 | Call | Notes |
 |---|---|
 | `POST /auth/enroll` | Body `code`, `device_name`, `platform` (`android`, `ios` or `desktop`, the offline station), `app_version`, optional `signing_public_key` (base64url raw Ed25519 public key, 32 bytes; digitva-gb8w.5). 201 `{device_id, device_secret, project, server_time}`, plus `signing_key_id` (first 16 hex of the key's SHA-256) when a key was sent. A bad key is 400 `invalid_request` with `fields: ["signing_public_key"]`, checked before the code is consumed. 10/min per IP. Code consumed atomically (`use_count < max_uses`). |
+| `POST /auth/sign-in-qr/redeem` | Public. Body `{token, device_name, platform, app_version?, signing_public_key?}`: enrols a device and opens the person's device session in one step (a sign-in QR, mobile-sign-in.md section 8). 201 `/auth/enroll`'s `{device_id, device_secret, signing_key_id?, project, server_time}` plus the `/auth/sessions` token response and `access`. Every failure 404 `sign_in_qr_invalid`; 400 `invalid_request`. 10/min per IP, 5/min per token digest. Detail: authentication-and-onboarding.md 6.1a. |
 | `POST /auth/devices/current/signing-key` | Device bearer only (the device is the session's, never the body; a cookie: 403 `device_session_required`; a revoked device's bearer: 401). Body `{signing_public_key}`. 200 `{signing_key_id}`. Set once: 409 `conflict` when the device has a key; 400 `invalid_request` with `fields` for a bad key. 10/min per IP. Audited `device_signing_key_set` (key id only). |
 | `POST /auth/sessions` | Body `device_id`, `device_secret`, `email` (an email or a mobile number), `password`. 201 `{access_token, access_expires_at, refresh_token, refresh_expires_at, user {user_id, name, email}, terms_required, access}`. `access` is the `GET /me/access` body for that user, shown even while terms are pending (it is display only; the terms gate is on requests). Refusals: 401 `device_invalid` (unknown device or wrong secret), 401 `invalid_credentials`, 403 `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` (no interviewer, coder, coding_tester or reviewer access in any active project; code kept for the app). Limits: 10/min per IP, 10/min per device, 20/hour per account. |
 | `POST /auth/sessions/refresh` | Body `refresh_token`, `device_id`, `device_secret` (else 401 `device_invalid`, nothing revoked); optional outstanding-work report `count`, `unique_ids`, `client_draft_ids`, `client_death_ids` (not recorded while terms are pending). 200, the same body as sign-in, `access` included. 401 `refresh_reused` / 409 `refresh_retry_race` (reuse; session revoked); 401 `session_revoked` (device or admin revoke, no active project left, signed out); 401 `session_ended` (account changed; keeps data); 401 `session_expired` and `refresh_invalid` revoke nothing. 30/min per IP. |
@@ -767,6 +768,14 @@ projects, a data manager the holders of an active grant in their subtree.
   `email_failed`. Both audit `device_enrolment_code_created` with the
   issued-for user (mobile-sign-in.md section 6).
 
+- `POST /users/<user_id>/sign-in-qr` (10/min, CSRF): body `delivery` `show`
+  (default) | `email`. 201 `{code, qr_payload, qr_png, expires_at}` (show,
+  once, `no-store`) or `{emailed: true, expires_at}`. 400 `not_eligible`,
+  `no_verified_email`; 404 `not_found` (out of scope or not manageable in
+  full); 502 `email_failed`. `GET` (120/min) `{items: [{status, issued_at,
+  expires_at, redeemed_at}]}`; `DELETE` (30/min, CSRF) `{revoked}`. Never the
+  token. Detail: authentication-and-onboarding.md 6.1a.
+
 ### Users page admin tools (digitva-cgmc, `user_admin_tools_service`)
 
 Admin only (`role_required("admin")` and the service: anyone else 403
@@ -995,8 +1004,10 @@ Contract: [Offline API Contract](../policy/offline-api-contract.md) section 5
   registration consent; another attempt's never applies). The browser submit
   carries no consent: the interview page records one first on
   `POST /intake/drafts/<id>/consent` (below); covered answers with none on
-  file are 422 `consent_required`. Draft autosave (`PATCH /intake/drafts/<id>`,
-  `/drafts/sync`) is not gated. A same-hash upload resend returns the first
+  file are 422 `consent_required`. Browser draft autosave (`PATCH /intake/drafts/<id>`)
+  is not gated. `POST /drafts/sync` is not refused either, but strips the covered
+  fields from what it stores unless the gate would take them (the consent on
+  file: the attempt's own, else the case's registration consent). A same-hash upload resend returns the first
   result unchecked.
 - `GET|PUT /api/v1/projects/<project_id>/consent-settings` and
   `POST .../consent-notices`: admin, project PI or project-scoped data manager

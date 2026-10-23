@@ -14,6 +14,7 @@ names the inputs to fix. Request bodies are capped
 included. Terms and maintenance gates are the app-level ones in app/__init__.py.
 """
 
+import logging
 from datetime import UTC, datetime
 
 from flask import Blueprint, abort, g, jsonify, request
@@ -27,13 +28,15 @@ from app.routes.api.request_helpers import error as _error
 from app.routes.api.request_helpers import parse_body
 from app.services import device_auth_service as devices
 from app.services import device_signing_service as signing
-from app.services import public_demo_service
-from app.services.pow_captcha_service import issue_challenge, verify_challenge
+from app.services import email_service, public_demo_service
+from app.services import sign_in_qr_service as sign_in_qr
 from app.services.access_summary_service import build_access_summary
+from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
 from app.services.user_account_service import canonical_mobile
 
 bp = Blueprint("auth_api", __name__)
+log = logging.getLogger(__name__)
 csrf.exempt(bp)
 
 #: Request body caps: the refresh call (it may carry the outstanding-work
@@ -57,6 +60,13 @@ def _body_limit() -> int:
 def _body() -> dict:
     _body_limit()
     return parse_body()
+
+
+def _safe_body() -> dict:
+    try:
+        return _body()
+    except RequestEntityTooLarge:
+        return {}
 
 
 def _body_key(name):
@@ -163,6 +173,44 @@ def open_session():
     devices.record_app_version(issued.session, p.get("app_version"))
     db.session.commit()
     return jsonify(_session_body(issued, user)), 201
+
+
+@bp.post("/sign-in-qr/redeem")
+@limiter.limit("10 per minute")
+@limiter.limit("5 per minute", key_func=lambda: sign_in_qr.token_limit_key(_safe_body().get("token")))
+def redeem_sign_in_qr():
+    """Scan a sign-in QR (docs/policy/mobile-sign-in.md section 8): ``{token,
+    device_name, platform, app_version?, signing_public_key?}``. Enrols the
+    device and opens that user's device session in one step; the reply is
+    ``/enroll``'s plus ``/sessions``'s: 201 ``{device_id, device_secret,
+    signing_key_id?, project, server_time, ...tokens, access}``. Every
+    failure (unknown, used, expired, revoked, user no longer eligible) is one
+    404 ``sign_in_qr_invalid``. Limits: per IP and per token digest (there is
+    no device yet to key on). The user's email, if any, gets a notice."""
+    p = _body()
+    public_key = None
+    if p.get("signing_public_key") is not None:
+        public_key = signing.parse_public_key(p["signing_public_key"])
+    device, secret, issued, user = sign_in_qr.redeem(
+        p.get("token"), device_name=p.get("device_name"), platform=p.get("platform"),
+        app_version=p.get("app_version"),
+    )
+    reply = {"device_id": str(device.device_id), "device_secret": secret}
+    if public_key is not None:
+        reply["signing_key_id"] = signing.set_signing_key(device, public_key, via="enroll")
+    project = db.session.get(VaProjectMaster, device.project_id)
+    body = {
+        **reply,
+        "project": {"project_id": project.project_id, "name": project.project_name},
+        "server_time": datetime.now(UTC).isoformat(),
+        **_session_body(issued, user),
+    }
+    db.session.commit()
+    try:
+        email_service.send_sign_in_qr_redeemed_notice(user)
+    except Exception as exc:  # the notice never fails a completed sign-in
+        log.warning("sign-in QR notice failed: %s | user_id=%s", type(exc).__name__, user.user_id)
+    return jsonify(body), 201
 
 
 @bp.post("/demo-enroll")

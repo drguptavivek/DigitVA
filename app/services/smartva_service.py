@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
+from celery.exceptions import SoftTimeLimitExceeded
 from flask import current_app
 from sqlalchemy.orm import Session
 
@@ -859,6 +860,9 @@ def _form_run_outcome(success_count: int, failure_count: int) -> str:
 SMARTVA_BATCH_SIZE = 50  # max submissions per SmartVA binary invocation
 SMARTVA_INTER_BATCH_SLEEP = 2  # seconds between batches to allow memory to settle
 SMARTVA_COALESCE_SCAN_LIMIT = 500  # pending sids one starting run looks at for others to take along
+#: Time a failed batch's one-by-one reruns may take; cases left over stay
+#: pending for the sweep instead of running into the task's soft limit.
+SMARTVA_SPLIT_BUDGET_SECONDS = 120
 
 
 def _generate_batch(
@@ -994,6 +998,8 @@ def _generate_option_group(
     regeneration records the failure on the run and leaves it active.
     *requested_by* (``(user_id, role)``) attributes the audit rows of a
     coder-requested regeneration.
+    If a multi-case run fails as a whole, the batch run is recorded failed and
+    each case is rerun alone, so one bad case does not fail its batch-mates.
     Returns the total number of result rows (successes + failures) saved.
     """
     from app.utils import (
@@ -1146,6 +1152,54 @@ def _generate_option_group(
                     "connection), falling back to full session rollback.",
                     va_form.form_id,
                 )
+            # A timed-out batch is not split: the reruns would hit the hard
+            # limit and leave every case pending for the sweep to retry.
+            if len(batch_sids) > 1 and not isinstance(exc, SoftTimeLimitExceeded):
+                try:
+                    _finalize_smartva_form_run(
+                        form_run,
+                        workspace_dir=workspace_dir,
+                        outcome=VaSmartvaFormRun.OUTCOME_FAILED,
+                    )
+                    db.session.commit()
+                    _archive_completed_form_run(form_run)
+                    split = True
+                except Exception:
+                    db.session.rollback()
+                    split = False
+                    log.error(
+                        "SmartVA [%s]: failed to finalize failed batch run.",
+                        va_form.form_id,
+                        exc_info=True,
+                    )
+                if split:
+                    log.warning(
+                        "SmartVA [%s]: batch of %d failed (%s); rerunning each "
+                        "case alone.",
+                        va_form.form_id,
+                        len(batch_sids),
+                        exc,
+                    )
+                    saved = 0
+                    deadline = time.monotonic() + SMARTVA_SPLIT_BUDGET_SECONDS
+                    for sid in sorted(batch_sids):
+                        if time.monotonic() > deadline:
+                            log.warning(
+                                "SmartVA [%s]: split budget spent; the rest stay pending for the sweep.",
+                                va_form.form_id,
+                            )
+                            break
+                        saved += _generate_option_group(
+                            va_form,
+                            {sid},
+                            run_options=run_options,
+                            run_metadata_by_sid={sid: run_metadata_by_sid[sid]},
+                            trigger_source=trigger_source,
+                            log_progress=log_progress,
+                            replace_existing=replace_existing,
+                            requested_by=requested_by,
+                        )
+                    return saved
             try:
                 failure_count = _record_smartva_failures(
                     batch_sids,

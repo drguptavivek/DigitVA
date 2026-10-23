@@ -1006,3 +1006,137 @@ class GenerateForSubmissionTests(BaseTestCase):
             input_bytes = handle.read()
         self.assertIn(b"line1", input_bytes)
         self.assertIn(b"line2", input_bytes)
+
+    def _run_two_case_batch(self, fail_when):
+        """Run a 2-case batch through _generate_option_group with a fake
+        engine that raises when *fail_when(sids)* is true for the sids handed
+        to prepdata. Returns (saved, sid_a, sid_b)."""
+        from app.services.smartva_service import _generate_option_group
+
+        sub_a = self._make_submission("uuid:split-a")
+        sub_b = self._make_submission("uuid:split-b")
+        for sub in (sub_a, sub_b):
+            set_submission_workflow_state(
+                sub.va_sid, WORKFLOW_SMARTVA_PENDING, reason="test", by_role="test"
+            )
+        db.session.commit()
+        sid_a, sid_b = sub_a.va_sid, sub_b.va_sid
+        current = {}
+
+        def fake_prepdata(_va_form, _workspace_dir, pending_sids=None):
+            current["sids"] = set(pending_sids)
+            return {}
+
+        def fake_runsmartva(_va_form, _workspace_dir, run_options=None):
+            if fail_when(current["sids"], sid_a):
+                raise RuntimeError("engine crashed")
+
+        def fake_read_formatted(_path):
+            return pd.DataFrame([
+                {
+                    "sid": sid,
+                    "age": 45.0,
+                    "sex": "male",
+                    "cause1": "Cardiovascular",
+                    "likelihood1": "High",
+                    "key_symptom1": "chest pain",
+                    "cause2": None,
+                    "likelihood2": None,
+                    "key_symptom2": None,
+                    "cause3": None,
+                    "likelihood3": None,
+                    "key_symptom3": None,
+                    "all_symptoms": "chest pain",
+                    "result_for": "for_adult",
+                    "cause1_icd": "I21",
+                    "cause2_icd": None,
+                    "cause3_icd": None,
+                }
+                for sid in sorted(current["sids"])
+            ])
+
+        va_form = db.session.get(VaForms, self.FORM_ID)
+        with (
+            patch("app.utils.va_smartva_prepdata", side_effect=fake_prepdata),
+            patch("app.utils.va_smartva_runsmartva", side_effect=fake_runsmartva),
+            patch(
+                "app.utils.va_smartva_formatsmartvaresult",
+                return_value="/fake/output.csv",
+            ),
+            patch(
+                "app.services.smartva_service._read_formatted_results",
+                side_effect=fake_read_formatted,
+            ),
+        ):
+            saved = _generate_option_group(
+                va_form,
+                {sid_a, sid_b},
+                run_options={"hiv": "False", "malaria": "False"},
+                run_metadata_by_sid={sid_a: {}, sid_b: {}},
+            )
+        return saved, sid_a, sid_b
+
+    def _results_for(self, va_sid):
+        return db.session.scalars(
+            sa.select(VaSmartvaResults).where(VaSmartvaResults.va_sid == va_sid)
+        ).all()
+
+    def test_batch_failure_reruns_each_case_alone(self):
+        saved, sid_a, sid_b = self._run_two_case_batch(
+            lambda sids, _a: len(sids) > 1
+        )
+
+        self.assertEqual(saved, 2)
+        for sid in (sid_a, sid_b):
+            rows = self._results_for(sid)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].va_smartva_outcome, VaSmartvaResults.OUTCOME_SUCCESS)
+        failed_batch_runs = db.session.scalars(
+            sa.select(VaSmartvaFormRun).where(
+                VaSmartvaFormRun.form_id == self.FORM_ID,
+                VaSmartvaFormRun.outcome == VaSmartvaFormRun.OUTCOME_FAILED,
+            )
+        ).all()
+        self.assertEqual(len(failed_batch_runs), 1)
+
+    def test_batch_failure_fails_only_the_bad_case(self):
+        saved, sid_a, sid_b = self._run_two_case_batch(
+            lambda sids, a: a in sids
+        )
+
+        self.assertEqual(saved, 2)
+        rows_a = self._results_for(sid_a)
+        rows_b = self._results_for(sid_b)
+        self.assertEqual(len(rows_b), 1)
+        self.assertEqual(rows_b[0].va_smartva_outcome, VaSmartvaResults.OUTCOME_SUCCESS)
+        self.assertEqual(len(rows_a), 1)
+        self.assertEqual(rows_a[0].va_smartva_outcome, VaSmartvaResults.OUTCOME_FAILED)
+        self.assertEqual(rows_a[0].va_smartva_failure_stage, "execution")
+
+    def test_batch_failure_leaves_cases_pending_once_split_budget_spent(self):
+        with patch("app.services.smartva_service.SMARTVA_SPLIT_BUDGET_SECONDS", -1):
+            saved, sid_a, sid_b = self._run_two_case_batch(
+                lambda sids, _a: len(sids) > 1
+            )
+
+        self.assertEqual(saved, 0)
+        self.assertEqual(self._results_for(sid_a), [])
+        self.assertEqual(self._results_for(sid_b), [])
+
+    def test_timed_out_batch_is_not_split(self):
+        from celery.exceptions import SoftTimeLimitExceeded
+
+        calls = []
+
+        def fail_when(sids, _a):
+            calls.append(set(sids))
+            raise SoftTimeLimitExceeded()
+
+        saved, sid_a, sid_b = self._run_two_case_batch(fail_when)
+
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(saved, 2)
+        for sid in (sid_a, sid_b):
+            rows = self._results_for(sid)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].va_smartva_failure_stage, "execution")

@@ -1430,6 +1430,44 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(resend.status_code, 200, resend.get_json())
         self.assertIs(resend.get_json()["can_code_now"], True)
 
+    def _device_body(self, death_id, **over):
+        text = json.dumps(self._complete_answers(), separators=(",", ":"))
+        return {
+            "client_draft_id": str(uuid.uuid4()), "project_id": self.PROJECT_ID, "site_id": self.SITE_ID,
+            "death_id": death_id, "draft": {"startedAt": datetime.now(UTC).isoformat()},
+            "completion": {"valid": True, "issues": []}, "answers_json": text,
+            "answers_sha256": hashlib.sha256(text.encode()).hexdigest(), **over,
+        }
+
+    # Statements one device upload of a registered case issues (digitva-anzv):
+    # 77 before the interviewer context and the locked case were passed down.
+    DEVICE_SUBMIT_MAX_STATEMENTS = 70
+
+    def test_a_device_submit_issues_no_more_statements_than_the_recorded_ceiling(self):
+        death_id = self._case()
+        body = self._device_body(death_id)
+        statements = []
+
+        def count(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        sa.event.listen(db.engine, "before_cursor_execute", count)
+        try:
+            response = self.client.post("/api/v1/intake/submissions", headers=self._csrf_headers(), json=body)
+        finally:
+            sa.event.remove(db.engine, "before_cursor_execute", count)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertLessEqual(len(statements), self.DEVICE_SUBMIT_MAX_STATEMENTS)
+
+    def test_a_device_submit_outside_the_interviewers_site_is_still_refused(self):
+        self._login(self.interviewer_id)
+        response = self.client.post(
+            "/api/v1/intake/submissions", headers=self._csrf_headers(),
+            json=self._device_body(None, site_id="ZZ99"))
+        self.assertEqual(response.status_code, 403, response.get_json())
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.project_id == self.PROJECT_ID, VaWebIntakeDraft.site_id == "ZZ99")), 0)
+
     def test_the_worklist_shows_code_now_on_the_own_ready_case(self):
         from app.services.workflow.definition import WORKFLOW_READY_FOR_CODING
         from app.services.workflow.state_store import (

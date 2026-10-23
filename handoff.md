@@ -36,10 +36,13 @@ DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
-1. **Request path is CPU-bound in Python** (2 cores; 92% of busy backends idle
-   in transaction during load, no lock waits). Next lever: profile the slowest
-   endpoints (intake p95 ~1 s), or 4 vCPU. Load-test harness to
-   `scripts/loadtest/` (agreed, small change through the committer).
+1. **Request path is CPU-bound in Python** (2 cores; a device submit is ~20 ms
+   CPU and 68 SQL statements; staging latency is queueing). Closed, awaiting
+   commit: `digitva-9m11` (relevance once per pass), `digitva-anzv` (intake
+   context and locked death built once), `digitva-cpak` (`logs/slow_requests.log`;
+   owner analyses after 2-3 months before any resize). Remaining repeats live in
+   `request_helpers.request_project_id`, case transitions and form-type lookups;
+   only if the slow log points at intake. Harness in `scripts/loadtest/`.
 2. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays
@@ -55,21 +58,21 @@ DORIS saturates ~68 req/s.
    `digitva-77v5.9` (seed without the default admin). Owner: review ~40 Hindi
    strings in `mobile/digitva-collect/src/strings/hi.json`; WHO ICD-11 API terms
    for anonymous public use. Proof-of-work timing on a real phone is untested.
-4. SmartVA known ceilings (`digitva-96ik`): the batch claim is not atomic
-   above worker concurrency 1; a whole-run failure fails every case in the
-   batch. Rollback for the in-process engine: `SMARTVA_RS_LIB=""`.
-5. Staging `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
-6. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
+4. SmartVA (`digitva-vv4h`, closed, not yet committed): a multi-case whole-run
+   failure reruns each case alone. Full suite before commit. Still a ceiling:
+   the coalescing claim is not atomic above worker concurrency 1. Rollback for
+   the in-process engine: `SMARTVA_RS_LIB=""`.
+5. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
    Users page.
-7. digitva-collect queue: `0vgh` phone consent, `zkgx` questionnaire languages
+6. digitva-collect queue: `0vgh` phone consent, `zkgx` questionnaire languages
    from the server, `jkvl` audio/photo, `jish`, `wh4w`.
-8. Staging after deploy: Project Setup → HP0001 → Respondent consent → "Seed
+7. Staging after deploy: Project Setup → HP0001 → Respondent consent → "Seed
    from draft", approve after legal review, then turn "Require respondent
    consent" on. `flask training-demo setup` if TRN01 is missing.
-9. Aakanksha's direct interview (staging `88606c5b`) re-asked name/age at
+8. Aakanksha's direct interview (staging `88606c5b`) re-asked name/age at
     completion; deceased section saved only on the second try. Unreproduced:
     need the message, device and tabs. Her empty drafts `5d31cbd0`, `cd39dff7`.
-10. Older: `owqc`, `en2g`, `2s6p`, `hs7e` (digitva-coder, deferred), `a6q9`.
+9. Older: `owqc`, `en2g`, `2s6p`, `hs7e` (digitva-coder, deferred), `a6q9`.
    Also: `mubf` (COD bucket rule mismatch), `xp9w` (EXPLAIN a staging bucket
    report before more MV work), `8dzk` (allocation_exists 403 vs 409), `f0ys`
    (spelling-fold tests flaky under xdist), `783d` (SmartVA export header order).
@@ -95,7 +98,9 @@ interviewers; Add worker emails the enrolment QR + APK link to data collectors
 only; non-admin enrolment codes are single use within 60 minutes; training
 coder slots are per session (1–100); reviewers may review their own coding;
 expired station configs are refused; every account records its creator; the WHO
-ICD container stays on servers.
+ICD container stays on servers; the intake write path (payload version, PII,
+transitions, audit) is not batched, consistency first; no EC2 upsize until
+measured real load (slow-request log, `digitva-cpak`) calls for it.
 
 ## Caveats
 

@@ -197,6 +197,12 @@ sql_logger = va_setup_logger(
     logging.INFO,
     va_detailed_formatter,
 )
+slow_request_logger = va_setup_logger(
+    "SLOW_REQUEST_LOG",
+    f"{va_log}/slow_requests.log",
+    logging.INFO,
+    va_detailed_formatter,
+)
 grant_audit_logger = va_setup_logger(
     "GRANT_AUDIT",
     f"{va_log}/grants.log",
@@ -300,6 +306,23 @@ def _payload_summary(payload: dict[str, Any] | None) -> str:
     preview_keys = keys[:20]
     suffix = "" if len(keys) <= 20 else f"+{len(keys) - 20}"
     return f"keys={preview_keys}{suffix}"
+
+
+@event.listens_for(Engine, "before_cursor_execute")
+def _count_sql_start(conn, cursor, statement, parameters, context, executemany):
+    if has_request_context():
+        conn.info["_req_sql_start"] = time.monotonic()
+
+
+@event.listens_for(Engine, "after_cursor_execute")
+def _count_sql_end(conn, cursor, statement, parameters, context, executemany):
+    # Per-request SQL count/time for the slow_request line; a no-op outside a
+    # request (Celery, CLI). Module import registers each listener once.
+    start = conn.info.pop("_req_sql_start", None)
+    if start is None or not has_request_context():
+        return
+    g._sql_count = getattr(g, "_sql_count", 0) + 1
+    g._sql_ms = getattr(g, "_sql_ms", 0.0) + (time.monotonic() - start) * 1000
 
 
 _slow_query_registered = set()  # guard against double-registration per logger name

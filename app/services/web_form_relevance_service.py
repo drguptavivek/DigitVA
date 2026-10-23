@@ -219,17 +219,39 @@ def apply_calculations(data: dict, *, now: datetime, rules: _Rules | None = None
     return calculated
 
 
-def _is_question_relevant(question: dict, calculated: dict, *, now: datetime, rules: _Rules) -> bool:
+def _is_question_relevant(
+    question: dict,
+    calculated: dict,
+    *,
+    now: datetime,
+    rules: _Rules,
+    options: ExpressionEvaluationOptions | None = None,
+    section_memo: dict[str, bool] | None = None,
+) -> bool:
     """Mirrors ``isQuestionRelevantWithCalculatedData``: every ancestor
-    section's ``relevant`` must hold, then the question's own."""
-    options = ExpressionEvaluationOptions(now=now)
+    section's ``relevant`` must hold, then the question's own.
+
+    ``options`` and ``section_memo`` are per-pass: the caller builds them once
+    for one fixed ``calculated`` and drops them with it. ``section_memo`` holds
+    each section's verdict so a section shared by hundreds of questions is
+    evaluated once; a section whose evaluation raises is not recorded."""
+    options = options or ExpressionEvaluationOptions(now=now)
     for section_name in question["sectionPath"]:
+        if section_memo is not None and section_name in section_memo:
+            if not section_memo[section_name]:
+                return False
+            continue
         section = rules.sections.get(section_name)
         section_relevant_source = section["relevant"] if section else None
+        holds = True
         if section_relevant_source:
             ast = rules.asts.get(section_relevant_source)
-            if ast is not None and not evaluate_expression(ast, calculated, options):
-                return False
+            if ast is not None:
+                holds = bool(evaluate_expression(ast, calculated, options))
+        if section_memo is not None:
+            section_memo[section_name] = holds
+        if not holds:
+            return False
     relevant_source = question["relevant"]
     if relevant_source:
         ast = rules.asts.get(relevant_source)
@@ -267,6 +289,8 @@ def strip_irrelevant_answers(
     while True:
         calculated = apply_calculations(current, now=now, rules=rules)
         pass_removed: list[str] = []
+        options = ExpressionEvaluationOptions(now=now)
+        section_memo: dict[str, bool] = {}
         for question in questions:
             name = question["name"]
             if question["control"] in _NON_ANSWER_CONTROLS:
@@ -274,7 +298,10 @@ def strip_irrelevant_answers(
             if name not in current:
                 continue
             try:
-                relevant = _is_question_relevant(question, calculated, now=now, rules=rules)
+                relevant = _is_question_relevant(
+                    question, calculated, now=now, rules=rules,
+                    options=options, section_memo=section_memo,
+                )
             except ExpressionError:
                 # Fail safe: an evaluation error keeps the answer rather than
                 # silently deleting it (this only strips, never rejects).
@@ -326,13 +353,18 @@ def derive_validation_errors(data: dict, *, now: datetime, version: str | None =
         return [{"question": "*", "rule": "evaluation_error"}]
 
     entries: list[dict] = []
+    options = ExpressionEvaluationOptions(now=now)
+    section_memo: dict[str, bool] = {}
     for question in rules.questions:
         if question["control"] in _NON_ANSWER_CONTROLS_FOR_VALIDATION:
             continue
         name = question["name"]
         value = calculated.get(name)
         try:
-            relevant = _is_question_relevant(question, calculated, now=now, rules=rules)
+            relevant = _is_question_relevant(
+                question, calculated, now=now, rules=rules,
+                options=options, section_memo=section_memo,
+            )
         except ExpressionError:
             log.exception("web_form_relevance: relevance check for %s failed", name)
             entries.append({"question": name, "rule": "evaluation_error"})

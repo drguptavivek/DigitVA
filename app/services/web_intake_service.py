@@ -515,7 +515,7 @@ def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = Non
 
 
 def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None,
-                   roles: frozenset = _INTERVIEWER) -> dict:
+                   roles: frozenset = _INTERVIEWER, *, entries: list[dict] | None = None) -> dict:
     """Return the context entry for (project, site) or raise 403.
 
     In a project with an organization tree, a unit must always be named,
@@ -526,10 +526,14 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
     the project; a unit-scoped grant is held to its own subtree
     (``reachable_unit_ids``). A project with no tree
     keeps the pre-phase-4 behaviour: no unit is required. *roles* as
-    ``interviewer_context``: the grants whose reach is checked.
+    ``interviewer_context``: the grants whose reach is checked. *entries*: the
+    caller's own ``interviewer_context(user, roles)`` of this request, reused
+    instead of rebuilt; the checks are the same.
     """
     entry = None
-    for candidate in interviewer_context(user, roles):
+    # A context built for other roles is never reused: the role set decides reach.
+    reuse = entries is not None and roles == _INTERVIEWER
+    for candidate in (entries if reuse else interviewer_context(user, roles)):
         if candidate["project_id"] == project_id and candidate["site_id"] == site_id:
             entry = candidate
             break
@@ -868,7 +872,7 @@ def list_deaths(user: VaUsers, *, project_id: str, site_id: str, status: str | N
     return list(db.session.scalars(stmt.order_by(VaDeathRegister.created_at.desc()).limit(500)).all())
 
 
-def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
+def get_death(user: VaUsers, death_id: object, *, entries: list[dict] | None = None) -> VaDeathRegister:
     try:
         death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
     except ValueError:
@@ -876,7 +880,7 @@ def get_death(user: VaUsers, death_id: object) -> VaDeathRegister:
     if death is None:
         raise WebIntakeError("Death entry not found.", 404)
     try:
-        _require_scope(user, death.project_id, death.site_id, death.org_unit_id)
+        _require_scope(user, death.project_id, death.site_id, death.org_unit_id, entries=entries)
     except WebIntakeError as exc:
         # Out of scope reads as not found: an id is not proof the case exists.
         if exc.status_code == 403:
@@ -1643,8 +1647,13 @@ def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
         cases.transition(death, "in_progress", actor=user, action=action)
 
 
-def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None) -> VaWebIntakeDraft:
+def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, entries: list[dict] | None = None, locked_death: VaDeathRegister | None = None) -> VaWebIntakeDraft:
     """Open (or return the caller's own) draft for a case, or start directly.
+
+    *entries* and *locked_death* are plumbing for a caller that already built
+    ``interviewer_context(user)`` and already passed ``get_death`` and
+    ``lock_case`` on this case in this transaction (``submit_device_interview``):
+    reused instead of rebuilt, re-read and re-locked. Every check still runs.
 
     A direct start creates its case at once (``source = direct``,
     ``draft_identity``); the draft's answers fill the identity in.
@@ -1654,7 +1663,10 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
     interviews").
     """
     mode = get_web_intake_mode(project_id)
-    death = get_death(user, death_id) if death_id else None
+    if locked_death is not None and str(locked_death.death_id) == str(death_id):
+        death = locked_death
+    else:
+        death = get_death(user, death_id, entries=entries) if death_id else None
     if death is not None:
         if not _mode_allows(mode, death_register=death.source == "register"):
             raise WebIntakeError("This project does not use the death register.", 403)
@@ -1662,7 +1674,8 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             raise WebIntakeError("Death entry belongs to another project or site.")
         # Serialises starts on one case: the second waits here, then sees the
         # caller's own open draft below instead of opening another.
-        death = cases.lock_case(death)
+        if death is not locked_death:
+            death = cases.lock_case(death)
         if death.status == "submitted":
             raise WebIntakeError("A questionnaire has already been submitted for this death.", 409)
         if death.status in ("duplicate", "cancelled"):
@@ -1682,7 +1695,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         raise WebIntakeError("This project requires a death register entry before the questionnaire.", 403)
     else:
         org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
-    _require_scope(user, project_id, site_id, org_unit_id)
+    _require_scope(user, project_id, site_id, org_unit_id, entries=entries)
     # Only a new draft counts against the public demo's open-draft limit.
     public_demo_service.check_new_draft(user, project_id)
     form = ensure_web_runtime_form(project_id, site_id)
@@ -2382,7 +2395,7 @@ def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, s
     return payload, references, validation_err
 
 
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None) -> VaSubmissions | None:
+def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None, locked_death: VaDeathRegister | None = None) -> VaSubmissions | None:
     """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
 
     Every outcome is stored as a submission. Only ``completed`` enters coding
@@ -2398,6 +2411,9 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     (*completed_at*, a device's skew-corrected ``completedAt``; the submit
     time when None), the clock a later version of the same interview is
     compared against (``revise_submission`` with ``resubmit``).
+
+    *locked_death*: the draft's case when the caller already holds its row
+    lock in this transaction (``submit_device_interview``); not locked again.
     """
     if draft.status != "draft":
         raise WebIntakeError("This draft has already been submitted.", 409)
@@ -2421,7 +2437,8 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         # Under the case lock, so a teammate's concurrent winning submit is
         # seen here and this one is kept as a superseded copy, and before any
         # identity sync, so a closed case's identity is never rewritten.
-        death = cases.lock_case(death)
+        if locked_death is None or locked_death.death_id != death.death_id:
+            death = cases.lock_case(death)
         # Re-read under the lock: a double or retried submit of this same
         # draft that won meanwhile must not turn the winner into a copy.
         if db.session.scalar(sa.select(VaWebIntakeDraft.status).where(VaWebIntakeDraft.draft_id == draft.draft_id)) != "draft":
@@ -3447,8 +3464,10 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
         stored["clockSkewSeconds"] = round((now - device_clock).total_seconds())
     completed_at = _completion_time(envelope, now)
     completion = _device_completion(completion, data)
+    entries = interviewer_context(user)
+    death = None
     if death_id:
-        death = cases.lock_case(get_death(user, death_id))
+        death = cases.lock_case(get_death(user, death_id, entries=entries))
         if death.project_id != project_id:
             raise WebIntakeError("Death entry not found.", 404)
         own = _own_submitted_draft(user, death)
@@ -3465,7 +3484,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
             return copy, "server", True
     draft = start_draft(
         user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
-        death_id=death_id,
+        death_id=death_id, entries=entries, locked_death=death,
     )
     if draft.sections:
         # An open draft with content: the phone's own earlier sync is the same
@@ -3484,7 +3503,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     draft.answers_sha256 = answers_sha256
     draft.meta = {**(draft.meta or {}), **stored}
     save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user)
-    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at) is None:
+    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death) is None:
         return draft, "server", True
     return draft, "incoming", False
 

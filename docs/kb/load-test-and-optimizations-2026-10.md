@@ -23,7 +23,10 @@ the runs described here; reuse them as a baseline, not as a capacity promise.
   ingress on the app host's private address, port 8000, directly with `Host: digitvav3...`. The
   public hostname goes through the t2.small proxy that production and ODK
   Central also use, so load was never sent through it.
-- Harness (scratch; to move into `scripts/loadtest/` later): `lt_setup.py`
+- Harness in `scripts/loadtest/` (instance ids via `LT_APP_INSTANCE`,
+  `LT_LOAD_INSTANCE`, `LT_TARGET`; AWS account via `AWS_PROFILE`/`AWS_REGION`):
+  `box_sampler.sh` samples the app host, `watchdog.sh` aborts on low memory,
+  `restore.sh <backup key>` restores afterwards. `lt_setup.py`
   creates `lt+i<n>`/`lt+c<n>@digitva.com` users on TRN01 (interviewer and
   `coding_tester` grants) and mints device bearer tokens server-side, which
   skips the 10/min sign-in limits. `lt_run.py` (stdlib + requests) runs:
@@ -139,5 +142,4 @@ container from compose instead.
 - `digitva-ekpt`: test the `flask cod-buckets` generator end to end.
 - `digitva-xp9w`: profile one real staging report query before optimising reports.
 - `digitva-f0ys`: a spelling test fails only under xdist.
-- Load-test harness into `scripts/loadtest/` with tokens and hostnames in env vars.
 - The proxy/ODK Central t2.small (2 GB): check memory before any change; do not downsize.

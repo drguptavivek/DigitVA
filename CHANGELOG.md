@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **SmartVA batch failure split** (`digitva-vv4h`): a multi-case whole-run
+  failure reruns each case alone, so one bad case no longer fails the batch.
+- **Intake device submit CPU** (`digitva-9m11`, `digitva-anzv`): section
+  relevance evaluated once per pass; interviewer context and locked death
+  built once per submit. ~11% less CPU, 75 -> 68 SQL statements per submit.
+- **Slow-request log** (`digitva-cpak`): `logs/slow_requests.log` with
+  `SLOW_REQUEST_LOG_MS`; `docs/current-state/runtime-and-operations.md`.
+- **Load-test harness** in `scripts/loadtest/`;
+  `docs/kb/load-test-and-optimizations-2026-10.md`.
 - **On-screen error reference** (`digitva-l3r8`): the Expo app's generic
   "Something went wrong" (and web "server could not complete") messages now
   carry a `Ref:` line with HTTP status, code, method and masked route (or the

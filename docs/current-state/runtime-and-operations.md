@@ -870,8 +870,13 @@ Current log outputs:
 - `logs/celery_tasks.log`
 - `logs/celery_slow_queries.log`
 - `logs/grants.log`
+- `logs/slow_requests.log`
 
 All log files rotate every 6 hours, each rotated file is gzipped (`<name>.log.<UTC timestamp>.gz`), and 840 rotated files (210 days) are kept before the oldest is deleted (`LOG_BACKUP_COUNT` in `app/logging/va_logger.py`). Database audit records are kept permanently.
+
+### Slow request log
+
+`logs/slow_requests.log` gets one `event=slow_request` line for every request (static and `/health` excluded) that takes at least `SLOW_REQUEST_LOG_MS` ms (default 300): `method`, `endpoint`, `rule` (the route pattern, `-` for a 404), `status`, `duration_ms`, `sql_count` and `sql_ms`. It carries no user, query string, payload or case id, because `rule` is the pattern rather than the path; the line's `request_id` ties it to `requests.log`. Count slow requests per route: `zcat -f logs/slow_requests.log* | grep -o 'rule=[^ ]*' | sort | uniq -c | sort -rn`.
 
 ### Request abuse control
 

@@ -387,6 +387,7 @@ def create_app(config_class=None, register_routes=True):
         from app.routes.va_errors import register_error_handlers
         register_error_handlers(app)
     from app.logging import va_logging
+    from app.logging.va_logger import slow_request_logger
     va_logging(app)
     
     from app import models #noqa
@@ -568,6 +569,9 @@ def create_app(config_class=None, register_routes=True):
             return
         if request.path.startswith(timed_prefixes):
             g._request_started_at = perf_counter()
+        g._slow_started_at = perf_counter()
+        # g outlives the request when an app context is already pushed (tests).
+        g._sql_count, g._sql_ms = 0, 0.0
 
         from app.services.request_abuse_service import (
             abuse_ban_message,
@@ -745,13 +749,21 @@ def create_app(config_class=None, register_routes=True):
             duration_ms = (perf_counter() - started_at) * 1000
             response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
             response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
-            if duration_ms >= 300:
-                app.logger.info(
-                    "slow_request method=%s path=%s status=%s duration_ms=%.1f",
+        slow_started_at = getattr(g, "_slow_started_at", None)
+        if slow_started_at is not None:
+            slow_ms = (perf_counter() - slow_started_at) * 1000
+            if slow_ms >= app.config["SLOW_REQUEST_LOG_MS"]:
+                # Route pattern, never request.path: paths carry case ids.
+                slow_request_logger.info(
+                    "event=slow_request method=%s endpoint=%s rule=%s status=%s "
+                    "duration_ms=%.1f sql_count=%d sql_ms=%.1f",
                     request.method,
-                    request.path,
+                    request.endpoint or "-",
+                    request.url_rule.rule if request.url_rule else "-",
                     response.status_code,
-                    duration_ms,
+                    slow_ms,
+                    getattr(g, "_sql_count", 0),
+                    getattr(g, "_sql_ms", 0.0),
                 )
         return response
 

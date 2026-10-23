@@ -1,11 +1,11 @@
 import { Stack } from "expo-router";
-import { preventScreenCaptureAsync } from "expo-screen-capture";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
+import { applyScreenCaptureBlock } from "../src/screenCapture";
 import { useTheme } from "../src/theme";
 import { useWhoWebTheme } from "../src/whoWebTheme";
 import NativeTermsGate from "../src/NativeTermsGate";
@@ -13,11 +13,6 @@ import NativeCollectionGate from "../src/NativeCollectionGate";
 import AppHeader, { BottomTabs } from "../src/web/AppHeader";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
-
-// FLAG_SECURE on the whole app: no screenshots, blank in recent apps. A debug
-// build may opt out for emulator screenshots (EXPO_PUBLIC_ALLOW_SCREENSHOTS=1
-// at Metro start); __DEV__ is false in release, so release always blocks.
-const allowScreenshots = __DEV__ && process.env.EXPO_PUBLIC_ALLOW_SCREENSHOTS === "1";
 
 /** Every touch anywhere restarts the idle-lock timer; the touch itself goes on to its target. */
 function ActivityRoot() {
@@ -67,7 +62,7 @@ export default function RootLayout() {
   const theme = useTheme();
   useWhoWebTheme();
   useEffect(() => {
-    if (Platform.OS !== "web" && !allowScreenshots) void preventScreenCaptureAsync();
+    applyScreenCaptureBlock();
   }, []);
   return (
     <SafeAreaProvider>

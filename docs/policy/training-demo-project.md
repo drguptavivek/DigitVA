@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Training and demo project (TRN01)
@@ -175,11 +175,97 @@ pseudonymised, that photos, documents and audio are original and must not be
 copied, photographed or shared, and that coders see only their own 10 cases
 while the other roles see the whole session. It lists no users.
 
-The first time a signed-in user with an active participation that has not been
-onboarded loads a page in a session, they are redirected once to
-`/demo/welcome`: a role-specific checklist with links into the real app, and a
-Start button that records `onboarded_at` and opens the role landing page. The
-page stays reachable from the help menu.
+Training lives in the Expo app (owner, 2026-10-23, `digitva-r2pf`), not on a
+Flask page. A signed-in user with an active participation in an active session
+sees a **Training** item in the left menu (`navEntries`), and nobody else does.
+Its sub-items follow the training roles the user holds:
+
+| Sub-item | Roles that open it | Route |
+| --- | --- | --- |
+| Interview | `death_reporter`, `interviewer`, `interview_supervisor` | `/app/training/interview` |
+| Coding | `coder` (the screen names the coder slot) | `/app/training/coding` |
+| Review | `reviewer_data_manager` | `/app/training/review` |
+
+- `/app/training` is the overview: the confidentiality notice (cases are
+  consented and their text answers pseudonymised; photos, documents and audio
+  are original and must not be copied, photographed or shared), the session
+  name and code, and the **Start** button. Start records `onboarded_at`
+  (`complete_onboarding` and `remember_onboarding_checked`) and is idempotent.
+- `/app/training/interview|coding|review` show that area's checklist and its
+  work list, which are the ordinary Interview, Coding and Review screens in a
+  training scope (below).
+- The JSON API is `GET /api/v1/training/me` (the participations, the areas to
+  show, whether onboarding is pending) and `POST /api/v1/training/me/start`
+  (browser writes carry `X-CSRFToken`, JSON included). The menu needs no
+  request of its own: `GET /api/v1/me/access` carries `training`
+  (`project_id`, `areas`, `pending`).
+- The one-time redirect: while the Expo export is present (`export_ready()`),
+  a trainee with a pending onboarding is sent once to `/app/training`
+  (a Flask page load, or the Expo home itself, once per browser session until
+  Start). `/app/` is never redirected to a Flask page. `/demo/welcome`
+  redirects to `/app/training` when the export is present. Without the export
+  it stays as a fallback page that says training is done in the DigitVA app and
+  links to `/app/training`; its Start button opens `/app/training` too. It
+  never links to a Flask work page. The public `/demo` page and the help pages
+  link to `/app/training` when the export is present.
+
+### Separation from real work
+
+The training project and real work never mix in the Expo app, in either
+direction, and the server enforces it (not only the menu):
+
+- The Training sub-menus list only training-project forms and cases. The
+  list, count and allocation endpoints the Expo screens call (coding,
+  reviewing, intake worklist, registered deaths, supervision, Home blocks and
+  activity counts) take `training=1`: it returns only the training project and
+  needs an active participation in an active session with a role of that area
+  (coding: `coder`; reviewing: `reviewer_data_manager`; intake: an interview
+  role), else 403 `forbidden`. Without a participation, and with the feature
+  off, nothing is returned.
+- Without `training`, or with `training=0`, those endpoints exclude the
+  training project for every user: its cases are never listed, counted or
+  allocated, and asking for `project_id=TRN01` in that scope answers an empty
+  list. A coder or reviewer pick, recode or "Code this case now" of a case in
+  the other scope is refused (409 `not_available`). An intake write (register
+  a death, start, sync, submit or discard a draft, a contact attempt, a
+  supervision action ...) that names a project, death, draft or submission in
+  the other scope is refused (409 `training_scope`); the Expo Training screens
+  send `training=1` on every write. The native phone app sends no `training`,
+  so it works real projects only: training is an Expo-web surface.
+- **Training is Expo-only.** Every request runs in the exclude scope by
+  default (Flask pages and API alike; the app-level default in
+  `app/services/training_scope.py`), so a Flask work page (coding, reviewing,
+  intake, data management, the dashboards) never lists, counts or allocates
+  the training project. Only `?training=1` on an authorized Expo route widens
+  a request to the training side, and only the trainer tools run unfiltered.
+  An admin page other than those loses TRN01 too. These surfaces always leave it out, for every user: the Home
+  KPIs (`/api/v1/me/kpis`), the area dashboard, `/api/v1/me/activity` and
+  `/home`, the notification poll (the cursor still moves past a training
+  notification), the cases list, its filters and CSV (`/api/v1/cases`), and
+  every data management page, submission list, KPI, filter and CSV or other
+  export (`/data-management`, `/api/v1/data-management`, the COD bucket and
+  analytics endpoints). The trainer's own tools (the admin Training sessions
+  panel and its JSON API under `/admin/api/training`, the trainer report under
+  `/data-management/training`, `flask training-demo` and Celery tasks, which
+  have no request) are unchanged: they see everything.
+- **One allocation per side.** A coder (or reviewer) may hold one active
+  allocation on the training side and one on the real side at once
+  (`digitva-rcwt`): a training allocation never blocks real coding or review,
+  nor the reverse. Allocate, resume, release and the "you have an active case"
+  answer (`GET .../allocation`) consider only the allocation of the request's
+  scope, so each side shows its own Resume and Release. The stale-allocation
+  timeouts apply to both. See `docs/policy/coding-workflow-state-machine.md`.
+- `GET /api/v1/me/access` keeps the training project out of `projects` and its
+  grants out of `roles`, and gives them as `training.project` instead, so the
+  normal menus (VA Interview, Deaths, VA Code, VA Review) are built from real
+  work only and a trainee with nothing else sees none of them. The Training
+  screens run on a bootstrap holding only that project.
+- The scope comes from the route a screen sits on (`/app/training/...`), never
+  from a query string a user can edit: editing the URL cannot cross the line,
+  because the server re-checks the participation on every request.
+- Out of scope and unchanged: the admin Training sessions panel, the
+  `flask training-demo` commands, the trainer report and the admin views, which
+  do not use these endpoints.
 
 ## Trainer management
 

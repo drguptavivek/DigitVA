@@ -50,7 +50,7 @@
 
   <p class="mt-4">
     {% if current_user.is_authenticated %}
-      <a class="btn btn-primary" href="{{ url_for('training_demo.welcome') }}">Open my training checklist</a>
+      <a class="btn btn-primary" href="{{ training_page_url() }}">Open my training checklist</a>
     {% else %}
       <a class="btn btn-primary" href="{{ sign_in_url }}">Sign in</a>
     {% endif %}

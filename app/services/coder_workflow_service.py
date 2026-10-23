@@ -70,6 +70,7 @@ from app.services.workflow.definition import (
     WORKFLOW_READY_FOR_CODING,
     WORKFLOW_REVIEWER_ELIGIBLE,
 )
+from app.services import training_scope
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.intake_modes import (
     CODING_INTAKE_PICK,
@@ -125,7 +126,7 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
       has_random_mode – bool
       has_pick_mode   – bool
     """
-    va_form_access = user.get_coder_va_forms() | user.get_coding_tester_va_forms()
+    va_form_access = training_scope.filter_form_ids(user.get_coder_va_forms() | user.get_coding_tester_va_forms())
     if not va_form_access:
         return {"random_ready": 0, "pick_ready": 0, "has_random_mode": False, "has_pick_mode": False}
 
@@ -228,6 +229,9 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
                 sa.select(VaForms.form_id).where(VaForms.project_id == project_id)
             )
         )
+    # The Expo training scope (docs/policy/training-demo-project.md): the pool,
+    # random allocation and the pick list all start here.
+    filters += training_scope.form_conditions(VaSubmissions.va_form_id)
     return filters
 
 
@@ -641,6 +645,7 @@ def _create_coding_allocation(
             va_sid=va_sid,
             va_allocated_to=user.user_id,
             va_allocation_for=VaAllocation.coding,
+            va_allocation_training=training_scope.is_training_sid(va_sid),
         ))
     user.vacode_formcount += 1
     db.session.add(VaSubmissionsAuditlog(
@@ -676,16 +681,22 @@ def _create_coding_allocation(
 # Public service functions
 # ---------------------------------------------------------------------------
 
-def get_active_coding_allocation(user_id: str) -> str | None:
+def get_active_coding_allocation(user_id: str, training: bool | None = None) -> str | None:
     """Return the va_sid of the current active coding allocation, or None.
 
-    The unique index allows one; newest first keeps "Resume" on the same case
-    should rows from before it ever coexist.
+    A coder holds one allocation per side, training and real work
+    (digitva-rcwt); *training* picks the side, default the request's scope
+    (real work when none is set). The unique index allows one per side; newest
+    first keeps "Resume" on the same case should rows from before it ever
+    coexist.
     """
+    if training is None:
+        training = training_scope.on_training_side()
     return db.session.scalar(
         sa.select(VaAllocations.va_sid)
         .where(
             VaAllocations.va_allocated_to == user_id,
+            VaAllocations.va_allocation_training.is_(training),
             VaAllocations.va_allocation_for == VaAllocation.coding,
             VaAllocations.va_allocation_status == VaStatuses.active,
         )
@@ -983,6 +994,7 @@ def release_own_coding_allocation(user) -> str:
         sa.select(VaAllocations)
         .where(
             VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_training.is_(training_scope.on_training_side()),
             VaAllocations.va_allocation_for == VaAllocation.coding,
             VaAllocations.va_allocation_status == VaStatuses.active,
         )
@@ -1092,6 +1104,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
                 va_sid=va_sid,
                 va_allocated_to=user.user_id,
                 va_allocation_for=VaAllocation.coding,
+                va_allocation_training=training_scope.is_training_sid(va_sid),
             ))
     except ActiveAllocationHeld:
         raise AllocationError("You already have an active coding allocation.") from None
@@ -1248,6 +1261,7 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
             VaAllocations.va_allocated_to == user.user_id,
             VaAllocations.va_allocation_for == VaAllocation.coding,
             VaAllocations.va_allocation_status == VaStatuses.active,
+            VaAllocations.va_allocation_training.is_(training_scope.on_training_side()),
         )
     )
     released_sid = None
@@ -1286,6 +1300,7 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
                 va_sid=va_new_sid,
                 va_allocated_to=user.user_id,
                 va_allocation_for=VaAllocation.coding,
+                va_allocation_training=training_scope.is_training_sid(va_new_sid),
             ))
     except ActiveAllocationHeld:
         # A concurrent demo start inserted first; drop this one's release too.

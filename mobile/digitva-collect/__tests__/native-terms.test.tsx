@@ -4,6 +4,8 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 let mockRequired = true;
 let mockBlocked: "maintenance" | undefined;
 let mockAppError: string | undefined;
+let mockBackground: string | undefined;
+const mockDismiss = jest.fn();
 let mockRouteUser: string | undefined = "worker";
 const mockClearError = jest.fn(() => { mockAppError = undefined; });
 const mockReload = jest.fn(async () => undefined);
@@ -22,8 +24,11 @@ jest.mock("../src/AppState", () => ({
     reload: mockReload,
     error: mockAppError,
     clearError: mockClearError,
+    backgroundError: mockBackground,
+    dismissBackgroundError: mockDismiss,
   }),
 }));
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 20, left: 0, right: 0 }) }));
 jest.mock("../src/auth", () => ({
   acceptDeviceTerms: (userId: string) => mockAccept(userId),
   refreshAccessSummary: (userId: string) => mockRefresh(userId),
@@ -55,6 +60,7 @@ beforeEach(() => {
   mockRequired = true;
   mockBlocked = undefined;
   mockAppError = undefined;
+  mockBackground = undefined;
   mockRouteUser = "worker";
   jest.clearAllMocks();
 });
@@ -160,4 +166,60 @@ it("returns home for sign-in when acceptance finds an ended session", async () =
   expect(mockReload).toHaveBeenCalled();
   expect(mockReplace).toHaveBeenCalledWith("/");
   await act(async () => tree.unmount());
+});
+
+describe("background error toast", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+    mockRequired = false;
+    mockBackground = "Server down\nRef: x";
+  });
+  afterEach(() => jest.useRealTimers());
+
+  const toastText = (tree: ReactTestRenderer) => tree.root.findByProps({ accessibilityRole: "alert" });
+
+  it("shows the short message, leaves the page interactive, and auto-hides after 6 s", async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+    const json = JSON.stringify(tree.toJSON());
+    expect(json).toContain("backgroundRefreshFailed");
+    expect(json).not.toContain("Ref: x");
+    expect(json).toContain('"pointerEvents":"auto"');
+    expect(json).toContain('"pointerEvents":"box-none"');
+    expect(json).toContain('"accessibilityLiveRegion":"polite"');
+    await act(async () => { jest.advanceTimersByTime(5_900); });
+    expect(mockDismiss).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(200); });
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("expands on tap to the full text with the Ref line, then hides after 15 s", async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+    await act(async () => { toastText(tree).props.onPress(); });
+    expect(JSON.stringify(tree.toJSON())).toContain("Ref: x");
+    await act(async () => { jest.advanceTimersByTime(14_900); });
+    expect(mockDismiss).not.toHaveBeenCalled();
+    await act(async () => { jest.advanceTimersByTime(200); });
+    expect(mockDismiss).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("collapses again on a second tap", async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+    await act(async () => { toastText(tree).props.onPress(); });
+    await act(async () => { toastText(tree).props.onPress(); });
+    expect(JSON.stringify(tree.toJSON())).not.toContain("Ref: x");
+    await act(async () => tree.unmount());
+  });
+
+  it("shows no toast while the gate is active", async () => {
+    mockRequired = true;
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+    expect(JSON.stringify(tree.toJSON())).not.toContain("backgroundRefreshFailed");
+    await act(async () => tree.unmount());
+  });
 });

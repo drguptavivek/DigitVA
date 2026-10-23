@@ -140,13 +140,28 @@ describe("DeathsList filter bar", () => {
     expect(mockGetCases).not.toHaveBeenCalled(); // nothing applies before Apply
     await act(async () => tree.root.findAll((n) => n.props["data-label"] === "applyFilters")[0].props.onClick());
     await settle();
-    expect(mockGetCases).toHaveBeenCalledWith("/api/v1/intake/cases", mockBootstrap.csrf, null, "P2");
+    expect(mockGetCases).toHaveBeenCalledWith("/api/v1/intake/cases", mockBootstrap.csrf, null, "P2", false);
     expect(pressable(tree, "advancedFiltersActive")).toBeDefined();
     await press(tree, "removeFilter:filterProject: Project Two");
     await settle();
-    expect(mockGetCases).toHaveBeenLastCalledWith("/api/v1/intake/cases", mockBootstrap.csrf, null, undefined);
+    expect(mockGetCases).toHaveBeenLastCalledWith("/api/v1/intake/cases", mockBootstrap.csrf, null, undefined, false);
     expect(pressable(tree, "advancedFilters")).toBeDefined();
     await act(async () => tree.unmount());
+  });
+
+  it("asks the server for the training scope only inside the Training screens", async () => {
+    mockBootstrap = { ...makeBootstrap(["interviewer"], { intake: true }), scope: "training" } as typeof mockBootstrap;
+    const tree = await render(<DeathsListPanel />);
+    expect(mockGetCases).toHaveBeenCalled();
+    expect(mockGetCases.mock.calls.every((call) => call[4] === true)).toBe(true);
+    await act(async () => tree.unmount());
+
+    mockGetCases.mockClear();
+    mockBootstrap = makeBootstrap(["interviewer"], { intake: true });
+    const normal = await render(<DeathsListPanel />);
+    expect(mockGetCases).toHaveBeenCalled();
+    expect(mockGetCases.mock.calls.every((call) => call[4] === false)).toBe(true);
+    await act(async () => normal.unmount());
   });
 
   it("defaults to All for an interviewer and narrows to own registrations with Mine", async () => {

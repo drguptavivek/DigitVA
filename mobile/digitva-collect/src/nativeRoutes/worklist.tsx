@@ -138,6 +138,7 @@ function InterviewWorklist() {
     useState<Awaited<ReturnType<typeof getCachedReferenceData>>>();
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
   const [supersededUniqueIds, setSupersededUniqueIds] = useState<string[]>([]);
   const [serverKeptUploads, setServerKeptUploads] = useState<
@@ -571,6 +572,7 @@ function InterviewWorklist() {
     const requestGeneration = onlineRequestGenerationRef.current;
     const projectId = selectedProjectId;
     setBusy(true);
+    setRefreshing(true);
     setMessage("");
     try {
       const fresh = await refreshReferenceData(account.user_id, db, {
@@ -612,6 +614,7 @@ function InterviewWorklist() {
       }
     } finally {
       setBusy(false);
+      setRefreshing(false);
     }
   }
 
@@ -1195,6 +1198,7 @@ function InterviewWorklist() {
         <Button
           kind="secondary"
           label={t("refresh")}
+          loading={refreshing}
           disabled={busy || !db}
           onPress={() => void refresh()}
         />

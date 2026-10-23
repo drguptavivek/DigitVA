@@ -22,6 +22,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
+from app.services import training_scope
 from app.services.demo_project_service import get_coder_demo_project_form_ids
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
@@ -81,7 +82,8 @@ def _cached_dashboard_value(user_id, suffix: str, form_ids: Sequence[str], compu
 
 
 def _cached_dashboard_project_value(user_id, suffix: str, project_id: str | None, compute_fn):
-    cache_key = f"{CODER_DASHBOARD_CACHE_PREFIX}{user_id}:{suffix}:{project_id or 'ALL'}"
+    scope = training_scope.current() or ""
+    cache_key = f"{CODER_DASHBOARD_CACHE_PREFIX}{user_id}:{suffix}:{project_id or 'ALL'}:{scope}"
     try:
         cached_value = cache.get(cache_key)
     except Exception:
@@ -137,13 +139,16 @@ def get_coder_output_summary(user_id, project_id: str | None = None) -> dict[str
         if project_id:
             final_filters.append(VaForms.project_id == project_id)
             review_filters.append(VaForms.project_id == project_id)
-        elif current_app.config.get("DIGITVA_TRAINING_PROJECT_ID"):
+        elif training_scope.current() != training_scope.ONLY and current_app.config.get("DIGITVA_TRAINING_PROJECT_ID"):
             # Practice coding in the Training & demo project is not output
             # (docs/policy/training-demo-project.md); asking for that project
             # by id still counts it.
             training_project = current_app.config["DIGITVA_TRAINING_PROJECT_ID"]
             final_filters.append(VaForms.project_id != training_project)
             review_filters.append(VaForms.project_id != training_project)
+        # The request's training scope also decides an explicit project_id.
+        final_filters += training_scope.conditions(VaForms.project_id)
+        review_filters += training_scope.conditions(VaForms.project_id)
 
         completed = db.session.scalar(
             sa.select(sa.func.count(sa.distinct(VaFinalAssessments.va_sid)))
@@ -262,6 +267,8 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None):
     if project_id:
         final_sel = final_sel.where(VaForms.project_id == project_id)
         review_sel = review_sel.where(VaForms.project_id == project_id)
+    final_sel = final_sel.where(*training_scope.conditions(VaForms.project_id))
+    review_sel = review_sel.where(*training_scope.conditions(VaForms.project_id))
     return final_sel, review_sel
 
 
@@ -333,6 +340,7 @@ def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "A
             VaFinalAssessments.va_finassess_status == VaStatuses.active,
             VaFinalAssessments.demo_expires_at > now,
             VaProjectMaster.demo_training_enabled.is_(True),
+            *training_scope.conditions(VaForms.project_id),
         )
     )
     if project_id:

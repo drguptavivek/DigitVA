@@ -221,6 +221,7 @@ export type DeathCases = {
  * rows never reach the next user's screen.
  */
 export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCases {
+  const training = bootstrap?.scope === "training";
   const [cases, setCases] = useState<CaseRow[]>([]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -263,7 +264,7 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     setBusy(true);
     setMessage("");
     try {
-      const result = await getCases(bootstrap.links.intakeCases, bootstrap.csrf, cursor, requested);
+      const result = await getCases(bootstrap.links.intakeCases, bootstrap.csrf, cursor, requested, training);
       if (!isCurrent()) return false;
       rememberCasePreviews(bootstrap, result.cases ?? []);
       if (projectRef.current === requested) apply(result);
@@ -274,7 +275,7 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     } finally {
       if (isCurrent()) setBusy(false);
     }
-  }, [bootstrap]);
+  }, [bootstrap, training]);
 
   const replace = useCallback((result: Awaited<ReturnType<typeof getCases>>) => {
     setCases(result.cases ?? []);
@@ -322,6 +323,7 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
     [bootstrap?.csrf, bootstrap?.user.user_id],
   );
   const canCode = bootstrap?.access.roles.some((role) => role === "coder" || role === "coding_tester") === true;
+  const training = bootstrap?.scope === "training";
   const mayInterview = bootstrap?.capabilities.intake === true;
   // Projects whose registrations this user may edit: the contexts the registration screen opens
   // (a direct-only interviewer has none, and would land on "no collection access").
@@ -391,7 +393,7 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
     void list.changeProject(undefined);
   };
   const openEdit = (row: CaseRow) => router.push({
-    pathname: "/death-registration",
+    pathname: training ? "/training/register" : "/death-registration",
     params: { deathId: row.death_id, ...(row.can_interview === false ? { registered: "mine" } : {}) },
   });
 

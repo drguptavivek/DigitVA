@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
+import { isTrainingProject, TRAINING_INTERVIEW_HOME } from "../training";
 import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestRaw, startDraft, submitDraft, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
@@ -257,6 +258,9 @@ export default function InterviewScreen() {
   const [draftId, setDraftId] = useState(params.draftId);
   const [draft, setDraft] = useState<DraftResponse>();
   const [revision, setRevision] = useState<RevisionDetail>();
+  // A training interview returns to the Training menu's Interview list, not to the real Interview list.
+  const collectionPath = isTrainingProject(bootstrap?.access, draft?.draft.project_id ?? params.revisionProjectId ?? params.projectId)
+    ? TRAINING_INTERVIEW_HOME : "/collection";
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
   const [resolvedInstrument, setResolvedInstrument] = useState<ResolvedInstrument>();
   const [locale, setLocale] = useState("en");
@@ -322,7 +326,8 @@ export default function InterviewScreen() {
     // Load only after the reset's save of the previous store, or the draft read misses those answers.
     await resetSaveRef.current;
     if (!isCurrent()) return;
-    const nextIntake = await getIntakeContext(bootstrap.csrf);
+    // "all": a training interview opens here too (the lists, not this by-id screen, keep the two apart).
+    const nextIntake = await getIntakeContext(bootstrap.csrf, "interview", "all");
     if (!isCurrent()) return;
     setIntake(nextIntake);
     let nextDraftId = params.draftId;
@@ -667,7 +672,7 @@ export default function InterviewScreen() {
       }
       if (revisionGenerationRef.current === snapshot.generation) {
         dirtyRef.current = false;
-        router.replace("/collection");
+        router.replace(collectionPath as never);
       } else {
         dirtyRef.current = true;
         setMessage(acknowledgement.changed ? t("revisionSaved") : t("revisionNoCodingChange"));
@@ -756,9 +761,9 @@ export default function InterviewScreen() {
       if (!isCurrent()) return;
       dirtyRef.current = false;
       if (submission.superseded) {
-        router.replace({ pathname: "/collection", params: { superseded: "1" } });
+        router.replace({ pathname: collectionPath as never, params: { superseded: "1" } });
       } else if (submission.kept === "server") {
-        router.replace({ pathname: "/collection", params: {
+        router.replace({ pathname: collectionPath as never, params: {
           submissionHistory: "1",
           submissionLocked: submission.locked === true ? "1" : "0",
           ...(submission.can_code_now === true ? { canCodeNow: "1" } : {}),
@@ -766,13 +771,13 @@ export default function InterviewScreen() {
           ...(submission.can_code_now === true ? { readyVaSid: submission.va_sid } : {}),
         } });
       } else if (submission.can_code_now === true) {
-        router.replace({ pathname: "/collection", params: {
+        router.replace({ pathname: collectionPath as never, params: {
           canCodeNow: "1",
           ...(submission.draft.unique_id ? { readyUniqueId: submission.draft.unique_id } : {}),
           readyVaSid: submission.va_sid,
         } });
       } else {
-        router.replace("/collection");
+        router.replace(collectionPath as never);
       }
     } catch (error) {
       // The project began requiring consent after this page checked: ask for it now.

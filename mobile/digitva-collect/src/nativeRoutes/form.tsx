@@ -27,6 +27,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
+import { useStableAccount } from "../useStableAccount";
 import {
   getCase,
   getRegistration,
@@ -226,11 +227,12 @@ export default function Form() {
     deathId?: string;
     clientDeathId?: string;
   }>();
-  const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion } =
+  const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion, holdRefresh } =
     useAppState();
+  useEffect(() => holdRefresh?.(), [holdRefresh]);
   const lockVersionRef = useRef(lockVersion);
   lockVersionRef.current = lockVersion;
-  const account = accounts.find((a) => a.user_id === params.userId);
+  const account = useStableAccount(accounts.find((a) => a.user_id === params.userId));
   const draftId = UUID.test(params.draftId ?? "") ? params.draftId : undefined;
   const [loaded, setLoaded] = useState<Loaded | undefined>();
   const [locale, setLocale] = useState("en");

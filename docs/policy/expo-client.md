@@ -92,6 +92,22 @@ Effective roles come from the authz helper, so a `site_pi` held at an org
 unit (the In-charge) counts as `data_manager` and `interview_supervisor`.
 `VaUsers.landing_url()` implements the rule.
 
+## Training menu and the training scope
+
+Owner decision, 2026-10-23 (`digitva-r2pf`; detail in
+[training-demo-project.md](training-demo-project.md), "Onboarding and the
+public page"). The left menu has a **Training** item, shown only when
+`access.training.areas` is not empty (an active participation). Its sub-items
+are Interview, Coding and Review, each shown only for the training roles the
+user holds; `/app/training` is the overview with the Start button.
+
+The normal Interview, Coding and Review menus, their lists and their counts
+(and the Home counts) never show the training project, for any user: the
+server leaves it out unless the request asks for `training=1` and the caller
+has the matching active participation. The training sub-menus show nothing but
+the training project. The Training screens reuse the ordinary screens with a
+training scope; the scope comes from the route, not from an editable query.
+
 ## Error messages and the support reference
 
 Field users report problems by screenshot, not by log. So an error the app
@@ -104,8 +120,11 @@ cannot name precisely must still identify itself on screen (owner,
   `errorReference` in `mobile/digitva-collect/src/ui.tsx`. `<what>` is the
   HTTP status, the error code, the method and the route with every id
   segment masked as `:id`, or for a failure on the device, the error class
-  and at most 60 characters of its message with quoted text and digit runs
-  of 4+ masked.
+  and at most 160 characters of its message, whitespace collapsed (so a
+  native "→ Caused by:" cause stays visible). Quoted text is masked as `'…'`
+  unless it is a bare identifier path such as `'NativeDatabase.prepareAsync'`;
+  `file://` and `/data/` paths become `file:…`; digit runs of 4+ become `#`
+  (short numbers such as SQLite "code 5" stay).
 - The Ref line never carries tokens, query strings, full URLs, names,
   answers or server-provided free text.
 - Messages that already say what to do (offline, rate limited, sign in
@@ -117,6 +136,18 @@ cannot name precisely must still identify itself on screen (owner,
   server text stays hidden.
 - Support matches a Ref to the server's access log by route, status and UTC
   minute.
+
+## Screen capture (temporary allowance)
+
+The native app blocks screenshots and screen recording (`FLAG_SECURE`, applied
+at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
+
+- Temporary, owner decision 2026-10-23: builds made with
+  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL=2026-10-30` allow screenshots for field
+  testing until that date (exclusive, device clock). The same installed APK
+  blocks again automatically afterwards. A date more than 14 days past app
+  start, or an invalid or unset value, keeps the block. Remove the setting from
+  builds after expiry.
 
 ## Hosting and languages
 

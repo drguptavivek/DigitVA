@@ -13,6 +13,7 @@ import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel } from "./DeathsList";
+import { TRAINING_INTERVIEW_HOME } from "../training";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { convertPrecision, type Precision } from "../workspace/doris/dateFieldShared";
 import { LocationCapture, type GpsFix } from "./LocationCapture";
@@ -119,10 +120,10 @@ const OWN_LIST_PAGES = 20;
  * ponytail: walks at most OWN_LIST_PAGES pages (the 1000 most recently
  * updated); an additive `death_id` filter on that endpoint would make it one read.
  */
-async function findOwnRegistration(csrf: Parameters<typeof getRegisteredDeaths>[0], registeredMine: boolean, deathId: string) {
+async function findOwnRegistration(csrf: Parameters<typeof getRegisteredDeaths>[0], registeredMine: boolean, deathId: string, training = false) {
   let cursor: string | undefined;
   for (let page = 0; page < OWN_LIST_PAGES; page += 1) {
-    const result = await getRegisteredDeaths(csrf, registeredMine, cursor);
+    const result = await getRegisteredDeaths(csrf, registeredMine, cursor, training);
     const row = result.deaths.find((death) => death.death_id === deathId);
     if (row) return { row, cursor };
     if (!result.next_cursor) return undefined;
@@ -145,6 +146,10 @@ export default function DeathRegistrationScreen() {
   const params = useLocalSearchParams<{ view?: string | string[]; preset?: string | string[]; deathId?: string | string[]; registered?: string | string[] }>();
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
+  // Inside the Training screens (training scope) this screen lives under /training and returns to the Training list.
+  const training = bootstrap?.scope === "training";
+  const registerPath = training ? "/training/register" : "/death-registration";
+  const collectionPath = training ? TRAINING_INTERVIEW_HOME : "/collection";
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -281,7 +286,7 @@ export default function DeathRegistrationScreen() {
       const current = () => active && generation === registrationGeneration.current && bootstrapRef.current === bootstrap && activeRef.current;
       setBusy(true);
       setMessage("");
-      void findOwnRegistration(bootstrap.csrf, bootstrap.capabilities.intake, deathId).then((found) => {
+      void findOwnRegistration(bootstrap.csrf, bootstrap.capabilities.intake, deathId, training).then((found) => {
         if (!current()) return;
         if (!found) {
           setMessage(t("serverError"));
@@ -318,7 +323,7 @@ export default function DeathRegistrationScreen() {
       setBusy(false);
       setMessage("");
       setListMode(true);
-      router.replace({ pathname: "/death-registration", params: { view: "mine" } });
+      router.replace({ pathname: registerPath as never, params: { view: "mine" } });
       return undefined;
     }
     const generation = ++registrationGeneration.current;
@@ -484,7 +489,8 @@ export default function DeathRegistrationScreen() {
       : (await getRegisteredDeaths(
           currentBootstrap.csrf,
           currentBootstrap.capabilities.intake && currentBootstrap.capabilities.registeredDeaths,
-          registrationSourceCursor.current
+          registrationSourceCursor.current,
+          currentBootstrap.scope === "training",
         )).deaths.find((row) => row.death_id === deathId);
     if (!isCurrent()) return;
     if (!fresh) throw new Error("registration_unavailable");
@@ -694,7 +700,7 @@ export default function DeathRegistrationScreen() {
         const idChanges = idShown ? identifierChanges(Object.fromEntries(idTypes.map((type) => [type.code, idBase.current[type.code]])), typed) : {};
         if (!Object.keys(changes).length && !Object.keys(locationChanges).length && !Object.keys(idChanges).length) {
           if (bootstrap.capabilities.registeredDeaths) showList(true);
-          else router.replace("/collection");
+          else router.replace(collectionPath as never);
           return;
         }
         const result = await requestClientJson<unknown>(`${INTAKE_API}/deaths/${encodeURIComponent(editingDeathId)}`, {
@@ -715,7 +721,7 @@ export default function DeathRegistrationScreen() {
             showList(true);
             setNotice(t("savedDeath", { name: (fields.deceased_name ?? "").trim() }));
           } else {
-            router.replace({ pathname: "/collection", params: { saved: "1" } });
+            router.replace({ pathname: collectionPath as never, params: { saved: "1" } });
           }
         };
         const duplicates = identifierWarnings(result);
@@ -761,7 +767,7 @@ export default function DeathRegistrationScreen() {
       if (!mayStartInterview) {
         // The name stays out of the URL: the collection page says only that a registration was saved.
         if (saveOnly && bootstrap.capabilities.intake) {
-          router.replace({ pathname: "/collection", params: { saved: "1" } });
+          router.replace({ pathname: collectionPath as never, params: { saved: "1" } });
         } else if (bootstrap.capabilities.registeredDeaths) {
           setFields({}); setLocation(null); setWebConsent(null);
           setSex("");
@@ -791,7 +797,7 @@ export default function DeathRegistrationScreen() {
         idHeld.current = {
           onContinue: () => void finishCreate().catch((caught: unknown) => { if (current()) setMessage(browserErrorText(caught)); }),
           onEdit: () => router.replace({
-            pathname: "/death-registration",
+            pathname: registerPath as never,
             params: { deathId: registration.case.death_id, ...(bootstrap.capabilities.intake ? {} : { registered: "mine" }) },
           }),
         };

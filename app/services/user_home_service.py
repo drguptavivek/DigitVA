@@ -11,6 +11,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 
 from app import db
+from app.services import training_scope
 from app.models import (
     VaCoderReview,
     VaDeathRegister,
@@ -194,11 +195,17 @@ def get_user_activity_summary(user, *, project_ids=None) -> dict:
         .group_by(all_unioned.c.project_id, all_unioned.c.metric)
     ).all()
 
+    # The Expo training scope: the training project's work is not real activity.
+    scoped_out = training_scope.current() == training_scope.EXCLUDE and training_scope.training_project_id()
     for project_id, metric, count in activity_rows:
+        if scoped_out and project_id == scoped_out:
+            continue
         bucket = _bucket(project_id)
         if bucket is not None and metric in bucket:
             bucket[metric] = int(count or 0)
 
+    if scoped_out:
+        by_project.pop(scoped_out, None)
     if project_ids is not None:
         by_project = {pid: counts for pid, counts in by_project.items() if pid in project_ids}
     totals = _empty_counts()
@@ -236,6 +243,7 @@ def _death_reporter_block(user) -> dict:
             VaDeathRegister.registered_by == user.user_id,
             VaDeathRegister.source == "register",
             VaDeathRegister.status.notin_(("duplicate", "cancelled")),
+            *training_scope.conditions(VaDeathRegister.project_id),
         )
     ).one()
     return {"registered": registered, "awaiting_interview": awaiting}
@@ -275,7 +283,7 @@ def _supervisor_block(user) -> dict:
             sa.func.count().filter(VaDeathRegister.pending_flag.is_not(None)),
             sa.func.count().filter(needs_decision),
         )
-        .where(supervised_case_condition(user))
+        .where(supervised_case_condition(user), *training_scope.conditions(VaDeathRegister.project_id))
         .group_by(VaDeathRegister.status)
     ).all()
     return {
@@ -302,7 +310,7 @@ def _coder_block(user, practice: bool) -> dict:
         return block
     block["completed"] = get_coder_output_summary(user.user_id)["completed"]
     block["recodeable"] = len(
-        get_coder_recodeable_sids(user, list(user.get_coder_va_forms() or []))
+        get_coder_recodeable_sids(user, list(training_scope.filter_form_ids(user.get_coder_va_forms() or [])))
     )
     return block
 
@@ -343,6 +351,7 @@ def _data_manager_block(user) -> dict:
                     scope_unit_ids=scope.unit_subtree(),
                 ),
                 core.c.workflow_state.in_(_DM_STATES),
+                *training_scope.conditions(core.c.project_id),
             )
             .group_by(core.c.workflow_state)
         ).all()

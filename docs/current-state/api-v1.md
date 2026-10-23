@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # API v1 Reference
@@ -1290,6 +1290,7 @@ virtual grants are never listed.
   "roles": ["coder", "data_manager", "interview_supervisor", "site_pi"],
   "admin_actions": [],
   "demo_coding": {"available": true, "project_ids": ["DEMO01"]},
+  "training": {"project_id": "TRN01", "areas": ["coding"], "pending": true},
   "projects": [{
     "project_id": "TST001", "project_name": "...", "has_tree": true,
     "settings": {"web_intake_mode": "both",
@@ -1327,6 +1328,15 @@ site or unit.
 - `user`: id, name, `landing_page` (`VaUsers.landing_page`) and
   `coding_languages` (`VaUsers.vacode_language`, a list of language codes).
   No email or mobile.
+- `training`: the Expo Training menu's data, `null` when training is off
+  (`DIGITVA_TRAINING_PROJECT_ID` empty). `project_id` is the training project,
+  `areas` the sub-menus the caller's active participations in active sessions
+  open (`interview`, `coding`, `review`; empty for a non-participant),
+  `pending` true until Start, and `project` the caller's grants in the training
+  project shaped like a `projects` entry (null without a participation). The
+  training project is **not** in `projects`, and its grants do not count
+  towards `roles`: the normal menus see real work only. Source:
+  `training_demo_service.me_summary`, `access_summary_service._training`.
 - `is_admin`: the global admin grant. Admin gets no implicit project:
   `projects` lists only projects where the user holds an explicit grant.
 - `roles`: the roles whose screen gates the user opens, sorted:
@@ -1448,6 +1458,55 @@ Errors: 401 `unauthorized` when signed out or on a bad bearer; 403
 `/api/v1` route; the old browser bootstrap's `password_change_required` and
 `redirect_url` are gone); 429 over
 the limit. Response header (cookie request only): `X-CSRFToken`.
+
+## Training scope and `/api/v1/training` (`app/services/training_scope.py`, `app/routes/api/training.py`)
+
+Policy: `docs/policy/training-demo-project.md`, "Separation from real work".
+The list, count and allocation routes the Expo screens call run in one of two
+scopes, chosen by `?training=` (also on the `POST` allocation routes):
+
+- absent or `0` (default for every request, API and Flask page alike; the
+  app-level default in `training_scope.current()`): the training project (`DIGITVA_TRAINING_PROJECT_ID`)
+  is left out for everyone. `project_id=TRN01` in this scope finds nothing, and
+  a pick of a training case answers 409 `not_available`.
+- `1`: only the training project, and only for a caller with an active
+  participation in an active session whose role opens the area (coding:
+  `coder`; reviewing: `reviewer_data_manager`; intake: an interview role).
+  Otherwise 403 `forbidden`; any other value is 400 `invalid_request`. A pick
+  or allocation of a case outside the training project answers 409
+  `not_available`, and `GET .../allocation` shows only an allocation inside
+  the scope.
+
+Routes: `GET /coding/available|history|stats|projects|allocation`, `POST
+/coding/allocation`, `POST /coding/allocation/release`, code-now and recode;
+`GET /reviewing/stats|projects|available|history|allocation`, `POST
+/reviewing/allocation/<va_sid>` and release; `GET /intake/cases|deaths|drafts|supervision/cases`.
+Intake **writes** (`POST|PUT|PATCH|DELETE` under `/api/v1/intake`) resolve the
+`interview` area and refuse a named `project_id`, `death_id`, `draft_id` or
+`va_sid` on the other side of the line with 409 `training_scope` (the phone app
+sends no `training`, so it works real projects only). Intake writes also resolve
+`client_draft_id` and `client_death_id` to the stored row's project. Every
+other request runs in the exclude scope too: `/cases`, `/analytics`,
+`/cod-buckets`, `/api/v1/data-management` and the nine DM KPI blueprints, the
+Flask coding, reviewing, intake and data-management pages, `/me/*` (access
+`projects`/`roles` aside). Only the trainer tools opt out (scope `all`, no
+filter): `/admin/panels/training-sessions`, `/admin/api/training/*` and
+`/data-management/training/*`; the CLI and Celery have no request and see
+everything. `GET /me/notifications` does not
+deliver training-project notifications; the cursor still moves past them.
+
+Allocations are per side: coding and reviewing allocations carry
+`va_allocation_training`, a user holds one active allocation per (kind, side),
+and `GET`/release/finish act on the request's side only. Resuming, picking or
+allocating a case across the line answers 409 `not_available`.
+`GET /me/home` and `GET /me/activity` always exclude the training project and
+take no `training` parameter. Not scoped: routes that act on one case by id
+(workspace, COD writes, case detail), which keep their own authorization.
+
+| Route | Reply |
+| --- | --- |
+| `GET /api/v1/training/me` | `{project_id, areas, pending, participations: [{role, coder_slot, onboarded_at, session_code, session_name}]}` of the caller's own active participations. 401 signed out. |
+| `POST /api/v1/training/me/start` | Sets `onboarded_at` on the caller's pending participations (idempotent) and replies as `GET /me`. Browser writes carry `X-CSRFToken`. |
 
 ## GET /api/v1/me/kpis (body)
 

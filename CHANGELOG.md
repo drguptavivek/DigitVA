@@ -5,6 +5,20 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-23
 
+- **Training in the Expo app** (`digitva-r2pf`, `digitva-rcwt`): a Training
+  menu (Interview, Coding, Review by training role) and `/app/training`;
+  every request excludes the training project by default (Flask and API),
+  `?training=1` widens to it only for an active participant, trainer tools opt
+  out; one active allocation per coder/reviewer per side (migration
+  `d6a1f3b8c2e4`). `docs/policy/training-demo-project.md`.
+- **Phone app 0.3.2** (`digitva-zm9w`, `digitva-2cy0`): transactions stay on
+  the keyed SQLCipher connection (expo-sqlite's exclusive transaction opened
+  an unkeyed one) and `busy_timeout` 5 s; background refresh never redraws an
+  open form, failures are a toast with the Ref line and back off; Refresh
+  spinner; the Ref line keeps native function names and the cause; emblem
+  icon; `.dev` debug variant; screenshots allowed in builds that set
+  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL` (temporary, until 2026-10-30,
+  `digitva-om65`).
 - **Android `android-v0.3.1`** (CI run 39938767176 from `8da64237c`, Ref line
   under generic errors) published and pinned for `/download/android`.
 - **Expo web `expo-web-v2026.10.23.2`** (from `a531ba664`: Ref line, server

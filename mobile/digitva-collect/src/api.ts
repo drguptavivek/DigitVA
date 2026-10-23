@@ -82,12 +82,27 @@ function isAccessActionContext(entry: unknown): entry is AccessActionContext {
       ["org_unit_id", "unit_code", "unit_name", "path"].every((field) => typeof unit[field] === "string"));
 }
 
+/** The Training sub-menus (docs/policy/training-demo-project.md); each opens for the training roles listed there. */
+export type TrainingArea = "interview" | "coding" | "review";
+
+/**
+ * The Training menu's data. `null`/absent when training is off. The normal `projects` and `roles` leave the training
+ * project out; `project` carries the user's grants in it (shaped like a `projects` entry) for the Training screens.
+ */
+export interface TrainingAccess {
+  project_id: string | null;
+  areas: TrainingArea[];
+  pending: boolean;
+  project?: AccessProject | null;
+}
+
 export interface AccessSummary {
   user: { user_id: string; name: string };
   is_admin: boolean;
   roles: string[];
   demo_coding: { available: boolean; project_ids: string[] };
   projects: AccessProject[];
+  training?: TrainingAccess | null;
   account?: {
     privileged?: boolean;
     pii_visible?: boolean;
@@ -134,6 +149,12 @@ export function parseAccessSummary(value: unknown): AccessSummary {
     if (Array.isArray(project.levels)) for (const level of project.levels) {
       if (!record(level) || typeof level.level_code !== "string" || typeof level.level_name !== "string" || typeof level.depth !== "number") throw new ApiError(200, "malformed_response");
     }
+  }
+  if (value.training !== undefined && value.training !== null) {
+    const training = value.training;
+    if (!record(training) || !strings(training.areas) || typeof training.pending !== "boolean" ||
+        !(training.project_id === null || typeof training.project_id === "string") ||
+        !(training.project === undefined || training.project === null || record(training.project))) throw new ApiError(200, "malformed_response");
   }
   if (value.account !== undefined) {
     if (!record(value.account)) throw new ApiError(200, "malformed_response");
@@ -183,11 +204,17 @@ export function accessCapabilities(access: AccessSummary): ClientBootstrap["capa
 }
 
 /** Expand server interview roots in tree order and retain their ancestor context. */
+/** Which projects a context reads: the normal ones (never the training project), only the training one, or both (by-id screens). */
+export type IntakeScope = "normal" | "training" | "all";
+
 export function intakeContextFromAccess(
   access: AccessSummary,
   action: "interview" | "register_death" = "interview",
+  scope: IntakeScope = "normal",
 ): IntakeContextEntry[] {
-  return access.projects.flatMap((project) => project.actions[action].map((entry) => {
+  const training = access.training?.project ? [access.training.project] : [];
+  const projects = scope === "training" ? training : scope === "all" ? [...access.projects, ...training] : access.projects;
+  return projects.flatMap((project) => project.actions[action].map((entry) => {
     const roots = entry.org_units;
     const units = project.units?.filter((unit) => !roots.length || roots.some((root) =>
       unit.path === root.path || unit.path.startsWith(`${root.path}.`) || root.path.startsWith(`${unit.path}.`),
@@ -210,7 +237,8 @@ export function hasInterviewRegistrationAccess(
   siteId: string,
   orgUnitId?: string,
 ): boolean {
-  const project = access.projects.find((entry) => entry.project_id === projectId);
+  const project = [...access.projects, ...(access.training?.project ? [access.training.project] : [])]
+    .find((entry) => entry.project_id === projectId);
   return Boolean(project?.actions.interview.some((entry) => {
     if (entry.site_id !== siteId) return false;
     if (!orgUnitId || entry.org_units.length === 0) return true;
@@ -224,6 +252,8 @@ export function hasInterviewRegistrationAccess(
 export interface ClientCsrf {
   header: string;
   token: string;
+  /** Set by the Training screens' bootstrap: every write asks for the training scope (`?training=1`). */
+  training?: true;
 }
 
 export interface ClientLinks {
@@ -249,6 +279,8 @@ export interface ClientBootstrap {
   };
   access: AccessSummary;
   links: ClientLinks;
+  /** Set by the Training screens' derived bootstrap (training.ts `trainingBootstrap`): lists ask for `training=1`. */
+  scope?: "training";
 }
 
 export interface AuthenticationRequired {
@@ -363,8 +395,10 @@ export async function getRegisteredDeaths(
   csrf: ClientCsrf,
   registeredMine: boolean,
   cursor?: string | null,
+  training = false,
 ): Promise<RegisteredDeathPage> {
   const params = new URLSearchParams({ limit: "50" });
+  if (training) params.set("training", "1");
   if (registeredMine) params.set("registered", "mine");
   if (cursor) params.set("cursor", cursor);
   return parseRegisteredDeathPage(await requestClientJson<unknown>(`${INTAKE_API}/deaths?${params}`, { csrf }));
@@ -645,6 +679,12 @@ function rememberCsrf(response: Response): ClientCsrf | undefined {
   return currentCsrf;
 }
 
+/** A write made inside the Training screens carries `training=1`; the server refuses a write across the training/real line. */
+function scopedPath(path: string, method: string | undefined, snapshot?: ClientCsrf): string {
+  if (!snapshot?.training || !method || method === "GET" || /[?&]training=/.test(path)) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}training=1`;
+}
+
 function cookieCsrfHeader(server: string, snapshot?: ClientCsrf): string | undefined {
   return (server ? snapshot : currentCsrf ?? snapshot)?.token;
 }
@@ -717,7 +757,7 @@ async function requestOnce<T>(
   const tracked = options.token === undefined && !server;
   if (tracked) cookieRequests.add(controller);
   try {
-    const response = await fetch(`${server}${path}`, {
+    const response = await fetch(`${server}${scopedPath(path, options.method, options.csrf)}`, {
       method: options.method ?? "GET",
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",
@@ -849,7 +889,7 @@ export async function requestRaw(
   const tracked = options.token === undefined && !server;
   if (tracked) cookieRequests.add(controller);
   try {
-    const response = await fetch(`${server}${path}`, {
+    const response = await fetch(`${server}${scopedPath(path, options.method, options.csrf)}`, {
       method: options.method ?? "GET",
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",
@@ -946,9 +986,10 @@ export async function fetchClientBootstrap(): Promise<BootstrapResult> {
 export async function getIntakeContext(
   csrf: ClientCsrf,
   action: "interview" | "register_death" = "interview",
+  scope: IntakeScope = "normal",
 ): Promise<IntakeBootstrap> {
   const access = await getAccessSummary(csrf);
-  const contexts = intakeContextFromAccess(access, action);
+  const contexts = intakeContextFromAccess(access, action, scope);
   return {
     user: access.user,
     context: contexts,
@@ -997,12 +1038,14 @@ export function getCases(
   csrf: ClientCsrf,
   cursor?: string | null,
   projectId?: string,
+  training = false,
 ): Promise<{
   cases: CaseRow[];
   counts?: Record<string, number>;
   next_cursor?: string | null;
 }> {
   const params = new URLSearchParams();
+  if (training) params.set("training", "1");
   if (projectId) params.set("project_id", projectId);
   if (cursor) params.set("cursor", cursor);
   const query = params.toString();
@@ -1054,8 +1097,9 @@ export function setCaseVisit(
 export function getDrafts(
   link: string,
   csrf: ClientCsrf,
+  training = false,
 ): Promise<{ drafts: DraftSummary[] }> {
-  return requestClientJson(link, { csrf });
+  return requestClientJson(training ? `${link}?training=1` : link, { csrf });
 }
 
 export function registerDeath(

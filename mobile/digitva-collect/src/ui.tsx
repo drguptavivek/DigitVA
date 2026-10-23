@@ -277,7 +277,14 @@ export function errorReference(error: unknown): string {
   } else if (error instanceof TypeError) {
     what = "network";
   } else if (error instanceof Error) {
-    const msg = error.message.replace(/(["'`]).*?\1/g, "$1…$1").replace(/\d{4,}/g, "#").slice(0, 60);
+    // Quoted text is masked unless it is a bare identifier path (a native function name such as
+    // 'NativeDatabase.prepareAsync'); unquoted file paths are masked; "code 5" survives (under 4 digits).
+    const msg = error.message
+      .replace(/(["'`])(.*?)\1/g, (_, q, body) => (/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(body) && body.length <= 60 ? q + body + q : `${q}…${q}`))
+      .replace(/(file:\/\/|\/data\/)[^\s"'`]*/g, "file:…")
+      .replace(/\d{4,}/g, "#")
+      .replace(/\s+/g, " ")
+      .slice(0, 160);
     what = `${error.name} ${msg}`.trim();
   }
   return `Ref: ${what} · ${new Date().toISOString().slice(11, 16)}Z · v${APP_VERSION}`;

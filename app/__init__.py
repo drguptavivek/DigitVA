@@ -246,6 +246,12 @@ def create_app(config_class=None, register_routes=True):
         g.bearer_auth = True
         return None
 
+    # Every request runs in the training "exclude" scope (app/services/
+    # training_scope.py); the trainer tools opt out here.
+    from app.services.training_scope import open_trainer_tools
+
+    app.before_request(open_trainer_tools)
+
     # CSRFProtect reads multipart form data in its before_request hook. Bound
     # organization imports before that hook can parse and spool an upload.
     @app.before_request
@@ -508,6 +514,14 @@ def create_app(config_class=None, register_routes=True):
 
     app.add_template_global(ROLE_LABELS, "role_labels")
 
+    def training_page_url():
+        """Where "my training checklist" opens: the Expo page while its export is present, else the Flask fallback."""
+        from app.routes.expo_client import export_ready
+
+        return "/app/training" if export_ready() else url_for("training_demo.welcome")
+
+    app.add_template_global(training_page_url, "training_page_url")
+
     @app.context_processor
     def inject_template_globals():
         from app.services.icd11_licence import DIGITVA_ADDITION_LABEL, ICD11_CITATION
@@ -697,12 +711,15 @@ def create_app(config_class=None, register_routes=True):
 
     @app.before_request
     def training_demo_onboarding():
-        """Send a trainee with a pending training session to its welcome page, once.
+        """Send a trainee with a pending training session to its training page, once.
 
-        Browser page loads only: never the API, htmx fragments, static files,
-        auth pages or the welcome flow itself. Cheap: nothing runs unless the
-        feature is configured, and the answer is cached in the login session.
-        docs/policy/training-demo-project.md.
+        The page is the Expo ``/app/training`` while the export is present,
+        else the Flask welcome page. Browser page loads only: never the API,
+        htmx fragments, static files, auth pages, the welcome flow itself or
+        the Expo shell under ``/app/`` (``/app/`` is never redirected to a
+        Flask page; the Expo home sends a pending trainee itself). Cheap:
+        nothing runs unless the feature is configured, and the answer is cached
+        in the login session. docs/policy/training-demo-project.md.
         """
         if not app.config.get("DIGITVA_TRAINING_PROJECT_ID"):
             return None
@@ -711,7 +728,7 @@ def create_app(config_class=None, register_routes=True):
             or request.headers.get("HX-Request")
             or request.is_json
             or request.path.startswith(
-                ("/static", "/api/", "/admin/api/", "/demo", "/vaauth", "/profile", "/health", "/help")
+                ("/static", "/api/", "/admin/api/", "/app/", "/demo", "/vaauth", "/profile", "/health", "/help")
             )
             or not request.endpoint
             # The Expo shell is a role home (login lands there); its assets are not pages.
@@ -729,7 +746,9 @@ def create_app(config_class=None, register_routes=True):
         except (TypeError, ValueError):
             return None
         if training_demo_service.should_redirect_to_welcome(uid):
-            return redirect(url_for("training_demo.welcome"))
+            from app.routes.expo_client import export_ready
+
+            return redirect("/app/training" if export_ready() else url_for("training_demo.welcome"))
         return None
 
     @app.after_request

@@ -1,5 +1,5 @@
 import { useGlobalSearchParams, useRouter } from "expo-router";
-import { useRef, useState, type ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import { useAppState } from "./AppState";
@@ -7,11 +7,12 @@ import { acceptDeviceTerms, refreshAccessSummary, signOut } from "./auth";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { ApiError } from "./api";
 import { t } from "./i18n";
+import { Toast } from "./Toast.native";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 
 export default function NativeTermsGate({ children }: { children: ReactNode }) {
   const params = useGlobalSearchParams<{ userId?: string }>();
-  const { accounts, reload, clearError, error: appError } = useAppState();
+  const { accounts, reload, clearError, error: appError, backgroundError, dismissBackgroundError } = useAppState();
   const router = useRouter();
   const styles = useUiStyles();
   const account = accounts.find((entry) => entry.user_id === params.userId);
@@ -66,6 +67,8 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
     }
   }
 
+  const hideToast = useCallback(() => dismissBackgroundError?.(), [dismissBackgroundError]);
+
   const gateMessage = message || (account ? appError : undefined) || (blockedCode ? errorText(new ApiError(403, blockedCode)) : "");
 
   return (
@@ -80,6 +83,9 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
       >
         {children}
       </View>
+      {backgroundError && !gateActive ? (
+        <Toast message={t("backgroundRefreshFailed")} detail={backgroundError} onHide={hideToast} />
+      ) : null}
       {gateActive ? (
         <View
           style={{ position: "absolute", inset: 0 }}

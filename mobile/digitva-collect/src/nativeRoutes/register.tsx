@@ -24,6 +24,7 @@ import {
 } from "@drguptavivek/who-2022-va";
 
 import { useAppState } from "../AppState";
+import { useStableAccount } from "../useStableAccount";
 import {
   getDeathRegistrationAccess,
   getNativeRegistrationCase,
@@ -347,8 +348,9 @@ export default function Register() {
     registrationCursor?: string;
     registrationSource?: string;
   }>();
-  const { accounts, lockVersion, onBeforeLock } = useAppState();
-  const account = accounts.find((a) => a.user_id === params.userId);
+  const { accounts, lockVersion, onBeforeLock, holdRefresh } = useAppState();
+  useEffect(() => holdRefresh?.(), [holdRefresh]);
+  const account = useStableAccount(accounts.find((a) => a.user_id === params.userId));
   const accountsRef = useRef(accounts);
   accountsRef.current = accounts;
   const [db, setDb] = useState<Db | undefined>();

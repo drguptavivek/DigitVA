@@ -26,6 +26,19 @@ describe("errorReference", () => {
     expect(ref).not.toContain("Asha");
     expect(ref).not.toContain("123456");
   });
+  it("keeps a native function name and the cause", () => {
+    const ref = errorReference(new Error("Call to function 'NativeDatabase.prepareAsync' has been rejected.\n→ Caused by: Error code 5: database is locked"));
+    expect(ref).toContain("'NativeDatabase.prepareAsync' has been rejected. → Caused by: Error code 5: database is locked");
+  });
+  it("masks quoted free text, file paths and long messages", () => {
+    expect(errorReference(new Error("bad 'Asha Devi' value"))).toContain("bad '…' value");
+    const path = errorReference(new Error("open file:///data/user/0/app/Asha_1.json failed; /data/user/0/x/y.db"));
+    expect(path).not.toContain("Asha");
+    expect(path).not.toContain("user/0");
+    expect(path).toContain("file:… failed; file:…");
+    const long = errorReference(new Error("x".repeat(500)));
+    expect(long.split(" · ")[0].length).toBeLessThanOrEqual("Ref: Error ".length + 160);
+  });
   it("is appended to the generic fallback only", () => {
     expect(errorText(new ApiError(500, undefined))).toContain("Ref: HTTP 500");
     expect(errorText(new ApiError(429, undefined))).not.toContain("Ref:");

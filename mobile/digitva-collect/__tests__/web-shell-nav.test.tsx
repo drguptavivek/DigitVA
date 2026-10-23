@@ -6,6 +6,7 @@ import type { ClientBootstrap } from "../src/client/api";
 
 let mockPathname = "/coding";
 let mockBootstrap: ClientBootstrap;
+let mockUnscoped: ClientBootstrap | undefined;
 const mockLogout = jest.fn(async () => undefined);
 const mockRouter = { push: jest.fn(), replace: jest.fn() };
 
@@ -26,7 +27,7 @@ jest.mock("expo-router", () => ({
   useGlobalSearchParams: () => ({}),
 }));
 jest.mock("../src/AppState", () => ({
-  useAppState: () => ({ bootstrap: mockBootstrap, ready: true, logout: mockLogout, uiLocale: "en", chooseUiLocale: jest.fn() }),
+  useAppState: () => ({ bootstrap: mockBootstrap, unscopedBootstrap: mockUnscoped, ready: true, logout: mockLogout, uiLocale: "en", chooseUiLocale: jest.fn() }),
 }));
 jest.mock("../src/theme", () => ({
   radius: { sm: 4, md: 6, lg: 8, full: 9999 }, 
@@ -88,6 +89,7 @@ describe("web shell navigation and last visit", () => {
     Object.defineProperty(window, "location", { configurable: true, value: { ...originalLocation, assign } });
     mockPathname = "/coding";
     mockBootstrap = bootstrap(["coder"]);
+    mockUnscoped = undefined;
   });
 
   afterEach(() => {
@@ -135,6 +137,38 @@ describe("web shell navigation and last visit", () => {
       "home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics", "navMore",
       "navOrg", "navUsers", "navSettings", "navWebsite", "navDataManagement", "signOut",
     ]);
+    await act(async () => { renderer.unmount(); });
+  });
+
+  const trainee = (areas: string[], roles: string[] = []) => {
+    const base = bootstrap(roles);
+    return { ...base, access: { ...base.access, training: { project_id: "TRN01", areas, pending: false, project: null } } } as ClientBootstrap;
+  };
+
+  test("a trainee sees Training with a sub-item per area held, highlighted on its page; nobody else does", async () => {
+    mockBootstrap = trainee(["interview", "coding"]);
+    mockPathname = "/training/coding";
+    const renderer = await render();
+    expect(navLabels(renderer)).toEqual(["home", "navTraining", "trainingInterview", "trainingCoding", "navMore"]);
+    expect(navItem(renderer, "trainingCoding")!.props.accessibilityState.selected).toBe(true);
+    expect(navItem(renderer, "navTraining")!.props.accessibilityState.selected).toBe(false);
+    await act(async () => { navItem(renderer, "navTraining")!.props.onPress(); });
+    expect(mockRouter.push).toHaveBeenLastCalledWith("/training");
+    await act(async () => { navItem(renderer, "trainingInterview")!.props.onPress(); });
+    expect(mockRouter.push).toHaveBeenLastCalledWith("/training/interview");
+    await act(async () => { renderer.unmount(); });
+
+    mockBootstrap = trainee([], ["coder"]); // a real coder who is not in a session
+    const other = await render();
+    expect(navLabels(other)).not.toContain("navTraining");
+    await act(async () => { other.unmount(); });
+  });
+
+  test("inside the Training screens the menu still follows the user's own bootstrap", async () => {
+    mockUnscoped = trainee(["review"], ["coder"]);
+    mockBootstrap = { ...bootstrap(["reviewer"]), scope: "training" } as ClientBootstrap; // what the page sees
+    const renderer = await render();
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navTraining", "trainingReview", "navMore"]);
     await act(async () => { renderer.unmount(); });
   });
 

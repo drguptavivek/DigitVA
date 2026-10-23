@@ -15,6 +15,7 @@ import re
 import uuid
 from contextlib import contextmanager
 
+import sqlalchemy as sa
 from flask import Blueprint, g, jsonify, request, url_for
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
@@ -22,7 +23,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from app import db, limiter, talisman
 from app.decorators import role_required
-from app.models import AuthDevice, VaDeathRegister, VaSubmissionPayloadVersion, VaSubmissions
+from app.models import AuthDevice, VaDeathRegister, VaSubmissionPayloadVersion, VaSubmissions, VaWebIntakeDraft
 from app.routes.api.request_helpers import (
     error,
     identifier_rate_limit,
@@ -32,7 +33,7 @@ from app.routes.api.request_helpers import (
     request_project_id,
     require_project,
 )
-from app.services import attachment_service, register_pii_accessor
+from app.services import attachment_service, register_pii_accessor, training_scope
 from app.services import case_transition_service as case_svc
 from app.services import consent_service as consent_svc
 from app.services import death_identifier_service as identifiers_svc
@@ -88,6 +89,48 @@ def _refuse_oversized_body():
     if request.endpoint and request.endpoint.endswith(".put_attachment") and request.content_length is None:
         # A file's size must be declared: the cap is checked before a byte is read.
         return error("Content-Length is required.", "length_required", 411)
+    return None
+
+
+_WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+
+@bp.before_request
+def _keep_training_apart():
+    """A write names a project, a death, a draft or a submission; refuse it
+    when that is across the training/real line of the request (``?training=1``
+    or not), 409 ``training_scope``. The phone app sends no ``training``, so
+    it works real projects only: training is an Expo-web surface
+    (docs/policy/training-demo-project.md, "Separation from real work")."""
+    if request.method not in _WRITE_METHODS:
+        return None
+    training_scope.resolve("interview")
+    body = request.get_json(silent=True) if request.is_json else None
+    named = {**(body if isinstance(body, dict) else {}), **(request.view_args or {})}
+    project_ids = set()
+    raw_project = named.get("project_id")
+    if isinstance(raw_project, str) and raw_project.strip():
+        project_ids.add(raw_project.strip().upper())
+    # Every id an existing row is found by: the server's own and the device's
+    # idempotency keys (a replay finds, and may rewrite, the stored row).
+    for name, model, column in (
+        ("death_id", VaDeathRegister, "death_id"),
+        ("draft_id", VaWebIntakeDraft, "draft_id"),
+        ("client_draft_id", VaWebIntakeDraft, "client_draft_id"),
+        ("client_death_id", VaDeathRegister, "client_death_id"),
+    ):
+        try:
+            key = uuid.UUID(str(named[name]))
+        except (KeyError, ValueError):
+            continue
+        project = db.session.scalar(sa.select(model.project_id).where(getattr(model, column) == key))
+        if project:
+            project_ids.add(project)
+    va_sid = named.get("va_sid")
+    if isinstance(va_sid, str) and not training_scope.sid_allowed(va_sid):
+        return error("This case is not available in this area.", "training_scope", 409)
+    if not all(training_scope.keeps_project(project_id) for project_id in project_ids):
+        return error("This case is not available in this area.", "training_scope", 409)
     return None
 
 
@@ -248,6 +291,7 @@ def list_cases():
     ``web_intake_service.worklist_page``. Query: ``project_id`` (optional
     filter), ``mine``, ``state``, ``limit``, ``cursor``. The app downloads its
     active cases with ``state=`` and then each case's detail."""
+    training_scope.resolve("interview")
     # A reporter's own deaths widen the projects it may narrow to; an
     # interviewer alone keeps the interviewer refusal.
     if current_user.is_death_reporter():
@@ -449,6 +493,7 @@ def list_deaths():
     "next_cursor"}`` (``web_intake_service.reported_deaths_page``). A user who
     holds both roles asks for that list with ``registered=mine``. A row's GPS
     fix follows ``intake_svc.shows_gps``; otherwise its keys are absent."""
+    training_scope.resolve("interview")
     registered = request.args.get("registered")
     if registered not in (None, "", "mine"):
         return error("registered must be mine.", "invalid_request", 400)
@@ -616,6 +661,7 @@ def put_identifiers(death_id):
 @bp.get("/drafts")
 @role_required("interviewer")
 def list_drafts():
+    training_scope.resolve("interview")
     status = request.args.get("status", "draft") or None
     return jsonify({"drafts": intake_svc.serialize_drafts(intake_svc.list_drafts(current_user, status=status))})
 
@@ -1163,6 +1209,7 @@ def supervised_cases():
     with a visit note), ``needs_decision`` / ``overdue`` / ``stuck`` (the
     attention tiles), ``sort`` (``newest`` default, or ``oldest``), ``limit``,
     ``cursor``. The reply's ``tiles`` count the whole scope, filters ignored."""
+    training_scope.resolve("interview")
     flagged_raw = (request.args.get("flagged") or "").lower()
     if flagged_raw not in _TRUE + _FALSE:
         return error("flagged must be true or false.", "invalid_request", 400)

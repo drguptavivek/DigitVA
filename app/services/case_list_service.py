@@ -80,7 +80,7 @@ from app.models import (
 )
 from app.models.va_selectives import VaAllocation
 from app.models.va_web_intake import CASE_STATES, DEATH_SEX_VALUES
-from app.services import org_grant_service, register_pii_accessor
+from app.services import org_grant_service, training_scope, register_pii_accessor
 from app.services.authz import (
     Action,
     Lens,
@@ -351,7 +351,11 @@ def _reach(user: VaUsers) -> _Reach:
     oversees = any(
         g.role in SUPERVISING_ROLES or g.role == VaAccessRoles.project_pi for g in grants.grants if not g.virtual
     )
-    supervised = supervised_case_condition(user) if oversees else sa.false()
+    # The Expo scope (training vs real work) bounds every reach below. Kept a
+    # bare ``false`` when the caller supervises nothing: ``case_list_counts``
+    # tests for it.
+    training = training_scope.conditions(VaDeathRegister.project_id)
+    supervised = sa.and_(supervised_case_condition(user), *training) if oversees else sa.false()
     # scope_filter marks the request consulted by authz; it is also the
     # coder, reviewer, data manager and collaborator reach.
     submissions = scope_filter(user, Action.VIEW)
@@ -377,7 +381,7 @@ def _reach(user: VaUsers) -> _Reach:
         lens_filter(user, lens) for lens in (Lens.DM, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
     )))
     return _Reach(
-        scope=sa.or_(via_field, supervised, via_submission),
+        scope=sa.and_(sa.or_(via_field, supervised, via_submission), *training),
         supervised=supervised,
         via_field=via_field,
         # Names: field roles on their reach and collaborator_pii as always;

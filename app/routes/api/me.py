@@ -10,6 +10,7 @@ from app.services import (
     area_dashboard_service,
     mentor_institute_service,
     notification_service,
+    training_scope,
     user_home_service,
 )
 from app.services.access_summary_service import build_access_summary
@@ -38,7 +39,9 @@ def access():
 @limiter.limit("120 per minute")
 def activity():
     """Personal activity counts (overall and per project) for the caller's
-    Home / Dashboard (docs/current-state/api-v1.md, digitva-dsj2)."""
+    Home / Dashboard (docs/current-state/api-v1.md, digitva-dsj2). The
+    training project is left out (docs/policy/training-demo-project.md)."""
+    training_scope.use(training_scope.EXCLUDE)
     return jsonify(user_home_service.get_user_activity_summary(current_user._get_current_object()))
 
 
@@ -52,6 +55,7 @@ def home():
     null when ``DIGITVA_ANDROID_APK_URL`` is unset or not a clean https URL."""
     from app.services.worker_enrolment_service import valid_android_apk_url
 
+    training_scope.use(training_scope.EXCLUDE)
     body = user_home_service.get_home_blocks(current_user._get_current_object())
     return jsonify({**body, "android_apk_url": valid_android_apk_url()})
 
@@ -78,6 +82,7 @@ def notifications():
     raw = request.args.get("after", "0")
     if not raw.isascii() or not raw.isdigit() or int(raw) > notification_service.BIGINT_MAX:
         return error("after must be a non-negative integer.", "invalid_request", 400)
+    training_scope.use(training_scope.EXCLUDE)
     return jsonify(notification_service.poll(current_user.user_id, int(raw)))
 
 

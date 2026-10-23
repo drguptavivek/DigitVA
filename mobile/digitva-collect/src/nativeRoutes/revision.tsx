@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
+import { useStableAccount } from "../useStableAccount";
 import { ApiError } from "../api";
 import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
 import type { Prefill } from "../cases";
@@ -265,10 +266,13 @@ export default function Revision() {
     siteId?: string;
     vaSid?: string;
   }>();
-  const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion } = useAppState();
+  const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion, holdRefresh } = useAppState();
+  useEffect(() => holdRefresh?.(), [holdRefresh]);
+  const accountsRef = useRef(accounts);
+  accountsRef.current = accounts;
   const lockVersionRef = useRef(lockVersion);
   lockVersionRef.current = lockVersion;
-  const account = accounts.find((candidate) => candidate.user_id === params.userId);
+  const account = useStableAccount(accounts.find((candidate) => candidate.user_id === params.userId));
   const [loaded, setLoaded] = useState<LoadedRevision>();
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
   const [reason, setReason] = useState<RevisionReason>();
@@ -284,9 +288,9 @@ export default function Revision() {
     (generation: number) =>
       generation === generationRef.current &&
       lockVersion === lockVersionRef.current &&
-      Boolean(account && accounts.some((candidate) => candidate.user_id === account.user_id)) &&
+      Boolean(account && accountsRef.current.some((candidate) => candidate.user_id === account.user_id)) &&
       Boolean(account && isUnlocked(account.user_id)),
-    [account, accounts, lockVersion],
+    [account, lockVersion],
   );
 
   useEffect(() => {

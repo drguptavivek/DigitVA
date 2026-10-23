@@ -1,5 +1,7 @@
 """Training report pages and CSV exports under /data-management/training (digitva-vd0g.2)."""
 
+from unittest import mock
+
 from app import db
 from app.models import VaFinalAssessments
 from app.services import training_demo_service as svc
@@ -73,10 +75,11 @@ class ReportRouteTests(ReportTestBase):
     def test_welcome_checklist_links_the_report(self):
         manager = self._add("route.welcome", "reviewer_data_manager")
         self._login(str(manager.user_id))
-        page = self.client.get("/demo/welcome")
-        self.assertEqual(page.status_code, 200)
-        self.assertIn(BASE.encode(), page.data)
-        coder = self._add("route.welcome.coder", "coder")
-        self._login(str(coder.user_id))
-        self.assertNotIn(BASE.encode(), self.client.get("/demo/welcome").data)
+        with mock.patch("app.routes.training_demo.export_ready", return_value=False):  # the Flask fallback page
+            page = self.client.get("/demo/welcome")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn(BASE.encode(), page.data)
+            coder = self._add("route.welcome.coder", "coder")
+            self._login(str(coder.user_id))
+            self.assertNotIn(BASE.encode(), self.client.get("/demo/welcome").data)
         self.assertIsNotNone(svc.get_training_session("S001"))

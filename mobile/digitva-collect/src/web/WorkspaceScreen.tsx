@@ -21,8 +21,10 @@ import { Chevron, FoldButton } from "./Chevron";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { KpiStrip } from "./KpiStrip";
 import { hasAnyRoleOrProject, openServerPage } from "./roleHome";
+import { TRAINING_ROUTES, takeTrainingRedirect } from "../training";
+import { TrainingShell } from "./TrainingChecklist";
 
-type RouteParams = { vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[] };
+type RouteParams = { vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[]; training?: string | string[] };
 type SessionCheck = { key: string; bootstrap: NonNullable<ReturnType<typeof useAppState>["bootstrap"]> };
 
 const HOME_API = "/api/v1/me/home";
@@ -143,7 +145,9 @@ function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function hasWorkspaceRole(roles: string[], mode: WorkspaceMode): boolean {
+function hasWorkspaceRole(roles: string[], mode: WorkspaceMode, training = false, areas: string[] = []): boolean {
+  // The normal roles leave the training project out; the training screens need a participation instead.
+  if (training) return mode === "coding" ? areas.includes("coding") : mode === "reviewing" ? areas.includes("review") : true;
   if (mode === "coding") return roles.some((role) => role === "coder" || role === "coding_tester");
   if (mode === "reviewing") return roles.includes("reviewer");
   return true;
@@ -155,11 +159,18 @@ function currentPathMode(forcedMode: WorkspaceMode | undefined, routeMode: strin
   return "home";
 }
 
-function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
+/**
+ * *training*: the Training menu's queue (`/training/coding`, `/training/review`): the same screen, asking the server for
+ * the training scope. The scope comes from the route (this prop), never from a query on the normal routes; on a case
+ * (`/workspace?vaSid`) a `training=1` param only decides where Exit and the menu highlight go.
+ */
+function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forcedMode?: WorkspaceMode; training?: boolean } = {}) {
   const router = useRouter();
   const params = useLocalSearchParams<RouteParams>();
   const vaSid = first(params.vaSid)?.trim();
   const mode = currentPathMode(forcedMode, first(params.mode));
+  const training = trainingRoute || (Boolean(vaSid) && first(params.training) === "1");
+  const trainingHome = mode === "reviewing" ? TRAINING_ROUTES.review : TRAINING_ROUTES.coding;
   const { bootstrap, loginUrl, reload } = useAppState();
   const styles = useUiStyles();
   const [sessionCheck, setSessionCheck] = useState<SessionCheck>();
@@ -179,8 +190,8 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   const section = first(params.section);
   useEffect(() => {
     // replace, not setParams: setParams keeps keys it is not given a value for.
-    if (caseWithQueueParams) router.replace({ pathname: "/workspace", params: { vaSid, mode, ...(section ? { section } : {}) } });
-  }, [caseWithQueueParams, router, vaSid, mode, section]);
+    if (caseWithQueueParams) router.replace({ pathname: "/workspace", params: { vaSid, mode, ...(section ? { section } : {}), ...(training ? { training: "1" } : {}) } });
+  }, [caseWithQueueParams, router, vaSid, mode, section, training]);
 
   useEffect(() => {
     const request = ++requestGeneration.current;
@@ -215,9 +226,14 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
     [activeBootstrap],
   );
   const api: WorkspaceApi | undefined = useMemo(
-    () => requester ? createWorkspaceApi(requester) : undefined,
-    [requester],
+    () => requester ? createWorkspaceApi(requester, { training }) : undefined,
+    [requester, training],
   );
+
+  // A trainee with Start pending is sent to the Training page once per browser session (the server redirect skips /app/).
+  useEffect(() => {
+    if (mode === "home" && takeTrainingRedirect(bootstrap?.access)) router.replace("/training");
+  }, [mode, bootstrap?.access, router]);
 
   useEffect(() => {
     if (mode !== "home" || !requester) return;
@@ -244,7 +260,7 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   const projects = activeBootstrap.access?.projects ?? [];
   const isAdmin = Boolean(activeBootstrap.access?.is_admin);
 
-  if (mode !== "home" && !hasWorkspaceRole(roles, mode)) {
+  if (mode !== "home" && !hasWorkspaceRole(roles, mode, training, activeBootstrap.access?.training?.areas)) {
     return <WebShell title={t("workspaceTitle")}>
       <ContextualHelpBanner screen={mode === "reviewing" ? "reviewing" : "coding"} />
       <View style={styles.card}>
@@ -277,7 +293,7 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
       api={api}
       section={first(params.section)}
       onSectionChange={(code) => router.setParams({ section: code })}
-      onExit={() => mode === "view" ? router.replace("/workspace") : router.replace(mode === "reviewing" ? "/reviewing" : "/coding")}
+      onExit={() => mode === "view" ? router.replace("/workspace") : training ? router.replace(trainingHome as never) : router.replace(mode === "reviewing" ? "/reviewing" : "/coding")}
       renderDoris={(workspace, onSaved, onDone) => <DorisPanel
         workspace={workspace}
         api={api}
@@ -293,10 +309,10 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   if ((mode === "coding" || mode === "reviewing") && api) return <QueueScreen
     api={api}
     mode={mode}
-    Shell={WebShell}
+    Shell={trainingRoute ? (mode === "reviewing" ? ReviewTrainingShell : CodingTrainingShell) : WebShell}
     initialView={parseQueueParams(params)}
     onViewChange={(view) => { if (ownsQueueParams(window.location.search)) router.setParams(serializeQueueParams(view)); }}
-    onOpen={(identity) => router.push({ pathname: "/workspace", params: { vaSid: identity.vaSid, mode: identity.mode } })}
+    onOpen={(identity) => router.push({ pathname: "/workspace", params: { vaSid: identity.vaSid, mode: identity.mode, ...(trainingRoute ? { training: "1" } : {}) } })}
   />;
 
   async function openView() {
@@ -524,12 +540,25 @@ function WorkspaceScreen({ forcedMode }: { forcedMode?: WorkspaceMode } = {}) {
   </WebShell>;
 }
 
+// Stable components (not inline) so the queue is not remounted on every render.
+const CodingTrainingShell = TrainingShell("coding");
+const ReviewTrainingShell = TrainingShell("review");
+
 export function CodingScreen() {
   return <WorkspaceScreen forcedMode="coding" />;
 }
 
 export function ReviewingScreen() {
   return <WorkspaceScreen forcedMode="reviewing" />;
+}
+
+/** The Training menu's Coding and Review queues: the ordinary screens in the training scope. */
+export function TrainingCodingScreen() {
+  return <WorkspaceScreen forcedMode="coding" training />;
+}
+
+export function TrainingReviewScreen() {
+  return <WorkspaceScreen forcedMode="reviewing" training />;
 }
 
 export default WorkspaceScreen;

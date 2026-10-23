@@ -67,9 +67,9 @@ export interface RevisionAck {
 }
 
 /** Return only the server's bounded, newest-first submitted metadata list. */
-export async function getSubmittedRevisions(csrf: ClientCsrf): Promise<SubmittedRevisionSummary[]> {
+export async function getSubmittedRevisions(csrf: ClientCsrf, training = false): Promise<SubmittedRevisionSummary[]> {
   const result = await requestClientJson<{ drafts: SubmittedRevisionSummary[] }>(
-    `${INTAKE_DRAFTS}?status=submitted`,
+    `${INTAKE_DRAFTS}?status=submitted${training ? "&training=1" : ""}`,
     { csrf },
   );
   if (!Array.isArray(result?.drafts) || result.drafts.length > 200 || !result.drafts.every(isSubmittedSummary)) {

@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app import db
 from app.models import MapUserNotification, VaWebIntakeDraft
+from app.services import training_scope
 
 log = logging.getLogger(__name__)
 
@@ -199,7 +200,10 @@ def poll(user_id, after: int = 0) -> dict:
                 "death_id": str(r.death_id) if r.death_id else None,
                 "draft_id": str(r.draft_id) if r.draft_id else None, "va_sid": r.va_sid,
             }
+            # Training notifications are not delivered outside the Training
+            # menu; the cursor still moves past them (digitva-r2pf).
             for r in rows
+            if training_scope.keeps_project(r.project_id)
         ],
         "next_cursor": next_cursor,
     }

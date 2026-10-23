@@ -31,6 +31,11 @@ class VaAllocations(db.Model):
         nullable=False,
         index=True
     )
+    # True for an allocation inside the training project (docs/policy/
+    # training-demo-project.md): a coder holds one active allocation per side.
+    va_allocation_training: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
     va_allocation_createdat: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime,
         default=lambda: datetime.now(timezone.utc),
@@ -52,12 +57,14 @@ class VaAllocations(db.Model):
             "va_allocation_for",
             "va_allocation_createdat",
         ),
-        # One active allocation per user and kind: a concurrent second insert
-        # fails here and the allocator resumes the first (digitva-igq7).
+        # One active allocation per user, kind and side (training or real work):
+        # a concurrent second insert fails here and the allocator resumes the
+        # first (digitva-igq7, digitva-rcwt).
         sa.Index(
             ACTIVE_ALLOCATION_INDEX,
             "va_allocated_to",
             "va_allocation_for",
+            "va_allocation_training",
             unique=True,
             postgresql_where=sa.text("va_allocation_status = 'active'"),
         ),

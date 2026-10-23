@@ -134,6 +134,16 @@ Standard exclusions include:
 - currently active allocations
 - any other workflow-specific exclusion rules
 
+### One active allocation per side
+
+A coder holds at most one active coding allocation on each side: real work and
+the training project (`digitva-rcwt`, docs/policy/training-demo-project.md). A
+training allocation does not block taking a real case, nor the reverse;
+allocate, resume, release and the held-case answer read only the side of the
+request. The unique index `uq_va_allocations_active_to_for` covers
+`(va_allocated_to, va_allocation_for, va_allocation_training)` for active rows
+(migration `d6a1f3b8c2e4`). Reviewers likewise.
+
 ### `pick_and_choose`
 
 In this mode:

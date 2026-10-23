@@ -32,7 +32,7 @@ jest.mock("../src/i18n", () => ({ setUiLocale: () => "en" }));
 jest.mock("../src/ui", () => ({ errorText: (error: unknown) => `error:${String(error)}` }));
 jest.mock("../src/auth", () => ({
   loadDevice: jest.fn(async () => ({ device_id: "d", server: "https://example.test", project_id: "p", project_name: "P" })),
-  loadAccounts: jest.fn(async () => mockAccounts),
+  loadAccounts: jest.fn(async () => mockAccounts.map((account) => ({ ...account }))),
   subscribeAccountChanges: jest.fn(() => () => undefined),
   subscribeAccessChanges: jest.fn((listener: typeof mockAccessListener) => {
     mockAccessListener = listener ?? undefined;
@@ -56,10 +56,13 @@ jest.mock("../src/nativeNotificationSync", () => ({
 
 import { AppStateProvider, useAppState } from "../src/AppState";
 
+let latest!: ReturnType<typeof useAppState>;
+
 function Probe() {
   const state = useAppState();
+  latest = state;
   useEffect(() => state.onBeforeLock(mockSave), [state.onBeforeLock]);
-  return <>{JSON.stringify({ ready: state.ready, accounts: state.accounts.length, lockVersion: state.lockVersion, error: state.error })}</>;
+  return <>{JSON.stringify({ ready: state.ready, accounts: state.accounts.length, lockVersion: state.lockVersion, error: state.error, background: state.backgroundError })}</>;
 }
 
 async function renderProbe(): Promise<ReactTestRenderer> {
@@ -177,4 +180,62 @@ it("surfaces a database close failure and keeps the app locked operation retryab
   expect(mockRouter.replace).not.toHaveBeenCalled();
   expect(String(tree.toJSON())).toContain("error:Error: close failed");
   await act(async () => tree.unmount());
+});
+
+const SETTLE = () => act(async () => { await new Promise<void>((resolve) => setTimeout(resolve, 0)); });
+
+it("an unchanged poll and an unchanged access result change no state", async () => {
+  Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
+  const tree = await renderProbe();
+  await SETTLE();
+  const before = { accounts: latest.accounts, lockVersion: latest.lockVersion };
+  await act(async () => { await mockAccessListener?.("worker", { projects: [] }); });
+  const afterFirst = latest.lockVersion;
+  expect(afterFirst).toBe(before.lockVersion + 1);
+  await act(async () => { await mockAccessListener?.("worker", { projects: [] }); });
+  await act(async () => { await latest.reload(); });
+  expect(mockReconcile).toHaveBeenCalledTimes(1);
+  expect(latest.lockVersion).toBe(afterFirst);
+  expect(latest.accounts).toBe(before.accounts);
+  await act(async () => tree.unmount());
+});
+
+it("a changed access result waits for the open form to be left", async () => {
+  const tree = await renderProbe();
+  let release!: () => void;
+  await act(async () => { release = latest.holdRefresh!(); });
+  const before = latest.lockVersion;
+  await act(async () => { await mockAccessListener?.("worker", { projects: [] }); });
+  expect(mockReconcile).toHaveBeenCalledTimes(1);
+  expect(latest.lockVersion).toBe(before);
+  await act(async () => release());
+  expect(latest.lockVersion).toBe(before + 1);
+  await act(async () => tree.unmount());
+});
+
+describe("background failures", () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it("show a banner instead of the gate and back off the poll", async () => {
+    Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<AppStateProvider><Probe /></AppStateProvider>); });
+    await act(async () => { await jest.advanceTimersByTimeAsync(0); });
+    mockNotificationRefresh.mockReset();
+    mockNotificationRefresh.mockRejectedValue(new Error("down"));
+    const polls = () => mockNotificationRefresh.mock.calls.length;
+    await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+    expect(polls()).toBe(1);
+    expect(latest.error).toBeUndefined();
+    expect(latest.backgroundError).toContain("down");
+    await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+    expect(polls()).toBe(1);
+    await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+    expect(polls()).toBe(2);
+    mockNotificationRefresh.mockResolvedValue(false);
+    await act(async () => { await jest.advanceTimersByTimeAsync(240_000); });
+    expect(latest.backgroundError).toBeUndefined();
+    await act(async () => tree.unmount());
+  });
 });

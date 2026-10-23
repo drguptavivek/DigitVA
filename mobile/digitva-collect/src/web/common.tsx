@@ -1,5 +1,5 @@
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewProps } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -151,7 +151,7 @@ type NavigationItem = {
 
 /** Sidebar glyphs per navEntries key; decorative, every link carries its label. */
 const NAV_ICONS: Record<string, string> = {
-  "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/area/": "▦",
+  "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/area/": "▦", "/training": "🎓",
   "/organization": "⚲", "/users": "☺", "/settings": "⚙", website: "↗", "/data-management/": "▤", "/mentoring": "🏛", "/admin/": "◆",
 };
 
@@ -202,7 +202,9 @@ function NavigationMenu() {
   const pathname = usePathname();
   const params = useGlobalSearchParams() as NavParams;
   const { width } = useWindowDimensions();
-  const { bootstrap, logout } = useAppState();
+  const { bootstrap: scopedBootstrap, unscopedBootstrap, logout } = useAppState();
+  // Inside the Training screens the page sees only the training project; the menu is the user's own.
+  const bootstrap = unscopedBootstrap ?? scopedBootstrap;
   const theme = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const current = activeTab(pathname, params);
@@ -296,7 +298,16 @@ function NavigationMenu() {
 
   const linksFor = (compact: boolean) => (
     <View style={navigationStyles.linkList}>
-      {entries.primary.map((entry) => link(toItem(entry), compact))}
+      {entries.primary.map((entry) => (
+        <Fragment key={entry.key}>
+          {link(toItem(entry), compact)}
+          {entry.children ? (
+            <View style={[navigationStyles.linkList, !compact && navigationStyles.subList, { borderLeftColor: theme.colors.border }]}>
+              {entry.children.map((child) => link(toItem(child), compact))}
+            </View>
+          ) : null}
+        </Fragment>
+      ))}
       <NavigationLink item={moreItem} compact={compact} active={moreCurrent && !moreOpen} expanded={moreOpen} onPress={moreItem.action} />
       {moreOpen ? (
         <View style={[navigationStyles.linkList, !compact && navigationStyles.subList, { borderLeftColor: theme.colors.border }]}>

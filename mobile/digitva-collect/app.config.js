@@ -61,11 +61,16 @@ function resolveAndroidVersionCode(env = process.env) {
   return versionCode;
 }
 
+// APP_VARIANT=development installs a debug build beside the release app.
+const isDev = process.env.APP_VARIANT === "development";
+
 module.exports = ({ config = appJson.expo } = {}) => ({
   ...config,
-  name: "DigitVA",
+  name: isDev ? "DigitVA Dev" : "DigitVA",
+  scheme: isDev ? `${config.scheme}dev` : config.scheme,
   android: {
     ...config.android,
+    package: isDev ? `${config.android.package}.dev` : config.android.package,
     versionCode: resolveAndroidVersionCode(),
   },
   extra: {

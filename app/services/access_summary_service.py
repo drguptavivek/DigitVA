@@ -20,6 +20,8 @@ Policy: docs/policy/api-v1.md; shape: docs/current-state/api-v1.md.
 
 from __future__ import annotations
 
+import dataclasses
+
 import sqlalchemy as sa
 
 from app import db
@@ -32,6 +34,7 @@ from app.models import (
     VaSiteMaster,
     VaStatuses,
 )
+from app.services import training_demo_service
 from app.services.authz import action_reach, resolve_grants, role_flags
 from app.services.authz.actions import ADMIN_BYPASS
 from app.services.authz.consulted import mark_consulted
@@ -101,12 +104,19 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
                 .where(MasOrgUnit.org_unit_id.in_(unit_ids))
             ).all())
 
-    projects = [
-        _project(project_id, grants, resolved, names.get(project_id),
-                 sites.get(project_id, []), unit_names, interviewing.get(project_id, []),
-                 project_id in self_coding, registering.get(project_id, []))
+    # The training project is not real work: it is left out of ``projects`` and
+    # ``roles`` (the normal menus), and given as ``training.project`` for the
+    # Training screens (docs/policy/training-demo-project.md).
+    training_pid = training_demo_service.TRAINING_PROJECT_ID if training_demo_service.training_configured() else None
+    built = {
+        project_id: _project(project_id, grants, resolved, names.get(project_id),
+                             sites.get(project_id, []), unit_names, interviewing.get(project_id, []),
+                             project_id in self_coding, registering.get(project_id, []))
         for project_id, grants in sorted(by_project.items())
-    ]
+    }
+    projects = [entry for project_id, entry in built.items() if project_id != training_pid]
+    real_grants = dataclasses.replace(
+        resolved, grants=tuple(g for g in resolved.grants if g.project_id != training_pid))
     demo_projects = sorted({g.project_id for g in resolved.grants if g.virtual})
     return {
         "user": {
@@ -132,10 +142,28 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
                 ],
             },
         },
-        "roles": sorted(role_flags(user, _grants=resolved, virtual=False)),
+        "roles": sorted(role_flags(user, _grants=real_grants, virtual=False)),
         "admin_actions": sorted(a.value for a in ADMIN_BYPASS) if resolved.is_admin else [],
         "projects": projects,
         "demo_coding": {"available": bool(demo_projects), "project_ids": demo_projects},
+        "training": _training(user, built.get(training_pid)),
+    }
+
+
+def _training(user, project: dict | None) -> dict | None:
+    """The Expo Training menu's data, or None when training is off: the
+    training project id, the sub-menus the user's active participations open,
+    whether Start is still pending, and ``project`` (the user's grants in the
+    training project, shaped like a ``projects`` entry, or null) for the
+    Training screens' interview and registration contexts."""
+    if not training_demo_service.training_configured():
+        return None
+    summary = training_demo_service.me_summary(user.user_id)
+    return {
+        "project_id": summary["project_id"],
+        "areas": summary["areas"],
+        "pending": summary["pending"],
+        "project": project if summary["areas"] else None,
     }
 
 

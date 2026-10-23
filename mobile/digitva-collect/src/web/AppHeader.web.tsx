@@ -48,6 +48,7 @@ const ICONS: Record<string, string[]> = {
   register: ["M12 5l0 14", "M5 12l14 0"],
   mentoring: ["M22 9l-10 -4l-10 4l10 4l10 -4v6", "M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"],
   area: ["M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13", "M9 4v13", "M15 7v13"],
+  training: ["M22 9l-10 -4l-10 4l10 4l10 -4v6", "M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"],
   data: ["M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "M4 6v6a8 3 0 0 0 16 0v-6", "M4 12v6a8 3 0 0 0 16 0v-6"],
   users: ["M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0", "M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2", "M16 3.13a4 4 0 0 1 0 7.75", "M21 21v-2a4 4 0 0 0 -3 -3.85"],
   organization: ["M3 21l18 0", "M9 8l1 0", "M9 12l1 0", "M9 16l1 0", "M14 8l1 0", "M14 12l1 0", "M14 16l1 0", "M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16"],
@@ -65,7 +66,7 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
 
 /** Bottom-bar and sheet icon per navEntries key. */
 const ENTRY_ICONS: Record<string, string> = {
-  "/": "home", "/death-registration": "register", "/collection": "collection", "/coding": "coding", "/reviewing": "reviewing", "/area/": "area",
+  "/": "home", "/death-registration": "register", "/collection": "collection", "/coding": "coding", "/reviewing": "reviewing", "/area/": "area", "/training": "training",
   "/organization": "organization", "/users": "users", "/settings": "settings", website: "website", "/data-management/": "data", "/mentoring": "mentoring", "/admin/": "admin",
 };
 

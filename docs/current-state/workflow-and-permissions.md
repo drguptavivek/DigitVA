@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-23
 ---
 
 # Workflow And Permissions
@@ -120,6 +120,10 @@ completion history, recode behavior, and some reporting paths.
 
 Current cutover status:
 
+- a coder or reviewer holds one active allocation per kind and side (training
+  project or real work, `va_allocations.va_allocation_training`); the Expo API
+  allocates the training project only with `?training=1`, never otherwise
+  (api-v1.md, "Training scope")
 - coder random allocation reads `va_submission_workflow`
 - admin demo allocation reads `va_submission_workflow`
 - coder dashboard available-form count reads `va_submission_workflow`

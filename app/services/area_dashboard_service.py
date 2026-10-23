@@ -55,7 +55,7 @@ from app.models import (
     VaUsers,
     VaWebIntakeDraft,
 )
-from app.services import authz, org_grant_service
+from app.services import authz, org_grant_service, training_scope
 from app.services.authz.consulted import mark_consulted
 from app.services.cod_bucket_mapping_service import (
     count_coded_submissions_by_cause,
@@ -136,11 +136,16 @@ def _granted_project_rows(user):
 
 
 def candidate_projects(user) -> list[tuple[str, str]]:
-    """(project_id, project_name) of every active project the user holds any grant on.
+    """(project_id, project_name) of every active project the user holds any grant on,
+    the training project excepted.
 
     One query. Admins get every active project.
     """
-    active = VaProjectMaster.project_status == VaStatuses.active
+    # The training project is never part of anyone's area (docs/policy/training-demo-project.md).
+    active = sa.and_(
+        VaProjectMaster.project_status == VaStatuses.active,
+        VaProjectMaster.project_id.is_distinct_from(training_scope.training_project_id()),
+    )
     if user.is_admin():
         stmt = sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name).where(active)
     else:

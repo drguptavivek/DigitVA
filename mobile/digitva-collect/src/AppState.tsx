@@ -40,6 +40,10 @@ import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, ty
 import type { Db } from "./drafts";
 
 const UI_LOCALE_KEY = "ui_locale";
+const POLL_MS = 60_000;
+const POLL_MAX_MS = 600_000;
+
+const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 interface AppState {
   ready: boolean;
@@ -56,6 +60,14 @@ interface AppState {
   unlocked(): void;
   /** Restart the idle timer (touches are caught at the root; the form reports its saves). */
   activity(): void;
+  /** Native only: an automatic refresh failed; shown as a banner, never the gate. */
+  backgroundError?: string;
+  dismissBackgroundError?(): void;
+  /**
+   * Native only: while a form is open, refreshes must not remount it. Returns
+   * the release function; a refresh that arrived meanwhile applies on release.
+   */
+  holdRefresh?(): () => void;
   /** Clear a transient foreground/access error after a successful retry. */
   clearError(): void;
   /** Run `hook` before the next lock; returns the unregister function. */
@@ -63,6 +75,8 @@ interface AppState {
   /** Browser-only session fields; absent on native. */
   authenticated?: boolean;
   bootstrap?: ClientBootstrap;
+  /** Web only (TrainingScope): the user's real bootstrap beneath the Training screens' scoped one. */
+  unscopedBootstrap?: ClientBootstrap;
   loginUrl?: string;
   actionCode?: "terms_required";
   error?: string;
@@ -78,11 +92,36 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [uiLocale, setLocaleState] = useState("en");
   const [lockVersion, setLockVersion] = useState(0);
   const [error, setError] = useState<string>();
+  const [backgroundError, setBackgroundError] = useState<string>();
   const router = useRouter();
   const beforeLock = useRef(new Set<() => Promise<void>>());
   const accountsRef = useRef<Account[]>([]);
   const autoLock = useRef<AutoLock | undefined>(undefined);
-  const foregroundNotificationRefresh = useRef<(() => Promise<void>) | undefined>(undefined);
+  const foregroundNotificationRefresh = useRef<(() => Promise<boolean>) | undefined>(undefined);
+  const holds = useRef(0);
+  const refreshPending = useRef(false);
+  const lastAccess = useRef(new Map<string, string>());
+
+  // A refresh that changed data bumps lockVersion; with a form open it waits.
+  const bumpRefresh = useCallback(() => {
+    if (holds.current > 0) refreshPending.current = true;
+    else setLockVersion((v) => v + 1);
+  }, []);
+  const holdRefresh = useCallback(() => {
+    holds.current += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      holds.current -= 1;
+      if (holds.current === 0 && refreshPending.current) {
+        refreshPending.current = false;
+        setLockVersion((v) => v + 1);
+      }
+    };
+  }, []);
+  const reportBackgroundError = useCallback((e: unknown) => setBackgroundError(errorText(e)), []);
+  const dismissBackgroundError = useCallback(() => setBackgroundError(undefined), []);
 
   const lockNow = useCallback(async () => {
     if (!anyUnlocked()) return true;
@@ -94,6 +133,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     try {
       await lockAll();
+      lastAccess.current.clear();
       setError(undefined);
       router.replace("/");
       setLockVersion((v) => v + 1);
@@ -134,8 +174,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       loadDevice(),
       loadAccounts(),
     ]);
-    setDevice(nextDevice);
-    setAccounts(nextAccounts);
+    // Keep identities when nothing changed so an idle poll redraws nothing.
+    setDevice((prev) => (sameJson(prev, nextDevice) ? prev : nextDevice));
+    setAccounts((prev) => (sameJson(prev, nextAccounts) ? prev : nextAccounts));
   }, []);
 
   const flushBeforeRefresh = useCallback(async () => {
@@ -144,22 +185,18 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const reconcileAccess = useCallback(async (userId: string, access: Parameters<Parameters<typeof subscribeAccessChanges>[0]>[1]) => {
     if (!isUnlocked(userId)) return;
+    const key = JSON.stringify(access);
+    if (lastAccess.current.get(userId) === key) return;
     await flushBeforeRefresh();
     const handle = await openInterviewerDb(userId);
     await reconcileReferenceAccess(handle, access);
-    setError(undefined);
-    setLockVersion((version) => version + 1);
+    lastAccess.current.set(userId, key);
+    bumpRefresh();
     await reload();
-  }, [flushBeforeRefresh, reload]);
+  }, [flushBeforeRefresh, reload, bumpRefresh]);
 
   const refreshUnlocked = useCallback(async () => {
-    try {
-      await flushBeforeRefresh();
-    } catch (refreshError) {
-      setError(errorText(refreshError));
-      throw refreshError;
-    }
-    setError(undefined);
+    await flushBeforeRefresh();
     for (const account of accountsRef.current) {
       if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
       const handle = isUnlocked(account.user_id)
@@ -167,7 +204,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         : undefined;
       const didSync = await refreshNativeNotifications(account.user_id, handle);
       if (didSync) {
-        setLockVersion((version) => version + 1);
+        bumpRefresh();
         continue;
       }
       const currentAccount = (await loadAccounts()).find(({ user_id }) => user_id === account.user_id);
@@ -176,15 +213,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         await refreshReferenceData(account.user_id, handle, { force: true });
       } catch (refreshError) {
         if (refreshError instanceof TypeError) continue;
-        setError(errorText(refreshError));
         throw refreshError;
       }
-      setLockVersion((version) => version + 1);
+      bumpRefresh();
     }
     await reload();
-  }, [flushBeforeRefresh, reload]);
+  }, [flushBeforeRefresh, reload, bumpRefresh]);
 
-  const pollForegroundNotifications = useCallback(async () => {
+  /** Resolves true when the poll succeeded; false feeds the caller's backoff. */
+  const pollForegroundNotifications = useCallback(async (): Promise<boolean> => {
     try {
       await flushBeforeRefresh();
       for (const account of accountsRef.current) {
@@ -193,13 +230,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           ? await openInterviewerDb(account.user_id)
           : undefined;
         const didSync = await refreshNativeNotifications(account.user_id, handle);
-        if (didSync) setLockVersion((version) => version + 1);
+        if (didSync) bumpRefresh();
       }
       await reload();
+      setBackgroundError(undefined);
+      return true;
     } catch (pollError) {
-      setError(errorText(pollError));
+      reportBackgroundError(pollError);
+      return false;
     }
-  }, [flushBeforeRefresh, reload]);
+  }, [flushBeforeRefresh, reload, bumpRefresh, reportBackgroundError]);
 
   const syncAccount = useCallback(async (
     userId: string,
@@ -224,11 +264,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   useEffect(
     () => subscribeAccessChanges((userId, access) =>
       reconcileAccess(userId, access).catch((accessError) => {
-        setError(errorText(accessError));
+        reportBackgroundError(accessError);
         throw accessError;
       }),
     ),
-    [reconcileAccess],
+    [reconcileAccess, reportBackgroundError],
   );
 
   useEffect(() => {
@@ -242,23 +282,33 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let previous = NativeAppState.currentState;
-    let timer: ReturnType<typeof setInterval> | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = POLL_MS;
+    // A failing poll doubles the wait (up to 10 min); a success resets it.
+    const schedule = () => {
+      timer = setTimeout(async () => {
+        const ok = await pollForegroundNotifications();
+        delay = ok ? POLL_MS : Math.min(delay * 2, POLL_MAX_MS);
+        if (timer) schedule();
+      }, delay);
+    };
     const startTimer = () => {
-      if (timer) clearInterval(timer);
-      timer = setInterval(() => void pollForegroundNotifications(), 60_000);
+      if (timer) clearTimeout(timer);
+      delay = POLL_MS;
+      schedule();
     };
     const stopTimer = () => {
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       timer = undefined;
     };
     foregroundNotificationRefresh.current = pollForegroundNotifications;
     if (ready && previous === "active") {
-      void refreshUnlocked().catch((refreshError) => setError(errorText(refreshError)));
+      void refreshUnlocked().then(() => setBackgroundError(undefined), reportBackgroundError);
       startTimer();
     }
     const subscription = NativeAppState.addEventListener("change", (next) => {
       if (next === "active" && previous !== "active") {
-        void refreshUnlocked().catch((refreshError) => setError(errorText(refreshError)));
+        void refreshUnlocked().then(() => setBackgroundError(undefined), reportBackgroundError);
         startTimer();
       } else if (next !== "active") {
         stopTimer();
@@ -270,7 +320,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       foregroundNotificationRefresh.current = undefined;
       subscription.remove();
     };
-  }, [ready, refreshUnlocked, pollForegroundNotifications]);
+  }, [ready, refreshUnlocked, pollForegroundNotifications, reportBackgroundError]);
 
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));
@@ -295,6 +345,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearError,
       onBeforeLock,
       error,
+      backgroundError,
+      dismissBackgroundError,
+      holdRefresh,
     }),
     [
       ready,
@@ -311,9 +364,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       clearError,
       onBeforeLock,
       error,
+      backgroundError,
+      dismissBackgroundError,
+      holdRefresh,
     ],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+
+/** The Training screens are web only; on a device this renders nothing. */
+export function TrainingScope(_props: { children: ReactNode; fallback?: ReactNode }) {
+  return null;
 }
 
 export function useAppState(): AppState {

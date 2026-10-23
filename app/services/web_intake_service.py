@@ -62,6 +62,7 @@ from app.services import (
     register_pii_accessor,
     served_form_service,
     smartva_service,
+    training_scope,
 )
 from app.services import org_unit_routing_service as org_routing
 from app.services import organization_service as org
@@ -1753,7 +1754,9 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
 
 
 def list_drafts(user: VaUsers, *, status: str = "draft") -> list[VaWebIntakeDraft]:
-    stmt = sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.user_id == user.user_id)
+    stmt = sa.select(VaWebIntakeDraft).where(
+        VaWebIntakeDraft.user_id == user.user_id, *training_scope.conditions(VaWebIntakeDraft.project_id)
+    )
     if status:
         stmt = stmt.where(VaWebIntakeDraft.status == status)
     return list(db.session.scalars(stmt.order_by(VaWebIntakeDraft.updated_at.desc()).limit(200)).all())
@@ -3954,6 +3957,9 @@ def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: fro
         # A public-demo account sees only the deaths it registered
         # (docs/policy/public-demo.md section 3), as get_death.
         *([VaDeathRegister.registered_by == user.user_id] if user.is_public_demo else []),
+        # The Expo training scope: one funnel for the worklist, the register
+        # lists and the Home counts (docs/policy/training-demo-project.md).
+        *training_scope.conditions(VaDeathRegister.project_id),
     )
 
 
@@ -4405,7 +4411,7 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
     if sort not in SUPERVISION_SORTS:
         raise WebIntakeError(f"Unknown sort {sort!r}.")
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    scope = cases.supervised_case_condition(user)
+    scope = sa.and_(cases.supervised_case_condition(user), *training_scope.conditions(VaDeathRegister.project_id))
     counts = dict(
         db.session.execute(
             sa.select(VaDeathRegister.status, sa.func.count()).where(scope).group_by(VaDeathRegister.status)

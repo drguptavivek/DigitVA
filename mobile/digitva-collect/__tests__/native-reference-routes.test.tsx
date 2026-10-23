@@ -354,14 +354,16 @@ jest.mock("../src/ui", () => {
       label,
       onPress,
       disabled,
+      loading,
     }: {
       label: string;
       onPress?: () => void;
       disabled?: boolean;
+      loading?: boolean;
     }) =>
       ReactActual.createElement(
         "button",
-        { "data-label": label, disabled, onClick: onPress },
+        { "data-label": label, "data-loading": Boolean(loading), disabled, onClick: onPress },
         label,
       ),
     Row: ({ children }: { children: ReactNode }) =>
@@ -537,6 +539,27 @@ describe("native project-aware routes", () => {
 
     expect(jest.requireMock("../src/sync").refreshAuthorizedProjectDefinitions)
       .toHaveBeenCalledWith("u1", mockDb, mockReference);
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows a spinner on Refresh while it runs, then the refreshed content", async () => {
+    mockCachedReference = pack("both", "P1");
+    mockReference = pack("both", "P1");
+    let release!: () => void;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    (refreshReferenceData as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => { release = () => resolve(mockReference); }),
+    );
+    const button = () => tree!.root.findAllByProps({ "data-label": "refresh" }).at(-1)!;
+    expect(button().props["data-loading"]).toBe(false);
+    let pending!: Promise<unknown>;
+    await act(async () => { pending = Promise.resolve(button().props.onClick()); });
+    expect(button().props["data-loading"]).toBe(true);
+    await act(async () => { release(); await pending; });
+    await settle();
+    expect(button().props["data-loading"]).toBe(false);
     await act(async () => tree!.unmount());
   });
 

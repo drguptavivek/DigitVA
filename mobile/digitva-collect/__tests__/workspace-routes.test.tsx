@@ -44,15 +44,17 @@ jest.mock("../src/web/common", () => {
 });
 jest.mock("../src/workspace/QueueScreen", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  return { QueueScreen: ({ mode, onViewChange }: { mode: string; onViewChange: unknown }) => ReactActual.createElement("queue-screen", { mode, onViewChange }) };
+  return { QueueScreen: ({ mode, onViewChange, api, onOpen, Shell }: Record<string, unknown>) => ReactActual.createElement("queue-screen", { mode, onViewChange, api, onOpen, Shell }) };
 });
 jest.mock("../src/workspace/CaseWorkspaceScreen", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  return { CaseWorkspaceScreen: ({ identity }: { identity: { vaSid: string; mode: string } }) => ReactActual.createElement("case-workspace", identity) };
+  return { CaseWorkspaceScreen: ({ identity, onExit }: { identity: { vaSid: string; mode: string }; onExit: () => void }) => ReactActual.createElement("case-workspace", { ...identity, onExit }) };
 });
 jest.mock("../src/workspace/doris/DorisPanel", () => ({ DorisPanel: () => null }));
+const mockTransport = jest.fn(async (_path: string, _init?: unknown) => ({}));
+jest.mock("../src/workspace/transport.web", () => ({ createWebWorkspaceTransport: () => mockTransport }));
 
-import WorkspaceScreen, { CodingScreen } from "../src/web/WorkspaceScreen";
+import WorkspaceScreen, { CodingScreen, ReviewingScreen, TrainingCodingScreen, TrainingReviewScreen } from "../src/web/WorkspaceScreen";
 
 async function render(element: React.ReactElement) {
   let renderer!: ReactTestRenderer;
@@ -123,5 +125,104 @@ describe("browser workspace routes", () => {
     expect(renderer.root.findAllByType("case-workspace" as never)).toHaveLength(0);
     expect(mockReload).toHaveBeenCalled();
     await act(async () => { renderer.unmount(); });
+  });
+
+  describe("the Training menu's queues", () => {
+    /** A trainee: no real role, a training participation. */
+    const trainee = (areas: string[], roles: string[] = []) => {
+      const base = bootstrap("current-user", roles);
+      mockAppBootstrap = { ...base, access: { ...base.access, training: { project_id: "TRN01", areas, pending: false, project: null } } } as ClientBootstrap;
+      mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    };
+    const paths = () => mockTransport.mock.calls.map(([path]) => String(path));
+
+    test("a trainee's coding queue asks the server for the training scope on every queue call", async () => {
+      trainee(["coding"]);
+      const renderer = await render(<TrainingCodingScreen />);
+      const queue = renderer.root.findByType("queue-screen" as never).props;
+      expect(queue.mode).toBe("coding");
+      await queue.api.getCodingStats().catch(() => undefined);
+      await queue.api.getCodingAvailable().catch(() => undefined);
+      await queue.api.allocateCoding("sid-1").catch(() => undefined);
+      expect(paths().filter((path) => /\/coding\/(stats|available|allocation)/.test(path))).toHaveLength(3);
+      expect(paths().every((path) => /[?&]training=1(&|$)/.test(path))).toBe(true);
+      queue.onOpen({ vaSid: "sid-1", mode: "coding" });
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/workspace", params: { vaSid: "sid-1", mode: "coding", training: "1" } });
+      await act(async () => { renderer.unmount(); });
+    });
+
+    test("the normal queue never asks for it, even with training=1 in the URL, and a trainee has no normal queue", async () => {
+      mockAppBootstrap = bootstrap("current-user", ["coder"]);
+      mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+      mockRouteParams = { training: "1" };
+      const renderer = await render(<CodingScreen />);
+      const queue = renderer.root.findByType("queue-screen" as never).props;
+      await queue.api.getCodingAvailable().catch(() => undefined);
+      expect(paths()).toHaveLength(1);
+      expect(paths()[0]).not.toContain("training");
+      queue.onOpen({ vaSid: "sid-1", mode: "coding" });
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/workspace", params: { vaSid: "sid-1", mode: "coding" } });
+      await act(async () => { renderer.unmount(); });
+
+      trainee(["coding"]);
+      const forbidden = await render(<CodingScreen />);
+      expect(JSON.stringify(forbidden.toJSON())).toContain("serverForbidden");
+      await act(async () => { forbidden.unmount(); });
+    });
+
+    test("a real coder without a participation gets nothing from the training route", async () => {
+      mockAppBootstrap = bootstrap("current-user", ["coder", "reviewer"]);
+      mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+      for (const Screen of [TrainingCodingScreen, TrainingReviewScreen]) {
+        const renderer = await render(<Screen />);
+        expect(JSON.stringify(renderer.toJSON())).toContain("serverForbidden");
+        expect(renderer.root.findAllByType("queue-screen" as never)).toHaveLength(0);
+        await act(async () => { renderer.unmount(); });
+      }
+      trainee(["review"]);
+      const wrongArea = await render(<TrainingCodingScreen />);
+      expect(JSON.stringify(wrongArea.toJSON())).toContain("serverForbidden");
+      await act(async () => { wrongArea.unmount(); });
+    });
+
+    test("the review queue and a case opened from Training go back to the Training menu", async () => {
+      trainee(["review"]);
+      const queue = await render(<TrainingReviewScreen />);
+      const api = queue.root.findByType("queue-screen" as never).props.api;
+      await api.getReviewerAvailable().catch(() => undefined);
+      await api.allocateReviewer("sid-2").catch(() => undefined);
+      expect(paths().every((path) => /[?&]training=1(&|$)/.test(path))).toBe(true);
+      expect(paths()).toHaveLength(2);
+      await act(async () => { queue.unmount(); });
+
+      trainee(["coding", "review"]);
+      mockRouteParams = { vaSid: "sid-3", mode: "reviewing", training: "1" };
+      const caseView = await render(<WorkspaceScreen />);
+      caseView.root.findByType("case-workspace" as never).props.onExit();
+      expect(mockRouter.replace).toHaveBeenCalledWith("/training/review");
+      await act(async () => { caseView.unmount(); });
+      expect(ReviewingScreen).toBeDefined();
+    });
+
+    test("the home sends a trainee with Start pending to /training once", async () => {
+      const base = bootstrap("current-user", []);
+      mockAppBootstrap = { ...base, access: { ...base.access, training: { project_id: "TRN01", areas: ["coding"], pending: true, project: null } } } as ClientBootstrap;
+      mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+      mockTransport.mockResolvedValue({ roles: [], blocks: {} });
+      const store = new Map<string, string>();
+      Object.defineProperty(globalThis, "sessionStorage", {
+        configurable: true,
+        value: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value) },
+      });
+      const first = await render(<WorkspaceScreen />);
+      expect(mockRouter.replace).toHaveBeenCalledWith("/training");
+      await act(async () => { first.unmount(); });
+      mockRouter.replace.mockClear();
+      const second = await render(<WorkspaceScreen />);
+      expect(mockRouter.replace).not.toHaveBeenCalledWith("/training");
+      await act(async () => { second.unmount(); });
+      delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
+      mockTransport.mockResolvedValue({});
+    });
   });
 });

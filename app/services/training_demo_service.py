@@ -1588,6 +1588,54 @@ def participations(user_id, *, pending_only: bool = False) -> list[dict]:
     ]
 
 
+#: Expo Training sub-menus -> the participant roles that open them
+#: (docs/policy/training-demo-project.md, "Onboarding and the public page").
+AREA_ROLES = {
+    "interview": frozenset({"death_reporter", "interviewer", "interview_supervisor"}),
+    "coding": frozenset({"coder"}),
+    "review": frozenset({"reviewer_data_manager"}),
+}
+
+
+def areas_of(parts: list[dict]) -> list[str]:
+    """The Training sub-menus (in menu order) the participations in *parts* open."""
+    roles = {part["role"] for part in parts}
+    return [area for area, area_roles in AREA_ROLES.items() if roles & area_roles]
+
+
+def may_use_area(user_id, area: str) -> bool:
+    """Whether *user_id* has an active participation, in an active session, with
+    a role that opens *area*. The server-side gate of ``training=1``."""
+    roles = AREA_ROLES.get(area)
+    if not roles:
+        return False
+    return bool(
+        db.session.scalar(
+            sa.select(sa.exists().where(
+                MapTrainingParticipant.user_id == user_id,
+                MapTrainingParticipant.status == "active",
+                MapTrainingParticipant.role.in_(sorted(roles)),
+                MapTrainingParticipant.training_session_id.in_(
+                    sa.select(MasTrainingSession.training_session_id).where(MasTrainingSession.status == "active")
+                ),
+            ))
+        )
+    )
+
+
+def me_summary(user_id) -> dict:
+    """The Training menu's data: ``{project_id, areas, pending}``; the same
+    shape ``GET /api/v1/me/access`` carries as ``training``, plus the
+    participations for the overview screen."""
+    parts = participations(user_id) if training_configured() else []
+    return {
+        "project_id": TRAINING_PROJECT_ID if training_configured() else None,
+        "areas": areas_of(parts),
+        "pending": any(part["onboarded_at"] is None for part in parts),
+        "participations": parts,
+    }
+
+
 def complete_onboarding(user_id) -> list[str]:
     """Record that the user started: sets ``onboarded_at`` on their pending
     participations in active sessions and returns their roles. Commits."""

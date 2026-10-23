@@ -57,6 +57,7 @@ from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.mas_icd11_mms import MasIcd11Mms
 from app.services.coding_release_service import deactivate_coding_for_accepted_change
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
+from app.services import training_scope
 from app.services.icd11_licence import ICD11_CITATION
 from app.services.icd_coding_value import extract_icd_code
 from app.services.final_cod_authority_service import upsert_final_cod_authority
@@ -393,7 +394,35 @@ class DmGrantScope:
         return set(self.pairs) | _expand_project_ids_to_active_pairs(sorted(self.project_ids))
 
 
+def _list_scope(user):
+    """``authz`` LIST_DATA scope on submissions, less the training project when
+    the request runs in the exclude scope (docs/policy/training-demo-project.md)."""
+    return sa.and_(
+        scope_filter(user, Action.LIST_DATA), *training_scope.form_conditions(VaSubmissions.va_form_id)
+    )
+
+
+def _without_training(scope: DmGrantScope) -> DmGrantScope:
+    """*scope* with the training project's grants dropped while the request is
+    in the exclude scope."""
+    tid = training_scope.training_project_id()
+    if training_scope.current() != training_scope.EXCLUDE or tid is None:
+        return scope
+    return DmGrantScope(
+        project_ids=scope.project_ids - {tid},
+        pairs=frozenset(pair for pair in scope.pairs if pair[0] != tid),
+        unit_grant_ids=scope.unit_grant_ids,
+        unit_project_ids=scope.unit_project_ids - {tid},
+    )
+
+
 def dm_grant_scope(user, *, viewers: bool = False) -> DmGrantScope:
+    """The user's data-management grants (``_dm_grant_scope``), without the
+    training project in the exclude scope."""
+    return _without_training(_dm_grant_scope(user, viewers=viewers))
+
+
+def _dm_grant_scope(user, *, viewers: bool = False) -> DmGrantScope:
     """The data-manager shaped grants of *user* (authz ``Lens.DM``), plus
     collaborator / collaborator_pii with *viewers* (``Lens.VIEWER``).
 
@@ -436,7 +465,7 @@ def _dm_visible_forms_condition(user):
         .select_from(VaSubmissions)
         .where(
             VaSubmissions.va_form_id == VaForms.form_id,
-            scope_filter(user, Action.LIST_DATA),
+            _list_scope(user),
         )
         .correlate(VaForms)
     )
@@ -849,7 +878,7 @@ def dm_submissions_page(
 
     # Confirmed-duplicate web cases leave the grid and every export built here.
     conditions = [
-        scope_filter(user, Action.LIST_DATA),
+        _list_scope(user),
         not_confirmed_duplicate_condition(VaSubmissions.va_sid),
     ]
     project_values = _csv_values(project)
@@ -1109,7 +1138,7 @@ def _dm_submission_query_parts(
         )
     # Confirmed-duplicate web cases leave the grid and every export built here.
     conditions = [
-        scope_filter(user, Action.LIST_DATA),
+        _list_scope(user),
         not_confirmed_duplicate_condition(VaSubmissions.va_sid),
     ]
     project_values = _csv_values(project)
@@ -2628,7 +2657,7 @@ def dm_filter_options(user) -> dict:
     genders = db.session.scalars(
         sa.select(VaSubmissions.va_deceased_gender)
         .where(
-            scope_filter(user, Action.LIST_DATA),
+            _list_scope(user),
             VaSubmissions.va_deceased_gender.is_not(None),
         )
         .distinct()

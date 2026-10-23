@@ -32,6 +32,7 @@ from app.routes.api import (  # noqa: E402, F401
     reviewing,
     so,
     station_config,
+    training,
     translation_suggestions,
     ui_strings,
     users,
@@ -80,6 +81,7 @@ api_v1.register_blueprint(reviewing.bp, url_prefix="/reviewing")
 api_v1.register_blueprint(so.bp, url_prefix="/va")
 api_v1.register_blueprint(station_config.bp)
 api_v1.register_blueprint(bundles.bp)
+api_v1.register_blueprint(training.bp, url_prefix="/training")
 api_v1.register_blueprint(translation_suggestions.bp, url_prefix="/translations")
 api_v1.register_blueprint(ui_strings.bp, url_prefix="/ui-strings")
 api_v1.register_blueprint(users.bp, url_prefix="/users")

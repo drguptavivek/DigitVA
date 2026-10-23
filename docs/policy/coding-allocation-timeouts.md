@@ -123,10 +123,13 @@ below applies to a coder release too.
 
 ## One active allocation, enforced
 
+Per side since `digitva-rcwt`: one on the real side and one on the training
+side (`va_allocation_training`, migration `d6a1f3b8c2e4`).
+
 `digitva-igq7`. "One active coding allocation per coder" and "one active
 reviewing allocation per reviewer" are enforced by the partial unique index
 `uq_va_allocations_active_to_for` on `va_allocations (va_allocated_to,
-va_allocation_for) WHERE va_allocation_status = 'active'`. The allocators'
+va_allocation_for, va_allocation_training) WHERE va_allocation_status = 'active'`. The allocators'
 "already holds one?" check is not enough on its own: two concurrent requests
 from one user for different cases both passed it. Now the second insert is
 refused, its savepoint is rolled back with nothing else written, and the

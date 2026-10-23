@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Expo Client Hosting And Access
@@ -195,6 +195,32 @@ sign-in recovery retains the current `/app/` route and query. Pending terms
 setup redirect.
 
 Login, onboarding and device sign-in endpoints: [Authentication, Login and Onboarding](authentication-and-onboarding.md).
+
+## Training menu (digitva-r2pf)
+
+Policy: `docs/policy/training-demo-project.md`, `docs/policy/expo-client.md`.
+Served at `/app/training` (the Flask welcome and sign-in `next` point there while
+the export is present). Routes (`mobile/digitva-collect/app/training/`): `/training` (overview, Start),
+`/training/interview`, `/training/coding`, `/training/review`, and
+`/training/register` (death registration in the training scope). Screens:
+`src/web/TrainingScreen.tsx` (overview, Interview area), `TrainingChecklist.tsx`
+(participation hook, confidentiality notice, area checklists, queue shell);
+helpers in `src/training.ts`.
+
+- The menu (`navEntries`) shows Training from `access.training.areas`, with a
+  child per area; the phone bottom bar shows the parent only.
+- Coding and Review reuse `WorkspaceScreen` with a `training` prop:
+  `createWorkspaceApi(request, { training: true })` adds `training=1` to the
+  queue, count, allocation and release routes only; intake writes in `TrainingScope` also
+  send it, and the server answers 409 `training_scope` for a record on the other side
+  (api-v1.md, "Training scope"). The Interview area runs the
+  ordinary registration, deaths list and supervision screens inside
+  `TrainingScope` (`AppState.web.tsx`), whose bootstrap holds only the training
+  project (`trainingBootstrap`, `scope: "training"`); lists ask for
+  `training=1`. The menu keeps the user's own bootstrap (`unscopedBootstrap`).
+- The Expo home sends a trainee with Start pending to `/training` once per
+  browser session (`takeTrainingRedirect`); the Flask hook skips `/app/`.
+- New UI strings are in `src/strings/en.json` and `hi.json`.
 
 ## Web export and UI string corrections
 

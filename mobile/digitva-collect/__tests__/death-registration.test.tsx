@@ -685,7 +685,7 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
 
-    expect(mockGetCases).toHaveBeenCalledWith(mockBootstrap.links.intakeCases, mockBootstrap.csrf, null, undefined);
+    expect(mockGetCases).toHaveBeenCalledWith(mockBootstrap.links.intakeCases, mockBootstrap.csrf, null, undefined, false);
     expect(ownPage).not.toHaveBeenCalled();
     expect(JSON.stringify(tree!.toJSON())).toContain("Private Name");
     expect(tree!.root.findAllByProps({ "data-label": "startInterview" })).toHaveLength(0);
@@ -832,8 +832,8 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
     await settle();
     expect(ownPage).toHaveBeenCalledTimes(2);
-    expect(ownPage).toHaveBeenNthCalledWith(1, mockBootstrap.csrf, true, undefined);
-    expect(ownPage).toHaveBeenNthCalledWith(2, mockBootstrap.csrf, true, undefined);
+    expect(ownPage).toHaveBeenNthCalledWith(1, mockBootstrap.csrf, true, undefined, false);
+    expect(ownPage).toHaveBeenNthCalledWith(2, mockBootstrap.csrf, true, undefined, false);
     expect(getDetail).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
@@ -922,7 +922,7 @@ describe("DeathRegistrationScreen", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
-    expect(ownPage).toHaveBeenNthCalledWith(2, mockBootstrap.csrf, true, "page-two");
+    expect(ownPage).toHaveBeenNthCalledWith(2, mockBootstrap.csrf, true, "page-two", false);
     await act(async () => tree!.root.findByProps({ "data-field": "address" }).props.onClick("My change"));
     await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
     await settle();
@@ -930,7 +930,7 @@ describe("DeathRegistrationScreen", () => {
     expect(patch).toHaveBeenCalledWith("/api/v1/intake/deaths/d2", {
       method: "PATCH", json: { address: "My change" }, csrf: mockBootstrap.csrf
     });
-    expect(ownPage).toHaveBeenNthCalledWith(3, mockBootstrap.csrf, true, "page-two");
+    expect(ownPage).toHaveBeenNthCalledWith(3, mockBootstrap.csrf, true, "page-two", false);
     expect(tree!.root.findByProps({ "data-field": "address" }).props["data-value"]).toBe("Latest address");
     await act(async () => tree!.unmount());
   });

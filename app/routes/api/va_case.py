@@ -262,7 +262,10 @@ def _may_see_cod_reference(va_sid: str, workflow_state: str | None, user_id) -> 
     """
     if coding_bucket(workflow_state) not in (CODING_BUCKET_CODED, CODING_BUCKET_NOT_CODEABLE):
         return False
-    return va_sid not in (get_active_coding_allocation(user_id), get_active_reviewing_allocation(user_id))
+    held = {
+        get_active_coding_allocation(user_id, training=side) for side in (False, True)
+    } | {get_active_reviewing_allocation(user_id, training=side) for side in (False, True)}
+    return va_sid not in held
 
 
 def _conditions(text) -> list[str]:

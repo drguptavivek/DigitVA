@@ -8,6 +8,7 @@ import { t } from "../i18n";
 import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { Button, stateLabel, useUiStyles } from "../ui";
+import { trainingRequester } from "../training";
 import { browserErrorText } from "./common";
 import { AddIdentifierAction } from "./CaseIdentifiers";
 import { CaseSummary, SupervisionCaseDetail } from "./SupervisionCase";
@@ -42,10 +43,12 @@ function tileQuery(tile: TileKey) {
 export function SupervisionPanel() {
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
-  const request: JsonRequester | undefined = useMemo(
-    () => (bootstrap ? createWebWorkspaceTransport(bootstrap.csrf) : undefined),
-    [bootstrap],
-  );
+  // Inside the Training screens (training scope) every call asks the server for the training scope.
+  const request: JsonRequester | undefined = useMemo(() => {
+    if (!bootstrap) return undefined;
+    const transport = createWebWorkspaceTransport(bootstrap.csrf);
+    return bootstrap.scope === "training" ? trainingRequester(transport) : transport;
+  }, [bootstrap]);
   const [tile, setTile] = useState<TileKey>("needs_decision");
   const [tiles, setTiles] = useState<SupervisionTiles>(NO_TILES);
   const [state, setState] = useState(ANY_STATE);

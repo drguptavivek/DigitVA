@@ -40,16 +40,6 @@ function memoryDb(): { db: SQLiteDatabase; newHandle(): SQLiteDatabase; close():
         (sqlite.prepare(sql).get(...params) as T | undefined) ?? null,
       getAllAsync: async <T,>(sql: string, params: (string | number | null)[]) =>
         sqlite.prepare(sql).all(...params) as T[],
-      withExclusiveTransactionAsync: async (task: (transaction: SQLiteDatabase) => Promise<void>) => {
-        sqlite.exec("BEGIN IMMEDIATE");
-        try {
-          await task(db as unknown as SQLiteDatabase);
-          sqlite.exec("COMMIT");
-        } catch (error) {
-          sqlite.exec("ROLLBACK");
-          throw error;
-        }
-      },
     } as unknown as SQLiteDatabase;
     return db;
   };
@@ -270,13 +260,13 @@ describe("native form definition cache", () => {
     const value = await makeDefinition();
     const writeComplete = deferred<void>();
     const allowCommit = deferred<void>();
-    const originalTransaction = sqlite.db.withExclusiveTransactionAsync.bind(sqlite.db);
-    const transaction = jest.spyOn(sqlite.db, "withExclusiveTransactionAsync").mockImplementation(async (task) => {
-      await originalTransaction(async (tx) => {
-        await task(tx);
+    const originalExec = sqlite.db.execAsync.bind(sqlite.db);
+    const transaction = jest.spyOn(sqlite.db, "execAsync").mockImplementation(async (sql) => {
+      if (sql === "COMMIT") {
         writeComplete.resolve();
         await allowCommit.promise;
-      });
+      }
+      return originalExec(sql);
     });
 
     const put = writer.put(value);
@@ -345,7 +335,7 @@ describe("native form definition cache", () => {
     const value = await makeDefinition();
     const failingDb = {
       ...sqlite.db,
-      withExclusiveTransactionAsync: async () => { throw new Error("database_write_failed"); },
+      execAsync: async () => { throw new Error("database_write_failed"); },
     } as unknown as SQLiteDatabase;
     await expect(createNativeDefinitionCache(failingDb, "account-1").put(value))
       .rejects.toThrow("database_write_failed");

@@ -27,7 +27,7 @@ from app.routes.api.request_helpers import (
     error as api_error,
 )
 from app.utils import va_user_timezone_name
-from app.services import smartva_service
+from app.services import smartva_service, training_scope
 from app.services.authz import Action, Reason, can
 from app.services.case_transition_service import WebIntakeError
 from app.services.coder_cod_service import (
@@ -86,6 +86,10 @@ def _filter_forms_by_project(form_ids: list[str], project_id: str) -> list[str]:
     return list(rows)
 
 
+def _crossing_error():
+    return api_error("This case is not available in this area.", "not_available", 409)
+
+
 # ---------------------------------------------------------------------------
 # GET /api/v1/coding/allocation  — current active allocation
 # ---------------------------------------------------------------------------
@@ -98,10 +102,12 @@ def get_allocation():
     Null too for an allocation now outside the user's coding scope: the
     dashboard loads this alongside its other panels and must not fail on it.
     """
+    training_scope.resolve("coding")
     try:
         va_sid = require_active_coding_allocation(current_user)
     except AllocationError:
         va_sid = None
+    # require_active_coding_allocation reads this scope's side only.
     if not va_sid:
         return jsonify({"allocation": None})
     form_row = db.session.execute(
@@ -153,7 +159,12 @@ def get_allocation():
 @bp.post("/allocation")
 @role_required("coder", "coding_tester", "admin")
 def allocate():
-    """Allocate a form for coding and return the allocation details."""
+    """Allocate a form for coding and return the allocation details.
+
+    ``?training=1`` allocates inside the training project only; without it the
+    training project is never allocated (docs/policy/training-demo-project.md).
+    """
+    training_scope.resolve("coding")
     body = optional_object_body()
     if body is None:
         return api_error("A JSON object is required.", "invalid_request", 400)
@@ -166,6 +177,8 @@ def allocate():
         return api_error("project_id must be text.", "invalid_request", 400)
     project_id = (project_id or "").strip().upper() or None
 
+    if sid and not training_scope.sid_allowed(sid):
+        return _crossing_error()
     try:
         if is_demo:
             if not current_user.is_admin():
@@ -240,7 +253,11 @@ def code_now(va_sid):
     case, outside coding scope) / ``allocation_exists`` (another allocation
     held); 409 ``not_ready`` with ``workflow_state`` (attachments or SmartVA
     pending: retry), ``held_by_another`` or ``not_available`` with
-    ``workflow_state``, ``conflict`` (retired or duplicate case)."""
+    ``workflow_state``, ``conflict`` (retired or duplicate case), and
+    ``not_available`` for a case across the training/real line."""
+    training_scope.resolve("coding")
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     try:
         result = allocate_own_case(current_user, va_sid)
     except AllocationError as e:
@@ -258,7 +275,9 @@ def code_now(va_sid):
 def release_allocation():
     """Release the caller's own active coding allocation (docs/policy/
     coding-allocation-timeouts.md, "Coder release"). 200 ``{va_sid,
-    workflow_state}``; 409 ``no_allocation`` when none is held."""
+    workflow_state}``; 409 ``no_allocation`` when none is held. Releases the
+    allocation of the request's side (``?training=1`` or real work)."""
+    training_scope.resolve("coding")
     try:
         va_sid = release_own_coding_allocation(current_user)
     except AllocationError as e:
@@ -273,7 +292,11 @@ def release_allocation():
 @bp.post("/recode/<va_sid>")
 @role_required("coder", "coding_tester")
 def recode(va_sid):
-    """Start a recode episode for a finalized submission."""
+    """Start a recode episode for a finalized submission (409
+    ``not_available`` across the training/real line)."""
+    training_scope.resolve("coding")
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     try:
         result = start_recode_allocation(current_user, va_sid)
     except AllocationError as e:
@@ -600,6 +623,7 @@ def available_forms():
     (another project's id answers an empty list). 400 ``invalid_request`` for
     a bad parameter, ``offset`` without ``limit`` included.
     """
+    training_scope.resolve("coding")
     try:
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
@@ -627,6 +651,7 @@ def available_forms():
 @role_required("coder", "coding_tester", "admin")
 def stats():
     """Return ready-pool counts and mode flags for the coder dashboard."""
+    training_scope.resolve("coding")
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     kpis = get_coder_ready_stats(current_user, project_id=project_id)
     output_summary = get_coder_output_summary(current_user.user_id, project_id=project_id)
@@ -654,12 +679,15 @@ def history():
     either form to one project of the caller's reach. 400 ``invalid_request``
     for a bad parameter, ``offset`` without ``limit`` included.
     """
+    training_scope.resolve("coding")
     try:
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
     except BadQuery as exc:
         return api_error(str(exc), "invalid_request", 400)
-    va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
+    va_form_access = list(training_scope.filter_form_ids(
+        current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
+    ))
     if limit is not None:
         rows, has_more = get_coder_history_page(
             current_user, va_form_access, limit=limit, offset=offset, project_id=project_id
@@ -680,6 +708,7 @@ def history():
     rows = [*demo_rows, *rows]
     if project_id:
         rows = [row for row in rows if row["project_id"] == project_id]
+    rows = [row for row in rows if training_scope.keeps_project(row["project_id"])]
     return jsonify({"history": rows, "count": len(rows)})
 
 
@@ -695,7 +724,10 @@ def projects():
     ``last_project_id`` is the project of their newest coding allocation, or
     null when it is not among ``project_options``.
     """
-    va_form_access = list(current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms())
+    training_scope.resolve("coding")
+    va_form_access = list(training_scope.filter_form_ids(
+        current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
+    ))
     project_options = get_coder_project_options(va_form_access)
     project_ids = [option["project_id"] for option in project_options]
     last_project_id = last_allocated_project_id(

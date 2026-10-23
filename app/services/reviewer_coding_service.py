@@ -21,6 +21,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services import training_scope
 from app.services.authz import Action, Reason, can
 from app.services.cod_entry_mode import (
     cod_entry_mode_snapshot,
@@ -295,11 +296,16 @@ def require_reviewing_session(user, va_sid: str) -> None:
         )
 
 
-def get_active_reviewing_allocation(user_id) -> str | None:
+def get_active_reviewing_allocation(user_id, training: bool | None = None) -> str | None:
+    """The user's active reviewing allocation on one side, training or real
+    work (digitva-rcwt); *training* defaults to the request's scope."""
+    if training is None:
+        training = training_scope.on_training_side()
     return db.session.scalar(
         sa.select(VaAllocations.va_sid)
         .where(
             VaAllocations.va_allocated_to == user_id,
+            VaAllocations.va_allocation_training.is_(training),
             VaAllocations.va_allocation_for == VaAllocation.reviewing,
             VaAllocations.va_allocation_status == VaStatuses.active,
         )
@@ -325,6 +331,7 @@ def release_own_reviewing_allocation(user) -> str:
         sa.select(VaAllocations)
         .where(
             VaAllocations.va_allocated_to == user.user_id,
+            VaAllocations.va_allocation_training.is_(training_scope.on_training_side()),
             VaAllocations.va_allocation_for == VaAllocation.reviewing,
             VaAllocations.va_allocation_status == VaStatuses.active,
         )
@@ -421,6 +428,7 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
                     va_sid=va_sid,
                     va_allocated_to=user.user_id,
                     va_allocation_for=VaAllocation.reviewing,
+                    va_allocation_training=training_scope.is_training_sid(va_sid),
                 )
             )
     except ActiveAllocationHeld:

@@ -146,9 +146,13 @@ function normalizeDorisError(error: unknown): never {
  * Create route methods without acquiring an allocation or touching storage.
  * The injected requester owns credentials, browser CSRF, and native refresh.
  */
-export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
+export function createWorkspaceApi(request: JsonRequester, options: { training?: boolean } = {}): WorkspaceApi {
+  // The training scope (docs/policy/training-demo-project.md): only the queue, count and allocation routes take it.
+  const scope = (path: string) => options.training ? `${path}${path.includes("?") ? "&" : "?"}training=1` : path;
+  const scopedGet = (path: string) => request(`${API}${scope(path)}`);
   const get = (path: string) => request(`${API}${path}`);
   const post = (path: string, json?: unknown) => request(`${API}${path}`, { method: "POST", ...(json !== undefined ? { json } : {}) });
+  const scopedPost = (path: string, json?: unknown) => request(`${API}${scope(path)}`, { method: "POST", ...(json !== undefined ? { json } : {}) });
 
   return {
     async getWorkspace(vaSid, mode) {
@@ -159,42 +163,42 @@ export function createWorkspaceApi(request: JsonRequester): WorkspaceApi {
       const value = await get(`/va/${id(vaSid)}/categories/${id(code)}?mode=${encodeURIComponent(mode)}`);
       return parsed(value, body => parseCategory(body, mode));
     },
-    async getCodingStats(projectId) { return parsed(await get(`/coding/stats${projectQuery(projectId)}`), parseCodingStats); },
+    async getCodingStats(projectId) { return parsed(await scopedGet(`/coding/stats${projectQuery(projectId)}`), parseCodingStats); },
     async getCodingAvailable(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;
       const query = pagingQuery({ projectId: options?.projectId, limit, offset });
-      return parsed(await get(`/coding/available${query}`), value => parseCoderQueue(value, limit, offset));
+      return parsed(await scopedGet(`/coding/available${query}`), value => parseCoderQueue(value, limit, offset));
     },
     async getCodingHistory(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;
       const query = pagingQuery({ projectId: options?.projectId, limit, offset });
-      return parsed(await get(`/coding/history${query}`), value => parseCoderHistory(value, limit, offset));
+      return parsed(await scopedGet(`/coding/history${query}`), value => parseCoderHistory(value, limit, offset));
     },
-    async getCodingProjects() { return parsed(await get("/coding/projects"), parseCoderProjects); },
-    async getCodingAllocation() { return parsed(await get("/coding/allocation"), parseOptionalAllocation); },
-    async getReviewerProjects() { return parsed(await get("/reviewing/projects"), parseReviewerProjects); },
-    async getReviewerStats(projectId) { return parsed(await get(`/reviewing/stats${projectQuery(projectId)}`), parseReviewerStats); },
+    async getCodingProjects() { return parsed(await scopedGet("/coding/projects"), parseCoderProjects); },
+    async getCodingAllocation() { return parsed(await scopedGet("/coding/allocation"), parseOptionalAllocation); },
+    async getReviewerProjects() { return parsed(await scopedGet("/reviewing/projects"), parseReviewerProjects); },
+    async getReviewerStats(projectId) { return parsed(await scopedGet(`/reviewing/stats${projectQuery(projectId)}`), parseReviewerStats); },
     async getReviewerAvailable(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;
-      return parsed(await get(`/reviewing/available${pagingQuery({ ...options, limit, offset })}`), value => parseReviewerQueue(value, limit, offset));
+      return parsed(await scopedGet(`/reviewing/available${pagingQuery({ ...options, limit, offset })}`), value => parseReviewerQueue(value, limit, offset));
     },
     async getReviewerHistory(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;
-      return parsed(await get(`/reviewing/history${pagingQuery({ ...options, limit, offset })}`), value => parseReviewerHistory(value, limit, offset));
+      return parsed(await scopedGet(`/reviewing/history${pagingQuery({ ...options, limit, offset })}`), value => parseReviewerHistory(value, limit, offset));
     },
-    async getReviewerAllocation() { return parsed(await get("/reviewing/allocation"), parseOptionalAllocation); },
+    async getReviewerAllocation() { return parsed(await scopedGet("/reviewing/allocation"), parseOptionalAllocation); },
     async allocateCoding(vaSid, projectId) {
       if (vaSid !== undefined && !vaSid) throw new WorkspaceContractError("request.vaSid");
-      return parsed(await post("/coding/allocation", { ...(vaSid ? { sid: vaSid } : {}), ...(projectId ? { project_id: projectId } : {}) }), parseAllocation);
+      return parsed(await scopedPost("/coding/allocation", { ...(vaSid ? { sid: vaSid } : {}), ...(projectId ? { project_id: projectId } : {}) }), parseAllocation);
     },
     async codeOwnSubmission(vaSid) { return parsed(await post(`/coding/submissions/${id(vaSid)}/code-now`), parseAllocation); },
     async recode(vaSid) { return parsed(await post(`/coding/recode/${id(vaSid)}`), parseAllocation); },
     async releaseCoding() { return parsed(await post("/coding/allocation/release"), parseCodingSave); },
-    async allocateReviewer(vaSid) { return parsed(await post(`/reviewing/allocation/${id(vaSid)}`), parseAllocation); },
+    async allocateReviewer(vaSid) { return parsed(await scopedPost(`/reviewing/allocation/${id(vaSid)}`), parseAllocation); },
     async releaseReviewer() { return parsed(await post("/reviewing/allocation/release"), parseCodingSave); },
     async searchIcd(vaSid, classification, query) {
       const path = classification === "icd10"

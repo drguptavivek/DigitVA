@@ -17,11 +17,19 @@ from app.decorators import role_required
 from app.routes.api.request_helpers import browser_session_only, identifier_rate_limit, intake_error
 from app.services import case_export_service as case_export
 from app.services import case_list_service as case_list
+from app.services import training_scope
 from app.services.export_store_service import EXPORT_CONTENT_TYPE, UTF8_BOM
 from app.services.web_intake_service import WebIntakeError
 
 bp = Blueprint("cases_api", __name__)
 EXPORT_LOCK_SECONDS = 1800
+
+
+@bp.before_request
+def _without_training():
+    """The cases list, its filters and its CSV never hold the training project
+    (docs/policy/training-demo-project.md, "Separation from real work")."""
+    training_scope.use(training_scope.EXCLUDE)
 
 
 @bp.after_request

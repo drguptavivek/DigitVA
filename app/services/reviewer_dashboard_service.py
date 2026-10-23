@@ -19,6 +19,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionWorkflow,
 )
+from app.services import training_scope
 from app.services.authz import Action, can, scope_filter
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
@@ -67,6 +68,7 @@ def count_in_scope(user, project_id: str | None = None) -> int:
     )
     if project_id:
         stmt = stmt.where(VaForms.project_id == project_id)
+    stmt = stmt.where(*training_scope.conditions(VaForms.project_id))
     return db.session.scalar(stmt)
 
 
@@ -90,7 +92,7 @@ def get_project_options(user) -> list[dict[str, str]]:
         .select_from(VaForms)
         .join(VaProjectSites, _active_project_site())
         .outerjoin(VaResearchProjects, VaResearchProjects.project_id == VaForms.project_id)
-        .where(has_work)
+        .where(has_work, *training_scope.conditions(VaForms.project_id))
         .group_by(VaForms.project_id, VaResearchProjects.project_name)
         .order_by(VaForms.project_id)
     ).all()
@@ -113,15 +115,17 @@ def count_completed(user, project_id: str | None = None) -> int:
             VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
         )
     )
-    if project_id:
+    if project_id or training_scope.conditions(VaForms.project_id):
         stmt = (
             stmt.join(
                 VaSubmissions,
                 VaSubmissions.va_sid == VaReviewerFinalAssessments.va_sid,
             )
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(VaForms.project_id == project_id)
+            .where(*training_scope.conditions(VaForms.project_id))
         )
+        if project_id:
+            stmt = stmt.where(VaForms.project_id == project_id)
     return db.session.scalar(stmt)
 
 
@@ -234,6 +238,7 @@ def get_scoped_allocation(user) -> str | None:
             (VaAllocations.va_allocated_to == user.user_id)
             & (VaAllocations.va_allocation_for == VaAllocation.reviewing)
             & (VaAllocations.va_allocation_status == VaStatuses.active)
+            & VaAllocations.va_allocation_training.is_(training_scope.on_training_side())
         )
     )
     if va_has_allocation and not can(user, Action.REVIEW, va_has_allocation).allowed:
@@ -263,6 +268,7 @@ def _available_where(user, project_id: str | None) -> list:
     ]
     if project_id:
         conditions.append(VaForms.project_id == project_id)
+    conditions += training_scope.conditions(VaForms.project_id)
     return conditions
 
 
@@ -371,6 +377,7 @@ def list_history(
     )
     if project_id:
         stmt = stmt.where(VaForms.project_id == project_id)
+    stmt = stmt.where(*training_scope.conditions(VaForms.project_id))
     rows = db.session.execute(stmt).mappings().all()
     history = []
     for row in rows[:limit]:

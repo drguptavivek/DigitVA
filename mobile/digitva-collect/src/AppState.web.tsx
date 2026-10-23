@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { setUiLocale } from "./i18n";
+import { trainingBootstrap } from "./training";
 import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
 import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
 import { createBrowserDefinitionCache } from "./client/formDefinitionCache";
@@ -52,6 +53,8 @@ interface BrowserAppState {
   ready: boolean;
   authenticated: boolean;
   bootstrap?: ClientBootstrap;
+  /** Set inside TrainingScope: the user's real bootstrap, which the menu keeps using. */
+  unscopedBootstrap?: ClientBootstrap;
   loginUrl?: string;
   actionCode?: "terms_required";
   error?: string;
@@ -413,6 +416,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     [ready, authenticated, bootstrap, loginUrl, actionCode, error, uiLocale, chooseUiLocale, reload, lockVersion, logout, hasServedDefinition, markServedDefinition, sessionGeneration, notificationGeneration, acknowledgeAuthoritativeRefresh]
   );
+  return <Context.Provider value={value}>{children}</Context.Provider>;
+}
+
+/**
+ * The Training screens: everything below sees the training bootstrap (training.ts `trainingBootstrap`), the menu
+ * keeps the real one (`unscopedBootstrap`). A user without a participation gets *fallback*.
+ */
+export function TrainingScope({ children, fallback = null }: { children: ReactNode; fallback?: ReactNode }) {
+  const parent = useContext(Context);
+  const real = parent?.bootstrap;
+  const scoped = useMemo(() => (real ? trainingBootstrap(real) : undefined), [real]);
+  const value = useMemo(() => (parent && scoped ? { ...parent, bootstrap: scoped, unscopedBootstrap: real } : undefined), [parent, scoped, real]);
+  if (!value) return <>{real ? fallback : null}</>;
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 

@@ -2,7 +2,7 @@
   "expo": {
     "name": "DigitVA",
     "slug": "digitva-collect",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "orientation": "portrait",
     "platforms": [
       "android",
@@ -55,7 +55,11 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW"
       ],
-      "allowBackup": false
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.causeofdeathindia.digitvacollect",
@@ -65,7 +69,9 @@
     },
     "web": {
       "output": "single",
-      "bundler": "metro"
-    }
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    },
+    "icon": "./assets/icon.png"
   }
 }

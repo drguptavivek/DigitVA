@@ -7,6 +7,7 @@ from app.decorators import role_required
 from app.models import VaAllocation
 from app.services import coding_search_telemetry_service
 from app.services import reviewer_dashboard_service as _svc
+from app.services import training_scope
 from app.services.authz import Action, can
 from app.services.cod_entry_mode import project_mode
 from app.services.coder_dashboard_service import last_allocated_project_id
@@ -97,6 +98,7 @@ def _project_arg() -> str | None:
 @bp.get("/allocation")
 @role_required("reviewer")
 def get_allocation():
+    training_scope.resolve("review")
     va_sid = get_active_reviewing_allocation(current_user.user_id)
     # An allocation grants nothing once the submission leaves review scope.
     if va_sid and not can(current_user, Action.REVIEW, va_sid).allowed:
@@ -107,6 +109,9 @@ def get_allocation():
 @bp.post("/allocation/<va_sid>")
 @role_required("reviewer")
 def allocate(va_sid):
+    training_scope.resolve("review")
+    if not training_scope.sid_allowed(va_sid):
+        return _error("This case is not available in this area.", 409, code="not_available")
     try:
         result = start_reviewer_coding(current_user, va_sid)
     except ReviewerCodingError as exc:
@@ -120,7 +125,10 @@ def release_allocation():
     """Release the caller's own active reviewing allocation (docs/policy/
     coding-allocation-timeouts.md, "Reviewer release"). No body. 200 ``{va_sid,
     workflow_state}`` (``reviewer_eligible``); 409 ``no_allocation`` when none is
-    held, ``wrong_state`` when the case is no longer in a reviewer session."""
+    held, ``wrong_state`` when the case is no longer in a reviewer session.
+    Releases the allocation of the request's side (``?training=1`` or real
+    work)."""
+    training_scope.resolve("review")
     try:
         va_sid = release_own_reviewing_allocation(current_user)
     except ReviewerCodingError as exc:
@@ -136,6 +144,7 @@ def stats():
     ``in_scope`` and ``completed`` are the web dashboard's counts;
     ``available`` is the size of ``/available``; ``allocation`` the
     ``/allocation`` body. ``project_id`` narrows the three counts."""
+    training_scope.resolve("review")
     try:
         project_id = _project_arg()
     except _BadQuery as exc:
@@ -155,6 +164,7 @@ def projects():
     """``{project_options, last_project_id}``: the projects the reviewer's queue
     reaches, and the project of their newest reviewing allocation (any status)
     when it is among them, else null."""
+    training_scope.resolve("review")
     project_options = _svc.get_project_options(current_user)
     last_project_id = last_allocated_project_id(
         current_user.user_id, VaAllocation.reviewing, {option["project_id"] for option in project_options}
@@ -167,6 +177,7 @@ def projects():
 def available():
     """The cases ``POST /allocation/<va_sid>`` accepts, paged: ``{cases, count,
     limit, offset, has_more}`` (``count`` is the page's size)."""
+    training_scope.resolve("review")
     try:
         limit, offset = _page_args()
         project_id = _project_arg()
@@ -186,6 +197,7 @@ def available():
 def history():
     """The caller's own finished reviews, newest first, paged: ``{history,
     count, limit, offset, has_more}``. Only cases they may still view."""
+    training_scope.resolve("review")
     try:
         limit, offset = _page_args()
         project_id = _project_arg()

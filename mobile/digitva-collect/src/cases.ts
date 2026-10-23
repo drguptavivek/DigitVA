@@ -12,6 +12,7 @@
  */
 import type { SubmissionData, WhoVaHostPrefill } from "@drguptavivek/who-2022-va";
 
+import { runInTransaction } from "./dbTransaction";
 import { getDraftPrefill, getDraftRow, getMeta, setMeta, type Db, type DraftBinding, purgeProjectData } from "./drafts";
 import type { StringKey } from "./i18n";
 import { identifiersToSend } from "./identifiers";
@@ -154,10 +155,6 @@ export interface CaseAction {
  */
 type CaseWriteDb = Pick<Db, "runAsync" | "getFirstAsync">;
 
-type ExclusiveCaseDb = Db & {
-  withExclusiveTransactionAsync?: (task: (transaction: CaseWriteDb) => Promise<void>) => Promise<void>;
-};
-
 export async function replaceCases(db: Db, projectId: string, rows: CaseDetail[]): Promise<void> {
   if (rows.some((row) => row.project_id !== projectId)) throw new Error("project_mismatch");
   const keep = rows.map((row) => row.death_id);
@@ -174,24 +171,7 @@ export async function replaceCases(db: Db, projectId: string, rows: CaseDetail[]
     );
   };
 
-  const nativeDb = db as ExclusiveCaseDb;
-  if (nativeDb.withExclusiveTransactionAsync) {
-    await nativeDb.withExclusiveTransactionAsync(replace);
-    return;
-  }
-
-  await db.execAsync("BEGIN IMMEDIATE");
-  try {
-    await replace(db);
-    await db.execAsync("COMMIT");
-  } catch (error) {
-    try {
-      await db.execAsync("ROLLBACK");
-    } catch {
-      // Keep the write failure that caused the rollback.
-    }
-    throw error;
-  }
+  await runInTransaction(db, replace);
 }
 
 export async function upsertCase(db: Db, row: CaseDetail, position = -1): Promise<void> {

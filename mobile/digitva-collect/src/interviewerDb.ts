@@ -76,6 +76,8 @@ async function openKeyed(name: string, passphrase: string): Promise<Db> {
   try {
     await handle.execAsync(`PRAGMA key = '${passphrase}';`);
     await handle.getFirstAsync("SELECT count(*) AS n FROM sqlite_master", []);
+    // Concurrent writers (poll, Refresh, focus effects) wait instead of failing with "database is locked".
+    await handle.execAsync("PRAGMA busy_timeout = 5000;");
     await migrate(handle);
     return handle;
   } catch (error) {

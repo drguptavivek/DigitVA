@@ -1186,6 +1186,8 @@ Key fields:
 - `va_allocated_to`
 - `va_allocation_for`
 - `va_allocation_status`
+- `va_allocation_training` (boolean, NOT NULL, default false; true for an
+  allocation inside the training project, `DIGITVA_TRAINING_PROJECT_ID`)
 - timestamps
 
 Indexes: `ix_va_allocations_to_for_createdat` on (`va_allocated_to`,
@@ -1193,9 +1195,11 @@ Indexes: `ix_va_allocations_to_for_createdat` on (`va_allocated_to`,
 recent coding or reviewing allocation", which picks the project a queue
 opens on (`digitva-umc4`, migration `j7n3q9w5y2e8`). The partial unique
 index `uq_va_allocations_active_to_for` on (`va_allocated_to`,
-`va_allocation_for`) WHERE `va_allocation_status = 'active'` (migration
-`a7c3e9f1d5b2`, `digitva-igq7`) enforces at most one active coding and one
-active reviewing allocation per user; an allocator whose insert is refused
+`va_allocation_for`, `va_allocation_training`) WHERE `va_allocation_status =
+'active'` (created by `a7c3e9f1d5b2`, `digitva-igq7`; rebuilt over the side by
+`d6a1f3b8c2e4`, `digitva-rcwt`, which also adds the column and marks existing
+training-project rows) enforces at most one active coding and one active
+reviewing allocation per user and side (training or real work); an allocator whose insert is refused
 resumes the held allocation or answers `allocation_exists`.
 
 ### `va_submission_payload_versions`

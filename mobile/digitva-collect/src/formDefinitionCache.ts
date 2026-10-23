@@ -7,6 +7,7 @@
  */
 import type { SQLiteDatabase } from "expo-sqlite";
 
+import { runInTransaction } from "./dbTransaction";
 import {
   FormDefinitionError,
   verifyAndCompileDefinition,
@@ -219,7 +220,7 @@ export function createNativeDefinitionCache(
         );
       };
 
-      await db.withExclusiveTransactionAsync(upsert);
+      await runInTransaction(db, upsert);
       if (
         revokedProjects.has(identity.projectId) ||
         (projectRevocationGeneration.get(identity.projectId) ?? 0) !== generation

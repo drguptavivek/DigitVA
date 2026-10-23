@@ -26,6 +26,7 @@ jest.mock("expo-crypto", () => ({
 const mockFiles = new Map<string, string | null>();
 const mockOpenHandles = new Set<string>();
 const mockCloseFailures = new Set<string>();
+const mockExecLog: string[] = [];
 jest.mock("expo-sqlite", () => ({
   openDatabaseAsync: async (name: string) => {
     let key: string | null = null;
@@ -33,6 +34,7 @@ jest.mock("expo-sqlite", () => ({
     mockOpenHandles.add(id);
     return {
       execAsync: async (sql: string) => {
+        mockExecLog.push(sql);
         const match = /^PRAGMA key = '([^']*)';$/.exec(sql);
         if (match) key = match[1];
       },
@@ -147,6 +149,14 @@ describe("passphrase and PIN rules", () => {
 });
 
 describe("store setup, unlock and lock", () => {
+  it("sets a busy timeout on the keyed handle after the key", async () => {
+    mockExecLog.length = 0;
+    await createInterviewerDb(A, PIN);
+    const key = mockExecLog.findIndex((sql) => sql.startsWith("PRAGMA key"));
+    expect(key).toBeGreaterThanOrEqual(0);
+    expect(mockExecLog.indexOf("PRAGMA busy_timeout = 5000;")).toBeGreaterThan(key);
+  });
+
   it("creates an encrypted store, locks it, and opens it again only with the PIN", async () => {
     seedAccounts();
     await createInterviewerDb(A, PIN);

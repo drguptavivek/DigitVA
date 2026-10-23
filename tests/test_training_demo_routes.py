@@ -1,5 +1,8 @@
 """Training & demo project: admin API, public page, welcome and onboarding redirect."""
 
+from contextlib import contextmanager
+from unittest import mock
+
 import sqlalchemy as sa
 
 from app import db
@@ -156,6 +159,14 @@ class AdminApiTests(TrainingDemoTestBase):
             self.assertEqual(self._post("", {"name": "x"}).status_code, 409)
 
 
+@contextmanager
+def export(ready: bool):
+    """The Expo export present (or not): the hook reads expo_client's, the routes their own import."""
+    with mock.patch("app.routes.expo_client.export_ready", return_value=ready), \
+            mock.patch("app.routes.training_demo.export_ready", return_value=ready):
+        yield
+
+
 class PublicAndWelcomeTests(TrainingDemoTestBase):
     def test_public_page_needs_no_login_and_lists_no_users(self):
         user = self._user("listed")
@@ -188,29 +199,35 @@ class PublicAndWelcomeTests(TrainingDemoTestBase):
         svc.add_participant("S001", user.email, "coder", self.admin)
         svc.add_participant("S001", other.email, "interviewer", self.admin)
         self._login(str(user.user_id))
-        text = self.client.get("/demo/welcome").get_data(as_text=True)
+        with export(False):
+            text = self.client.get("/demo/welcome").get_data(as_text=True)
         self.assertIn("Coder", text)
         self.assertIn("coder slot 1", text.lower())
+        self.assertIn('href="/app/training"', text)  # training is done in the DigitVA app
+        for flask_work_link in ("Open your coding list", "Open your worklist", "Open the reviewer list"):
+            self.assertNotIn(flask_work_link, text)
         self.assertNotIn("Interviewer", text)
         self.assertNotIn(other.email, text)
 
     def test_welcome_for_someone_not_in_a_session(self):
         self._login(self.base_coder_id)
-        text = self.client.get("/demo/welcome").get_data(as_text=True)
+        with export(False):
+            text = self.client.get("/demo/welcome").get_data(as_text=True)
         self.assertIn("not been added", text)
 
     def test_first_sign_in_redirects_once_and_start_records_onboarding(self):
         user = self._user("first")
         svc.add_participant("S001", user.email, "reviewer_data_manager", self.admin)
         self._login(str(user.user_id))
-        first = self.client.get("/people-roles")
-        self.assertEqual(first.status_code, 302)
-        self.assertTrue(first.headers["Location"].endswith("/demo/welcome"))
-        self.assertEqual(self.client.get("/people-roles").status_code, 200)  # once per login session
-        self.assertEqual(self.client.get("/demo/welcome").status_code, 200)
+        with export(False):  # the Flask fallback while there is no export
+            first = self.client.get("/people-roles")
+            self.assertEqual(first.status_code, 302)
+            self.assertTrue(first.headers["Location"].endswith("/demo/welcome"))
+            self.assertEqual(self.client.get("/people-roles").status_code, 200)  # once per login session
+            self.assertEqual(self.client.get("/demo/welcome").status_code, 200)
         start = self.client.post("/demo/welcome/start", headers=self._csrf_headers())
         self.assertEqual(start.status_code, 302)
-        self.assertIn("/reviewing", start.headers["Location"])
+        self.assertTrue(start.headers["Location"].endswith("/app/training"))
         row = db.session.scalar(
             sa.select(MapTrainingParticipant).where(MapTrainingParticipant.user_id == user.user_id))
         self.assertIsNotNone(row.onboarded_at)
@@ -220,9 +237,27 @@ class PublicAndWelcomeTests(TrainingDemoTestBase):
     def test_redirect_repeats_at_next_sign_in_until_started(self):
         user = self._user("again")
         svc.add_participant("S001", user.email, "interviewer", self.admin)
-        for _ in range(2):
-            self._login(str(user.user_id))
-            self.assertEqual(self.client.get("/people-roles").status_code, 302)
+        with export(False):
+            for _ in range(2):
+                self._login(str(user.user_id))
+                self.assertEqual(self.client.get("/people-roles").status_code, 302)
+
+    def test_with_the_export_the_redirect_goes_to_the_expo_training_page(self):
+        user = self._user("expo")
+        svc.add_participant("S001", user.email, "coder", self.admin)
+        self._login(str(user.user_id))
+        with export(True):
+            # /app/ itself is never sent to a Flask page, and does not use up the redirect.
+            self.assertNotEqual(self.client.get("/app/").status_code, 302)
+            first = self.client.get("/people-roles")
+            self.assertEqual(first.status_code, 302)
+            self.assertTrue(first.headers["Location"].endswith("/app/training"))
+            self.assertEqual(self.client.get("/people-roles").status_code, 200)  # once per login session
+            welcome = self.client.get("/demo/welcome")
+            self.assertEqual(welcome.status_code, 302)
+            self.assertTrue(welcome.headers["Location"].endswith("/app/training"))
+        with export(False):
+            self.assertEqual(self.client.get("/demo/welcome").status_code, 200)
 
     def test_no_redirect_for_apis_fragments_or_other_users(self):
         user = self._user("quiet")
@@ -242,11 +277,14 @@ class PublicAndWelcomeTests(TrainingDemoTestBase):
         with mock.patch.dict(self.app.config, DIGITVA_TRAINING_PROJECT_ID=""):
             self.assertEqual(self.client.get("/people-roles").status_code, 200)
 
-    def test_help_page_links_to_the_welcome_page(self):
+    def test_help_and_public_pages_link_to_the_training_page(self):
         self._login(self.base_coder_id)
-        response = self.client.get("/help/training-demo")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(b"/demo/welcome", response.data)
+        for ready, target in ((False, b"/demo/welcome"), (True, b"/app/training")):
+            with export(ready):
+                response = self.client.get("/help/training-demo")
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(target, response.data)
+                self.assertIn(target, self.client.get("/demo").data)
 
 
 class MigrationAndModelTests(TrainingDemoTestBase):

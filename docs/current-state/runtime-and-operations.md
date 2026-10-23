@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # Runtime And Operations
@@ -95,12 +95,15 @@ Current behavior:
 
 - multi-stage build:
   - **Builder stage**: `python:3.13-slim` + `uv` binary, runs `uv sync --frozen --no-dev`
-  - **SmartVA engine stage** (`smartva_rs`): `rust:1.90-slim-trixie`, runs
-    `cargo build --release --locked --bin smartva-rs` in
-    `vendor/smartva-analyze/rust`; only the binary leaves the stage
-  - **Runtime stage** (`runtime`): `python:3.13-slim`, copies `uv` and `.venv` from the build stages
-    and `smartva-rs` to `/usr/local/bin/smartva-rs` (outside the dev `.:/app` bind mount, so
-    the dev app, worker and beat containers built from the image all have it)
+  - **SmartVA engine stage** (`smartva_rs`): by default downloads the pinned,
+    SHA-256-verified release tarball and extracts `smartva-rs` and
+    `libsmartva_rust.so` from it; with `SMARTVA_RS_SOURCE=source`,
+    `rust:1.90-slim-trixie` runs `cargo build --release --locked --bin smartva-rs --lib`
+    in `vendor/smartva-analyze/rust`. Only the binary and the library leave the stage
+  - **Runtime stage** (`runtime`): `python:3.13-slim`, copies `uv` and `.venv` from the build stages,
+    `smartva-rs` to `/usr/local/bin/smartva-rs` and `libsmartva_rust.so` to
+    `/usr/local/lib/libsmartva_rust.so` (outside the dev `.:/app` bind mount, so
+    the dev app, worker and beat containers built from the image all have them)
 - installs `postgresql-client`, `sox`, and `libsox-fmt-all` for audio conversion
 - SmartVA installed as a uv path dependency (`vendor/smartva-analyze`)
 - marks `boot.sh` executable
@@ -149,11 +152,14 @@ Current behavior:
 - Celery worker and beat wait for the app container to become healthy before starting so dependency refreshes propagate through the shared virtualenv before task processes launch
 - celery beat startup waits for DB connectivity and the `celery_*` scheduler tables instead of relying on a fixed sleep
 - the live migration chain now includes a forward-only additive migration that ensures the required `celery_*` scheduler tables exist on fresh databases
-- celery worker startup uses `--concurrency=1 --max-memory-per-child=256000`
-  (KiB, 250 MiB; owner 2026-10-22): a task that leaves the pool child above
-  250 MiB finishes, then the child is replaced by a fresh fork. An idle child
-  sits near 180 MB and a 200-submission SmartVA sweep peaks near 192 MB, so
-  the limit catches only heavier tasks (exports, large syncs)
+- celery worker startup uses `--concurrency=1 --max-memory-per-child=300000`
+  (KiB, ~293 MiB; owner set 250 MiB on 2026-10-22 and approved 300000 on
+  2026-10-23 for the in-process SmartVA engine, bead digitva-5gsq): a task that leaves the pool child above
+  the limit finishes, then the child is replaced by a fresh fork. The child
+  keeps SmartVA's trained models (about +55 MiB), so SmartVA work peaks at
+  236-240 MiB (measured before the lazy imports); the limit sits above that,
+  so it catches only heavier tasks (exports, large syncs) and does not throw
+  the models away after every SmartVA task
 - celery beat boots the app without blueprints: `scripts/wait-for-celery-beat-db.sh`
   exports `DIGITVA_REGISTER_ROUTES=0` and `make_celery.py` passes it to
   `create_app(register_routes=...)`. Beat only sends tasks by name; schedule
@@ -294,6 +300,8 @@ Docker VM under memory pressure.
 Preload without the freeze measured the same 381 MB total Pss as before. A
 200-submission `sweep_smartva_pending` (4 SmartVA batches, 200 results saved)
 takes the pool child from 171 MB to 190-192 MB, before and after.
+The in-process SmartVA engine (bead digitva-5gsq) adds its cached models:
+the same kind of sweep then peaks near 240 MiB ([SmartVA Engine](#smartva-engine)).
 
 ## Database And Migrations
 
@@ -715,17 +723,30 @@ instead, for developers only (it made the staging host unresponsive).
 | --- | --- | --- |
 | `SMARTVA_ENGINE` | `rust` | `rust` or `python`. Any other value fails the batch with an `execution` failure row. |
 | `SMARTVA_RS_BIN` | `/usr/local/bin/smartva-rs` | Path of the binary built into the image. |
+| `SMARTVA_RS_LIB` | `/usr/local/lib/libsmartva_rust.so` | The rust engine runs in-process through this library (same release tarball as the binary). Empty runs the binary as a subprocess instead. |
 
-- With `rust` and no executable at `SMARTVA_RS_BIN`, the run fails with a
+- With `rust` and no file at `SMARTVA_RS_LIB` (or, with `SMARTVA_RS_LIB=""`,
+  no executable at `SMARTVA_RS_BIN`), the run fails with a
   failure detail naming the path and the rollback; it never falls back to
   Python silently, so the engine recorded on the run is the one that ran.
 - Each `va_smartva_runs.run_metadata` records
   `"smartva_engine": {"name": "rust"|"python", "version": ...}` (version from
   `smartva-rs --version`, or the installed `smartva` package; `null` when it
-  cannot be read).
+  cannot be read). The library exports no version; it comes from the same
+  verified tarball as the binary, so the binary's version is the library's.
 - `SMARTVA_CHARTS=1` passes `--charts True` to `smartva-rs` (else
   `--no-charts`). Charts are debug-only; the slim image ships no system fonts
   for the Rust chart renderer, so expect chart drawing to need fonts added.
+- The in-process engine keeps the trained tariff models in each worker child
+  (about +55 MiB RSS, see
+  [SmartVA throughput](smartva-analysis.md#throughput)), so
+  `--max-memory-per-child` must leave room for it: a child recycled after
+  every task pays the ~100 ms model build again on its first run. A Rust panic
+  inside the library ends the worker child (Celery replaces it) instead of
+  failing one run.
+- Rollback to the subprocess: set `SMARTVA_RS_LIB=` (empty) in `.env` and
+  restart `minerva_app_service`, `minerva_celery_worker` and
+  `minerva_celery_beat`.
 - Rollback: set `SMARTVA_ENGINE=python` in `.env` and restart
   `minerva_app_service`, `minerva_celery_worker` and `minerva_celery_beat`. No
   data change is involved; results already generated stay as they are.

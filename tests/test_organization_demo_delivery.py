@@ -88,6 +88,14 @@ class OrganizationDemoDeliveryTests(BaseTestCase):
 
 
 class MobileAppGuideTests(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        # The image ships the pinned APK in DIGITVA_ANDROID_APK_DIR; these
+        # tests cover the link alone, so no server-hosted APK.
+        hosted = mock.patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_DIR": ""})
+        hosted.start()
+        self.addCleanup(hosted.stop)
+
     def test_mobile_page_shows_valid_https_apk_url(self):
         self.app.config["DIGITVA_ANDROID_APK_URL"] = "https://github.com/example/app/releases/download/v1/app.apk"
 

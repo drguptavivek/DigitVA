@@ -46,6 +46,7 @@ def _command(app, charts, engine="python", rs_present=True):
     app.config["SMARTVA_CHARTS"] = charts
     app.config["SMARTVA_ENGINE"] = engine
     app.config["SMARTVA_RS_BIN"] = "/opt/bin/smartva-rs"
+    app.config["SMARTVA_RS_LIB"] = ""  # these tests pin the CLI command
     with mock.patch.object(runner.os.path, "exists", return_value=True), \
             mock.patch.object(runner.os.path, "isfile", return_value=rs_present), \
             mock.patch.object(runner.os, "access", return_value=rs_present), \
@@ -57,7 +58,7 @@ def _command(app, charts, engine="python", rs_present=True):
 
 
 def _restore_runner_config(case):
-    for key in ("SMARTVA_CHARTS", "SMARTVA_ENGINE", "SMARTVA_RS_BIN"):
+    for key in ("SMARTVA_CHARTS", "SMARTVA_ENGINE", "SMARTVA_RS_BIN", "SMARTVA_RS_LIB"):
         case.addCleanup(case.app.config.__setitem__, key, case.app.config.get(key))
 
 
@@ -87,6 +88,8 @@ class RunnerEngineTests(BaseTestCase):
             self.skipTest("engine overridden in the environment")
         self.assertEqual(Config.SMARTVA_ENGINE, "rust")
         self.assertEqual(Config.SMARTVA_RS_BIN, "/usr/local/bin/smartva-rs")
+        if "SMARTVA_RS_LIB" not in os.environ:
+            self.assertEqual(Config.SMARTVA_RS_LIB, "/usr/local/lib/libsmartva_rust.so")
 
     def test_rust_engine_runs_smartva_rs_with_the_same_arguments(self):
         python_cmd = _command(self.app, False, engine="python")

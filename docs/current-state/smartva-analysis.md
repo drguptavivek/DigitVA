@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-23
 ---
 
 # SmartVA Analysis
@@ -214,7 +214,7 @@ va_smartva_prepdata()
   - write → temp workspace smartva_input.csv
     │
     ▼
-va_smartva_runsmartva()       # subprocess: python -m smartva.va_cli smartva_input.csv smartva_output/
+va_smartva_runsmartva()       # rust engine in-process (libsmartva_rust.so), or the CLI: smartva_input.csv -> smartva_output/
     │
     ▼
 smartva_output/               # adult-predictions.csv, child-predictions.csv, neonate-predictions.csv
@@ -295,9 +295,17 @@ submissions in `va_smartva_results`.
 
 ## Execution (`va_smartva_03_runsmartva.py`)
 
-SmartVA runs as a subprocess on the engine `SMARTVA_ENGINE` selects
+SmartVA runs on the engine `SMARTVA_ENGINE` selects
 ([Runtime and operations](runtime-and-operations.md#smartva-engine)). The
-default, `rust`, runs the pure-Rust drop-in built into the image:
+default, `rust`, runs in the worker process: `va_smartva_runsmartva` loads
+`libsmartva_rust.so` (`SMARTVA_RS_LIB`, from the same release tarball as the
+binary) once per process with `ctypes` and calls `smartva_run_directory`, the
+same Rust function the CLI's directory mode runs. It writes the same output
+tree, and the trained tariff models stay cached in the process between runs
+(see [Throughput](#throughput)). The flag strings are converted with the CLI's
+own boolean rule (`true/t/yes/y/1`, `false/f/no/n/0`, case-insensitive; anything
+else fails the run). A non-zero return is reported like a failed CLI run.
+`SMARTVA_RS_LIB=""` runs the binary as a subprocess instead, with these flags:
 
 ```bash
 /usr/local/bin/smartva-rs --no-charts --country Unknown \
@@ -313,8 +321,9 @@ python -m smartva.va_cli --country=Unknown \
     smartva_input.csv smartva_output/
 ```
 
-Both write the same CSV tree, which the rest of this page reads. With `rust`
-and the binary missing, the run fails (no fallback). Each run's
+All three write the same CSV tree, which the rest of this page reads. With
+`rust` and the library (or, with `SMARTVA_RS_LIB=""`, the binary) missing, the
+run fails (no fallback). Each run's
 `run_metadata` also records `"smartva_engine": {"name", "version"}`.
 
 `--hiv` and `--malaria` are resolved per submission, not per form
@@ -361,8 +370,45 @@ copied to:
 
 If exit code ≠ 0, the exception is caught per-batch: the DB session is rolled
 back, a warning is logged, and processing continues to the next batch. Batches
-are processed in groups of `SMARTVA_BATCH_SIZE = 10` submissions per
+are processed in groups of `SMARTVA_BATCH_SIZE = 50` submissions per
 invocation.
+
+### Throughput
+
+Each completed interview queues `run_smartva_for_submission` for that one
+case, so the engine runs once per case. With the CLI, every run rebuilt the
+tariff models: on the dev stack a one-row `smartva-rs` run takes ~87 ms, of
+which process start is under 1 ms, and each extra row adds ~1 ms (10 rows
+94 ms, 27 rows 113 ms). That fixed model build was the cost of a SmartVA task.
+The staging load test (2026-10-22, t4g.medium) drained about 2 tasks/s, which
+left ~3,350 tasks queued after 5,043 web interviews in 10 minutes.
+
+In-process, the first run in a worker child builds the models (~100 ms) and
+later runs reuse them: `smartva_run_directory` takes ~26 ms per one-case run
+(it still writes the full output tree, including the xlsx workbooks the app
+does not read). Measured on the dev stack (4 vCPU, arm64), engine 3.0.1 both
+ways, bead digitva-5gsq:
+
+| Measure | CLI subprocess | In-process | 
+|---|---|---|
+| One SmartVA task, Flask harness, 965 UNSW01 cases | 109.5 ms (engine 80 ms) | 53.3 ms (engine 26 ms) |
+| Tasks/s, same harness | 9.1 | 18.7 |
+| Tasks/s, real Celery worker, 300 queued cases | 8.2 | 17.7 |
+| Worker child RSS: idle / peak while draining | 165 / 182 MiB | 165 / 236 MiB |
+| 200-case sweep (4 batches of 50), wall / child peak | 3.2 s / 185 MiB | 2.8 s / 240 MiB |
+
+Parity: the stored results of all 965 UNSW01 cases (914 adult, 27 child,
+24 neonate) are identical field by field, raw likelihood rows included; on 304
+inputs every output CSV and `report.txt` matches the CLI's except the line
+naming the output folder. The library's RSS settles at ~66 MB in a bare
+interpreter and stays there over 400 runs (no growth). The extra ~55 MiB per
+worker child is why `--max-memory-per-child` is 300000 KB (docker-compose.yml).
+
+The ceiling is about 2x: the task's own database and file work is now half of
+its time, and the engine still writes a full output tree per case. The sweep
+gains little because it already batches 50 cases per run. The next lever is
+running queued cases together (the per-case task picking up other pending
+cases of the same form), since an extra case in a run costs ~1 ms.
 
 ---
 

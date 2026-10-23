@@ -29,6 +29,11 @@ class MeHomeTests(AuthzFixtureMixin, BaseTestCase):
     def setUp(self):
         super().setUp()
         limiter.reset()
+        # The image ships the pinned APK in DIGITVA_ANDROID_APK_DIR; tests opt
+        # in to a hosted APK with their own folder.
+        hosted = patch.dict(self.app.config, {"DIGITVA_ANDROID_APK_DIR": ""})
+        hosted.start()
+        self.addCleanup(hosted.stop)
         # The data manager block reads the core analytics MV; per-test isolation
         # rolls DDL back, so build it here (docs/policy/test-harness.md).
         db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {CORE_MV_NAME} CASCADE"))

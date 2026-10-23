@@ -25,9 +25,12 @@ tree's export (`EXPO_CLIENT_DIST` in the override).
 
 Staging: `https://digitvav3.causeofdeathindia.com`, AWS arm64
 `i-0b2caee6465bfcac1` (ap-south-1, profile `digitva`, `/data/DigitVA`); read-only
-checks via `aws ssm send-command`. Never change staging without asking. Load
-test 2026-10-22: 200 users ~26 req/s, p95 1.1–1.4 s; DORIS saturates ~68 req/s;
-CPU-bound (2 cores), not memory-bound.
+checks via `aws ssm send-command`. Never change staging without asking.
+Staging runs `f05091920` (head `c5e7a9b1d3f6`, smartva-rust 3.0.2). Load test
+2026-10-23, 200 users: 25 req/s, 0 allocation 500s (was 2-4), SmartVA queue
+≤6 (was ~3,300), Python services −175 MB idle, COD refresh 7.7 -> 2.6 s; but
+request latency is CPU-bound (2 cores) and doubles while the now-fast SmartVA
+worker runs (intake p50/p95 388/913 -> 909/2102 ms). DORIS saturates ~68 req/s.
 
 ## Ranked next steps
 
@@ -36,11 +39,14 @@ CPU-bound (2 cores), not memory-bound.
    landing): streaming exports and paged ODK sync
    `digitva-lj7u`. Follow-ups: `digitva-mubf` (COD bucket rule mismatch), `digitva-xp9w`
    (EXPLAIN a real staging bucket report before more MV work).
-1. Coding allocation follow-ups from the 2026-10-23 security review:
+1. **`digitva-c7yr` (P1)**: run the Celery worker under `nice -n 10` so web
+   requests win the CPU and SmartVA catches up in idle gaps; verify with the
+   same staging A/B harness (worker paused vs running). Alternative: 4 vCPU.
+2. Coding allocation follow-ups from the 2026-10-23 security review:
    `digitva-nw4b` (random vs pick lock order can deadlock -> 500 for one user
    firing both at once), `digitva-hbrs` (a failed concurrent index build leaves
    an INVALID index that a re-run keeps).
-2. **Releases.** Each web change ships as an Expo web release (`npm run
+3. **Releases.** Each web change ships as an Expo web release (`npm run
    vendor:build`, `npm run export:web`, tarball of `dist/` + `.sha256`, tag
    `expo-web-v<date>[.n]`, `gh release create … --latest=false` so Android stays
    Latest), then bump `EXPO_WEB_TAG`/`EXPO_WEB_SHA256`. Android: CI
@@ -50,22 +56,14 @@ CPU-bound (2 cores), not memory-bound.
    fingerprint in environment variable `ANDROID_RELEASE_CERT_SHA256`).
    Current: `android-v0.3.0` (Latest) and `expo-web-v2026.10.22.5`, both built
    from `21ccf04dc`.
-3. **Public demo deploy** (`digitva-77v5.7`) per the runbook: DNS, DMZ block for
+4. **Public demo deploy** (`digitva-77v5.7`) per the runbook: DNS, DMZ block for
    `demo.causeofdeathindia.com`, S3 `demo/` prefix, demo DB and keys. Then
    `digitva-77v5.9` (seed without the default admin). Owner: review ~40 Hindi
    strings in `mobile/digitva-collect/src/strings/hi.json`; WHO ICD-11 API terms
    for anonymous public use. Proof-of-work timing on a real phone is untested.
-4. **Re-measure process memory** on dev after restarting app, worker and beat
-   (idle VmRSS from `/proc/<pid>/status`). The figures in
-   `runtime-and-operations.md` came from copies started from worktrees, and
-   with lazy imports pandas/openpyxl now load per worker, so `--preload` no
-   longer shares them.
-5. **SmartVA in-process and coalescing** (`digitva-5gsq`, `digitva-96ik`,
-   landed): staging deploy and 200-user load re-test requested by the owner;
-   expect the SmartVA queue to drain ~100+ tasks/s on one worker; watch the
-   worker child RSS against the 300000 KB cap. Known ceilings: the batch claim
-   is not atomic above worker concurrency 1; a whole-run failure fails every
-   case in the batch. Rollback: `SMARTVA_RS_LIB=""`.
+5. SmartVA known ceilings (`digitva-96ik`): the batch claim is not atomic
+   above worker concurrency 1; a whole-run failure fails every case in the
+   batch. Rollback for the in-process engine: `SMARTVA_RS_LIB=""`.
 6. Staging `DEVICE_PUBLIC_URL` must be the digitvav3 origin (unchecked).
 7. `digitva-342x` revoke unused enrolment codes and enrolled devices from the
    Users page.

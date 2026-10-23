@@ -55,6 +55,58 @@ export interface UserFilters {
   role?: string;
   status?: "all" | "active" | "inactive";
   enrolment?: EnrolmentState | "";
+  /** Account created: today or yesterday (the viewer's day); wins over the from/to pair on the server. */
+  created?: "" | "today" | "yesterday";
+  created_from?: string;
+  created_to?: string;
+  email_verified?: YesNo;
+  password_set?: YesNo;
+  passkey?: YesNo;
+}
+
+export type YesNo = "" | "yes" | "no";
+
+export const DEFAULT_FILTERS: UserFilters = {
+  q: "", project: "", unit: "", role: "", status: "active", enrolment: "",
+  created: "", created_from: "", created_to: "", email_verified: "", password_set: "", passkey: "",
+};
+
+const FILTER_KEYS = Object.keys(DEFAULT_FILTERS) as (keyof UserFilters)[];
+
+/** The filters in a URL query string; unknown keys and bad values fall back to the default. */
+export function filtersFromSearch(search: string): UserFilters {
+  const params = new URLSearchParams(search);
+  const out: Record<string, string> = { ...(DEFAULT_FILTERS as Record<string, string>) };
+  for (const key of FILTER_KEYS) {
+    const value = (params.get(key) ?? "").trim().slice(0, 64);
+    if (value) out[key] = value;
+  }
+  const oneOf = (key: string, allowed: string[], fallback: string) => { if (!allowed.includes(out[key])) out[key] = fallback; };
+  oneOf("status", ["all", "active", "inactive"], "active");
+  oneOf("enrolment", ["", "enrolled", "revoked", "none"], "");
+  oneOf("created", ["", "today", "yesterday"], "");
+  for (const key of ["email_verified", "password_set", "passkey"]) oneOf(key, ["", "yes", "no"], "");
+  for (const key of ["created_from", "created_to"]) if (!/^\d{4}-\d{2}-\d{2}$/.test(out[key])) out[key] = "";
+  return out as UserFilters;
+}
+
+/** The query string (no leading "?") for the filters that differ from the default, so a default view has a clean URL. */
+export function filtersToSearch(filters: UserFilters): string {
+  const params = new URLSearchParams();
+  for (const key of FILTER_KEYS) {
+    const value = (filters[key] ?? "").trim();
+    if (value !== (DEFAULT_FILTERS[key] ?? "")) params.set(key, value);
+  }
+  return params.toString();
+}
+
+/** How many fly-out filters are set (everything but the search box; the account filter counts when not the default). */
+export function activeFilterCount(filters: UserFilters): number {
+  const keys: (keyof UserFilters)[] = ["project", "unit", "role", "enrolment", "created", "email_verified", "password_set", "passkey"];
+  let count = keys.filter((key) => (filters[key] ?? "") !== "").length;
+  if (filters.status !== "active") count += 1;
+  if (!filters.created && (filters.created_from || filters.created_to)) count += 1;
+  return count;
 }
 
 export type ActivityCounts = {
@@ -83,6 +135,62 @@ export interface IssuedCode {
   project_id: string;
   expires_at: string;
   max_uses: number;
+}
+
+/** GET /users/<id>/status: never a password, hash, token or code (docs/current-state/api-v1.md). */
+export interface UserStatus {
+  user_id: string;
+  name: string;
+  active: boolean;
+  created_at: string | null;
+  email_verified: boolean;
+  email_verified_at: string | null;
+  password_set: boolean;
+  verification_email_sent_at: string | null;
+  password_emailed_at: string | null;
+  terms_accepted: boolean;
+  terms_accepted_at: string | null;
+  passkeys: { count: number; last_used_at: string | null };
+  enrolment_codes: { generated_at: string | null; project_id: string | null; status: "valid" | "used" | "expired" | "revoked" | "unknown"; expires_at: string | null }[];
+  mobile: UserEnrolment;
+  sign_in_qrs: SignInQrItem[];
+  training: { session_code: string; session_name: string | null; session_status: string | null; role: string | null; coder_slot: string | number | null; onboarded: boolean; onboarded_at: string | null }[];
+}
+
+export interface SignInQrItem {
+  status: "pending" | "expired" | "redeemed" | "revoked";
+  issued_at: string | null;
+  expires_at: string | null;
+  redeemed_at: string | null;
+}
+
+export interface SignInQrShown {
+  code: string;
+  qr_payload: string;
+  qr_png: string;
+  expires_at: string;
+}
+
+export async function getUserStatus(request: JsonRequester, userId: string): Promise<UserStatus> {
+  return (await request(`${USERS_API}/${encodeURIComponent(userId)}/status`)) as UserStatus;
+}
+
+export async function getSignInQrs(request: JsonRequester, userId: string): Promise<SignInQrItem[]> {
+  return ((await request(`${USERS_API}/${encodeURIComponent(userId)}/sign-in-qr`)) as { items: SignInQrItem[] }).items;
+}
+
+/** delivery "show" returns the code once; "email" returns only the expiry. */
+export async function issueSignInQr(request: JsonRequester, userId: string, delivery: "show" | "email"): Promise<SignInQrShown & { emailed?: boolean }> {
+  return (await request(`${USERS_API}/${encodeURIComponent(userId)}/sign-in-qr`, { method: "POST", json: { delivery } })) as SignInQrShown & { emailed?: boolean };
+}
+
+export async function revokeSignInQr(request: JsonRequester, userId: string): Promise<boolean> {
+  return ((await request(`${USERS_API}/${encodeURIComponent(userId)}/sign-in-qr`, { method: "DELETE" })) as { revoked: boolean }).revoked;
+}
+
+/** The sign-in QR is for accounts whose roles are only collector roles; the server decides (not_eligible), this just hides the obvious misses. */
+export function signInQrCandidate(user: DirectoryUser): boolean {
+  return user.active && user.grants.length > 0 && user.grants.every((g) => g.role === "interviewer" || g.role === "death_reporter");
 }
 
 export const PAGE_SIZE = 50;

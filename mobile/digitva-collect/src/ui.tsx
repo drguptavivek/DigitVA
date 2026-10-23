@@ -23,7 +23,8 @@ export function Screen({
   headerAction,
   footer,
   lead,
-  variant = "standard"
+  variant = "standard",
+  wide = false
 }: {
   title: string;
   children: ReactNode;
@@ -37,6 +38,8 @@ export function Screen({
   /** "immersive": no title bar, no dev banner, no padding or max width; `children` own the full height (the
    * interview and revision forms put their one compact top bar first). */
   variant?: "standard" | "immersive";
+  /** Lift the 720px reading width so a table can use the whole page (the Users list). */
+  wide?: boolean;
 }) {
   const theme = useTheme();
   const screenStyles = useUiStyles();
@@ -51,8 +54,9 @@ export function Screen({
       </SafeAreaView>
     );
   }
+  const widen = wide ? { maxWidth: "100%" as const } : null;
   const titleNode = (
-    <View style={screenStyles.titleWrap}>
+    <View style={[screenStyles.titleWrap, widen]}>
       <View style={screenStyles.titleBar}>
         <Text style={[screenStyles.title, { color: theme.colors.text }]} accessibilityRole="header">
           {title}
@@ -69,17 +73,17 @@ export function Screen({
           <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll}>
             {lead}
             {titleNode}
-            <View style={[screenStyles.body, { backgroundColor: theme.colors.background }]}>{children}</View>
+            <View style={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>{children}</View>
           </ScrollView>
         ) : (
           <>
             {titleNode}
             {scroll ? (
-              <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll} contentContainerStyle={[screenStyles.body, { backgroundColor: theme.colors.background }]}>
+              <ScrollView keyboardShouldPersistTaps="handled" style={screenStyles.mainScroll} contentContainerStyle={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>
                 {children}
               </ScrollView>
             ) : (
-              <View style={[screenStyles.body, screenStyles.mainScroll, { backgroundColor: theme.colors.background }]}>
+              <View style={[screenStyles.body, widen, screenStyles.mainScroll, { backgroundColor: theme.colors.background }]}>
                 {children}
               </View>
             )}
@@ -88,11 +92,11 @@ export function Screen({
       </View>
     </View>
   ) : scroll ? (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[screenStyles.body, { backgroundColor: theme.colors.background }]}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[screenStyles.body, widen, { backgroundColor: theme.colors.background }]}>
       {children}
     </ScrollView>
   ) : (
-    <View style={[screenStyles.body, screenStyles.fill, { backgroundColor: theme.colors.background }]}>{children}</View>
+    <View style={[screenStyles.body, widen, screenStyles.fill, { backgroundColor: theme.colors.background }]}>{children}</View>
   );
   return (
     <SafeAreaView edges={edges} style={[screenStyles.safe, { backgroundColor: theme.colors.background }]}>

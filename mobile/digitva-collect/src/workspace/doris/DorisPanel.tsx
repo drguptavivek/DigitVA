@@ -8,7 +8,7 @@ import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
 import { parseDorisProcess } from "../contracts";
 import { radius, ui, useTheme } from "../../theme";
-import { Cell, ChipChoice, FieldLabel, IntervalField, SearchBox, Warn, lineShade } from "./compact";
+import { Cell, ChipChoice, FieldLabel, IntervalErrorContext, IntervalField, SearchBox, Warn, lineShade } from "./compact";
 import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
@@ -189,6 +189,7 @@ function processingResult(processing: DorisProcessReply | null, engine: "doris" 
 function processCertificate(certificate: JsonObject): JsonObject {
   const result = applyVisibility(certificate);
   result.Part1 = array(result.Part1).filter((raw) => lineConditions(raw).length > 0);
+  if (lineConditions(result.Part2).length === 0) delete result.Part2;
   return result;
 }
 
@@ -197,7 +198,15 @@ function makeSaveError(error: unknown): string {
   const body = error.payload;
   const messages = Array.isArray(body.messages) ? body.messages.filter((item) => typeof item === "string") : [];
   const blocked = Array.isArray(body.blocked_by) ? body.blocked_by.filter((item) => typeof item === "string") : [];
-  return [...messages, ...blocked].join(" ") || errorText(error);
+  const joined = [...messages, ...blocked].join(" ");
+  if (joined) return joined;
+  const generic = errorText(error);
+  // DORIS process errors are {error: {message, fields: [{path, message}]}}: show them like the public demo, keep the Ref line.
+  const nested = object(body.error);
+  if (typeof nested.message !== "string" || !nested.message) return generic;
+  const fields = array(nested.fields).filter(isRecord).map((field) => `${text(field.path)} — ${text(field.message)}`);
+  const ref = generic.split("\n").slice(1).join("\n");
+  return [`${nested.message}${fields.length ? ` Check: ${fields.join("; ")}` : ""}`, ref].filter(Boolean).join("\n");
 }
 
 /** DORIS editor and process proof stay in memory (the draft map above) and are allocation-scoped. */
@@ -239,6 +248,12 @@ export function DorisPanel({
   const [detailCode, setDetailCode] = useState<string | null>(null);
   // The Estimated age has a half-typed value (number without unit or unit without number): no date refill (rules.ts).
   const [ageTyped, setAgeTyped] = useState(false);
+  // Interval fields hold a pair they could not serialize (field label -> message); Process refuses until each is fixed.
+  const intervalErrors = useRef<Record<string, string>>({});
+  const reportIntervalError = useCallback((key: string, error: string) => {
+    if (error) intervalErrors.current[key] = error;
+    else delete intervalErrors.current[key];
+  }, []);
   const detailSheet = detailCode ? <CodeDetailsSheet api={api} identity={identity} code={detailCode} onClose={() => setDetailCode(null)} /> : null;
   // The DORIS suggestion's title for the Step 1 quick-add (its certificate line, else WHO's codeinfo title).
   const dorisCodes = suggestedDorisCodes(state.processing);
@@ -353,6 +368,11 @@ export function DorisPanel({
   const process = async () => {
     const requestId = ++generation.current;
     const sentRevision = revision;
+    const intervalProblems = Object.values(intervalErrors.current);
+    if (intervalProblems.length) {
+      update((current) => ({ ...current, error: intervalProblems.join(" ") }));
+      return;
+    }
     const currentCertificate = processCertificate(certificate);
     const sourceLines = array(certificate.Part1).map(lineConditions);
     const lastFilledLine = sourceLines.reduce((last, conditions, index) => conditions.length ? index : last, -1);
@@ -586,6 +606,7 @@ export function DorisPanel({
   }
 
   return (
+    <IntervalErrorContext.Provider value={reportIntervalError}>
     <Card style={[layout.panel, pageCard]}>
       <EditorHeading title="DORIS certificate" subtitle={isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
@@ -623,6 +644,7 @@ export function DorisPanel({
       {detailSheet}
       <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>
     </Card>
+    </IntervalErrorContext.Provider>
   );
 }
 
@@ -946,7 +968,7 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeT
     <Tile title="Administrative Data">
       {/* Top-aligned: the Sex tiles are tall and would otherwise push the other inputs down the row. */}
       <View style={[layout.grid, { alignItems: "flex-start" }]}>
-        <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Undetermined"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
+        <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Unknown"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
         <Cell>
           <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
           <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} onTyped={onAgeTyped} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
@@ -1097,12 +1119,13 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
   const ucodParts = processing?.ucod_parts ?? [];
   const [showDetails, setShowDetails] = useState(false);
-  const hasDetails = typeof dr.stemCode === "string" || typeof dr.uri === "string" || ucodParts.length > 1;
   // An empty report is no box at all; a run of blank lines reads as one blank line.
   const report = (value: unknown) => {
     const body = collapseBlankLines(value);
     return body ? <ReportBox>{body}</ReportBox> : null;
   };
+  const reports = [dr.report, cr.report, cr.tabularReport].map(report);
+  const hasDetails = typeof dr.stemCode === "string" || typeof dr.uri === "string" || ucodParts.length > 1 || reports.some(Boolean);
   return (
     <Card>
       <CardTitle>DORIS and CoDEdit</CardTitle>
@@ -1125,15 +1148,13 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
               {ucodParts.length > 1 ? <Muted>{UCOD_CLUSTER_EXPLANATION}</Muted> : null}
               {typeof dr.stemCode === "string" ? <Muted>Computed stem: {dr.stemCode}</Muted> : null}
               {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
+              {reports}
             </View>
           ) : null}
         </View>
       ) : null}
-      {report(dr.report)}
       <Separator />
       <Body>CoDEdit: {codeditStatus ?? "not processed"}</Body>
-      {report(cr.report)}
-      {report(cr.tabularReport)}
       {saved && typeof saved.final_choice === "string" ? <Body>Saved Step 1 choice: {saved.final_choice}</Body> : null}
     </Card>
   );

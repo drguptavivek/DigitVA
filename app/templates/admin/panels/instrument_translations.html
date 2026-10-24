@@ -74,6 +74,21 @@
     </div>
   </div>
 
+  {# Machine drafts of the missing strings (digitva-m2ve) #}
+  <div class="card mb-4" id="itr-mt">
+    <div class="card-body">
+      <h6 class="card-title mb-2">Machine drafts</h6>
+      <p class="small text-muted mb-2">
+        Drafts the questionnaire strings a language has no translation or pending
+        suggestion for, with Azure Translator. A draft is marked
+        <strong>Machine draft</strong> and is not shown to anyone until you accept
+        or edit it.
+        <strong>Machine drafts of medical terms must be checked by a clinician-translator before accepting.</strong>
+      </p>
+      <div id="itr-mt-body" class="small"></div>
+    </div>
+  </div>
+
   {# XLIFF 2.0 interchange — the industry-standard exchange with translators #}
   <div class="card mb-4">
     <div class="card-body">
@@ -464,9 +479,60 @@
       '<div class="border rounded p-2 bg-light">' + lines.join('<br>') + '</div>';
   }
 
+  // ── machine drafts ────────────────────────────────────────────────────────
+
+  function renderMachine(s) {
+    var body = document.getElementById('itr-mt-body');
+    if (!s.configured) {
+      body.innerHTML = '<span class="text-muted">Not configured: set AZURE_TRANSLATOR_KEY and AZURE_TRANSLATOR_REGION.</span>';
+      return;
+    }
+    var html = '<div class="d-flex gap-2 flex-wrap align-items-center">';
+    s.locales.forEach(function (code) {
+      html += '<label><input type="checkbox" class="form-check-input itr-mt-locale" value="'
+        + esc(code) + '"> ' + esc(code) + '</label>';
+    });
+    html += '<button type="button" class="btn btn-sm btn-outline-primary" id="itr-mt-run"'
+      + (s.running ? ' disabled' : '') + '>Draft missing strings</button>'
+      + '<span class="text-muted">(none ticked = all)</span></div>';
+    if (s.running) html += '<div class="mt-2">A run is in progress. Reload the page to see its counts.</div>';
+    var last = s.last_run;
+    if (last) {
+      html += '<div class="mt-2">Last run: ' + esc(last.state)
+        + (last.finished_at ? ' (' + esc(last.finished_at) + ')' : '');
+      Object.keys(last.results || {}).forEach(function (code) {
+        var c = last.results[code];
+        html += '<div><code>' + esc(code) + '</code> created ' + esc(c.created) + ', rejected '
+          + esc(c.rejected) + ', skipped ' + esc(c.skipped) + ', errors ' + esc(c.errors) + '</div>';
+      });
+      html += '</div>';
+    }
+    body.innerHTML = html;
+  }
+
+  function loadMachine() {
+    apiJson(API + '/machine-translate').then(function (res) {
+      if (res.ok) renderMachine(res.data);
+    });
+  }
+
+  document.getElementById('itr-mt-body').addEventListener('click', function (evt) {
+    if (evt.target.id !== 'itr-mt-run') return;
+    var chosen = Array.prototype.map.call(
+      document.querySelectorAll('.itr-mt-locale:checked'), function (el) { return el.value; });
+    var button = evt.target;
+    alertBox();
+    apiJson(API + '/machine-translate', 'POST', { locales: chosen }).then(function (res) {
+      if (!res.ok) { alertBox('danger', res.data.error || 'The run was not queued.'); return; }
+      button.disabled = true;
+      alertBox('success', 'Queued. Reload the page for the counts.');
+    }).catch(function () { alertBox('danger', 'Network error.'); });
+  });
+
   // ── init ──────────────────────────────────────────────────────────────────
 
   loadLocales();
+  loadMachine();
 
 }());
 </script>

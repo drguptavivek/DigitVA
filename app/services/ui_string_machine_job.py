@@ -66,31 +66,31 @@ def is_running() -> bool:
         return False
 
 
-def _save(client, status: dict) -> None:
+def _save(client, status: dict, key: str = STATUS_KEY) -> None:
     if client is None:
         return
     try:
-        client.set(STATUS_KEY, json.dumps(status), ex=STATUS_TTL_SECONDS)
+        client.set(key, json.dumps(status), ex=STATUS_TTL_SECONDS)
     except Exception:  # noqa: BLE001 - status is informational
         log.warning("could not record machine-translation status", exc_info=True)
 
 
-def _acquire(client) -> str | None:
+def _acquire(client, key: str = LOCK_KEY) -> str | None:
     """A lock token, or ``None`` when another run holds it."""
     import uuid
 
     token = uuid.uuid4().hex
     if client is None:
         return token  # ponytail: no Redis, no mutual exclusion; runs are idempotent
-    return token if client.set(LOCK_KEY, token, nx=True, ex=LOCK_TTL_SECONDS) else None
+    return token if client.set(key, token, nx=True, ex=LOCK_TTL_SECONDS) else None
 
 
-def _release(client, token: str) -> None:
+def _release(client, token: str, key: str = LOCK_KEY) -> None:
     if client is None:
         return
     try:
-        if client.get(LOCK_KEY) in (token, token.encode()):
-            client.delete(LOCK_KEY)
+        if client.get(key) in (token, token.encode()):
+            client.delete(key)
     except Exception:  # noqa: BLE001 - the TTL releases it either way
         log.warning("machine-translation lock could not be released", exc_info=True)
 

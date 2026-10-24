@@ -174,7 +174,7 @@ class ClientTests(Base):
     def test_mask_round_trip(self):
         text = "Sent {sent} of ${total} & {failed} <ok>"
         masked = azure.mask(text)
-        self.assertEqual(masked.count("notranslate"), 3)
+        self.assertEqual(masked.count("notranslate"), 4)  # placeholders and the tag
         self.assertEqual(azure.unmask(masked), text)
 
     def test_translate_batch_masks_and_restores(self):

@@ -25,6 +25,9 @@ from app import db
 from app.decorators import role_required
 from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
 from app.routes.admin import _json_error, admin
+from app.services import instrument_translation_machine_job as machine_job
+from app.services import machine_translation_service as azure
+from app.services.ui_string_service import MACHINE_LOCALES
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
     MAX_STRING_PAGE_SIZE,
@@ -342,6 +345,50 @@ def admin_instrument_translation_accept_string(instrument_code, locale):
         return _json_error(str(exc), 400)
     db.session.commit()
     return jsonify(result)
+
+
+# ---------------------------------------------------------------------------
+# Machine drafts (digitva-m2ve)
+# ---------------------------------------------------------------------------
+
+
+@admin.get(f"{_API}/machine-translate")
+@role_required("admin")
+def admin_instrument_translation_machine_status():
+    """Whether Azure is configured, whether a run is going, and the last run."""
+    if err := _guard():
+        return err
+    return jsonify(
+        {
+            "configured": azure.is_configured(),
+            "running": machine_job.is_running(),
+            "last_run": machine_job.last_run(),
+            "locales": list(MACHINE_LOCALES),
+        }
+    )
+
+
+@admin.post(f"{_API}/machine-translate")
+@role_required("admin")
+def admin_instrument_translation_machine_translate():
+    """Queue the drafting job for every machine language or a chosen few."""
+    if err := _guard():
+        return err
+    chosen = (request.get_json(silent=True) or {}).get("locales") or []
+    if not isinstance(chosen, list) or any(c not in MACHINE_LOCALES for c in chosen):
+        return _json_error("Choose locales from the machine-translation list.", 400)
+    if not azure.is_configured():
+        return _json_error("Azure Translator is not configured.", 409)
+    if machine_job.is_running():
+        return _json_error("A machine-translation run is already in progress.", 409)
+    from app.tasks.instrument_translation_tasks import machine_translate_instrument
+
+    machine_translate_instrument.delay(chosen or None)
+    log.info(
+        "instrument machine translation queued | by=%s | locales=%s",
+        current_user.user_id, chosen or "all",
+    )
+    return jsonify({"queued": True}), 202
 
 
 # ---------------------------------------------------------------------------

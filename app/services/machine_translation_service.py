@@ -28,7 +28,8 @@ _BACKOFF_SECONDS = (1, 2, 4)
 _MAX_RETRY_AFTER = 30
 _TIMEOUT = (5, 30)  # connect, read
 
-_PLACEHOLDER_RE = re.compile(r"\$\{[^}]*\}|\{\w+\}")
+# Markup tags are shielded too (a questionnaire guidance note carries <span ...>).
+_PLACEHOLDER_RE = re.compile(r"\$\{[^}]*\}|\{\w+\}|</?[A-Za-z][^<>]*>")
 _SPAN_RE = re.compile(r'<span class="notranslate">(.*?)</span>', re.DOTALL)
 
 _sleep = time.sleep  # a seam: tests do not wait

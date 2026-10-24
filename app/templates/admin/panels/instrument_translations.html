@@ -503,7 +503,8 @@
       Object.keys(last.results || {}).forEach(function (code) {
         var c = last.results[code];
         html += '<div><code>' + esc(code) + '</code> created ' + esc(c.created) + ', rejected '
-          + esc(c.rejected) + ', skipped ' + esc(c.skipped) + ', errors ' + esc(c.errors) + '</div>';
+          + esc(c.rejected) + ', skipped ' + esc(c.skipped) + ', errors ' + esc(c.errors)
+          + (c.error ? ' (' + esc(String(c.error).slice(0, 120)) + ')' : '') + '</div>';
       });
       html += '</div>';
     }

@@ -794,8 +794,12 @@ strings a language lacks to be drafted by Azure Translator, then review them.
   provider. Without the Azure settings the page and command say so and refuse.
 - **Caution shown in the UI:** "Machine drafts of medical terms must be checked
   by a clinician-translator before accepting."
-- **Batching:** requests go to Azure in batches within its element and
-  character limits, with backoff on 429 and 5xx (the shared client).
+- **Batching and pacing:** requests of at most 100 texts and 10,000 characters,
+  paced to `AZURE_TRANSLATOR_CHARS_PER_MINUTE` (default 30,000, under the F0
+  limit); 429/503 wait `Retry-After` (else 60 s), five retries (the shared client).
+- **Resumable:** drafts are committed after each request, so a language that
+  fails part-way keeps what it drafted (counts `created` plus `errors=1` and the
+  message) and a rerun drafts only what is still missing.
 
 ### Carrying translations across servers (decided 2026-10-24, `digitva-3b65`)
 

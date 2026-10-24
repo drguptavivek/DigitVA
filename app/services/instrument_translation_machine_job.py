@@ -113,7 +113,7 @@ def _missing(instrument_code: str, locale: str, reference: dict) -> list[tuple]:
     return sorted(k for k, text in reference.items() if k not in held and (text or "").strip())
 
 
-def _run_locale(instrument_code, locale, reference, dry_run, limit) -> dict:
+def _run_locale(instrument_code, locale, reference, dry_run, limit, client=None, token="") -> dict:
     result = {"created": 0, "rejected": 0, "skipped": 0, "errors": 0}
     if db.session.get(MasInstrumentLocales, (instrument_code, locale)) is None:
         result.update(errors=1, error=f"No {locale!r} translation exists for {instrument_code}.")
@@ -127,34 +127,37 @@ def _run_locale(instrument_code, locale, reference, dry_run, limit) -> dict:
         return result
     if not todo:
         return result
+    # Each request's drafts are committed before the next is sent, so a later
+    # failure keeps them and a rerun drafts only what is still missing.
+    now, pos = datetime.now(UTC), 0
     try:
-        translated = azure.translate_batch([reference[k] for k in todo], locale)
+        for translated in azure.translate_chunks([reference[k] for k in todo], locale):
+            keys, pos = todo[pos:pos + len(translated)], pos + len(translated)
+            for key, text in zip(keys, translated):
+                if not _acceptable(text, reference[key]):
+                    result["rejected"] += 1
+                    continue
+                kind, item_key, field = key
+                inserted = db.session.execute(
+                    pg_insert(Translations)
+                    .values(
+                        instrument_code=instrument_code, locale_code=locale,
+                        item_kind=kind, item_key=item_key, field=field,
+                        text=text.strip(), source=SOURCE_MACHINE,
+                        updated_by=None, updated_at=now,
+                    )
+                    .on_conflict_do_nothing()
+                )
+                if inserted.rowcount:
+                    result["created"] += 1
+                else:
+                    result["skipped"] += 1
+            db.session.commit()
+            ui_job._refresh(client, token, LOCK_KEY)
     except azure.MachineTranslationError as exc:
+        db.session.rollback()
         log.warning("machine translation of %s failed: %s", locale, exc)
         result.update(errors=1, error=str(exc))
-        return result
-
-    now = datetime.now(UTC)
-    for key, text in zip(todo, translated):
-        if not _acceptable(text, reference[key]):
-            result["rejected"] += 1
-            continue
-        kind, item_key, field = key
-        inserted = db.session.execute(
-            pg_insert(Translations)
-            .values(
-                instrument_code=instrument_code, locale_code=locale,
-                item_kind=kind, item_key=item_key, field=field,
-                text=text.strip(), source=SOURCE_MACHINE,
-                updated_by=None, updated_at=now,
-            )
-            .on_conflict_do_nothing()
-        )
-        if inserted.rowcount:
-            result["created"] += 1
-        else:
-            result["skipped"] += 1
-    db.session.commit()
     return result
 
 
@@ -192,7 +195,7 @@ def run(locales=None, dry_run: bool = False, limit: int | None = None,
         ui_job._save(client, status, STATUS_KEY)
     try:
         for code in chosen:
-            status["results"][code] = _run_locale(instrument_code, code, reference, dry_run, limit)
+            status["results"][code] = _run_locale(instrument_code, code, reference, dry_run, limit, client, token)
             if not dry_run:
                 ui_job._save(client, status, STATUS_KEY)
         status["state"] = "done"

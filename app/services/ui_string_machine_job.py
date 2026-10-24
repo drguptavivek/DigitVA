@@ -95,6 +95,17 @@ def _release(client, token: str, key: str = LOCK_KEY) -> None:
         log.warning("machine-translation lock could not be released", exc_info=True)
 
 
+def _refresh(client, token: str, key: str = LOCK_KEY) -> None:
+    """Restart the lock's TTL; a paced run outlives the first TTL."""
+    if client is None:
+        return
+    try:
+        if client.get(key) in (token, token.encode()):
+            client.expire(key, LOCK_TTL_SECONDS)
+    except Exception:  # noqa: BLE001 - the TTL is only a safety net
+        log.warning("machine-translation lock could not be refreshed", exc_info=True)
+
+
 def _acceptable(candidate: str, english: str) -> bool:
     candidate = (candidate or "").strip()
     if not candidate or len(candidate) > MAX_TRANSLATION_TEXT_CHARS:
@@ -121,7 +132,8 @@ def _missing(locale: str, english: dict) -> list[str]:
     ]
 
 
-def _run_locale(locale: str, english: dict, dry_run: bool, limit: int | None) -> dict:
+def _run_locale(locale: str, english: dict, dry_run: bool, limit: int | None,
+                client=None, token: str = "") -> dict:
     result = {"created": 0, "rejected": 0, "skipped": 0, "errors": 0}
     todo = _missing(locale, english)
     result["skipped"] = len(english) - len(todo)
@@ -132,36 +144,39 @@ def _run_locale(locale: str, english: dict, dry_run: bool, limit: int | None) ->
         return result
     if not todo:
         return result
+    # Each request's drafts are committed before the next is sent, so a later
+    # failure keeps them and a rerun drafts only what is still missing.
+    now, pos = datetime.now(UTC), 0
     try:
-        translated = azure.translate_batch([english[k] for k in todo], locale)
+        for translated in azure.translate_chunks([english[k] for k in todo], locale):
+            keys, pos = todo[pos:pos + len(translated)], pos + len(translated)
+            for key, text in zip(keys, translated):
+                if not _acceptable(text, english[key]):
+                    result["rejected"] += 1
+                    continue
+                inserted = db.session.execute(
+                    pg_insert(MasUiStringOverride)
+                    .values(
+                        locale_code=locale,
+                        string_key=key,
+                        text=text.strip(),
+                        source=uis.SOURCE_MACHINE,
+                        updated_by=None,
+                        updated_at=now,
+                    )
+                    .on_conflict_do_nothing(index_elements=["locale_code", "string_key"])
+                )
+                if inserted.rowcount:
+                    result["created"] += 1
+                else:
+                    result["skipped"] += 1
+            db.session.commit()
+            _refresh(client, token)
     except azure.MachineTranslationError as exc:
+        db.session.rollback()
         log.warning("machine translation of %s failed: %s", locale, exc)
         result["errors"] = 1
         result["error"] = str(exc)
-        return result
-
-    now = datetime.now(UTC)
-    for key, text in zip(todo, translated):
-        if not _acceptable(text, english[key]):
-            result["rejected"] += 1
-            continue
-        inserted = db.session.execute(
-            pg_insert(MasUiStringOverride)
-            .values(
-                locale_code=locale,
-                string_key=key,
-                text=text.strip(),
-                source=uis.SOURCE_MACHINE,
-                updated_by=None,
-                updated_at=now,
-            )
-            .on_conflict_do_nothing(index_elements=["locale_code", "string_key"])
-        )
-        if inserted.rowcount:
-            result["created"] += 1
-        else:
-            result["skipped"] += 1
-    db.session.commit()
     return result
 
 
@@ -194,7 +209,7 @@ def run(locales=None, dry_run: bool = False, limit: int | None = None) -> dict:
         _save(client, status)
     try:
         for code in chosen:
-            status["results"][code] = _run_locale(code, english, dry_run, limit)
+            status["results"][code] = _run_locale(code, english, dry_run, limit, client, token)
             if not dry_run:
                 _save(client, status)
         status["state"] = "done"

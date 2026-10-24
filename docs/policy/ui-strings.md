@@ -119,6 +119,11 @@ language lacks to be drafted by machine, then review each draft.
   `flask ui-strings machine-translate [--locale] [--dry-run] [--limit]`. One run
   at a time; the last run's per-language counts (created, rejected, skipped,
   errors) are shown on the page.
+- **Pacing and resumability:** requests are at most 100 texts / 10,000
+  characters, paced to `AZURE_TRANSLATOR_CHARS_PER_MINUTE` (default 30,000) with
+  `Retry-After` honoured on 429/503. Drafts are committed per request, so a
+  failure part-way keeps them and a rerun drafts only the remainder; the page
+  shows the language's error message.
 
 ## Keeping translations across a cutover (decided 2026-10-24, digitva-3b65)
 

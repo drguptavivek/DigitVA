@@ -319,31 +319,6 @@ def icd_global_key() -> str:
     return "public_demo_icd_all"
 
 
-#: A remembered return stamps the sign-in time at most this often, so the idle
-#: clock moves without a write per request.
-REMEMBER_STAMP_INTERVAL = timedelta(days=1)
-
-
-def stamp_remembered_sign_in(_sender, user=None, **_extra) -> None:
-    """``flask_login.user_loaded_from_cookie`` receiver (connected in
-    ``create_app``): a public-demo account that returns on the remember-me
-    cookie never signs in again, so without this its idle time (retention,
-    eviction; policy section 9) would count from the first visit. Stamps
-    ``last_signed_in_at`` once a day; nothing else and nobody else. A failed
-    write is swallowed: it must not cost the request its login."""
-    if user is None or not getattr(user, "is_public_demo", False) or not enabled():
-        return
-    last = user.last_signed_in_at
-    if last is not None and last > datetime.now(UTC) - REMEMBER_STAMP_INTERVAL:
-        return
-    try:
-        user.mark_signed_in()
-        db.session.commit()
-    except Exception:  # noqa: BLE001
-        db.session.rollback()
-        log.error("public demo remember-me activity stamp failed", exc_info=True)
-
-
 def not_demo_user() -> bool:
     """``exempt_when`` for the demo-only limits: True for anyone else."""
     from flask_login import current_user

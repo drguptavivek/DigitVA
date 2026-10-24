@@ -248,6 +248,11 @@ def create_app(config_class=None, register_routes=True):
         g.bearer_auth = True
         return None
 
+    # Idle sign-out and the retired remember cookie (app/utils/idle_session.py).
+    from app.utils.idle_session import enforce_idle_timeout
+
+    app.before_request(enforce_idle_timeout)
+
     # Every request runs in the training "exclude" scope (app/services/
     # training_scope.py); the trainer tools opt out here.
     from app.services.training_scope import open_trainer_tools
@@ -349,12 +354,6 @@ def create_app(config_class=None, register_routes=True):
     # Set x_for=1 if behind a single reverse proxy (nginx, traefik, etc.)
     # Increase count if behind multiple proxies
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-
-    from flask_login import user_loaded_from_cookie
-    from app.services.public_demo_service import stamp_remembered_sign_in
-
-    # Remember-me returns of public-demo accounts keep their idle clock moving.
-    user_loaded_from_cookie.connect(stamp_remembered_sign_in, weak=False)
 
     login.login_view = 'va_auth.va_login'
     login.login_message = 'Please log in to access this page.'

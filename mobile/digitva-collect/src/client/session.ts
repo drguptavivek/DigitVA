@@ -6,8 +6,8 @@ export interface BrowserSession {
   loadedAt: number;
 }
 
-export async function loadBrowserSession(): Promise<BootstrapResult> {
-  return fetchClientBootstrap();
+export async function loadBrowserSession(background = false): Promise<BootstrapResult> {
+  return fetchClientBootstrap({ background });
 }
 
 export function sessionFromBootstrap(bootstrap: ClientBootstrap): BrowserSession {

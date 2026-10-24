@@ -368,9 +368,7 @@ answer 404 and a username never resolves at sign-in.
   the user; `auth_security_events` stay (user columns go NULL), and so do
   config and admin tables (`RETAINED_TABLES`; a test walks the foreign keys so
   a new table must be added to one list or the other). Last activity is the
-  latest of `last_signed_in_at` (web and device sign-in, and a remember-me
-  return at most once a day: `public_demo_service.stamp_remembered_sign_in` on
-  Flask-Login's `user_loaded_from_cookie`, connected in `create_app`), creation,
+  latest of `last_signed_in_at` (web and device sign-in), creation,
   the newest `auth_device_sessions` row and the newest `va_web_intake_drafts`
   `updated_at`/`created_at`. Per account, under a `FOR UPDATE SKIP LOCKED` row lock, it refuses
   (counted, nothing deleted) unless every draft, death registration,
@@ -436,7 +434,7 @@ All pages are server-rendered Flask-WTF forms posting `csrf_token` (section
 ### 3.2 Second page: `GET|POST /vaauth/valogin/password`
 
 The same page for every identifier, known or not: "Signing in as <typed
-value>", a passkey button and a password form (`password`, `remember_me`).
+value>", a passkey button and a password form (`password`).
 No pre-auth state, or expired: redirect to `/vaauth/valogin` with "Please
 sign in again."
 
@@ -521,13 +519,15 @@ runs before the remaining terms and maintenance gates.
 
 - `_complete_login` (password or passkey)
   clears the pre-auth state and the WebAuthn challenge, clears the whole
-  session (fixation), marks it permanent, calls `login_user(user,
-  remember=...)`, sets `auth_verified_at` (opens the 10-minute
+  session (fixation), marks it permanent, calls `login_user(user)`,
+  stamps `last_activity_at`, sets `auth_verified_at` (opens the 10-minute
   reauthentication window, section 5.6) and regenerates the session id.
 - Server-side sessions (Flask-Session, table `va_sessions`), signed cookie,
-  `PERMANENT_SESSION_LIFETIME` 30 minutes. "Remember me" sets the
-  Flask-Login remember cookie for 30 days (`REMEMBER_COOKIE_DURATION`). Both
-  cookies are `HttpOnly`, `Secure` in production, `SameSite=Lax` by default.
+  `PERMANENT_SESSION_LIFETIME` 30 minutes of user activity
+  (`app/utils/idle_session.py`; `X-DigitVA-Background: 1` requests do not
+  count). There is no "Remember me": no remember cookie is set, and one sent
+  by an old browser is ignored and cleared. The session cookie is `HttpOnly`,
+  `Secure` in production, `SameSite=Lax` by default.
 - Flask-Login identifies a session as `<user_id>` or `<user_id>:<version>`.
   `load_user` rejects an inactive user or a version mismatch, so a bump ends
   every web session and remember cookie at the next request.
@@ -1058,7 +1058,7 @@ the server's gate refuses. Every workflow API still checks scope.
 | POST `/vaauth/valogin` | form: `email`, `captcha_salt`, `captcha_difficulty`, `captcha_expires`, `captcha_signature`, `captcha_solution`, `csrf_token` | 302 `/vaauth/valogin/password`; bad CAPTCHA: 200 form | 10/min per IP; 20/hour per identifier (lower-cased email or `mobile:<canonical>`) | same redirect for every identifier | none |
 | GET `/vaauth/valogin/captcha-challenge` | none | 200 `{salt, difficulty, expires, signature}` | default | n/a | none |
 | GET `/vaauth/valogin/password` | pre-auth session | form "Signing in as ..."; no pre-auth: 302 login | default | identical page for every identifier | none |
-| POST `/vaauth/valogin/password` | form: `password`, `remember_me`, `csrf_token` | 302 next/landing, or 302 back with flash | 10/min per IP; 20/hour per pre-auth identifier | unknown, wrong password and inactive give one message; dummy hash for unknown | `web_sign_in` (`method: password`); `web_sign_in_failed` (`reason`: `invalid_credentials`, `email_unverified`, `maintenance`; account id only when it exists and is active) |
+| POST `/vaauth/valogin/password` | form: `password`, `csrf_token` | 302 next/landing, or 302 back with flash | 10/min per IP; 20/hour per pre-auth identifier | unknown, wrong password and inactive give one message; dummy hash for unknown | `web_sign_in` (`method: password`); `web_sign_in_failed` (`reason`: `invalid_credentials`, `email_unverified`, `maintenance`; account id only when it exists and is active) |
 | POST `/vaauth/valogin/passkey/options` | JSON `{}`, `X-CSRFToken` | 200 WebAuthn request options; 400 `{"error": "Please sign in again."}` | 10/min per IP; 20/hour per pre-auth identifier | identical for every identifier, no `allowCredentials` | none |
 | POST `/vaauth/valogin/passkey/verify` | JSON `{"credential": {...}}`, `X-CSRFToken` | 200 `{"redirect"}`; 400 `{"error"}` | same | wrong account, unknown credential and bad signature give one message | `counter_regression`, `web_sign_in` (`passkey`), `web_sign_in_failed` (`passkey_invalid`) |
 | POST `/vaauth/valogout` | form or `X-CSRFToken` | 302 `/` | default | n/a | none |

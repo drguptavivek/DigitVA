@@ -42,7 +42,6 @@ class PasswordStepForm(FlaskForm):
     password = PasswordField(
         "Password:", validators=[DataRequired(message="Password is required.")]
     )
-    remember_me = BooleanField("Remember Me")
     submit = SubmitField("Login")
 
 

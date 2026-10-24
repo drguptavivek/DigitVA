@@ -2,8 +2,12 @@ import React from "react";
 import { act, create } from "react-test-renderer";
 
 jest.mock("../src/client/session", () => ({ loadBrowserSession: jest.fn() }));
-jest.mock("../src/preferences", () => ({ getUiLocalePreference: async () => "en", setUiLocalePreference: async () => undefined }));
-jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value }));
+jest.mock("../src/preferences", () => ({
+  ...jest.requireActual("../src/preferences"),
+  getUiLocalePreference: async () => "en",
+  setUiLocalePreference: async () => undefined,
+}));
+jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value, t: (key: string) => key }));
 
 import { AppStateProvider, useAppState } from "../src/AppState.web";
 import { claimFirstHomeLoad } from "../src/web/roleHome";

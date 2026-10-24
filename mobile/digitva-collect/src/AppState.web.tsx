@@ -10,10 +10,12 @@ import {
   type ReactNode
 } from "react";
 
-import { setUiLocale } from "./i18n";
+import { setUiLocale, t } from "./i18n";
 import { trainingBootstrap } from "./training";
 import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
 import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useIdleSignOut } from "./idleSignOut";
 import { createBrowserDefinitionCache } from "./client/formDefinitionCache";
 import { loadBrowserSession } from "./client/session";
 import type { BootstrapResult } from "./client/api";
@@ -210,14 +212,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [applyDefinitionAccess, clearNotificationSession, resetNotificationSession]);
 
-  const reload = useCallback(async () => {
+  const loadSession = useCallback(async (background: boolean) => {
     if (loggingOut.current) return;
     if (refreshInFlight.current) return refreshInFlight.current;
     const generation = browserRequestGeneration.current;
     let task!: Promise<void>;
     task = (async () => {
       try {
-        const result = await loadBrowserSession();
+        const result = await loadBrowserSession(background);
         if (generation === browserRequestGeneration.current) applySession(result);
       } catch (error) {
         if (generation === browserRequestGeneration.current) {
@@ -240,6 +242,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     refreshInFlight.current = task;
     return task;
   }, [applySession, clearDefinitionSession, clearNotificationSession]);
+  // Not `loadSession` itself: handlers such as onPress would pass an event as the flag.
+  const reload = useCallback(() => loadSession(false), [loadSession]);
+  const reloadInBackground = useCallback(() => loadSession(true), [loadSession]);
 
   const acknowledgeAuthoritativeRefresh = useCallback((expectedRevision: number) => {
     const current = notificationSession.current;
@@ -274,7 +279,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try {
       const result = await current.gate.run(() => drainNotificationPages({
         after: current.cursor,
-        request: (after) => requestClientJson(`/api/v1/me/notifications?after=${after}`),
+        request: (after) => requestClientJson(`/api/v1/me/notifications?after=${after}`, { background: true }),
       }));
       if (!result || !isCurrent()) return;
       const retryPending = current.hasPolled;
@@ -291,15 +296,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (pollError instanceof ApiError && [401, 403].includes(pollError.status)) {
         notificationAuthRetry.current = { userId, retryAt: Date.now() + NOTIFICATION_AUTH_RETRY_MS };
         clearNotificationSession();
-        await reload();
+        await reloadInBackground();
       }
     }
-  }, [authenticated, bootstrap, clearNotificationSession, nextNotificationRevision, reload]);
+  }, [authenticated, bootstrap, clearNotificationSession, nextNotificationRevision, reloadInBackground]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
-    const refresh = () => { if (document.visibilityState === "visible") void reload(); };
-    const accessStale = () => { void reload(); };
+    const refresh = () => { if (document.visibilityState === "visible") void reloadInBackground(); };
+    const accessStale = () => { void reloadInBackground(); };
     const poll = () => { if (document.visibilityState === "visible") void pollNotifications(); };
     const timer = window.setInterval(poll, NOTIFICATION_POLL_INTERVAL_MS);
     window.addEventListener("digitva-access-stale", accessStale);
@@ -316,7 +321,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", refresh);
       document.removeEventListener("visibilitychange", poll);
     };
-  }, [pollNotifications, reload]);
+  }, [pollNotifications, reloadInBackground]);
 
   useEffect(() => {
     let active = true;
@@ -390,6 +395,40 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [bootstrap, reload]);
 
+  // Idle sign-out (docs/policy/expo-client.md): the page reaches the sign-in page with a reason the Flask
+  // login page shows. The logout POST is best effort: the server may already have ended the session.
+  const goToSignIn = useCallback((signOutFirst: boolean) => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+    browserRequestGeneration.current += 1;
+    abortClientRequests();
+    void (async () => {
+      const link = bootstrap?.links.logout;
+      if (signOutFirst && link && bootstrap) {
+        try {
+          await requestClientJson(link, { method: "POST", csrf: bootstrap.csrf, allowRedirect: true, timeoutMs: 5000 });
+        } catch {
+          // Already signed out, or unreachable: the server enforces the timeout on its own.
+        }
+      }
+      const login = bootstrap?.links.login ?? "/vaauth/valogin?next=%2Fapp%2F";
+      window.location.assign(`${login}${login.includes("?") ? "&" : "?"}reason=idle`);
+    })();
+  }, [bootstrap]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const idle = () => goToSignIn(false);
+    window.addEventListener("digitva-session-idle", idle);
+    return () => window.removeEventListener("digitva-session-idle", idle);
+  }, [goToSignIn]);
+
+  const idleWarning = useIdleSignOut(
+    authenticated,
+    () => { void requestClientJson("/api/v1/me/access").catch(() => undefined); },
+    () => goToSignIn(true),
+  );
+
   const value = useMemo<BrowserAppState>(
     () => ({
       ready,
@@ -416,7 +455,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }),
     [ready, authenticated, bootstrap, loginUrl, actionCode, error, uiLocale, chooseUiLocale, reload, lockVersion, logout, hasServedDefinition, markServedDefinition, sessionGeneration, notificationGeneration, acknowledgeAuthoritativeRefresh]
   );
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={value}>
+      {children}
+      {idleWarning.warning ? (
+        <ConfirmDialog
+          title={t("idleWarningTitle")}
+          message={t("idleWarningMessage")}
+          confirmLabel={t("idleStaySignedIn")}
+          cancelLabel={t("signOut")}
+          onConfirm={idleWarning.stay}
+          onCancel={() => goToSignIn(true)}
+        />
+      ) : null}
+    </Context.Provider>
+  );
 }
 
 /**

@@ -42,7 +42,9 @@ class BearerBlindSessionInterface(SessionInterface):
         # cookie for an anonymous visitor, and logout's deletion must reach
         # the store. A session left holding only the stamp counts as empty,
         # so Flask-Session deletes its row and cookie as it did before.
-        if "_refreshed_at" in session and set(session) <= {"_permanent", "_refreshed_at"}:
+        if "_refreshed_at" in session and set(session) <= {
+            "_permanent", "_refreshed_at", "last_activity_at"
+        }:
             session.pop("_refreshed_at")
         if session:
             now = int(time.time())

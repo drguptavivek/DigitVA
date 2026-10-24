@@ -1270,5 +1270,8 @@
   "deleteDraftTitle": "Delete this draft?",
   "deleteDraftMessage": "This interview was never sent. Deleting it removes its answers, recordings and photographs from this phone. This cannot be undone.",
   "deleteDraftDone": "Draft deleted",
-  "deleteDraftFailed": "The draft could not be deleted."
+  "deleteDraftFailed": "The draft could not be deleted.",
+  "idleWarningTitle": "Still there?",
+  "idleWarningMessage": "You will be signed out in 2 minutes because of inactivity.",
+  "idleStaySignedIn": "Stay signed in"
 }

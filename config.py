@@ -143,7 +143,6 @@ class Config:
     if os.environ.get("DORIS_WHO_IMAGE_DIGEST", DORIS_WHO_IMAGE_DIGEST) != DORIS_WHO_IMAGE_DIGEST:
         raise RuntimeError("DORIS_WHO_IMAGE_DIGEST differs from the pinned WHO image")
     PERMANENT_SESSION_LIFETIME = timedelta(minutes=30)
-    REMEMBER_COOKIE_DURATION = timedelta(days=30)
     STATIC_ASSET_CACHE_MAX_AGE = int(
         os.environ.get("STATIC_ASSET_CACHE_MAX_AGE", str(60 * 60 * 24 * 30))
     )

@@ -121,7 +121,23 @@ jest.mock("react-native-safe-area-context", () => ({
   ...jest.requireActual("react-native-safe-area-context"),
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+const mockRemoveListeners: Array<(event: { data: { action: { type: string } }; preventDefault: () => void }) => void> = [];
+const mockNavigation = {
+  addListener: (_name: string, callback: (typeof mockRemoveListeners)[number]) => {
+    mockRemoveListeners.push(callback);
+    return () => { mockRemoveListeners.splice(mockRemoveListeners.indexOf(callback), 1); };
+  },
+  dispatch: jest.fn(),
+};
+const mockHardwareBack = (type = "GO_BACK") => {
+  const event = { data: { action: { type } }, preventDefault: jest.fn() };
+  mockRemoveListeners.forEach((listener) => listener(event));
+  return event;
+};
+beforeEach(() => { mockRemoveListeners.length = 0; });
 jest.mock("expo-router", () => ({
+  useNavigation: () => mockNavigation,
+  useIsFocused: () => true,
   Redirect: () => null,
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
@@ -1669,12 +1685,52 @@ describe("immersive interview form", () => {
     expect(saveDraft).toHaveBeenCalledTimes(1);
     expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: "draftSaved" });
     await choose(tree, "finishIncomplete");
+    expect(validate).not.toHaveBeenCalled();
+    expect(mockConfirmProps).toMatchObject({ title: "finishIncompleteTitle", cancelLabel: "stay" });
+    await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+    expect(validate).not.toHaveBeenCalled();
+    await choose(tree, "finishIncomplete");
+    await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
     expect(validate).toHaveBeenCalledTimes(1);
     await press(tree, "back");
     await settle();
     // Save now, the save inside Finish as incomplete, and the save on Back.
     expect(saveDraft).toHaveBeenCalledTimes(3);
     expect(mockRouter.back).toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("hardware back flushes the open answer, then leaves", async () => {
+    const tree = await open();
+    const saveDraft = jest.fn(async () => undefined);
+    await act(async () => { (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft }); });
+    mockRouter.back.mockClear();
+    let event!: ReturnType<typeof mockHardwareBack>;
+    await act(async () => { event = mockHardwareBack(); });
+    await settle();
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("a failed save on back asks first: Stay keeps the form, Leave anyway leaves", async () => {
+    const tree = await open();
+    const saveDraft = jest.fn(async () => undefined);
+    await act(async () => { (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft }); });
+    mockRouter.back.mockClear();
+    saveDraft.mockRejectedValueOnce(new Error("disk"));
+    await act(async () => { mockHardwareBack(); });
+    await settle();
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockConfirmProps).toMatchObject({ title: "leaveUnsavedTitle", message: "leaveUnsavedMessage", cancelLabel: "stay" });
+    await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    saveDraft.mockRejectedValueOnce(new Error("disk"));
+    await act(async () => { mockHardwareBack(); });
+    await settle();
+    await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
+    expect(mockRouter.back).toHaveBeenCalledTimes(1);
     await act(async () => tree.unmount());
   });
 

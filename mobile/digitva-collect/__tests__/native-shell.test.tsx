@@ -335,6 +335,19 @@ describe("common questions (Help)", () => {
     expect(texts(tree)).toContain(hi.faq_language_a);
   });
 
+  it("on a form screen the go buttons that would leave it are not offered; the sheets still are", async () => {
+    for (const path of ["/form", "/revision"]) {
+      mockPathname = path;
+      const tree = await render(<HelpSheet />, shellValue({ sheet: "help" }));
+      await search(tree, "continue an interview");
+      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Open Drafts" && typeof n.props.onPress === "function")).toHaveLength(0);
+      await search(tree, "error log to support");
+      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Open Settings" && typeof n.props.onPress === "function")).toHaveLength(0);
+      await search(tree, "app language");
+      expect(tree.root.findAll((n) => n.props.accessibilityLabel === "Open account menu" && typeof n.props.onPress === "function")).toHaveLength(1);
+    }
+  });
+
   it("buttons open the screen the answer names", async () => {
     const closeSheet = jest.fn();
     const openSheet = jest.fn();

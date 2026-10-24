@@ -84,6 +84,8 @@ import {
   type Target,
 } from "../sync";
 import { Button, Row, Screen, useUiStyles } from "../ui";
+import { ConfirmDialog } from "../ConfirmDialog";
+import { useLeaveGuard } from "../leaveGuard";
 import { MultilineInput } from "../MultilineInput";
 import { PhoneNumbers } from "../PhoneInput";
 
@@ -411,6 +413,13 @@ export default function Register() {
   const persistableRef = useRef(persistable);
   persistableRef.current = persistable;
   const [resumeVersion, setResumeVersion] = useState(0);
+  // An edit of a saved registration is not kept while typing: leaving with typed changes asks first.
+  const dirty = useRef(false);
+  const [discardAsk, setDiscardAsk] = useState<(() => void) | undefined>();
+  const leaveGuard = useLeaveGuard(true);
+  // A lock or sign-out redirect must never be held, so only an unlocked screen asks.
+  leaveGuard.holds.current = () => dirty.current && !persistableRef.current && !!account && isUnlocked(account.user_id);
+  leaveGuard.handler.current = (proceed) => setDiscardAsk(() => proceed);
   const hydrated = useRef(false);
   const blurred = useRef(false);
   const inProgressDb = useRef<Db | undefined>(undefined);
@@ -698,12 +707,14 @@ export default function Register() {
   }
 
   const set = (name: Field) => (value: string) => {
+    dirty.current = true;
     setFields((current) => ({ ...current, [name]: value }));
     setAgeConfirmationPending(false);
     setAgeConfirmationStartAfter(false);
   };
 
   const setIdentifier = (code: string, value: string) => {
+    dirty.current = true;
     setFields((current) => ({ ...current, identifiers: { ...current.identifiers, [code]: value } }));
     setIdErrors((current) => (current[code] ? { ...current, [code]: "" } : current));
     setAgeConfirmationPending(false);
@@ -749,6 +760,7 @@ export default function Register() {
   };
 
   const chooseBirthMode = (next: BirthMode) => {
+    dirty.current = true;
     setAgeConfirmationPending(false);
     setAgeConfirmationStartAfter(false);
     setBirthMode(next);
@@ -893,6 +905,7 @@ export default function Register() {
         const idChanges = idShown ? identifierChanges(serverBase.current.identifiers, fields.identifiers) : {};
         if (Object.keys(idChanges).length) changes.identifiers = idChanges;
         if (!Object.keys(changes).length) {
+          dirty.current = false;
           router.back();
           return;
         }
@@ -901,6 +914,7 @@ export default function Register() {
         if (!current()) return;
         serverBase.current = registrationFieldsFromCase(corrected);
         serverUpdatedAt.current = corrected.updated_at;
+        dirty.current = false;
         router.back();
         return;
       }
@@ -941,6 +955,7 @@ export default function Register() {
         hydrated.current = false;
       }
       if (!current()) return;
+      dirty.current = false;
       if (!startAfter) {
         router.back();
         return;
@@ -1160,6 +1175,17 @@ export default function Register() {
         <Text style={styles.error} accessibilityRole="alert">
           {message}
         </Text>
+      ) : null}
+      {discardAsk ? (
+        <ConfirmDialog
+          destructive
+          title={t("discardChangesTitle")}
+          message={t("discardChangesMessage")}
+          confirmLabel={t("discard")}
+          cancelLabel={t("stay")}
+          onConfirm={() => { const go = discardAsk; setDiscardAsk(undefined); go(); }}
+          onCancel={() => setDiscardAsk(undefined)}
+        />
       ) : null}
       {ageConfirmationPending ? (
         <View style={styles.card} accessibilityRole="alert">

@@ -57,6 +57,8 @@ import {
 } from "../sync";
 import { applyTranslations } from "../translations";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
+import { ConfirmDialog } from "../ConfirmDialog";
+import { useLeaveGuard } from "../leaveGuard";
 import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
 import { useTheme } from "../theme";
@@ -288,6 +290,9 @@ export default function Revision() {
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [reasonOpen, setReasonOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const leaveGuard = useLeaveGuard();
   // Complete without a reason opens the sheet and marks the field until one is chosen.
   const [reasonInvalid, setReasonInvalid] = useState(false);
   const askedForReason = useRef(false);
@@ -690,11 +695,18 @@ export default function Revision() {
     }
   }
 
+  function goToWorklist() {
+    leaveGuard.release();
+    router.replace({ pathname: "/worklist", params: { userId } });
+  }
+
+  /** Flush first; a failed save asks before leaving so typed answers are never dropped silently. */
   function leave() {
     void flush()
-      .then(() => { if (isCurrentRevision(current.generation)) router.replace({ pathname: "/worklist", params: { userId } }); })
-      .catch(() => { if (isCurrentRevision(current.generation)) { setSaveState("unsaved"); setMessage(t("revisionUnsavedWarning")); } });
+      .then(() => { if (isCurrentRevision(current.generation)) goToWorklist(); })
+      .catch(() => { if (isCurrentRevision(current.generation)) { setSaveState("unsaved"); setMessage(t("revisionUnsavedWarning")); setConfirmLeave(true); } });
   }
+  leaveGuard.handler.current = leave;
 
   function finishIncomplete() {
     const result = session.current?.validate();
@@ -712,12 +724,32 @@ export default function Revision() {
         problemCount={problemCount}
         onProblems={() => controller.current?.showProblems()}
         menuItems={[
-          { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
+          { key: "finish", label: t("finishIncomplete"), onPress: () => setConfirmFinish(true) },
           { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
           { key: "preview", label: t("formPreviewAnswers"), onPress: () => controller.current?.openPreview() },
           { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
         ] satisfies SheetItem[]}
       />
+      {confirmLeave ? (
+        <ConfirmDialog
+          title={t("leaveUnsavedTitle")}
+          message={t("leaveUnsavedMessage")}
+          confirmLabel={t("leaveAnyway")}
+          cancelLabel={t("stay")}
+          onConfirm={() => { setConfirmLeave(false); goToWorklist(); }}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      ) : null}
+      {confirmFinish ? (
+        <ConfirmDialog
+          title={t("finishIncompleteTitle")}
+          message={t("finishIncompleteMessage")}
+          confirmLabel={t("finishIncomplete")}
+          cancelLabel={t("stay")}
+          onConfirm={() => { setConfirmFinish(false); finishIncomplete(); }}
+          onCancel={() => setConfirmFinish(false)}
+        />
+      ) : null}
       <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 4 }}>
         <Pressable
           accessibilityRole="button"

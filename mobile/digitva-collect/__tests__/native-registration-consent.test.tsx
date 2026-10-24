@@ -26,7 +26,10 @@ function memoryDb(): Db {
   };
 }
 
+const mockNavigation = { addListener: () => () => undefined, dispatch: () => undefined };
 jest.mock("expo-router", () => ({
+  useNavigation: () => mockNavigation,
+  useIsFocused: () => true,
   Redirect: () => null,
   useLocalSearchParams: () => ({ userId: "u1", projectId: "P1" }),
   useRouter: () => mockRouter,

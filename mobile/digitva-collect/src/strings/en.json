@@ -1292,5 +1292,13 @@
   "usersOpenCard": "Open details of {name}",
   "idleWarningTitle": "Still there?",
   "idleWarningMessage": "You will be signed out in 2 minutes because of inactivity.",
-  "idleStaySignedIn": "Stay signed in"
+  "idleStaySignedIn": "Stay signed in",
+  "stay": "Stay",
+  "leaveAnyway": "Leave anyway",
+  "leaveUnsavedTitle": "Not saved",
+  "leaveUnsavedMessage": "Your last answers could not be saved. Leave anyway?",
+  "finishIncompleteTitle": "Finish as incomplete?",
+  "finishIncompleteMessage": "It will be queued to send and can no longer be edited here.",
+  "discardChangesTitle": "Discard your changes?",
+  "discardChangesMessage": "Your changes to this registration are not saved. Discard your changes?"
 }

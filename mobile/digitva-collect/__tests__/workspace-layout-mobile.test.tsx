@@ -233,3 +233,17 @@ test("desktop rail opens the same names/counts drawer without replacing the rail
   act(() => category?.props.onPress());
   expect(select).toHaveBeenCalledWith("one");
 });
+
+test("the open Notes panel sits above the sticky app header (z 40), so its close button is clickable", () => {
+  // Training 2026-10-24: the header covered the panel's top 56 px and the × could not be clicked.
+  dimensions.mockReturnValue({ width: 1280, height: 900, scale: 1, fontScale: 1 });
+  const { renderer } = renderLayout();
+  act(() => renderer.root.findAll((node) => node.props.nativeID === "digitva-notes-trigger")[0].props.onPress());
+  const output = JSON.stringify(renderer.toJSON());
+  const z = [...output.matchAll(/"zIndex":(\d+)/g)].map((m) => Number(m[1]));
+  expect(z).toContain(45);
+  const close = renderer.root.findAll((node) => node.props.nativeID === "digitva-notes-close")[0];
+  expect(close).toBeTruthy();
+  act(() => close.props.onPress());
+  expect(JSON.stringify(renderer.toJSON())).toContain('"display":"none"');
+});

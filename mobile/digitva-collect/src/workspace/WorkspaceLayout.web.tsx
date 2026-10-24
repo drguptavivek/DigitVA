@@ -481,7 +481,7 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   categoryDrawerBackdrop: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.36)" } as any,
   categoryDrawer: { width: 300, maxWidth: "84%", height: "100%", overflowY: "auto", backgroundColor: w.card, borderRightWidth: 1, borderRightColor: w.border, paddingTop: 12, zIndex: 51, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 3, height: 0 } } as any,
   categoryDrawerNarrow: { width: "80%", maxWidth: 320, paddingTop: "max(12px, env(safe-area-inset-top))", paddingBottom: "env(safe-area-inset-bottom)", paddingLeft: "env(safe-area-inset-left)" } as any,
-  // Sticks to the top of the page scroller; solid page colour, below the drawer (50) and Notes panel (29).
+  // Sticks to the top of the page scroller; solid page colour, below the drawer (50) and Notes panel (45, above the app header at 40).
   sectionBar: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, position: "sticky", top: 0, zIndex: 20, backgroundColor: w.page, marginHorizontal: -8, marginTop: -8, paddingHorizontal: 8, paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: w.border, boxShadow: "0 2px 4px rgba(0,0,0,0.12)" } as any,
   // react-native-web gives the scroller a transform, which would make the fixed drawer scroll with the page.
   // overflowAnchor: late content above the viewport must not shift a restored offset.
@@ -532,11 +532,11 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   categoryPager: { flexDirection: "row", justifyContent: "space-between", borderTopWidth: 1, borderTopColor: w.border, paddingTop: 14, marginTop: 18 },
   nextControl: { alignItems: "flex-end", gap: 6, maxWidth: "70%" } as any,
   nextBlockedReason: { color: w.blocked, fontFamily: ROBOTO, fontSize: 12, lineHeight: 17, textAlign: "right" },
-  notesTab: { position: "fixed", right: 0, top: "42%", backgroundColor: w.bar, paddingVertical: 12, paddingHorizontal: 8, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, zIndex: 30, flexDirection: "row", alignItems: "center", gap: 5, transform: [{ rotate: "-90deg" }, { translateX: -30 }] } as any,
+  notesTab: { position: "fixed", right: 0, top: "42%", backgroundColor: w.bar, paddingVertical: 12, paddingHorizontal: 8, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, zIndex: 46, flexDirection: "row", alignItems: "center", gap: 5, transform: [{ rotate: "-90deg" }, { translateX: -30 }] } as any,
   notesTabMobile: { top: "auto", bottom: "calc(12px + env(safe-area-inset-bottom))", right: 12, transform: [], minHeight: 44, borderRadius: radius.full, paddingVertical: 10, paddingHorizontal: 16, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } } as any,
   notesTabOpen: { opacity: 0, pointerEvents: "none" } as any,
   notesTabText: { color: w.onBar, fontFamily: ROBOTO, fontWeight: "700", fontSize: 12 },
-  notesPanel: { position: "fixed", right: 0, top: 0, bottom: 0, width: 360, maxWidth: "92%", backgroundColor: w.card, borderLeftWidth: 1, borderColor: w.border, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: -3, height: 0 }, zIndex: 29 } as any,
+  notesPanel: { position: "fixed", right: 0, top: 0, bottom: 0, width: 360, maxWidth: "92%", backgroundColor: w.card, borderLeftWidth: 1, borderColor: w.border, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: -3, height: 0 }, zIndex: 45 } as any,
   notesPanelMobile: { left: 0, right: 0, top: "auto", bottom: 0, width: "100%", maxWidth: "100%", maxHeight: "82%", borderLeftWidth: 0, borderTopWidth: 1, shadowOffset: { width: 0, height: -3 } } as any,
   notesPanelClosed: { display: "none" },
   notesPanelOpen: { display: "flex" },

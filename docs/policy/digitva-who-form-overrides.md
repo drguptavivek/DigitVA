@@ -48,6 +48,10 @@ Always-on core overrides in `vendor/who-va-2022/src/instrument.ts`, carried as `
 | `Id10055` usual residence | Prefilled by the host (server `web_intake_service._prefill_from_death`, phone `cases.ts`): the case unit's code and name, then `; ` and the registration address, e.g. `PHC06 PHC name 2; <address>`; when the registration has no address, its Remarks text instead (sealed, opened like the address; owner decision 2026-10-24). Consent-covered: stripped under a refusal like the other covered fields |
 | `Id10057` place of death | Never prefilled (empty), by the server, phone, or `createWhoVaInitialDataFromPrefill` |
 
+### Interviewer's own details recalled (owner decision 2026-10-24)
+
+In a new interview, `Id10010` (interviewer name), `Id10010a` (age), `Id10010b` (sex) and `Id10010c` (interviewer ID) are filled from the same signed-in interviewer's last interview, so they are not retyped. Only empty answers of a new draft are filled (never overwritten; never in a revision); the interviewer can edit them; nothing else is copied. The phone keeps the four answers in the signed-in user's own encrypted store each time a draft is saved; the browser keeps them in `localStorage` keyed by user id (no server storage; the details are the interviewer's own, not the respondent's). With no earlier interview, `Id10010` defaults to the account's display name and the rest stay empty. A prefill that already supplies one of these (a registered case's account name and id) wins. No "Filled from your last interview" hint is shown: the form engine has no hint for prefilled answers.
+
 The desktop station (`desktop/crates/digitva-db`) still prefills `Id10057` and `Id10051` from the organization path; it is not aligned (the station is paused and `cargo` is not available to test it).
 
 `whoOverrides: false` in server composition disables the DORIS tightening, not the always-on typed-narrative correction. Requiredness is enforced by the form validator; server relevance processing must preserve `Id10476` alongside media.

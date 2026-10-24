@@ -66,6 +66,7 @@ import { FormDefinitionError } from "../formDefinitions";
 import { platformServices } from "../platform";
 import { useAttachmentServices } from "../attachmentServices";
 import { initialDataFromPrefill } from "../prefill";
+import { RECALL_META_KEY, recallChanged, recallFromData, withInterviewerRecall, type InterviewerRecall } from "../interviewerRecall";
 import {
   getCachedReferenceData,
   canUseBundledFallbackForProject,
@@ -113,6 +114,9 @@ interface Loaded extends DraftHost {
   config: DraftConfig;
   definition: ResolvedInstrument;
   accessVersion: number;
+  /** The interviewer's own details from their last interview (src/interviewerRecall.ts). */
+  recall?: InterviewerRecall;
+  accountName?: string;
 }
 
 interface DraftConfig {
@@ -613,7 +617,18 @@ export default function Form() {
             prefill: mergeProjectPrefill(project, params.orgUnitId, undefined),
           };
         }
-        setLoaded({ db, project: project!, config, definition, accessVersion: lockVersion, ...host });
+        const recall = await getMeta<InterviewerRecall>(db, RECALL_META_KEY);
+        if (!active || generation !== loadGeneration.current) return;
+        setLoaded({
+          db,
+          project: project!,
+          config,
+          definition,
+          accessVersion: lockVersion,
+          recall,
+          accountName: referenceData?.bootstrap.user?.name,
+          ...host,
+        });
         setLocale(config.locale);
       } catch (error) {
         if (!active || generation !== loadGeneration.current) return;
@@ -779,6 +794,12 @@ export default function Form() {
           // Keep the questionnaire choices with the encrypted draft so a later
           // pack refresh cannot silently change its language or modules.
           await setMeta(loaded.db, draftConfigKey(draftId), loaded.config);
+          // Remember the interviewer's own details for the next interview.
+          const recall = recallFromData(draft.data);
+          if (recall && recallChanged(loaded.recall, recall)) {
+            await setMeta(loaded.db, RECALL_META_KEY, recall);
+            loaded.recall = recall;
+          }
           return store.save(draft);
         })();
       },
@@ -788,8 +809,9 @@ export default function Form() {
   // A stored draft replaces these on mount (the form's restore), so they only fill a new one.
   const covered = consentView.kind === "ready" ? consentView.covered : [];
   const initialData = useMemo(() => {
-    const data = initialDataFromPrefill(loaded?.prefill);
-    return data && covered.length ? withoutCovered(data, covered) : data;
+    if (!loaded) return undefined;
+    const data = withInterviewerRecall(initialDataFromPrefill(loaded.prefill), loaded.recall, loaded.accountName);
+    return covered.length ? withoutCovered(data, covered) : data;
   }, [loaded, covered]);
   const lockedNames = useMemo(
     () => (covered.length ? [...new Set([...(loaded?.prefill?.lockedQuestionNames ?? []), ...covered])] : loaded?.prefill?.lockedQuestionNames),

@@ -1038,6 +1038,42 @@ def _get_or_create_locale(
     return row
 
 
+#: A locale code as the XLSForm/ODK ``label::xx`` language columns write it:
+#: two or three lowercase letters, optionally a region (``hi``, ``kha``, ``hi-IN``).
+LOCALE_CODE_RE = re.compile(r"^[a-z]{2,3}(-[A-Z]{2})?$")
+
+
+def create_locale(
+    instrument_code: str, locale_code: str, language_name: str, *, actor_id=None,
+) -> MasInstrumentLocales:
+    """Add a language as a draft, inactive, version-0 locale (digitva-9lsd).
+
+    Approval and activation stay the manual steps of the lifecycle. Raises
+    :class:`InstrumentTranslationError` for a malformed or existing code or a
+    blank name. The caller commits.
+    """
+    instrument_code = (instrument_code or "").strip().upper()
+    locale_code = (locale_code or "").strip()
+    language_name = " ".join((language_name or "").split())
+    if not LOCALE_CODE_RE.match(locale_code):
+        raise InstrumentTranslationError(
+            "Locale code must be two or three lowercase letters, optionally with a "
+            "region, e.g. 'hi' or 'hi-IN'."
+        )
+    if locale_code == BASE_LOCALE:
+        raise InstrumentTranslationError(f"{BASE_LOCALE!r} is the base locale.")
+    if not language_name or len(language_name) > 64:
+        raise InstrumentTranslationError("Language name must be 1 to 64 characters.")
+    reference_item_keys(instrument_code)  # raises for an unknown instrument
+    if get_locale(instrument_code, locale_code) is not None:
+        raise InstrumentTranslationError(f"{locale_code!r} already exists for {instrument_code}.")
+    row = _get_or_create_locale(instrument_code, locale_code, language_name)
+    log.info(
+        "instrument locale created | %s/%s | by=%s", instrument_code, locale_code, actor_id,
+    )
+    return row
+
+
 # ---------------------------------------------------------------------------
 # Reading back
 # ---------------------------------------------------------------------------

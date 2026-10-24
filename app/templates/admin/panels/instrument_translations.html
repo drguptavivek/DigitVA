@@ -38,6 +38,34 @@
   {# Locale table — filled by JS #}
   <div id="itr-locales-wrap"></div>
 
+  {# Add a language (digitva-9lsd): created as a draft, inactive locale #}
+  <div class="card mb-4">
+    <div class="card-body">
+      <h6 class="card-title mb-3">Add a language</h6>
+      <div class="row g-2 align-items-end">
+        <div class="col-sm-3">
+          <label class="form-label small mb-1" for="itr-add-code">Locale code</label>
+          <input type="text" class="form-control form-control-sm" id="itr-add-code" maxlength="6" placeholder="e.g. kn">
+        </div>
+        <div class="col-sm-5">
+          <label class="form-label small mb-1" for="itr-add-name">Language name</label>
+          <input type="text" class="form-control form-control-sm" id="itr-add-name" maxlength="64" placeholder="e.g. Kannada">
+        </div>
+        <div class="col-sm-4">
+          <button class="btn btn-sm btn-primary" id="itr-add-btn">
+            <i class="fa-solid fa-plus me-1"></i>Add language
+          </button>
+        </div>
+      </div>
+      <div class="form-text small">
+        The language code the questionnaire uses (two or three lowercase letters,
+        optionally a region). It is created as a draft and inactive; approval and
+        activation stay manual. Machine drafting is queued at once when Azure
+        supports the language.
+      </div>
+    </div>
+  </div>
+
   {# District staff's suggested wordings (digitva-5op): accept or reject #}
   {% include "admin/panels/_translation_review_queue.html" %}
 
@@ -487,6 +515,10 @@
       body.innerHTML = '<span class="text-muted">Not configured: set AZURE_TRANSLATOR_KEY and AZURE_TRANSLATOR_REGION.</span>';
       return;
     }
+    if (!s.locales.length) {
+      body.innerHTML = '<span class="text-muted">No set-up language is supported by Azure Translator. Add one above.</span>';
+      return;
+    }
     var html = '<div class="d-flex gap-2 flex-wrap align-items-center">';
     s.locales.forEach(function (code) {
       html += '<label><input type="checkbox" class="form-check-input itr-mt-locale" value="'
@@ -527,6 +559,30 @@
       if (!res.ok) { alertBox('danger', res.data.error || 'The run was not queued.'); return; }
       button.disabled = true;
       alertBox('success', 'Queued. Reload the page for the counts.');
+    }).catch(function () { alertBox('danger', 'Network error.'); });
+  });
+
+  // ── add a language (digitva-9lsd) ─────────────────────────────────────────
+
+  document.getElementById('itr-add-btn').addEventListener('click', function () {
+    var code = document.getElementById('itr-add-code').value.trim();
+    var name = document.getElementById('itr-add-name').value.trim();
+    alertBox();
+    apiJson(API + '/locales', 'POST', {
+      instrument_code: INSTRUMENT, locale: code, language_name: name,
+    }).then(function (res) {
+      if (!res.ok) { alertBox('danger', res.data.error || 'The language was not added.'); return; }
+      var note = {
+        queued: 'Machine drafting was queued; reload in a few minutes. Machine drafts of medical terms must be checked by a clinician-translator before accepting.',
+        unsupported: 'Machine drafting is not available for this language. Translate it by hand or with XLIFF.',
+        not_configured: 'Azure Translator is not configured, so nothing was drafted.',
+        busy: 'A machine-translation run is in progress; draft this language from its editor page afterwards.',
+      }[res.data.machine] || '';
+      alertBox('success', 'Added ' + code + ' as a draft, inactive language. ' + note);
+      document.getElementById('itr-add-code').value = '';
+      document.getElementById('itr-add-name').value = '';
+      loadLocales();
+      loadMachine();
     }).catch(function () { alertBox('danger', 'Network error.'); });
   });
 

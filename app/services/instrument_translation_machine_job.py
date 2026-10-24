@@ -49,6 +49,31 @@ STATUS_KEY = "digitva_instrument_machine_translate:status"
 AlreadyRunning = ui_job.AlreadyRunning
 
 
+#: Our locale code (the XLSForm/ODK language code) to Azure Translator's
+#: language code, for the Indian languages Azure Translator supports (v3
+#: language list). A region suffix is ignored (``hi-IN`` -> ``hi``). Khasi
+#: (``kha``) is not supported, so it is created but drafted by hand or XLIFF.
+AZURE_CODES = {
+    "as": "as", "bn": "bn", "gu": "gu", "hi": "hi", "kn": "kn", "ml": "ml",
+    "mr": "mr", "ne": "ne", "or": "or", "pa": "pa", "sd": "sd", "ta": "ta",
+    "te": "te", "ur": "ur",
+}
+
+
+def azure_code(locale: str) -> str | None:
+    """Azure's code for ``locale``, or ``None`` when Azure does not support it."""
+    return AZURE_CODES.get((locale or "").split("-")[0])
+
+
+def supported_locales(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[str]:
+    """Set-up locales of the instrument that Azure supports, sorted."""
+    have = db.session.scalars(
+        sa.select(MasInstrumentLocales.locale_code)
+        .where(MasInstrumentLocales.instrument_code == instrument_code)
+    )
+    return sorted(c for c in have if azure_code(c))
+
+
 def _redis():
     return ui_job._redis()
 
@@ -131,7 +156,7 @@ def _run_locale(instrument_code, locale, reference, dry_run, limit, client=None,
     # failure keeps them and a rerun drafts only what is still missing.
     now, pos = datetime.now(UTC), 0
     try:
-        for translated in azure.translate_chunks([reference[k] for k in todo], locale):
+        for translated in azure.translate_chunks([reference[k] for k in todo], azure_code(locale)):
             keys, pos = todo[pos:pos + len(translated)], pos + len(translated)
             for key, text in zip(keys, translated):
                 if not _acceptable(text, reference[key]):
@@ -169,19 +194,13 @@ def run(locales=None, dry_run: bool = False, limit: int | None = None,
     (unless ``dry_run``), :class:`AlreadyRunning`, or ``InstrumentTranslationError``
     for a locale outside the machine set.
     """
-    chosen = list(locales) if locales else list(uis.MACHINE_LOCALES)
+    chosen = list(locales) if locales else supported_locales(instrument_code)
     for code in chosen:
-        if code not in uis.MACHINE_LOCALES:
+        if not azure_code(code):
             raise InstrumentTranslationError(f"{code!r} is not a machine-translation locale.")
     if not dry_run and not azure.is_configured():
         raise azure.NotConfigured("Azure Translator is not configured.")
     reference = reference_items(instrument_code)
-    if not locales:  # default: every machine language the instrument already has
-        have = set(db.session.scalars(
-            sa.select(MasInstrumentLocales.locale_code)
-            .where(MasInstrumentLocales.instrument_code == instrument_code)
-        ))
-        chosen = [c for c in chosen if c in have]
 
     client = _redis()
     token = ui_job._acquire(client, LOCK_KEY)

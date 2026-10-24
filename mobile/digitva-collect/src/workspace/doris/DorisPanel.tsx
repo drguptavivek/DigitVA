@@ -202,8 +202,9 @@ function makeSaveError(error: unknown): string {
   if (joined) return joined;
   const generic = errorText(error);
   // DORIS process errors are {error: {message, fields: [{path, message}]}}: show them like the public demo, keep the Ref line.
+  // Only a 422 carries fields worth showing; other statuses (CSRF, session, rate limit) keep errorText's localised line.
   const nested = object(body.error);
-  if (typeof nested.message !== "string" || !nested.message) return generic;
+  if (error.status !== 422 || typeof nested.message !== "string" || !nested.message) return generic;
   const fields = array(nested.fields).map((item) => object(item)).map((field) => `${text(field.path)} — ${text(field.message)}`);
   const ref = generic.split("\n").slice(1).join("\n");
   return [`${nested.message}${fields.length ? ` Check: ${fields.join("; ")}` : ""}`, ref].filter(Boolean).join("\n");

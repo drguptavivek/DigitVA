@@ -332,7 +332,8 @@ class TestDorisClinicalFinalization(BaseTestCase):
             db.select(VaFinalAssessments).where(VaFinalAssessments.va_sid == sid)
         )
         self.assertEqual(final.doris_certificate, certificate)
-        self.assertEqual(final.doris_result, doris)
+        # The envelope as processed, plus the server-computed title and note fields (processing_extras).
+        self.assertEqual(final.doris_result, {**doris, "ucod_parts": [], "who_notes": []})
         self.assertEqual(final.codedit_result, codedit)
         self.assertEqual(final.va_conclusive_cod, "1B10.Z Respiratory tuberculosis")
         self.assertEqual(

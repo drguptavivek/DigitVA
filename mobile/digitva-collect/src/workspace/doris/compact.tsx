@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, TextInput, View, useWindowDimensions, type TextStyle, type ViewStyle } from "react-native";
 import Svg, { Circle, Line } from "react-native-svg";
 
@@ -142,6 +142,9 @@ export function ChipChoice({ name, label, value, options, onChange, badge, disab
   );
 }
 
+/** The panel's sink for interval errors by field label: a half-entered interval must block Process, not be dropped. */
+export const IntervalErrorContext = createContext<(key: string, error: string) => void>(() => undefined);
+
 /**
  * Number + unit editor for an ISO 8601 duration. Partial input stays local;
  * only a valid pair is written back, and a stored value the pickers cannot
@@ -160,6 +163,8 @@ export function IntervalField({ raw, onChange, onTyped, inputLabel, unitLabel, p
   const [error, setError] = useState("");
   const [edited, setEdited] = useState(false);
   const emitted = useRef(raw);
+  const report = useContext(IntervalErrorContext);
+  useEffect(() => () => report(inputLabel, ""), [inputLabel]);
 
   useEffect(() => {
     if (raw === emitted.current) return;
@@ -169,6 +174,7 @@ export function IntervalField({ raw, onChange, onTyped, inputLabel, unitLabel, p
     setUnit(next.representable ? next.unit : "");
     setEdited(false);
     setError("");
+    report(inputLabel, "");
     onTyped?.(false);
   }, [raw]);
 
@@ -177,9 +183,9 @@ export function IntervalField({ raw, onChange, onTyped, inputLabel, unitLabel, p
     setUnit(nextUnit);
     setEdited(true);
     onTyped?.(nextNumber.trim() !== "" || nextUnit !== "");
-    // A unit without a number yet is a pending edit, not an error; it clears the stored value.
-    const result = nextNumber.trim() === "" ? { value: "", error: "" } : serializeInterval(nextNumber, nextUnit);
+    const result = serializeInterval(nextNumber, nextUnit);
     setError(result.error);
+    report(inputLabel, result.error ? `${inputLabel}: ${result.error}` : "");
     if (result.error) return;
     emitted.current = result.value;
     onChange(result.value);

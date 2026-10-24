@@ -32,10 +32,11 @@ export function parseInterval(raw: unknown): ParsedInterval {
 export function serializeInterval(value: string, unit: string): { value: string; error: string } {
   const number = value.trim();
   const selected = unit.trim();
-  if (number === "" && (selected === "" || selected === UNKNOWN_UNIT)) return { value: "", error: "" };
-  if (selected === "") return { value: "", error: "Choose a time unit." };
-  if (selected === UNKNOWN_UNIT) return { value: "", error: "Remove the value or choose a time unit." };
-  if (!/^\d+(?:\.\d+)?$/.test(number)) return { value: "", error: "Enter a non-negative number." };
+  if (selected === "" && number === "") return { value: "", error: "" };
+  if (selected === UNKNOWN_UNIT && number === "") return { value: "", error: "" };
+  if (selected === "" && number !== "") return { value: "", error: "Choose a time unit." };
+  if (selected !== UNKNOWN_UNIT && !/^\d+(?:\.\d+)?$/.test(number)) return { value: "", error: "Enter a non-negative decimal number without an exponent." };
+  if (selected === UNKNOWN_UNIT && number !== "") return { value: "", error: "Remove the interval value or choose a time unit." };
   const matched = INTERVAL_UNITS.find((item) => item.value === selected);
   if (!matched) return { value: "", error: "Choose a valid time unit." };
   return { value: `${matched.prefix}${number}${selected === "MI" ? "M" : selected}`, error: "" };

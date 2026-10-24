@@ -270,15 +270,6 @@ def process_certificate(
     }
     doris = _run_engine("doris", who_certificate, release, ctx, omitted)
     codedit = _run_engine("codedit", who_certificate, release, ctx, omitted)
-    notes = []
-    if omitted:
-        names = ", ".join(_OMITTED_LABEL[path] for path in omitted)
-        notes.append(f"Year-only dates left out of the WHO check: {names}. Your entries are kept.")
-    if str(((doris["result"] or {}).get("error")) or "").startswith("Internal system error"):
-        notes.append(
-            "WHO's DORIS failed internally on this certificate. Check the dates, manner of "
-            "death and external-cause fields for an inconsistency, or choose the cause without DORIS."
-        )
     return {
         "schema_version": 1,
         "client_revision": revision,
@@ -293,6 +284,25 @@ def process_certificate(
         ),
         "doris": doris,
         "codedit": codedit,
-        "who_notes": notes,
-        "ucod_parts": ucod_parts(doris["result"], certificate),
+        **processing_extras(doris, certificate),
     }
+
+
+def processing_extras(doris: dict, certificate: dict) -> dict:
+    """The ``who_notes`` and ``ucod_parts`` a processing reply shows beside the engine envelopes.
+
+    Derived only from the normalized certificate and the DORIS envelope, so a save can
+    recompute them from its verified inputs and store them with the DORIS result; a
+    reopened Step 1 then shows the same titles and notes (doris_context_service).
+    """
+    _, omitted = who_safe_certificate(certificate)
+    notes = []
+    if omitted:
+        names = ", ".join(_OMITTED_LABEL[path] for path in omitted)
+        notes.append(f"Year-only dates left out of the WHO check: {names}. Your entries are kept.")
+    if str(((doris["result"] or {}).get("error")) or "").startswith("Internal system error"):
+        notes.append(
+            "WHO's DORIS failed internally on this certificate. Check the dates, manner of "
+            "death and external-cause fields for an inconsistency, or choose the cause without DORIS."
+        )
+    return {"who_notes": notes, "ucod_parts": ucod_parts(doris["result"], certificate)}

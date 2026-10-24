@@ -1109,3 +1109,84 @@ test("the DORIS reply keeps the server's notes about what was sent to WHO", () =
   const parsed = parseDorisProcess(base);
   expect(parsed.who_notes).toEqual(["The date of birth is year-only. It was left out of the WHO check; your entry is kept."]);
 });
+
+describe("DORIS parity with the public demo: reopened titles and notes, Part 2, Sex label, Details", () => {
+  const stemTitle = { code: "5A14", title: "Diabetes mellitus, type unspecified", role: "stem", uri: null };
+  const cluster = { code: "5A14/BA41.Z", stemCode: "5A14" };
+
+  it("shows a reopened run's stored UCOD titles and year-only note, not the raw computed code", async () => {
+    const api = apiFor();
+    const saved = {
+      certificate,
+      doris: { status: "completed", result: cluster },
+      codedit: { status: "completed", result: { report: "", tabularReport: "" } },
+      final_choice: "",
+      ucod_parts: [stemTitle, { code: "BA41.Z", title: "Acute myocardial infarction, unspecified", role: "postcoordinated", uri: null }],
+      who_notes: ["Year-only dates left out of the WHO check: date of death. Your entries are kept."],
+    } as unknown as JsonObject;
+    const { tree } = renderPanel(makeWorkspace({ processing: saved }), api);
+    const text = allText(tree);
+    expect(text).toContain("Underlying cause: 5A14 Diabetes mellitus, type unspecified");
+    expect(text).toContain("Year-only dates left out of the WHO check: date of death. Your entries are kept.");
+    expect(text).not.toContain("Computed UCOD:");
+    await act(async () => tree.unmount());
+  });
+
+  it("titles the Step 1 suggestion from its stored stem part, with no WHO lookup", async () => {
+    const api = apiFor();
+    const base = makeWorkspace({ step: "final", masked: true });
+    const workspace = { ...base, doris: { ...base.doris, step1_processing: { doris: { status: "completed", result: cluster }, codedit: { status: "completed", result: {} }, ucod_parts: [stemTitle] } } } as unknown as WorkspacePayload;
+    const { tree } = renderPanel(workspace, api);
+    await act(async () => flush());
+    expect(allText(tree)).toContain("DORIS suggests: |5A14/BA41.Z| — Diabetes mellitus, type unspecified");
+    expect(api.getDorisCodeInfo).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("looks up a Step 1 suggestion's title by its stem, never by the full computed UCOD", async () => {
+    const api = apiFor();
+    const base = makeWorkspace({ step: "final", masked: true });
+    const workspace = { ...base, doris: { ...base.doris, step1_processing: { doris: { status: "completed", result: cluster }, codedit: { status: "completed", result: {} } } } } as unknown as WorkspacePayload;
+    const { tree } = renderPanel(workspace, api);
+    await act(async () => flush());
+    expect(api.getDorisCodeInfo).toHaveBeenCalledWith("sid-1", "5A14");
+    expect(api.getDorisCodeInfo).not.toHaveBeenCalledWith("sid-1", "5A14/BA41.Z");
+    expect(allText(tree)).toContain("DORIS suggests: |5A14/BA41.Z| — Selected cause");
+    await act(async () => tree.unmount());
+  });
+
+  it("drops an empty Part 2 from the processed certificate, and keeps Part 2 when it has a condition", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, Part2: { Conditions: [] } } }), api);
+    const sent = await sentCertificate(tree, api);
+    expect(sent.Part1).toHaveLength(1);
+    expect(sent).not.toHaveProperty("Part2");
+    await act(async () => tree.unmount());
+
+    const withPart2 = apiFor();
+    const kept = renderPanel(makeWorkspace(), withPart2);
+    expect((await sentCertificate(kept.tree, withPart2)).Part2).toEqual({ Conditions: [{ Text: "Diabetes", Code: "5A11", LinearizationURI: "https://who.int/5A11" }] });
+    await act(async () => kept.tree.unmount());
+  });
+
+  it("labels Sex code 9 Unknown, not Undetermined", () => {
+    const { tree } = renderPanel(makeWorkspace({ seed: { ...certificate, AdministrativeData: { Sex: 1 } } }), apiFor());
+    expect(allText(tree)).toContain("Sex|Not stated|Male|Female|Unknown|Estimated age");
+    expect(allText(tree)).not.toContain("Undetermined");
+  });
+
+  it("keeps the CoDEdit readable and tabular reports behind Details, with the WHO check visible", async () => {
+    const reply: DorisProcessReply = {
+      ...processReply,
+      codedit: { status: "completed", result: { issueIds: "BER-CE-9", report: "RE_W_IV_CodeURIMismatch", tabularReport: "0,RE_W_IV_CodeURIMismatch,BER-CE-9;5A11/GB61.Z;;;" } },
+    };
+    const { tree } = renderPanel(makeWorkspace(), apiFor({ processDoris: jest.fn(async () => reply) }));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).toContain("The selected code - 5A11/GB61.Z - and URI correspond to different ICD entities");
+    expect(allText(tree)).not.toContain("RE_W_IV_CodeURIMismatch");
+    await act(async () => byLabel(tree, "Show DORIS code details").props.onPress());
+    expect(allText(tree)).toContain("RE_W_IV_CodeURIMismatch");
+    expect(allText(tree)).toContain("0,RE_W_IV_CodeURIMismatch,BER-CE-9");
+    await act(async () => tree.unmount());
+  });
+});

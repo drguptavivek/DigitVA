@@ -82,12 +82,32 @@ class SavedProcessingTests(unittest.TestCase):
         self.assertIsNone(svc.saved_step1_processing(None, False))
         self.assertIsNone(svc.saved_step1_processing(_step1(result=False), False))
 
+    def test_stored_ucod_titles_and_notes_reopen_beside_the_engine_envelope(self):
+        step1 = _step1()
+        ucod_parts = [{"code": "1B10.Z", "title": "Respiratory tuberculosis", "role": "stem", "uri": None}]
+        notes = ["Year-only dates left out of the WHO check: date of death. Your entries are kept."]
+        step1.doris_result = {"status": "completed", "result": {"code": "1B10.Z"}, "ucod_parts": ucod_parts, "who_notes": notes}
+        saved = svc.saved_step1_processing(step1, True)
+        self.assertEqual(saved["ucod_parts"], ucod_parts)
+        self.assertEqual(saved["who_notes"], notes)
+        self.assertEqual(saved["doris"], {"status": "completed", "result": {"code": "1B10.Z"}})
+        masked = svc.masked_step2_context(step1, None, True)["step1_doris_processing"]
+        self.assertEqual((masked["ucod_parts"], masked["who_notes"]), (ucod_parts, notes))
+        self.assertEqual(masked["doris"], {"status": "completed", "result": {"code": "1B10.Z"}})
+
+    def test_a_row_saved_before_the_keys_reopens_with_empty_lists(self):
+        saved = svc.saved_step1_processing(_step1(), False)
+        self.assertEqual((saved["ucod_parts"], saved["who_notes"]), ([], []))
+
     def test_step2_context_redacts_the_step1_certificate(self):
         step1 = _step1()
         self.assertIn("AdministrativeData", svc.masked_step2_context(step1, None, False)["step1_doris_certificate"])
         context = svc.masked_step2_context(step1, None, True)
         self.assertNotIn("AdministrativeData", context["step1_doris_certificate"])
-        self.assertEqual(context["step1_doris_processing"], {"doris": {"status": "ok"}, "codedit": {"status": "ok"}})
+        self.assertEqual(
+            context["step1_doris_processing"],
+            {"doris": {"status": "ok"}, "codedit": {"status": "ok"}, "ucod_parts": [], "who_notes": []},
+        )
         empty = svc.masked_step2_context(None, None, True)
         self.assertEqual(
             (empty["step1_doris_certificate"], empty["step1_doris_processing"]), (None, None)

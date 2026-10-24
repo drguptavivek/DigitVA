@@ -1187,7 +1187,9 @@ def _station_doris_fields(actor: VaUsers, va_sid: str, final: dict) -> dict:
         certificate_digest=processed["certificate_digest"], result_digest=processed["result_digest"],
         va_sid=va_sid, role="coder", user_id=actor.user_id, allocation_id=allocation.va_allocation_id,
         payload_version_id=version.payload_version_id, icd_release=DEFAULT_ICD11_RELEASE, who_image_digest=image)
-    return {"doris_certificate": processed["certificate"], "doris_result": processed["doris"],
+    # The title and note fields are stored with the DORIS result, as the coder save stores them (processing_extras).
+    doris_result = {**processed["doris"], "ucod_parts": processed["ucod_parts"], "who_notes": processed["who_notes"]}
+    return {"doris_certificate": processed["certificate"], "doris_result": doris_result,
             "codedit_result": processed["codedit"], "doris_process_token": token,
             "doris_result_digest": processed["result_digest"]}
 

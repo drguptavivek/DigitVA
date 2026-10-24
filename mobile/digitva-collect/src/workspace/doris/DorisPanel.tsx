@@ -6,7 +6,7 @@ import { t as tr } from "../../i18n";
 import { errorText } from "../../ui";
 import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
-import { parseDorisProcess } from "../contracts";
+import { parseDorisProcess, parseUcodParts } from "../contracts";
 import { radius, ui, useTheme } from "../../theme";
 import { Cell, ChipChoice, FieldLabel, IntervalErrorContext, IntervalField, SearchBox, Warn, lineShade } from "./compact";
 import { DateField } from "./DateField";
@@ -256,8 +256,8 @@ export function DorisPanel({
   }, []);
   const detailSheet = detailCode ? <CodeDetailsSheet api={api} identity={identity} code={detailCode} onClose={() => setDetailCode(null)} /> : null;
   // The DORIS suggestion's title for the Step 1 quick-add (its certificate line, else WHO's codeinfo title).
-  const dorisCodes = suggestedDorisCodes(state.processing);
-  const dorisTitle = useCodeTitle(api, identity.vaSid, dorisCodes[0] ?? "", certificateTitle(state.processing?.certificate ?? {}, dorisCodes));
+  const dorisStem = stemAndKnownTitle(state.processing, state.processing?.certificate ?? {});
+  const dorisTitle = useCodeTitle(api, identity.vaSid, dorisStem.stem, dorisStem.known);
 
   const layout = useLayout();
   // The outer card blends with the case workspace card (app palette); inner primitives keep the zinc tokens.
@@ -698,6 +698,18 @@ function suggestedDorisCodes(run: unknown): string[] {
   return [...new Set([dr.code, dr.stemCode].filter((code): code is string => typeof code === "string" && code !== ""))];
 }
 
+/**
+ * The DORIS stem (what the computed UCOD hangs off) and the title already known for it: the stored UCOD part's title,
+ * else the coder's typed line. The stem is the lookup code: the full computed UCOD ("5A14/BA41.Z") is not a WHO code.
+ */
+function stemAndKnownTitle(run: unknown, certificate: JsonObject): { stem: string; known: string } {
+  const codes = suggestedDorisCodes(run);
+  const dr = object(object(object(run).doris).result);
+  const stem = typeof dr.stemCode === "string" && dr.stemCode ? dr.stemCode : codes[0] ?? "";
+  const stemPart = parseUcodParts(object(run).ucod_parts).find((part) => part.role === "stem");
+  return { stem, known: stemPart?.title || certificateTitle(certificate, codes) };
+}
+
 /** Step 1 quick-add: DORIS's processed UCOD (code and title), as the web offers it above the search. */
 function dorisQuickChoices(processing: DorisProcessReply | null, title: string): QuickChoice[] {
   const codes = suggestedDorisCodes(processing);
@@ -759,7 +771,8 @@ function Step1AssignedCard({ initial }: { initial: WorkspaceAssessment | null })
 /** The saved Step 1 DORIS suggestion for information on masked Step 2, with its "Check before you decide" items. */
 function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: JsonObject | null; certificate: JsonObject | null; api: WorkspaceApi; vaSid: string; onDetails: (code: string) => void }) {
   const codes = suggestedDorisCodes(saved);
-  const title = useCodeTitle(api, vaSid, codes[0] ?? "", certificateTitle(certificate ?? {}, codes));
+  const { stem, known } = stemAndKnownTitle(saved, certificate ?? {});
+  const title = useCodeTitle(api, vaSid, stem, known);
   return (
     <Card>
       <CardTitle>DORIS result from Step 1 (for information)</CardTitle>
@@ -1117,7 +1130,9 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
   const codeditStatus = processing?.codedit.status ?? (typeof savedCodedit.status === "string" ? savedCodedit.status : undefined);
   const dr = object(processing?.doris.result ?? savedDoris.result);
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
-  const ucodParts = processing?.ucod_parts ?? [];
+  // A reopened run (no live reply) carries its stored UCOD titles and notes beside the engine envelopes.
+  const ucodParts = parseUcodParts(processing?.ucod_parts ?? saved?.ucod_parts);
+  const whoNotes = processing?.who_notes ?? array(saved?.who_notes).filter((note): note is string => typeof note === "string");
   const [showDetails, setShowDetails] = useState(false);
   // An empty report is no box at all; a run of blank lines reads as one blank line.
   const report = (value: unknown) => {
@@ -1132,7 +1147,7 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
       <Body>DORIS: {dorisStatus ?? "not processed"}</Body>
       {typeof dr.error === "string" ? <Alert variant="destructive">{dr.error}</Alert> : null}
       {dr.reject === true ? <Alert variant="destructive">DORIS rejected the certificate result.</Alert> : null}
-      {(processing?.who_notes ?? []).map((note) => <Muted key={note}>{note}</Muted>)}
+      {whoNotes.map((note) => <Muted key={note}>{note}</Muted>)}
       {ucodParts.length ? (
         <View>
           {ucodClusterLines(ucodParts).map((line) => <Body key={line}>{line}</Body>)}

@@ -12,6 +12,7 @@ from app.services.doris_certificate import (
     DorisCertificateError,
     normalize_certificate,
 )
+from app.services.doris_process_proof import verify_process_submission
 from app.services.doris_processing import process_certificate
 from app.services.who_icd_api import (
     WhoIcdApiTimeout,
@@ -327,6 +328,31 @@ class TestDorisProcessing(BaseTestCase):
         self.assertEqual(first["codedit"]["result"]["issueIds"], "A|B")
         self.assertEqual(processor.call_count, 4)
         self.assertEqual(codeinfo.call_count, 2)
+
+    @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
+    @patch("app.services.doris_processing.post_mortality_processor", side_effect=_processor)
+    @patch("app.services.doris_process_proof.verify_process_proof", return_value={})
+    def test_save_stores_the_ucod_titles_and_notes_from_its_verified_inputs(self, _proof, processor, codeinfo):
+        first = process_certificate(_payload(), who_image_digest="sha256:image")
+        verified = verify_process_submission(
+            "token",
+            certificate=first["certificate"],
+            doris_result=first["doris"],
+            codedit_result=first["codedit"],
+            submitted_result_digest=first["result_digest"],
+            va_sid="sid-1",
+            role="coder",
+            user_id=1,
+            allocation_id=1,
+            payload_version_id=1,
+            icd_release=first["icd_release"],
+            who_image_digest="sha256:image",
+        )
+        self.assertTrue(first["ucod_parts"])
+        self.assertEqual(verified["doris"]["ucod_parts"], first["ucod_parts"])
+        self.assertEqual(verified["doris"]["who_notes"], first["who_notes"])
+        self.assertEqual(verified["doris"]["status"], "completed")
+        self.assertEqual(verified["result_digest"], first["result_digest"])
 
     @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
     @patch("app.services.doris_processing.post_mortality_processor")

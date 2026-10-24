@@ -8,8 +8,13 @@
  * Every asset gets a ".bin" suffix because AAPT expands ".gz" assets on packaging; EngineData.kt strips it on copy.
  * Data is the minimum the engine needs (checked on a phone): the ICD-11 release .pbf.gz, the search index .pbf.zip
  * (the engine unzips it and builds its own annex on first init), and the extracted DORIS rule files. The 30 MB
- * prebuilt ".annex", the unzipped ".pbf"/".annexu" and DORIS's own .zip are not needed.
+ * prebuilt ".annex", the unzipped ".pbf"/".annexu", DORIS's own .zip and DORIS's generated log.txt are not needed.
+ *
+ * The WHO-supplied files (the ones the engine's loaders fetch from WHO) are listed in assets/digitva-icd11/
+ * who-files.json with their size and sha256. The app verifies the staged copies against it and restores them when
+ * missing (EngineData.kt), so the manifest is written from the staged copies, never from the spike's files by hand.
  */
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -20,7 +25,8 @@ const DATA_FILES = [
   "ix_(2026-01-17)_foundation-icf-mms_en_v5.7.pbf.zip",
 ];
 const DORIS_DIR = "DORIS_v2.1_1.2.0";
-const DORIS_SKIP = new Set(["DORIS_v2.1_1.2.0.zip"]);
+// DORIS's zip is fetched by the engine, and its log.txt is written by the engine: neither is shipped.
+const DORIS_SKIP = new Set(["DORIS_v2.1_1.2.0.zip", "log.txt"]);
 
 /** The spike folder: $DIGITVA_ICD11_SPIKE_DIR, else the first ancestor of this module that has private/icd11-offline-spike (a worktree finds the main checkout's). */
 function findSpike(env = process.env, from = MODULE_DIR) {
@@ -49,6 +55,10 @@ function listFiles(dir, skip = new Set()) {
   });
 }
 
+function sha256(file) {
+  return crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+}
+
 function stageEngine({ moduleDir = MODULE_DIR, env = process.env } = {}) {
   const spike = findSpike(env, moduleDir);
   if (!spike) {
@@ -64,16 +74,24 @@ function stageEngine({ moduleDir = MODULE_DIR, env = process.env } = {}) {
     path.join(main, "jniLibs", "arm64-v8a", "libdigitva_icd11.so")
   );
   const assets = path.join(main, "assets", "digitva-icd11");
+  // Relative paths under the engine root (bundle/, data/) of the WHO-supplied files that ship.
+  const who = [];
+  const stageWho = (from, rel) => {
+    copyIfChanged(from, path.join(assets, `${rel}.bin`));
+    who.push({ path: rel, size: fs.statSync(from).size, sha256: sha256(from) });
+  };
+  const WHO_BUNDLE = path.join("Data", "languageResources.txt");
   for (const file of listFiles(path.join(spike, "bundle_min"))) {
+    if (file === WHO_BUNDLE) continue;
     copyIfChanged(path.join(spike, "bundle_min", file), path.join(assets, "bundle", `${file}.bin`));
   }
-  for (const file of DATA_FILES) {
-    copyIfChanged(path.join(spike, "data", file), path.join(assets, "data", `${file}.bin`));
-  }
+  stageWho(path.join(spike, "bundle_min", WHO_BUNDLE), `bundle/${WHO_BUNDLE}`);
+  for (const file of DATA_FILES) stageWho(path.join(spike, "data", file), `data/${file}`);
   for (const file of listFiles(path.join(spike, "data", DORIS_DIR), DORIS_SKIP)) {
-    copyIfChanged(path.join(spike, "data", DORIS_DIR, file), path.join(assets, "data", DORIS_DIR, `${file}.bin`));
+    stageWho(path.join(spike, "data", DORIS_DIR, file), `data/${DORIS_DIR}/${file}`);
   }
-  return { spike, assets };
+  fs.writeFileSync(path.join(assets, "who-files.json"), `${JSON.stringify(who, null, 2)}\n`);
+  return { spike, assets, who };
 }
 
 module.exports = { stageEngine, findSpike };

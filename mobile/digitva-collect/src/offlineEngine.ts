@@ -8,6 +8,10 @@
  * wait for the same init. Calls are serialized by the worker thread; if Android killed the engine process, a call
  * re-inits once and retries. Failed calls carry a status or a short code, never the engine's payload, which can hold
  * stack traces or certificate text. Do not log certificates passed to doris()/codedit() either.
+ *
+ * WHO files are fetched only by the first setup, a missing or wrong-size WHO file, or updateWhoFiles() (the user's
+ * explicit request). updateWhoFiles() ends the engine process and runs one fetching init in a new one; calls made while
+ * it runs wait for it, like an init.
  */
 import { requireOptionalNativeModule } from "expo";
 import { InteractionManager } from "react-native";
@@ -15,15 +19,59 @@ import { InteractionManager } from "react-native";
 export type EngineOp = "search" | "codeinfo" | "doris" | "codedit";
 
 /** What the native module returns (modules/digitva-icd11/android/.../DigitvaIcd11Module.kt). */
+export interface NativeInit {
+  ok: boolean;
+  error?: string;
+  copyMs: number;
+  initMs: number;
+  ms: number;
+  cached: boolean;
+  phases?: string;
+  setup?: string;
+}
+
 export interface NativeEngine {
   isAvailable(): Promise<boolean>;
-  init(): Promise<{ ok: boolean; error?: string; copyMs: number; initMs: number; ms: number; cached: boolean; phases?: string }>;
+  init(): Promise<NativeInit>;
+  /** Ends the engine process and fetches WHO files in a new one, when online; "no_connection" otherwise. */
+  updateWhoFiles(): Promise<NativeInit>;
   call(op: EngineOp, input: string): Promise<{ ok: boolean; error?: string; status: number; text?: string; nativeMs: number }>;
+  addListener?(event: "icd11Progress", listener: (progress: { phase: string; percent: number }) => void): { remove(): void };
+}
+
+/**
+ * How the engine's first setup ran: "downloaded" (the setup init fetched WHO files; `files` are what it changed or
+ * added, names and sizes only) or "shipped" (only the copies in the APK). "attempt" is never returned once init is ok.
+ */
+export interface EngineSetup {
+  mode: "downloaded" | "shipped" | "attempt";
+  files: { path: string; size: number }[];
 }
 
 export type EngineInit =
-  | { ok: true; ms: number; copyMs: number; initMs: number; cached: boolean; phases?: string }
+  | { ok: true; ms: number; copyMs: number; initMs: number; cached: boolean; phases?: string; setup?: EngineSetup }
   | { ok: false; error: string; ms: number };
+
+/** An init in progress: `phase` is copy, setup, engine or ready; `percent` is 0-100 when known. */
+export interface EngineProgress {
+  phase: string;
+  percent?: number;
+}
+
+/** Parses the native setup record. Anything unexpected reads as no setup record. */
+export function parseSetup(text: string | undefined): EngineSetup | undefined {
+  if (!text) return undefined;
+  try {
+    const value = JSON.parse(text) as { mode?: unknown; files?: unknown };
+    if (typeof value.mode !== "string" || !Array.isArray(value.files)) return undefined;
+    const files = value.files
+      .filter((file) => typeof file?.path === "string" && typeof file?.size === "number")
+      .map((file: { path: string; size: number }) => ({ path: file.path, size: file.size }));
+    return { mode: value.mode as EngineSetup["mode"], files };
+  } catch {
+    return undefined;
+  }
+}
 
 export type EngineResult =
   | { ok: true; data: unknown; status: number; ms: number; nativeMs: number }
@@ -32,11 +80,15 @@ export type EngineResult =
 export interface OfflineEngine {
   available(): Promise<boolean>;
   init(): Promise<EngineInit>;
+  /** Explicit update of the WHO files (one fetching init in a new engine process). Never throws. */
+  updateWhoFiles(): Promise<EngineInit>;
   search(query: string): Promise<EngineResult>;
   codeinfo(code: string): Promise<EngineResult>;
   /** `certificate` is the DORIS certificate JSON object the server's process endpoint takes. */
   doris(certificate: unknown): Promise<EngineResult>;
   codedit(certificate: unknown): Promise<EngineResult>;
+  /** Progress of the init while it runs (copy, setup, engine, ready). Returns the unsubscribe. */
+  onProgress(listener: (progress: EngineProgress) => void): () => void;
 }
 
 const clock = (): number => globalThis.performance?.now?.() ?? Date.now();
@@ -45,25 +97,51 @@ const clock = (): number => globalThis.performance?.now?.() ?? Date.now();
 export function createOfflineEngine(native: NativeEngine | null | undefined, now: () => number = clock): OfflineEngine {
   let inflight: Promise<EngineInit> | undefined;
   let ready: Extract<EngineInit, { ok: true }> | undefined;
+  const progressListeners = new Set<(progress: EngineProgress) => void>();
+  native?.addListener?.("icd11Progress", (event) => {
+    const progress: EngineProgress = { phase: event.phase, percent: event.percent < 0 ? undefined : event.percent };
+    for (const listener of progressListeners) listener(progress);
+  });
+
+  /** One native init (plain or the explicit update), timed; never rejects. */
+  async function runInit(start: () => Promise<NativeInit>): Promise<EngineInit> {
+    const began = now();
+    if (!native) return { ok: false, error: "unavailable", ms: 0 };
+    try {
+      const raw = await start();
+      const ms = now() - began;
+      if (!raw.ok) return { ok: false, error: raw.error ?? "init_failed", ms };
+      return (ready = { ok: true, ms, copyMs: raw.copyMs, initMs: raw.initMs, cached: raw.cached, phases: raw.phases, setup: parseSetup(raw.setup) });
+    } catch {
+      return { ok: false, error: "native_error", ms: now() - began };
+    }
+  }
 
   /** One init per engine process: concurrent callers share the in-flight request, later ones get it as cached. */
   function init(): Promise<EngineInit> {
     if (ready) return Promise.resolve({ ...ready, ms: 0, cached: true });
-    inflight ??= (async (): Promise<EngineInit> => {
-      const start = now();
-      if (!native) return { ok: false, error: "unavailable", ms: 0 };
-      try {
-        const raw = await native.init();
-        const ms = now() - start;
-        if (!raw.ok) return { ok: false, error: raw.error ?? "init_failed", ms };
-        return (ready = { ok: true, ms, copyMs: raw.copyMs, initMs: raw.initMs, cached: raw.cached, phases: raw.phases });
-      } catch {
-        return { ok: false, error: "native_error", ms: now() - start };
-      }
-    })().finally(() => {
+    inflight ??= runInit(() => native!.init()).finally(() => {
       inflight = undefined;
     });
     return inflight;
+  }
+
+  /**
+   * Waits for any init or update in progress, then runs one update. Calls made meanwhile wait on the same in-flight
+   * slot (call() awaits it), so they run on the updated engine.
+   */
+  function updateWhoFiles(): Promise<EngineInit> {
+    const previous = inflight;
+    ready = undefined;
+    const update = (async (): Promise<EngineInit> => {
+      if (previous) await previous;
+      return runInit(() => native!.updateWhoFiles());
+    })();
+    const settled: Promise<EngineInit> = update.finally(() => {
+      if (inflight === settled) inflight = undefined;
+    });
+    inflight = settled;
+    return settled;
   }
 
   /** Android can kill the engine process (low memory) while the app lives; its next incarnation needs a new init. */
@@ -110,10 +188,17 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
       }
     },
     init,
+    updateWhoFiles,
     search: (query) => run("search", query),
     codeinfo: (code) => run("codeinfo", code),
     doris: (certificate) => run("doris", JSON.stringify(certificate)),
     codedit: (certificate) => run("codedit", JSON.stringify(certificate)),
+    onProgress(listener) {
+      progressListeners.add(listener);
+      return () => {
+        progressListeners.delete(listener);
+      };
+    },
   };
 }
 

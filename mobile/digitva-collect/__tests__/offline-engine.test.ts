@@ -7,6 +7,7 @@ function fakeNative(overrides: Partial<NativeEngine> = {}): NativeEngine {
   return {
     isAvailable: async () => true,
     init: async () => ({ ok: true, copyMs: 5, initMs: 20, ms: 26, cached: false }),
+    updateWhoFiles: async () => ({ ok: false, error: "no_connection", copyMs: 0, initMs: 0, ms: 0, cached: false }),
     call: async (op) => ({ ok: true, status: 200, text: JSON.stringify({ op, destinationEntities: [1, 2], code: "BC42.Z", Code: "BA41.Z" }), nativeMs: 3 }),
     ...overrides,
   };

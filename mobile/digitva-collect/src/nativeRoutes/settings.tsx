@@ -215,6 +215,7 @@ export default function NativeSettings() {
           <Button kind="secondary" label="Coding queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/coding", params: { userId: shell.userId } })} />
           <Button kind="secondary" label="Review queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/reviewing", params: { userId: shell.userId } })} />
           <Button kind="secondary" label="Offline engine check" onPress={() => router.push("/engine-check")} />
+          <Button kind="secondary" label="Update WHO files" onPress={() => router.push("/engine-check?update=1")} />
         </Section>
       ) : null}
       <Section title={t("settingsHelp")}>

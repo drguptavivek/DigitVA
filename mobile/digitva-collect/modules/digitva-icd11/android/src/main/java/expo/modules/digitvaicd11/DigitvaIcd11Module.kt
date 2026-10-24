@@ -23,7 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * server). The engine lives in the ":icd11" process (Icd11Service); this class only forwards requests to it and
  * resolves the JS promises, so the UI process never blocks or loads the engine. The service serializes requests; init
  * happens once per service process and a failed init is sticky until that process restarts. Engine error payloads
- * never reach here: JS gets a status number or a short error code.
+ * never reach here: JS gets a status number or a short error code. Progress reports from an init become the
+ * "icd11Progress" event ({ phase, percent }, percent -1 when unknown) and never resolve a promise. updateWhoFiles ends
+ * the engine process on purpose; its promise then resolves with the init that runs in the new process.
  */
 class DigitvaIcd11Module : Module() {
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -31,7 +33,13 @@ class DigitvaIcd11Module : Module() {
   private val pending = ConcurrentHashMap<Int, Promise>()
   private val replies = Messenger(object : Handler(Looper.getMainLooper()) {
     override fun handleMessage(msg: Message) {
-      pending.remove(msg.arg1)?.resolve(Icd11Service.toMap(msg.data))
+      if (msg.what == Icd11Service.WHAT_PROGRESS) {
+        sendEvent("icd11Progress", mapOf("phase" to msg.data.getString("phase"), "percent" to msg.data.getInt("percent")))
+        return
+      }
+      val promise = pending.remove(msg.arg1) ?: return
+      val result = Icd11Service.toMap(msg.data)
+      if (result["restarting"] == true) restartForUpdate(promise) else promise.resolve(result)
     }
   })
 
@@ -51,6 +59,23 @@ class DigitvaIcd11Module : Module() {
     override fun onServiceDisconnected(name: ComponentName) = lost()
     override fun onBindingDied(name: ComponentName) = lost()
     override fun onNullBinding(name: ComponentName) = lost()
+  }
+
+  /**
+   * The update ended the engine process. Unbind first, so the old connection makes no disconnect callback that would
+   * clear the new binding, then init in a new process; that init settles [promise].
+   */
+  private fun restartForUpdate(promise: Promise) {
+    val context = appContext.reactContext ?: return promise.reject("ERR_ICD11_PROCESS", "engine process stopped", null)
+    try {
+      context.unbindService(connection)
+    } catch (_: IllegalArgumentException) {
+      // Not bound any more.
+    }
+    service = null
+    binding = false
+    queued.clear()
+    send(Icd11Service.OP_INIT, "", promise)
   }
 
   /** The engine process died or never bound: fail what is waiting; the next request binds again. */
@@ -91,6 +116,8 @@ class DigitvaIcd11Module : Module() {
   override fun definition() = ModuleDefinition {
     Name("DigitvaIcd11")
 
+    Events("icd11Progress")
+
     // Whether this build carries the engine library; does not start it.
     AsyncFunction("isAvailable") {
       val context = appContext.reactContext
@@ -98,6 +125,9 @@ class DigitvaIcd11Module : Module() {
     }
 
     AsyncFunction("init") { promise: Promise -> send(Icd11Service.OP_INIT, "", promise) }
+
+    // Explicit "Update WHO files": one init in a new engine process that may fetch WHO files, when online.
+    AsyncFunction("updateWhoFiles") { promise: Promise -> send(Icd11Service.OP_UPDATE, "", promise) }
 
     AsyncFunction("call") { op: String, input: String, promise: Promise ->
       val code = Icd11Service.OPS[op]

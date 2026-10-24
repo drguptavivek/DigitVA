@@ -1,4 +1,4 @@
-import type { EngineInit, EngineResult, OfflineEngine } from "./offlineEngine";
+import type { EngineInit, EngineProgress, EngineResult, EngineSetup, OfflineEngine } from "./offlineEngine";
 
 /**
  * Synthetic adult certificate (acute myocardial infarction over coronary atherosclerosis, type 2 diabetes in Part 2)
@@ -62,6 +62,27 @@ const field = (data: unknown, key: string): string => {
   return typeof value === "string" ? value : "?";
 };
 
+/** One line for an init in progress, e.g. "copy 40%" or "setup" (percent unknown). */
+export function describeProgress(progress: EngineProgress): string {
+  return progress.percent === undefined ? progress.phase : `${progress.phase} ${progress.percent}%`;
+}
+
+/**
+ * What the WHO files are, from the setup record: the WHO files a fetch changed (names and sizes; no hashes), or the
+ * shipped copies when nothing changed.
+ */
+export function describeSetup(setup: EngineSetup): string {
+  if (setup.mode !== "downloaded" || setup.files.length === 0) return "shipped copies (no newer WHO files)";
+  const files = setup.files.map((file) => `${file.path} (${file.size} B)`).join("; ");
+  return `downloaded ${setup.files.length} files: ${files}`;
+}
+
+/** The result line of "Update WHO files": what it changed, that it found nothing new, or why it failed. */
+export function describeUpdate(result: EngineInit): string {
+  if (!result.ok) return result.error === "no_connection" ? "No connection; kept the current WHO files." : "Failed; kept the shipped copies.";
+  return result.setup ? describeSetup(result.setup) : "shipped copies (no newer WHO files)";
+}
+
 /** Runs init, search, codeinfo, DORIS (cold and warm) and CoDEdit once, reporting each step's timings. */
 export async function runEngineCheck(engine: OfflineEngine, onStep: (step: CheckStep) => void = () => undefined): Promise<CheckStep[]> {
   const steps: CheckStep[] = [];
@@ -81,6 +102,7 @@ export async function runEngineCheck(engine: OfflineEngine, onStep: (step: Check
     note: init.ok ? `copy ${init.copyMs.toFixed(0)} ms, engine ${init.initMs.toFixed(0)} ms${init.cached ? " (already up)" : ""}${init.phases ? ` [${init.phases}]` : ""}` : init.error,
   });
   if (!init.ok) return steps;
+  if (init.setup) push({ name: "setup", ok: true, ms: 0, note: describeSetup(init.setup) });
   push({ name: "search", ...summarize(await engine.search("myocardial infarction"), (data) => {
     const entities = (data as { destinationEntities?: unknown[] } | null)?.destinationEntities;
     return `${Array.isArray(entities) ? entities.length : 0} results`;

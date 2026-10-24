@@ -10,6 +10,19 @@ internal object EngineJni {
 
   private var shimLoaded = false
 
+  /**
+   * Loads the OpenSSL libraries (build.gradle) into this process. The engine's runtime finds them by name once they are
+   * loaded, so a fetch can run; false when they are not in this build.
+   */
+  fun loadOpenSsl(): Boolean =
+    try {
+      System.loadLibrary("crypto")
+      System.loadLibrary("ssl")
+      true
+    } catch (_: UnsatisfiedLinkError) {
+      false
+    }
+
   /** Loads the shim library; false when it is not in this build. */
   fun loadShim(): Boolean {
     if (shimLoaded) return true

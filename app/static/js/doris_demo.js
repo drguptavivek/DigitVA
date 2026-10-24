@@ -11,6 +11,9 @@ import * as Rules from './doris_rules.js?v=4';
 
   var MAX_LINES = 5;
   var MAX_RESULTS = 20;
+  // Same cap as MAX_CONDITIONS_PER_LINE in app/services/doris_certificate.py; the server would refuse more.
+  var MAX_CONDITIONS_PER_LINE = 8;
+  var CAPACITY_MESSAGE = 'This line already has ' + MAX_CONDITIONS_PER_LINE + ' conditions. Remove one to add another.';
   var revision = 0;
   var examples = [];
   var release = '2026-01';
@@ -70,6 +73,7 @@ import * as Rules from './doris_rules.js?v=4';
   function changed(message) {
     revision += 1;
     clearResults();
+    renderWarnings();
     if (message) announce(message);
   }
   function intOrNull(element) {
@@ -90,6 +94,19 @@ import * as Rules from './doris_rules.js?v=4';
     };
   }
 
+  // At the cap a line takes no more conditions: its search and uncoded entry are disabled.
+  // The final line always holds one choice, so it is never capped.
+  function updateCapacity(line) {
+    if (line === finalLine) return;
+    var full = line._conditions.length >= MAX_CONDITIONS_PER_LINE;
+    ['[data-search]', '[data-search-button]', '[data-add-uncoded]'].forEach(function (selector) {
+      line.querySelector(selector).disabled = full;
+    });
+    var searchStatus = line.querySelector('[data-search-status]');
+    if (full) searchStatus.textContent = CAPACITY_MESSAGE;
+    else if (searchStatus.textContent === CAPACITY_MESSAGE) searchStatus.textContent = '';
+  }
+
   function addChip(line, condition) {
     var chip = document.createElement('span');
     chip.className = 'doris-chip';
@@ -104,12 +121,14 @@ import * as Rules from './doris_rules.js?v=4';
       if (index !== -1) line._conditions.splice(index, 1);
       chip.remove();
       line.querySelector('[data-interval-control]').hidden = !line._conditions.length;
+      updateCapacity(line);
       if (line === finalLine) return;
       changed('Condition removed. Process the certificate again to see current results.');
     });
     chip.append(label, remove);
     line.querySelector('[data-chips]').appendChild(chip);
     line.querySelector('[data-interval-control]').hidden = false;
+    updateCapacity(line);
   }
 
   // The picker performs selection-check itself; this is its onSelect hook,
@@ -126,6 +145,8 @@ import * as Rules from './doris_rules.js?v=4';
       line.querySelector('[data-search-status]').textContent = '';
       return;
     }
+    // The ECT panel stages a choice without going through the disabled search, so the cap is checked here too.
+    if (line._conditions.length >= MAX_CONDITIONS_PER_LINE) { announce(CAPACITY_MESSAGE); return; }
     line._conditions.push(condition);
     addChip(line, condition);
     line.querySelector('[data-search]').value = '';
@@ -141,90 +162,16 @@ import * as Rules from './doris_rules.js?v=4';
     revision: function () { return revision; }
   });
 
+  // Result rows come from the shared picker (digitva_icd11_picker.js), the same rows the coding editor shows.
   function showSearchResults(line, items, truncated) {
-    var container = line.querySelector('[data-search-results]');
     var searchStatus = line.querySelector('[data-search-status]');
-    container.replaceChildren();
-    if (!items.length) {
-      searchStatus.textContent = 'No matching ICD-11 conditions.';
-      return;
-    }
-    searchStatus.textContent = truncated ? 'Showing the first results; refine the search for more.' : items.length + ' result' + (items.length === 1 ? '' : 's') + '.';
-    var mandatory = [];
-    items.slice(0, MAX_RESULTS).forEach(function (item) {
-      var row = document.createElement('div');
-      row.className = 'list-group-item doris-search-result';
-      var main = document.createElement('div');
-      main.className = 'doris-search-result-main';
-      var header = document.createElement('div');
-      header.className = 'doris-search-result-header';
-      var heading = document.createElement('button');
-      heading.type = 'button'; heading.className = 'doris-search-title doris-search-title-button';
-      var codeNode = document.createElement('span'); codeNode.className = 'doris-search-code'; codeNode.textContent = item.code || 'No code';
-      var titleNode = document.createElement('span'); titleNode.className = 'doris-search-name fw-semibold'; titleNode.textContent = item.title || 'Untitled';
-      heading.append(codeNode, ' — ', titleNode);
-      heading.addEventListener('click', function () {
-        if (item.postcoordination_availability === 2 && !picker.isCompleteExpression(item.code)) {
-          picker.showDetails(line, item);
-          picker.openPostcoordination(line, item, heading);
-        } else picker.stage(line, item, searchStatus);
-      });
-      header.appendChild(heading);
-      var meta = document.createElement('div');
-      meta.className = 'doris-search-meta';
-      if (item.matching_text && item.matching_text !== item.title) {
-        var match = document.createElement('span');
-        match.className = 'doris-search-match';
-        match.textContent = 'Matched: ' + item.matching_text;
-        meta.appendChild(match);
-      }
-      var complete = picker.isCompleteExpression(item.code);
-      var buildIcon = picker.addContextIcons(meta, item, function (chapter, selected) {
-        picker.openRelated(line, chapter, selected, function (term) {
-          if (term.requires_postcoordination) {
-            line.querySelector('[data-search]').value = term.code;
-            searchLine(line);
-          } else if (!term.uri && picker.isCompleteExpression(term.code)) {
-            // WHO opens a maternal/perinatal composite as its stem with the
-            // original code preselected in the relevant axis.
-            var partsOfTerm = term.code.split(/[&/]/);
-            picker.openPostcoordination(line, {code: partsOfTerm[0], title: '', uri: '', preselect: partsOfTerm.slice(1)}, null);
-          } else if (!term.uri) picker.resolveAndStage(line, term.code, searchStatus);
-          else picker.stage(line, term, searchStatus);
-        });
-      }, item.postcoordination ? function (button) {
-        // A complete expression opens the builder for its stem so the
-        // coder can choose their own extensions; the server verifies the stem.
-        var parts = item.code.split(/[&/]/);
-        var stem = complete ? {code: parts[0], title: '', uri: '', preselect: parts.slice(1)} : item;
-        picker.showDetails(line, item);
-        picker.openPostcoordination(line, stem, button);
-      } : null, function () { picker.showDetails(line, item); });
-      var actions = document.createElement('div');
-      actions.className = 'doris-search-actions';
-      if (complete || item.postcoordination_availability !== 2) {
-        var use = document.createElement('button');
-        use.type = 'button'; use.className = 'btn btn-sm btn-outline-primary'; use.textContent = 'Use';
-        use.title = 'Select this code for the certificate line';
-        use.addEventListener('click', function () { picker.stage(line, item, searchStatus); });
-        actions.appendChild(use);
-      }
-      var details = document.createElement('button');
-      details.type = 'button'; details.className = 'btn btn-sm btn-outline-secondary'; details.textContent = 'Details';
-      details.addEventListener('click', function () { picker.showDetails(line, item); });
-      actions.appendChild(details);
-      if (item.postcoordination_availability === 2 && !complete && buildIcon) mandatory.push({item: item, trigger: buildIcon});
-      var controls = document.createElement('div'); controls.className = 'doris-search-controls';
-      controls.append(meta, actions); header.appendChild(controls);
-      main.appendChild(header);
-      row.appendChild(main);
-      container.appendChild(row);
+    var resultList = line.querySelector('[data-search-results]');
+    resultList.replaceChildren();
+    picker.renderResults(line, items.slice(0, MAX_RESULTS), {
+      input: line.querySelector('[data-search]'), statusEl: searchStatus, resultList: resultList,
+      finalMode: line === finalLine, onRequery: function () { searchLine(line); }
     });
-    var automatic = items.length && mandatory.length && mandatory[0].item === items[0] ? mandatory[0] : null;
-    if (automatic) {
-      picker.showDetails(line, automatic.item);
-      picker.openPostcoordination(line, automatic.item, automatic.trigger, true);
-    }
+    if (truncated) searchStatus.textContent = 'Showing the first results; refine the search for more.';
   }
 
   function searchLine(line) {
@@ -381,6 +328,48 @@ import * as Rules from './doris_rules.js?v=4';
       note.textContent = key === 'maternal' ? (sex === 1 ? Rules.NOT_APPLICABLE.maternalMale : Rules.NOT_APPLICABLE.maternal) : Rules.NOT_APPLICABLE[key];
     });
     if (notify && !shown.maternal) announce('Pregnancy fields are inapplicable and will be omitted.');
+  }
+
+  // Soft warnings from doris_rules.js with the Expo texts. They never block Process. The demo has no
+  // date fields, so the date and injury warnings cannot fire here; they stay in the coding editor.
+  var WARNING_FIELDS = {
+    'MaternalDeath.WasPregnant': 'doris-pregnant',
+    'FetalOrInfantDeath.BirthWeight': 'doris-birth-weight',
+    'FetalOrInfantDeath.PregnancyWeeks': 'doris-pregnancy-weeks',
+    'FetalOrInfantDeath.AgeMother': 'doris-mother-age',
+    'FetalOrInfantDeath.DeathWithin24h': 'doris-within24'
+  };
+  // Interval of every filled line, in screen order, as Rules.warnings() expects them.
+  function intervalEntries() {
+    var entries = [];
+    Array.from(part1.children).forEach(function (line, index) {
+      if (line._conditions.length) entries.push({key: 'part1-' + index, iso: line._interval.read().value, part1: true, line: line});
+    });
+    if (part2.firstElementChild && part2.firstElementChild._conditions.length) {
+      entries.push({key: 'part2', iso: part2.firstElementChild._interval.read().value, part1: false, line: part2.firstElementChild});
+    }
+    return entries;
+  }
+  function renderWarnings() {
+    var entries = intervalEntries();
+    var list = Rules.warnings(rawCertificate(), {today: '', intervals: entries.map(function (entry) {
+      return {key: entry.key, iso: entry.iso, part1: entry.part1};
+    })});
+    document.querySelectorAll('[data-doris-warning], [data-interval-warning]').forEach(function (node) {
+      if (node.matches('[data-interval-warning]')) node.textContent = ''; else node.remove();
+    });
+    list.forEach(function (warning) {
+      if (warning.path.indexOf('interval:') === 0) {
+        var target = entries.find(function (entry) { return entry.key === warning.path.slice('interval:'.length); });
+        if (target) target.line.querySelector('[data-interval-warning]').textContent = warning.message;
+        return;
+      }
+      var input = document.getElementById(WARNING_FIELDS[warning.path]);
+      if (!input) return;
+      var note = document.createElement('div');
+      note.className = 'form-text text-warning-emphasis'; note.dataset.dorisWarning = ''; note.textContent = warning.message;
+      input.parentNode.appendChild(note);
+    });
   }
 
   var ageControl;

@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 ---
 
 # DORIS COD Workflow
@@ -271,12 +271,17 @@ signed token binding certificate and result digests to the case, actor,
 allocation, payload version, release and WHO image.
 
 Results open as a short summary built by `app/static/js/doris_result_summary.js`
-for both editors: the code DORIS suggests with its certificate text (or WHO
-title through `codeinfo` when DORIS chose a code nobody typed), DORIS
-warnings and CoDEdit report sentences as one "Check before you decide" list,
-or "No problems found". A rejected or failed run says so in place of the
-code. Engine status, stem, URI, readable reports and the Help rule trace sit
-in a collapsed "Technical details" section at the bottom, after Step 2. Both editors are two steps.
+for both editors, laid out as on the Expo screen: "DORIS: completed", then
+"Underlying cause: CODE title" with each manifestation as "+ CODE title
+(manifestation)" (or the bare code and its certificate or WHO title when the
+server sent no computed parts), the full code as a monospace chip only when it
+differs from the first code, and a collapsed "Details" with the "/" and "&"
+explanation, stem and URI. DORIS warnings and CoDEdit report sentences form one
+"Check before you decide" list, or "No problems found". A rejected run says
+"DORIS rejected the certificate." and shows WHO's reason; a run that did not run
+(unavailable) says so in place of the code. Engine status, readable reports, the
+CoDEdit issue IDs and the Help rule trace sit in a collapsed "Technical details"
+section at the bottom, after Step 2. Both editors are two steps.
 "Step 1: DORIS" holds the certificate in the WHO DORIS screen's wording and
 order, in the web editor and the Expo app alike: "Administrative Data" (sex,
 estimated age and age unit, date of birth, date of death), "Frame A: Medical
@@ -385,7 +390,14 @@ codeinfo failure blocks final ICD-11 provenance validation.
 The synthetic Help demonstration is served by `doris_public_service`, a
 database-free Flask process reached through `digitva_ingress`. The ingress
 sends `/help/doris-demo` and `/api/v1/doris-demo/*` to the public process and
-other paths to the clinical app. The public process uses six Gunicorn request
+other paths to the clinical app. The demo follows the coding screen: `codeinfo`
+and `selection-check` accept only the code asked for and its own expression URI
+(no stem fallback), `selection-check` takes exactly `schema_version`, `code`
+and `uri`, a line takes at most 8 conditions (the server cap), the condition
+text is the WHO title, and a processing run with no engine completed (HTTP 503
+with the full envelope) is shown as the normal summary. Its soft warnings are
+the `doris_rules.js` ones whose inputs the demo has (no date or injury fields,
+so the date-based warnings do not fire there). The public process uses six Gunicorn request
 threads, five bounded Process slots, a separate session cookie, CSRF on its
 application POSTs, and a 12-second response deadline. Its read-only ECT
 proxy is the sole CSRF-exempt POST. Both ingress and Gunicorn omit query

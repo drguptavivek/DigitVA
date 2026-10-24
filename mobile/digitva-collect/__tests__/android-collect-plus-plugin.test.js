@@ -3,6 +3,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const {
+  addProfileable,
   patchPlainSettings,
   patchPlusGradle,
   plusBuildRequested,
@@ -32,6 +33,14 @@ describe("withAndroidCollectPlus", () => {
     expect(once).toContain("useLegacyPackaging = true");
     expect(once).toContain("libdigitva_icd11.so");
     expect(patchPlusGradle(once)).toBe(once);
+  });
+
+  it("makes plus profileable for the shell, idempotently", () => {
+    const application = { $: { "android:name": ".MainApplication" }, activity: [] };
+    const once = addProfileable(application);
+    expect(once.profileable).toEqual([{ $: { "android:shell": "true" } }]);
+    expect(addProfileable(once).profileable).toHaveLength(1);
+    expect(() => addProfileable(undefined)).toThrow("application must be an object");
   });
 
   it("splits plus into arm64 only, with the same ABI digit as the release arm64 APK", () => {

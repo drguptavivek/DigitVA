@@ -1,6 +1,7 @@
 package expo.modules.digitvaicd11
 
 import android.content.Context
+import android.os.Trace
 import android.system.Os
 import android.util.Log
 import java.io.File
@@ -22,10 +23,17 @@ internal class EngineHost(private val context: Context) {
   fun init(): Map<String, Any?> {
     initResult?.let { return it + ("cached" to true) + ("ms" to 0.0) }
     val start = System.nanoTime()
+    // Trace sections (Perfetto, scripts/android-trace.sh) use fixed names only; each ends in finally.
+    Trace.beginSection("icd11.init")
     val result = try {
       if (!EngineJni.loadShim()) return fail("unavailable").also { initResult = it }
       val copyStart = System.nanoTime()
-      val root = EngineData.ensureCopied(context)
+      Trace.beginSection("icd11.copy")
+      val root = try {
+        EngineData.ensureCopied(context)
+      } finally {
+        Trace.endSection()
+      }
       val copyMs = millis(copyStart)
       val data = File(root, "data")
       // The engine's .NET runtime reads TMPDIR from the C environment.
@@ -56,6 +64,8 @@ internal class EngineHost(private val context: Context) {
       // Class name only: messages can carry paths or data.
       Log.w(TAG, "init failed: ${error.javaClass.simpleName}")
       fail("data_copy_failed", 0.0, 0.0, millis(start))
+    } finally {
+      Trace.endSection()
     }
     initResult = result
     return result
@@ -81,7 +91,13 @@ internal class EngineHost(private val context: Context) {
     }
     val status = IntArray(1)
     val start = System.nanoTime()
-    val bytes = EngineJni.call(code, input, status)
+    // `op` is already one of OPS' fixed keys here, so the section name is never caller text.
+    Trace.beginSection("icd11.$op")
+    val bytes = try {
+      EngineJni.call(code, input, status)
+    } finally {
+      Trace.endSection()
+    }
     val nativeMs = millis(start)
     if (bytes == null || status[0] !in 200..299) {
       // The body of a failed call may echo the input or a stack trace: drop it.

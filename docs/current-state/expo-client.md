@@ -468,3 +468,28 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   `digitvacollectplus://engine-check?run=1` (`src/nativeRoutes/engineCheck.tsx`).
 - Build: `APP_VARIANT=plus npx expo prebuild --platform android --clean`, then
   `cd android && ./gradlew assembleRelease`; install with `adb install -r`.
+  `npm run android:plus:release` does both steps.
+
+### Profiling
+
+- **Dev build** (`npm run android:plus:dev` in `mobile/digitva-collect`): a plus
+  debug build, prebuilt and staged from `private/` like the release. It is the
+  standard debug build (no `expo-dev-client`, which the app does not depend on):
+  start Metro with `npx expo start`, then `adb reverse tcp:8081 tcp:8081` so the
+  phone reaches it over USB. Use it with Hermes, React DevTools and Android Studio.
+- **Profileable release** (`npm run android:plus:release`): the plus config plugin
+  (`addProfileable` in `plugins/with-android-collect-plus.js`) adds
+  `<profileable android:shell="true"/>` to the merged manifest. The plain build
+  gets no such tag. Use this build for representative numbers.
+- `scripts/android-profile.sh <package> <out_dir> [interval] [duration]`: samples
+  App Summary memory per process and filtered logcat (LMK, trim, kill, ANR).
+- `scripts/android-trace.sh <out_dir> [seconds=30]`: records a Perfetto trace
+  with `adb shell perfetto -c -` (text config on stdin) for atrace categories
+  `am wm view dalvik sched freq gfx` and app tracing in both
+  `com.causeofdeathindia.digitvacollect.plus` and its `:icd11` process. Start the
+  work during the recording (for example the engine check). Open the pulled
+  `.perfetto-trace` at https://ui.perfetto.dev.
+- Trace sections (`android.os.Trace`, fixed names, always ended in `finally`):
+  `icd11.init` (whole init), `icd11.copy` (data copy into `filesDir`), and per
+  call `icd11.search`, `icd11.codeinfo`, `icd11.doris`, `icd11.codedit`. Names
+  never carry user input or certificate text.

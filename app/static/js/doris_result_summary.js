@@ -53,21 +53,32 @@ function certificateTitle(certificate, codes) {
 // An empty CoDEdit issue list ([] or '') names nothing: it must not add a "reported:" item.
 function hasIssueIds(value) { return Array.isArray(value) ? value.length > 0 : Boolean(value); }
 
-var UCOD_ROLE_NOTE = {stem: '', extension: ' (extension)', postcoordinated: ' (postcoordinated manifestation)'};
+var UCOD_ROLE_NOTE = {stem: '', extension: ' (extension)', postcoordinated: ' (manifestation)'};
 export var UCOD_CLUSTER_EXPLANATION = 'A "/" joins the stem code DORIS chose as the underlying cause to the code(s) it attached to it as manifestations or details; "&" adds an extension code to a stem.';
 
-// The computed UCOD as titled codes (server-resolved ucod_parts), one line each, with
-// the raw code and URI kept small underneath. Nothing is added when the server sent no parts.
+// The computed UCOD as titled codes (server-resolved ucod_parts), one line each:
+// "Underlying cause: CODE title", then "+ CODE title (manifestation)". The full code
+// is a chip only when it adds something beyond the first line (same layout as the Expo screen).
 function appendUcodCluster(container, parts, dr) {
-  if (!Array.isArray(parts) || !parts.length) return;
   var cluster = el('div', 'doris-summary-cluster mb-2');
   parts.forEach(function (part, index) {
     var label = part.title ? part.code + ' ' + part.title : part.code;
-    cluster.appendChild(el('div', '', index === 0 ? 'Underlying cause: ' + label : 'with ' + label + (UCOD_ROLE_NOTE[part.role] || '')));
+    cluster.appendChild(el('div', '', index === 0 ? 'Underlying cause: ' + label : '+ ' + label + (UCOD_ROLE_NOTE[part.role] || '')));
   });
-  if (parts.length > 1) cluster.appendChild(el('div', 'small text-muted', UCOD_CLUSTER_EXPLANATION));
-  cluster.appendChild(el('div', 'small text-muted', 'Computed UCOD: ' + dr.code + (dr.uri ? ' · ' + dr.uri : '')));
+  if (dr.code && dr.code !== parts[0].code) cluster.appendChild(el('span', 'doris-summary-code', dr.code));
   container.appendChild(cluster);
+}
+
+// Collapsed "Details": the "/" and "&" explanation, stem and URI.
+function appendCodeDetails(container, parts, dr) {
+  var many = Array.isArray(parts) && parts.length > 1;
+  if (!many && !dr.stemCode && !dr.uri) return;
+  var details = el('details', 'small text-muted mb-2');
+  details.appendChild(el('summary', '', 'Details'));
+  if (many) details.appendChild(el('div', '', UCOD_CLUSTER_EXPLANATION));
+  if (dr.stemCode) details.appendChild(el('div', '', 'Computed stem: ' + dr.stemCode));
+  if (dr.uri) details.appendChild(el('div', '', 'Computed URI: ' + dr.uri));
+  container.appendChild(details);
 }
 
 // lookupTitle(code) -> Promise<string>; used only when the code is not on

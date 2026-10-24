@@ -895,10 +895,10 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     const text = allText(tree);
     expect(text).toContain("Your Step 1 assigned causes");
     expect(text).toContain("Step 1 underlying cause: CA40");
-    expect(text).toContain("Age: |28|");
+    expect(text).toContain("28 years · Female");
     expect(text).not.toContain("28.0");
-    expect(text).toContain("Cause of Death: |Pneumonia");
-    expect(text).toContain("ICD-11 mapping: CA40/CA41");
+    expect(text).toContain("SmartVA Analysis|28 years · Female|1|Pneumonia");
+    expect(text).toContain("ICD-10 J18 · ICD-11 CA40/CA41");
     expect(text).not.toContain("Secondary");
     expect(text).toContain("Fever");
     expect(text).toContain("Use Step 1 underlying cause: CA40");

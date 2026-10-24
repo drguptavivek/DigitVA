@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { AppState as NativeAppState, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "../api";
@@ -6,6 +6,7 @@ import { Button, errorText, useUiStyles } from "../ui";
 import { formatWhen } from "../ui/interviewRows";
 import type { WorkspaceApi } from "./api";
 import type { NotePayload } from "./contracts";
+import { NotesCloseContext } from "./notesClose";
 
 /** Loads and saves the caller's allocation-scoped private note in memory only. */
 export function PrivateNotePanel({
@@ -123,6 +124,7 @@ export function PrivateNotePanel({
   };
 
   const savedAt = formatWhen(note?.updated_at);
+  const closeNotes = useContext(NotesCloseContext);
 
   return (
     <View style={styles.card}>
@@ -136,7 +138,10 @@ export function PrivateNotePanel({
         <>
           <TextInput accessibilityLabel="Private note" placeholder="Private note" value={content} onChangeText={updateContent} style={styles.input} multiline maxLength={20_000} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-          <Button label="Save private note" onPress={() => void save()} loading={saving} disabled={saving} />
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <View style={{ flex: 1 }}><Button label="Save private note" onPress={() => void save()} loading={saving} disabled={saving} /></View>
+            {closeNotes ? <View style={{ flex: 1 }}><Button label="Close" kind="secondary" onPress={closeNotes} /></View> : null}
+          </View>
           {savedAt ? <Text style={styles.muted}>Saved {savedAt}</Text> : null}
         </>
       )}

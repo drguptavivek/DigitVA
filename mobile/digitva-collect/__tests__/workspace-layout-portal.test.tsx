@@ -44,3 +44,23 @@ test("notes panel and its close button mount under document.body, and close work
   expect(getComputedStyle(panel!).display).toBe("none");
   act(() => root.unmount());
 });
+
+test("the notes content can close the panel through NotesCloseContext (Close beside Save private note)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { NotesCloseContext } = require("../src/workspace/notesClose") as typeof import("../src/workspace/notesClose");
+  const { Pressable } = jest.requireActual("react-native-web") as typeof import("react-native");
+  function CloseFromInside() {
+    const close = React.useContext(NotesCloseContext);
+    return <Pressable nativeID="inner-close" onPress={close}><Text>Close</Text></Pressable>;
+  }
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  act(() => root.render(<WorkspaceLayout identity={{ vaSid: "s", mode: "coding" }} workspace={workspace} categories={workspace.categories} selectedCode="one" categoryLoading={false} onSelectCategory={jest.fn()} onExit={jest.fn()} notes={<CloseFromInside />}><Text>content</Text></WorkspaceLayout>));
+  const panel = document.getElementById("digitva-notes-panel")!;
+  act(() => { document.getElementById("digitva-notes-trigger")!.click(); });
+  expect(getComputedStyle(panel).display).not.toBe("none");
+  act(() => { document.getElementById("inner-close")!.click(); });
+  expect(getComputedStyle(panel).display).toBe("none");
+  act(() => root.unmount());
+});

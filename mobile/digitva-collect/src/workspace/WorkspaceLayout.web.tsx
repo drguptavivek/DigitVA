@@ -6,6 +6,7 @@ import { ensureVendorCss } from "./vendorCss.web";
 import { useWebStyles, type WebPalette } from "./webPalette";
 import { useScrollMemory } from "./useScrollMemory";
 import type { WorkspaceLayoutProps } from "./WorkspaceLayout";
+import { NotesCloseContext } from "./notesClose";
 
 // react-dom ships without types here (no @types/react-dom); same hand-typed call as AppHeader.web.tsx.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -417,7 +418,7 @@ export function WorkspaceLayout({
       <View nativeID="digitva-notes-panel" {...((wide ? { role: "complementary", "aria-label": "Notes panel" } : { role: "dialog", "aria-modal": true, "aria-label": "Notes panel" }) as any)} style={[webStyles.notesPanel, !wide && webStyles.notesPanelMobile, notesOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}>
         <View style={webStyles.notesHeader}><Text style={webStyles.notesTitle}><FaIcon name="fa-sticky-note" color={w.onBar} /> Notes / Observations</Text><Pressable nativeID="digitva-notes-close" accessibilityRole="button" accessibilityLabel="Close Notes" onPress={() => setNotesOpen(false)}><FaIcon name="fa-times" color={w.onBar} /></Pressable></View>
         <Text style={webStyles.noteFormId}>VA Form ID: {workspace.case.instance_name}</Text>
-        <View style={webStyles.notesBody}>{notes}</View>
+        <View style={webStyles.notesBody}><NotesCloseContext.Provider value={() => setNotesOpen(false)}>{notes}</NotesCloseContext.Provider></View>
       </View>
     </> : null}
 

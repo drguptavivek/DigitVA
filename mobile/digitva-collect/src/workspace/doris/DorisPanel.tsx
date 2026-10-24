@@ -15,7 +15,7 @@ import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
 import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, Chip, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
 import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
-import { CodeDetailsSheet } from "./CodeDetailsSheet";
+import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
 import { UCOD_CLUSTER_EXPLANATION, certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks, ucodClusterLines } from "./resultSummary";
 import { dorisWarningCodes } from "./dorisWarnings";
@@ -539,7 +539,7 @@ export function DorisPanel({
         <CertificateReference certificate={workspace.doris.step1_certificate ?? null} />
         {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
         {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
-        <FinalCausePicker label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
+        <FinalCausePicker api={api} label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
           quick={step2QuickChoices(ownInitial, workspace.smartva)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
         <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={(value) => update((current) => ({ ...current, remark: value }))} />
         {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
@@ -609,7 +609,7 @@ export function DorisPanel({
       <CertificateDetails certificate={certificate} provenance={provenance} shown={shown} warns={warns} onChange={setField} />
       {processing ? <ProcessingSummary processing={processing} api={api} vaSid={identity.vaSid} /> : null}
       {processing ? (
-        <FinalCausePicker label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
+        <FinalCausePicker api={api} label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
           quick={dorisQuickChoices(processing, dorisTitle)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
       ) : null}
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
@@ -799,7 +799,8 @@ function DorisChecks({ doris, codedit, api, vaSid }: { doris: unknown; codedit: 
 }
 
 /** Selected final cause with its ⓘ and ✕, the quick-add choices, then the search that opens the shared ICD-11 picker. */
-function FinalCausePicker({ label, value, onOpen, searching, quick, onQuick, onDetails, onClear }: {
+function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick, onDetails, onClear }: {
+  api: WorkspaceApi;
   label: string;
   value: PickerChoice | null;
   onOpen: (query: string) => void;
@@ -820,6 +821,7 @@ function FinalCausePicker({ label, value, onOpen, searching, quick, onQuick, onD
           <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
         </View>
       ) : null}
+      {value ? <AssociatedVaCodes api={api} code={value.code} /> : null}
       {quick.map((choice) => (
         <View key={choice.key} style={layout.row}>
           {"search" in choice ? (

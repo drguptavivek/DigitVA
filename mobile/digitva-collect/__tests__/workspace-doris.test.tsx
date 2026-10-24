@@ -857,6 +857,21 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     await act(async () => tree.unmount());
   });
 
+  it("shows the associated VA code under the chosen cause, with its case definition behind a toggle", async () => {
+    const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => ({ icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case <b>text</b></p>" })) });
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).not.toContain("Associated VA codes");
+    await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
+    await act(async () => flush());
+    expect(api.getVaDefinitionForIcd).toHaveBeenCalledWith("CA40");
+    expect(allText(tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    expect(allText(tree)).not.toContain("Case text");
+    await act(async () => byLabel(tree, "Case definition").props.onPress());
+    expect(allText(tree)).toContain("Case text");
+    await act(async () => tree.unmount());
+  });
+
   it("refuses a quick-add the WHO codeinfo does not confirm, without choosing it", async () => {
     const api = apiFor({ getDorisCodeInfo: jest.fn(async () => { throw new Error("not found"); }) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);

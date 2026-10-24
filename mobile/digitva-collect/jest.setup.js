@@ -8,3 +8,9 @@ console.warn = (...args) => {
   if (String(args[0]).includes("An error occurred while requiring the 'ExpoModulesCoreJSLogger' module")) return;
   originalWarn(...args);
 };
+
+// expo-network has no native module under Node; the default is a connected phone. Tests override per case.
+jest.mock("expo-network", () => ({
+  getNetworkStateAsync: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+  addNetworkStateListener: jest.fn(() => ({ remove: jest.fn() })),
+}));

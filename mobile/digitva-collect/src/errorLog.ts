@@ -9,6 +9,7 @@ import { Platform } from "react-native";
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
 import { uiTextKnown } from "./i18n";
+import { networkSpell, OfflineError } from "./network";
 
 export interface ErrorEntry {
   at: string;
@@ -34,6 +35,8 @@ let route = "";
 let writer: Writer | undefined;
 let flushing = false;
 let lastRecordedAt = 0;
+/** The network spell a "network" failure was last filed in: one entry per spell, not per attempt. */
+let networkLoggedSpell = -1;
 const buffer: ErrorEntry[] = [];
 const lastSeen = new Map<string, number>();
 
@@ -55,6 +58,7 @@ export function resetErrorLog(): void {
   buffer.length = 0;
   lastSeen.clear();
   lastRecordedAt = 0;
+  networkLoggedSpell = -1;
   route = "";
   flushing = false;
 }
@@ -68,6 +72,7 @@ export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     return [`HTTP ${error.status}`, error.code, error.path && `${error.method ?? "GET"} ${error.path}`].filter(Boolean).join(" ");
   }
+  if (error instanceof OfflineError) return "offline";
   if (error instanceof TypeError) return "network";
   if (error instanceof Error) {
     const msg = error.message
@@ -93,6 +98,12 @@ export function recordError(what: string): void {
   const key = `${route}|${what}`;
   const duplicate = now - (lastSeen.get(key) ?? 0) < DUPLICATE_MS;
   lastRecordedAt = now;
+  // Offline is a known state, not a fault; a real network failure is filed once per offline spell.
+  if (what === "offline") return;
+  if (what === "network") {
+    if (networkLoggedSpell === networkSpell()) return;
+    networkLoggedSpell = networkSpell();
+  }
   if (duplicate) return;
   if (lastSeen.size > 100) lastSeen.clear();
   lastSeen.set(key, now);

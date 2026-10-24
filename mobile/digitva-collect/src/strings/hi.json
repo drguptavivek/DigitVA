@@ -1559,5 +1559,6 @@
   "causesDropped_icd11_scheme_has_no_icd11_rows": "ICD-11 कोड: योजना में कोई ICD-11 मैपिंग नहीं है, इसलिए हर ICD-11 मृत्यु अमैप्ड है",
   "causesExpand": "{label} खोलें",
   "causesCollapse": "{label} बंद करें",
-  "causesCauseRow": "{label}: {count} मृत्यु, {percent}%"
+  "causesCauseRow": "{label}: {count} मृत्यु, {percent}%",
+  "offlineSendNow": "आप ऑफ़लाइन हैं। आपका काम सुरक्षित है और ऑनलाइन होते ही भेज दिया जाएगा।"
 }

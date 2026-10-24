@@ -1559,5 +1559,6 @@
   "causesDropped_icd11_scheme_has_no_icd11_rows": "ICD-11 codes: the scheme has no ICD-11 mappings, so every ICD-11 death is unmapped",
   "causesExpand": "Expand {label}",
   "causesCollapse": "Collapse {label}",
-  "causesCauseRow": "{label}: {count} deaths, {percent}%"
+  "causesCauseRow": "{label}: {count} deaths, {percent}%",
+  "offlineSendNow": "You're offline. Your work is saved and will send when you're back online."
 }

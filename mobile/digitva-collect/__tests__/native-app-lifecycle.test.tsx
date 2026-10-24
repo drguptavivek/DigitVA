@@ -276,3 +276,41 @@ it("saves the open form the moment the phone clock passes 4 hours off, and not f
   await act(async () => tree.unmount());
   resetPhoneClock();
 });
+
+describe("offline gate", () => {
+  const network = () => jest.requireActual("../src/network") as typeof import("../src/network");
+  const emit = async (state: { isConnected: boolean; isInternetReachable: boolean | null }) => {
+    const mock = (require("expo-network").addNetworkStateListener as jest.Mock).mock;
+    await act(async () => mock.calls[mock.calls.length - 1][0](state));
+  };
+
+  afterEach(() => {
+    network().resetNetwork();
+    jest.useRealTimers();
+  });
+
+  it("shows offline and runs one debounced sync on reconnect, even through a flapping connection", async () => {
+    const { runNativeSync } = require("../src/nativeNotificationSync") as { runNativeSync: jest.Mock };
+    runNativeSync.mockClear();
+    const tree = await renderProbe();
+    jest.useFakeTimers();
+    await emit({ isConnected: false, isInternetReachable: false });
+    expect(latest.offline).toBe(true);
+    await emit({ isConnected: true, isInternetReachable: true });
+    await emit({ isConnected: false, isInternetReachable: false });
+    await emit({ isConnected: true, isInternetReachable: true });
+    expect(latest.offline).toBe(false);
+    expect(runNativeSync).not.toHaveBeenCalled();
+    await act(async () => { await jest.advanceTimersByTimeAsync(2_100); });
+    expect(runNativeSync).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+
+  it("unknown reachability is online", async () => {
+    const tree = await renderProbe();
+    await emit({ isConnected: true, isInternetReachable: null });
+    expect(latest.offline).toBe(false);
+    expect(() => network().assertOnline()).not.toThrow();
+    await act(async () => tree.unmount());
+  });
+});

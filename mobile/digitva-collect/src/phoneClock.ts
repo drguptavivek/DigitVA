@@ -6,6 +6,8 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { assertOnline } from "./network";
+
 export const WARN_SECONDS = 5 * 60;
 export const BLOCK_SECONDS = 4 * 3600;
 const KEY = "phone_clock";
@@ -99,6 +101,7 @@ export async function loadPhoneClock(): Promise<void> {
 export async function recheckPhoneClock(server: string): Promise<boolean> {
   const before = current?.measuredAt;
   try {
+    assertOnline();
     const response = await fetch(`${server}/api/v1/app/android/latest`, { cache: "no-store" });
     recordServerDate(response.headers.get("Date"));
   } catch {

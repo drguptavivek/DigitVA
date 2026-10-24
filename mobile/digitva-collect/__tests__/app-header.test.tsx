@@ -189,7 +189,7 @@ test("bottom bar: the owner's labels and order, icons hidden from assistive tech
   mountAll();
   expect(barLabels()).toEqual(["Home", "Deaths", "VA Interview", "VA Code", "VA Review", "Statistics", "More"]);
   expect(Array.from(bar()!.querySelectorAll("svg")).every((svg) => svg.getAttribute("aria-hidden") === "true")).toBe(true);
-  expect(bar()!.querySelector("a[href='/area/']")!.textContent).toBe("Statistics");
+  expect(bar()!.querySelector("a[href='/app/statistics']")!.textContent).toBe("Statistics");
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
   expect(labels).toEqual(["Organization", "Users", "Settings", "Website", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
@@ -270,7 +270,7 @@ test("phone: bottom bar on the queue and home, a compact header with Help, none 
   mockWidth = 375;
   mountAll();
   expect(host.querySelector("nav[aria-label='Main']")).toBeNull();
-  expect(barLabels()).toEqual(["Home", "VA Code", "VA Review", "More"]);
+  expect(barLabels()).toEqual(["Home", "VA Code", "VA Review", "Statistics", "More"]);
   expect(bar()!.querySelector("a[href='/app/coding']")!.getAttribute("aria-current")).toBe("page");
   expect(bar()!.querySelector("a[href='/help']")).toBeNull();
   expect(host.querySelector("header a[href='/help']")).not.toBeNull();
@@ -376,7 +376,7 @@ test("phone: a reviewer gets VA Review, a collector who also interviews gets Dea
   mockPathname = "/";
   mockBootstrap = boot(["reviewer"]);
   mountAll();
-  expect(barLabels()).toEqual(["Home", "VA Review", "More"]);
+  expect(barLabels()).toEqual(["Home", "VA Review", "Statistics", "More"]);
   mockBootstrap = { ...boot([]), capabilities: { intake: true, registerDeath: true, registeredDeaths: false, supervision: false } };
   mountAll();
   expect(barLabels()).toEqual(["Home", "Deaths", "VA Interview", "More"]);
@@ -495,12 +495,12 @@ describe("leave dialog of an open interview's navigation guard", () => {
     expect(dialog()).toBeNull();
   });
 
-  test("the logo, a server page (Statistics) and Sign out ask first too", async () => {
+  test("the logo, Statistics and Sign out ask first too", async () => {
     mountAll();
     click(link("/app/"));
     expect(dialog()).not.toBeNull();
     act(() => dialogButton("Stay").click());
-    expect(click(link("/area/")).defaultPrevented).toBe(true);
+    expect(click(link("/app/statistics")).defaultPrevented).toBe(true);
     expect(dialog()).not.toBeNull();
     act(() => dialogButton("Stay").click());
     act(() => { host.querySelector<HTMLButtonElement>("button[aria-label^='Account menu']")!.click(); });

@@ -1268,8 +1268,8 @@ class AreaDistrictWidgetTests(AreaDeathsReportedTests):
         self.assertEqual(call["allowed_project_site_pairs"], {(self.TREE, self.TREE_SITE)})
         self.assertNotIn("allowed_org_unit_ids", call)
         self.assertEqual(causes["rows"], [
-            {"label": "A", "coded_count": 21, "percent": 84.0},
-            {"label": area.OTHER_CAUSES_LABEL, "coded_count": 4, "percent": 16.0},
+            {"label": "A", "coded_count": 21, "suppressed": False, "percent": 84.0},
+            {"label": area.OTHER_CAUSES_LABEL, "coded_count": 4, "suppressed": True, "percent": 16.0},
         ])
 
         call, _ = self._causes_called_with(self.project_user, unit_id=str(self.chc_a.org_unit_id))
@@ -1304,7 +1304,9 @@ class AreaDistrictWidgetTests(AreaDeathsReportedTests):
         many = [{"label": f"C{i}", "coded_count": 10} for i in range(12)]
         rows = area.suppress_causes(120, many)["rows"]
         self.assertEqual(len(rows), 11)
-        self.assertEqual(rows[-1], {"label": area.OTHER_CAUSES_LABEL, "coded_count": 20, "percent": 16.7})
+        self.assertEqual(rows[-1], {"label": area.OTHER_CAUSES_LABEL, "coded_count": 20, "suppressed": True, "percent": 16.7})
+        # Only the folded row is flagged; named rows say so explicitly.
+        self.assertEqual([r["suppressed"] for r in rows], [False] * 10 + [True])
         # Nothing to fold: no Other row.
         self.assertEqual(len(area.suppress_causes(20, [{"label": "All", "coded_count": 20}])["rows"]), 1)
 

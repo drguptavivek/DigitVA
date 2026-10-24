@@ -33,6 +33,7 @@ from flask import Blueprint, jsonify, request
 
 from app import db
 from app.decorators import role_required
+from app.routes.api.request_helpers import clamped_int_arg, error as api_error
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.services.workflow.definition import EVENT_CONSENT_REFUSED_SQL, EVENT_NOT_CODEABLE_SQL
@@ -75,7 +76,9 @@ def daily_grid():
     if not scope:
         return jsonify({"data": [], "source": "none"})
 
-    days = min(int(request.args.get("days", 8)), 90)
+    days = clamped_int_arg("days", 8, 90)
+    if days is None:
+        return api_error("days must be a positive whole number.", "invalid_request", 400)
 
     def compute():
         # Aggregates are site-keyed, so only the aggregate-safe direct sites

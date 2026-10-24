@@ -909,7 +909,9 @@ def dm_submissions_page(
         else:
             conditions.append(_mv_ref.c.analytics_age_band == age_group)
     if gender:
-        conditions.append(VaSubmissions.va_deceased_gender == gender)
+        conditions.append(
+            sa.func.lower(VaSubmissions.va_deceased_gender) == gender.strip().lower()
+        )
     conditions.append(_odk_sync_condition(odk_sync))
     if visit_note == "1":
         conditions.append(has_visit_note_condition())
@@ -949,6 +951,7 @@ def dm_submissions_page(
             VaSubmissions.va_data_collector,
             sa.func.coalesce(attachment_counts.c.cnt, 0).label("attachment_count"),
             sa.case((smartva_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva"),
+            sa.case((smartva_failed_sids.c.va_sid.is_not(None), True), else_=False).label("has_smartva_failed"),
             VaSubmissions.va_odk_reviewstate,
             VaSubmissions.va_odk_reviewcomments,
             VaSubmissions.va_sync_issue_code,
@@ -1034,8 +1037,13 @@ def dm_submissions_page(
         "coded_on": coded_on_sort_col,
         "coded_by": coded_by_sort_col,
     }
+    # A redacted viewer must not learn which cases share a coder by sorting
+    # on the hidden column (digitva-10fd); fall back to the default sort.
+    if redact_pii and sort_field == "coded_by":
+        sort_field = "va_submission_date"
     sort_col = sort_fields.get(sort_field, sort_fields["va_submission_date"])
-    order = sort_col.desc() if sort_dir == "desc" else sort_col.asc()
+    # Empty values (no submission date, never coded) go last either way.
+    order = (sort_col.desc() if sort_dir == "desc" else sort_col.asc()).nulls_last()
     offset = (page - 1) * per_page
     total = db.session.execute(count_q).scalar_one()
     rows = db.session.execute(
@@ -1171,7 +1179,9 @@ def _dm_submission_query_parts(
         else:
             conditions.append(_mv_ref.c.analytics_age_band == age_group)
     if gender:
-        conditions.append(VaSubmissions.va_deceased_gender == gender)
+        conditions.append(
+            sa.func.lower(VaSubmissions.va_deceased_gender) == gender.strip().lower()
+        )
     conditions.append(_odk_sync_condition(odk_sync))
     if workflow:
         if workflow == "pending_coding":
@@ -2654,14 +2664,16 @@ def dm_filter_options(user) -> dict:
         .distinct()
         .order_by(VaForms.project_id, VaForms.site_id)
     ).mappings().all()
+    # Lower-cased so "Male" and "male" rows are one choice; the gender filter compares lower() too.
+    gender_key = sa.func.lower(VaSubmissions.va_deceased_gender)
     genders = db.session.scalars(
-        sa.select(VaSubmissions.va_deceased_gender)
+        sa.select(gender_key)
         .where(
             _list_scope(user),
             VaSubmissions.va_deceased_gender.is_not(None),
         )
         .distinct()
-        .order_by(VaSubmissions.va_deceased_gender)
+        .order_by(gender_key)
     ).all()
     return {
         "projects": list(projects),
@@ -2683,7 +2695,7 @@ def audit_dm_submission_action(
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
-            va_audit_byrole="data_manager",
+            va_audit_byrole="admin" if current_user.is_admin() else "data_manager",
             va_audit_by=current_user.user_id,
             va_audit_operation=operation,
             va_audit_action=action,

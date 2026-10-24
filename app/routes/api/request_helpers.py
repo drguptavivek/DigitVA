@@ -94,6 +94,15 @@ def _int_arg(name: str, low: int, high: int) -> int | None:
     return value
 
 
+def clamped_int_arg(name: str, default: int, high: int) -> int | None:
+    """Positive int query arg clamped to *high*; ``None`` when not a whole number >= 1."""
+    try:
+        value = int(request.args.get(name, default))
+    except ValueError:
+        return None
+    return min(value, high) if value >= 1 else None
+
+
 def optional_page_args() -> tuple[int | None, int]:
     """``(limit, offset)`` of a route whose paging is opt-in.
 

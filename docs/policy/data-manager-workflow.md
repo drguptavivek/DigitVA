@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-10-24
 ---
 
 # Data Manager Workflow Policy
@@ -46,6 +46,24 @@ A data manager may not:
 - submit final COD
 - submit reviewer QA
 - override coder or reviewer workflow outcomes
+
+## Admin Access To The Data-Management API
+
+`admin` is admitted, beside `data_manager`, to the `/api/v1/data-management/*`
+list, KPI, filter-options, coder-daily-stats, project-site-submissions, export
+and sync endpoints, and to `/api/v1/analytics/demographics` and
+`POST /api/v1/analytics/mv/refresh` (owner decision 2026-10-24, digitva-ujbi).
+An admin needs no data-manager grant: `dm_grant_scope` gives admin every
+project. `GET /sync/runs` filters runs to the viewer's scope before taking the
+newest 25 (digitva-d92d).
+
+## Redacted Viewers And Sorting
+
+For a viewer `should_redact_pii` redacts, a sort on `coded_by` is ignored and
+the default submission-date sort applies, as search already ignores staff
+names: ordering by the hidden column would show which cases share a coder
+(digitva-10fd). Each list row carries `has_smartva_failed`, the same
+definition as the `smartva=failed` filter and the CSV export.
 
 ## Data Manager Not Codeable Outcome
 

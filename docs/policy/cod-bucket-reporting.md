@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-04-29
+last_updated: 2026-10-24
 ---
 
 # COD Bucket Reporting Policy
@@ -232,6 +232,13 @@ Single-project-first rule:
   project context with optional site/form narrowing inside that project
 - multi-project comparison can remain an admin capability or a later expansion,
   but it should not drive the first-pass UX
+
+## Request Validation
+
+`/api/v1/cod-buckets/aggregates` and `/export.csv` answer 400 (`api_error`)
+rather than 500 for bad input: `invalid_date` when `date_from` or `date_to` is
+not `YYYY-MM-DD`, `unknown_scheme` when `scheme_code` names no scheme, and
+`no_active_scheme` when none is configured (digitva-208a).
 
 ## Data Included In Scope
 

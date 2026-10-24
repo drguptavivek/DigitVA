@@ -23,6 +23,7 @@ from flask_login import current_user
 
 from app import db, limiter, cache
 from app.decorators import role_required
+from app.routes.api.request_helpers import clamped_int_arg
 from app.routes.api.request_helpers import error as api_error
 from app.services.data_management_service import dm_grant_scope
 from app.services.submission_analytics_mv import (
@@ -165,7 +166,9 @@ def kpi():
 @role_required("data_manager")
 def submissions_by_date():
 
-    limit = min(int(request.args.get("limit", 90)), 365)
+    limit = clamped_int_arg("limit", 90, 365)
+    if limit is None:
+        return api_error("limit must be a positive whole number.", "invalid_request", 400)
 
     def compute():
         scope = _dm_scope_filter()
@@ -234,7 +237,7 @@ def submissions_by_month():
 
 
 @bp.get("/demographics")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
 def demographics():
 
@@ -356,7 +359,7 @@ def cod():
 
 
 @bp.post("/mv/refresh")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("5 per minute")
 def mv_refresh():
     """Refresh the submission analytics materialized views on demand."""

@@ -52,7 +52,31 @@ def _cod_scope(user):
 def _parse_iso_date(value: str | None):
     if not value:
         return None
-    return datetime.strptime(value, "%Y-%m-%d").date()
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise _BadParam(f"Dates must be YYYY-MM-DD, got {value!r}.", "invalid_date") from None
+
+
+class _BadParam(ValueError):
+    def __init__(self, message: str, code: str):
+        super().__init__(message)
+        self.code = code
+
+
+@bp.errorhandler(_BadParam)
+def _bad_param(exc: _BadParam):
+    return api_error(str(exc), exc.code, 400)
+
+
+def _checked_scheme_code() -> str:
+    """Requested scheme code (or the default); raises 400 when none/unknown."""
+    code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
+    if not code:
+        raise _BadParam("No active COD bucket scheme is configured.", "no_active_scheme")
+    if code not in {scheme.scheme_code for scheme in list_cod_bucket_schemes()}:
+        raise _BadParam("Unknown COD bucket scheme.", "unknown_scheme")
+    return code
 
 
 def _resolved_scope_user():
@@ -113,9 +137,9 @@ def aggregates():
     if form_id and form_id not in form_ids:
         return api_error("Form is outside your data-manager scope.", status_code=403)
 
-    scheme_code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
-    if not scheme_code:
-        return api_error("No active COD bucket scheme is configured.", "no_active_scheme", 400)
+    date_from = _parse_iso_date(request.args.get("date_from"))
+    date_to = _parse_iso_date(request.args.get("date_to"))
+    scheme_code = _checked_scheme_code()
 
     rows = aggregate_coded_submissions_by_bucket(
         scheme_code=scheme_code,
@@ -123,8 +147,8 @@ def aggregates():
         site_id=site_id,
         form_id=form_id,
         gender=gender,
-        submission_date_from=_parse_iso_date(request.args.get("date_from")),
-        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        submission_date_from=date_from,
+        submission_date_to=date_to,
         allowed_project_site_pairs=allowed_pairs,
         allowed_org_unit_ids=allowed_units,
         collapse_scope=True,
@@ -135,8 +159,8 @@ def aggregates():
         site_id=site_id,
         form_id=form_id,
         gender=gender,
-        submission_date_from=_parse_iso_date(request.args.get("date_from")),
-        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        submission_date_from=date_from,
+        submission_date_to=date_to,
         allowed_project_site_pairs=allowed_pairs,
         allowed_org_unit_ids=allowed_units,
         collapse_scope=True,
@@ -147,8 +171,8 @@ def aggregates():
         site_id=site_id,
         form_id=form_id,
         gender=gender,
-        submission_date_from=_parse_iso_date(request.args.get("date_from")),
-        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        submission_date_from=date_from,
+        submission_date_to=date_to,
         allowed_project_site_pairs=allowed_pairs,
         allowed_org_unit_ids=allowed_units,
         collapse_scope=True,
@@ -159,8 +183,8 @@ def aggregates():
         site_id=site_id,
         form_id=form_id,
         gender=gender,
-        submission_date_from=_parse_iso_date(request.args.get("date_from")),
-        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        submission_date_from=date_from,
+        submission_date_to=date_to,
         allowed_project_site_pairs=allowed_pairs,
         allowed_org_unit_ids=allowed_units,
         top_n=10,
@@ -209,9 +233,9 @@ def export_csv():
     if form_id and form_id not in form_ids:
         return api_error("Form is outside your data-manager scope.", status_code=403)
 
-    scheme_code = (request.args.get("scheme_code") or "").strip() or default_reporting_scheme_code()
-    if not scheme_code:
-        return api_error("No active COD bucket scheme is configured.", "no_active_scheme", 400)
+    date_from = _parse_iso_date(request.args.get("date_from"))
+    date_to = _parse_iso_date(request.args.get("date_to"))
+    scheme_code = _checked_scheme_code()
 
     csv_text = export_cod_bucket_reporting_csv(
         scheme_code=scheme_code,
@@ -219,8 +243,8 @@ def export_csv():
         site_id=site_id,
         form_id=form_id,
         gender=gender,
-        submission_date_from=_parse_iso_date(request.args.get("date_from")),
-        submission_date_to=_parse_iso_date(request.args.get("date_to")),
+        submission_date_from=date_from,
+        submission_date_to=date_to,
         allowed_project_site_pairs=allowed_pairs,
         allowed_org_unit_ids=allowed_units,
     )

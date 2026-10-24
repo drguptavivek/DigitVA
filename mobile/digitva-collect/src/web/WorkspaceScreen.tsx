@@ -20,7 +20,7 @@ import { browserErrorText, LoginLanding, WebShell } from "./common";
 import { Chevron, FoldButton } from "./Chevron";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { KpiStrip } from "./KpiStrip";
-import { hasAnyRoleOrProject, openServerPage } from "./roleHome";
+import { dataAccess, hasAnyRoleOrProject, openServerPage, statisticsAllowed } from "./roleHome";
 import { TRAINING_ROUTES, takeTrainingRedirect } from "../training";
 import { TrainingShell } from "./TrainingChecklist";
 
@@ -323,8 +323,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
 
   function go(key: keyof HomeBlocks) {
     if (!activeBootstrap) return;
-    if (key === "data_manager") openServerPage(activeBootstrap.user.user_id, "/data-management/");
-    else if (key === "progress") openServerPage(activeBootstrap.user.user_id, "/area/");
+    if (key === "data_manager") router.push("/data");
+    else if (key === "progress") router.push("/statistics");
     else if (key === "interviewer") router.push("/collection");
     else if (key === "interview_supervisor") router.push({ pathname: "/death-registration", params: { view: "mine", preset: "supervision" } });
     else if (key === "coder") router.push("/coding");
@@ -335,14 +335,16 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   const hasRolesOrProjects = hasAnyRoleOrProject(activeBootstrap);
   // Pages neither a role block nor the sidebar (web/common.tsx NavigationMenu) offers.
   const quickActionItems: Array<{ key: string; label: string; onPress: () => void }> = [];
+  // The Data screen refuses a user dataAccess does not admit (a project PI alone), so the button is gated on it.
   if (
     !roles.includes("data_manager") &&
+    dataAccess(activeBootstrap).allowed &&
     (roles.includes("project_pi") || roles.includes("collaborator") || roles.includes("collaborator_pii"))
   ) {
     quickActionItems.push({
       key: "dataManagement",
       label: t("navDataManagement"),
-      onPress: () => openServerPage(activeBootstrap.user.user_id, "/data-management/"),
+      onPress: () => router.push("/data"),
     });
   }
   if (roles.includes("site_pi")) {
@@ -488,9 +490,11 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
             {progressOpen ? (
               <>
                 <KpiStrip csrf={activeBootstrap.csrf} />
-                <View style={row}>
-                  <Button kind="secondary" size="sm" label={t("navStatistics")} onPress={() => go("progress")} />
-                </View>
+                {statisticsAllowed(activeBootstrap) ? (
+                  <View style={row}>
+                    <Button kind="secondary" size="sm" label={t("navStatistics")} onPress={() => go("progress")} />
+                  </View>
+                ) : null}
               </>
             ) : null}
           </View>

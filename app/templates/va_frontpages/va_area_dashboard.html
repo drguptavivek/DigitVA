@@ -269,15 +269,18 @@ document.addEventListener("DOMContentLoaded", function () {
     var body = el("tbody");
     card.causes.rows.forEach(function (row) {
       var tr = el("tr");
-      tr.appendChild(el("td", null, row.label));
+      tr.appendChild(el("td", row.suppressed ? "text-muted" : null, row.label));
       tr.appendChild(el("td", "text-end", String(row.coded_count)));
       tr.appendChild(el("td", "text-end text-muted", row.percent + "%"));
       body.appendChild(tr);
     });
     table.appendChild(body);
     causes.appendChild(table);
+    var folded = card.causes.rows.some(function (row) { return row.suppressed; });
     causes.appendChild(el("div", "text-muted mt-1",
-      "Of " + card.causes.coded + " coded deaths. Other (suppressed) holds causes with fewer than 5 deaths, causes past the top ten and codes with no cause group."));
+      "Of " + card.causes.coded + " coded deaths." + (folded
+        ? " The suppressed row holds causes with fewer than 5 deaths, causes past the top ten and codes with no cause group."
+        : "")));
   }
 
   function renderStations(projectCard) {

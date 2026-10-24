@@ -805,18 +805,19 @@ def suppress_causes(total: int, causes: list[dict]) -> dict:
     least ``CAUSE_MIN_COUNT`` deaths, then one ``OTHER_CAUSES_LABEL`` row
     with every other coded death (small causes, causes past the top ten,
     codes the scheme does not map), so no row carries a small named cell.
-    Shares are of *total*.
+    Every row has ``suppressed``: True only on the Other row, so clients do
+    not match the English label. Shares are of *total*.
     """
     if total < PERCENT_MIN_WHOLE:
         return {"coded": total, "hidden": True, "rows": []}
     rows = [
-        {"label": cause["label"], "coded_count": cause["coded_count"]}
+        {"label": cause["label"], "coded_count": cause["coded_count"], "suppressed": False}
         for cause in causes
         if cause["coded_count"] >= CAUSE_MIN_COUNT
     ][:TOP_CAUSES]
     other = total - sum(row["coded_count"] for row in rows)
     if other:
-        rows.append({"label": OTHER_CAUSES_LABEL, "coded_count": other})
+        rows.append({"label": OTHER_CAUSES_LABEL, "coded_count": other, "suppressed": True})
     for row in rows:
         row["percent"] = round(100 * row["coded_count"] / total, 1)
     return {"coded": total, "hidden": False, "rows": rows}

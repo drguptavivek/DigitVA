@@ -135,7 +135,7 @@ describe("web shell navigation and last visit", () => {
     await openMore(renderer);
     expect(navLabels(renderer)).toEqual([
       "home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics", "navMore",
-      "navOrg", "navUsers", "navSettings", "navWebsite", "navDataManagement", "signOut",
+      "navOrg", "navUsers", "navSettings", "navWebsite", "navData", "signOut",
     ]);
     await act(async () => { renderer.unmount(); });
   });
@@ -168,14 +168,14 @@ describe("web shell navigation and last visit", () => {
     mockUnscoped = trainee(["review"], ["coder"]);
     mockBootstrap = { ...bootstrap(["reviewer"]), scope: "training" } as ClientBootstrap; // what the page sees
     const renderer = await render();
-    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navTraining", "trainingReview", "navMore"]);
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navStatistics", "navTraining", "trainingReview", "navMore"]);
     await act(async () => { renderer.unmount(); });
   });
 
-  test("a coder sees no Deaths, Interview, Statistics or Data management", async () => {
+  test("a coder sees Statistics (any grant) but no Deaths, Interview or Data management", async () => {
     const renderer = await render();
     await openMore(renderer);
-    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navMore", "navOrg", "navSettings", "navWebsite", "signOut"]);
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navStatistics", "navMore", "navOrg", "navSettings", "navWebsite", "signOut"]);
     await act(async () => { renderer.unmount(); });
   });
 
@@ -224,12 +224,12 @@ describe("web shell navigation and last visit", () => {
     platform.restore();
   });
 
-  test("Statistics remembers the page before opening it", async () => {
+  test("Statistics opens in the app, not the Flask page", async () => {
     mockBootstrap = bootstrap(["data_manager"]);
     const renderer = await render();
     await act(async () => { navItem(renderer, "navStatistics")!.props.onPress(); });
-    expect(local.getItem(LOCAL_KEY)).toBe("/area/");
-    expect(assign).toHaveBeenCalledWith("/area/");
+    expect(mockRouter.push).toHaveBeenLastCalledWith("/statistics");
+    expect(assign).not.toHaveBeenCalled();
     await act(async () => { renderer.unmount(); });
   });
 
@@ -246,7 +246,7 @@ describe("web shell navigation and last visit", () => {
     await act(async () => { navItem(renderer, "navStatistics")!.props.onPress(); });
     expect(assign).not.toHaveBeenCalled();
     await act(async () => { leavePage(); });
-    expect(assign).toHaveBeenCalledWith("/area/");
+    expect(mockRouter.push).toHaveBeenLastCalledWith("/statistics");
     unregister();
     const again = registerNavigationGuard({ isDirty: () => true, save: async () => true });
     await openMore(renderer);

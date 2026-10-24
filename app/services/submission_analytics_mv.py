@@ -1340,7 +1340,7 @@ def build_dm_mv_filter_conditions(
     if age_group:
         conditions.append(demo.c.analytics_age_band == age_group)
     if gender:
-        conditions.append(demo.c.sex == gender)
+        conditions.append(sa.func.lower(demo.c.sex) == gender.strip().lower())
     if odk_sync == ODK_SYNC_MISSING:
         conditions.append(core.c.odk_missing.is_(True))
     if workflow:

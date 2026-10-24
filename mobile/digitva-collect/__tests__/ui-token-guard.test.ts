@@ -29,6 +29,7 @@ const COLOUR_ALLOW: ReadonlyArray<{ file: string; text: string; why: string }> =
   { file: "src/web/DirectInterviewPanel.tsx", text: "rgba(0,0,0,0.5)", why: "area picker bottom-sheet scrim (the modal scrim)" },
   { file: "src/web/UsersScreen.tsx", text: "rgba(0,0,0,0.5)", why: "enrolment code dialog scrim (the modal scrim)" },
   { file: "src/web/UsersDialogs.tsx", text: "rgba(0,0,0,0.5)", why: "status and sign-in QR dialog scrim (the modal scrim)" },
+  { file: "src/web/data/UpstreamChangesDialog.tsx", text: "rgba(0,0,0,0.5)", why: "upstream changes dialog scrim (the modal scrim)" },
   { file: "src/web/UsersFilters.tsx", text: "rgba(0,0,0,0.5)", why: "users filter bottom-sheet scrim (the modal scrim)" },
   { file: "src/web/UsersFilters.tsx", text: "rgba(0,0,0,0.35)", why: "users filter side-panel scrim (as the case filter panel)" },
   { file: "src/workspace/AccountMenu.web.tsx", text: "rgba(0,0,0,0.28)", why: "menu shadow" },

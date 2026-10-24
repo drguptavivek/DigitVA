@@ -15,24 +15,24 @@ const reachable = (fixture: Fixture) => {
 
 /**
  * What each role reached before the owner's menu, written out by hand from the old sidebar (common.tsx), the old
- * header tabs (roleScreens + serverScreens) and the home screen's Admin console. Every user also had Organization,
- * Settings and Sign out.
+ * header tabs (roleScreens) and the home screen's Admin console. Every user also had Organization,
+ * Settings and Sign out. Statistics is added for anyone with a grant (policy area-dashboard.md), so it is listed too.
  */
 const BEFORE: Array<[string, Fixture, string[]]> = [
-  ["coder", { roles: ["coder"] }, ["/coding"]],
-  ["coding tester", { roles: ["coding_tester"] }, ["/coding"]],
-  ["reviewer", { roles: ["reviewer"] }, ["/reviewing"]],
-  ["interviewer", { roles: ["interviewer"], caps: { intake: true } }, ["/collection"]],
-  ["death reporter (register only)", { roles: ["death_reporter"], caps: { registerDeath: true } }, ["/death-registration"]],
-  ["death reporter (my list only)", { roles: ["death_reporter"], caps: { registeredDeaths: true } }, ["/death-registration"]],
-  ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/death-registration"]],
-  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/area/", "/data-management/", "/users"]],
+  ["coder", { roles: ["coder"] }, ["/coding", "/statistics"]],
+  ["coding tester", { roles: ["coding_tester"] }, ["/coding", "/statistics"]],
+  ["reviewer", { roles: ["reviewer"] }, ["/reviewing", "/statistics"]],
+  ["interviewer", { roles: ["interviewer"], caps: { intake: true } }, ["/collection", "/statistics"]],
+  ["death reporter (register only)", { roles: ["death_reporter"], caps: { registerDeath: true } }, ["/death-registration", "/statistics"]],
+  ["death reporter (my list only)", { roles: ["death_reporter"], caps: { registeredDeaths: true } }, ["/death-registration", "/statistics"]],
+  ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/death-registration", "/statistics"]],
+  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/statistics", "/data", "/users"]],
   ["mentor member", { mentor: { member: true } }, ["/mentoring"]],
   ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring"]],
   ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring"]],
-  ["platform admin", { is_admin: true }, ["/admin/", "/users"]],
-  ["admin role", { roles: ["admin"] }, ["/admin/", "/users"]],
-  ["project PI", { roles: ["project_pi"] }, ["/users"]],
+  ["platform admin", { is_admin: true }, ["/admin/", "/users", "/statistics", "/data"]],
+  ["admin role", { roles: ["admin"] }, ["/admin/", "/users", "/statistics", "/data"]],
+  ["project PI", { roles: ["project_pi"] }, ["/users", "/statistics"]],
   ["no role", {}, []],
 ];
 
@@ -45,6 +45,19 @@ test.each(BEFORE)("%s gains nothing beyond its roles but Home and the public web
   expect([...reachable(fixture)].sort()).toEqual([...had, "/organization", "/settings", "/", "/vaindex"].sort());
 });
 
+test("Statistics shows for any active grant, admin included, and for nobody without one", () => {
+  for (const role of ["coder", "site_pi", "collaborator", "collaborator_pii", "interviewer", "project_pi"]) {
+    expect(reachable({ roles: [role] })).toContain("/statistics");
+  }
+  expect(reachable({ is_admin: true })).toContain("/statistics");
+  expect(reachable({})).not.toContain("/statistics");
+  expect(reachable({ mentor: { member: true } })).not.toContain("/statistics");
+  // Data is for data managers, the two viewer roles and admin only.
+  for (const role of ["data_manager", "collaborator", "collaborator_pii", "admin"]) expect(reachable({ roles: [role] })).toContain("/data");
+  expect(reachable({ is_admin: true })).toContain("/data");
+  for (const role of ["site_pi", "project_pi", "coder", "interview_supervisor"]) expect(reachable({ roles: [role] })).not.toContain("/data");
+});
+
 test("order: the owner's primary items, then More in the owner's order", () => {
   const all = boot({
     roles: ["coder", "reviewer", "data_manager", "interview_supervisor"],
@@ -54,7 +67,7 @@ test("order: the owner's primary items, then More in the owner's order", () => {
   });
   const { primary, more } = navEntries(all);
   expect(primary.map((entry) => entry.labelKey)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics"]);
-  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navDataManagement", "navMentoring", "homeAdminConsole"]);
+  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentoring", "homeAdminConsole"]);
 });
 
 test("Deaths opens the deaths list for a user who interviews or reports deaths", () => {

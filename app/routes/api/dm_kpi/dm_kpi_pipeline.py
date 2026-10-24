@@ -37,6 +37,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.routes.api.request_helpers import clamped_int_arg, error as api_error
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
@@ -468,7 +469,9 @@ def inflow_outflow():
     if not scope:
         return jsonify({"data": []})
 
-    days = min(int(request.args.get("days", 7)), 90)
+    days = clamped_int_arg("days", 7, 90)
+    if days is None:
+        return api_error("days must be a positive whole number.", "invalid_request", 400)
 
     def compute():
         from_date = date.today() - timedelta(days=days - 1)
@@ -641,7 +644,9 @@ def backlog_trend():
     if not scope:
         return jsonify({"data": [], "source": "none"})
 
-    days = min(int(request.args.get("days", 90)), 365)
+    days = clamped_int_arg("days", 90, 365)
+    if days is None:
+        return api_error("days must be a positive whole number.", "invalid_request", 400)
 
     def compute():
         from_date = date.today() - timedelta(days=days - 1)

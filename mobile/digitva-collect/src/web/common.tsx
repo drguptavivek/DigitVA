@@ -151,8 +151,8 @@ type NavigationItem = {
 
 /** Sidebar glyphs per navEntries key; decorative, every link carries its label. */
 const NAV_ICONS: Record<string, string> = {
-  "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/area/": "▦", "/training": "🎓",
-  "/organization": "⚲", "/users": "☺", "/settings": "⚙", website: "↗", "/data-management/": "▤", "/mentoring": "🏛", "/admin/": "◆",
+  "/": "⌂", "/death-registration": "≡", "/collection": "☷", "/coding": "✎", "/reviewing": "✓", "/statistics": "▦", "/training": "🎓",
+  "/organization": "⚲", "/users": "☺", "/settings": "⚙", website: "↗", "/data": "▤", "/mentoring": "🏛", "/admin/": "◆",
 };
 
 function NavigationLink({

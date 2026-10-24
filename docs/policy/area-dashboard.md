@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Area Dashboard Policy
@@ -168,7 +168,29 @@ of the child rows, which leaves out cases on the selected unit itself), and:
   **fewer than 5** deaths is folded into one *Other (suppressed)* row with
   the causes beyond the top ten and codes the scheme does not map. Shares
   are of the coded total. Suppression is applied in the service, so the
-  JSON and CSV never carry a small cell.
+  JSON and CSV never carry a small cell. Every cause row carries
+  `suppressed`: `true` only on the folded row, `false` on named ones. Clients
+  key on the flag, never on the English label; the Expo screen names the row
+  "Other causes" itself and its caption says what the row holds (causes with
+  fewer than 5 deaths, causes beyond the top ten, codes the scheme does not map).
+
+### Expo Statistics screen
+
+`/app/statistics` is the dashboard for signed-in users. The menu entry and the
+Home "Statistics" button show for any user with at least one active grant (and
+admin), the rule under "Who sees it"; `/data-management/` stays data-manager
+only. The view is the URL, with the API's names: `project`, `unit` (organization
+projects), `site` (sites projects), `period`. Each choice or drill pushes a
+history entry, so reload and Back restore it. An unknown project or period
+falls back to the first project or all time; a unit or site the server answers
+404 returns to the project's top level. Sites-mode site rows open to that
+site's card, causes and staff. A project whose deaths reported is 0 everywhere
+(no death register) hides the "reported" stage and scales the bars on
+interviews. A row's server `links` show only where the row displays that
+count: the interviews link beside the row; `visit_notes` has no count on the
+row and is left out. The old `GET /area/` redirects to `/app/statistics`
+carrying `project`, `unit`, `site` and `period` when the export is deployed
+(`export_ready`), and serves the Flask page otherwise.
 
 ### Project card
 

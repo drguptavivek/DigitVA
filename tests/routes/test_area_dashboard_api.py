@@ -4,6 +4,7 @@ Routes: app/routes/area.py, app/routes/api/area.py. Fixture and scope rules:
 tests/services/test_area_dashboard_service.py. GET only: posting to these
 routes would 405 and trip the IP ban. Policy: docs/policy/area-dashboard.md.
 """
+from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
 from app import db
@@ -18,6 +19,13 @@ STAFF = "/api/v1/area/staff"
 
 
 class AreaDashboardRouteTests(AreaDashboardFixture):
+    def setUp(self):
+        super().setUp()
+        # These tests read the Flask fallback page; the redirect has its own test.
+        pager = patch("app.routes.expo_client.export_ready", return_value=False)
+        pager.start()
+        self.addCleanup(pager.stop)
+
     def _as(self, user):
         self._login(str(user.user_id))
 
@@ -52,6 +60,21 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
         page = self.client.get(PAGE)
         self.assertEqual(page.status_code, 200)
         self.assertNotIn(b'href="/area/"', page.data)
+
+    def test_page_redirects_to_the_app_statistics_with_the_selection(self):
+        self._as(self.unit_user)
+        with patch("app.routes.expo_client.export_ready", return_value=True):
+            bare = self.client.get(PAGE)
+            carried = self.client.get(
+                PAGE, query_string={"project": self.TREE, "unit": "u 1", "period": "90d", "x": "1"}
+            )
+        self.assertEqual(bare.status_code, 302)
+        self.assertEqual(bare.headers["Location"], "/app/statistics")
+        self.assertEqual(carried.status_code, 302)
+        self.assertEqual(
+            carried.headers["Location"],
+            f"/app/statistics?project={self.TREE}&unit=u+1&period=90d",
+        )
 
     def test_no_grant_user_gets_empty_list_not_error(self):
         self._as(self.no_grant_user)
@@ -178,6 +201,13 @@ class AreaDashboardRouteTests(AreaDashboardFixture):
 
 
 class AreaStaffRouteTests(AreaStaffFixture):
+    def setUp(self):
+        super().setUp()
+        # These tests read the Flask fallback page; the redirect has its own test.
+        pager = patch("app.routes.expo_client.export_ready", return_value=False)
+        pager.start()
+        self.addCleanup(pager.stop)
+
     def _as(self, user):
         self._login(str(user.user_id))
 

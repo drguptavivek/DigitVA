@@ -278,7 +278,7 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -
 # ---------------------------------------------------------------------------
 
 @bp.get("/submissions")
-@role_required("data_manager", "collaborator", "collaborator_pii")
+@role_required("data_manager", "collaborator", "collaborator_pii", "admin")
 @limiter.limit("120 per minute")
 def submissions():
 
@@ -313,7 +313,7 @@ def submissions():
 
 
 @bp.get("/submissions/export.csv")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("30 per minute")
 def submissions_export_csv():
     return _serve_cached_export_csv(
@@ -324,7 +324,7 @@ def submissions_export_csv():
 
 
 @bp.get("/submissions/export-smartva-input.csv")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_input_csv():
     return _serve_cached_export_csv(
@@ -335,7 +335,7 @@ def submissions_export_smartva_input_csv():
 
 
 @bp.get("/submissions/export-smartva-results.csv")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_results_csv():
     return _serve_cached_export_csv(
@@ -346,7 +346,7 @@ def submissions_export_smartva_results_csv():
 
 
 @bp.get("/submissions/export-smartva-likelihoods.csv")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_likelihoods_csv():
     return _serve_cached_export_csv(
@@ -357,7 +357,7 @@ def submissions_export_smartva_likelihoods_csv():
 
 
 @bp.get("/submissions/export-coded-cod-snapshot.csv")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("30 per minute")
 def submissions_export_coded_cod_snapshot_csv():
     return _serve_cached_export_csv(
@@ -372,7 +372,7 @@ def submissions_export_coded_cod_snapshot_csv():
 # ---------------------------------------------------------------------------
 
 @bp.get("/kpi")
-@role_required("data_manager", "collaborator", "collaborator_pii")
+@role_required("data_manager", "collaborator", "collaborator_pii", "admin")
 @limiter.limit("120 per minute")
 def kpi():
     scope = dm_grant_scope(current_user, viewers=True)
@@ -396,7 +396,7 @@ def kpi():
 
 
 @bp.get("/coder-daily-stats")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
 def coder_daily_stats():
     filters = _export_filters_from_request()
@@ -418,7 +418,7 @@ def coder_daily_stats():
 # ---------------------------------------------------------------------------
 
 @bp.get("/filter-options")
-@role_required("data_manager", "collaborator", "collaborator_pii")
+@role_required("data_manager", "collaborator", "collaborator_pii", "admin")
 @limiter.limit("120 per minute")
 def filter_options():
     return jsonify(dm_filter_options(current_user))
@@ -453,7 +453,8 @@ def _dm_syncable_forms(user) -> list[dict]:
 
 
 @bp.post("/forms/<form_id>/sync")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
+@limiter.limit("30 per minute")
 def sync_form(form_id: str):
     refused = _refusal(Action.SYNC_FORM, form_id, "You do not have access to sync this form.")
     if refused:
@@ -477,7 +478,8 @@ def sync_form(form_id: str):
 
 
 @bp.post("/sync/preview")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
+@limiter.limit("5 per minute")
 def sync_preview():
     # ODK-side counts cannot be narrowed to a unit, so the preview, like the
     # form sync it previews, is for project and project_site grants only.
@@ -582,8 +584,11 @@ def sync_preview():
         return api_error("Operation failed. Check server logs.", status_code=500)
 
 
+_SYNC_RUNS_SCAN_CAP = 500
+
+
 @bp.get("/sync/runs")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 def sync_runs():
 
     # Other managers' runs only on forms this user may sync: a whole-form run's
@@ -593,8 +598,19 @@ def sync_runs():
         sa.select(VaSyncRun)
         .where(VaSyncRun.triggered_by == "data-manager")
         .order_by(VaSyncRun.started_at.desc())
-        .limit(25)
+        .limit(_SYNC_RUNS_SCAN_CAP)
     ).all()
+    # Scope-filter first, then keep 25: a busy form outside this user's scope
+    # must not push their own runs off the page (digitva-d92d).
+    # ponytail: the scope test reads progress_log in Python, so scan at most
+    # _SYNC_RUNS_SCAN_CAP recent runs; store the target form on the run to push it into SQL.
+    runs = [
+        run for run in runs
+        if (
+            run.triggered_user_id == current_user.user_id
+            or sync_run_target_label(run) in scoped_form_ids
+        )
+    ][:25]
 
     return jsonify({
         "runs": [
@@ -610,16 +626,12 @@ def sync_runs():
                 "entries": sync_run_entries(run)[-6:],
             }
             for run in runs
-            if (
-                run.triggered_user_id == current_user.user_id
-                or sync_run_target_label(run) in scoped_form_ids
-            )
         ]
     })
 
 
 @bp.get("/project-site-submissions")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
 def project_site_submissions():
 
@@ -691,7 +703,8 @@ def project_site_submissions():
 
 
 @bp.post("/submissions/<va_sid>/sync")
-@role_required("data_manager")
+@role_required("data_manager", "admin")
+@limiter.limit("30 per minute")
 def sync_submission(va_sid: str):
     refused = _refusal(
         Action.SYNC_SUBMISSION, va_sid, "You do not have access to sync this submission."

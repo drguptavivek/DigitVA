@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Expo Client Hosting And Access
@@ -176,6 +176,81 @@ fails. The user menu links every signed-in user to `/organization`
 project, the units above with their people, the people at the user's own
 unit, and the units below, which open in place. People are shown by name and
 cadre only.
+
+Statistics (`/statistics`, `src/web/StatisticsScreen.tsx`, pieces in
+`src/web/stats/`, client `src/area/api.ts`) is the area dashboard over
+`GET /api/v1/area/{projects,summary,staff}` (policy `docs/policy/area-dashboard.md`).
+Menu entry and Home button: any user with an active grant (`statisticsAllowed`,
+`src/web/roleHome.ts`); a remembered `/area/` visit maps to `/statistics`. The view
+is the URL (`project`, `unit`, `site`, `period`, validated by `parseSelection`),
+each choice pushes a history entry, so reload and Back restore it; a unit or site
+the server 404s drops to the project top level. Project picker: buttons for up to
+four projects, a native select above that. One proportional pipeline bar per child
+unit or, in a sites project, per site (a site opens to its card, causes and
+staff); deaths reported, interviews received, coded on one scale, with the
+reported stage left out when the project has no death register. Then the area's
+medians, suppressed top causes (the folded row is the server's `suppressed` flag,
+shown as "Other causes"), stations and the by-interviewer list (loads only when
+opened, closes on a project change). Card links open the Flask screen and sit on
+one wrapped line with the CSV (hidden while loading); a row shows only its
+interviews link. The CSV is the summary URL with `format=csv`. Flask `GET /area/`
+redirects to `/app/statistics` with the same query when the export is deployed.
+The UI has no plural mechanism (`t()` only substitutes), so counts read "1 reported".
+
+Data (`/data`, `src/web/DataScreen.tsx`, pieces in `src/web/data/`, client
+`src/data/api.ts`, URL and filter rules in `src/data/query.ts`) is the Overview of
+the data manager dashboard over `/api/v1/data-management/*` and
+`/api/v1/analytics/{demographics,mv/refresh}`; Pipeline is a later slice (Flask
+`/data-management/` and `/data-management/cod-buckets` stay until it lands; Flask links from Statistics map to
+`/data` through `dataRouteForLink`). Menu entry under More and Home button:
+`dataAccess` in `src/web/roleHome.ts` (data manager, either viewer role, admin; a
+remembered `/data-management/` visit maps to `/data`). The URL is the whole view,
+with the Flask names (`search`, `project`, `site`, `date_from`, `date_to`,
+`odk_status`, `smartva`, `age_group`, `gender`, `odk_sync` default `in_sync`,
+`workflow`, `visit_note`, `org_unit`, `page`, `size`, `sort_field`, `sort_dir`,
+`selected_sid`), parsed by `parseDataQuery` and changed in place with
+`router.setParams` (a push would keep every earlier view and its table rows
+mounted); nothing but column visibility is kept in `localStorage`. The sort goes to
+the API as `sort[0][field]` / `sort[0][dir]`. Counts, charts and exports take only
+the filters those endpoints honour (not search, visit note or unit; exports add
+search). A strip of eleven counts (a card with a filter is a button, a second press
+lifts it; the Total card has none) with the not-analysable split, a note that the
+counts come from a five-minute view and the time they loaded, and a data
+manager's Refresh (`POST /analytics/mv/refresh`). The list is a real table with
+sortable headers on wide screens and one card per submission below 768px; a plain
+collaborator (`redacted`) has no collector or coded-by column, searches the masked
+form ID only and cannot sort by coder. Row actions: View (Flask
+`/data-management/view/<sid>` for a data manager or admin, `/coding/area/<sid>` for
+a viewer; the row is put in `selected_sid` first so Back lands on it), Edit in ODK
+(new tab), View changes (a dialog of `upstream-change-details`, then Accept and
+recode or Keep current decision, each through `ConfirmDialog`) and Cancel request;
+the list and counts reload after each. Data managers and admins also get the
+summaries (submissions by site or, for a one-project tree, by unit; age and sex;
+workflow distribution; coders' last seven days, each a filter or search), the
+five CSV exports as plain links, and a link to the Flask sync page. The screen is
+titled and menu-labelled "Data management" (as the Home button). A coder clicked in
+the coders panel narrows the list and exports through component state only (a
+removable chip; never the URL or history), and the coders panel itself is not narrowed
+by it; counts ignore search on the server. When the current query's fetch fails the
+previous rows stay but dimmed with "Showing previous results". ODK review comments
+are visible text under the status in the table (as on the cards); the last (Actions)
+column is sticky and the workflow state wraps, so the table scrolls inside its own
+region and the page never scrolls sideways. The server's `gender` filter and
+`/filter-options` compare lower-cased.
+
+Causes (`tab=causes`, `src/web/data/CausesTab.tsx`, rules in `src/data/causes.ts`,
+data manager and admin only; the tab list is hidden for viewers and `tab=causes` falls
+back to Overview) reads `/api/v1/cod-buckets/{schemes,aggregates}` and links
+`/api/v1/cod-buckets/export.csv` as an anchor. URL filters: `scheme_code` (default:
+the server's), `project`, `site`, `form_id` (typed: there is no form list), `gender`,
+`date_from`, `date_to` (sent as `project_id`/`site_id`) and `age` (a view of the
+payload's `age_filters` for top causes and main groups, not an API filter). Order:
+summary line, top ten bars, main cause groups, age and sex table, causes by
+category > subcategory > disease per age scope (collapsed to categories, M/F/U/total
+and share), dropped CODs behind a disclosure, export link (one row per death, no
+staff names). 400 `invalid_date`, `unknown_scheme` and `no_active_scheme` read as
+plain messages. Not drawn yet: heatmap, treemap, age pyramid and sex pie of the Flask
+page.
 
 Signed-in browser routes use `WebShell`, which supplies the shared left
 sidebar or phone rail and the screen header. It forwards optional header actions

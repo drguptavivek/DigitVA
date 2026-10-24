@@ -7,9 +7,7 @@ import type { AccessProject, ClientBootstrap } from "../client/api";
 import type { StringKey } from "../i18n";
 
 /** Expo screens a user can open; the browser remembers these as last visits. */
-export const ROLE_SCREENS = ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring"];
-/** Server-rendered pages a data manager can open; also remembered as last visits. */
-export const SERVER_SCREENS = ["/area/", "/data-management/"];
+export const ROLE_SCREENS = ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/statistics", "/data"];
 
 type RoleBootstrap = Pick<ClientBootstrap, "access" | "capabilities">;
 
@@ -245,9 +243,25 @@ export function roleScreens(bootstrap: RoleBootstrap): string[] {
   return screens;
 }
 
-/** Server pages the user may open from the home and the menu. */
-export function serverScreens(bootstrap: RoleBootstrap): string[] {
-  return (bootstrap.access?.roles ?? []).includes("data_manager") ? [...SERVER_SCREENS] : [];
+/** Roles whose grant shows staff names and personal data (server: viewer_pii_service _PII_GRANTING_ROLES). */
+const PII_ROLES = ["admin", "project_pi", "site_pi", "data_manager", "coder", "coding_tester", "reviewer", "interviewer", "collaborator_pii"];
+
+/**
+ * What the Data screen offers: `allowed` for a data manager, either viewer role or admin; `manage` (the side panels,
+ * exports, row actions, Refresh) for a data manager or admin; `redacted` for a viewer with no role that shows staff
+ * identity (a plain collaborator). The server decides all three again on every request; this only shapes the screen.
+ */
+export function dataAccess(bootstrap: RoleBootstrap): { allowed: boolean; manage: boolean; redacted: boolean } {
+  const roles = bootstrap.access?.roles ?? [];
+  const admin = Boolean(bootstrap.access?.is_admin || roles.includes("admin"));
+  const manage = admin || roles.includes("data_manager");
+  const viewer = roles.includes("collaborator") || roles.includes("collaborator_pii");
+  return { allowed: manage || viewer, manage, redacted: !admin && !roles.some((role) => PII_ROLES.includes(role)) };
+}
+
+/** Statistics is open to anyone with at least one active grant, or admin (docs/policy/area-dashboard.md, "Who sees it"). */
+export function statisticsAllowed(bootstrap: RoleBootstrap): boolean {
+  return Boolean(bootstrap.access?.is_admin || (bootstrap.access?.roles ?? []).length > 0);
 }
 
 /**
@@ -255,9 +269,11 @@ export function serverScreens(bootstrap: RoleBootstrap): string[] {
  * preferred workflow screen).
  */
 export function homeLanding(bootstrap: RoleBootstrap, lastVisit: string | undefined): string | undefined {
-  const allowed = [...roleScreens(bootstrap), ...serverScreens(bootstrap)];
-  if (lastVisit && allowed.includes(lastVisit)) return lastVisit;
-  return roleScreens(bootstrap)[0] ?? serverScreens(bootstrap)[0];
+  const allowed = [...roleScreens(bootstrap), ...(statisticsAllowed(bootstrap) ? ["/statistics"] : []), ...(dataAccess(bootstrap).allowed ? ["/data"] : [])];
+  // The retired Flask pages mean their Expo successors.
+  const visit = lastVisit === "/area/" ? "/statistics" : lastVisit === "/data-management/" ? "/data" : lastVisit;
+  if (visit && allowed.includes(visit)) return visit;
+  return allowed[0];
 }
 
 function lastVisitKey(userId: string): string {

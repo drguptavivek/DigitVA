@@ -694,8 +694,8 @@ export default function MentoringScreen() {
                     <Button
                       size="sm"
                       kind="secondary"
-                      label="Area Dashboard"
-                      onPress={() => openServerPage(bootstrap.user.user_id, "/area/")}
+                      label={t("navStatistics")}
+                      onPress={() => router.push("/statistics")}
                     />
                   </View>
                 </View>

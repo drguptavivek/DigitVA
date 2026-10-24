@@ -2,7 +2,7 @@
 import type { ClientBootstrap } from "../client/api";
 import type { StringKey } from "../i18n";
 import { TRAINING_ROUTES, trainingAreas } from "../training";
-import { roleScreens, serverScreens } from "./roleHome";
+import { dataAccess, roleScreens, statisticsAllowed } from "./roleHome";
 
 /** Pre-login and device screens: nobody is signed in to see navigation there. */
 export const HEADERLESS_ROUTES = ["/sign-in", "/enrol", "/unlock", "/pin-setup", "/register"];
@@ -38,13 +38,12 @@ export const WEBSITE_HREF = "/vaindex";
 
 /**
  * The menu of the left sidebar (wide) and the bottom bar (phone), identical in both: `primary` in the owner's
- * order, then everything else under More. Visibility reuses roleScreens/serverScreens; Admin console copies the home
+ * order, then everything else under More. Visibility reuses roleScreens/dataAccess; Admin console copies the home
  * screen's rule (WorkspaceScreen). Showing an item grants nothing: every route checks access on the server.
  * Sign out is not an entry; each menu appends it to More.
  */
 export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more: NavEntry[] } {
   const screens = roleScreens(bootstrap);
-  const server = serverScreens(bootstrap);
   const roles = bootstrap.access?.roles ?? [];
   const caps = bootstrap.capabilities;
   const primary: NavEntry[] = [{ key: "/", labelKey: "home", route: "/" }];
@@ -57,7 +56,8 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   if (screens.includes("/collection")) primary.push({ key: "/collection", labelKey: "navVaInterview", route: "/collection" });
   if (screens.includes("/coding")) primary.push({ key: "/coding", labelKey: "navVaCode", route: "/coding" });
   if (screens.includes("/reviewing")) primary.push({ key: "/reviewing", labelKey: "navVaReview", route: "/reviewing" });
-  if (server.includes("/area/")) primary.push({ key: "/area/", labelKey: "navStatistics", serverPath: "/area/" });
+  // Any active grant (policy area-dashboard.md); the API still scopes every number to the user's area.
+  if (statisticsAllowed(bootstrap)) primary.push({ key: "/statistics", labelKey: "navStatistics", route: "/statistics" });
   // Only an active participation in a training session shows it; its sub-items follow the training roles held.
   const areas = trainingAreas(bootstrap.access);
   if (areas.length > 0) {
@@ -76,7 +76,7 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
     { key: "/settings", labelKey: "navSettings", route: "/settings" },
     { key: "website", labelKey: "navWebsite", href: WEBSITE_HREF },
   );
-  if (server.includes("/data-management/")) more.push({ key: "/data-management/", labelKey: "navDataManagement", serverPath: "/data-management/" });
+  if (dataAccess(bootstrap).allowed) more.push({ key: "/data", labelKey: "navData", route: "/data" });
   if (screens.includes("/mentoring")) more.push({ key: "/mentoring", labelKey: "navMentoring", route: "/mentoring" });
   if (bootstrap.access?.is_admin || roles.includes("admin")) more.push({ key: "/admin/", labelKey: "homeAdminConsole", serverPath: "/admin/" });
   return { primary, more };
@@ -99,7 +99,7 @@ export function activeTab(pathname: string, params: NavParams = {}): string | un
   }
   // The interview form and a case's details are reached from VA Interview.
   if (["/worklist", "/interview", "/case", "/form"].includes(pathname)) return "/collection";
-  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/organization", "/users", "/settings"]
+  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/statistics", "/data", "/organization", "/users", "/settings"]
     .find((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 

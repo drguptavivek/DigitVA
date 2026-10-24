@@ -100,6 +100,7 @@ import {
   readLastVisit,
   rememberVisit,
   resetFirstHomeLoad,
+  ROLE_SCREENS,
   roleScreens,
 } from "../src/web/roleHome";
 
@@ -267,7 +268,7 @@ describe("role home dashboard", () => {
     });
     expect(renderer.root.findAllByType("kpi-strip" as never)).toHaveLength(1);
     renderer.root.findAllByType("button" as never).find((node) => node.props.label === "navStatistics")?.props.onPress();
-    expect(assign).toHaveBeenCalledWith("/area/");
+    expect(mockRouter.push).toHaveBeenCalledWith("/statistics");
     await act(async () => {
       renderer.unmount();
     });
@@ -306,17 +307,18 @@ describe("role home dashboard", () => {
   test("admin, collaborator and viewer homes carry their Flask-page entries", async () => {
     for (const [roles, label, path] of [
       [["admin"], "homeAdminConsole", "/admin/"],
-      [["collaborator"], "navDataManagement", "/data-management/"],
-      [["collaborator_pii"], "navDataManagement", "/data-management/"],
-      [["project_pi"], "navDataManagement", "/data-management/"],
+      [["collaborator"], "navDataManagement", "/data"],
+      [["collaborator_pii"], "navDataManagement", "/data"],
     ] as const) {
       assign.mockClear();
+      mockRouter.push.mockClear();
       mockAppBootstrap = bootstrap([...roles], {});
       mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
       const renderer = await render(<WorkspaceScreen />);
       expect(buttonLabels(renderer)).toContain(label);
       renderer.root.findAllByType("button" as never).find((node) => node.props.label === label)?.props.onPress();
-      expect(assign).toHaveBeenCalledWith(path);
+      if (path === "/data") expect(mockRouter.push).toHaveBeenCalledWith("/data");
+      else expect(assign).toHaveBeenCalledWith(path);
       await act(async () => {
         renderer.unmount();
       });
@@ -361,6 +363,17 @@ describe("role home dashboard", () => {
     expect(roleScreens(bootstrap(["interview_supervisor"], { supervision: true }))).toEqual(["/death-registration"]);
     expect(roleScreens(bootstrap(["coder"]))).not.toContain("/death-registration");
     expect(roleScreens(bootstrap(["data_manager"], { supervision: true }))).not.toContain("/supervision");
+
+    // Statistics is a remembered in-app route; the retired Flask "/area/" visit maps to it; no grant, no Statistics.
+    expect(homeLanding(bootstrap(["site_pi"]), "/statistics")).toBe("/statistics");
+    expect(homeLanding(bootstrap(["site_pi"]), "/area/")).toBe("/statistics");
+    expect(homeLanding(bootstrap([]), "/area/")).toBeUndefined();
+    expect(ROLE_SCREENS).toContain("/statistics");
+    // Data is a remembered in-app route for data managers and viewers; the retired Flask visit maps to it.
+    expect(ROLE_SCREENS).toContain("/data");
+    expect(homeLanding(bootstrap(["collaborator"]), "/data")).toBe("/data");
+    expect(homeLanding(bootstrap(["data_manager"], { supervision: true }), "/data-management/")).toBe("/data");
+    expect(homeLanding(bootstrap(["site_pi"]), "/data")).toBe("/statistics");
 
     rememberVisit("u1", "/supervision");
     expect(readLastVisit("u1")).toBe("/supervision");

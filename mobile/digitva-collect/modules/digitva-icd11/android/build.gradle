@@ -1,0 +1,42 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.digitvaicd11'
+version = '0.1.0'
+
+// This module is linked only in the Collect Plus build (APP_VARIANT=plus; plugins/with-android-collect-plus.js keeps
+// it out of the plain build). The engine and its data are staged from private/ by scripts/stage-engine.js and are
+// git-ignored. Fail the build here, with a plain message, rather than ship a Plus APK without them.
+def stagedLib = file('src/main/jniLibs/arm64-v8a/libdigitva_icd11.so')
+def stagedData = file('src/main/assets/digitva-icd11/data')
+tasks.register('verifyEngineStaged') {
+  doLast {
+    if (!stagedLib.exists() || !stagedData.isDirectory()) {
+      throw new GradleException(
+        'Collect Plus: the offline ICD-11 engine is not staged. Run "node modules/digitva-icd11/scripts/stage-engine.js" ' +
+        'from mobile/digitva-collect (it needs private/icd11-offline-spike/ in the main checkout), or re-run ' +
+        '"APP_VARIANT=plus npx expo prebuild --platform android".')
+    }
+  }
+}
+preBuild.dependsOn 'verifyEngineStaged'
+
+android {
+  namespace "expo.modules.digitvaicd11"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+    ndk { abiFilters 'arm64-v8a' }
+  }
+  externalNativeBuild {
+    cmake {
+      path 'CMakeLists.txt'
+      version '3.22.1'
+    }
+  }
+  lintOptions {
+    abortOnError false
+  }
+}

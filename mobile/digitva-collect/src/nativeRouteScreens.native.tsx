@@ -1,7 +1,9 @@
 import { useRouter } from "expo-router";
 import { Text } from "react-native";
 
+import { isPlusVariant } from "./appVariant";
 import { t } from "./i18n";
+import { PlusCoding, PlusReviewing, PlusWorkspace } from "./nativeRoutes/plusWorkspace";
 import { Button, Screen, useUiStyles } from "./ui";
 
 export { default as Case } from "./nativeRoutes/case";
@@ -31,4 +33,8 @@ export function CodingOnWeb() {
   </Screen>;
 }
 
-export { CodingOnWeb as Coding, CodingOnWeb as Reviewing, CodingOnWeb as Workspace };
+// Collect Plus (experimental, adb-only) runs the real coding screens; the plain build keeps the notice.
+const plus = isPlusVariant();
+export const Coding = plus ? PlusCoding : CodingOnWeb;
+export const Reviewing = plus ? PlusReviewing : CodingOnWeb;
+export const Workspace = plus ? PlusWorkspace : CodingOnWeb;

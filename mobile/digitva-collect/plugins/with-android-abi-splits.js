@@ -1,5 +1,6 @@
 const { withAppBuildGradle, withGradleProperties } = require("@expo/config-plugins");
 
+const { plusBuildRequested } = require("./with-android-collect-plus");
 const { releaseBuildRequested } = require("./with-android-release-signing");
 
 /**
@@ -10,16 +11,18 @@ const { releaseBuildRequested } = require("./with-android-release-signing");
  * unchanged (one app-debug.apk).
  */
 const RELEASE_ABIS = ["armeabi-v7a", "arm64-v8a"];
+const ABIS_PLUS = ["arm64-v8a"];
 const MARKER = "// DigitVA release ABI splits";
 
-const ABI_SPLITS_BLOCK = `
+// Collect Plus ships arm64 only; the ABI digit still comes from RELEASE_ABIS so it stays 2.
+const abiSplitsBlock = (abis) => `
 ${MARKER}: one APK per ABI, versionCode = base * 10 + ABI digit.
 android {
     splits {
         abi {
             enable true
             reset()
-            include ${RELEASE_ABIS.map((abi) => `"${abi}"`).join(", ")}
+            include ${abis.map((abi) => `"${abi}"`).join(", ")}
             universalApk false
         }
     }
@@ -39,27 +42,29 @@ androidComponents {
 }
 `;
 
-function patchAndroidAbiSplits(contents) {
+function patchAndroidAbiSplits(contents, abis = RELEASE_ABIS) {
   if (typeof contents !== "string") throw new Error("Android Gradle contents must be a string");
   if (contents.includes(MARKER)) return contents;
-  return `${contents.trimEnd()}\n${ABI_SPLITS_BLOCK}`;
+  return `${contents.trimEnd()}\n${abiSplitsBlock(abis)}`;
 }
 
 module.exports = function withAndroidAbiSplits(config) {
-  if (!releaseBuildRequested()) return config;
+  const plus = plusBuildRequested();
+  if (!releaseBuildRequested() && !plus) return config;
+  const abis = plus ? ABIS_PLUS : RELEASE_ABIS;
   config = withGradleProperties(config, (config) => {
     // Build only the shipped ABIs' native code.
     config.modResults = config.modResults.filter(
       (item) => !(item.type === "property" && item.key === "reactNativeArchitectures")
     );
-    config.modResults.push({ type: "property", key: "reactNativeArchitectures", value: RELEASE_ABIS.join(",") });
+    config.modResults.push({ type: "property", key: "reactNativeArchitectures", value: abis.join(",") });
     return config;
   });
   return withAppBuildGradle(config, (config) => {
     if (config.modResults.language !== "groovy") {
       throw new Error("withAndroidAbiSplits requires an app/build.gradle Groovy template");
     }
-    config.modResults.contents = patchAndroidAbiSplits(config.modResults.contents);
+    config.modResults.contents = patchAndroidAbiSplits(config.modResults.contents, abis);
     return config;
   });
 };

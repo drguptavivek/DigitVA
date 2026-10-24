@@ -68,4 +68,41 @@ describe("Expo release configuration", () => {
       "between 1 and 209999999"
     );
   });
+
+  describe("Collect Plus variant", () => {
+    const originalVariant = process.env.APP_VARIANT;
+    afterEach(() => {
+      if (originalVariant === undefined) delete process.env.APP_VARIANT;
+      else process.env.APP_VARIANT = originalVariant;
+    });
+    const resolve = () => appConfig({ config: require("../app.json").expo });
+
+    it("names, packages and tags the plus build, beside the plain app", () => {
+      process.env.APP_VARIANT = "plus";
+      const resolved = resolve();
+      expect(resolved.name).toBe("DigitVA Collect Plus");
+      expect(resolved.android.package).toBe("com.causeofdeathindia.digitvacollect.plus");
+      expect(resolved.version).toBe(`${require("../app.json").expo.version}-plus`);
+      expect(resolved.scheme).toBe("digitvacollectplus");
+      expect(resolved.extra.appVariant).toBe("plus");
+    });
+
+    it("leaves the plain build exactly as before", () => {
+      delete process.env.APP_VARIANT;
+      const resolved = resolve();
+      expect(resolved.name).toBe("DigitVA");
+      expect(resolved.android.package).toBe("com.causeofdeathindia.digitvacollect");
+      expect(resolved.version).toBe(require("../app.json").expo.version);
+      expect(resolved.scheme).toBe("digitvacollect");
+      expect(resolved.extra).not.toHaveProperty("appVariant");
+    });
+
+    it("keeps the development variant separate from plus", () => {
+      process.env.APP_VARIANT = "development";
+      const resolved = resolve();
+      expect(resolved.name).toBe("DigitVA Dev");
+      expect(resolved.android.package).toBe("com.causeofdeathindia.digitvacollect.dev");
+      expect(resolved.extra).not.toHaveProperty("appVariant");
+    });
+  });
 });

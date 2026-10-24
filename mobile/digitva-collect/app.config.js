@@ -62,22 +62,39 @@ function resolveAndroidVersionCode(env = process.env) {
 }
 
 // APP_VARIANT=development installs a debug build beside the release app.
-const isDev = process.env.APP_VARIANT === "development";
+// APP_VARIANT=plus is "DigitVA Collect Plus": the experimental adb-only build that carries the offline ICD-11
+// engine (docs/policy/field-data-collection.md). It installs beside the release app and is never published.
+function resolveVariant(env = process.env) {
+  return { isDev: env.APP_VARIANT === "development", isPlus: env.APP_VARIANT === "plus" };
+}
 
-module.exports = ({ config = appJson.expo } = {}) => ({
-  ...config,
-  name: isDev ? "DigitVA Dev" : "DigitVA",
-  scheme: isDev ? `${config.scheme}dev` : config.scheme,
-  android: {
-    ...config.android,
-    package: isDev ? `${config.android.package}.dev` : config.android.package,
-    versionCode: resolveAndroidVersionCode(),
-  },
-  extra: {
-    ...config.extra,
-    digitvaReleaseServer: resolveReleaseServer(),
-  },
-});
+module.exports = ({ config = appJson.expo } = {}) => {
+  const { isDev, isPlus } = resolveVariant();
+  return {
+    ...config,
+    name: isDev ? "DigitVA Dev" : isPlus ? "DigitVA Collect Plus" : "DigitVA",
+    // "-plus" is not major.minor.patch, so Settings' update check reports "unknown" and never offers the plain
+    // app's APK over this one.
+    version: isPlus ? `${config.version}-plus` : config.version,
+    scheme: isDev ? `${config.scheme}dev` : isPlus ? `${config.scheme}plus` : config.scheme,
+    android: {
+      ...config.android,
+      package: isDev
+        ? `${config.android.package}.dev`
+        : isPlus
+          ? `${config.android.package}.plus`
+          : config.android.package,
+      versionCode: resolveAndroidVersionCode(),
+    },
+    extra: {
+      ...config.extra,
+      ...(isPlus ? { appVariant: "plus" } : {}),
+      digitvaReleaseServer: resolveReleaseServer(),
+    },
+  };
+};
+
+module.exports.resolveVariant = resolveVariant;
 
 module.exports.normalizeHttpsOrigin = normalizeHttpsOrigin;
 module.exports.resolveReleaseServer = resolveReleaseServer;

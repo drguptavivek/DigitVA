@@ -1,0 +1,6 @@
+{
+  "platforms": ["android"],
+  "android": {
+    "modules": ["expo.modules.digitvaicd11.DigitvaIcd11Module"]
+  }
+}

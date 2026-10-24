@@ -625,6 +625,27 @@ clock against the server.
   change that introduces it**. The registry is an allowlist of known-personal
   fields, so an unlisted new field defaults to exportable.
 
+## Collect Plus (experimental)
+
+"DigitVA Collect Plus" (`APP_VARIANT=plus`, Android package
+`com.causeofdeathindia.digitvacollect.plus`, versionName `<version>-plus`) is a
+build variant of the collect app that also enables the native Coding, Review and
+case-workspace screens and carries the offline WHO ICD-11 / DORIS engine from the
+owner's private spike (`private/icd11-offline-spike`, never committed). It exists
+to profile coding on a phone (bead digitva-hs7e).
+
+- **adb or local install only.** It is never uploaded to `/download/android`,
+  never attached to a release, never pinned in `docker-compose.yml`, and never
+  handed to interviewers. The ICD-11 licence ruling (2026-10-21) is the reason it
+  stays off public downloads.
+- It installs beside the plain app and shares nothing with it: another package,
+  another encrypted store, another URL scheme (`digitvacollectplus`).
+- The plain build is unchanged: it has no engine, no engine assets and no module
+  code, and its coding routes still explain that coding is done on the web.
+- Phase A coding screens still call the server for DORIS; the offline engine is
+  exercised by the hidden Settings > "Offline engine check" screen. The masking
+  rules above apply unchanged to the coding screens.
+
 ## Phone numbers
 
 Informant phones (`informant_phone`, optional `informant_phone_2`) are exactly

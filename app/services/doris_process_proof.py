@@ -12,6 +12,7 @@ from app.services.doris_processing import (
     certificate_digest as calculate_certificate_digest,
 )
 from app.services.doris_processing import (
+    processing_extras,
     processor_result_digest,
     validate_processor_envelope,
 )
@@ -198,11 +199,13 @@ def verify_process_submission(
     )
     if not hmac.compare_digest(result_digest, str(submitted_result_digest)):
         raise ProcessProofResultMismatch("DORIS processor results have changed.")
+    # Stored with the DORIS result so a reopened Step 1 keeps its UCOD titles and notes. Recomputed here from the
+    # verified inputs (never the client's copy); the digest above stays over the engine envelopes only.
     return {
         "certificate": normalized,
         "certificate_digest": cert_digest,
         "result_digest": result_digest,
-        "doris": doris,
+        "doris": {**doris, **processing_extras(doris, normalized)},
         "codedit": codedit,
         "claims": claims,
     }

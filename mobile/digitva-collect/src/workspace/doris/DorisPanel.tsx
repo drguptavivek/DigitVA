@@ -6,9 +6,9 @@ import { t as tr } from "../../i18n";
 import { errorText } from "../../ui";
 import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
-import { parseDorisProcess } from "../contracts";
+import { parseDorisProcess, parseUcodParts } from "../contracts";
 import { radius, ui, useTheme } from "../../theme";
-import { Cell, ChipChoice, FieldLabel, IntervalField, SearchBox, Warn, lineShade } from "./compact";
+import { Cell, ChipChoice, FieldLabel, IntervalErrorContext, IntervalField, SearchBox, Warn, lineShade } from "./compact";
 import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
@@ -189,6 +189,7 @@ function processingResult(processing: DorisProcessReply | null, engine: "doris" 
 function processCertificate(certificate: JsonObject): JsonObject {
   const result = applyVisibility(certificate);
   result.Part1 = array(result.Part1).filter((raw) => lineConditions(raw).length > 0);
+  if (lineConditions(result.Part2).length === 0) delete result.Part2;
   return result;
 }
 
@@ -197,7 +198,15 @@ function makeSaveError(error: unknown): string {
   const body = error.payload;
   const messages = Array.isArray(body.messages) ? body.messages.filter((item) => typeof item === "string") : [];
   const blocked = Array.isArray(body.blocked_by) ? body.blocked_by.filter((item) => typeof item === "string") : [];
-  return [...messages, ...blocked].join(" ") || errorText(error);
+  const joined = [...messages, ...blocked].join(" ");
+  if (joined) return joined;
+  const generic = errorText(error);
+  // DORIS process errors are {error: {message, fields: [{path, message}]}}: show them like the public demo, keep the Ref line.
+  const nested = object(body.error);
+  if (typeof nested.message !== "string" || !nested.message) return generic;
+  const fields = array(nested.fields).map((item) => object(item)).map((field) => `${text(field.path)} — ${text(field.message)}`);
+  const ref = generic.split("\n").slice(1).join("\n");
+  return [`${nested.message}${fields.length ? ` Check: ${fields.join("; ")}` : ""}`, ref].filter(Boolean).join("\n");
 }
 
 /** DORIS editor and process proof stay in memory (the draft map above) and are allocation-scoped. */
@@ -239,10 +248,16 @@ export function DorisPanel({
   const [detailCode, setDetailCode] = useState<string | null>(null);
   // The Estimated age has a half-typed value (number without unit or unit without number): no date refill (rules.ts).
   const [ageTyped, setAgeTyped] = useState(false);
+  // Interval fields hold a pair they could not serialize (field label -> message); Process refuses until each is fixed.
+  const intervalErrors = useRef<Record<string, string>>({});
+  const reportIntervalError = useCallback((key: string, error: string) => {
+    if (error) intervalErrors.current[key] = error;
+    else delete intervalErrors.current[key];
+  }, []);
   const detailSheet = detailCode ? <CodeDetailsSheet api={api} identity={identity} code={detailCode} onClose={() => setDetailCode(null)} /> : null;
   // The DORIS suggestion's title for the Step 1 quick-add (its certificate line, else WHO's codeinfo title).
-  const dorisCodes = suggestedDorisCodes(state.processing);
-  const dorisTitle = useCodeTitle(api, identity.vaSid, dorisCodes[0] ?? "", certificateTitle(state.processing?.certificate ?? {}, dorisCodes));
+  const dorisStem = stemAndKnownTitle(state.processing, state.processing?.certificate ?? {});
+  const dorisTitle = useCodeTitle(api, identity.vaSid, dorisStem.stem, dorisStem.known);
 
   const layout = useLayout();
   // The outer card blends with the case workspace card (app palette); inner primitives keep the zinc tokens.
@@ -353,6 +368,11 @@ export function DorisPanel({
   const process = async () => {
     const requestId = ++generation.current;
     const sentRevision = revision;
+    const intervalProblems = Object.values(intervalErrors.current);
+    if (intervalProblems.length) {
+      update((current) => ({ ...current, error: intervalProblems.join(" ") }));
+      return;
+    }
     const currentCertificate = processCertificate(certificate);
     const sourceLines = array(certificate.Part1).map(lineConditions);
     const lastFilledLine = sourceLines.reduce((last, conditions, index) => conditions.length ? index : last, -1);
@@ -586,6 +606,7 @@ export function DorisPanel({
   }
 
   return (
+    <IntervalErrorContext.Provider value={reportIntervalError}>
     <Card style={[layout.panel, pageCard]}>
       <EditorHeading title="DORIS certificate" subtitle={isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
@@ -623,6 +644,7 @@ export function DorisPanel({
       {detailSheet}
       <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>
     </Card>
+    </IntervalErrorContext.Provider>
   );
 }
 
@@ -674,6 +696,18 @@ function suggestedDorisCodes(run: unknown): string[] {
   const dr = object(doris.result);
   if (doris.status !== "completed" || dr.reject === true) return [];
   return [...new Set([dr.code, dr.stemCode].filter((code): code is string => typeof code === "string" && code !== ""))];
+}
+
+/**
+ * The DORIS stem (what the computed UCOD hangs off) and the title already known for it: the stored UCOD part's title,
+ * else the coder's typed line. The stem is the lookup code: the full computed UCOD ("5A14/BA41.Z") is not a WHO code.
+ */
+function stemAndKnownTitle(run: unknown, certificate: JsonObject): { stem: string; known: string } {
+  const codes = suggestedDorisCodes(run);
+  const dr = object(object(object(run).doris).result);
+  const stem = typeof dr.stemCode === "string" && dr.stemCode ? dr.stemCode : codes[0] ?? "";
+  const stemPart = parseUcodParts(object(run).ucod_parts).find((part) => part.role === "stem");
+  return { stem, known: stemPart?.title || certificateTitle(certificate, codes) };
 }
 
 /** Step 1 quick-add: DORIS's processed UCOD (code and title), as the web offers it above the search. */
@@ -737,7 +771,8 @@ function Step1AssignedCard({ initial }: { initial: WorkspaceAssessment | null })
 /** The saved Step 1 DORIS suggestion for information on masked Step 2, with its "Check before you decide" items. */
 function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: JsonObject | null; certificate: JsonObject | null; api: WorkspaceApi; vaSid: string; onDetails: (code: string) => void }) {
   const codes = suggestedDorisCodes(saved);
-  const title = useCodeTitle(api, vaSid, codes[0] ?? "", certificateTitle(certificate ?? {}, codes));
+  const { stem, known } = stemAndKnownTitle(saved, certificate ?? {});
+  const title = useCodeTitle(api, vaSid, stem, known);
   return (
     <Card>
       <CardTitle>DORIS result from Step 1 (for information)</CardTitle>
@@ -946,7 +981,7 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeT
     <Tile title="Administrative Data">
       {/* Top-aligned: the Sex tiles are tall and would otherwise push the other inputs down the row. */}
       <View style={[layout.grid, { alignItems: "flex-start" }]}>
-        <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Undetermined"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
+        <Cell><ChoiceField label="Sex" name="doris_sex" value={data.Sex} options={[[1, "Male"], [2, "Female"], [9, "Unknown"]]} badge={badge("Sex")} onChange={(value) => onChange("AdministrativeData", "Sex", value)} /></Cell>
         <Cell>
           <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
           <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} onTyped={onAgeTyped} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
@@ -1095,21 +1130,24 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
   const codeditStatus = processing?.codedit.status ?? (typeof savedCodedit.status === "string" ? savedCodedit.status : undefined);
   const dr = object(processing?.doris.result ?? savedDoris.result);
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
-  const ucodParts = processing?.ucod_parts ?? [];
+  // A reopened run (no live reply) carries its stored UCOD titles and notes beside the engine envelopes.
+  const ucodParts = parseUcodParts(processing?.ucod_parts ?? saved?.ucod_parts);
+  const whoNotes = processing?.who_notes ?? array(saved?.who_notes).filter((note): note is string => typeof note === "string");
   const [showDetails, setShowDetails] = useState(false);
-  const hasDetails = typeof dr.stemCode === "string" || typeof dr.uri === "string" || ucodParts.length > 1;
   // An empty report is no box at all; a run of blank lines reads as one blank line.
   const report = (value: unknown) => {
     const body = collapseBlankLines(value);
     return body ? <ReportBox>{body}</ReportBox> : null;
   };
+  const reports = [dr.report, cr.report, cr.tabularReport].map(report);
+  const hasDetails = typeof dr.stemCode === "string" || typeof dr.uri === "string" || ucodParts.length > 1 || reports.some(Boolean);
   return (
     <Card>
       <CardTitle>DORIS and CoDEdit</CardTitle>
       <Body>DORIS: {dorisStatus ?? "not processed"}</Body>
       {typeof dr.error === "string" ? <Alert variant="destructive">{dr.error}</Alert> : null}
       {dr.reject === true ? <Alert variant="destructive">DORIS rejected the certificate result.</Alert> : null}
-      {(processing?.who_notes ?? []).map((note) => <Muted key={note}>{note}</Muted>)}
+      {whoNotes.map((note) => <Muted key={note}>{note}</Muted>)}
       {ucodParts.length ? (
         <View>
           {ucodClusterLines(ucodParts).map((line) => <Body key={line}>{line}</Body>)}
@@ -1125,15 +1163,13 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
               {ucodParts.length > 1 ? <Muted>{UCOD_CLUSTER_EXPLANATION}</Muted> : null}
               {typeof dr.stemCode === "string" ? <Muted>Computed stem: {dr.stemCode}</Muted> : null}
               {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
+              {reports}
             </View>
           ) : null}
         </View>
       ) : null}
-      {report(dr.report)}
       <Separator />
       <Body>CoDEdit: {codeditStatus ?? "not processed"}</Body>
-      {report(cr.report)}
-      {report(cr.tabularReport)}
       {saved && typeof saved.final_choice === "string" ? <Body>Saved Step 1 choice: {saved.final_choice}</Body> : null}
     </Card>
   );

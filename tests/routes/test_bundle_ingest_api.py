@@ -1072,7 +1072,11 @@ class BundleIngestApiTests(BaseTestCase):
                          ("1B10.Z Respiratory tuberculosis", self.coder.user_id))
         self.assertEqual(final.doris_certificate["Part1"][0]["Conditions"][0]["Code"], "1B10.Z")
         # The server's engine results are kept, not the station's.
-        self.assertEqual(final.doris_result, {"status": "unavailable", "result": None})
+        self.assertEqual(
+            {key: final.doris_result[key] for key in ("status", "result")},
+            {"status": "unavailable", "result": None},
+        )
+        self.assertEqual(final.doris_result["ucod_parts"], [])
         # The station audit row the ingest writes for an applied record.
         audit = db.session.scalar(sa.select(MapCaseTransition).where(
             MapCaseTransition.death_id == draft.death_id, MapCaseTransition.action == "station_record",

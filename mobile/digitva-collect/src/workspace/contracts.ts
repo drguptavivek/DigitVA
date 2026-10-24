@@ -908,7 +908,7 @@ export function parseDorisCodeInfo(value: unknown): DorisCodeInfoReply {
 }
 
 /** Titles are a courtesy: a malformed or missing list shows the raw code instead of failing the reply. */
-function parseUcodParts(value: unknown): UcodPart[] {
+export function parseUcodParts(value: unknown): UcodPart[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item): UcodPart[] => {
     if (item === null || typeof item !== "object") return [];

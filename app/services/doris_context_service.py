@@ -61,6 +61,19 @@ def doris_initial(
     return doris_prefill_from_payload(joined_payload(version) if version else None)
 
 
+def _engine_envelope(envelope):
+    """The DORIS envelope ``{status, result}`` without the title and note fields stored beside it."""
+    if not isinstance(envelope, dict):
+        return envelope
+    return {key: envelope[key] for key in ("status", "result") if key in envelope}
+
+
+def _stored_extras(doris_result) -> dict:
+    """``ucod_parts`` and ``who_notes`` stored with a DORIS result; ``[]`` for rows saved before they were stored."""
+    stored = doris_result if isinstance(doris_result, dict) else {}
+    return {"ucod_parts": stored.get("ucod_parts") or [], "who_notes": stored.get("who_notes") or []}
+
+
 def saved_step1_processing(step1, redact_pii: bool) -> dict | None:
     """A saved Step 1's processing result, shown display-only, or ``None``.
 
@@ -72,9 +85,10 @@ def saved_step1_processing(step1, redact_pii: bool) -> dict | None:
         return None
     return {
         "certificate": _redacted(step1.doris_certificate, redact_pii),
-        "doris": step1.doris_result,
+        "doris": _engine_envelope(step1.doris_result),
         "codedit": step1.codedit_result,
         "final_choice": step1.va_antecedent_cod or "",
+        **_stored_extras(step1.doris_result),
     }
 
 
@@ -104,7 +118,11 @@ def masked_step2_context(step1, smartva, redact_pii: bool) -> dict:
             _redacted(step1.doris_certificate, redact_pii) if step1 else None
         ),
         "step1_doris_processing": (
-            {"doris": step1.doris_result, "codedit": step1.codedit_result}
+            {
+                "doris": _engine_envelope(step1.doris_result),
+                "codedit": step1.codedit_result,
+                **_stored_extras(step1.doris_result),
+            }
             if step1 and step1.doris_result is not None
             else None
         ),

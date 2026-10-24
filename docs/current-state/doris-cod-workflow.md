@@ -467,8 +467,16 @@ lookup leaves `title` empty and never fails the result. The Expo result panel
 (`doris_result_summary.js`) show "Underlying cause: CODE title" then "with CODE
 title (postcoordinated manifestation)", a one-line explanation of `/` and `&`,
 and keep the raw code and URI muted underneath. The parts are not part of the
-result digest or the process proof; saved (reloaded) processing has none and
-shows the raw codes only.
+result digest or the process proof. A save stores them inside the saved DORIS
+result (`doris_result` JSON, no schema change): `verify_process_submission`
+recomputes `ucod_parts` and `who_notes` from the verified certificate and DORIS
+envelope (never from the client), and `bundle_ingest_service` stores the same
+keys. The reopened Step 1 and Step 2 context (`doris_context_service.py`
+`saved_step1_processing`, `masked_step2_context`) returns them top-level beside
+`doris`, `codedit`, so the reopened result shows the same titles and notes.
+Rows saved before this has `[]` for both and show the raw codes as before. The
+Step 1 suggestion's title is looked up by its stem (`stemCode`), not by the full
+computed UCOD, which WHO does not know.
 ## DORIS call debug log (owner decision 2026-10-24)
 
 Policy note: to debug DORIS failures the owner approved logging the full data

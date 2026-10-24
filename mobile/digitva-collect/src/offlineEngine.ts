@@ -138,10 +138,33 @@ export function warmUpOfflineEngine(engine: OfflineEngine, log: (line: string) =
 }
 
 /** Schedule the warm-up after interactions plus `delayMs`; the returned function cancels one that has not started. */
+/**
+ * runAfterInteractions never fires while a looping animation (a spinner on the sign-in or unlock screen) holds an
+ * interaction handle, so the warm-up also starts after `fallbackMs` at the latest. The task runs once.
+ */
+export function afterInteractionsOrTimeout(task: () => void, fallbackMs = 5000): { cancel: () => void } {
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    task();
+  };
+  const timer = setTimeout(once, fallbackMs);
+  const handle = InteractionManager.runAfterInteractions(once);
+  return {
+    cancel: () => {
+      done = true;
+      clearTimeout(timer);
+      handle.cancel();
+    },
+  };
+}
+
 export function scheduleEngineWarmUp(
   engine: OfflineEngine = offlineEngine(),
   delayMs = 1000,
-  afterInteractions: (task: () => void) => { cancel: () => void } = (task) => InteractionManager.runAfterInteractions(task),
+  afterInteractions: (task: () => void) => { cancel: () => void } = afterInteractionsOrTimeout,
 ): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const handle = afterInteractions(() => {

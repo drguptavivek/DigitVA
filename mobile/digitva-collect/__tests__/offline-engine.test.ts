@@ -1,4 +1,6 @@
-import { createOfflineEngine, scheduleEngineWarmUp, warmUpOfflineEngine, type NativeEngine } from "../src/offlineEngine";
+import { InteractionManager } from "react-native";
+
+import { afterInteractionsOrTimeout, createOfflineEngine, scheduleEngineWarmUp, warmUpOfflineEngine, type NativeEngine } from "../src/offlineEngine";
 import { CHECK_CERTIFICATE, runEngineCheck } from "../src/offlineEngineCheck";
 
 function fakeNative(overrides: Partial<NativeEngine> = {}): NativeEngine {
@@ -216,5 +218,48 @@ describe("offlineEngine start-up sharing and recovery", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("afterInteractionsOrTimeout", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it("runs the task after the fallback when interactions never settle (a looping spinner)", () => {
+    jest.useFakeTimers();
+    const cancel = jest.fn();
+    jest.spyOn(InteractionManager, "runAfterInteractions").mockReturnValue({ cancel } as never);
+    const task = jest.fn();
+    afterInteractionsOrTimeout(task, 5000);
+    jest.advanceTimersByTime(4999);
+    expect(task).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(task).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs once when interactions settle first, and not again at the fallback", () => {
+    jest.useFakeTimers();
+    let settle!: () => void;
+    jest.spyOn(InteractionManager, "runAfterInteractions").mockImplementation(((fn: () => void) => {
+      settle = fn;
+      return { cancel: jest.fn() };
+    }) as never);
+    const task = jest.fn();
+    afterInteractionsOrTimeout(task, 5000);
+    settle();
+    expect(task).toHaveBeenCalledTimes(1);
+    jest.advanceTimersByTime(5000);
+    expect(task).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancel stops both paths", () => {
+    jest.useFakeTimers();
+    jest.spyOn(InteractionManager, "runAfterInteractions").mockReturnValue({ cancel: jest.fn() } as never);
+    const task = jest.fn();
+    afterInteractionsOrTimeout(task, 5000).cancel();
+    jest.advanceTimersByTime(6000);
+    expect(task).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,63 @@
+# Collect Plus: experimental offline coding on Android
+
+- **Status:** phase A in progress
+- **Priority:** high (owner request 2026-10-24)
+- **Created:** 2026-10-24
+- **Bead:** digitva-hs7e
+- **Goal:** An experimental Android build, "DigitVA Collect Plus", that adds the Expo
+  coding workspace to digitva-collect and runs ICD-11 search, codeinfo, DORIS and
+  CoDEdit on the phone. A coder self-codes a case on the phone and the result syncs
+  to the server. We profile memory pressure and latency during coding, search and
+  DORIS.
+
+## Decisions
+
+- **App:** a build variant of `mobile/digitva-collect` (owner 2026-10-24), not a new
+  `digitva-coder` project. Distinct applicationId suffix `.plus`, its own name and
+  versionName, and it installs beside the normal app. It is adb or local install only:
+  never uploaded to staging `/download/android`, never pinned in `docker-compose.yml`.
+  The plain collect build stays data-collection only and stays byte-for-byte unaffected
+  when the variant is off.
+- **Engine:** our 2026-10-21 NativeAOT spike, preserved in
+  `private/icd11-offline-spike/` (gitignored, 934 MB). It runs WHO ICD-API 2.6.0 code
+  in-process, the same version the staging server uses (`whoicd/icd-api:2.6.0`), and
+  exposes `digitva_icd11_{init,search,codeinfo,doris,codedit,free}`. It was compiled
+  on macOS. It is chosen over the third-party prototype (substring search only,
+  DORIS 1.2.1, which differs from the server, Linux-only build). The 131 MB `.so` and
+  its data are never committed; the variant build copies them from `private/`.
+- **Licence:** the owner ruled it not breached (2026-10-21). This is also why the
+  build stays off public downloads.
+- **Sync (phase B):** the phone uses the local engine for search, codeinfo and DORIS.
+  Before the final save, when online, it calls the server's existing DORIS process
+  endpoint to get the server result and `process_token`, compares that with the
+  offline result (a parity record kept locally, in the encrypted DB), and then saves
+  through the existing API. No new server endpoint in the first cut. Persisting
+  server-side "offline" provenance needs an additive migration; it is a later step,
+  taken only if the owner asks.
+- **Engine safety:** never log the engine's `{"error"}` payloads (stack traces, and
+  possibly certificate text). Init runs once per process on a worker thread; a
+  failure is sticky until the app restarts.
+
+## Phases
+
+- **A (now, new files only, no overlap with DORIS parity writers gfx8 and 4m61):**
+  1. The Plus variant (app.config, config plugins: arm64-only, extracted native libs).
+  2. A local Expo module `digitva-icd11` (Kotlin, JNI shim adapted from
+     `private/icd11-offline-spike/apptest/jni/shim.c`, engine data copied to `filesDir`).
+  3. A JS `offlineEngine` API.
+  4. Native coding and workspace routes enabled in Plus only.
+  5. An adb profiling script.
+- **B (after gfx8 and 4m61 merge):**
+  1. In Plus, route DorisPanel search, codeinfo and process to the offline engine.
+  2. A native search UI, because the picker WebView host is served by the server.
+  3. The parity check and sync at final save.
+  4. An offline case queue.
+- **C:** a profiling run comparing baseline 0.3.10, the engine in the main process, and
+  the engine in an `:icd11` process. Steps: cold start, open case, 5 searches, process,
+  save, sync. Measure PSS, lmk/trim and latency on the SM-E146B (6 GB model, MemTotal 5.3 GB), which is representative: coders have at least 6 GB phones (owner 2026-10-24).
+
+## Done means
+
+- A measured table: baseline vs in-process vs `:icd11`.
+- One case self-coded on the phone and visible on staging, with a parity verdict
+  between the offline and server DORIS results.

@@ -23,7 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger
  * server). The engine lives in the ":icd11" process (Icd11Service); this class only forwards requests to it and
  * resolves the JS promises, so the UI process never blocks or loads the engine. The service serializes requests; init
  * happens once per service process and a failed init is sticky until that process restarts. Engine error payloads
- * never reach here: JS gets a status number or a short error code.
+ * never reach here: JS gets a status number or a short error code. Progress reports from an init become the
+ * "icd11Progress" event ({ phase, percent }, percent -1 when unknown) and never resolve a promise.
  */
 class DigitvaIcd11Module : Module() {
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -31,6 +32,10 @@ class DigitvaIcd11Module : Module() {
   private val pending = ConcurrentHashMap<Int, Promise>()
   private val replies = Messenger(object : Handler(Looper.getMainLooper()) {
     override fun handleMessage(msg: Message) {
+      if (msg.what == Icd11Service.WHAT_PROGRESS) {
+        sendEvent("icd11Progress", mapOf("phase" to msg.data.getString("phase"), "percent" to msg.data.getInt("percent")))
+        return
+      }
       pending.remove(msg.arg1)?.resolve(Icd11Service.toMap(msg.data))
     }
   })
@@ -90,6 +95,8 @@ class DigitvaIcd11Module : Module() {
 
   override fun definition() = ModuleDefinition {
     Name("DigitvaIcd11")
+
+    Events("icd11Progress")
 
     // Whether this build carries the engine library; does not start it.
     AsyncFunction("isAvailable") {

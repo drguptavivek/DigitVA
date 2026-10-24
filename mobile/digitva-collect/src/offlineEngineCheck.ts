@@ -1,4 +1,4 @@
-import type { EngineInit, EngineResult, OfflineEngine } from "./offlineEngine";
+import type { EngineInit, EngineProgress, EngineResult, EngineSetup, OfflineEngine } from "./offlineEngine";
 
 /**
  * Synthetic adult certificate (acute myocardial infarction over coronary atherosclerosis, type 2 diabetes in Part 2)
@@ -62,6 +62,21 @@ const field = (data: unknown, key: string): string => {
   return typeof value === "string" ? value : "?";
 };
 
+/** One line for an init in progress, e.g. "copy 40%" or "setup" (percent unknown). */
+export function describeProgress(progress: EngineProgress): string {
+  return progress.percent === undefined ? progress.phase : `${progress.phase} ${progress.percent}%`;
+}
+
+/**
+ * How the first setup ran, with the files it changed (names and sizes; no hashes). "downloaded" means the setup init
+ * fetched WHO files; "shipped" means only the APK's copies were used.
+ */
+export function describeSetup(setup: EngineSetup): string {
+  if (setup.mode !== "downloaded") return "shipped copies";
+  const files = setup.files.map((file) => `${file.path} (${file.size} B)`).join("; ");
+  return `downloaded ${setup.files.length} files${files ? `: ${files}` : ""}`;
+}
+
 /** Runs init, search, codeinfo, DORIS (cold and warm) and CoDEdit once, reporting each step's timings. */
 export async function runEngineCheck(engine: OfflineEngine, onStep: (step: CheckStep) => void = () => undefined): Promise<CheckStep[]> {
   const steps: CheckStep[] = [];
@@ -81,6 +96,7 @@ export async function runEngineCheck(engine: OfflineEngine, onStep: (step: Check
     note: init.ok ? `copy ${init.copyMs.toFixed(0)} ms, engine ${init.initMs.toFixed(0)} ms${init.cached ? " (already up)" : ""}${init.phases ? ` [${init.phases}]` : ""}` : init.error,
   });
   if (!init.ok) return steps;
+  if (init.setup) push({ name: "setup", ok: true, ms: 0, note: describeSetup(init.setup) });
   push({ name: "search", ...summarize(await engine.search("myocardial infarction"), (data) => {
     const entities = (data as { destinationEntities?: unknown[] } | null)?.destinationEntities;
     return `${Array.isArray(entities) ? entities.length : 0} results`;

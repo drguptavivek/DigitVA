@@ -17,13 +17,44 @@ export type EngineOp = "search" | "codeinfo" | "doris" | "codedit";
 /** What the native module returns (modules/digitva-icd11/android/.../DigitvaIcd11Module.kt). */
 export interface NativeEngine {
   isAvailable(): Promise<boolean>;
-  init(): Promise<{ ok: boolean; error?: string; copyMs: number; initMs: number; ms: number; cached: boolean; phases?: string }>;
+  init(): Promise<{ ok: boolean; error?: string; copyMs: number; initMs: number; ms: number; cached: boolean; phases?: string; setup?: string }>;
   call(op: EngineOp, input: string): Promise<{ ok: boolean; error?: string; status: number; text?: string; nativeMs: number }>;
+  addListener?(event: "icd11Progress", listener: (progress: { phase: string; percent: number }) => void): { remove(): void };
+}
+
+/**
+ * How the engine's first setup ran: "downloaded" (the setup init fetched WHO files; `files` are what it changed or
+ * added, names and sizes only) or "shipped" (only the copies in the APK). "attempt" is never returned once init is ok.
+ */
+export interface EngineSetup {
+  mode: "downloaded" | "shipped" | "attempt";
+  files: { path: string; size: number }[];
 }
 
 export type EngineInit =
-  | { ok: true; ms: number; copyMs: number; initMs: number; cached: boolean; phases?: string }
+  | { ok: true; ms: number; copyMs: number; initMs: number; cached: boolean; phases?: string; setup?: EngineSetup }
   | { ok: false; error: string; ms: number };
+
+/** An init in progress: `phase` is copy, setup, engine or ready; `percent` is 0-100 when known. */
+export interface EngineProgress {
+  phase: string;
+  percent?: number;
+}
+
+/** Parses the native setup record. Anything unexpected reads as no setup record. */
+export function parseSetup(text: string | undefined): EngineSetup | undefined {
+  if (!text) return undefined;
+  try {
+    const value = JSON.parse(text) as { mode?: unknown; files?: unknown };
+    if (typeof value.mode !== "string" || !Array.isArray(value.files)) return undefined;
+    const files = value.files
+      .filter((file) => typeof file?.path === "string" && typeof file?.size === "number")
+      .map((file: { path: string; size: number }) => ({ path: file.path, size: file.size }));
+    return { mode: value.mode as EngineSetup["mode"], files };
+  } catch {
+    return undefined;
+  }
+}
 
 export type EngineResult =
   | { ok: true; data: unknown; status: number; ms: number; nativeMs: number }
@@ -37,6 +68,8 @@ export interface OfflineEngine {
   /** `certificate` is the DORIS certificate JSON object the server's process endpoint takes. */
   doris(certificate: unknown): Promise<EngineResult>;
   codedit(certificate: unknown): Promise<EngineResult>;
+  /** Progress of the init while it runs (copy, setup, engine, ready). Returns the unsubscribe. */
+  onProgress(listener: (progress: EngineProgress) => void): () => void;
 }
 
 const clock = (): number => globalThis.performance?.now?.() ?? Date.now();
@@ -45,6 +78,11 @@ const clock = (): number => globalThis.performance?.now?.() ?? Date.now();
 export function createOfflineEngine(native: NativeEngine | null | undefined, now: () => number = clock): OfflineEngine {
   let inflight: Promise<EngineInit> | undefined;
   let ready: Extract<EngineInit, { ok: true }> | undefined;
+  const progressListeners = new Set<(progress: EngineProgress) => void>();
+  native?.addListener?.("icd11Progress", (event) => {
+    const progress: EngineProgress = { phase: event.phase, percent: event.percent < 0 ? undefined : event.percent };
+    for (const listener of progressListeners) listener(progress);
+  });
 
   /** One init per engine process: concurrent callers share the in-flight request, later ones get it as cached. */
   function init(): Promise<EngineInit> {
@@ -56,7 +94,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
         const raw = await native.init();
         const ms = now() - start;
         if (!raw.ok) return { ok: false, error: raw.error ?? "init_failed", ms };
-        return (ready = { ok: true, ms, copyMs: raw.copyMs, initMs: raw.initMs, cached: raw.cached, phases: raw.phases });
+        return (ready = { ok: true, ms, copyMs: raw.copyMs, initMs: raw.initMs, cached: raw.cached, phases: raw.phases, setup: parseSetup(raw.setup) });
       } catch {
         return { ok: false, error: "native_error", ms: now() - start };
       }
@@ -114,6 +152,12 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
     codeinfo: (code) => run("codeinfo", code),
     doris: (certificate) => run("doris", JSON.stringify(certificate)),
     codedit: (certificate) => run("codedit", JSON.stringify(certificate)),
+    onProgress(listener) {
+      progressListeners.add(listener);
+      return () => {
+        progressListeners.delete(listener);
+      };
+    },
   };
 }
 

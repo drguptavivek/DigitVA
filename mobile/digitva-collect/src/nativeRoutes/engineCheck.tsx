@@ -9,7 +9,7 @@ import { Text, View } from "react-native";
 
 import { isPlusVariant } from "../appVariant";
 import { offlineEngine } from "../offlineEngine";
-import { runEngineCheck, type CheckStep } from "../offlineEngineCheck";
+import { describeProgress, runEngineCheck, type CheckStep } from "../offlineEngineCheck";
 import { Button, Screen, useUiStyles } from "../ui";
 
 export default function EngineCheck() {
@@ -18,18 +18,27 @@ export default function EngineCheck() {
   const { run } = useLocalSearchParams<{ run?: string }>();
   const [steps, setSteps] = useState<CheckStep[]>([]);
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState("");
   const started = useRef(false);
 
   const start = useCallback(async () => {
     setRunning(true);
     setSteps([]);
+    const engine = offlineEngine();
+    const unsubscribe = engine.onProgress((event) => {
+      const line = describeProgress(event);
+      setProgress(line);
+      console.log(`ICD11CHECK progress ${line}`);
+    });
     try {
-      await runEngineCheck(offlineEngine(), (step) => {
+      await runEngineCheck(engine, (step) => {
         setSteps((previous) => [...previous, step]);
         // Timings and short codes only: no certificate or engine payload.
         console.log(`ICD11CHECK ${step.name} ok=${step.ok} note=${step.note} ms=${step.ms.toFixed(1)}${step.nativeMs === undefined ? "" : ` nativeMs=${step.nativeMs.toFixed(1)}`}`);
       });
     } finally {
+      unsubscribe();
+      setProgress("");
       setRunning(false);
     }
   }, []);
@@ -48,6 +57,7 @@ export default function EngineCheck() {
         Experimental. Runs the on-phone ICD-11 / DORIS engine once. The first run copies and indexes the data (slow).
       </Text>
       <Button label="Run engine check" loading={running} disabled={running} onPress={() => void start()} />
+      {progress ? <Text style={styles.muted} testID="engine-progress">{`Starting the engine: ${progress}`}</Text> : null}
       {steps.map((step) => (
         <View key={step.name} style={styles.card} testID={`engine-step-${step.name}`}>
           <Text accessibilityRole="header" style={styles.headline}>{`${step.name}: ${step.ok ? "ok" : "FAILED"}`}</Text>

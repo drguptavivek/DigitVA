@@ -70,10 +70,18 @@ describe("Expo release configuration", () => {
   });
 
   describe("Collect Plus variant", () => {
-    const originalVariant = process.env.APP_VARIANT;
+    // CI release jobs export these for the whole job; the variant tests must not depend on them.
+    const keys = ["APP_VARIANT", "DIGITVA_ANDROID_RELEASE_BUILD", "DIGITVA_ANDROID_VERSION_CODE"];
+    const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    beforeEach(() => {
+      delete process.env.DIGITVA_ANDROID_RELEASE_BUILD;
+      delete process.env.DIGITVA_ANDROID_VERSION_CODE;
+    });
     afterEach(() => {
-      if (originalVariant === undefined) delete process.env.APP_VARIANT;
-      else process.env.APP_VARIANT = originalVariant;
+      for (const key of keys) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
     });
     const resolve = () => appConfig({ config: require("../app.json").expo });
 

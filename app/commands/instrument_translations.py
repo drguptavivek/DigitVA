@@ -390,5 +390,21 @@ def status(instrument_code, extensions):
                 )
 
 
+@instrument_translations_group.command("machine-translate")
+@click.option("--locale", "locales", multiple=True, help="Limit to a locale; repeatable.")
+@click.option("--dry-run", is_flag=True, help="Count what would be drafted; call no provider.")
+@click.option("--limit", type=click.IntRange(min=1), default=None, help="At most N strings per locale.")
+def machine_translate(locales, dry_run, limit):
+    """Draft missing questionnaire strings with Azure (never served until accepted)."""
+    from app.services import instrument_translation_machine_job as job
+
+    try:
+        status = job.run(locales or None, dry_run=dry_run, limit=limit)
+    except (InstrumentTranslationError, job.AlreadyRunning, job.azure.NotConfigured) as exc:
+        raise click.ClickException(str(exc))
+    for code, counts in status["results"].items():
+        click.echo(f"{code}: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
+
+
 def init_app(app):
     app.cli.add_command(instrument_translations_group)

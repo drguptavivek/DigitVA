@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-24
 ---
 
 # VA Form Project Configuration Policy
@@ -759,6 +759,43 @@ every other locale still falls back to English for these strings** and needs
 its own drafts. The English-to-Hindi drafting was LLM work and is explicitly
 unreviewed. `MAX_TRANSLATION_TEXT_CHARS` was raised from 4000 to 16000 because
 the longest guidance note is about 6,400 characters in English.
+
+### Azure machine drafts for missing questionnaire strings (decided 2026-10-24, `digitva-m2ve`)
+
+The owner extended the UI-string machine drafting (`docs/policy/ui-strings.md`,
+"Machine candidates") to the questionnaire. An administrator can ask for the
+strings a language lacks to be drafted by Azure Translator, then review them.
+
+- **What is drafted:** every reference item (question labels, hints, guidance
+  notes, constraint messages, choice labels, DigitVA hints and messages --
+  whatever `reference_items` covers) of a locale that has **no row at all** in
+  `map_instrument_translations` and **no pending suggestion**
+  (`map_instrument_translation_suggestions`) for that locale. A row of any
+  source, an empty-English item, or a pending suggestion is left alone.
+- **Where it is stored:** as `source='machine'` rows in
+  `map_instrument_translations`, the storage the section above already defines
+  (not served, not counted, shown as "Machine draft awaiting acceptance",
+  promoted by Accept or Edit). A suggestion needs a project and a suggesting
+  user, so the suggestion queue does not fit; no new table and no migration.
+  Insert only (`ON CONFLICT DO NOTHING`): it never updates a row, and it does
+  not bump the locale version because nothing it writes is served.
+- **What is sent:** the English questionnaire text only, never case or user
+  data. `${...}`, `{name}` and markup tags are shielded from translation.
+- **Checks:** a draft is dropped, and counted as rejected, if it fails
+  `validate_translation_text` or its `${...}` references, `{...}` placeholders
+  or markup tags differ from the English.
+- **Languages:** the locales that already have a `mas_instrument_locales` row
+  and are in the machine set of `docs/policy/ui-strings.md`. A locale without a
+  row named explicitly is reported as an error; the run does not create one.
+- **Who:** admin only, from a button on the Instrument Translations page or
+  `flask instrument-translations machine-translate [--locale] [--dry-run] [--limit]`.
+  One run at a time (Redis lock); the last run's per-language counts (created,
+  rejected, skipped, errors) are shown on the page. `--dry-run` calls no
+  provider. Without the Azure settings the page and command say so and refuse.
+- **Caution shown in the UI:** "Machine drafts of medical terms must be checked
+  by a clinician-translator before accepting."
+- **Batching:** requests go to Azure in batches within its element and
+  character limits, with backoff on 429 and 5xx (the shared client).
 
 ### A bulk re-import demotes an approved locale, after warning (decided 2026-09-20)
 

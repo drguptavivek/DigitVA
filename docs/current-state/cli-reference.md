@@ -266,6 +266,18 @@ Translator (needs `AZURE_TRANSLATOR_KEY` and `AZURE_TRANSLATOR_REGION`).
 Insert-only, never served until accepted. `--dry-run` counts and calls no
 provider. Policy: `docs/policy/ui-strings.md`.
 
+## `instrument-translations machine-translate`
+
+```bash
+docker compose exec minerva_app_service uv run flask instrument-translations machine-translate [--locale hi]... [--dry-run] [--limit N]
+```
+
+Drafts the questionnaire strings a language has no translation or pending
+suggestion for, as `source='machine'` rows (needs `AZURE_TRANSLATOR_KEY` and
+`AZURE_TRANSLATOR_REGION`). Insert-only, never served until accepted or edited.
+`--dry-run` counts and calls no provider. Policy:
+`docs/policy/va-form-project-configuration.md`.
+
 ## `icd11` — ICD-11 MMS master data
 
 ```bash

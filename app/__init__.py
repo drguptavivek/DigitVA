@@ -402,6 +402,7 @@ def create_app(config_class=None, register_routes=True):
     from app import utils #noqa
     from app.tasks import kpi_tasks #noqa
     from app.tasks import ui_string_tasks #noqa
+    from app.tasks import instrument_translation_tasks #noqa
 
     from app.commands.odk_sync import init_app as init_odk_sync_commands
     init_odk_sync_commands(app)

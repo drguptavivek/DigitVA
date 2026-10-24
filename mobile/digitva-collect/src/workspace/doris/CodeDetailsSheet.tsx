@@ -66,3 +66,30 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
     </Modal>
   );
 }
+
+/**
+ * The VA cause a chosen ICD-11 code maps to, under the selection: "Associated VA codes: VAs-xx.xx title" and its case
+ * definition behind a toggle. Nothing renders while loading or when the code has no VA cause.
+ */
+export function AssociatedVaCodes({ api, code }: { api: WorkspaceApi; code: string }) {
+  const [definition, setDefinition] = useState<VaDefinition | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    setDefinition(null);
+    setOpen(false);
+    api.getVaDefinitionForIcd(code)
+      .then((found) => { if (live) setDefinition(found); })
+      .catch(() => { if (live) setDefinition(null); });
+    return () => { live = false; };
+  }, [api, code]);
+  if (!definition) return null;
+  const text = definitionPlainText(definition.definition_html);
+  return (
+    <View testID="associated-va-codes" style={{ gap: gap.xs }}>
+      <Body>{`Associated VA codes: ${definition.va_code} ${definition.title}`}</Body>
+      {text ? <Button label={open ? "Hide case definition" : "Case definition"} variant="outline" size="sm" onPress={() => setOpen(!open)} /> : null}
+      {open ? <Muted>{text}</Muted> : null}
+    </View>
+  );
+}

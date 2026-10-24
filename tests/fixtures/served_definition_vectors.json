@@ -1,6 +1,6 @@
 {
  "rule": "app/services/served_form_service.py served_definition: filter_definition over the enabled extensions that are composed-file tags, top-level extensions sorted, then json.dumps(ensure_ascii=False, separators=(',', ':'), sort_keys=True) UTF-8; sha256 of those bytes.",
- "version": "2026081401-0e105c1d52",
+ "version": "2026081401-5a091ba784",
  "cases": [
   {
    "name": "none",
@@ -9,8 +9,8 @@
     "intake_screen"
    ],
    "extensions": [],
-   "sha256": "efc91e9033b530b64e0fae47c1ce050a9942e5c4ef0672c8856b6ad76b2ca816",
-   "bytes": 594621
+   "sha256": "6203b438631d918e643132796e628e5680a6ea5acb927d7b8f864bd3226cfec3",
+   "bytes": 596205
   },
   {
    "name": "single_module",
@@ -20,8 +20,8 @@
    "extensions": [
     "social_autopsy"
    ],
-   "sha256": "42f0c44fa38e878bc2d3afa4729cb4309e38e53eb5405a067fb9da985e1e18fd",
-   "bytes": 626607
+   "sha256": "1745190758df262e9dce6fecbe1c0968e76906caa61e4d3ab61871e15945ae11",
+   "bytes": 628191
   },
   {
    "name": "typical_project",
@@ -41,8 +41,8 @@
     "medical_records",
     "narration_language"
    ],
-   "sha256": "5828ed37ec2708d91013fabb77c256feddacb34af1e5ab9916105ce747add7b6",
-   "bytes": 620868
+   "sha256": "01881784bc23036a4988e60928258f6b6409a483fd708f11e84a8d76573a1d68",
+   "bytes": 622452
   },
   {
    "name": "all",
@@ -64,8 +64,8 @@
     "narration_language",
     "social_autopsy"
    ],
-   "sha256": "d06b5e911c1aa0f6b713316da8f33729b42e1b4cd6cbab09a7e1d91746413b60",
-   "bytes": 652855
+   "sha256": "44afa3eae0d6b2c81e318878662300ca8c1a78909907a914e934d2c4f6d6f97f",
+   "bytes": 654439
   }
  ]
 }

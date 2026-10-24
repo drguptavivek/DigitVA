@@ -3180,7 +3180,8 @@
         "en": "<span style=\"color:blue\">Record the reported place of birth. Specify here village and district. A question on the facility and circumstances will be asked later. Enter a “-“ if this information is not available or unknown. </span>"
       },
       "hint": {
-        "en": "Specify here village and district. A question on the facility and circumstances will be asked later. Enter a “-“ if this information is not available."
+        "en": "Write the name of the place of birth: village or town, and district. Do not write 'home' or 'hospital' here. Specify here village and district. A question on the facility and circumstances will be asked later. Enter a “-“ if this information is not available.",
+        "hi": "जन्म स्थान का नाम लिखें: गाँव या कस्बा और ज़िला। यहाँ 'घर' या 'अस्पताल' न लिखें।"
       },
       "label": {
         "en": "(Id10054) What was her/his place of birth?"
@@ -3214,7 +3215,8 @@
         "en": "<span style=\"color:blue\">For perinatal cases, just ask for the address of the health facility or if released and at home, the home address. For neonatal deaths, the place of residence will usually be the same location as where the death occurred.</span>"
       },
       "hint": {
-        "en": "For perinatal cases, just ask for the address of the health facility or if released and at home, the home address."
+        "en": "Write the address of the usual residence: village/ward or town, district, state. It is filled in from the registration; correct it if it is wrong. For perinatal cases, just ask for the address of the health facility or if released and at home, the home address.",
+        "hi": "सामान्य निवास का पता लिखें: गाँव/वार्ड या कस्बा, ज़िला, राज्य। यह पंजीकरण से भरा गया है; गलत हो तो सुधार दें।"
       },
       "label": {
         "en": "(Id10055) What was her/his place of usual residence? (the place where the person lived most of the year)"
@@ -3248,7 +3250,8 @@
         "en": "<span style=\"color:blue\">You can fill in the city/town instead of village if more applicable. The question should be customized specifically for the local context by the project team.</span>"
       },
       "hint": {
-        "en": "<span style=\"color:red\">Should be completed as instructed by the central office.</span>"
+        "en": "Write the address where the death happened: village/ward or town, district, state. Do not write 'home' or 'hospital' here — that is the next question. <span style=\"color:red\">Should be completed as instructed by the central office.</span>",
+        "hi": "मृत्यु जिस स्थान पर हुई उसका पता लिखें: गाँव/वार्ड या कस्बा, ज़िला, राज्य। यहाँ 'घर' या 'अस्पताल' न लिखें — वह अगला प्रश्न है।"
       },
       "label": {
         "en": "(Id10057) Where did the death occur? (specify country, province, district, village)"
@@ -27939,7 +27942,8 @@
         "en": "<span style=\"color:blue\">Record the full details of place of registration. This may include the name of the village/town/municipality where the death was registered. Enter “-“, if this information is not available. The project site may add a drop-down list of location options.</span>"
       },
       "hint": {
-        "en": "Enter a “-“ if this information is not available."
+        "en": "Write the name of the place or office where the death was registered (town and district), not a category. Enter a “-“ if this information is not available.",
+        "hi": "जिस स्थान या कार्यालय में मृत्यु पंजीकृत हुई उसका नाम लिखें (कस्बा और ज़िला), कोई श्रेणी नहीं।"
       },
       "label": {
         "en": "(Id10072) [Place of registration]"
@@ -33977,5 +33981,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-0e105c1d52"
+  "version": "2026081401-5a091ba784"
 }

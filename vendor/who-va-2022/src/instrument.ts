@@ -25,6 +25,37 @@ const NOT_BEFORE_DEATH =
   "if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})";
 
 /**
+ * Owner decision 2026-10-24 (digitva-xrqv): WHO's free-text place questions
+ * keep their wording; DigitVA prepends a hint saying an address or place name
+ * is wanted, not a category. WHO's own English hint stays after it (WHO has no
+ * Hindi hint). Constraints and relevance are untouched.
+ */
+export const PLACE_ADDRESS_HINTS: Record<string, { en: string; hi: string }> = {
+  Id10054: {
+    en: "Write the name of the place of birth: village or town, and district. Do not write 'home' or 'hospital' here.",
+    hi: "जन्म स्थान का नाम लिखें: गाँव या कस्बा और ज़िला। यहाँ 'घर' या 'अस्पताल' न लिखें।"
+  },
+  Id10055: {
+    en: "Write the address of the usual residence: village/ward or town, district, state. It is filled in from the registration; correct it if it is wrong.",
+    hi: "सामान्य निवास का पता लिखें: गाँव/वार्ड या कस्बा, ज़िला, राज्य। यह पंजीकरण से भरा गया है; गलत हो तो सुधार दें।"
+  },
+  Id10057: {
+    en: "Write the address where the death happened: village/ward or town, district, state. Do not write 'home' or 'hospital' here — that is the next question.",
+    hi: "मृत्यु जिस स्थान पर हुई उसका पता लिखें: गाँव/वार्ड या कस्बा, ज़िला, राज्य। यहाँ 'घर' या 'अस्पताल' न लिखें — वह अगला प्रश्न है।"
+  },
+  Id10072: {
+    en: "Write the name of the place or office where the death was registered (town and district), not a category.",
+    hi: "जिस स्थान या कार्यालय में मृत्यु पंजीकृत हुई उसका नाम लिखें (कस्बा और ज़िला), कोई श्रेणी नहीं।"
+  }
+};
+
+function withPlaceAddressHint(question: InstrumentQuestion): InstrumentQuestion {
+  const added = PLACE_ADDRESS_HINTS[question.name]!;
+  const en = question.hint.en ? `${added.en} ${question.hint.en}` : added.en;
+  return { ...question, hint: { ...question.hint, en, hi: added.hi } };
+}
+
+/**
  * Owner rule 2026-10-24: the registration date is neither in the future nor
  * before the death (the day when known, else only the year). Always on, so the
  * server's re-derivation enforces it too.
@@ -154,6 +185,7 @@ export function createWhoVa2022Instrument(
     if (question.name === "Id10051") return { ...question, defaultValue: "yes" };
     if (question.name === "Id10053") return { ...question, defaultValue: "-" };
     if (question.name === "Id10071") return withRegistrationDateChecks(question);
+    if (question.name in PLACE_ADDRESS_HINTS) return withPlaceAddressHint(question);
     return question;
   });
 

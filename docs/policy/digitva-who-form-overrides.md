@@ -42,6 +42,19 @@ Always-on core override in `vendor/who-va-2022/src/instrument.ts` (`withRegistra
 
 One constraint, two messages: the engine gained `constraintReasons` (question field; when `constraint` fails, the first reason whose own constraint fails supplies the message, else `constraintMessage`). The change alters the semantic signature, so the composed definition version moved from `2026081401-09bfef9a99` to `2026081401-0e105c1d52`. Drafts and submissions pinned to the older version keep it (the server's `_stored_rules(version)`, the phone's `translationsForDraft` pack fallback) and do not get the check. The server only records constraint disagreements (`derive_validation_errors`, `Id10071` / `constraint`); it never refuses a submission (digitva-cal.2).
 
+### Free-text place questions: address hints (owner decision 2026-10-24, `digitva-xrqv`)
+
+Interviewers wrote a category ("home", "hospital") into the address question `Id10057`. WHO question text stays unchanged; DigitVA adds a hint (en + hi) to each free-text place question, as an always-on core override in `vendor/who-va-2022/src/instrument.ts` (`PLACE_ADDRESS_HINTS`, `withPlaceAddressHint`). The new hint comes first; WHO's own English hint (if any) follows it. Labels, relevance, constraints and requiredness are untouched. Categorical place questions (`Id10058`, `doris_injury_place`) and "specify other" follow-ups (`sa06_a`) are not touched; `visit_address` already says an address is wanted.
+
+| Question | English hint added | Hindi hint |
+|---|---|---|
+| `Id10054` place of birth | Write the name of the place of birth: village or town, and district. Do not write 'home' or 'hospital' here. | जन्म स्थान का नाम लिखें: गाँव या कस्बा और ज़िला। यहाँ 'घर' या 'अस्पताल' न लिखें। |
+| `Id10055` usual residence | Write the address of the usual residence: village/ward or town, district, state. It is filled in from the registration; correct it if it is wrong. | सामान्य निवास का पता लिखें: गाँव/वार्ड या कस्बा, ज़िला, राज्य। यह पंजीकरण से भरा गया है; गलत हो तो सुधार दें। |
+| `Id10057` place of death (address) | Write the address where the death happened: village/ward or town, district, state. Do not write 'home' or 'hospital' here — that is the next question. | मृत्यु जिस स्थान पर हुई उसका पता लिखें: गाँव/वार्ड या कस्बा, ज़िला, राज्य। यहाँ 'घर' या 'अस्पताल' न लिखें — वह अगला प्रश्न है। |
+| `Id10072` place of registration | Write the name of the place or office where the death was registered (town and district), not a category. | जिस स्थान या कार्यालय में मृत्यु पंजीकृत हुई उसका नाम लिखें (कस्बा और ज़िला), कोई श्रेणी नहीं। |
+
+Hints are part of the composed definition, so the version moved from `2026081401-0e105c1d52` to `2026081401-5a091ba784`; drafts pinned to the older version keep their old hints.
+
 ### Defaults and prefill for new interviews (owner decision 2026-10-23)
 
 Always-on core overrides in `vendor/who-va-2022/src/instrument.ts`, carried as `defaultValue` in the composed definition. The session applies a literal `defaultValue` only when the key is absent from the initial data, so prefill and saved answers win. They affect new interviews on the new definition version; drafts and saved answers pinned to an older version keep that version's definition and are untouched.

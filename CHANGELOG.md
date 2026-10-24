@@ -5,6 +5,7 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-24
 
+- **Address hints on free-text place questions** (`digitva-xrqv`): `Id10054`, `Id10055`, `Id10057`, `Id10072` gain an en + hi hint saying an address or place name is wanted, not a category. Definition version `2026081401-5a091ba784`; policy `docs/policy/digitva-who-form-overrides.md`.
 - **Date of registration check** (`digitva-y5te`): `Id10071` cannot be in the future or before the date of death (year only when the day is unknown). Definition version `2026081401-0e105c1d52`; policy in `docs/policy/digitva-who-form-overrides.md`.
 - **Phone app 0.3.3** (`3c2131d03`): release of everything below. CI run
   `android-v0.3.3` awaits approval; until it is pinned, staging serves a

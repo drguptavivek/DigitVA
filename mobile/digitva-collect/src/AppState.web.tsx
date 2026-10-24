@@ -16,6 +16,7 @@ import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
 import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useIdleSignOut } from "./idleSignOut";
+import { clearWebRecall } from "./interviewerRecall";
 import { createBrowserDefinitionCache } from "./client/formDefinitionCache";
 import { loadBrowserSession } from "./client/session";
 import type { BootstrapResult } from "./client/api";
@@ -30,6 +31,8 @@ const AUTHORITATIVE_REFRESH_INTERVAL_MS = 15 * 60_000;
 // logout is repeated until the session answers 401.
 const LOGOUT_ATTEMPTS = 4;
 const LOGOUT_RETRY_MS = 400;
+// Pending saves get this long to finish before a sign-out ends the session.
+const SIGN_OUT_SAVE_WAIT_MS = 5000;
 
 type BrowserDefinitionCache = ReturnType<typeof createBrowserDefinitionCache>;
 
@@ -107,6 +110,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const loggingOut = useRef(false);
   const refreshInFlight = useRef<Promise<void> | undefined>(undefined);
   const definitionSession = useRef<BrowserDefinitionSession | undefined>(undefined);
+  const beforeSignOut = useRef(new Set<() => Promise<void>>());
   const notificationSession = useRef<BrowserNotificationSession | undefined>(undefined);
   const notificationAuthRetry = useRef<{ userId: string; retryAt: number } | undefined>(undefined);
 
@@ -365,9 +369,25 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     current.servedProjects.add(projectId);
   }, [bootstrap]);
 
+  const onBeforeLock = useCallback((hook: () => Promise<void>) => {
+    beforeSignOut.current.add(hook);
+    return () => { beforeSignOut.current.delete(hook); };
+  }, []);
+
+  // Let registered saves (the open interview's draft) finish before the session ends and requests are aborted.
+  const flushBeforeSignOut = useCallback(async () => {
+    const saves = Promise.allSettled([...beforeSignOut.current].map((hook) => hook()));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<void>((done) => { timer = setTimeout(done, SIGN_OUT_SAVE_WAIT_MS); });
+    await Promise.race([saves, limit]);
+    clearTimeout(timer);
+  }, []);
+
   const logout = useCallback(async () => {
     const link = bootstrap?.links.logout;
     if (!link || !bootstrap) return;
+    await flushBeforeSignOut();
+    clearWebRecall();
     // Stop every source of authenticated traffic first: a request that ends after the logout response
     // would save the old session again and keep the user signed in. The signed-in state stays untouched
     // until the page navigates away: clearing it re-mounts screens, and their loaders would send exactly
@@ -393,16 +413,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setError("server_unavailable");
       await reload();
     }
-  }, [bootstrap, reload]);
+  }, [bootstrap, reload, flushBeforeSignOut]);
 
   // Idle sign-out (docs/policy/expo-client.md): the page reaches the sign-in page with a reason the Flask
   // login page shows. The logout POST is best effort: the server may already have ended the session.
   const goToSignIn = useCallback((signOutFirst: boolean) => {
     if (loggingOut.current) return;
-    loggingOut.current = true;
-    browserRequestGeneration.current += 1;
-    abortClientRequests();
     void (async () => {
+      if (signOutFirst) await flushBeforeSignOut();
+      if (loggingOut.current) return;
+      loggingOut.current = true;
+      browserRequestGeneration.current += 1;
+      abortClientRequests();
+      clearWebRecall();
       const link = bootstrap?.links.logout;
       if (signOutFirst && link && bootstrap) {
         try {
@@ -414,7 +437,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const login = bootstrap?.links.login ?? "/vaauth/valogin?next=%2Fapp%2F";
       window.location.assign(`${login}${login.includes("?") ? "&" : "?"}reason=idle`);
     })();
-  }, [bootstrap]);
+  }, [bootstrap, flushBeforeSignOut]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -444,7 +467,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       lockNow: async () => undefined,
       lockVersion,
       unlocked: () => undefined,
-      onBeforeLock: () => () => undefined,
+      onBeforeLock,
       logout,
       definitionCache: definitionSession.current?.cache,
       hasServedDefinition,
@@ -453,7 +476,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       notificationGeneration,
       acknowledgeAuthoritativeRefresh
     }),
-    [ready, authenticated, bootstrap, loginUrl, actionCode, error, uiLocale, chooseUiLocale, reload, lockVersion, logout, hasServedDefinition, markServedDefinition, sessionGeneration, notificationGeneration, acknowledgeAuthoritativeRefresh]
+    [ready, authenticated, bootstrap, loginUrl, actionCode, error, uiLocale, chooseUiLocale, reload, lockVersion, onBeforeLock, logout, hasServedDefinition, markServedDefinition, sessionGeneration, notificationGeneration, acknowledgeAuthoritativeRefresh]
   );
   return (
     <Context.Provider value={value}>
@@ -462,10 +485,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         <ConfirmDialog
           title={t("idleWarningTitle")}
           message={t("idleWarningMessage")}
-          confirmLabel={t("idleStaySignedIn")}
-          cancelLabel={t("signOut")}
-          onConfirm={idleWarning.stay}
-          onCancel={() => goToSignIn(true)}
+          confirmLabel={t("signOut")}
+          cancelLabel={t("idleStaySignedIn")}
+          onConfirm={() => goToSignIn(true)}
+          onCancel={idleWarning.stay}
         />
       ) : null}
     </Context.Provider>

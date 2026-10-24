@@ -77,7 +77,8 @@ export function useIdleSignOut(enabled: boolean, ping: () => void, signOut: () =
       ping: () => latest.current.ping(),
     });
     monitor.current = idle;
-    const onInput = () => idle.input();
+    // Only real user input counts: a script-dispatched event cannot keep a session alive.
+    const onInput = (event: Event) => { if (event.isTrusted) idle.input(); };
     const onVisible = () => { if (document.visibilityState === "visible") idle.check(); };
     for (const type of INPUT_EVENTS) window.addEventListener(type, onInput, { capture: true, passive: true });
     document.addEventListener("visibilitychange", onVisible);

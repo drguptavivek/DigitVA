@@ -68,6 +68,13 @@ section 5. In the web client:
   in", which sends one ordinary request (refreshing the server stamp) and
   restarts the count. At 30 minutes the client signs out and shows the
   sign-in page.
+- Escape, closing the dialog and the default-focused button all mean "Stay
+  signed in"; "Sign out" is an explicit, non-default button. Only trusted
+  (`isTrusted`) input counts as activity.
+- Every web sign-out, manual or idle, first lets registered saves (the open
+  interview's draft) finish, up to 5 seconds, then aborts requests, clears the
+  recalled interviewer details (`digitva.interviewerRecall.*` in
+  `localStorage`, `clearWebRecall()`; `digitva-3rec`) and leaves.
 - Any `401` with code `session_idle` goes to the sign-in page with "Signed
   out after 30 minutes of inactivity".
 - The phone app (bearer token) has no idle sign-out.

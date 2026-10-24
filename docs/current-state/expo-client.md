@@ -468,7 +468,8 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   `digitvacollectplus://engine-check?run=1` (`src/nativeRoutes/engineCheck.tsx`).
 - Build: `APP_VARIANT=plus npx expo prebuild --platform android --clean`, then
   `cd android && ./gradlew assembleRelease`; install with `adb install -r`.
-  `npm run android:plus:release` does both steps.
+  `npm run android:plus:release` does both steps; its `prebuild --clean` deletes and
+  regenerates the gitignored `android/` folder, so local edits there are lost.
 
 ### Profiling
 

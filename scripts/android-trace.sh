@@ -89,6 +89,8 @@ EOF
 
 echo "recording ${SECONDS_TO_RECORD}s of atrace and $PKG (both processes) on $SERIAL -> $OUT/$NAME.perfetto-trace"
 # perfetto reads the config from stdin (-c -) and stops by itself after duration_ms.
+# A failed or interrupted run must not leave a system-wide trace on the phone.
+trap 'adb -s "$SERIAL" shell rm -f "$DEVICE_TRACE" </dev/null >/dev/null 2>&1' EXIT
 trace_config | adb -s "$SERIAL" shell perfetto -c - --txt -o "$DEVICE_TRACE" || die "perfetto failed on $SERIAL"
 
 LOCAL_TRACE="$OUT/$NAME.perfetto-trace"

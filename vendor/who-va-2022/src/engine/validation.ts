@@ -24,8 +24,17 @@ function isEmpty(value: unknown): boolean {
   return value == null || value === "" || (Array.isArray(value) && value.length === 0);
 }
 
-function message(question: InstrumentQuestion, locale: string, fallback: string): string {
-  return localizeText(question.constraintMessage, locale, fallback);
+function message(
+  question: InstrumentQuestion,
+  locale: string,
+  fallback: string,
+  data: SubmissionData,
+  value: AnswerValue
+): string {
+  const reason = question.constraintReasons?.find(
+    (candidate) => !evaluateExpression(expressionAst(candidate.constraint), data, { currentValue: value })
+  );
+  return localizeText(reason ? reason.message : question.constraintMessage, locale, fallback);
 }
 
 function validationLabel(question: InstrumentQuestion, locale: string): string {
@@ -204,7 +213,7 @@ export function validateAnswer(
           {
             question: question.name,
             code: "constraint",
-            message: message(question, locale, messages.invalidConstraint(question.name))
+            message: message(question, locale, messages.invalidConstraint(question.name), data, value as AnswerValue)
           }
         ];
       }

@@ -18,6 +18,44 @@ import type { InstrumentDefinition, InstrumentQuestion, InstrumentSection } from
 
 const generated = generatedInstrument as InstrumentDefinition;
 
+const NOT_FUTURE = ". <= today()";
+// Id10024 holds the death year as YYYY-01-01, so a plain date compare accepts
+// every registration from that January on and never rejects the same year.
+const NOT_BEFORE_DEATH =
+  "if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})";
+
+/**
+ * Owner rule 2026-10-24: the registration date is neither in the future nor
+ * before the death (the day when known, else only the year). Always on, so the
+ * server's re-derivation enforces it too.
+ */
+function withRegistrationDateChecks(question: InstrumentQuestion): InstrumentQuestion {
+  const constraint = { source: `${NOT_FUTURE} and ${NOT_BEFORE_DEATH}` };
+  const constraintMessage = { en: "Date of registration cannot be before the date of death." };
+  return {
+    ...question,
+    constraint,
+    constraintMessage,
+    constraintReasons: [
+      {
+        constraint: { source: NOT_FUTURE },
+        message: {
+          en: "Date of registration cannot be in the future.",
+          hi: "पंजीकरण की तारीख भविष्य में नहीं हो सकती।"
+        }
+      },
+      {
+        constraint: { source: NOT_BEFORE_DEATH },
+        message: {
+          en: constraintMessage.en,
+          hi: "पंजीकरण की तारीख मृत्यु की तारीख से पहले की नहीं हो सकती।"
+        }
+      }
+    ],
+    ...(question.validation ? { validation: { ...question.validation, constraint, constraintMessage } } : {})
+  };
+}
+
 /**
  * Compose the WHO VA 2022 instrument plus DigitVA's own additions, gating
  * each layer's questions on the extension names a project has enabled (see
@@ -115,6 +153,7 @@ export function createWhoVa2022Instrument(
     // applies a literal defaultValue only when the key is absent.
     if (question.name === "Id10051") return { ...question, defaultValue: "yes" };
     if (question.name === "Id10053") return { ...question, defaultValue: "-" };
+    if (question.name === "Id10071") return withRegistrationDateChecks(question);
     return question;
   });
 

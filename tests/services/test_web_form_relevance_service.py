@@ -228,6 +228,21 @@ class DeriveValidationErrorsTests(unittest.TestCase):
         self.assertIn({"question": "Id10021", "rule": "constraint"}, entries)
         self.assertNotIn("2099-01-01", str(entries))
 
+    def test_registration_date_before_death_or_in_the_future_is_reported(self):
+        # Owner rule 2026-10-24 (digitva-y5te). The server records the
+        # disagreement (it never refuses), so a stale client shows up here.
+        base = {
+            "Id10013": "yes", "Id10069_a": "yes", "Id10071_check": "yes",
+            "Id10020": "no", "Id10022": "yes", "Id10023_b": "2024-05-10",
+        }
+        flagged = {"question": "Id10071", "rule": "constraint"}
+        self.assertIn(flagged, derive_validation_errors({**base, "Id10071": "2024-05-09"}, now=NOW))
+        self.assertIn(flagged, derive_validation_errors({**base, "Id10071": "2024-06-16"}, now=NOW))
+        self.assertNotIn(flagged, derive_validation_errors({**base, "Id10071": "2024-05-10"}, now=NOW))
+        year_only = {**base, "Id10022": "no", "Id10024": "2024-01-01"}
+        self.assertIn(flagged, derive_validation_errors({**year_only, "Id10071": "2023-12-31"}, now=NOW))
+        self.assertNotIn(flagged, derive_validation_errors({**year_only, "Id10071": "2024-01-02"}, now=NOW))
+
     def test_answering_a_question_the_server_considers_irrelevant_is_reported_as_relevant(self):
         # Id10021 (date of birth) is only relevant once Id10020='yes'; here
         # it is answered without that gate.

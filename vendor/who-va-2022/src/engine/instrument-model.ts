@@ -163,6 +163,8 @@ function validateQuestion(
   if (question.constraint) compileExpression(question.constraint, `Question '${question.name}' constraint`);
   if (question.calculation)
     compileExpression(question.calculation, `Question '${question.name}' calculation`);
+  for (const reason of question.constraintReasons ?? [])
+    compileExpression(reason.constraint, `Question '${question.name}' constraint reason`);
   if (question.validation?.constraint)
     compileExpression(question.validation.constraint, `Question '${question.name}' validation constraint`);
   validateQuestionValidationMetadata(question);
@@ -212,6 +214,7 @@ function semanticSignature(instrument: InstrumentDefinition): string {
         choices: question.choices?.map(({ label: _choiceLabel, ...choice }) => choice),
         relevant: expressionSignature(question.relevant),
         constraint: expressionSignature(question.constraint),
+        constraintReasons: question.constraintReasons?.map((reason) => expressionSignature(reason.constraint)),
         calculation: expressionSignature(question.calculation)
       })
     )

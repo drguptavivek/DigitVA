@@ -108,6 +108,12 @@ export interface InstrumentQuestion {
   relevant?: SourceExpression;
   constraint?: SourceExpression;
   constraintMessage: LocalizedText;
+  /**
+   * When `constraint` fails, the first reason whose own `constraint` also
+   * fails supplies the message in place of `constraintMessage`, so one
+   * constraint made of several checks can say which one failed.
+   */
+  constraintReasons?: Array<{ constraint: SourceExpression; message: LocalizedText }>;
   validation?: InstrumentQuestionValidation;
   calculation?: SourceExpression;
   sectionPath: string[];

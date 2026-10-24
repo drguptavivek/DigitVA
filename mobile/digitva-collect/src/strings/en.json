@@ -1280,5 +1280,14 @@
   "usersColActions": "Actions",
   "usersMoreActions": "More actions for {name}",
   "orgBranchUnit": "1 unit below",
-  "queueInterviewer": "Interviewer: {name}"
+  "queueInterviewer": "Interviewer: {name}",
+  "usersAllProjects": "All projects",
+  "usersBack": "Back to users",
+  "usersDetails": "Details",
+  "usersPlacementTitle": "Organization",
+  "usersPlacementNone": "No placement in your projects.",
+  "usersStatusHeading": "Account status",
+  "orgUserRoles": "{name}: {roles}",
+  "orgUserHere": "{name} is here",
+  "usersOpenCard": "Open details of {name}"
 }

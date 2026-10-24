@@ -694,6 +694,14 @@ account facts (verification, password, terms, passkeys, enrolment code
 history, devices, sign-in QRs, training) to the same viewers and under the
 same 404 rule as activity; it never carries a password, hash, token or code.
 
+`GET .../users/<id>/placement` (owner 2026-10-24, digitva-x79t) returns the
+listed user's place in each project's organization, in the shape of "My
+organization", to the same viewers and under the same 404 rule as status. It
+is limited to the projects the viewer holds a managing grant in: a data manager
+never sees the target's grants in other projects. An admin sees every project the user holds. The reply is the target's own
+placement only: every people list is empty and no other worker is named, for
+every viewer including an admin.
+
 ### Users page admin tools: upload and grant grid (owner 2026-10-22, digitva-cgmc)
 
 Two Users page tools are **admin only** (anyone else: 403; the list above is

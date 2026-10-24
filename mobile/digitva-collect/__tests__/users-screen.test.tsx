@@ -23,7 +23,7 @@ jest.mock("../src/web/common", () => ({
 let mockFormat = (value: string) => value;
 jest.mock("../src/ui/interviewRows", () => ({ formatWhen: (value: string) => mockFormat(value) }));
 
-import UsersScreen, { USER_COLUMNS } from "../src/web/UsersScreen";
+import UsersScreen from "../src/web/UsersScreen";
 
 const ASHA = {
   user_id: "u1",
@@ -77,13 +77,7 @@ const text = (tree: ReactTestRenderer) => tree.root.findAllByType(Text).map((n) 
 
 const pressable = (tree: ReactTestRenderer, label: string) => tree.root.findAll((n) => typeof n.props.onPress === "function" && n.props.accessibilityLabel === label);
 
-/** The wide table keeps a row's actions in its "More actions" menu: open it first when the button is not on screen. */
 async function press(tree: ReactTestRenderer, label: string) {
-  const menuLabel = /^(?:Show the status of|Create a sign-in QR for|Issue an app enrolment code for) (.+)$/.exec(label)?.[1] ?? (label === "Activity" ? "Asha Devi" : "");
-  if (menuLabel && !pressable(tree, label).length) {
-    const [menu] = pressable(tree, `More actions for ${menuLabel}`);
-    await act(async () => { menu.props.onPress(); });
-  }
   const [target] = pressable(tree, label);
   if (!target) throw new Error(`no button labelled ${label}`);
   await act(async () => {
@@ -116,7 +110,21 @@ let statusBody: unknown = STATUS;
 let qrItems: unknown[] = [];
 let qrPost: () => Promise<unknown> = () => Promise.resolve({});
 
+const UNIT = (id: string, name: string, level: string, parent: string | null) => ({ org_unit_id: id, unit_name: name, level_name: level, parent_org_unit_id: parent });
+const PLACEMENT = {
+  projects: [{
+    project_id: "P1", project_name: "Project One", has_tree: true,
+    my_units: [{ org_unit_id: "U1", unit_name: "PHC A", level_name: "PHC", cadres: [], roles: [{ role: "interviewer", cadre: null }] }],
+    above: [{ ...UNIT("D1", "District One", "District", null), people: [] }],
+    my_level: [{ org_unit_id: "U1", unit_name: "PHC A", parent_org_unit_id: "D1", people: [] }],
+    below: [],
+    my_positions: { project_roles: [], sites: [] },
+  }],
+};
+let placementBody: unknown = PLACEMENT;
+
 function route(path: string, init?: { method?: string; json?: unknown }) {
+  if (path.endsWith("/placement")) return Promise.resolve(placementBody);
   if (path.endsWith("/activity")) return Promise.resolve(ACTIVITY);
   if (path.endsWith("/enrolment-code")) return Promise.resolve({ code: "SECRET-CODE", qr_payload: "{}", qr_png: "iVBOR", project_id: "P1", expires_at: "2026-10-22T11:00:00Z", max_uses: 1 });
   if (path.endsWith("/status")) return Promise.resolve(statusBody);
@@ -146,22 +154,40 @@ describe("UsersScreen", () => {
     loc.search = "";
     replaceState.mockClear();
     statusBody = STATUS;
+    placementBody = PLACEMENT;
     qrItems = [];
     qrPost = () => Promise.resolve({ code: "SIGNIN-SECRET", qr_payload: "{}", qr_png: "QRPNG", expires_at: FUTURE() });
   });
 
-  it("renders a table on a wide screen and cards on a phone", async () => {
+  it("renders one card per user, wide and narrow, with role tags carrying project and site codes", async () => {
+    const site = { ...ASHA.grants[0], scope: "project_site", site_id: "AAM01", site_name: "Aam Site", org_unit_id: null, unit_name: null };
+    const whole = { ...ASHA.grants[0], role: "coder", scope: "project", org_unit_id: null, unit_name: null };
+    mockRequest.mockImplementation((path: string) => (String(path).startsWith("/api/v1/users?")
+      ? Promise.resolve({ ...PAGE, users: [{ ...ASHA, grants: [ASHA.grants[0], site, whole] }] })
+      : route(path)));
     const wide = await render();
-    expect(byTestId(wide, "users-table")).toHaveLength(1);
-    expect(text(wide)).toContain("asha@example.org");
-    expect(text(wide)).toContain("9876500001");
-    expect(text(wide)).toContain("Interviewer|PHC A");
-    expect(byTestId(wide, "users-card")).toHaveLength(0);
+    expect(byTestId(wide, "users-card")).toHaveLength(1);
+    expect(byTestId(wide, "users-table")).toHaveLength(0);
+    const all = text(wide);
+    expect(all).toContain("asha@example.org · 9876500001");
+    expect(all).toContain("Interviewer · P1 · PHC A");
+    expect(all).toContain("Interviewer · P1 · AAM01");
+    expect(all).toContain("Coder · P1");
+    expect(all).toContain("Active · Enrolled · 1 device(s)");
+    expect(all).toContain("1 of 1 users");
 
     mockWidth = 375;
     const narrow = await render();
-    expect(byTestId(narrow, "users-card").length).toBeGreaterThan(0);
-    expect(byTestId(narrow, "users-table")).toHaveLength(0);
+    expect(byTestId(narrow, "users-card")).toHaveLength(1);
+    expect(text(narrow)).toContain("Interviewer · P1 · AAM01");
+  });
+
+  it("labels the project filter All projects, selected on first load", async () => {
+    const tree = await render();
+    await press(tree, "Filters");
+    const [all] = labelled(tree, "Filter: All projects");
+    expect(all.props.accessibilityState?.selected).toBe(true);
+    expect(lastUrl()).not.toContain("project=");
   });
 
   it("starts on active accounts and re-queries the server when a filter changes", async () => {
@@ -200,66 +226,63 @@ describe("UsersScreen", () => {
     expect(text(tree)).not.toContain("SECRET-CODE");
   });
 
-  it("shows one line per user on a wide screen with a single menu button in the last column", async () => {
+  it("puts every action on the card", async () => {
     const tree = await render();
-    const [line] = byTestId(tree, "users-line");
-    const last = line.children[line.children.length - 1] as ReactTestInstance;
-    const inLast = (label: string) => last.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function").length > 0;
-    expect(inLast("More actions for Asha Devi")).toBe(true);
-    expect(inLast("Show the status of Asha Devi")).toBe(false); // behind the menu until it is opened
-    // name, contact, roles, status and app are single-line text
-    const oneLine = tree.root.findAll((n) => typeof n.type === "string" && n.props.numberOfLines === 1).map((n) => n.props.children);
-    expect(oneLine).toEqual(expect.arrayContaining(["Asha Devi", "asha@example.org · 9876500001", "Active"]));
-    expect(text(tree)).toContain("1 of 1 users");
-  });
-
-  it("lines the header up with the cells: same columns, order and layout", async () => {
-    const tree = await render();
-    const keys = (row: ReactTestInstance) => row.children.map((c) => (c as ReactTestInstance).props.testID);
-    const [head] = byTestId(tree, "users-head");
-    const [line] = byTestId(tree, "users-line");
-    const expected = USER_COLUMNS.map((c) => `users-col-${c.key}`);
-    expect(keys(head)).toEqual(expected);
-    expect(keys(line)).toEqual(expected);
-    const flat = (n: ReactTestInstance) => StyleSheet.flatten((n as ReactTestInstance).props.style);
-    const headStyles = head.children.map((c) => flat(c as ReactTestInstance));
-    const lineStyles = line.children.map((c) => flat(c as ReactTestInstance));
-    expect(lineStyles).toEqual(headStyles);
-    expect(text(tree)).toContain("Actions");
-    // every column is bounded, so none can push the row wider than the page
-    for (const c of USER_COLUMNS) expect(c.style.width ?? c.style.maxWidth).toBeDefined();
-  });
-
-  it("reaches every action through the row menu", async () => {
-    const tree = await render();
-    await press(tree, "More actions for Asha Devi");
     for (const label of ["Activity", "Issue an app enrolment code for Asha Devi", "Show the status of Asha Devi", "Create a sign-in QR for Asha Devi"]) {
       expect(hasButton(tree, label)).toBe(true);
     }
-    await press(tree, "Show the status of Asha Devi");
-    expect(mockRequest).toHaveBeenLastCalledWith("/api/v1/users/u1/status");
-    expect(hasButton(tree, "Create a sign-in QR for Asha Devi")).toBe(false); // the menu closed
   });
 
-  it("formats the status dialog times with the app's formatter", async () => {
+  it("opens the user view from the card or Details: status on the left, the organization tree on the right", async () => {
+    const tree = await render();
+    await press(tree, "Open details of Asha Devi");
+    expect(mockRequest.mock.calls.map(([p]) => p)).toEqual(expect.arrayContaining(["/api/v1/users/u1/status", "/api/v1/users/u1/placement"]));
+    const [left] = byTestId(tree, "user-view-status");
+    const [right] = byTestId(tree, "user-view-placement");
+    const inText = (node: ReactTestInstance) => node.findAllByType(Text).map((n) => [n.props.children].flat().join("")).join("|");
+    expect(inText(left)).toContain("Account is active");
+    expect(inText(left)).toContain("Passkey");
+    expect(inText(right)).toContain("Project One · P1");
+    expect(inText(right)).toContain("District One");
+    expect(inText(right)).toContain("Asha Devi:"); // the user's own unit is named after them, not "You"
+    expect(inText(right)).not.toContain("You:");
+    expect(hasButton(tree, "Create a sign-in QR for Asha Devi")).toBe(true);
+    await press(tree, "Back to users");
+    expect(byTestId(tree, "users-card")).toHaveLength(1);
+    await press(tree, "Show the status of Asha Devi");
+    expect(byTestId(tree, "user-view")).toHaveLength(1);
+  });
+
+  it("stacks the user view columns on a narrow screen", async () => {
+    mockWidth = 375;
+    const tree = await render();
+    await press(tree, "Show the status of Asha Devi");
+    const [view] = byTestId(tree, "user-view");
+    expect(StyleSheet.flatten(view.props.style).flexDirection).toBeUndefined();
+    mockWidth = 1280;
+    const wide = await render();
+    await press(wide, "Show the status of Asha Devi");
+    expect(StyleSheet.flatten(byTestId(wide, "user-view")[0].props.style).flexDirection).toBe("row");
+  });
+
+  it("says so when the user has no placement in the viewer's projects, and shows a placement error", async () => {
+    placementBody = { projects: [] };
+    const tree = await render();
+    await press(tree, "Show the status of Asha Devi");
+    expect(text(tree)).toContain("No placement in your projects.");
+    mockRequest.mockImplementation((path: string) => (String(path).endsWith("/placement") ? Promise.reject(new Error("boom")) : route(path)));
+    const failed = await render();
+    await press(failed, "Show the status of Asha Devi");
+    expect(text(failed)).toContain("server error");
+  });
+
+  it("formats the status times with the app's formatter", async () => {
     mockFormat = (value) => `FMT(${value.slice(0, 10)})`;
     const tree = await render();
     await press(tree, "Show the status of Asha Devi");
     expect(text(tree)).toContain("Created FMT(2026-09-01)");
     expect(text(tree)).toContain("Last seen FMT(2026-10-21)");
     expect(text(tree)).not.toContain("T08:00:00Z");
-  });
-
-  it("summarises many roles on one line and expands them on press", async () => {
-    const grant = (role: string, unit: string) => ({ ...ASHA.grants[0], role, unit_name: unit });
-    mockRequest.mockImplementation((path: string) => (String(path).startsWith("/api/v1/users?")
-      ? Promise.resolve({ ...PAGE, users: [{ ...ASHA, grants: [grant("interviewer", "PHC A"), grant("coder", "PHC B"), grant("reviewer", "PHC C")] }] })
-      : route(path)));
-    const tree = await render();
-    expect(text(tree)).toContain("Interviewer|PHC A|+2 more");
-    expect(text(tree)).not.toContain("PHC C");
-    await press(tree, "Show all roles of Asha Devi");
-    expect(text(tree)).toContain("PHC C");
   });
 
   it("opens the fly-out as a side sheet on desktop and a bottom sheet on a phone", async () => {
@@ -356,9 +379,9 @@ describe("UsersScreen", () => {
     expect(tree.root.findAll((n) => n.props.role === "dialog" && n.props.accessibilityViewIsModal).length).toBeGreaterThan(0);
     await act(async () => { modal.props.onRequestClose(); });
     expect(tree.root.findAllByType(Modal)).toHaveLength(0);
-    await press(tree, "Show the status of Asha Devi");
+    await press(tree, "Create a sign-in QR for Asha Devi");
     const dialog = tree.root.findAll((n) => n.props.role === "dialog")[0];
-    expect(dialog.props.accessibilityLabel).toBe("User status: Asha Devi");
+    expect(dialog.props.accessibilityLabel).toBe("Sign-in QR for Asha Devi");
     await act(async () => { tree.root.findAllByType(Modal)[0].props.onRequestClose(); });
     expect(tree.root.findAllByType(Modal)).toHaveLength(0);
   });
@@ -367,10 +390,7 @@ describe("UsersScreen", () => {
     const coder = { ...ASHA, user_id: "u2", name: "Coder Dev", grants: [{ ...ASHA.grants[0], role: "coder" }] };
     mockRequest.mockImplementation((path: string) => (String(path).startsWith("/api/v1/users?") ? Promise.resolve({ ...PAGE, users: [ASHA, coder], total: 2 }) : route(path)));
     const tree = await render();
-    await press(tree, "More actions for Asha Devi");
     expect(hasButton(tree, "Create a sign-in QR for Asha Devi")).toBe(true);
-    await press(tree, "Close");
-    await press(tree, "More actions for Coder Dev");
     expect(hasButton(tree, "Create a sign-in QR for Coder Dev")).toBe(false);
     expect(hasButton(tree, "Show the status of Coder Dev")).toBe(true);
   });
@@ -378,7 +398,7 @@ describe("UsersScreen", () => {
   it("shows the status popup from the status endpoint, without codes or tokens", async () => {
     const tree = await render();
     await press(tree, "Show the status of Asha Devi");
-    expect(mockRequest).toHaveBeenLastCalledWith("/api/v1/users/u1/status");
+    expect(mockRequest).toHaveBeenCalledWith("/api/v1/users/u1/status");
     const all = text(tree);
     for (const piece of [
       "User status: Asha Devi", "Account is active", "Created 2026-09-01T08:00:00Z", "Terms accepted 2026-09-04T08:00:00Z",

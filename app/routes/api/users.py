@@ -79,6 +79,19 @@ def user_status(user_id):
         return _refused(exc)
 
 
+@bp.get("/<user_id>/placement")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("120 per minute")
+def user_placement(user_id):
+    """The user's place in each project's organization tree, limited to what
+    the viewer manages; see ``service.user_placement``. Same 404 rule as the
+    status route."""
+    try:
+        return _no_store(service.user_placement(current_user, user_id))
+    except service.UserDirectoryError as exc:
+        return _refused(exc)
+
+
 @bp.post("/<user_id>/enrolment-code")
 @role_required("admin", "project_pi", "data_manager")
 @limiter.limit("10 per minute")

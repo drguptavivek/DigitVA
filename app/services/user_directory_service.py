@@ -492,6 +492,18 @@ def user_activity(viewer, user_id: str) -> dict:
     }
 
 
+def user_placement(viewer, user_id: str) -> dict:
+    """Where the user sits in each project's organization: ``{projects: [...]}``
+    in the shape of "My organization" (``organization_service.my_organization``
+    run for the target). Same visibility as ``user_status`` (404 otherwise), and
+    limited to the projects the viewer holds a managing grant in (an admin: all)."""
+    from app.services import organization_service as org
+
+    scope = _Scope(viewer)
+    user = _visible_user(scope, user_id)
+    return org.my_organization(user, project_ids=None if scope.is_admin else scope.project_ids, people=False)
+
+
 _STATUS_EVENTS = ("email_verified", "verification_email_sent", "password_generated", "terms_accepted")
 _CODE_HISTORY = 5
 

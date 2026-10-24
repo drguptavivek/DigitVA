@@ -23,6 +23,9 @@ const STUB_TOP = 22;
 /** Level name -> chart family index, by first appearance; Node reads it so one unit type keeps one colour. */
 const LevelTints = createContext<Map<string, number>>(new Map());
 
+/** Whose placement the tree shows when it is not the signed-in user's (the Users page): names the highlighted units. */
+const Subject = createContext<string | undefined>(undefined);
+
 /** Indexes each distinct level name in order of first appearance (blank names get none). */
 export function levelTints(names: string[]): Map<string, number> {
   const index = new Map<string, number>();
@@ -185,6 +188,7 @@ function Node({ id, title, unitName, mine, myRoles, via = [], level, count, onSh
   const styles = useUiStyles();
   const { ui } = useTheme();
   const tints = useContext(LevelTints);
+  const subject = useContext(Subject);
   const slot = level !== undefined ? tints.get(level) : undefined;
   const family = slot === undefined ? undefined : ui.chart[slot % ui.chart.length];
   // The branch (units nested under this card) folds on its own arrow; people live in the flyout.
@@ -201,10 +205,10 @@ function Node({ id, title, unitName, mine, myRoles, via = [], level, count, onSh
       <View style={[layout.header, layout.wrap, { flex: 1 }]}>
         <Text style={[styles.text, layout.unitName, layout.wrap, roleless ? { color: ui.mutedForeground } : family && { color: family.foreground }]}>{title}</Text>
         {mine ? (
-          <View style={[layout.badge, layout.wrap, { backgroundColor: ui.primary }]} accessibilityLabel={t("orgYouAreHere")}>
+          <View style={[layout.badge, layout.wrap, { backgroundColor: ui.primary }]} accessibilityLabel={subject ? t("orgUserHere", { name: subject }) : t("orgYouAreHere")}>
             {myRoles?.length
-              ? <RoleSentence k="orgYouRoles" roles={myRoles} textStyle={[layout.badgeText, { color: ui.primaryForeground }]} />
-              : <Text style={[layout.badgeText, { color: ui.primaryForeground }]}>{t("orgYou")}</Text>}
+              ? <RoleSentence k={subject ? "orgUserRoles" : "orgYouRoles"} params={subject ? { name: subject } : undefined} roles={myRoles} textStyle={[layout.badgeText, { color: ui.primaryForeground }]} />
+              : <Text style={[layout.badgeText, { color: ui.primaryForeground }]}>{subject ?? t("orgYou")}</Text>}
           </View>
         ) : null}
       </View>
@@ -311,17 +315,22 @@ export function OrgTree({
   project,
   opened,
   onToggle,
+  subject,
 }: {
   project: OrgProject;
   opened: Record<string, OpenedUnit>;
   onToggle: Toggle;
+  /** Name of the person shown, when not the signed-in user: their units are highlighted with it instead of "You". */
+  subject?: string;
 }) {
   const [flyout, setFlyout] = useState<FlyoutTarget | null>(null);
   const close = useCallback(() => setFlyout(null), []);
   const tints = levelTints(levelNames(project, opened));
   const tree = (
     <LevelTints.Provider value={tints}>
-      <OrgNodes project={project} opened={opened} onToggle={onToggle} onShow={setFlyout} />
+      <Subject.Provider value={subject}>
+        <OrgNodes project={project} opened={opened} onToggle={onToggle} onShow={setFlyout} />
+      </Subject.Provider>
     </LevelTints.Provider>
   );
   return (

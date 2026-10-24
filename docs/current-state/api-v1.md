@@ -772,6 +772,9 @@ projects, a data manager the holders of an active grant in their subtree.
   onboarded, onboarded_at}]}`. `*_at` times come from the security-event
   audit (latest event) and are null when none was recorded (accounts
   from before the audit). Never a password, hash, token or code.
+- `GET /users/<user_id>/placement` (120/min; admin, project_pi, data_manager;
+  scope as `status`, else 404 `not_found`): `{projects: [...]}` as
+  `GET /organization/me` for that user, cut to the viewer's projects (`user_directory_service.user_placement`; digitva-x79t).
 - `GET /users/<user_id>/activity` (120/min): `/me/activity`'s body for that
   user, limited to the viewer's projects (an admin: all), plus `user_id`,
   `name`, `last_signed_in_at`, `last_device_seen_at`, `last_active_at` (the

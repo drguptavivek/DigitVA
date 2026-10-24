@@ -1,34 +1,42 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View, type ViewStyle } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { t, type StringKey } from "../i18n";
+import type { OrgProject } from "../organization/api";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
-import { RoleChips } from "../ui/RoleChip";
+import { RoleChip, RoleChips, RoleSentence } from "../ui/RoleChip";
 import {
   activeFilterCount, DEFAULT_FILTERS, emailEnrolmentCode, enrolmentProjects, filtersFromSearch, filtersToSearch, getUserActivity,
-  getUsers, issueEnrolmentCode, signInQrCandidate,
-  type DirectoryOptions, type DirectoryUser, type GridUser, type IssuedCode, type UserActivity, type UserFilters,
+  getUserPlacement, getUsers, issueEnrolmentCode, signInQrCandidate,
+  type DirectoryOptions, type DirectoryUser, type GridUser, type IssuedCode, type UserActivity, type UserFilters, type UserGrant,
 } from "../users/api";
 import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { ChipGroup } from "./caseFilters";
 import { browserErrorText, WebShell } from "./common";
 import { formatWhen } from "../ui/interviewRows";
-import { AccountUpload, GrantGrid, GrantView } from "./UsersAdminTools";
-import { SignInQrDialog, StatusDialog } from "./UsersDialogs";
+import { AccountUpload, GrantGrid } from "./UsersAdminTools";
+import { SignInQrDialog, UserStatusPanel } from "./UsersDialogs";
 import { FilterSheet, FiltersButton, QuickChips } from "./UsersFilters";
+import { OrgTree } from "./OrgTree";
+import { roleSummary } from "./OrganizationScreen";
+import { roleLabelKey } from "./roleHome";
+import { useOpenedUnits } from "./useOpenedUnits";
 
 /**
- * The Users page (digitva-75wn): everyone the server lets this viewer see (admin all, project PI their projects,
- * data manager their subtree), filtered on the server, a table on a wide screen and cards on a phone. Each row opens
- * its activity (loaded on open) and, for a data collector or coder, issues an app enrolment code shown once. An admin
- * also gets the grant grid and the account upload (digitva-cgmc, ./UsersAdminTools).
+ * The Users page (digitva-75wn, digitva-x79t): everyone the server lets this viewer see (admin all, project PI their
+ * projects, data manager their subtree), filtered on the server, one card per user in a responsive grid. A card shows
+ * the contact, account and app state, a role tag per grant (role, project code and, for a site grant, the site code)
+ * and compact actions. Selecting a user opens the user view: account status on the left, the user's place in the
+ * organization tree (the My organization component) on the right. An admin also gets the grant grid and the account
+ * upload (digitva-cgmc, ./UsersAdminTools).
  */
 
-const WIDE_MIN_WIDTH = 768;
 const SEARCH_DELAY_MS = 300;
+const TWO_COLUMNS_MIN_WIDTH = 768;
+const THREE_COLUMNS_MIN_WIDTH = 1200;
 
 type UsersView = "list" | "grid" | "upload";
 
@@ -50,34 +58,24 @@ function enrolmentLabel(user: DirectoryUser): string {
   return t("usersEnrolNone");
 }
 
-export type UserColumnKey = "name" | "contact" | "roles" | "status" | "app" | "actions";
-
-/** The wide table's columns: order, header text and layout, shared by the header and the rows. */
-export const USER_COLUMNS: { key: UserColumnKey; head: StringKey; style: ViewStyle }[] = [
-  { key: "name", head: "usersColName", style: { flex: 1.2, flexBasis: 0, minWidth: 110, maxWidth: 260 } },
-  { key: "contact", head: "usersColContact", style: { flex: 1.8, flexBasis: 0, minWidth: 150, maxWidth: 320 } },
-  { key: "roles", head: "usersColRoles", style: { flex: 1.6, flexBasis: 0, minWidth: 120, maxWidth: 320 } },
-  { key: "status", head: "usersColStatus", style: { width: 84, flexShrink: 0 } },
-  { key: "app", head: "usersColApp", style: { flex: 1.3, flexBasis: 0, minWidth: 130, maxWidth: 260 } },
-  { key: "actions", head: "usersColActions", style: { width: 56, flexShrink: 0, alignItems: "flex-end" } },
-];
-
-const COL = StyleSheet.create(Object.fromEntries(USER_COLUMNS.map((c) => [c.key, c.style])) as Record<UserColumnKey, ViewStyle>);
+/** "Interviewer · HP0001", "Interviewer · HP0001 · AAM01" (site grant) or "... · <unit>" (unit grant): role, project code, site code or unit. */
+export function grantTagLabel(grant: UserGrant): string {
+  const place = [grant.project_id, grant.scope === "project_site" ? grant.site_id : grant.scope === "org_unit" ? grant.unit_name : null].filter(Boolean).join(" · ");
+  return t("usersRoleAt", { role: t(roleLabelKey(grant.role)), place });
+}
 
 function useStyles() {
   const { colors } = useTheme();
   return useMemo(() => StyleSheet.create({
-    filters: { gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     input: {
       minHeight: controls.minHeight, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surface,
       paddingHorizontal: spacing.sm, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily,
     },
     label: { ...typography.caption, fontWeight: "600", color: colors.textMuted, fontFamily: controls.fontFamily },
-    row: { flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.xs, borderBottomWidth: 1, borderColor: colors.border, alignItems: "flex-start" },
-    head: { ...typography.caption, fontWeight: "700", color: colors.textMuted, fontFamily: controls.fontFamily },
-    line: { alignItems: "center" },
-    menuBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(0,0,0,0.5)" },
-    menu: { width: "100%", maxWidth: 320, gap: spacing.xs, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface },
+    grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    cardBody: { gap: spacing.xxs },
+    columns: { gap: spacing.md },
+    column: { flex: 1, minWidth: 0, gap: spacing.sm },
     toolbar: { flexDirection: "row", gap: spacing.xs, alignItems: "center" },
     searchBox: { flex: 1, minWidth: 0 },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
@@ -196,35 +194,12 @@ function EnrolmentDialog({ request, user, onClose }: { request: JsonRequester; u
   );
 }
 
+
 type ActionProps = {
-  user: DirectoryUser; open: boolean; onToggle: () => void; onIssue: () => void; onStatus: () => void; onQr: () => void;
+  user: DirectoryUser; open: boolean; onToggle: () => void; onIssue: () => void; onStatus?: () => void; onQr: () => void;
 };
 
-/** The row's one "⋯" button (wide table): the actions would not fit beside the other columns, so they live in a menu. */
-function UserActionsMenu(props: ActionProps) {
-  const s = useStyles();
-  const styles = useUiStyles();
-  const [shown, setShown] = useState(false);
-  const close = () => setShown(false);
-  const then = (fn: () => void) => () => { close(); fn(); };
-  return (
-    <>
-      <Button size="sm" kind="secondary" label="⋯" accessibilityLabel={t("usersMoreActions", { name: props.user.name })} expanded={shown} onPress={() => setShown(true)} />
-      {shown ? (
-        <Modal visible transparent animationType="fade" onRequestClose={close}>
-          <View style={s.menuBackdrop}>
-            <View style={s.menu} accessibilityViewIsModal>
-              <Text style={styles.headline} accessibilityRole="header">{props.user.name}</Text>
-              <UserActions {...props} onToggle={then(props.onToggle)} onIssue={then(props.onIssue)} onStatus={then(props.onStatus)} onQr={then(props.onQr)} />
-              <Button kind="secondary" label={t("usersCodeClose")} onPress={close} />
-            </View>
-          </View>
-        </Modal>
-      ) : null}
-    </>
-  );
-}
-
+/** A card's compact actions; the user view leaves out the Details button (it is already open). */
 function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: ActionProps) {
   const s = useStyles();
   return (
@@ -233,7 +208,9 @@ function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: ActionPr
       {user.active && enrolmentProjects(user).length ? (
         <Button size="sm" kind="secondary" label={t("usersIssueCode")} accessibilityLabel={t("usersIssueCodeFor", { name: user.name })} onPress={onIssue} />
       ) : null}
-      <Button size="sm" kind="secondary" label={t("usersStatus")} accessibilityLabel={t("usersStatusFor", { name: user.name })} onPress={onStatus} />
+      {onStatus ? (
+        <Button size="sm" kind="secondary" label={t("usersDetails")} accessibilityLabel={t("usersStatusFor", { name: user.name })} onPress={onStatus} />
+      ) : null}
       {signInQrCandidate(user) ? (
         <Button size="sm" kind="secondary" label={t("usersQr")} accessibilityLabel={t("usersQrFor", { name: user.name })} onPress={onQr} />
       ) : null}
@@ -241,29 +218,43 @@ function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: ActionPr
   );
 }
 
-/** One line of roles (the first grant and a count); pressing it shows or hides the rest. */
-function RolesCell({ user }: { user: DirectoryUser }) {
+/** One role tag per grant: the role with its project code and, for a site or unit grant, the site code or unit. */
+function GrantTags({ user }: { user: DirectoryUser }) {
   const styles = useUiStyles();
-  const [open, setOpen] = useState(false);
-  const { grants } = user;
-  if (!grants.length) return <Text style={styles.muted} numberOfLines={1}>{t("usersNoRoles")}</Text>;
-  if (grants.length === 1) return <GrantView grant={grants[0]} />;
+  if (!user.grants.length) return <Text style={styles.muted}>{t("usersNoRoles")}</Text>;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={open ? t("usersHideRoles", { name: user.name }) : t("usersShowRoles", { name: user.name })}
-      accessibilityState={{ expanded: open }}
-      onPress={() => setOpen((current) => !current)}
-    >
-      {open
-        ? grants.map((grant, index) => <GrantView key={index} grant={grant} />)
-        : (
-          <RoleChips>
-            <GrantView grant={grants[0]} />
-            <Text style={styles.muted}>{t("usersRolesMore", { summary: "", count: grants.length - 1 }).trim()}</Text>
-          </RoleChips>
-        )}
-    </Pressable>
+    <RoleChips>
+      {user.grants.map((grant, index) => <RoleChip key={index} role={grant.role} label={grantTagLabel(grant)} />)}
+    </RoleChips>
+  );
+}
+
+/** Where the user sits in each project's organization: the My organization tree, their own units named after them. */
+function UserPlacement({ request, user }: { request: JsonRequester; user: Pick<DirectoryUser, "user_id" | "name"> }) {
+  const styles = useUiStyles();
+  const [projects, setProjects] = useState<OrgProject[]>();
+  const [error, setError] = useState("");
+  const { opened, toggle } = useOpenedUnits(request);
+  useEffect(() => {
+    let active = true;
+    getUserPlacement(request, user.user_id)
+      .then((rows) => { if (active) setProjects(rows); })
+      .catch((caught) => { if (active) setError(browserErrorText(caught)); });
+    return () => { active = false; };
+  }, [request, user.user_id]);
+  return (
+    <View testID="user-placement" style={{ gap: spacing.sm }}>
+      {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      {!projects && !error ? <Text style={styles.muted}>{t("loading")}</Text> : null}
+      {projects && !projects.length ? <Text style={styles.muted}>{t("usersPlacementNone")}</Text> : null}
+      {projects?.map((project) => (
+        <View key={project.project_id} style={styles.card}>
+          <Text style={styles.headline}>{t("orgProjectHeader", { name: project.project_name, code: project.project_id })}</Text>
+          {roleSummary(project).map((line, index) => <RoleSentence key={index} k={line.k} params={line.params} roles={line.roles} textStyle={styles.muted} />)}
+          {project.has_tree === false ? null : <OrgTree project={project} opened={opened} onToggle={(id) => void toggle(id)} subject={user.name} />}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -272,7 +263,9 @@ export default function UsersScreen() {
   const styles = useUiStyles();
   const s = useStyles();
   const { colors } = useTheme();
-  const wide = useWindowDimensions().width >= WIDE_MIN_WIDTH;
+  const width = useWindowDimensions().width;
+  const wide = width >= TWO_COLUMNS_MIN_WIDTH;
+  const cardBasis = width >= THREE_COLUMNS_MIN_WIDTH ? "31%" : wide ? "47%" : "100%";
   const request: JsonRequester | undefined = useMemo(
     () => (bootstrap ? createWebWorkspaceTransport(bootstrap.csrf) : undefined),
     [bootstrap],
@@ -280,7 +273,7 @@ export default function UsersScreen() {
   const [filters, setFilters] = useState<UserFilters>(readUrlFilters);
   const [search, setSearch] = useState(filters.q ?? "");
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [statusFor, setStatusFor] = useState<DirectoryUser>();
+  const [selected, setSelected] = useState<DirectoryUser>();
   const [qrFor, setQrFor] = useState<DirectoryUser>();
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -332,6 +325,22 @@ export default function UsersScreen() {
   const toggle = (userId: string) => setOpenActivity((current) => (current === userId ? undefined : userId));
 
   const issueFor = (user: GridUser) => setIssuing({ ...user, last_signed_in_at: null });
+  const actionsFor = (user: DirectoryUser, onStatus?: () => void) => (
+    <UserActions
+      user={user}
+      open={openActivity === user.user_id}
+      onToggle={() => toggle(user.user_id)}
+      onIssue={() => setIssuing(user)}
+      onStatus={onStatus}
+      onQr={() => setQrFor(user)}
+    />
+  );
+  const dialogs = (
+    <>
+      {issuing ? <EnrolmentDialog request={request} user={issuing} onClose={() => setIssuing(undefined)} /> : null}
+      {qrFor ? <SignInQrDialog request={request} user={qrFor} onClose={() => setQrFor(undefined)} /> : null}
+    </>
+  );
   const views = isAdmin ? (
     <ChipGroup
       options={[{ key: "list", label: t("usersViewList") }, { key: "grid", label: t("usersViewGrid") }, { key: "upload", label: t("usersViewUpload") }]}
@@ -348,7 +357,33 @@ export default function UsersScreen() {
         {view === "grid"
           ? <GrantGrid request={request} projects={options.projects} wide={wide} onIssue={issueFor} />
           : <AccountUpload request={request} />}
-        {issuing ? <EnrolmentDialog request={request} user={issuing} onClose={() => setIssuing(undefined)} /> : null}
+        {dialogs}
+      </WebShell>
+    );
+  }
+
+  if (selected) {
+    return (
+      <WebShell title={t("usersTitle")} wide>
+        <View style={s.actions}>
+          <Button size="sm" kind="secondary" label={t("usersBack")} onPress={() => setSelected(undefined)} />
+        </View>
+        <Text style={styles.headline} accessibilityRole="header">{t("usersStatusTitle", { name: selected.name })}</Text>
+        <Text style={styles.muted} selectable>{[selected.email, selected.phone].filter(Boolean).join(" · ")}</Text>
+        <GrantTags user={selected} />
+        {actionsFor(selected)}
+        {openActivity === selected.user_id ? <ActivityPanel request={request} user={selected} /> : null}
+        <View testID="user-view" style={[s.columns, wide && { flexDirection: "row", alignItems: "flex-start" }]}>
+          <View testID="user-view-status" style={s.column}>
+            <Text style={styles.headline} accessibilityRole="header">{t("usersStatusHeading")}</Text>
+            <UserStatusPanel request={request} user={selected} />
+          </View>
+          <View testID="user-view-placement" style={s.column}>
+            <Text style={styles.headline} accessibilityRole="header">{t("usersPlacementTitle")}</Text>
+            <UserPlacement request={request} user={selected} />
+          </View>
+        </View>
+        {dialogs}
       </WebShell>
     );
   }
@@ -373,67 +408,32 @@ export default function UsersScreen() {
       {!busy && !error && users.length === 0 ? <Text style={styles.muted}>{t("usersNone")}</Text> : null}
       {users.length ? <Text style={styles.muted}>{t("usersCount", { shown: users.length, total })}</Text> : null}
 
-      {wide && users.length ? (
-        <View testID="users-table">
-          <View style={[s.row, s.line]} testID="users-head">
-            {USER_COLUMNS.map((c) => (
-              <View key={c.key} style={COL[c.key]} testID={`users-col-${c.key}`}><Text style={s.head} numberOfLines={1}>{t(c.head)}</Text></View>
-            ))}
+      <View style={s.grid} testID="users-grid">
+        {users.map((user) => (
+          <View key={user.user_id} style={[styles.card, { flexBasis: cardBasis, flexGrow: 1, minWidth: 0 }]} testID="users-card">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("usersOpenCard", { name: user.name })}
+              onPress={() => setSelected(user)}
+              style={s.cardBody}
+            >
+              <Text style={styles.headline}>{user.name}</Text>
+              <Text style={styles.muted} selectable>{[user.email, user.phone].filter(Boolean).join(" · ")}</Text>
+              <Text style={styles.muted}>{`${user.active ? t("usersActive") : t("usersInactive")} · ${enrolmentLabel(user)}`}</Text>
+            </Pressable>
+            <GrantTags user={user} />
+            {actionsFor(user, () => setSelected(user))}
+            {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
           </View>
-          {users.map((user) => {
-            const contact = [user.email, user.phone].filter(Boolean).join(" · ");
-            const app = enrolmentLabel(user);
-            const cells: Record<UserColumnKey, ReactNode> = {
-              name: <Text style={styles.text} numberOfLines={1} {...({ title: user.name } as object)}>{user.name}</Text>,
-              contact: <Text style={styles.muted} numberOfLines={1} selectable {...({ title: contact } as object)}>{contact}</Text>,
-              roles: <RolesCell user={user} />,
-              status: <Text style={styles.muted} numberOfLines={1}>{user.active ? t("usersActive") : t("usersInactive")}</Text>,
-              app: <Text style={styles.muted} numberOfLines={1} {...({ title: app } as object)}>{app}</Text>,
-              actions: (
-                <UserActionsMenu
-                  user={user}
-                  open={openActivity === user.user_id}
-                  onToggle={() => toggle(user.user_id)}
-                  onIssue={() => setIssuing(user)}
-                  onStatus={() => setStatusFor(user)}
-                  onQr={() => setQrFor(user)}
-                />
-              ),
-            };
-            return (
-              <View key={user.user_id} testID="users-row">
-                <View style={[s.row, s.line]} testID="users-line">
-                  {USER_COLUMNS.map((c) => <View key={c.key} style={COL[c.key]} testID={`users-col-${c.key}`}>{cells[c.key]}</View>)}
-                </View>
-                {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
-              </View>
-            );
-          })}
-        </View>
-      ) : null}
-
-      {!wide ? users.map((user) => (
-        <View key={user.user_id} style={styles.card} testID="users-card">
-          <Text style={styles.headline}>{user.name}</Text>
-          {user.email ? <Text style={styles.muted} selectable>{user.email}</Text> : null}
-          {user.phone ? <Text style={styles.muted} selectable>{user.phone}</Text> : null}
-          {user.grants.map((grant, index) => <GrantView key={index} grant={grant} />)}
-          <Text style={styles.muted}>
-            {`${user.active ? t("usersActive") : t("usersInactive")} · ${enrolmentLabel(user)}`}
-          </Text>
-          <UserActions user={user} open={openActivity === user.user_id} onToggle={() => toggle(user.user_id)} onIssue={() => setIssuing(user)} onStatus={() => setStatusFor(user)} onQr={() => setQrFor(user)} />
-          {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
-        </View>
-      )) : null}
+        ))}
+      </View>
 
       {busy ? <Text style={styles.muted}>{t("loading")}</Text> : null}
       {!busy && users.length < total ? (
         <Button kind="secondary" label={t("usersLoadMore")} onPress={() => void load(users.length)} />
       ) : null}
 
-      {issuing ? <EnrolmentDialog request={request} user={issuing} onClose={() => setIssuing(undefined)} /> : null}
-      {statusFor ? <StatusDialog request={request} user={statusFor} onClose={() => setStatusFor(undefined)} /> : null}
-      {qrFor ? <SignInQrDialog request={request} user={qrFor} onClose={() => setQrFor(undefined)} /> : null}
+      {dialogs}
       {sheetOpen ? (
         <FilterSheet filters={filters} options={options} wide={wide} onChange={set} onClear={clearAll} onClose={() => setSheetOpen(false)} />
       ) : null}

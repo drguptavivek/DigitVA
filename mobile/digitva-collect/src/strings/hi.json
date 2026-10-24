@@ -1280,5 +1280,14 @@
   "usersColActions": "कार्रवाई",
   "usersMoreActions": "{name} के लिए और कार्रवाइयाँ",
   "orgBranchUnit": "नीचे 1 इकाई",
-  "queueInterviewer": "साक्षात्कारकर्ता: {name}"
+  "queueInterviewer": "साक्षात्कारकर्ता: {name}",
+  "usersAllProjects": "सभी परियोजनाएँ",
+  "usersBack": "उपयोगकर्ताओं पर वापस",
+  "usersDetails": "विवरण",
+  "usersPlacementTitle": "संगठन",
+  "usersPlacementNone": "आपकी परियोजनाओं में कोई स्थान नहीं।",
+  "usersStatusHeading": "खाते की स्थिति",
+  "orgUserRoles": "{name}: {roles}",
+  "orgUserHere": "{name} यहाँ हैं",
+  "usersOpenCard": "{name} का विवरण खोलें"
 }

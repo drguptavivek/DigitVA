@@ -10,7 +10,7 @@ import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { describeError, recordError } from "./errorLog";
 import { t, type StringKey } from "./i18n";
 import { useShell } from "./nativeShell/shellContext";
-import { BUTTON_MIN_WIDTH, buttonTone, controls, fontSize, radius, spacing, typography, ui, useTheme, type ButtonSize, type ButtonVariant, type UiTokens } from "./theme";
+import { BUTTON_MIN_WIDTH, buttonTone, controlText, controls, fontSize, radius, spacing, typography, ui, useTheme, type ButtonSize, type ButtonVariant, type UiTokens } from "./theme";
 
 /** Same phone breakpoint as the DORIS kit. */
 const PHONE_BREAKPOINT = 768;
@@ -264,8 +264,8 @@ function createStyles(t: UiTokens, controlHeight: number = controls.minHeight, c
     danger: { backgroundColor: t.destructive },
     buttonSpinner: { position: "absolute", right: spacing.xs },
     disabled: { opacity: 0.5 },
-    buttonText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "500", color: t.primaryForeground, fontFamily: controls.fontFamily },
-    secondaryText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "500", color: t.foreground, fontFamily: controls.fontFamily },
+    buttonText: { ...controlText, fontSize: fontSize.body, lineHeight: 22, fontWeight: "500", color: t.primaryForeground, fontFamily: controls.fontFamily },
+    secondaryText: { ...controlText, fontSize: fontSize.body, lineHeight: 22, fontWeight: "500", color: t.foreground, fontFamily: controls.fontFamily },
     row: { flexDirection: "row", gap: spacing.xs, alignItems: "center", flexWrap: "wrap" },
     card: {
       backgroundColor: t.card,

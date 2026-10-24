@@ -245,9 +245,9 @@ describe("Delete draft on the Interviews list", () => {
     await render(<InterviewsView {...interviewsProps(items, { onDeleteDraft })} />);
     expect(tree.root.findAllByProps({ testID: "interview-draft-d1" }).length).toBeGreaterThan(0);
     expect(tree.root.findAllByProps({ testID: "interview-draft-d2" }).length).toBeGreaterThan(0);
-    const buttons = labelled(tree, "Delete draft");
+    const buttons = tree.root.findAll((n) => n.props.accessibilityLabel === "Delete draft" && typeof n.props.onPress === "function");
     expect(buttons).toHaveLength(1);
-    await act(async () => buttons[0].props.onClick());
+    await act(async () => buttons[0].props.onPress());
     expect(onDeleteDraft).toHaveBeenCalledWith(expect.objectContaining({ key: "draft-d1" }));
   });
 });

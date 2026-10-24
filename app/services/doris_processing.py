@@ -42,8 +42,8 @@ _URI_SPLIT = re.compile(r"\s*[/&]\s*(?=https?://)")
 
 
 _OMITTED_LABEL = {
-    "AdministrativeData.DateBirth": "date of birth",
-    "AdministrativeData.DateDeath": "date of death",
+    "AdministrativeData.DateBirth": "birth",
+    "AdministrativeData.DateDeath": "death",
 }
 
 
@@ -270,11 +270,10 @@ def process_certificate(
     }
     doris = _run_engine("doris", who_certificate, release, ctx, omitted)
     codedit = _run_engine("codedit", who_certificate, release, ctx, omitted)
-    notes = [
-        f"The {_OMITTED_LABEL[path]} is year-only, which WHO's DORIS cannot process together "
-        "with the other date. It was left out of the WHO check; your entry is kept."
-        for path in omitted
-    ]
+    notes = []
+    if omitted:
+        names = ", ".join(_OMITTED_LABEL[path] for path in omitted)
+        notes.append(f"Year-only dates left out of the WHO check: {names}. Your entries are kept.")
     if str(((doris["result"] or {}).get("error")) or "").startswith("Internal system error"):
         notes.append(
             "WHO's DORIS failed internally on this certificate. Check the dates, manner of "

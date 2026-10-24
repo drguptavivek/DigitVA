@@ -152,12 +152,12 @@ const badgeTone = (t: UiTokens, variant: BadgeVariant) =>
       : variant === "destructive" ? { bg: t.destructive, border: t.destructive, fg: t.destructiveForeground }
         : { bg: "transparent", border: t.border, fg: t.foreground };
 
-export function Badge({ variant = "secondary", children }: { variant?: BadgeVariant; children: ReactNode }) {
+export function Badge({ variant = "secondary", children, mono }: { variant?: BadgeVariant; children: ReactNode; mono?: boolean }) {
   const { t } = useUi();
   const tone = badgeTone(t, variant);
   return (
     <View style={{ alignSelf: "flex-start", borderRadius: uiRadius.full, borderWidth: 1, borderColor: tone.border, backgroundColor: tone.bg, paddingHorizontal: gap.sm - 2, paddingVertical: 1, flexShrink: 1 }}>
-      <Text style={{ fontSize: font.caption, lineHeight: 16, fontWeight: "600", color: tone.fg }}>{children}</Text>
+      <Text style={{ fontSize: font.caption, lineHeight: 16, fontWeight: "600", color: tone.fg, ...(mono ? { fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" } : null) }}>{children}</Text>
     </View>
   );
 }

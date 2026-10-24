@@ -217,11 +217,19 @@ it("shows the computed UCOD as a titled cluster and keeps the raw code", async (
   };
   const { tree } = renderPanel(makeWorkspace(), apiFor({ processDoris: jest.fn(async () => reply) }));
   await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-  const text = allText(tree);
+  let text = allText(tree);
   expect(text).toContain("Underlying cause: 5A14 Diabetes mellitus, type unspecified");
-  expect(text).toContain("with BA41.Z Acute myocardial infarction, unspecified (postcoordinated manifestation)");
+  expect(text).toContain("+ BA41.Z Acute myocardial infarction, unspecified (manifestation)");
+  expect(text).toContain("|5A14/BA41.Z|");
+  // Stem, URI and the "/" explanation sit behind the collapsed Details toggle.
+  expect(text).not.toContain("Computed stem");
+  expect(text).not.toContain("joins the stem code DORIS chose");
+  await act(async () => byLabel(tree, "Show DORIS code details").props.onPress());
+  text = allText(tree);
+  expect(text).toContain("Computed stem: |5A14");
+  expect(text).toContain("Computed URI: |http://id.who.int/icd/release/11/mms/1");
   expect(text).toContain("joins the stem code DORIS chose");
-  expect(text).toContain("Computed UCOD: |5A14/BA41.Z");
+  expect(byLabel(tree, "Hide DORIS code details").props.accessibilityState).toEqual({ expanded: true });
   await act(async () => tree.unmount());
 });
 

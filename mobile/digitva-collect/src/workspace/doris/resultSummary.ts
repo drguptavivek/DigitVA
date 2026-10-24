@@ -93,17 +93,17 @@ export function certificateTitle(certificate: JsonObject, codes: string[]): stri
 export const UCOD_CLUSTER_EXPLANATION =
   "A \"/\" joins the stem code DORIS chose as the underlying cause to the code(s) it attached to it as manifestations or details; \"&\" adds an extension code to a stem.";
 
-const ROLE_NOTE: Record<UcodPart["role"], string> = { stem: "", extension: " (extension)", postcoordinated: " (postcoordinated manifestation)" };
+const ROLE_NOTE: Record<UcodPart["role"], string> = { stem: "", extension: " (extension)", postcoordinated: " (manifestation)" };
 
 /**
  * The readable UCOD cluster, one line per code: "Underlying cause: 5A14 Diabetes..." then
- * "with BA41.Z Acute myocardial infarction, unspecified (postcoordinated manifestation)".
+ * "+ BA41.Z Acute myocardial infarction, unspecified (manifestation)".
  * A code with no title shows alone.
  */
 export function ucodClusterLines(parts: UcodPart[]): string[] {
   return parts.map((part, index) => {
     const label = part.title ? `${part.code} ${part.title}` : part.code;
-    return index === 0 ? `Underlying cause: ${label}` : `with ${label}${ROLE_NOTE[part.role]}`;
+    return index === 0 ? `Underlying cause: ${label}` : `+ ${label}${ROLE_NOTE[part.role]}`;
   });
 }
 

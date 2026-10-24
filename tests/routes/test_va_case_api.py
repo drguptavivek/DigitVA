@@ -622,6 +622,20 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(served["age"], "28")
         self.assertEqual(served["key_symptoms"], [None, "Fever", None])
 
+    def test_smartva_is_served_to_an_unmasked_coder_from_the_start(self):
+        sid = self._coding_case()
+        self.assertIsNone(self._workspace(sid)["smartva"])
+        db.session.add(VaSmartvaResults(
+            va_sid=sid, payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke", va_smartva_cause1icd="I64",
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+        ))
+        db.session.commit()
+        body = self._workspace(sid)
+        self.assertEqual(body["case"]["project_mode"], "unmasked_simple")
+        self.assertEqual(body["smartva"]["causes"][0]["cause"], "Stroke")
+        self.assertEqual(body["smartva_status"], "done")
+
     def test_the_reviewer_workspace_shows_the_reviewer_steps(self):
         self._mode(masked=True)
         sid = self._reviewing_case()

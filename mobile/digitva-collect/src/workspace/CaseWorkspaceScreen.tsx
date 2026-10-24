@@ -349,6 +349,9 @@ export function CaseWorkspaceScreen({
   // Reviewers get the COD entry form right under the coder's COD, above the long reference content.
   const codEditor = selectedCode === "vacodassessment" && identity.mode !== "view" ? (
     <View key={`${identityKey}:cod`}>
+      {/* The API serves smartva only when this caller may see it (unmasked, or masked after Step 1); the
+          masked DORIS final step renders it inside its own card. */}
+      {workspace.smartva !== null && !(workspace.case.project_mode === "masked_doris" && workspace.step === "final") ? <SmartVaReference value={workspace.smartva} /> : null}
       {workspace.case.project_mode.endsWith("_doris") ? (
         renderDoris ? renderDoris(workspace, loadWorkspace, finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (

@@ -684,6 +684,26 @@ it("saves the editable initial prefill and reloads the workspace", async () => {
   await act(async () => tree.unmount());
 });
 
+it("shows the served SmartVA result in the coding workspace, and nothing when none is served", async () => {
+  const served = { age: "40", gender: "Male", key_symptoms: [null, null, null], causes: [{ rank: 1, cause: "Stroke", icd10: "I64", icd11: "8B20", likelihood: null }], symptoms: [] };
+  const render = async (payload: WorkspacePayload) => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={apiFor(payload)} onExit={jest.fn()} />);
+      await flush();
+    });
+    return tree;
+  };
+  const unmasked = { ...workspace("coding", "final"), smartva: served } as unknown as WorkspacePayload;
+  unmasked.case = { ...unmasked.case, project_mode: "unmasked_simple" };
+  let tree = await render(unmasked);
+  expect(textContent(tree.root)).toContain("Stroke");
+  await act(async () => tree.unmount());
+  tree = await render(workspace("coding"));
+  expect(textContent(tree.root)).not.toContain("SmartVA Analysis");
+  await act(async () => tree.unmount());
+});
+
 it("ignores an initial-save completion after the case identity changes", async () => {
   let finishSave!: (value: { va_sid: string; initial_assessment_id: string }) => void;
   const oldApi = apiFor(workspace("coding"), {

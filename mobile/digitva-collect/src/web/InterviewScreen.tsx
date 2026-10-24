@@ -21,6 +21,7 @@ import { FormDefinitionError, type DefinitionRequest } from "../formDefinitions"
 import { FormDefinitionHistoryError } from "../formDefinitionHistory";
 import type { Prefill } from "../cases";
 import { initialDataFromPrefill } from "../prefill";
+import { readWebRecall, recallFromData, withInterviewerRecall, writeWebRecall } from "../interviewerRecall";
 import { refusalFieldsText, refusalProblems } from "../refusalText";
 import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type ConsentRecordEnvelope, type DraftConsentStatus, type ProjectConsentConfig } from "../consent";
 import { useAppState } from "../AppState";
@@ -454,7 +455,14 @@ export default function InterviewScreen() {
     if (!isCurrent()) return;
     const sectionOf = new Map(base.questions.map((question) => [question.name, question.sectionPath.at(-1) ?? "_root"]));
     const prefill = nextDraft.prefill as Prefill;
-    const prefillData = initialDataFromPrefill(prefill) as SubmissionData;
+    // A new interview only (never a revision): the interviewer's own details from their last one.
+    const prefillData = nextRevision
+      ? (initialDataFromPrefill(prefill) as SubmissionData)
+      : withInterviewerRecall(
+          initialDataFromPrefill(prefill),
+          readWebRecall(bootstrap.user.user_id),
+          bootstrap.user.name,
+        );
     const initialData = normalizedRevision
       ? { ...prefillData, ...normalizedRevision.envelope.data }
       : prefillData;
@@ -949,6 +957,8 @@ export default function InterviewScreen() {
                 setNeedsNewSnapshot(false);
                 dirtyRef.current = true;
                 changedDataRef.current = data;
+                if (!(store instanceof RevisionMemoryStore) && loadedBootstrap)
+                  writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
               }}
               onDraftSaved={(saved) => {
                 if (!(store instanceof ServerDraftStore)) return;

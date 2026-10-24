@@ -204,7 +204,7 @@ function makeSaveError(error: unknown): string {
   // DORIS process errors are {error: {message, fields: [{path, message}]}}: show them like the public demo, keep the Ref line.
   const nested = object(body.error);
   if (typeof nested.message !== "string" || !nested.message) return generic;
-  const fields = array(nested.fields).filter(isRecord).map((field) => `${text(field.path)} — ${text(field.message)}`);
+  const fields = array(nested.fields).map((item) => object(item)).map((field) => `${text(field.path)} — ${text(field.message)}`);
   const ref = generic.split("\n").slice(1).join("\n");
   return [`${nested.message}${fields.length ? ` Check: ${fields.join("; ")}` : ""}`, ref].filter(Boolean).join("\n");
 }

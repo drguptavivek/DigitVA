@@ -52,7 +52,7 @@ import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
 import type { DorisProcessReply, JsonObject, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
 import { DorisPanel } from "../src/workspace/doris/DorisPanel";
 import { dorisGuidance, parseDorisOptions } from "../src/workspace/doris/guidance";
-import { parseInterval, serializeInterval } from "../src/workspace/doris/interval";
+import { UNKNOWN_UNIT, parseInterval, serializeInterval } from "../src/workspace/doris/interval";
 
 const identity: WorkspaceIdentity = { vaSid: "sid-1", mode: "coding" };
 const certificate: JsonObject = {
@@ -330,6 +330,12 @@ it("parses and serializes ISO 8601 intervals like the web editor", () => {
   expect(serializeInterval("", "")).toEqual({ value: "", error: "" });
   expect(serializeInterval("x", "Y").error).not.toBe("");
   expect(serializeInterval("2", "").error).not.toBe("");
+  // The public demo's exact messages (app/static/js/doris_interval.js).
+  expect(serializeInterval("1e3", "Y").error).toBe("Enter a non-negative decimal number without an exponent.");
+  expect(serializeInterval("", "Y").error).toBe("Enter a non-negative decimal number without an exponent.");
+  expect(serializeInterval("2", "").error).toBe("Choose a time unit.");
+  expect(serializeInterval("2", UNKNOWN_UNIT).error).toBe("Remove the interval value or choose a time unit.");
+  expect(serializeInterval("", UNKNOWN_UNIT)).toEqual({ value: "", error: "" });
 });
 
 it("starts with three Part I lines and processes with trailing empty lines", async () => {
@@ -783,23 +789,58 @@ describe("EstimatedAge from the dates", () => {
     expect((await sentCertificate(tree, api)).AdministrativeData).toMatchObject({ DateDeath: "2025-08-12", EstimatedAge: "P29Y" });
   });
 
-  it("does not refill over a number typed without a unit when a date changes", async () => {
+  it("does not refill over a number typed without a unit, and Process is blocked until the unit is chosen", async () => {
     const api = apiFor();
     const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
     await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
     await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
     expect(byLabel(tree, "Estimated age").props.value).toBe("76");
-    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).toContain("Estimated age: Choose a time unit.");
+    expect(api.processDoris).not.toHaveBeenCalled();
   });
 
-  it("does not refill over a unit picked without a number when a date changes", async () => {
+  it("blocks Process when a unit is picked without a number, and does not refill when a date changes", async () => {
     const api = apiFor();
     const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
     await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
     await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
     await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
-    expect((await sentCertificate(tree, api)).AdministrativeData).not.toHaveProperty("EstimatedAge");
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).toContain("Estimated age: Enter a non-negative decimal number without an exponent.");
+    expect(api.processDoris).not.toHaveBeenCalled();
   });
+
+  it("blocks Process with the demo's message for a value under Unknown, and for an exponent", async () => {
+    const api = apiFor();
+    const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
+    await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+    await act(async () => byLabel(tree, "Estimated age unit: Unknown").props.onPress());
+    await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).toContain("Estimated age: Remove the interval value or choose a time unit.");
+    expect(api.processDoris).not.toHaveBeenCalled();
+
+    await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
+    await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
+    await act(async () => byLabel(tree, "Estimated age").props.onChangeText("1e3"));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(tree)).toContain("Estimated age: Enter a non-negative decimal number without an exponent.");
+    expect(api.processDoris).not.toHaveBeenCalled();
+
+    await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
+    expect((await sentCertificate(tree, api)).AdministrativeData).toMatchObject({ EstimatedAge: "P76Y" });
+  });
+});
+
+it("shows the server's DORIS error message and each field path, not a generic line", async () => {
+  const error = new ApiError(422, "INVALID_INPUT", undefined, undefined, { schema_version: 1, error: { code: "INVALID_INPUT", message: "The DORIS certificate is invalid.", fields: [{ path: "Part1[0].Conditions[0].Interval", message: "Interval must be an ISO 8601 duration." }] } });
+  const api = apiFor({ processDoris: jest.fn(async () => { throw error; }) });
+  const { tree } = renderPanel(makeWorkspace(), api);
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(api.processDoris).toHaveBeenCalledTimes(1);
+  expect(allText(tree)).toContain("The DORIS certificate is invalid. Check: Part1[0].Conditions[0].Interval — Interval must be an ISO 8601 duration.");
+  await act(async () => tree.unmount());
 });
 
 describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
@@ -809,6 +850,9 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     const api = apiFor({ processDoris: jest.fn(async (): Promise<DorisProcessReply> => ({ ...processReply, doris: { status: "completed" as const, result: { ...processReply.doris.result, report: "Line one\n\n\n\nLine two" } }, codedit: { status: "completed" as const, result: { report: "", tabularReport: "" } } })) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
     await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    // The DORIS report sits behind the collapsed Details toggle, as the public demo keeps it.
+    expect(allText(tree)).not.toContain("Line one");
+    await act(async () => byLabel(tree, "Show DORIS code details").props.onPress());
     const text = allText(tree);
     expect(text).toContain("Line one\n\nLine two");
     expect(text).not.toContain("\n\n\n");

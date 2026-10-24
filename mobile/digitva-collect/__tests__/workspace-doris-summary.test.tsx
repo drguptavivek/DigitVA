@@ -2,7 +2,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 import { collapseBlankLines, certificateTitle, icd11Alternatives, summaryChecks } from "../src/workspace/doris/resultSummary";
 import { SearchBox } from "../src/workspace/doris/compact";
-import { wholeNumberText } from "../src/workspace/SmartVaReference";
+import { SmartVaReference, wholeNumberText } from "../src/workspace/SmartVaReference";
 import type { JsonObject } from "../src/workspace/contracts";
 
 describe("collapseBlankLines", () => {
@@ -76,6 +76,34 @@ describe("SearchBox height", () => {
     const style = Object.assign({}, ...[node!.props.style].flat(3).filter(Boolean));
     expect(style.height).toBeGreaterThan(0);
     expect(style.flexBasis).toBeUndefined();
+    act(() => tree.unmount());
+  });
+});
+
+describe("SmartVaReference", () => {
+  const texts = (node: unknown): string => JSON.stringify(node);
+  it("ranks the causes, de-duplicates key symptoms, groups symptoms and drops the age quartile", () => {
+    let tree!: ReactTestRenderer;
+    const data: JsonObject = {
+      age: "45.0", gender: "Male",
+      key_symptoms: ["Cough", "Previous diagnosis of Cancer", "Previous diagnosis of Cancer", "NaN"],
+      causes: [{ cause: "Tuberculosis", rank: 1, icd10: "A16", icd11_label: "1B10.1 - TB, not confirmed", likelihood: "Somewhat likely" }, { cause: "", rank: 2 }],
+      symptoms: ["Previous diagnosis of Cancer", "Previous diagnosis of Diabetes", "Open Response Word: arrest", "Open Response Word: cardio", "Age quartile 3", "Fever"],
+    };
+    act(() => { tree = create(<SmartVaReference value={data} />); });
+    const out = texts(tree.toJSON());
+    expect(out).toContain("SmartVA Analysis");
+    expect(out).toContain("45 years");
+    expect(out).toContain("Somewhat likely");
+    expect(out).toContain("ICD-10 A16 \u00b7 ICD-11 1B10.1 - TB, not confirmed");
+    expect(out).toContain("Key symptoms: ");
+    expect(out).toContain("Cough, Previous diagnosis of Cancer");
+    expect(out).not.toContain("Cancer, Previous diagnosis of Cancer");
+    expect(out).toContain("Cancer, Diabetes");
+    expect(out).toContain("arrest, cardio");
+    expect(out).toContain("Fever");
+    expect(out).toContain("Other symptoms");
+    expect(out).not.toContain("Age quartile");
     act(() => tree.unmount());
   });
 });

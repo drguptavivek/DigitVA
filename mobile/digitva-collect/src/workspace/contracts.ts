@@ -98,6 +98,14 @@ export interface DorisProcessEngine {
   result: JsonObject | null;
 }
 
+/** One code of the computed UCOD: the stem, an "&" extension, or a "/" postcoordinated code; title "" when unknown. */
+export interface UcodPart {
+  code: string;
+  title: string;
+  role: "stem" | "extension" | "postcoordinated";
+  uri: string | null;
+}
+
 export interface DorisProcessReply {
   schema_version: 1;
   client_revision: number;
@@ -110,6 +118,8 @@ export interface DorisProcessReply {
   process_token: string;
   /** Plain-language notes on what was left out of, or went wrong in, the WHO request. */
   who_notes?: string[];
+  /** The computed UCOD split into titled codes (server-resolved; absent on older servers). */
+  ucod_parts?: UcodPart[];
 }
 
 export interface SmartvaRunReply {
@@ -897,6 +907,18 @@ export function parseDorisCodeInfo(value: unknown): DorisCodeInfoReply {
   };
 }
 
+/** Titles are a courtesy: a malformed or missing list shows the raw code instead of failing the reply. */
+function parseUcodParts(value: unknown): UcodPart[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): UcodPart[] => {
+    if (item === null || typeof item !== "object") return [];
+    const part = item as Record<string, unknown>;
+    if (typeof part.code !== "string" || !part.code) return [];
+    const role = part.role === "extension" || part.role === "postcoordinated" ? part.role : "stem";
+    return [{ code: part.code, title: typeof part.title === "string" ? part.title : "", role, uri: typeof part.uri === "string" ? part.uri : null }];
+  });
+}
+
 export function parseDorisProcess(value: unknown): DorisProcessReply {
   const source = record(value, "doris.process");
   if (source.schema_version !== 1) throw new WorkspaceContractError("doris.process.schema_version");
@@ -918,5 +940,6 @@ export function parseDorisProcess(value: unknown): DorisProcessReply {
     doris: engine(source.doris, "doris.process.doris"),
     codedit: engine(source.codedit, "doris.process.codedit"),
     process_token: string(source.process_token, "doris.process.process_token"),
+    ucod_parts: parseUcodParts(source.ucod_parts),
   };
 }

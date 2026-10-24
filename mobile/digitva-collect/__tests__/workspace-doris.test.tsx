@@ -206,6 +206,33 @@ it("invalidates the process proof and final choice after a certificate edit", as
   await act(async () => tree.unmount());
 });
 
+it("shows the computed UCOD as a titled cluster and keeps the raw code", async () => {
+  const reply: DorisProcessReply = {
+    ...processReply,
+    doris: { status: "completed", result: { code: "5A14/BA41.Z", stemCode: "5A14", uri: "http://id.who.int/icd/release/11/mms/1" } },
+    ucod_parts: [
+      { code: "5A14", title: "Diabetes mellitus, type unspecified", role: "stem", uri: null },
+      { code: "BA41.Z", title: "Acute myocardial infarction, unspecified", role: "postcoordinated", uri: null },
+    ],
+  };
+  const { tree } = renderPanel(makeWorkspace(), apiFor({ processDoris: jest.fn(async () => reply) }));
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  const text = allText(tree);
+  expect(text).toContain("Underlying cause: 5A14 Diabetes mellitus, type unspecified");
+  expect(text).toContain("with BA41.Z Acute myocardial infarction, unspecified (postcoordinated manifestation)");
+  expect(text).toContain("joins the stem code DORIS chose");
+  expect(text).toContain("Computed UCOD: |5A14/BA41.Z");
+  await act(async () => tree.unmount());
+});
+
+it("falls back to the raw code when the server sent no UCOD titles", async () => {
+  const { tree } = renderPanel(makeWorkspace(), apiFor());
+  await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+  expect(allText(tree)).not.toContain("Underlying cause:");
+  expect(allText(tree)).toContain("Computed UCOD: |CA40");
+  await act(async () => tree.unmount());
+});
+
 it("discards an in-flight process reply after an edit", async () => {
   let finish!: (reply: DorisProcessReply) => void;
   const api = apiFor({ processDoris: jest.fn(() => new Promise((resolve) => { finish = resolve; })) });

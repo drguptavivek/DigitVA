@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import re
 
 from app.services.doris_certificate import (
     canonical_json_bytes,
@@ -11,6 +13,7 @@ from app.services.doris_certificate import (
     verify_certificate_codes,
     who_safe_certificate,
 )
+from app.services.icd11_titles import icd11_title
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
     WhoIcdApiTimeout,
@@ -30,12 +33,61 @@ _DORIS_KEYS = {
     "warning",
 }
 _CODEDIT_KEYS = {"report", "tabularReport", "issueIds"}
+log = logging.getLogger(__name__)
+# A DORIS uri joins the parts' URIs with "/" or "&", which also occur inside a URI.
+_URI_SPLIT = re.compile(r"\s*[/&]\s*(?=https?://)")
 
 
 _OMITTED_LABEL = {
     "AdministrativeData.DateBirth": "date of birth",
     "AdministrativeData.DateDeath": "date of death",
 }
+
+
+def _certificate_titles(certificate: dict) -> dict[str, str]:
+    """Code -> text the certifier typed, for every coded condition on the certificate."""
+    parts = list(certificate.get("Part1") or [])
+    if certificate.get("Part2"):
+        parts.append(certificate["Part2"])
+    titles: dict[str, str] = {}
+    for part in parts:
+        for condition in (part or {}).get("Conditions") or []:
+            code, text = condition.get("Code"), condition.get("Text")
+            if code and isinstance(text, str) and text.strip():
+                titles.setdefault(code, text.strip())
+    return titles
+
+
+def ucod_parts(doris_result: dict | None, certificate: dict) -> list[dict]:
+    """The computed UCOD split into titled codes for the coder; [] when DORIS chose none.
+
+    "STEM&EXT/OTHER" is the stem (extension codes joined by "&") and the code(s)
+    DORIS postcoordinated to it. Titles come from the certificate first, then the ICD
+    API; a failed lookup leaves the title empty and never fails the result.
+    """
+    code = (doris_result or {}).get("code")
+    if not isinstance(code, str) or not code.strip():
+        return []
+    uri = (doris_result or {}).get("uri")
+    uris = _URI_SPLIT.split(uri.strip()) if isinstance(uri, str) else []
+    on_certificate = _certificate_titles(certificate)
+    parts = []
+    for group_index, group in enumerate(code.split("/")):
+        for token_index, token in enumerate(t.strip() for t in group.split("&")):
+            if not token:
+                continue
+            role = "extension" if token_index else "postcoordinated" if group_index else "stem"
+            title = on_certificate.get(token)
+            if not title:
+                try:
+                    title = icd11_title(token)
+                except Exception:  # a title is a courtesy: never fail the DORIS result
+                    log.warning("ICD-11 title lookup failed for a DORIS UCOD part", exc_info=True)
+            parts.append({"code": token, "title": title or "", "role": role, "uri": None})
+    if len(uris) == len(parts):
+        for part, part_uri in zip(parts, uris):
+            part["uri"] = part_uri
+    return parts
 
 
 def canonical_digest(value: object) -> str:
@@ -164,4 +216,5 @@ def process_certificate(
         "doris": doris,
         "codedit": codedit,
         "who_notes": notes,
+        "ucod_parts": ucod_parts(doris["result"], certificate),
     }

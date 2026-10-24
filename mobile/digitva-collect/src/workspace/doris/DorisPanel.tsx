@@ -17,7 +17,7 @@ import { Alert, Body, Button, ButtonGlyph, Card, CardTitle, Chip, FieldHint, Inp
 import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 import { CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
-import { certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks } from "./resultSummary";
+import { UCOD_CLUSTER_EXPLANATION, certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks, ucodClusterLines } from "./resultSummary";
 import { dorisWarningCodes } from "./dorisWarnings";
 
 type CertificateState = {
@@ -1093,6 +1093,7 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
   const codeditStatus = processing?.codedit.status ?? (typeof savedCodedit.status === "string" ? savedCodedit.status : undefined);
   const dr = object(processing?.doris.result ?? savedDoris.result);
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
+  const ucodParts = processing?.ucod_parts ?? [];
   // An empty report is no box at all; a run of blank lines reads as one blank line.
   const report = (value: unknown) => {
     const body = collapseBlankLines(value);
@@ -1105,8 +1106,14 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
       {typeof dr.error === "string" ? <Alert variant="destructive">{dr.error}</Alert> : null}
       {dr.reject === true ? <Alert variant="destructive">DORIS rejected the certificate result.</Alert> : null}
       {(processing?.who_notes ?? []).map((note) => <Muted key={note}>{note}</Muted>)}
-      {typeof dr.code === "string" ? <Body>Computed UCOD: {dr.code}</Body> : null}
-      {typeof dr.stemCode === "string" ? <Body>Computed stem: {dr.stemCode}</Body> : null}
+      {ucodParts.length ? (
+        <View>
+          {ucodClusterLines(ucodParts).map((line) => <Body key={line}>{line}</Body>)}
+          {ucodParts.length > 1 ? <Muted>{UCOD_CLUSTER_EXPLANATION}</Muted> : null}
+        </View>
+      ) : null}
+      {typeof dr.code === "string" ? (ucodParts.length ? <Muted>Computed UCOD: {dr.code}</Muted> : <Body>Computed UCOD: {dr.code}</Body>) : null}
+      {typeof dr.stemCode === "string" ? (ucodParts.length ? <Muted>Computed stem: {dr.stemCode}</Muted> : <Body>Computed stem: {dr.stemCode}</Body>) : null}
       {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
       <DorisChecks doris={processing?.doris ?? savedDoris} codedit={processing?.codedit ?? savedCodedit} api={api} vaSid={vaSid} />
       {report(dr.report)}

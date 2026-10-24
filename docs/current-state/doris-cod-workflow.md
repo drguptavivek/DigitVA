@@ -441,3 +441,19 @@ coder's entry are unchanged, and `process_certificate` returns `who_notes`
 (plain sentences the web and Expo result panels show) naming what was left out.
 A remaining WHO "Internal system error" also adds a `who_notes` line telling the
 coder to check the certificate or choose the cause without DORIS.
+
+## Readable computed UCOD (2026-10-24)
+
+DORIS returns the computed UCOD as raw codes (`5A14/BA41.Z`, `A&X/B`, URIs
+joined by `/` with a trailing `/unspecified`). `process_certificate` also
+returns `ucod_parts` (`app/services/doris_processing.py` `ucod_parts`): one
+`{code, title, role, uri}` per code, `role` being `stem`, `extension` (after
+`&`) or `postcoordinated` (after `/`). Titles come from the certificate's own
+text for that code, else `icd11_title` (WHO ICD API, cached, English); a failed
+lookup leaves `title` empty and never fails the result. The Expo result panel
+(`DorisPanel.tsx` `ProcessingSummary`) and the web summary
+(`doris_result_summary.js`) show "Underlying cause: CODE title" then "with CODE
+title (postcoordinated manifestation)", a one-line explanation of `/` and `&`,
+and keep the raw code and URI muted underneath. The parts are not part of the
+result digest or the process proof; saved (reloaded) processing has none and
+shows the raw codes only.

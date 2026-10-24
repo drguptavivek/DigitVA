@@ -1,6 +1,6 @@
 import { createIcd11Picker } from './digitva_icd11_picker.js';
 import { mount as mountInterval } from './doris_interval.js?v=4';
-import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=4';
+import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=5';
 import * as Rules from './doris_rules.js?v=4';
 
 (function () {

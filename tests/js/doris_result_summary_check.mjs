@@ -20,3 +20,13 @@ const box3 = { children: [], replaceChildren(){ this.children = []; }, appendChi
 renderSummary(box3, {doris: {status: 'completed', result: {code: 'PA60', stemCode: 'PA60', report: '', warning: ''}}, codedit: {status: 'completed', result: {issueIds: [], report: '', tabularReport: ''}}}, {}, null);
 if (box3.children.some(c => c.tag === 'ul')) throw new Error('an empty issue list added checks');
 if (!box3.children.some(c => c.textContent === 'No problems found in the certificate.')) throw new Error('clean run not reported');
+
+// The server's ucod_parts render as a titled cluster, the raw code kept underneath.
+const box4 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
+renderSummary(box4, {ucod_parts: [{code: '5A14', title: 'Diabetes mellitus, type unspecified', role: 'stem'}, {code: 'BA41.Z', title: 'Acute myocardial infarction, unspecified', role: 'postcoordinated'}], doris: {status: 'completed', result: {code: '5A14/BA41.Z', stemCode: '5A14', uri: 'http://x/1', report: '', warning: ''}}, codedit: {status: 'completed', result: {}}}, {}, null);
+const clusterText = box4.children.find(c => c.className.includes('doris-summary-cluster')).children.map(c => c.textContent);
+if (clusterText[0] !== 'Underlying cause: 5A14 Diabetes mellitus, type unspecified') throw new Error('stem line: ' + clusterText[0]);
+if (clusterText[1] !== 'with BA41.Z Acute myocardial infarction, unspecified (postcoordinated manifestation)') throw new Error('with line: ' + clusterText[1]);
+if (!clusterText[2].includes('joins the stem code')) throw new Error('no explanation');
+if (clusterText[3] !== 'Computed UCOD: 5A14/BA41.Z · http://x/1') throw new Error('raw code lost: ' + clusterText[3]);
+if (box3.children.some(c => c.className.includes('doris-summary-cluster'))) throw new Error('cluster without parts');

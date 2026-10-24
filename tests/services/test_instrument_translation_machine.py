@@ -45,6 +45,9 @@ class FakeRedis:
     def exists(self, key):
         return key in self.data
 
+    def expire(self, key, seconds):
+        self.expired = getattr(self, "expired", 0) + 1
+
 
 def echo(texts, target):
     return [f"[{target}] {t}" for t in texts]
@@ -83,7 +86,7 @@ class Base(BaseTestCase):
         super().tearDown()
 
     def run_job(self, fake=echo, **kw):
-        with mock.patch.object(azure, "translate_batch", side_effect=fake) as m:
+        with mock.patch.object(azure, "translate_chunks", side_effect=lambda t, l: iter([fake(t, l)])) as m:
             status = job.run(**kw)
         self.mock = m
         return status
@@ -129,7 +132,7 @@ class JobTests(Base):
 
     def test_dry_run_calls_no_provider_and_writes_nothing(self):
         self.app.config["AZURE_TRANSLATOR_KEY"] = ""
-        with mock.patch.object(azure, "translate_batch") as m:
+        with mock.patch.object(azure, "translate_chunks") as m:
             status = job.run(locales=["hi"], dry_run=True)
         m.assert_not_called()
         self.assertEqual(status["results"]["hi"]["would_create"], 3)
@@ -157,6 +160,28 @@ class JobTests(Base):
             raise azure.MachineTranslationError("down")
         status = self.run_job(fake=boom, locales=["hi"])
         self.assertEqual(status["results"]["hi"]["errors"], 1)
+
+    def test_a_failing_batch_keeps_earlier_ones_and_a_rerun_drafts_the_rest(self):
+        def post_ok(url, headers, body):
+            return [{"translations": [{"text": b["Text"]}]} for b in body]
+
+        calls = []
+
+        def post(url, headers, body):
+            calls.append(1)
+            if len(calls) == 2:
+                raise azure.MachineTranslationError("Azure Translator did not answer (last status 429).")
+            return post_ok(url, headers, body)
+
+        with mock.patch.object(azure, "MAX_ITEMS", 2), mock.patch.object(azure, "_post", side_effect=post):
+            first = job.run(locales=["hi"])["results"]["hi"]
+        self.assertEqual((first["created"], first["errors"]), (2, 1))
+        self.assertIn("429", first["error"])
+        self.assertGreaterEqual(self.redis.expired, 1)  # lock TTL refreshed per batch
+
+        with mock.patch.object(azure, "MAX_ITEMS", 2), mock.patch.object(azure, "_post", side_effect=post_ok):
+            second = job.run(locales=["hi"])["results"]["hi"]
+        self.assertEqual((second["created"], second["errors"]), (1, 0))  # the remainder only
 
     def test_unknown_locale_and_unseeded_locale(self):
         with self.assertRaises(svc.InstrumentTranslationError):
@@ -240,3 +265,64 @@ class ServingAndRoutesTests(Base):
         self._login(self.base_admin_id)
         body = self.client.get("/admin/panels/instrument-translations").get_data(as_text=True)
         self.assertIn("must be checked by a clinician-translator before accepting", body)
+
+
+class AddLanguageTests(Base):
+    URL = "/admin/api/instrument-translations/locales"
+    QUEUE = "app.tasks.instrument_translation_tasks.machine_translate_instrument.delay"
+
+    def add(self, code, name="Kannada"):
+        with mock.patch(self.QUEUE) as delay:
+            r = self.client.post(
+                self.URL, json={"locale": code, "language_name": name}, headers=self._csrf_headers(),
+            )
+        return r, delay
+
+    def test_a_supported_language_is_created_as_a_draft_and_drafting_is_queued(self):
+        self._login(self.base_admin_id)
+        r, delay = self.add("kn")
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.get_json()["machine"], "queued")
+        delay.assert_called_once_with(["kn"])
+        row = db.session.get(MasInstrumentLocales, (INSTRUMENT, "kn"))
+        self.assertEqual((row.lifecycle_state, row.is_active, row.version), ("draft", False, 0))
+        with self.assertRaises(svc.InstrumentTranslationError):  # still not activatable
+            svc.set_locale_active(INSTRUMENT, "kn", True)
+
+    def test_an_unsupported_language_is_created_without_queuing(self):
+        self._login(self.base_admin_id)
+        r, delay = self.add("kha", "Khasi")
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.get_json()["machine"], "unsupported")
+        delay.assert_not_called()
+        self.assertIsNotNone(db.session.get(MasInstrumentLocales, (INSTRUMENT, "kha")))
+
+    def test_invalid_and_duplicate_codes_are_refused(self):
+        self._login(self.base_admin_id)
+        for bad in ("KN", "k", "kannada", "kn_IN", "en", "hi", "../x", ""):
+            r, delay = self.add(bad)
+            self.assertEqual(r.status_code, 400, bad)
+            delay.assert_not_called()
+        self.assertEqual(self.add("kn", "  ")[0].status_code, 400)
+
+    def test_admin_only_and_csrf(self):
+        self._login(self.base_coder_id)
+        r, _ = self.add("kn")
+        self.assertEqual(r.status_code, 403)
+        self._login(self.base_admin_id)
+        self.assertEqual(self.client.post(self.URL, json={"locale": "kn", "language_name": "K"}).status_code, 400)
+        self.assertIsNone(db.session.get(MasInstrumentLocales, (INSTRUMENT, "kn")))
+
+    def test_the_card_lists_only_set_up_supported_locales(self):
+        db.session.add(MasInstrumentLocales(
+            instrument_code=INSTRUMENT, locale_code="kha", language_name="Khasi",
+            version=0, updated_at=datetime.now(UTC),
+        ))
+        db.session.commit()
+        self._login(self.base_admin_id)
+        url = "/admin/api/instrument-translations/machine-translate"
+        self.assertEqual(self.client.get(url).get_json()["locales"], ["hi", "ta"])
+        r = self.client.post(url, json={"locales": ["pa"]}, headers=self._csrf_headers())
+        self.assertEqual(r.status_code, 400)  # supported by Azure but not set up
+        r = self.client.post(url, json={"locales": ["kha"]}, headers=self._csrf_headers())
+        self.assertEqual(r.status_code, 400)

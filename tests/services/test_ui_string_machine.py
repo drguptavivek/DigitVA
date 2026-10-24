@@ -34,6 +34,9 @@ class FakeRedis:
     def exists(self, key):
         return key in self.data
 
+    def expire(self, key, seconds):
+        self.expired = getattr(self, "expired", 0) + 1
+
 
 def fake_translate(texts, target):
     """Stand-in for Azure: prefix every text, keeping placeholders."""
@@ -64,7 +67,7 @@ class Base(BaseTestCase):
         super().tearDown()
 
     def run_job(self, **kw):
-        with mock.patch.object(azure, "translate_batch", side_effect=fake_translate):
+        with mock.patch.object(azure, "translate_chunks", side_effect=lambda t, l: iter([fake_translate(t, l)])):
             return job.run(**kw)
 
     def row(self, locale, key):
@@ -98,14 +101,14 @@ class JobTests(Base):
         self.assertEqual(self.row("hi", "loginHelp").text, "पुराना")
 
     def test_rejects_candidates_that_change_placeholders(self):
-        with mock.patch.object(azure, "translate_batch", return_value=["a", "b", "c", "भेजे {sent}"]):
+        with mock.patch.object(azure, "translate_chunks", return_value=[["a", "b", "c", "भेजे {sent}"]]):
             status = job.run(locales=["pa"])
         counts = status["results"]["pa"]
         self.assertEqual(counts["rejected"], 1)  # syncResult lost {failed}
         self.assertIsNone(self.row("pa", "syncResult"))
 
     def test_dry_run_calls_no_provider_and_writes_nothing(self):
-        with mock.patch.object(azure, "translate_batch") as call:
+        with mock.patch.object(azure, "translate_chunks") as call:
             status = job.run(locales=["pa"], dry_run=True)
         call.assert_not_called()
         self.assertEqual(status["results"]["pa"]["would_create"], len(EN))
@@ -130,9 +133,33 @@ class JobTests(Base):
             job.run(locales=["hi"])
 
     def test_provider_error_is_counted_per_locale(self):
-        with mock.patch.object(azure, "translate_batch", side_effect=azure.MachineTranslationError("down")):
+        with mock.patch.object(azure, "translate_chunks", side_effect=azure.MachineTranslationError("down")):
             status = job.run(locales=["hi"])
         self.assertEqual(status["results"]["hi"]["errors"], 1)
+
+    def test_a_failing_batch_keeps_earlier_ones_and_a_rerun_drafts_the_rest(self):
+        def post_ok(url, headers, body):
+            return [{"translations": [{"text": b["Text"]}]} for b in body]
+
+        calls = []
+
+        def post(url, headers, body):
+            calls.append(1)
+            if len(calls) == 2:
+                raise azure.MachineTranslationError("Azure Translator did not answer (last status 429).")
+            return post_ok(url, headers, body)
+
+        with mock.patch.object(azure, "MAX_ITEMS", 2), mock.patch.object(azure, "_post", side_effect=post):
+            first = job.run(locales=["pa"])["results"]["pa"]
+        self.assertEqual((first["created"], first["errors"]), (2, 1))
+        self.assertIn("429", first["error"])
+        self.assertEqual(db.session.query(MasUiStringOverride).filter_by(locale_code="pa").count(), 2)
+        self.assertGreaterEqual(self.redis.expired, 1)  # lock TTL refreshed per batch
+
+        with mock.patch.object(azure, "MAX_ITEMS", 2), mock.patch.object(azure, "_post", side_effect=post_ok):
+            second = job.run(locales=["pa"])["results"]["pa"]
+        self.assertEqual(second["created"], len(EN) - 2)
+        self.assertEqual(second["errors"], 0)
 
     def test_locale_outside_allow_list_refused(self):
         with self.assertRaises(svc.UiStringError):
@@ -201,12 +228,50 @@ class ClientTests(Base):
                 {"translations": [{"text": "x"}]} for _ in json])
 
         with mock.patch.object(requests, "post", side_effect=post):
-            azure.translate_batch(["a"] * 1001, "hi")
-        self.assertEqual(calls, [1000, 1])
+            azure.translate_batch(["a"] * 101, "hi")
+        self.assertEqual(calls, [100, 1])
 
     def test_batches_by_characters(self):
-        chunks = list(azure._chunks(["a" * 30_000, "b" * 30_000]))
-        self.assertEqual(len(chunks), 2)
+        chunks = list(azure._chunks(["a" * 6_000, "b" * 6_000, "c" * 4_000]))
+        self.assertEqual([len(c) for c in chunks], [1, 2])  # no request over 10,000
+
+    def test_pacing_sleeps_when_the_minute_budget_would_be_exceeded(self):
+        self.app.config["AZURE_TRANSLATOR_CHARS_PER_MINUTE"] = 100
+        self.addCleanup(self.app.config.pop, "AZURE_TRANSLATOR_CHARS_PER_MINUTE")
+        azure._sent.clear()
+        now, sleeps = [1000.0], []
+        with mock.patch.object(azure, "_clock", lambda: now[0]), \
+                mock.patch.object(azure, "_sleep", sleeps.append):
+            azure._pace(60)  # fits
+            azure._pace(30)  # fits: 90 in the window
+            self.assertEqual(sleeps, [])
+            now[0] += 10
+            azure._pace(60)  # 150 > 100: wait until the first 60 leave (50 s)
+            self.assertEqual(sleeps, [50.0])
+        azure._sent.clear()
+
+    def test_429_waits_the_retry_after_then_succeeds(self):
+        azure._sent.clear()
+        responses = [
+            mock.Mock(status_code=429, headers={"Retry-After": "7"}),
+            mock.Mock(status_code=429, headers={}),  # no header: a minute
+            mock.Mock(status_code=200, json=lambda: [{"translations": [{"text": "ok"}]}]),
+        ]
+        sleeps = []
+        with mock.patch.object(requests, "post", side_effect=responses), \
+                mock.patch.object(azure, "_sleep", sleeps.append):
+            self.assertEqual(azure.translate_batch(["a"], "hi"), ["ok"])
+        self.assertEqual(sleeps, [7.0, 60])
+        azure._sent.clear()
+
+    def test_gives_up_after_five_retries(self):
+        azure._sent.clear()
+        with mock.patch.object(requests, "post", return_value=mock.Mock(status_code=429, headers={})) as post, \
+                mock.patch.object(azure, "_sleep"):
+            with self.assertRaisesRegex(azure.MachineTranslationError, "429"):
+                azure.translate_batch(["a"], "hi")
+        self.assertEqual(post.call_count, 6)
+        azure._sent.clear()
 
     def test_retries_429_then_succeeds(self):
         responses = [

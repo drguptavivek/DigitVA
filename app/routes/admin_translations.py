@@ -27,7 +27,6 @@ from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
 from app.routes.admin import _json_error, admin
 from app.services import instrument_translation_machine_job as machine_job
 from app.services import machine_translation_service as azure
-from app.services.ui_string_service import MACHINE_LOCALES
 from app.services.instrument_translation_service import (
     BASE_INSTRUMENT_CODE,
     MAX_STRING_PAGE_SIZE,
@@ -36,6 +35,7 @@ from app.services.instrument_translation_service import (
     InstrumentTranslationError,
     InvalidTranslationText,
     accept_machine_translation,
+    create_locale,
     export_translations,
     export_xliff,
     import_translations,
@@ -121,6 +121,47 @@ def admin_instrument_translation_locales():
     except InstrumentTranslationError as exc:
         return _json_error(str(exc), 400)
     return jsonify({"instrument_code": instrument_code, "locales": rows})
+
+
+@admin.post(f"{_API}/locales")
+@role_required("admin")
+def admin_instrument_translation_add_locale():
+    """Add a language as a draft, inactive locale and queue its machine drafts.
+
+    Approval and activation stay manual (decided 2026-09-20). ``machine`` tells
+    the page what happened to drafting: queued, unsupported (Azure does not
+    offer the language), not_configured or busy (a run is in progress).
+    """
+    if err := _guard():
+        return err
+    payload = request.get_json(silent=True) or {}
+    code, name = payload.get("locale"), payload.get("language_name")
+    if not isinstance(code, str) or not isinstance(name, str):
+        return _json_error("locale and language_name are required.", 400)
+    instrument_code = _instrument(payload.get("instrument_code"))
+    try:
+        create_locale(instrument_code, code, name, actor_id=current_user.user_id)
+    except InstrumentTranslationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    code = code.strip()
+    if not machine_job.azure_code(code):
+        machine = "unsupported"
+    elif not azure.is_configured():
+        machine = "not_configured"
+    elif machine_job.is_running():
+        machine = "busy"
+    else:
+        from app.tasks.instrument_translation_tasks import machine_translate_instrument
+
+        machine_translate_instrument.delay([code])
+        machine = "queued"
+    log.info(
+        "instrument locale added | by=%s | locale=%s | machine=%s",
+        current_user.user_id, code, machine,
+    )
+    return jsonify({"locale": code, "machine": machine}), 201
 
 
 @admin.post(f"{_API}/<instrument_code>/<locale>/import")
@@ -363,7 +404,7 @@ def admin_instrument_translation_machine_status():
             "configured": azure.is_configured(),
             "running": machine_job.is_running(),
             "last_run": machine_job.last_run(),
-            "locales": list(MACHINE_LOCALES),
+            "locales": machine_job.supported_locales(),
         }
     )
 
@@ -375,8 +416,9 @@ def admin_instrument_translation_machine_translate():
     if err := _guard():
         return err
     chosen = (request.get_json(silent=True) or {}).get("locales") or []
-    if not isinstance(chosen, list) or any(c not in MACHINE_LOCALES for c in chosen):
-        return _json_error("Choose locales from the machine-translation list.", 400)
+    supported = machine_job.supported_locales()
+    if not isinstance(chosen, list) or any(c not in supported for c in chosen):
+        return _json_error("Choose set-up locales that Azure Translator supports.", 400)
     if not azure.is_configured():
         return _json_error("Azure Translator is not configured.", 409)
     if machine_job.is_running():

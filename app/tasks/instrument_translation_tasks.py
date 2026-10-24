@@ -10,8 +10,8 @@ log = logging.getLogger(__name__)
 @shared_task(
     name="app.tasks.instrument_translation_tasks.machine_translate_instrument",
     bind=True,
-    soft_time_limit=3300,
-    time_limit=3500,
+    soft_time_limit=14400,
+    time_limit=14700,
 )
 def machine_translate_instrument(self, locales=None):
     """Never raises: the outcome is the returned state and the admin-page status."""

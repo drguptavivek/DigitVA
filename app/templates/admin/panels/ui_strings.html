@@ -50,7 +50,7 @@
         Last run: {{ mt_last.state }}{% if mt_last.finished_at %} ({{ mt_last.finished_at }}){% endif %}
         {% for code, c in mt_last.results.items() %}
           <div><code>{{ code }}</code> created {{ c.created }}, rejected {{ c.rejected }},
-            skipped {{ c.skipped }}, errors {{ c.errors }}</div>
+            skipped {{ c.skipped }}, errors {{ c.errors }}{% if c.error %} ({{ c.error[:120] }}){% endif %}</div>
         {% endfor %}
       </div>
     {% endif %}

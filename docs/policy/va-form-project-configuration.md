@@ -784,9 +784,22 @@ strings a language lacks to be drafted by Azure Translator, then review them.
 - **Checks:** a draft is dropped, and counted as rejected, if it fails
   `validate_translation_text` or its `${...}` references, `{...}` placeholders
   or markup tags differ from the English.
-- **Languages:** the locales that already have a `mas_instrument_locales` row
-  and are in the machine set of `docs/policy/ui-strings.md`. A locale without a
-  row named explicitly is reported as an error; the run does not create one.
+- **Languages (revised 2026-10-24, `digitva-9lsd`):** the machine list is the
+  *set-up locales that Azure Translator supports*, not the fixed UI-string set.
+  Our locale code maps to Azure's through `AZURE_CODES` in
+  `app/services/instrument_translation_machine_job.py` (`as bn gu hi kn ml mr
+  ne or pa sd ta te ur`; a region suffix is ignored; Khasi `kha` is
+  unsupported). The Machine drafts card and the editor's "Draft missing with
+  Azure" button list only locales that are both set up and supported. A locale
+  named explicitly that is not supported is refused.
+- **Add a language:** an administrator enters a locale code (two or three
+  lowercase letters, optionally `-XX` region, as the XLSForm/ODK language
+  columns write it; `en` and existing codes refused) and a language name on the
+  Instrument Translations page. It is created through `_get_or_create_locale`
+  as `draft`, inactive, version 0 -- approval and activation stay manual
+  (2026-09-20). Drafting is queued at once when Azure supports the language;
+  otherwise the page says machine drafting is not available (translate by hand
+  or XLIFF). Admin only, CSRF; the log line carries the actor id and locale code.
 - **Who:** admin only, from a button on the Instrument Translations page or
   `flask instrument-translations machine-translate [--locale] [--dry-run] [--limit]`.
   One run at a time (Redis lock); the last run's per-language counts (created,
@@ -794,8 +807,12 @@ strings a language lacks to be drafted by Azure Translator, then review them.
   provider. Without the Azure settings the page and command say so and refuse.
 - **Caution shown in the UI:** "Machine drafts of medical terms must be checked
   by a clinician-translator before accepting."
-- **Batching:** requests go to Azure in batches within its element and
-  character limits, with backoff on 429 and 5xx (the shared client).
+- **Batching and pacing:** requests of at most 100 texts and 10,000 characters,
+  paced to `AZURE_TRANSLATOR_CHARS_PER_MINUTE` (default 30,000, under the F0
+  limit); 429/503 wait `Retry-After` (else 60 s), five retries (the shared client).
+- **Resumable:** drafts are committed after each request, so a language that
+  fails part-way keeps what it drafted (counts `created` plus `errors=1` and the
+  message) and a rerun drafts only what is still missing.
 
 ### Carrying translations across servers (decided 2026-10-24, `digitva-3b65`)
 

@@ -49,6 +49,31 @@ STATUS_KEY = "digitva_instrument_machine_translate:status"
 AlreadyRunning = ui_job.AlreadyRunning
 
 
+#: Our locale code (the XLSForm/ODK language code) to Azure Translator's
+#: language code, for the Indian languages Azure Translator supports (v3
+#: language list). A region suffix is ignored (``hi-IN`` -> ``hi``). Khasi
+#: (``kha``) is not supported, so it is created but drafted by hand or XLIFF.
+AZURE_CODES = {
+    "as": "as", "bn": "bn", "gu": "gu", "hi": "hi", "kn": "kn", "ml": "ml",
+    "mr": "mr", "ne": "ne", "or": "or", "pa": "pa", "sd": "sd", "ta": "ta",
+    "te": "te", "ur": "ur",
+}
+
+
+def azure_code(locale: str) -> str | None:
+    """Azure's code for ``locale``, or ``None`` when Azure does not support it."""
+    return AZURE_CODES.get((locale or "").split("-")[0])
+
+
+def supported_locales(instrument_code: str = BASE_INSTRUMENT_CODE) -> list[str]:
+    """Set-up locales of the instrument that Azure supports, sorted."""
+    have = db.session.scalars(
+        sa.select(MasInstrumentLocales.locale_code)
+        .where(MasInstrumentLocales.instrument_code == instrument_code)
+    )
+    return sorted(c for c in have if azure_code(c))
+
+
 def _redis():
     return ui_job._redis()
 
@@ -113,7 +138,7 @@ def _missing(instrument_code: str, locale: str, reference: dict) -> list[tuple]:
     return sorted(k for k, text in reference.items() if k not in held and (text or "").strip())
 
 
-def _run_locale(instrument_code, locale, reference, dry_run, limit) -> dict:
+def _run_locale(instrument_code, locale, reference, dry_run, limit, client=None, token="") -> dict:
     result = {"created": 0, "rejected": 0, "skipped": 0, "errors": 0}
     if db.session.get(MasInstrumentLocales, (instrument_code, locale)) is None:
         result.update(errors=1, error=f"No {locale!r} translation exists for {instrument_code}.")
@@ -127,34 +152,37 @@ def _run_locale(instrument_code, locale, reference, dry_run, limit) -> dict:
         return result
     if not todo:
         return result
+    # Each request's drafts are committed before the next is sent, so a later
+    # failure keeps them and a rerun drafts only what is still missing.
+    now, pos = datetime.now(UTC), 0
     try:
-        translated = azure.translate_batch([reference[k] for k in todo], locale)
+        for translated in azure.translate_chunks([reference[k] for k in todo], azure_code(locale)):
+            keys, pos = todo[pos:pos + len(translated)], pos + len(translated)
+            for key, text in zip(keys, translated):
+                if not _acceptable(text, reference[key]):
+                    result["rejected"] += 1
+                    continue
+                kind, item_key, field = key
+                inserted = db.session.execute(
+                    pg_insert(Translations)
+                    .values(
+                        instrument_code=instrument_code, locale_code=locale,
+                        item_kind=kind, item_key=item_key, field=field,
+                        text=text.strip(), source=SOURCE_MACHINE,
+                        updated_by=None, updated_at=now,
+                    )
+                    .on_conflict_do_nothing()
+                )
+                if inserted.rowcount:
+                    result["created"] += 1
+                else:
+                    result["skipped"] += 1
+            db.session.commit()
+            ui_job._refresh(client, token, LOCK_KEY)
     except azure.MachineTranslationError as exc:
+        db.session.rollback()
         log.warning("machine translation of %s failed: %s", locale, exc)
         result.update(errors=1, error=str(exc))
-        return result
-
-    now = datetime.now(UTC)
-    for key, text in zip(todo, translated):
-        if not _acceptable(text, reference[key]):
-            result["rejected"] += 1
-            continue
-        kind, item_key, field = key
-        inserted = db.session.execute(
-            pg_insert(Translations)
-            .values(
-                instrument_code=instrument_code, locale_code=locale,
-                item_kind=kind, item_key=item_key, field=field,
-                text=text.strip(), source=SOURCE_MACHINE,
-                updated_by=None, updated_at=now,
-            )
-            .on_conflict_do_nothing()
-        )
-        if inserted.rowcount:
-            result["created"] += 1
-        else:
-            result["skipped"] += 1
-    db.session.commit()
     return result
 
 
@@ -166,19 +194,13 @@ def run(locales=None, dry_run: bool = False, limit: int | None = None,
     (unless ``dry_run``), :class:`AlreadyRunning`, or ``InstrumentTranslationError``
     for a locale outside the machine set.
     """
-    chosen = list(locales) if locales else list(uis.MACHINE_LOCALES)
+    chosen = list(locales) if locales else supported_locales(instrument_code)
     for code in chosen:
-        if code not in uis.MACHINE_LOCALES:
+        if not azure_code(code):
             raise InstrumentTranslationError(f"{code!r} is not a machine-translation locale.")
     if not dry_run and not azure.is_configured():
         raise azure.NotConfigured("Azure Translator is not configured.")
     reference = reference_items(instrument_code)
-    if not locales:  # default: every machine language the instrument already has
-        have = set(db.session.scalars(
-            sa.select(MasInstrumentLocales.locale_code)
-            .where(MasInstrumentLocales.instrument_code == instrument_code)
-        ))
-        chosen = [c for c in chosen if c in have]
 
     client = _redis()
     token = ui_job._acquire(client, LOCK_KEY)
@@ -192,7 +214,7 @@ def run(locales=None, dry_run: bool = False, limit: int | None = None,
         ui_job._save(client, status, STATUS_KEY)
     try:
         for code in chosen:
-            status["results"][code] = _run_locale(instrument_code, code, reference, dry_run, limit)
+            status["results"][code] = _run_locale(instrument_code, code, reference, dry_run, limit, client, token)
             if not dry_run:
                 ui_job._save(client, status, STATUS_KEY)
         status["state"] = "done"

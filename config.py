@@ -207,6 +207,10 @@ class Config:
     AZURE_TRANSLATOR_ENDPOINT = os.environ.get(
         "AZURE_TRANSLATOR_ENDPOINT", "https://api.cognitive.microsofttranslator.com"
     ).rstrip("/")
+    # Characters per minute the client sends (F0 allows about 33,300).
+    AZURE_TRANSLATOR_CHARS_PER_MINUTE = int(
+        os.environ.get("AZURE_TRANSLATOR_CHARS_PER_MINUTE", "30000")
+    )
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = os.environ.get(
         "HIBP_PASSWORD_BREACH_CHECK_ENABLED", "true"
     ).lower() in ("true", "1", "yes")
@@ -723,6 +727,10 @@ class TestConfig(Config):
     # rather than the session.
     DB_BACKUP_TIMEOUT_SECONDS = 120
     DB_BACKUP_KEEP_DAILY = 3
+    # Characters per minute the client sends (F0 allows about 33,300).
+    AZURE_TRANSLATOR_CHARS_PER_MINUTE = int(
+        os.environ.get("AZURE_TRANSLATOR_CHARS_PER_MINUTE", "30000")
+    )
     HIBP_PASSWORD_BREACH_CHECK_ENABLED = False
     HIBP_PASSWORD_BREACH_CHECK_TIMEOUT_SECONDS = 1.0
     MAIL_SUPPRESS_SEND = True

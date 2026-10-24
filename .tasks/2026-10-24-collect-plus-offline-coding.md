@@ -90,3 +90,7 @@
   is kept on disk with size and sha256 recorded. Later inits block the network (the
   dead-proxy guard). The engine check shows whether setup downloaded or used the shipped
   copies, so parity with the server stays explainable.
+- Builds (owner 2026-10-25): no more local APK or web-export builds; everything builds on
+  GitHub Actions. The engine bundle (NativeAOT .so + WHO data) and the Collect Plus APK may
+  be public GitHub release assets (owner's call; the repo is public). The Plus workflow
+  downloads a pinned, sha256-checked engine release asset, stages it and builds.

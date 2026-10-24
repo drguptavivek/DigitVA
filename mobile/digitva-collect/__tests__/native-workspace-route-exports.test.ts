@@ -32,10 +32,23 @@ test("plain build: native coding, reviewing and workspace routes all explain tha
 });
 
 test("variant detection reads extra.appVariant", () => {
-  expect(isPlusVariant({ appVariant: "plus" })).toBe(true);
-  expect(isPlusVariant({})).toBe(false);
-  expect(isPlusVariant({ appVariant: "development" })).toBe(false);
-  expect(isPlusVariant(undefined)).toBe(false);
+  const noModule = () => false;
+  expect(isPlusVariant({ appVariant: "plus" }, noModule)).toBe(true);
+  expect(isPlusVariant({}, noModule)).toBe(false);
+  expect(isPlusVariant({ appVariant: "development" }, noModule)).toBe(false);
+  expect(isPlusVariant(undefined, noModule)).toBe(false);
+});
+
+test("a plus APK whose JS bundle lost APP_VARIANT is still Plus: the engine module exists only there", () => {
+  expect(isPlusVariant({}, () => true)).toBe(true);
+  expect(isPlusVariant(undefined, () => true)).toBe(true);
+  expect(isPlusVariant({}, () => false)).toBe(false);
+});
+
+test("the plus release script passes APP_VARIANT to the Gradle step that bundles the JS", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const script: string = require("../package.json").scripts["android:plus:release"];
+  expect(script).toContain("APP_VARIANT=plus ./gradlew assembleRelease");
 });
 
 describe("Collect Plus build", () => {

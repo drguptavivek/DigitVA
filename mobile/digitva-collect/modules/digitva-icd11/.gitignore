@@ -1,0 +1,5 @@
+# Staged from private/ by scripts/stage-engine.js for Collect Plus builds. Never commit the engine or its data.
+android/src/main/jniLibs/
+android/src/main/assets/
+android/.cxx/
+android/build/

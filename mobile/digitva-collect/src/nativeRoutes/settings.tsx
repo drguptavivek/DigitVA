@@ -10,6 +10,7 @@ import { Linking, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { APP_VERSION } from "../appVersion";
+import { isPlusVariant } from "../appVariant";
 import { IDLE_LOCK_MS } from "../autoLock";
 import { exportErrors } from "../errorExport";
 import { t, UI_LOCALES } from "../i18n";
@@ -209,6 +210,13 @@ export default function NativeSettings() {
         <Text style={styles.text}>{sync.work === undefined ? t("syncUnsentUnknown") : t("syncUnsentScoped", { count: sync.work.unsent })}</Text>
         <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
       </Section>
+      {isPlusVariant() ? (
+        <Section title="Collect Plus (experimental)">
+          <Button kind="secondary" label="Coding queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/coding", params: { userId: shell.userId } })} />
+          <Button kind="secondary" label="Review queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/reviewing", params: { userId: shell.userId } })} />
+          <Button kind="secondary" label="Offline engine check" onPress={() => router.push("/engine-check")} />
+        </Section>
+      ) : null}
       <Section title={t("settingsHelp")}>
         <Button kind="secondary" label={t("helpGuide")} onPress={() => shell.openSheet("help")} />
         <Button kind="secondary" label={t("faqOpenList")} onPress={() => shell.openSheet("help")} />

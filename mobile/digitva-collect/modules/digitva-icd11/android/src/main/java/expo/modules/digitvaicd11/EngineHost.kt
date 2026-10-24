@@ -1,0 +1,86 @@
+package expo.modules.digitvaicd11
+
+import android.content.Context
+import android.system.Os
+import android.util.Log
+import java.io.File
+
+/**
+ * The engine's lifecycle and calls. Runs in the ":icd11" service process, on its single worker thread only (see
+ * Icd11Service): init once per process, failure sticky until that process restarts. The engine's error payloads can
+ * hold stack traces and certificate text, so they are neither logged nor returned: callers get a status or a code.
+ */
+internal class EngineHost(private val context: Context) {
+  // Touched only on the worker thread.
+  private var initResult: Map<String, Any?>? = null
+
+  private fun millis(since: Long) = (System.nanoTime() - since) / 1_000_000.0
+
+  private fun fail(code: String, copyMs: Double = 0.0, initMs: Double = 0.0, totalMs: Double = 0.0) =
+    mapOf("ok" to false, "error" to code, "copyMs" to copyMs, "initMs" to initMs, "ms" to totalMs, "cached" to false)
+
+  fun init(): Map<String, Any?> {
+    initResult?.let { return it + ("cached" to true) + ("ms" to 0.0) }
+    val start = System.nanoTime()
+    val result = try {
+      if (!EngineJni.loadShim()) return fail("unavailable").also { initResult = it }
+      val copyStart = System.nanoTime()
+      val root = EngineData.ensureCopied(context)
+      val copyMs = millis(copyStart)
+      val data = File(root, "data")
+      // The engine's .NET runtime reads TMPDIR from the C environment.
+      Os.setenv("TMPDIR", data.path + "/", true)
+      // The engine makes a background HTTPS call during start-up (not needed offline). With INTERNET granted it
+      // loads OpenSSL, which an app cannot reach (nothing public on Android), and the .NET runtime aborts the
+      // process ("No usable version of libssl"). A dead proxy makes the call fail before any TLS is set up.
+      for (name in listOf("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY")) Os.setenv(name, "http://127.0.0.1:9", true)
+      val lib = File(context.applicationInfo.nativeLibraryDir, "libdigitva_icd11.so")
+      if (!lib.exists() || EngineJni.load(lib.path) != 0) {
+        fail("load_failed", copyMs, 0.0, millis(start))
+      } else {
+        val initStart = System.nanoTime()
+        val code = EngineJni.initEngine(File(root, "bundle").path, data.path)
+        val initMs = millis(initStart)
+        if (code != 0) {
+          // Derived files may be half written; start from clean data after a restart.
+          EngineData.discard(context)
+          fail("init_failed", copyMs, initMs, millis(start))
+        } else {
+          mapOf("ok" to true, "copyMs" to copyMs, "initMs" to initMs, "ms" to millis(start), "cached" to false)
+        }
+      }
+    } catch (error: Exception) {
+      // Class name only: messages can carry paths or data.
+      Log.w(TAG, "init failed: ${error.javaClass.simpleName}")
+      fail("data_copy_failed", 0.0, 0.0, millis(start))
+    }
+    initResult = result
+    return result
+  }
+
+  fun call(op: String, input: String): Map<String, Any?> {
+    val code = OPS[op] ?: return mapOf("ok" to false, "error" to "bad_op", "status" to 0, "nativeMs" to 0.0)
+    if (initResult?.get("ok") != true) {
+      return mapOf("ok" to false, "error" to "not_initialized", "status" to 503, "nativeMs" to 0.0)
+    }
+    val status = IntArray(1)
+    val start = System.nanoTime()
+    val bytes = EngineJni.call(code, input, status)
+    val nativeMs = millis(start)
+    if (bytes == null || status[0] !in 200..299) {
+      // The body of a failed call may echo the input or a stack trace: drop it.
+      return mapOf("ok" to false, "error" to "engine_status", "status" to status[0], "nativeMs" to nativeMs)
+    }
+    return mapOf("ok" to true, "status" to status[0], "text" to String(bytes, Charsets.UTF_8), "nativeMs" to nativeMs)
+  }
+
+  private companion object {
+    const val TAG = "DigitvaIcd11"
+    val OPS = mapOf(
+      "search" to EngineJni.SEARCH,
+      "codeinfo" to EngineJni.CODEINFO,
+      "doris" to EngineJni.DORIS,
+      "codedit" to EngineJni.CODEDIT,
+    )
+  }
+}

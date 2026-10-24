@@ -397,3 +397,38 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
 - Error log: `src/errorLog.ts` (scrubbing, buffer, export text),
   `src/errorLogDb.ts` (table `error_log`, cap, install), `src/errorExport.ts`
   (React Native `Share`). Rules: [policy](../policy/expo-client.md).
+
+## Collect Plus (experimental, adb-only)
+
+A second Android variant of this app, built with `APP_VARIANT=plus`; never
+published (policy: [field data collection](../policy/field-data-collection.md)).
+
+- `app.config.js` (`resolveVariant`): name "DigitVA Collect Plus", package
+  `com.causeofdeathindia.digitvacollect.plus`, version `<version>-plus` (the
+  update check then reports "unknown"), scheme `digitvacollectplus`,
+  `extra.appVariant = "plus"` (read by `src/appVariant.ts`). Unset, the config
+  is unchanged.
+- `plugins/with-android-collect-plus.js`: for plus, native libraries are
+  extracted (`extractNativeLibs`, `useLegacyPackaging`, engine `.so` unstripped)
+  and the engine is staged from `private/icd11-offline-spike` by
+  `modules/digitva-icd11/scripts/stage-engine.js` (fails with a clear message
+  if `private/` is missing). `plugins/with-android-abi-splits.js` ships arm64
+  only; `with-android-release-signing.js` leaves plus on debug signing. For the
+  plain build the plugin only adds `expoAutolinking.exclude` for the module to
+  `settings.gradle`, so the plain APK has no module code.
+- `modules/digitva-icd11` (Kotlin Expo module + JNI shim over the NativeAOT
+  `libdigitva_icd11.so`): data ships as `.bin` assets (AAPT expands `.gz`),
+  is copied once to `filesDir/icd11-<version>/`. The engine runs in a bound
+  service in its own `:icd11` process (`Icd11Service`, one worker thread that
+  serializes calls); init runs once per that process and a failed init is sticky
+  until it restarts. Engine error payloads are never logged or returned. The
+  engine's start-up HTTPS call is pointed at a dead proxy: with INTERNET granted
+  it would load OpenSSL, unreachable from an app, and abort the process.
+- `src/offlineEngine.ts`: `available / init / search / codeinfo / doris / codedit`,
+  each with timings; "unavailable" on web and in the plain build.
+- `src/nativeRoutes/plusWorkspace.tsx`: Coding, Reviewing and Workspace routes
+  render `QueueScreen` / `CaseWorkspaceScreen` (plain: `CodingOnWeb`).
+- Hidden check: Settings > Collect Plus > "Offline engine check", or
+  `digitvacollectplus://engine-check?run=1` (`src/nativeRoutes/engineCheck.tsx`).
+- Build: `APP_VARIANT=plus npx expo prebuild --platform android --clean`, then
+  `cd android && ./gradlew assembleRelease`; install with `adb install -r`.

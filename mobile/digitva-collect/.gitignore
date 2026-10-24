@@ -8,3 +8,4 @@ ios/
 .screens/
 expo-env.d.ts
 *.apk
+!modules/*/android/

@@ -1263,7 +1263,7 @@
   "consentChipRefused": "सहमति: नहीं दी",
   "consentChipNotRecorded": "सहमति: दर्ज नहीं",
   "consentChipChangeHint": "निर्णय बदलने के लिए सहमति स्क्रीन खुलती है",
-  "consentChange": "सहमति का निर्णय बदलें",
+  "consentChangeDecision": "सहमति का निर्णय बदलें",
   "consentChangedAgreed": "सहमति बदलकर \"दी\" कर दी गई। प्रश्न फिर से खुल गए हैं।",
   "consentChangedRefused": "सहमति बदलकर \"नहीं दी\" कर दी गई। उत्तरदाता के नाम, परिवार और पते के उत्तर हटा दिए गए।",
   "deleteDraft": "ड्राफ़्ट हटाएँ",
@@ -1275,7 +1275,7 @@
   "interviewStarted": "शुरू किया: {time}",
   "interviewLastSaved": "अंतिम बार सहेजा: {time}",
   "interviewCompleted": "पूरा हुआ: {time}",
-  "interviewSubmitted": "जमा किया गया: {time}",
+  "interviewSubmittedAt": "जमा किया गया: {time}",
   "interviewSaved": "सहेजा गया: {time}",
   "usersColActions": "कार्रवाई",
   "usersMoreActions": "{name} के लिए और कार्रवाइयाँ",
@@ -1289,5 +1289,8 @@
   "usersStatusHeading": "खाते की स्थिति",
   "orgUserRoles": "{name}: {roles}",
   "orgUserHere": "{name} यहाँ हैं",
-  "usersOpenCard": "{name} का विवरण खोलें"
+  "usersOpenCard": "{name} का विवरण खोलें",
+  "idleWarningTitle": "क्या आप यहाँ हैं?",
+  "idleWarningMessage": "निष्क्रियता के कारण आप 2 मिनट में साइन आउट हो जाएँगे।",
+  "idleStaySignedIn": "साइन इन रहें"
 }

@@ -10,10 +10,13 @@ import {
   type ReactNode
 } from "react";
 
-import { setUiLocale } from "./i18n";
+import { setUiLocale, t } from "./i18n";
 import { trainingBootstrap } from "./training";
 import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
 import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useIdleSignOut } from "./idleSignOut";
+import { clearWebRecall } from "./interviewerRecall";
 import { createBrowserDefinitionCache } from "./client/formDefinitionCache";
 import { loadBrowserSession } from "./client/session";
 import type { BootstrapResult } from "./client/api";
@@ -28,6 +31,8 @@ const AUTHORITATIVE_REFRESH_INTERVAL_MS = 15 * 60_000;
 // logout is repeated until the session answers 401.
 const LOGOUT_ATTEMPTS = 4;
 const LOGOUT_RETRY_MS = 400;
+// Pending saves get this long to finish before a sign-out ends the session.
+const SIGN_OUT_SAVE_WAIT_MS = 5000;
 
 type BrowserDefinitionCache = ReturnType<typeof createBrowserDefinitionCache>;
 
@@ -105,6 +110,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const loggingOut = useRef(false);
   const refreshInFlight = useRef<Promise<void> | undefined>(undefined);
   const definitionSession = useRef<BrowserDefinitionSession | undefined>(undefined);
+  const beforeSignOut = useRef(new Set<() => Promise<void>>());
   const notificationSession = useRef<BrowserNotificationSession | undefined>(undefined);
   const notificationAuthRetry = useRef<{ userId: string; retryAt: number } | undefined>(undefined);
 
@@ -210,14 +216,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [applyDefinitionAccess, clearNotificationSession, resetNotificationSession]);
 
-  const reload = useCallback(async () => {
+  const loadSession = useCallback(async (background: boolean) => {
     if (loggingOut.current) return;
     if (refreshInFlight.current) return refreshInFlight.current;
     const generation = browserRequestGeneration.current;
     let task!: Promise<void>;
     task = (async () => {
       try {
-        const result = await loadBrowserSession();
+        const result = await loadBrowserSession(background);
         if (generation === browserRequestGeneration.current) applySession(result);
       } catch (error) {
         if (generation === browserRequestGeneration.current) {
@@ -240,6 +246,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     refreshInFlight.current = task;
     return task;
   }, [applySession, clearDefinitionSession, clearNotificationSession]);
+  // Not `loadSession` itself: handlers such as onPress would pass an event as the flag.
+  const reload = useCallback(() => loadSession(false), [loadSession]);
+  const reloadInBackground = useCallback(() => loadSession(true), [loadSession]);
 
   const acknowledgeAuthoritativeRefresh = useCallback((expectedRevision: number) => {
     const current = notificationSession.current;
@@ -274,7 +283,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     try {
       const result = await current.gate.run(() => drainNotificationPages({
         after: current.cursor,
-        request: (after) => requestClientJson(`/api/v1/me/notifications?after=${after}`),
+        request: (after) => requestClientJson(`/api/v1/me/notifications?after=${after}`, { background: true }),
       }));
       if (!result || !isCurrent()) return;
       const retryPending = current.hasPolled;
@@ -291,15 +300,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (pollError instanceof ApiError && [401, 403].includes(pollError.status)) {
         notificationAuthRetry.current = { userId, retryAt: Date.now() + NOTIFICATION_AUTH_RETRY_MS };
         clearNotificationSession();
-        await reload();
+        await reloadInBackground();
       }
     }
-  }, [authenticated, bootstrap, clearNotificationSession, nextNotificationRevision, reload]);
+  }, [authenticated, bootstrap, clearNotificationSession, nextNotificationRevision, reloadInBackground]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return;
-    const refresh = () => { if (document.visibilityState === "visible") void reload(); };
-    const accessStale = () => { void reload(); };
+    const refresh = () => { if (document.visibilityState === "visible") void reloadInBackground(); };
+    const accessStale = () => { void reloadInBackground(); };
     const poll = () => { if (document.visibilityState === "visible") void pollNotifications(); };
     const timer = window.setInterval(poll, NOTIFICATION_POLL_INTERVAL_MS);
     window.addEventListener("digitva-access-stale", accessStale);
@@ -316,7 +325,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", refresh);
       document.removeEventListener("visibilitychange", poll);
     };
-  }, [pollNotifications, reload]);
+  }, [pollNotifications, reloadInBackground]);
 
   useEffect(() => {
     let active = true;
@@ -360,9 +369,25 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     current.servedProjects.add(projectId);
   }, [bootstrap]);
 
+  const onBeforeLock = useCallback((hook: () => Promise<void>) => {
+    beforeSignOut.current.add(hook);
+    return () => { beforeSignOut.current.delete(hook); };
+  }, []);
+
+  // Let registered saves (the open interview's draft) finish before the session ends and requests are aborted.
+  const flushBeforeSignOut = useCallback(async () => {
+    const saves = Promise.allSettled([...beforeSignOut.current].map((hook) => hook()));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const limit = new Promise<void>((done) => { timer = setTimeout(done, SIGN_OUT_SAVE_WAIT_MS); });
+    await Promise.race([saves, limit]);
+    clearTimeout(timer);
+  }, []);
+
   const logout = useCallback(async () => {
     const link = bootstrap?.links.logout;
     if (!link || !bootstrap) return;
+    await flushBeforeSignOut();
+    clearWebRecall();
     // Stop every source of authenticated traffic first: a request that ends after the logout response
     // would save the old session again and keep the user signed in. The signed-in state stays untouched
     // until the page navigates away: clearing it re-mounts screens, and their loaders would send exactly
@@ -388,7 +413,44 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setError("server_unavailable");
       await reload();
     }
-  }, [bootstrap, reload]);
+  }, [bootstrap, reload, flushBeforeSignOut]);
+
+  // Idle sign-out (docs/policy/expo-client.md): the page reaches the sign-in page with a reason the Flask
+  // login page shows. The logout POST is best effort: the server may already have ended the session.
+  const goToSignIn = useCallback((signOutFirst: boolean) => {
+    if (loggingOut.current) return;
+    void (async () => {
+      if (signOutFirst) await flushBeforeSignOut();
+      if (loggingOut.current) return;
+      loggingOut.current = true;
+      browserRequestGeneration.current += 1;
+      abortClientRequests();
+      clearWebRecall();
+      const link = bootstrap?.links.logout;
+      if (signOutFirst && link && bootstrap) {
+        try {
+          await requestClientJson(link, { method: "POST", csrf: bootstrap.csrf, allowRedirect: true, timeoutMs: 5000 });
+        } catch {
+          // Already signed out, or unreachable: the server enforces the timeout on its own.
+        }
+      }
+      const login = bootstrap?.links.login ?? "/vaauth/valogin?next=%2Fapp%2F";
+      window.location.assign(`${login}${login.includes("?") ? "&" : "?"}reason=idle`);
+    })();
+  }, [bootstrap, flushBeforeSignOut]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const idle = () => goToSignIn(false);
+    window.addEventListener("digitva-session-idle", idle);
+    return () => window.removeEventListener("digitva-session-idle", idle);
+  }, [goToSignIn]);
+
+  const idleWarning = useIdleSignOut(
+    authenticated,
+    () => { void requestClientJson("/api/v1/me/access").catch(() => undefined); },
+    () => goToSignIn(true),
+  );
 
   const value = useMemo<BrowserAppState>(
     () => ({
@@ -405,7 +467,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       lockNow: async () => undefined,
       lockVersion,
       unlocked: () => undefined,
-      onBeforeLock: () => () => undefined,
+      onBeforeLock,
       logout,
       definitionCache: definitionSession.current?.cache,
       hasServedDefinition,
@@ -414,9 +476,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       notificationGeneration,
       acknowledgeAuthoritativeRefresh
     }),
-    [ready, authenticated, bootstrap, loginUrl, actionCode, error, uiLocale, chooseUiLocale, reload, lockVersion, logout, hasServedDefinition, markServedDefinition, sessionGeneration, notificationGeneration, acknowledgeAuthoritativeRefresh]
+    [ready, authenticated, bootstrap, loginUrl, actionCode, error, uiLocale, chooseUiLocale, reload, lockVersion, onBeforeLock, logout, hasServedDefinition, markServedDefinition, sessionGeneration, notificationGeneration, acknowledgeAuthoritativeRefresh]
   );
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={value}>
+      {children}
+      {idleWarning.warning ? (
+        <ConfirmDialog
+          title={t("idleWarningTitle")}
+          message={t("idleWarningMessage")}
+          confirmLabel={t("signOut")}
+          cancelLabel={t("idleStaySignedIn")}
+          onConfirm={() => goToSignIn(true)}
+          onCancel={idleWarning.stay}
+        />
+      ) : null}
+    </Context.Provider>
+  );
 }
 
 /**

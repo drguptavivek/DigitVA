@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-24
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -264,6 +264,35 @@ They are NOT replaced by `@role_required()`.
 ### Session lifetime
 
 - 30 minutes (`PERMANENT_SESSION_LIFETIME` in `config.py`). The stored expiry slides at most once per 60 s (`SESSION_REFRESH_WINDOW_SECONDS` in `app/utils/bearer_session.py`; a session whose data changed is written at once), so the idle timeout is 30 minutes measured to the minute (29-30).
+### Idle sign-out (owner decision 2026-10-24; `digitva-kc89`)
+
+- A cookie session signs out after 30 minutes without **user** activity. The
+  session carries `last_activity_at` (UTC epoch seconds), set at sign-in and
+  moved forward by cookie-authenticated requests that are not background. It
+  moves at most every 30 seconds, so sign-out comes 29 to 30 minutes after
+  the last activity (the web client pings at most every 30 s while the user
+  is active, so typing in a form keeps the session alive).
+- **Background request** = header `X-DigitVA-Background: 1`, sent only by
+  automatic client calls (the Expo web notification poll, the 15-minute
+  authoritative refresh, the reload on tab focus). It does not extend the
+  session, and it is refused like any other request once the session is idle. Static files and `/health` are background.
+- A cookie request whose `last_activity_at` is older than
+  `PERMANENT_SESSION_LIFETIME` is refused: `logout_user()`, the session is
+  cleared, and the answer is `401 {"code": "session_idle"}` on API/JSON/HTMX
+  requests or a redirect to the sign-in page on pages. A session without the
+  stamp (signed in before this rule shipped) is stamped on its first request,
+  not signed out.
+- The server rule holds with the client closed: a sleeping laptop or another
+  tab cannot keep a session alive, because only non-background requests count.
+- Bearer-token requests (phone app, `/api/v1/` with `Authorization: Bearer`)
+  never read the cookie session and are untouched by this rule.
+- The Expo web client warns at 28 minutes ("You will be signed out in 2
+  minutes because of inactivity", with "Stay signed in", which counts as
+  activity) and signs out at 30; see `docs/policy/expo-client.md`.
+- **No "Remember me".** The sign-in form has no such checkbox, nothing calls
+  `login_user(remember=True)`, and a remember cookie from before this rule is
+  never honoured: the request is anonymous and the cookie is cleared.
+
 - Backend: SQLAlchemy (`va_sessions` table)
 - Flask-login: Stores `_user_id` in session; `load_user()` does a fresh DB lookup per request
 

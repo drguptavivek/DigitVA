@@ -553,6 +553,8 @@ export interface ClientRequestOptions {
   timeoutMs?: number;
   /** Accept the Flask logout redirect without following its HTML landing page. */
   allowRedirect?: boolean;
+  /** An automatic call, not user activity: it does not extend the server's idle timer (auth-decorator-rbac.md section 5). */
+  background?: boolean;
   /** A file sent as the raw body (`application/octet-stream`) with its SHA-256 (hex); used instead of JSON. */
   rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
 }
@@ -701,6 +703,31 @@ function cookieCsrfHeader(server: string, snapshot?: ClientCsrf): string | undef
  */
 const ACCESS_CHANGED_403_CODES = new Set(["terms_required", "project_forbidden"]);
 
+const BACKGROUND_HEADER = "X-DigitVA-Background";
+let backgroundDepth = 0;
+
+/**
+ * Label every cookie request issued while *task* runs as background. ponytail: a user request made
+ * concurrently is labelled too (it then does not extend the server timer; the keep-alive ping covers it);
+ * pass `background` per request if that ever matters.
+ */
+export async function runAsBackground<T>(task: () => Promise<T>): Promise<T> {
+  backgroundDepth += 1;
+  try {
+    return await task();
+  } finally {
+    backgroundDepth -= 1;
+  }
+}
+
+/** The server signed the session out for inactivity; the app goes to the sign-in page. */
+function signalSessionIdle(code: string | undefined, cookie: boolean): void {
+  if (code !== "session_idle" || !cookie) return;
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event("digitva-session-idle"));
+  }
+}
+
 function signalAccessStale(status: number, code: string | undefined, path: string, cookie: boolean): void {
   if (status !== 403 || !cookie || path === "/api/v1/me/access" || (code !== undefined && !ACCESS_CHANGED_403_CODES.has(code))) return;
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
@@ -755,6 +782,7 @@ async function requestOnce<T>(
     if (csrfToken) headers["X-CSRFToken"] = csrfToken;
     const launchToken = !server ? getLocalStationLaunchToken() : undefined;
     if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
+    if (options.background || backgroundDepth > 0) headers[BACKGROUND_HEADER] = "1";
   }
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 30_000;
@@ -827,6 +855,7 @@ async function requestOnce<T>(
           ? body.code
           : undefined;
       signalAccessStale(response.status, code, path, options.token === undefined);
+      signalSessionIdle(code, options.token === undefined && !server);
       throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, body), path, options.method);
     }
     return { status: response.status, body: body as T, ...(csrf ? { csrf } : {}) };
@@ -882,6 +911,7 @@ export async function requestRaw(
     if (csrfToken) headers["X-CSRFToken"] = csrfToken;
     const launchToken = !server ? getLocalStationLaunchToken() : undefined;
     if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
+    if (options.background || backgroundDepth > 0) headers[BACKGROUND_HEADER] = "1";
   }
   if (options.ifNoneMatch !== undefined) {
     if (!/^"[0-9a-f]{64}"$/.test(options.ifNoneMatch)) throw withRoute(new ApiError(400, "invalid_request"), path, options.method);
@@ -949,6 +979,7 @@ export async function requestRaw(
       }
       const code = typeof payload.code === "string" ? payload.code : undefined;
       signalAccessStale(response.status, code, path, options.token === undefined);
+      signalSessionIdle(code, options.token === undefined && !server);
       throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, payload), path, options.method);
     }
     return { status: response.status, body, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
@@ -967,10 +998,10 @@ export async function requestClientJson<T>(path: string, options: ClientRequestO
 }
 
 /** Build browser session state from the shared access body and cookie-only CSRF header. */
-export async function fetchClientBootstrap(): Promise<BootstrapResult> {
+export async function fetchClientBootstrap(options: { background?: boolean } = {}): Promise<BootstrapResult> {
   const login = "/vaauth/valogin?next=%2Fapp%2F";
   try {
-    const response = await requestJson<unknown>("", "/api/v1/me/access");
+    const response = await requestJson<unknown>("", "/api/v1/me/access", { background: options.background });
     const access = parseAccessSummary(response.body);
     if (!response.csrf) throw new ApiError(200, "malformed_response");
     return { authenticated: true, bootstrap: {

@@ -83,7 +83,7 @@ describe("controls", () => {
   });
 
   it("has Hindi strings for every new key", () => {
-    for (const key of ["untitledInterview", "interviewStarted", "interviewLastSaved", "interviewCompleted", "interviewSubmitted", "interviewSaved"] as const) {
+    for (const key of ["untitledInterview", "interviewStarted", "interviewLastSaved", "interviewCompleted", "interviewSubmittedAt", "interviewSaved"] as const) {
       expect(en[key]).toBeTruthy();
       expect(hi[key]).toBeTruthy();
     }

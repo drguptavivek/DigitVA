@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { getDrafts, getIntakeContext, type DraftSummary, type IntakeBootstrap } from "../client/api";
+import { getDrafts, getIntakeContext, runAsBackground, type DraftSummary, type IntakeBootstrap } from "../client/api";
 import { getSubmittedRevisions, type SubmittedRevisionSummary } from "../client/revisions";
 import { useAppState } from "../AppState";
 import { CodeNowButton } from "../workspace/CodeNowButton";
@@ -193,7 +193,7 @@ export default function CollectionScreen() {
         const expectedRevision = pendingNotificationRevision.current;
         pendingNotificationRevision.current = undefined;
         if (expectedRevision <= acknowledgedNotificationRevision.current) continue;
-        const result = await refresh();
+        const result = await runAsBackground(refresh);
         if (generationRef.current !== generation) {
           if (mounted.current && bootstrapRef.current?.user.user_id === accountId) {
             pendingNotificationRevision.current = Math.max(pendingNotificationRevision.current ?? expectedRevision, expectedRevision);

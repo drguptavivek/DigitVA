@@ -207,7 +207,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       badge: terminal ? { label: t("badgeSent"), tone: "neutral" } : { label: t("badgeTodo"), tone: "accent" },
       action: { type: "case", deathId: row.death_id, projectId: row.project_id, label: startable ? t("actionStart") : t("viewDetails") },
       // Only a finished case has a key time: the server's last change is when it was accepted.
-      timeText: terminal ? whenText("interviewSubmitted", row.updated_at) : undefined,
+      timeText: terminal ? whenText("interviewSubmittedAt", row.updated_at) : undefined,
       lines: caseLines(row),
       search: [row.name, row.unique_id, row.unit_name, row.village], updatedAt: row.updated_at,
     });
@@ -222,7 +222,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       caseId: name ? (row.unique_id ?? undefined) : undefined,
       badge: { label: t("badgeSent"), tone: "neutral" },
       action: { type: "revise", source: row, label: t("reviseInterview") }, lines: [],
-      timeText: whenText("interviewSubmitted", row.updated_at),
+      timeText: whenText("interviewSubmittedAt", row.updated_at),
       search: [name, row.unique_id], updatedAt: row.updated_at ?? "",
     });
   }

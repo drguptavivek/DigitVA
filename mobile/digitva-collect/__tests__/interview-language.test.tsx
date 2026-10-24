@@ -46,7 +46,7 @@ const mockNavigation = {
   dispatch: jest.fn(),
 };
 jest.mock("expo-router", () => ({useRouter: () => mockRouter, useLocalSearchParams: () => mockParams, useIsFocused: () => true, useNavigation: () => mockNavigation}));
-jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
+jest.mock("../src/AppState", () => ({useAppState: () => ({bootstrap: mockCurrentBootstrap, chooseUiLocale: mockChoose, onBeforeLock: () => () => undefined, definitionCache: mockDefinitionCache, hasServedDefinition: mockHasServed, markServedDefinition: mockMarkServed, sessionGeneration: 0})}));
 // The real `ui` tokens, so the form theme the screen derives is the app's own; `mockColorMode` flips light and dark.
 let mockColorMode: "light" | "dark" = "light";
 jest.mock("../src/theme", () => ({radius: { sm: 4, md: 6, lg: 8, full: 9999 }, fontSize: { body: 14 }, useTheme: () => ({colors: {}, ui: jest.requireActual("../src/theme").ui[mockColorMode]})}));

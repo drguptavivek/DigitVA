@@ -54,6 +54,31 @@ send the browser to `/vaauth/valogin?next=/app/` (sign out:
 no-store`. No sign-in bypass, device-token fallback, or new authentication
 factor is introduced.
 
+## Idle sign-out (web; `digitva-kc89`)
+
+Server rule and the background header: `docs/policy/auth-decorator-rbac.md`
+section 5. In the web client:
+
+- The notification poll (60 s), the authoritative refresh (15 min) and the
+  reload on tab focus send `X-DigitVA-Background: 1`; every other request is
+  user activity.
+- A timer counts from the last pointer, key, scroll or touch input (and from
+  the tab becoming visible after input). At 28 minutes a dialog says "You
+  will be signed out in 2 minutes because of inactivity" with "Stay signed
+  in", which sends one ordinary request (refreshing the server stamp) and
+  restarts the count. At 30 minutes the client signs out and shows the
+  sign-in page.
+- Escape, closing the dialog and the default-focused button all mean "Stay
+  signed in"; "Sign out" is an explicit, non-default button. Only trusted
+  (`isTrusted`) input counts as activity.
+- Every web sign-out, manual or idle, first lets registered saves (the open
+  interview's draft) finish, up to 5 seconds, then aborts requests, clears the
+  recalled interviewer details (`digitva.interviewerRecall.*` in
+  `localStorage`, `clearWebRecall()`; `digitva-3rec`) and leaves.
+- Any `401` with code `session_idle` goes to the sign-in page with "Signed
+  out after 30 minutes of inactivity".
+- The phone app (bearer token) has no idle sign-out.
+
 ## Role home and login landing
 
 Owner decision, 2026-10-22 (supersedes 2026-10-11, -12 and -19; design:

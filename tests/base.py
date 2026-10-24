@@ -575,7 +575,7 @@ class BaseTestCase(unittest.TestCase):
                 return str(number)
             number += 1
 
-    def _login_via_form(self, email, password, next_url=None, remember=False):
+    def _login_via_form(self, email, password, next_url=None):
         """Drive the real two-step login (email + CAPTCHA, then password),
         as a browser would. Returns the final response (redirect on success).
 
@@ -618,7 +618,7 @@ class BaseTestCase(unittest.TestCase):
             password_path = f"{password_path}?{query}"
         return self.client.post(
             password_path,
-            data={"password": password, "remember_me": remember},
+            data={"password": password},
             headers=self._csrf_headers(),
             follow_redirects=False,
         )

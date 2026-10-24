@@ -225,7 +225,7 @@ export default function InterviewScreen() {
     orgUnitId?: string;
   }>();
   const appState = useAppState();
-  const { bootstrap, chooseUiLocale } = appState;
+  const { bootstrap, chooseUiLocale, onBeforeLock } = appState;
   const { definitionCache, hasServedDefinition, markServedDefinition, sessionGeneration } =
     appState as typeof appState & BrowserDefinitionAccess;
   const styles = useUiStyles();
@@ -583,6 +583,12 @@ export default function InterviewScreen() {
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [controller, store]);
+
+  // Sign-out (manual or idle) waits for the pending autosave instead of aborting it.
+  useEffect(() => onBeforeLock(async () => {
+    await controller?.saveDraft();
+    if (store instanceof ServerDraftStore) await store.flush();
+  }), [controller, store, onBeforeLock]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return undefined;

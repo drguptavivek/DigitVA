@@ -1033,7 +1033,7 @@ export default function Form() {
     { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
     { key: "preview", label: t("formPreviewAnswers"), onPress: () => controller.current?.openPreview() },
     { key: "save", label: t("saveNow"), onPress: () => void saveNow() },
-    ...(consentView.required && consentView.config ? [{ key: "consent", label: t("consentChange"), onPress: () => void changeConsent() }] : []),
+    ...(consentView.required && consentView.config ? [{ key: "consent", label: t("consentChangeDecision"), onPress: () => void changeConsent() }] : []),
     ...(canDelete ? [{ key: "delete", label: t("deleteDraft"), onPress: () => setConfirmDelete(true) }] : []),
   ];
   const consentChip = consentView.required

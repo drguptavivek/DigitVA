@@ -33,6 +33,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.services import mobile_sign_in_service, public_demo_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
+from app.utils.idle_session import IDLE_MESSAGE, stamp_activity
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services import user_account_service as accounts
 from app.services.user_account_service import canonical_mobile
@@ -173,7 +174,7 @@ def _web_sign_in_failed(user, reason: str) -> None:
     db.session.commit()
 
 
-def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: str) -> None:
+def _complete_login(user, *, nudge_if_no_passkey: bool, method: str) -> None:
     """Finish sign-in exactly once, shared by the password and passkey
     paths: drop every session key issued before authentication (the pre-auth
     state included), give the authenticated session a new ID, and record the
@@ -204,7 +205,8 @@ def _complete_login(user, *, remember: bool, nudge_if_no_passkey: bool, method: 
     # empty session, so it must run after login_user has populated it.
     session.clear()
     session.permanent = True
-    login_user(user, remember=remember)
+    login_user(user)
+    stamp_activity()
     session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
     if nudge_if_no_passkey and not has_passkey:
         session["passkey_nudge"] = True
@@ -246,6 +248,9 @@ def va_login():
     # link.
     _clear_preauth()
     form = EmailStepForm()
+    if request.method == "GET" and request.args.get("reason") == "idle":
+        # The Expo client lands here after its own idle sign-out.
+        flash(IDLE_MESSAGE, "warning")
     maintenance_notice = None
     if should_block_non_admin_after_cutoff():
         maintenance = get_active_site_maintenance()
@@ -349,9 +354,7 @@ def va_login_password():
             )
             return redirect(_password_step_url(next_url))
 
-        _complete_login(
-            user, remember=form.remember_me.data, nudge_if_no_passkey=True, method="password"
-        )
+        _complete_login(user, nudge_if_no_passkey=True, method="password")
         db.session.commit()
         return redirect(next_url or current_user.landing_url())
     return render_template(
@@ -483,7 +486,7 @@ def va_login_passkey_verify():
         db.session.rollback()
         return jsonify({"error": INVALID_LOGIN_MESSAGE}), 400
 
-    _complete_login(user, remember=False, nudge_if_no_passkey=False, method="passkey")
+    _complete_login(user, nudge_if_no_passkey=False, method="passkey")
     db.session.commit()
 
     return jsonify({"redirect": next_url or current_user.landing_url()})
@@ -537,7 +540,7 @@ def va_signup():
     if not public_demo_service.hit_signup_quota(get_remote_address()):
         db.session.rollback()
         abort(429)
-    _complete_login(user, remember=False, nudge_if_no_passkey=False, method="self_signup")
+    _complete_login(user, nudge_if_no_passkey=False, method="self_signup")
     db.session.commit()
     return redirect(current_user.landing_url())
 
@@ -752,7 +755,7 @@ def factor_reset(token):
     if not user.email_verified:
         user.email_verified = True
     user.bump_session_version()
-    _complete_login(user, remember=False, nudge_if_no_passkey=False, method="factor_reset")
+    _complete_login(user, nudge_if_no_passkey=False, method="factor_reset")
     db.session.commit()
     flash(
         "You are signed in. You may manage your passkeys from your profile.",

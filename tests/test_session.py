@@ -13,16 +13,10 @@ class SessionTests(BaseTestCase):
         # part of that budget on 127.0.0.1.
         limiter.reset()
     def test_session_timeout_config(self):
-        """Idle session lifetime is 30 minutes; remember-me lasts 30 days."""
+        """Idle session lifetime is 30 minutes; there is no remember-me."""
         self.assertEqual(
             self.app.config["PERMANENT_SESSION_LIFETIME"],
             timedelta(minutes=30)
-        )
-        # SEC-010 (commit f5c359f) deliberately extended REMEMBER_COOKIE_DURATION
-        # from 30 minutes to 30 days; config.py:28 is the baseline.
-        self.assertEqual(
-            self.app.config["REMEMBER_COOKIE_DURATION"],
-            timedelta(days=30)
         )
 
     def test_login_redirects_to_next_page(self):
@@ -50,7 +44,7 @@ class SessionTests(BaseTestCase):
             next_url = url_for("coding.dashboard")
 
         # Attempt to login
-        resp = self._login_via_form(email, password, next_url=next_url, remember=True)
+        resp = self._login_via_form(email, password, next_url=next_url)
 
         # Should redirect to the next_url
         self.assertEqual(resp.status_code, 302)
@@ -77,7 +71,7 @@ class SessionTests(BaseTestCase):
         db.session.commit()
 
         # Attempt to login via the route
-        resp = self._login_via_form(email, password, remember=True)
+        resp = self._login_via_form(email, password)
 
         # Should be a redirect to dashboard
         self.assertEqual(resp.status_code, 302)

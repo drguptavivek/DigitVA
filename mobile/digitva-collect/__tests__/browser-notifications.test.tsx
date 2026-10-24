@@ -30,6 +30,7 @@ import { ApiError, getCases, getDrafts, getIntakeContext, requestClientJson } fr
 import { loadBrowserSession } from "../src/client/session";
 import { getSubmittedRevisions } from "../src/client/revisions";
 import CollectionScreen from "../src/web/CollectionScreen";
+import { ConfirmDialog } from "../src/ConfirmDialog";
 
 const userA = {
   user: { user_id: "u1", name: "Worker" },
@@ -415,4 +416,110 @@ it("ignores an old user's late poll after an account switch and starts the next 
   expect(state.bootstrap?.user.user_id).toBe("u2");
   expect(state.notificationGeneration).toBe(generationAfterSwitch);
   await act(async () => tree.unmount());
+});
+
+describe("idle sign-out and the background label", () => {
+  const MIN = 60_000;
+  let assign: jest.Mock;
+  beforeEach(() => {
+    assign = jest.fn();
+    Object.defineProperty(window, "location", { configurable: true, value: { assign } });
+  });
+  const dialogs = (tree: ReturnType<typeof create>) => tree.root.findAllByType(ConfirmDialog);
+
+  it("labels the notification poll and the focus reload as background", async () => {
+    const tree = await mountProvider();
+    expect((requestClientJson as jest.Mock).mock.calls[0][1]).toEqual({ background: true });
+    (loadBrowserSession as jest.Mock).mockClear();
+    emitVisibilityChange();
+    await settle();
+    expect(loadBrowserSession).toHaveBeenCalledWith(true);
+    await act(async () => { await state.reload(); });
+    expect(loadBrowserSession).toHaveBeenLastCalledWith(false);
+    await act(async () => tree.unmount());
+  });
+
+  it("warns at 28 minutes and signs out at 30", async () => {
+    const tree = await mountProvider();
+    await act(async () => { await jest.advanceTimersByTimeAsync(27 * MIN); });
+    expect(dialogs(tree)).toHaveLength(0);
+    await act(async () => { await jest.advanceTimersByTimeAsync(1 * MIN); });
+    expect(dialogs(tree)).toHaveLength(1);
+    expect(assign).not.toHaveBeenCalled();
+    await act(async () => { await jest.advanceTimersByTimeAsync(2 * MIN); });
+    expect(dialogs(tree)).toHaveLength(0);
+    expect(assign).toHaveBeenCalledWith("/vaauth/valogin?reason=idle");
+    await act(async () => tree.unmount());
+  });
+
+  it("user input restarts the count and sends a keep-alive at most every 30 seconds", async () => {
+    const tree = await mountProvider();
+    const input = () => { for (const handler of windowHandlers.keydown ?? []) (handler as (e: unknown) => void)({ isTrusted: true }); };
+    const pings = () => (requestClientJson as jest.Mock).mock.calls.filter(([path, options]) => path === "/api/v1/me/access" && !options).length;
+    await act(async () => { await jest.advanceTimersByTimeAsync(20 * MIN); });
+    input(); input();
+    expect(pings()).toBe(1);
+    await act(async () => { await jest.advanceTimersByTimeAsync(27 * MIN); });
+    expect(dialogs(tree)).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("Stay signed in (also Escape and the default button) restarts the count with one ordinary request", async () => {
+    const tree = await mountProvider();
+    await act(async () => { await jest.advanceTimersByTimeAsync(28 * MIN); });
+    const dialog = dialogs(tree)[0];
+    await act(async () => { dialog.props.onCancel(); });
+    expect(dialogs(tree)).toHaveLength(0);
+    const last = (requestClientJson as jest.Mock).mock.calls.at(-1)!;
+    expect(last[0]).toBe("/api/v1/me/access");
+    expect(last[1]).toBeUndefined();
+    await act(async () => { await jest.advanceTimersByTimeAsync(29 * MIN); });
+    expect(assign).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("a session_idle refusal from any request goes to sign-in with the reason", async () => {
+    const tree = await mountProvider();
+    // The mocked removeEventListener keeps stale handlers; the newest one is the live one.
+    await act(async () => { windowHandlers["digitva-session-idle"].at(-1)!(); });
+    await settle();
+    expect(assign).toHaveBeenCalledWith("/vaauth/valogin?reason=idle");
+    await act(async () => tree.unmount());
+  });
+
+  it("ignores script-dispatched input", async () => {
+    const tree = await mountProvider();
+    await act(async () => { await jest.advanceTimersByTimeAsync(20 * MIN); });
+    for (const handler of windowHandlers.keydown ?? []) (handler as (e: unknown) => void)({ isTrusted: false });
+    await act(async () => { await jest.advanceTimersByTimeAsync(10 * MIN); });
+    expect(assign).toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("sign-out waits for a pending save and clears the recalled details", async () => {
+    const store = new Map<string, string>([["digitva.interviewerRecall.name", "x"], ["other", "y"]]);
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+      get length() { return store.size; },
+      key: (index: number) => [...store.keys()][index] ?? null,
+      removeItem: (key: string) => { store.delete(key); },
+      getItem: jest.fn(), setItem: jest.fn(), clear: jest.fn(),
+    } });
+    const tree = await mountProvider();
+    const save = deferred<void>();
+    state.onBeforeLock(() => save.promise);
+    await act(async () => { await jest.advanceTimersByTimeAsync(30 * MIN); });
+    expect(assign).not.toHaveBeenCalled();
+    await act(async () => { save.resolve(); await jest.advanceTimersByTimeAsync(10); });
+    expect(assign).toHaveBeenCalledWith("/vaauth/valogin?reason=idle");
+    expect([...store.keys()]).toEqual(["other"]);
+    await act(async () => tree.unmount());
+  });
+
+  it("sign-out still happens when the save never finishes", async () => {
+    const tree = await mountProvider();
+    state.onBeforeLock(() => new Promise<void>(() => undefined));
+    await act(async () => { await jest.advanceTimersByTimeAsync(30 * MIN + 6000); });
+    expect(assign).toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
 });

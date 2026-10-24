@@ -1263,7 +1263,7 @@
   "consentChipRefused": "Consent: refused",
   "consentChipNotRecorded": "Consent: not recorded",
   "consentChipChangeHint": "Opens the consent screen to change the decision",
-  "consentChange": "Change consent decision",
+  "consentChangeDecision": "Change consent decision",
   "consentChangedAgreed": "Consent changed to agreed. The questions are open again.",
   "consentChangedRefused": "Consent changed to refused. The answers about the respondent's name, family and address were removed.",
   "deleteDraft": "Delete draft",
@@ -1275,7 +1275,7 @@
   "interviewStarted": "Started {time}",
   "interviewLastSaved": "Last saved {time}",
   "interviewCompleted": "Completed {time}",
-  "interviewSubmitted": "Submitted {time}",
+  "interviewSubmittedAt": "Submitted {time}",
   "interviewSaved": "Saved {time}",
   "usersColActions": "Actions",
   "usersMoreActions": "More actions for {name}",
@@ -1289,5 +1289,8 @@
   "usersStatusHeading": "Account status",
   "orgUserRoles": "{name}: {roles}",
   "orgUserHere": "{name} is here",
-  "usersOpenCard": "Open details of {name}"
+  "usersOpenCard": "Open details of {name}",
+  "idleWarningTitle": "Still there?",
+  "idleWarningMessage": "You will be signed out in 2 minutes because of inactivity.",
+  "idleStaySignedIn": "Stay signed in"
 }

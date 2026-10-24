@@ -1920,7 +1920,7 @@ describe("respondent consent in the interview form", () => {
       expect(mockFormProps.lockedQuestionNames).toEqual(["Id10007"]);
       await mountController(jest.fn(async () => undefined));
       await act(async () => { menu(tree).props.onPress(); });
-      await act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === "consentChange" && typeof n.props.onPress === "function")[0].props.onPress(); });
+      await act(async () => { tree.root.findAll((n) => n.props.accessibilityLabel === "consentChangeDecision" && typeof n.props.onPress === "function")[0].props.onPress(); });
       await settle();
       expect(tree.root.findAllByProps({ "data-consent-panel": true })).toHaveLength(1);
       const jestDrafts = jest.requireMock("../src/drafts");

@@ -156,7 +156,7 @@ export function FilterSheet({ filters, options, wide, onChange, onClear, onClose
             {options.projects.length > 1 ? (
               <Group label={t("usersFilterProject")}>
                 <ChipGroup
-                  options={[{ key: "", label: t("usersAll") }, ...options.projects.map((p) => ({ key: p.project_id, label: p.project_name }))]}
+                  options={[{ key: "", label: t("usersAllProjects") }, ...options.projects.map((p) => ({ key: p.project_id, label: p.project_name }))]}
                   value={filters.project ?? ""}
                   onChange={(project) => onChange({ project, unit: "" })}
                   a11yLabel={chipLabel}

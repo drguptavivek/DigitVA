@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
-import { ClientApiError } from "../client/api";
 import { t } from "../i18n";
-import { getMyOrganization, getUnitPeople, type OrgProject } from "../organization/api";
+import { getMyOrganization, type OrgProject } from "../organization/api";
 import { spacing } from "../theme";
 import { useUiStyles } from "../ui";
 import type { JsonRequester } from "../workspace/api";
@@ -13,17 +12,13 @@ import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { Chevron, FoldButton } from "./Chevron";
 import { RoleSentence } from "../ui/RoleChip";
-import { dropUnitAndBelow, OrgTree, type OpenedUnit } from "./OrgTree";
-
-function unitErrorText(error: unknown): string {
-  if (error instanceof ClientApiError && error.status === 404) return t("orgUnitNotAllowed");
-  return browserErrorText(error);
-}
+import { OrgTree } from "./OrgTree";
+import { useOpenedUnits } from "./useOpenedUnits";
 
 type SummaryLine = { k: "orgWholeProject" | "orgRolesAt"; params?: { place: string }; roles: { role: string }[] };
 
 /** Where the user holds which role: whole project, then each own unit, then each site. */
-function roleSummary(project: OrgProject): SummaryLine[] {
+export function roleSummary(project: OrgProject): SummaryLine[] {
   const positions = project.my_positions;
   const lines: SummaryLine[] = [];
   const plain = (roles: string[]) => roles.map((role) => ({ role }));
@@ -51,7 +46,7 @@ export default function OrganizationScreen() {
   const [projects, setProjects] = useState<OrgProject[]>([]);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
-  const [opened, setOpened] = useState<Record<string, OpenedUnit>>({});
+  const { opened, toggle } = useOpenedUnits(request);
   /** Cards the user folded or unfolded; the rest follow `onlyProjectRoles`. */
   const [folded, setFolded] = useState<Record<string, boolean>>({});
 
@@ -74,23 +69,6 @@ export default function OrganizationScreen() {
   }, [request]);
 
   if (!bootstrap) return <WebShell title={t("organizationTitle")}>{null}</WebShell>;
-
-  async function toggle(orgUnitId: string) {
-    const state = opened[orgUnitId];
-    if (state && !state.error) {
-      setOpened((current) => dropUnitAndBelow(current, orgUnitId));
-      return;
-    }
-    if (!request) return;
-    setOpened((current) => ({ ...current, [orgUnitId]: { loading: true, error: "" } }));
-    try {
-      const detail = await getUnitPeople(request, orgUnitId);
-      // Skip the reply when the unit was closed while it loaded.
-      setOpened((current) => (current[orgUnitId] ? { ...current, [orgUnitId]: { loading: false, error: "", detail } } : current));
-    } catch (caught) {
-      setOpened((current) => (current[orgUnitId] ? { ...current, [orgUnitId]: { loading: false, error: unitErrorText(caught) } } : current));
-    }
-  }
 
   return (
     <WebShell title={t("organizationTitle")}>

@@ -2696,13 +2696,18 @@ def _my_positions(project_id: str, grants: list, site_names: dict) -> dict:
     }
 
 
-def my_organization(user) -> dict:
+def my_organization(user, *, project_ids=None) -> dict:
     """The My organization page's data: every project the user holds a live
     grant in, with ``has_tree`` and ``my_positions`` (their own roles). The
     tree lists (``my_units``, ``above``, ``my_level``, ``below``) are filled for
     org-tree projects and empty for sites-mode projects.
+
+    *user* may be another person (the Users page): *project_ids* then limits the
+    projects to the viewer's own.
     """
     grants_by_project, resolved = _granted(user)
+    if project_ids is not None:
+        grants_by_project = {p: g for p, g in grants_by_project.items() if p in project_ids}
     if not grants_by_project:
         return {"projects": []}
     project_ids = sorted(grants_by_project)

@@ -76,7 +76,8 @@ const QR_STATUS: Record<string, StringKey> = {
 };
 const MOBILE_STATUS: Record<string, StringKey> = { enrolled: "usersEnrolled", revoked: "usersEnrolRevoked", none: "usersEnrolNone" };
 
-export function StatusDialog({ request, user, onClose }: { request: JsonRequester; user: Pick<DirectoryUser, "user_id" | "name">; onClose: () => void }) {
+/** The account facts of one user (GET /users/<id>/status), loaded on mount; the Details view's left column. */
+export function UserStatusPanel({ request, user }: { request: JsonRequester; user: Pick<DirectoryUser, "user_id" | "name"> }) {
   const styles = useUiStyles();
   const [status, setStatus] = useState<UserStatus>();
   const [error, setError] = useState("");
@@ -89,7 +90,7 @@ export function StatusDialog({ request, user, onClose }: { request: JsonRequeste
   }, [request, user.user_id]);
 
   return (
-    <DialogFrame title={t("usersStatusTitle", { name: user.name })} onClose={onClose}>
+    <>
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       {!status && !error ? <Text style={styles.muted}>{t("loading")}</Text> : null}
       {status ? (
@@ -169,7 +170,7 @@ export function StatusDialog({ request, user, onClose }: { request: JsonRequeste
           </Section>
         </View>
       ) : null}
-    </DialogFrame>
+    </>
   );
 }
 

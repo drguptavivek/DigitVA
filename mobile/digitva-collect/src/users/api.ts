@@ -1,4 +1,5 @@
 /** The Users page calls (digitva-75wn) over the browser session, through the shared JSON requester. The server scopes every reply (docs/policy/access-control-model.md, "Users page"). */
+import type { OrgProject } from "../organization/api";
 import type { JsonRequester } from "../workspace/api";
 
 const USERS_API = "/api/v1/users";
@@ -173,6 +174,11 @@ export interface SignInQrShown {
 
 export async function getUserStatus(request: JsonRequester, userId: string): Promise<UserStatus> {
   return (await request(`${USERS_API}/${encodeURIComponent(userId)}/status`)) as UserStatus;
+}
+
+/** GET /users/<id>/placement: "My organization"'s projects for that user, cut to the viewer's projects (digitva-x79t). */
+export async function getUserPlacement(request: JsonRequester, userId: string): Promise<OrgProject[]> {
+  return ((await request(`${USERS_API}/${encodeURIComponent(userId)}/placement`)) as { projects: OrgProject[] }).projects;
 }
 
 export async function getSignInQrs(request: JsonRequester, userId: string): Promise<SignInQrItem[]> {

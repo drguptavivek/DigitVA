@@ -1279,5 +1279,6 @@
   "interviewSaved": "सहेजा गया: {time}",
   "usersColActions": "कार्रवाई",
   "usersMoreActions": "{name} के लिए और कार्रवाइयाँ",
-  "orgBranchUnit": "नीचे 1 इकाई"
+  "orgBranchUnit": "नीचे 1 इकाई",
+  "queueInterviewer": "साक्षात्कारकर्ता: {name}"
 }

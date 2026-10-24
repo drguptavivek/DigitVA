@@ -166,7 +166,7 @@ function CaseCardDetails({ item }: { item: AnyQueueCase }) {
       ) : null}
       {collector ? (
         <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{`Collector: ${collector}`}</Text>
+          <Text style={q.metaChipText}>{t("queueInterviewer", { name: collector })}</Text>
         </View>
       ) : null}
       {formId ? (

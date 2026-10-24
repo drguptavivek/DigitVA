@@ -1279,5 +1279,6 @@
   "interviewSaved": "Saved {time}",
   "usersColActions": "Actions",
   "usersMoreActions": "More actions for {name}",
-  "orgBranchUnit": "1 unit below"
+  "orgBranchUnit": "1 unit below",
+  "queueInterviewer": "Interviewer: {name}"
 }

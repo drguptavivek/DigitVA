@@ -840,7 +840,7 @@ describe("queue layout", () => {
     expect(text).toContain("Not codeable");
     expect(text).toContain("Age: 64");
     expect(text).toContain("Sex: Female");
-    expect(text).toContain("Collector: Collector Anita");
+    expect(text).toContain("Interviewer: Collector Anita");
     expect(text).toContain("Form: WHO2022_ADULT");
 
     // Filter by sex: Female

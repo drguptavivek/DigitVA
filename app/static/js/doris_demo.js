@@ -1,6 +1,6 @@
 import { createIcd11Picker } from './digitva_icd11_picker.js';
 import { mount as mountInterval } from './doris_interval.js?v=4';
-import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=5';
+import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
 import * as Rules from './doris_rules.js?v=4';
 
 (function () {
@@ -39,7 +39,8 @@ import * as Rules from './doris_rules.js?v=4';
     }).then(function (response) {
       return response.json().catch(function () { throw new Error('The server returned an invalid response.'); }).then(function (data) {
         if (!data || typeof data !== 'object') throw new Error('The server returned an invalid response.');
-        if (!response.ok) {
+        // A processing run with no engine completed answers 503 with the full envelope; it is a result, not a failure.
+        if (!response.ok && !(data.doris && data.codedit)) {
           var error = new Error((data.error && data.error.message) || 'Request failed (' + response.status + ')');
           error.response = data;
           throw error;
@@ -81,7 +82,7 @@ import * as Rules from './doris_rules.js?v=4';
 
   function conditionFromItem(item) {
     return {
-      Text: cleanText(item.selected_text || item.matching_text || item.title),
+      Text: cleanText(item.title),
       Code: cleanText(item.code),
       LinearizationURI: cleanText(item.uri || item.linearization_uri || item.LinearizationURI),
       FoundationURI: cleanText(item.foundation_uri || item.FoundationURI),

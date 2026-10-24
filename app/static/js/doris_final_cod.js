@@ -3,7 +3,7 @@
 // Step 1 DORIS run is shown read-only through renderSummary. The server
 // derives which choice was used, so nothing here reports provenance.
 import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=4';
-import { renderSummary } from './doris_result_summary.js?v=5';
+import { renderSummary } from './doris_result_summary.js?v=6';
 
 (function () {
   'use strict';

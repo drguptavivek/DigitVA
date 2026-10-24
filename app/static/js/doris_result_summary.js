@@ -69,6 +69,18 @@ function appendUcodCluster(container, parts, dr) {
   container.appendChild(cluster);
 }
 
+// Without ucod_parts (older saved runs) the code alone is the cause; its title
+// comes from the certificate or, failing that, WHO via lookupTitle.
+function appendBareCode(container, dr, certificate, lookupTitle) {
+  var title = el('span', '', certificateTitle(certificate || {}, [dr.code, dr.stemCode]));
+  var line = el('div', 'doris-summary-cluster mb-2');
+  line.append(document.createTextNode('Underlying cause: '), el('span', 'doris-summary-code', dr.code), document.createTextNode(' '), title);
+  container.appendChild(line);
+  if (!title.textContent && lookupTitle) {
+    lookupTitle(dr.code).then(function (text) { if (text && title.isConnected) title.textContent = text; }).catch(function () {});
+  }
+}
+
 // Collapsed "Details": the "/" and "&" explanation, stem and URI.
 function appendCodeDetails(container, parts, dr) {
   var many = Array.isArray(parts) && parts.length > 1;
@@ -88,20 +100,19 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
   var dr = doris.result || {}; var cr = codedit.result || {};
   container.replaceChildren();
 
-  if (doris.status !== 'completed') {
+  // WHO's reason is shown in full, as the Expo screen does; the rest of the rule trace stays in Technical details.
+  if (doris.status === 'rejected') {
+    container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS rejected the certificate.'));
+    if (dr.error) container.appendChild(el('div', 'alert alert-danger py-2 mb-2', dr.error));
+  } else if (doris.status !== 'completed') {
     container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS did not run (' + String(doris.status || 'unavailable').replaceAll('_', ' ') + '). Choose the underlying cause without it.'));
   } else if (dr.reject || !dr.code) {
     container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS could not select an underlying cause from this certificate.' + (dr.error ? ' ' + dr.error : '')));
   } else {
-    container.appendChild(el('p', 'small text-muted mb-1', 'DORIS suggests this underlying cause'));
-    var headline = el('p', 'doris-summary-headline mb-2');
-    var title = el('span', 'fw-semibold', certificateTitle(certificate || {}, [dr.code, dr.stemCode]));
-    headline.append(el('span', 'doris-summary-code', dr.code), document.createTextNode(' '), title);
-    container.appendChild(headline);
-    appendUcodCluster(container, processing.ucod_parts, dr);
-    if (!title.textContent && lookupTitle) {
-      lookupTitle(dr.code).then(function (text) { if (text && title.isConnected) title.textContent = text; }).catch(function () {});
-    }
+    container.appendChild(el('p', 'small text-muted mb-1', 'DORIS: completed'));
+    if (Array.isArray(processing.ucod_parts) && processing.ucod_parts.length) appendUcodCluster(container, processing.ucod_parts, dr);
+    else appendBareCode(container, dr, certificate, lookupTitle);
+    appendCodeDetails(container, processing.ucod_parts, dr);
   }
 
   (processing.who_notes || []).forEach(function (note) { container.appendChild(el('p', 'small text-muted mb-1', note)); });

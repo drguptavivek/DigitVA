@@ -1,5 +1,5 @@
 {# Reusable clinical DORIS editor. Required context is documented by its data attributes. #}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-15">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/doris_demo.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-16">
 {% set _doris_id = doris_editor_id|default('doris-clinical-editor') %}
 <section id="{{ _doris_id }}" class="doris-clinical-editor card border-primary mb-4"
          data-doris-editor

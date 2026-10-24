@@ -30,7 +30,7 @@ jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async ()
 
 import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, retryHeldDraft, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary } from "../src/api";
-import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, translationsFor, translationsForDraft, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { computeUtf8Sha256HexSync, type ConsentRecordEnvelope } from "../src/consent";
@@ -673,6 +673,46 @@ describe("translations", () => {
     await expect(translationsFor(USER, db, PROJECT, "WHO_2022_VA", "hi", 7)).resolves.toBeNull();
     server(() => json(500, { code: "translation_failed" }));
     await expect(translationsFor(USER, db, PROJECT, "WHO_2022_VA", "hi", 8)).rejects.toThrow("HTTP 500 translation_failed");
+  });
+});
+
+describe("translations for a draft pinned to an older definition", () => {
+  const key = (v: number) => `translations:WHO_2022_VA:hi:${v}`;
+
+  it("uses the current pack by name when the pin's own version is not cached", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await setMeta(db, key(2), { questions: { Id10007: { label: "current" } } }, PROJECT);
+    server(() => json(500, {}));
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "hi", 1, 2)).toMatchObject({ questions: { Id10007: { label: "current" } } });
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "hi", undefined, 2)).toMatchObject({ questions: { Id10007: { label: "current" } } });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("prefers the pin's own cached version, and the same-version case is unchanged", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await setMeta(db, key(1), { questions: { Id10007: { label: "old" } } }, PROJECT);
+    await setMeta(db, key(2), { questions: { Id10007: { label: "current" } } }, PROJECT);
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "hi", 1, 2)).toMatchObject({ questions: { Id10007: { label: "old" } } });
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "hi", 2, 2)).toMatchObject({ questions: { Id10007: { label: "current" } } });
+  });
+
+  it("fetches and caches the current pack when none is on the phone and it is online", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    server(() => json(200, { questions: { Id10007: { label: "fetched" } } }));
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "hi", 1, 2)).toMatchObject({ questions: { Id10007: { label: "fetched" } } });
+    expect(calls).toHaveLength(1);
+    expect(await getMeta(db, key(2), PROJECT)).toMatchObject({ questions: { Id10007: { label: "fetched" } } });
+  });
+
+  it("is null when offline with nothing cached, and for English", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    globalThis.fetch = jest.fn(async () => { throw new TypeError("Network request failed"); }) as unknown as typeof fetch;
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "hi", 1, 2)).toBeNull();
+    expect(await translationsForDraft(USER, db, PROJECT, "WHO_2022_VA", "en", 1, 2)).toBeNull();
   });
 });
 

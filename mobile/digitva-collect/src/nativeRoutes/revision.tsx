@@ -20,7 +20,7 @@ import { useStableAccount } from "../useStableAccount";
 import { ApiError } from "../api";
 import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
 import type { Prefill } from "../cases";
-import { getMeta, type Completion, type Db, type DeviceTimedDraft } from "../drafts";
+import { type Completion, type Db, type DeviceTimedDraft } from "../drafts";
 import { createNativeDefinitionCache } from "../formDefinitionCache";
 import {
   PinnedDefinitionError,
@@ -52,10 +52,10 @@ import {
   getCachedReferenceData,
   isUploadable,
   markProjectDefinitionServed,
-  translationsFor,
+  translationsForDraft,
   type ProjectSettings,
 } from "../sync";
-import { applyTranslations, type Translations } from "../translations";
+import { applyTranslations } from "../translations";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
 import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
@@ -410,39 +410,15 @@ export default function Revision() {
     let active = true;
     void (async () => {
       try {
-        const pin = loaded.definition?.pin;
-        const currentOptions = loaded.project.form_options;
-        const currentExtensions = currentOptions.enabled_extensions;
-        const isCurrentDefinition = Boolean(
-          pin &&
-          pin.instrumentVersion === currentOptions.instrument_version &&
-          pin.definitionSha256 === currentOptions.definition_sha256 &&
-          Array.isArray(currentExtensions) &&
-          pin.definitionExtensions.length === currentExtensions.length &&
-          [...currentExtensions].sort().every(
-            (extension, index) => pin.definitionExtensions[index] === extension,
-          ),
+        const translations = await translationsForDraft(
+          account.user_id,
+          loaded.db,
+          loaded.project.project_id,
+          loaded.config.instrumentCode,
+          loaded.config.locale,
+          loaded.config.translationVersion,
+          loaded.project.form_options.translation_versions?.[loaded.config.locale],
         );
-        const currentTranslationVersion = loaded.project.form_options.translation_versions?.[loaded.config.locale];
-        let translations: Translations | null = null;
-        if (isCurrentDefinition && loaded.config.translationVersion !== undefined) {
-          const savedTranslations =
-            loaded.config.translationVersion === currentTranslationVersion
-              ? await translationsFor(
-                  account.user_id,
-                  loaded.db,
-                  loaded.project.project_id,
-                  loaded.config.instrumentCode,
-                  loaded.config.locale,
-                  loaded.config.translationVersion,
-                )
-              : await getMeta<Translations | null>(
-                  loaded.db,
-                  `translations:${loaded.config.instrumentCode}:${loaded.config.locale}:${loaded.config.translationVersion}`,
-                  loaded.project.project_id,
-                );
-          translations = savedTranslations ?? null;
-        }
         if (!active || !isCurrentRevision(generation)) return;
         await chooseUiLocale(loaded.config.locale);
         if (!active || !isCurrentRevision(generation)) return;

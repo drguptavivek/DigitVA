@@ -354,6 +354,13 @@ semantic light and dark colors, and touch controls at least 48 pixels high.
 UI language and theme preferences may persist locally. Questionnaire language
 and translation version are saved with the server draft and restored on resume.
 
+Translations are keyed by question and choice name, so a draft pinned to an
+older definition still shows the chosen locale: its own cached translation
+version if the phone holds it, else the current one (fetched when online and
+not cached). Items missing from the pack stay English; the English-fallback
+banner shows only when no pack for the locale is available. The draft's pin
+and answers are never touched.
+
 The main menu sits on the left on wider browser screens. Phones retain a slim
 left rail with an expanded drawer overlay, preserving vertical form space.
 Menu destinations remain role-dependent navigation hints;

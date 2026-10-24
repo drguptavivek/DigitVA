@@ -1387,6 +1387,30 @@ export async function translationsFor(
   return body;
 }
 
+/**
+ * Translations for an open draft. They are keyed by question and choice name,
+ * so a draft pinned to an older definition still gets them: its own cached
+ * version if the phone holds one, else the current version (cached, or fetched
+ * when online). applyTranslations leaves items absent from the pack in English.
+ * Null only when no pack for the locale is available.
+ */
+export async function translationsForDraft(
+  userId: string,
+  db: Db,
+  projectId: string,
+  code: string,
+  locale: string,
+  draftVersion: number | undefined,
+  currentVersion: number | undefined
+): Promise<Translations | null> {
+  if (locale === "en") return null;
+  if (draftVersion !== undefined && draftVersion !== currentVersion) {
+    const own = await getMeta<Translations>(db, `translations:${code}:${locale}:${draftVersion}`, projectId);
+    if (own) return own;
+  }
+  return translationsFor(userId, db, projectId, code, locale, currentVersion);
+}
+
 export interface Target {
   key: string;
   label: string;

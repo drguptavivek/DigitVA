@@ -313,7 +313,7 @@ jest.mock("../src/sync", () => ({
     ),
   registersDeaths: (project: { web_intake_mode: string }) =>
     ["death_register", "both"].includes(project.web_intake_mode),
-  translationsFor: jest.fn(async () => null),
+  translationsForDraft: jest.fn(async () => null),
   refreshAuthorizedProjectDefinitions: jest.fn(async () => []),
   canUseBundledFallbackForProject: jest.fn(async () => true),
   markProjectDefinitionServed: jest.fn(async () => undefined),
@@ -864,7 +864,7 @@ describe("native project-aware routes", () => {
     const requestCalls = (jest.requireMock("../src/auth").authedRawRequest as jest.Mock).mock.calls;
     expect(requestCalls[0][1]).toContain("version=historic-v1&extensions=");
     expect(mockFormProps.instrument).toMatchObject({ version: definition.version });
-    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/sync").translationsForDraft).toHaveBeenCalled();
     expect((jest.requireMock("../src/drafts").getMeta as jest.Mock).mock.calls)
       .not.toContainEqual(expect.arrayContaining([expect.stringContaining("translations:")]));
     expect(jest.requireMock("../src/drafts").createDraftStore).toHaveBeenCalledWith(
@@ -880,7 +880,7 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("does not request current translations for an unpinned legacy bundle", async () => {
+  it("applies translations by name to an unpinned legacy bundle", async () => {
     const id = "77777777-7777-4777-8777-777777777777";
     mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
     (jest.requireMock("../src/drafts").getDraftRow as jest.Mock).mockResolvedValueOnce({
@@ -929,7 +929,7 @@ describe("native project-aware routes", () => {
     await settle();
 
     expect(mockFormProps.instrument).toEqual(mockServedInstrument);
-    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/sync").translationsForDraft).toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
 

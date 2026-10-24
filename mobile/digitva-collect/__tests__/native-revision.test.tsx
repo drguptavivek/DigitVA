@@ -130,7 +130,7 @@ jest.mock("../src/sync", () => ({
   markProjectDefinitionServed: jest.fn(async () => undefined),
   getCachedReferenceData: jest.fn(async () => mockReference),
   isUploadable: jest.fn(() => true),
-  translationsFor: jest.fn(async () => null),
+  translationsForDraft: jest.fn(async () => null),
 }));
 jest.mock("../src/i18n", () => ({
   t: (key: string) => key,
@@ -241,11 +241,11 @@ describe("native submitted-interview revisions", () => {
         envelope: expect.objectContaining({ instrumentVersion: "served-v2", definitionSha256: "b".repeat(64) }),
       }));
     expect(mockFormProps.instrument).toEqual(mockRevisionInstrument);
-    expect(jest.requireMock("../src/sync").translationsFor).toHaveBeenCalled();
+    expect(jest.requireMock("../src/sync").translationsForDraft).toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
 
-  it("uses English for a same-version revision whose saved hash differs from current", async () => {
+  it("still looks up translations for a revision whose saved hash differs from current", async () => {
     mockLocalRow = {
       ...mockRow,
       envelope: {
@@ -262,12 +262,12 @@ describe("native submitted-interview revisions", () => {
     await settle();
 
     expect(mockFormProps.instrument).toBe(mockRevisionInstrument);
-    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/sync").translationsForDraft).toHaveBeenCalled();
     expect(jest.requireMock("../src/drafts").getMeta).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
 
-  it("does not fetch current translations for an unpinned legacy revision", async () => {
+  it("applies translations by name to an unpinned legacy revision", async () => {
     mockLocalRow = {
       ...mockRow,
       envelope: { instrumentId: "WHO_2022_VA", instrumentVersion: "v1", data: { answer: "old" }, locale: "en" },
@@ -281,7 +281,7 @@ describe("native submitted-interview revisions", () => {
     await settle();
 
     expect(mockFormProps.instrument).toEqual(legacyInstrument);
-    expect(jest.requireMock("../src/sync").translationsFor).not.toHaveBeenCalled();
+    expect(jest.requireMock("../src/sync").translationsForDraft).toHaveBeenCalled();
     expect(jest.requireMock("../src/drafts").getMeta).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });

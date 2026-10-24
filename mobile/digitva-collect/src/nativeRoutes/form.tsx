@@ -74,13 +74,13 @@ import {
   isUploadable,
   startsDirectly,
   targetsFrom,
-  translationsFor,
+  translationsForDraft,
   markProjectDefinitionServed,
   type ProjectSettings,
   type ReferenceData,
 } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
-import { applyTranslations, type Translations } from "../translations";
+import { applyTranslations } from "../translations";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
 import { revisionName } from "../revisionLabel";
@@ -702,38 +702,15 @@ export default function Form() {
     const version = loaded.config.translationVersion;
     void (async () => {
       try {
-        const pin = loaded.definition.pin;
-        const currentOptions = loaded.project.form_options;
-        const currentExtensions = currentOptions.enabled_extensions;
-        const isCurrentDefinition = Boolean(
-          pin &&
-          pin.instrumentVersion === currentOptions.instrument_version &&
-          pin.definitionSha256 === currentOptions.definition_sha256 &&
-          Array.isArray(currentExtensions) &&
-          pin.definitionExtensions.length === currentExtensions.length &&
-          [...currentExtensions].sort().every(
-            (extension, index) => pin.definitionExtensions[index] === extension,
-          ),
+        const translations = await translationsForDraft(
+          account.user_id,
+          loaded.db,
+          loaded.project.project_id,
+          code,
+          locale,
+          version,
+          loaded.project.form_options.translation_versions?.[locale],
         );
-        let translations: Translations | null = null;
-        if (isCurrentDefinition && version !== undefined) {
-          const savedTranslations =
-            version === loaded.project.form_options.translation_versions?.[locale]
-              ? await translationsFor(
-                  account.user_id,
-                  loaded.db,
-                  loaded.project.project_id,
-                  code,
-                  locale,
-                  version,
-                )
-              : await getMeta<Translations | null>(
-                  loaded.db,
-                  `translations:${code}:${locale}:${version}`,
-                  loaded.project.project_id,
-                );
-          translations = savedTranslations ?? null;
-        }
         if (!active) return;
         await chooseUiLocale(locale);
         setTranslationFallback(locale !== "en" && !translations);

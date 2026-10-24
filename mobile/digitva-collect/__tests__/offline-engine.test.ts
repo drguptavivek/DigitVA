@@ -1,4 +1,4 @@
-import { createOfflineEngine, type NativeEngine } from "../src/offlineEngine";
+import { createOfflineEngine, scheduleEngineWarmUp, warmUpOfflineEngine, type NativeEngine } from "../src/offlineEngine";
 import { CHECK_CERTIFICATE, runEngineCheck } from "../src/offlineEngineCheck";
 
 function fakeNative(overrides: Partial<NativeEngine> = {}): NativeEngine {
@@ -82,5 +82,121 @@ describe("offlineEngine with a native module", () => {
     const failed = await runEngineCheck(createOfflineEngine(fakeNative({ init: async () => ({ ok: false, error: "load_failed", copyMs: 0, initMs: 0, ms: 1, cached: false }) })));
     expect(failed.map((step) => step.name)).toEqual(["init"]);
     expect(failed[0]).toMatchObject({ ok: false, note: "load_failed" });
+  });
+});
+
+describe("offlineEngine start-up sharing and recovery", () => {
+  function deferredInit() {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const init = jest.fn(async () => {
+      await gate;
+      return { ok: true, copyMs: 1, initMs: 2, ms: 3, cached: false, phases: "config=1 index=2" };
+    });
+    return { init, release };
+  }
+
+  it("shares one in-flight init between the warm-up and a later caller", async () => {
+    const { init, release } = deferredInit();
+    const engine = createOfflineEngine(fakeNative({ init }));
+    const first = engine.init();
+    const second = engine.init();
+    release();
+    expect(await first).toMatchObject({ ok: true, cached: false, phases: "config=1 index=2" });
+    expect(await second).toEqual(await first);
+    expect(init).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers an init after success as cached without asking the native side again", async () => {
+    const init = jest.fn(fakeNative().init);
+    const engine = createOfflineEngine(fakeNative({ init }));
+    await engine.init();
+    expect(await engine.init()).toMatchObject({ ok: true, ms: 0, cached: true });
+    expect(init).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a failed init be tried again", async () => {
+    const init = jest
+      .fn<ReturnType<NativeEngine["init"]>, []>()
+      .mockResolvedValueOnce({ ok: false, error: "init_failed", copyMs: 0, initMs: 0, ms: 1, cached: false })
+      .mockResolvedValueOnce({ ok: true, copyMs: 0, initMs: 1, ms: 1, cached: false });
+    const engine = createOfflineEngine(fakeNative({ init }));
+    expect(await engine.init()).toMatchObject({ ok: false, error: "init_failed" });
+    expect(await engine.init()).toMatchObject({ ok: true });
+  });
+
+  it("re-inits once and retries when Android killed the engine process", async () => {
+    const init = jest.fn(fakeNative().init);
+    const call = jest
+      .fn<ReturnType<NativeEngine["call"]>, Parameters<NativeEngine["call"]>>()
+      .mockResolvedValueOnce({ ok: false, error: "not_initialized", status: 503, nativeMs: 0 })
+      .mockResolvedValue({ ok: true, status: 200, text: "{\"code\":\"BC42.Z\"}", nativeMs: 1 });
+    const engine = createOfflineEngine(fakeNative({ init, call }));
+    await engine.init();
+    expect(await engine.codeinfo("BC42.Z")).toMatchObject({ ok: true, data: { code: "BC42.Z" } });
+    expect(init).toHaveBeenCalledTimes(2);
+    expect(call).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries after a rejected call from a lost process, but not for other rejections", async () => {
+    const lost = Object.assign(new Error("engine process stopped"), { code: "ERR_ICD11_PROCESS" });
+    const call = jest
+      .fn<ReturnType<NativeEngine["call"]>, Parameters<NativeEngine["call"]>>()
+      .mockRejectedValueOnce(lost)
+      .mockResolvedValue({ ok: true, status: 200, text: "{}", nativeMs: 1 });
+    const engine = createOfflineEngine(fakeNative({ call }));
+    await engine.init();
+    expect(await engine.search("x")).toMatchObject({ ok: true });
+    const other = createOfflineEngine(fakeNative({ call: jest.fn().mockRejectedValue(new Error("boom")) }));
+    await other.init();
+    expect(await other.search("x")).toMatchObject({ ok: false, error: "native_error" });
+  });
+
+  it("does not retry a call that never had an init", async () => {
+    const call = jest.fn(async () => ({ ok: false, error: "not_initialized", status: 503, nativeMs: 0 }));
+    const init = jest.fn(fakeNative().init);
+    const result = await createOfflineEngine(fakeNative({ call, init })).search("x");
+    expect(result).toMatchObject({ ok: false, error: "not_initialized" });
+    expect(init).not.toHaveBeenCalled();
+  });
+
+  it("warms up once, logging timings only, and skips an unavailable engine", async () => {
+    const log = jest.fn();
+    await warmUpOfflineEngine(createOfflineEngine(fakeNative()), log);
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0][0]).toMatch(/^ICD11WARM ready=true ms=\d+ cached=false at=\d+$/);
+    const none = jest.fn();
+    await warmUpOfflineEngine(createOfflineEngine(null), none);
+    await warmUpOfflineEngine(createOfflineEngine(fakeNative({ isAvailable: async () => false })), none);
+    expect(none).not.toHaveBeenCalled();
+  });
+
+  it("schedules the warm-up after interactions and the delay, and can be cancelled before it starts", async () => {
+    jest.useFakeTimers();
+    try {
+      const init = jest.fn(fakeNative().init);
+      let task: () => void = () => undefined;
+      const cancel = jest.fn();
+      const stop = scheduleEngineWarmUp(createOfflineEngine(fakeNative({ init })), 500, (fn) => ((task = fn), { cancel }));
+      jest.advanceTimersByTime(10_000);
+      expect(init).not.toHaveBeenCalled();
+      task();
+      jest.advanceTimersByTime(499);
+      expect(init).not.toHaveBeenCalled();
+      stop();
+      expect(cancel).toHaveBeenCalled();
+      jest.advanceTimersByTime(10_000);
+      await Promise.resolve();
+      expect(init).not.toHaveBeenCalled();
+
+      const run = scheduleEngineWarmUp(createOfflineEngine(fakeNative({ init })), 500, (fn) => ((task = fn), { cancel }));
+      task();
+      jest.advanceTimersByTime(500);
+      await jest.advanceTimersByTimeAsync(0);
+      expect(init).toHaveBeenCalledTimes(1);
+      run();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

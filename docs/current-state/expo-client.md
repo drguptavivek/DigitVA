@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 ---
 
 # Expo Client Hosting And Access
@@ -421,11 +421,47 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   is copied once to `filesDir/icd11-<version>/`. The engine runs in a bound
   service in its own `:icd11` process (`Icd11Service`, one worker thread that
   serializes calls); init runs once per that process and a failed init is sticky
-  until it restarts. Engine error payloads are never logged or returned. The
-  engine's start-up HTTPS call is pointed at a dead proxy: with INTERNET granted
-  it would load OpenSSL, unreachable from an app, and abort the process.
+  until it restarts. Engine error payloads are never logged or returned.
+- Engine network calls (found by running the host build with a logging proxy and
+  an HTTP event trace): at every start the WHO loaders try to download files that
+  already ship in the app, over HTTPS: `icdcdn.who.int` `languageresources/codingtool/languageResources.txt`
+  (twice), `icd11files.blob.core.windows.net` `doris/DORIS_v2.1_1.2.0.zip` (and the
+  index `released-index-files/...pbf.zip` path). They only refresh or fetch missing
+  data; offline they fail and the local files are used. The engine has no setting
+  that turns this off (no key in its configuration). With INTERNET granted the call
+  would load OpenSSL, unreachable from an app, and the .NET runtime aborts the
+  process, so `EngineHost` points `http(s)_proxy` at a dead local port: each
+  attempt fails at once, before any TLS. No telemetry or licence call was seen.
+- Start-up (SM-E146B, warm data, from `init-timings.txt` written by the bridge):
+  the work is CPU bound (about 21 s user, 1.4 s system) and is not an index
+  rebuild: the unzipped index and `.annexu` already on disk are not rewritten on a
+  warm start (only the `.pbf` and `.annex` are re-extracted from the shipped zip,
+  about 0.8 s; the zip must stay, the engine refuses to start without it). A first
+  start after install adds about 3 s (extract, build `.annexu`). Shipping a
+  prebuilt index therefore saves only that one-off 3 s. Phases, serial:
+  config 3.9 s, DORIS 7.4 s, index 10.9 s (22.3 s). DORIS and the index are
+  independent, so the bridge loads them on two threads: about 18 to 20 s, same
+  output on six certificates (DORIS and CoDEdit). GC settings changed nothing
+  measurable.
+- Background warm-up: `app/_layout.tsx` calls `scheduleEngineWarmUp()` in the plus
+  build (after interactions plus 1 s); it logs `ICD11WARM ready=... ms=...`. The
+  module binds the service from the app level and never unbinds, so the engine
+  process lives as long as the app process; there is no `onTrimMemory` handler,
+  Android decides. The engine has no cache-on-background hook, so nothing is saved
+  when the app goes to the background. If Android kills `:icd11`, the next call
+  re-inits once and retries.
+- Measured on the phone (one run each, noise about 1 to 2 s): launch to engine
+  ready 24.7 s before (init 23.6 s), 19.9 to 21.3 s after (init 19.1 to 20.3 s);
+  launcher start with warm-up 20.3 to 22.3 s. Peak `:icd11` PSS 801 to 824 MB
+  during init, then 548 MB; main process 130 MB. Per call: search 35 to 120 ms,
+  codeinfo under 3 ms, DORIS 40 to 100 ms (7 ms repeat), CoDEdit 5 to 16 ms.
+  Hosting the engine in the main process also works now (init 17.4 and 17.7 s in
+  two runs; one run returned a native error that was not diagnosed): steady PSS
+  666 MB, peak 948 MB in the UI process, so `:icd11` stays the default.
 - `src/offlineEngine.ts`: `available / init / search / codeinfo / doris / codedit`,
-  each with timings; "unavailable" on web and in the plain build.
+  each with timings; "unavailable" on web and in the plain build. Concurrent
+  `init()` calls share one request; `warmUpOfflineEngine` and
+  `scheduleEngineWarmUp` start it in the background.
 - `src/nativeRoutes/plusWorkspace.tsx`: Coding, Reviewing and Workspace routes
   render `QueueScreen` / `CaseWorkspaceScreen` (plain: `CodingOnWeb`).
 - Hidden check: Settings > Collect Plus > "Offline engine check", or

@@ -3,23 +3,26 @@
  * the server runs). Every result carries timings in milliseconds. The plain build and the web have no native module:
  * available() is false and every call answers { ok: false, error: "unavailable" }.
  *
- * Init runs once per process on the module's worker thread; a failure is sticky until the app restarts. Calls are
- * serialized by that thread. Failed calls carry a status or a short code, never the engine's payload, which can hold
+ * Init runs once per engine process on the module's worker thread; a failure is sticky until that process restarts.
+ * Concurrent init() calls share one in-flight request, so the start-up warm-up and a screen that opens coding mid-way
+ * wait for the same init. Calls are serialized by the worker thread; if Android killed the engine process, a call
+ * re-inits once and retries. Failed calls carry a status or a short code, never the engine's payload, which can hold
  * stack traces or certificate text. Do not log certificates passed to doris()/codedit() either.
  */
 import { requireOptionalNativeModule } from "expo";
+import { InteractionManager } from "react-native";
 
 export type EngineOp = "search" | "codeinfo" | "doris" | "codedit";
 
 /** What the native module returns (modules/digitva-icd11/android/.../DigitvaIcd11Module.kt). */
 export interface NativeEngine {
   isAvailable(): Promise<boolean>;
-  init(): Promise<{ ok: boolean; error?: string; copyMs: number; initMs: number; ms: number; cached: boolean }>;
+  init(): Promise<{ ok: boolean; error?: string; copyMs: number; initMs: number; ms: number; cached: boolean; phases?: string }>;
   call(op: EngineOp, input: string): Promise<{ ok: boolean; error?: string; status: number; text?: string; nativeMs: number }>;
 }
 
 export type EngineInit =
-  | { ok: true; ms: number; copyMs: number; initMs: number; cached: boolean }
+  | { ok: true; ms: number; copyMs: number; initMs: number; cached: boolean; phases?: string }
   | { ok: false; error: string; ms: number };
 
 export type EngineResult =
@@ -40,11 +43,49 @@ const clock = (): number => globalThis.performance?.now?.() ?? Date.now();
 
 /** Build the API over a native module (or none) and a clock; tests pass fakes. */
 export function createOfflineEngine(native: NativeEngine | null | undefined, now: () => number = clock): OfflineEngine {
+  let inflight: Promise<EngineInit> | undefined;
+  let ready: Extract<EngineInit, { ok: true }> | undefined;
+
+  /** One init per engine process: concurrent callers share the in-flight request, later ones get it as cached. */
+  function init(): Promise<EngineInit> {
+    if (ready) return Promise.resolve({ ...ready, ms: 0, cached: true });
+    inflight ??= (async (): Promise<EngineInit> => {
+      const start = now();
+      if (!native) return { ok: false, error: "unavailable", ms: 0 };
+      try {
+        const raw = await native.init();
+        const ms = now() - start;
+        if (!raw.ok) return { ok: false, error: raw.error ?? "init_failed", ms };
+        return (ready = { ok: true, ms, copyMs: raw.copyMs, initMs: raw.initMs, cached: raw.cached, phases: raw.phases });
+      } catch {
+        return { ok: false, error: "native_error", ms: now() - start };
+      }
+    })().finally(() => {
+      inflight = undefined;
+    });
+    return inflight;
+  }
+
+  /** Android can kill the engine process (low memory) while the app lives; its next incarnation needs a new init. */
+  async function call(op: EngineOp, input: string): Promise<Awaited<ReturnType<NativeEngine["call"]>>> {
+    const wasReady = ready !== undefined;
+    try {
+      const raw = await native!.call(op, input);
+      if (raw.ok || raw.error !== "not_initialized" || !wasReady) return raw;
+    } catch (error) {
+      if (!wasReady || (error as { code?: string }).code !== "ERR_ICD11_PROCESS") throw error;
+    }
+    ready = undefined;
+    const again = await init();
+    if (!again.ok) return { ok: false, error: again.error, status: 0, nativeMs: 0 };
+    return native!.call(op, input);
+  }
+
   async function run(op: EngineOp, input: string): Promise<EngineResult> {
     const start = now();
     if (!native) return { ok: false, error: "unavailable", ms: 0 };
     try {
-      const raw = await native.call(op, input);
+      const raw = await call(op, input);
       const ms = now() - start;
       if (!raw.ok || raw.text === undefined) return { ok: false, error: raw.error ?? "engine_error", status: raw.status, ms };
       try {
@@ -66,19 +107,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
         return false;
       }
     },
-    async init() {
-      const start = now();
-      if (!native) return { ok: false, error: "unavailable", ms: 0 };
-      try {
-        const raw = await native.init();
-        const ms = now() - start;
-        return raw.ok
-          ? { ok: true, ms, copyMs: raw.copyMs, initMs: raw.initMs, cached: raw.cached }
-          : { ok: false, error: raw.error ?? "init_failed", ms };
-      } catch {
-        return { ok: false, error: "native_error", ms: now() - start };
-      }
-    },
+    init,
     search: (query) => run("search", query),
     codeinfo: (code) => run("codeinfo", code),
     doris: (certificate) => run("doris", JSON.stringify(certificate)),
@@ -91,4 +120,33 @@ let shared: OfflineEngine | undefined;
 export function offlineEngine(): OfflineEngine {
   shared ??= createOfflineEngine(requireOptionalNativeModule<NativeEngine>("DigitvaIcd11"));
   return shared;
+}
+
+/**
+ * Start the engine in the background so it is ready before the coder opens a case: init takes ~18 s on a phone and the
+ * work is CPU bound, so it waits until the first screen has rendered and animations are done. Never throws; logs one
+ * timing line (no payload).
+ */
+export function warmUpOfflineEngine(engine: OfflineEngine, log: (line: string) => void = console.log): Promise<void> {
+  return engine.available().then(async (available) => {
+    if (!available) return;
+    const init = await engine.init();
+    log(`ICD11WARM ready=${init.ok} ms=${init.ms.toFixed(0)}${init.ok ? ` cached=${init.cached}` : ` error=${init.error}`} at=${Date.now()}`);
+  });
+}
+
+/** Schedule the warm-up after interactions plus `delayMs`; the returned function cancels one that has not started. */
+export function scheduleEngineWarmUp(
+  engine: OfflineEngine = offlineEngine(),
+  delayMs = 1000,
+  afterInteractions: (task: () => void) => { cancel: () => void } = (task) => InteractionManager.runAfterInteractions(task),
+): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const handle = afterInteractions(() => {
+    timer = setTimeout(() => void warmUpOfflineEngine(engine).catch(() => undefined), delayMs);
+  });
+  return () => {
+    handle.cancel();
+    if (timer) clearTimeout(timer);
+  };
 }

@@ -1104,6 +1104,7 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
       <Body>DORIS: {dorisStatus ?? "not processed"}</Body>
       {typeof dr.error === "string" ? <Alert variant="destructive">{dr.error}</Alert> : null}
       {dr.reject === true ? <Alert variant="destructive">DORIS rejected the certificate result.</Alert> : null}
+      {(processing?.who_notes ?? []).map((note) => <Muted key={note}>{note}</Muted>)}
       {typeof dr.code === "string" ? <Body>Computed UCOD: {dr.code}</Body> : null}
       {typeof dr.stemCode === "string" ? <Body>Computed stem: {dr.stemCode}</Body> : null}
       {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}

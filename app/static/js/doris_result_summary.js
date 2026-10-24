@@ -75,6 +75,8 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
     }
   }
 
+  (processing.who_notes || []).forEach(function (note) { container.appendChild(el('p', 'small text-muted mb-1', note)); });
+
   // A known DORIS warning shows its meaning and what to do, with DORIS's text
   // smaller underneath; titles arrive after the first paint (lookupTitle).
   var warnings = lines(dr.warning);

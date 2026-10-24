@@ -112,7 +112,8 @@ class DorisDemoStaticContractTests(BaseTestCase):
         self.assertIn("+ Build", picker)
         self.assertIn("See in hierarchy", picker)
         self.assertIn("postcoordinationOptions", script)
-        self.assertIn("isCompleteExpression", script)
+        # The demo renders search rows through the shared picker, so the guided-expression check lives there.
+        self.assertIn("isCompleteExpression", picker)
 
     def test_blank_certificate_has_three_lines_and_omits_empty_rows(self):
         script = self._script()

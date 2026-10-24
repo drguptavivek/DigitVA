@@ -82,3 +82,11 @@
   Engine phases and calls emit `android.os.Trace` sections so one Perfetto trace shows
   UI, search and DORIS together. Queued after the start-up writer; Haiku writer, Sonnet
   reviewer.
+- WHO file downloads (owner 2026-10-25): allowed during **first-time setup only**. The
+  engine's start-up fetches (icdcdn.who.int languageResources.txt;
+  icd11files.blob.core.windows.net DORIS_v2.1_1.2.0.zip, possibly the index zip) may run
+  on the first init after install or data reset, when online, with a bundled Android
+  OpenSSL so they cannot abort the engine, and with a short timeout. What they fetched
+  is kept on disk with size and sha256 recorded. Later inits block the network (the
+  dead-proxy guard). The engine check shows whether setup downloaded or used the shipped
+  copies, so parity with the server stays explainable.

@@ -77,8 +77,13 @@ module.exports = ({ config = appJson.expo } = {}) => {
     // app's APK over this one.
     version: isPlus ? `${config.version}-plus` : config.version,
     scheme: isDev ? `${config.scheme}dev` : isPlus ? `${config.scheme}plus` : config.scheme,
+    // Plus wears the DigitVA icon with a "+" badge, so it is told apart from the plain app on the home screen.
+    ...(isPlus ? { icon: "./assets/icon-plus.png" } : {}),
     android: {
       ...config.android,
+      ...(isPlus
+        ? { adaptiveIcon: { ...config.android.adaptiveIcon, foregroundImage: "./assets/adaptive-icon-plus.png" } }
+        : {}),
       package: isDev
         ? `${config.android.package}.dev`
         : isPlus

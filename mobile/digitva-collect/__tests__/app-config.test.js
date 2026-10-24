@@ -85,6 +85,9 @@ describe("Expo release configuration", () => {
       expect(resolved.version).toBe(`${require("../app.json").expo.version}-plus`);
       expect(resolved.scheme).toBe("digitvacollectplus");
       expect(resolved.extra.appVariant).toBe("plus");
+      expect(resolved.icon).toBe("./assets/icon-plus.png");
+      expect(resolved.android.adaptiveIcon).toEqual({ foregroundImage: "./assets/adaptive-icon-plus.png", backgroundColor: "#FFFFFF" });
+      expect(require("node:fs").existsSync(require("node:path").join(__dirname, "../assets/icon-plus.png"))).toBe(true);
     });
 
     it("leaves the plain build exactly as before", () => {
@@ -95,6 +98,8 @@ describe("Expo release configuration", () => {
       expect(resolved.version).toBe(require("../app.json").expo.version);
       expect(resolved.scheme).toBe("digitvacollect");
       expect(resolved.extra).not.toHaveProperty("appVariant");
+      expect(resolved.icon).toBe("./assets/icon.png");
+      expect(resolved.android.adaptiveIcon.foregroundImage).toBe("./assets/adaptive-icon.png");
     });
 
     it("keeps the development variant separate from plus", () => {

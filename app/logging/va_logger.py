@@ -115,11 +115,12 @@ def build_rotating_handler(
     log_file: str,
     formatter: logging.Formatter,
     backup_count: int = LOG_BACKUP_COUNT,
+    rotation_hours: int = LOG_ROTATION_HOURS,
 ) -> TimedRotatingFileHandler:
     handler = TimedRotatingFileHandler(
         filename=log_file,
         when="h",
-        interval=LOG_ROTATION_HOURS,
+        interval=rotation_hours,
         backupCount=backup_count,
         encoding="utf-8",
         utc=True,
@@ -203,6 +204,20 @@ slow_request_logger = va_setup_logger(
     logging.INFO,
     va_detailed_formatter,
 )
+# Debug-only DORIS/CoDEdit request+response lines (DORIS_CALL_LOG); one JSON
+# object per line, rotated daily, 7 files kept (see doris-cod-workflow.md).
+doris_call_logger = logging.getLogger("DORIS_CALL_LOG")
+doris_call_logger.setLevel(logging.INFO)
+doris_call_logger.propagate = False
+if not doris_call_logger.handlers:
+    doris_call_logger.addHandler(
+        build_rotating_handler(
+            os.path.abspath(f"{va_log}/doris_calls.log"),
+            logging.Formatter("%(message)s"),
+            backup_count=7,
+            rotation_hours=24,
+        )
+    )
 grant_audit_logger = va_setup_logger(
     "GRANT_AUDIT",
     f"{va_log}/grants.log",

@@ -150,6 +150,9 @@ class Config:
     )
     # Requests at or above this many ms are written to logs/slow_requests.log.
     SLOW_REQUEST_LOG_MS = int(os.environ.get("SLOW_REQUEST_LOG_MS", "300"))
+    # Debug only: log the full WHO DORIS/CoDEdit request and response to
+    # logs/doris_calls.log (docs/current-state/doris-cod-workflow.md). Keep off.
+    DORIS_CALL_LOG = os.environ.get("DORIS_CALL_LOG", "").strip().lower() in {"1", "true", "yes", "on"}
     STATIC_ASSET_VERSION = os.environ.get("STATIC_ASSET_VERSION", "1")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")

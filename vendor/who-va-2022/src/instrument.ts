@@ -55,6 +55,65 @@ function withPlaceAddressHint(question: InstrumentQuestion): InstrumentQuestion 
   return { ...question, hint: { ...question.hint, en, hi: added.hi } };
 }
 
+// Birth, whichever way it was recorded. Each source is read only while its own
+// gate holds, so an answer left over from an earlier branch is ignored.
+const BIRTH_SOURCES = [
+  { field: "Id10021", gate: "selected(${Id10020}, 'yes')" },
+  {
+    field: "dob_month_year",
+    gate: "(selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')"
+  },
+  {
+    field: "dob_year",
+    gate: "(selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')"
+  }
+];
+const birthTerms = (test: (field: string) => string) =>
+  BIRTH_SOURCES.map(({ field, gate }) => `(not(${gate}) or string-length(\${${field}}) = 0 or ${test(field)})`).join(
+    " and "
+  );
+// Id10024 is the death year as YYYY-01-01. The expression language has no year
+// extraction, so "born in or before the death year" is "birth is before the
+// next 1 January": 1 January plus 365 days, 366 in a leap year (the pattern
+// covers 1904-2099, the range Id10024 allows).
+const NEXT_NEW_YEAR =
+  ". + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)";
+const YEAR_NOT_BEFORE_BIRTH = birthTerms((field) => `\${${field}} < ${NEXT_NEW_YEAR}`);
+const DATE_NOT_BEFORE_BIRTH = birthTerms((field) => `. >= \${${field}}`);
+
+/**
+ * Owner rule 2026-10-24 (digitva-08bj): the year of death (Id10024) is not
+ * before the year of birth; the same year is valid (infant and neonatal deaths
+ * fall in the birth year). Id10023_b, the exact death date asked when the full
+ * birth date is not known, is not before the partial birth date. Id10023_a
+ * already has WHO's "on or after Id10021". Always on, so the server's
+ * re-derivation enforces it too.
+ */
+function withDeathBirthChecks(question: InstrumentQuestion): InstrumentQuestion {
+  const isYear = question.name === "Id10024";
+  const base = question.constraint?.source ?? NOT_FUTURE;
+  const constraint = { source: `${base} and ${isYear ? YEAR_NOT_BEFORE_BIRTH : DATE_NOT_BEFORE_BIRTH}` };
+  const message = isYear
+    ? {
+        en: "The year of death cannot be before the year of birth.",
+        hi: "मृत्यु का वर्ष जन्म के वर्ष से पहले का नहीं हो सकता।"
+      }
+    : {
+        en: "The date of death cannot be before the date of birth.",
+        hi: "मृत्यु की तारीख जन्म की तारीख से पहले की नहीं हो सकती।"
+      };
+  // The new check names itself; any other failure keeps the field's own message.
+  const constraintReasons = [
+    { constraint: { source: isYear ? YEAR_NOT_BEFORE_BIRTH : DATE_NOT_BEFORE_BIRTH }, message }
+  ];
+  return {
+    ...question,
+    constraint,
+    constraintReasons,
+    ...(question.validation ? { validation: { ...question.validation, constraint } } : {})
+  };
+}
+
 /**
  * Owner rule 2026-10-24: the registration date is neither in the future nor
  * before the death (the day when known, else only the year). Always on, so the
@@ -185,6 +244,7 @@ export function createWhoVa2022Instrument(
     if (question.name === "Id10051") return { ...question, defaultValue: "yes" };
     if (question.name === "Id10053") return { ...question, defaultValue: "-" };
     if (question.name === "Id10071") return withRegistrationDateChecks(question);
+    if (question.name === "Id10024" || question.name === "Id10023_b") return withDeathBirthChecks(question);
     if (question.name in PLACE_ADDRESS_HINTS) return withPlaceAddressHint(question);
     return question;
   });

@@ -1691,11 +1691,22 @@
       "ageGroup": "ALL",
       "appearance": "no-calendar",
       "constraint": {
-        "source": ". <= today()"
+        "source": ". <= today() and (not(selected(${Id10020}, 'yes')) or string-length(${Id10021}) = 0 or . >= ${Id10021}) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')) or string-length(${dob_month_year}) = 0 or . >= ${dob_month_year}) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')) or string-length(${dob_year}) = 0 or . >= ${dob_year})"
       },
       "constraintMessage": {
         "en": "Date of death cannot be in the future."
       },
+      "constraintReasons": [
+        {
+          "constraint": {
+            "source": "(not(selected(${Id10020}, 'yes')) or string-length(${Id10021}) = 0 or . >= ${Id10021}) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')) or string-length(${dob_month_year}) = 0 or . >= ${dob_month_year}) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')) or string-length(${dob_year}) = 0 or . >= ${dob_year})"
+          },
+          "message": {
+            "en": "The date of death cannot be before the date of birth.",
+            "hi": "मृत्यु की तारीख जन्म की तारीख से पहले की नहीं हो सकती।"
+          }
+        }
+      ],
       "control": "date",
       "dataType": "date",
       "guidance": {
@@ -1723,7 +1734,7 @@
       "sourceType": "date",
       "validation": {
         "constraint": {
-          "source": ". <= today()"
+          "source": ". <= today() and (not(selected(${Id10020}, 'yes')) or string-length(${Id10021}) = 0 or . >= ${Id10021}) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')) or string-length(${dob_month_year}) = 0 or . >= ${dob_month_year}) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')) or string-length(${dob_year}) = 0 or . >= ${dob_year})"
         },
         "constraintMessage": {
           "en": "Date of death cannot be in the future."
@@ -1766,11 +1777,22 @@
       "ageGroup": "ALL",
       "appearance": "year",
       "constraint": {
-        "source": ". <= today() and .>= date(date('1915-01-01'))"
+        "source": ". <= today() and .>= date(date('1915-01-01')) and (not(selected(${Id10020}, 'yes')) or string-length(${Id10021}) = 0 or ${Id10021} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')) or string-length(${dob_month_year}) = 0 or ${dob_month_year} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')) or string-length(${dob_year}) = 0 or ${dob_year} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365))"
       },
       "constraintMessage": {
         "en": "Year of Death can not be in the future"
       },
+      "constraintReasons": [
+        {
+          "constraint": {
+            "source": "(not(selected(${Id10020}, 'yes')) or string-length(${Id10021}) = 0 or ${Id10021} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')) or string-length(${dob_month_year}) = 0 or ${dob_month_year} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')) or string-length(${dob_year}) = 0 or ${dob_year} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365))"
+          },
+          "message": {
+            "en": "The year of death cannot be before the year of birth.",
+            "hi": "मृत्यु का वर्ष जन्म के वर्ष से पहले का नहीं हो सकता।"
+          }
+        }
+      ],
       "control": "date",
       "dataType": "date",
       "guidance": {
@@ -1796,7 +1818,7 @@
       "sourceType": "date",
       "validation": {
         "constraint": {
-          "source": ". <= today() and .>= date(date('1915-01-01'))"
+          "source": ". <= today() and .>= date(date('1915-01-01')) and (not(selected(${Id10020}, 'yes')) or string-length(${Id10021}) = 0 or ${Id10021} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'month_year')) or string-length(${dob_month_year}) = 0 or ${dob_month_year} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365)) and (not((selected(${Id10020}, 'no') or selected(${Id10020}, 'ref')) and selected(${dob_precision}, 'year')) or string-length(${dob_year}) = 0 or ${dob_year} < . + if(regex(., '^(19|20)(0[48]|[2468][048]|[13579][26])-|^2000-'), 366, 365))"
         },
         "constraintMessage": {
           "en": "Year of Death can not be in the future"
@@ -33981,5 +34003,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-5a091ba784"
+  "version": "2026081401-7ee547b8e7"
 }

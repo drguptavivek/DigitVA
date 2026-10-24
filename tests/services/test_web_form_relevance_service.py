@@ -243,6 +243,31 @@ class DeriveValidationErrorsTests(unittest.TestCase):
         self.assertIn(flagged, derive_validation_errors({**year_only, "Id10071": "2023-12-31"}, now=NOW))
         self.assertNotIn(flagged, derive_validation_errors({**year_only, "Id10071": "2024-01-02"}, now=NOW))
 
+    def test_death_before_birth_is_reported(self):
+        # Owner rule 2026-10-24 (digitva-08bj): year of death >= year of birth
+        # (same year valid); exact death date >= a partial birth date.
+        base = {"Id10013": "yes", "Id10020": "yes", "Id10021": "2020-06-15", "Id10022": "no"}
+        year = {"question": "Id10024", "rule": "constraint"}
+        self.assertIn(year, derive_validation_errors({**base, "Id10024": "2019-01-01"}, now=NOW))
+        self.assertNotIn(year, derive_validation_errors({**base, "Id10024": "2020-01-01"}, now=NOW))
+        self.assertNotIn(year, derive_validation_errors({**base, "Id10024": "2021-01-01"}, now=NOW))
+        leap = {**base, "Id10021": "2024-12-31"}
+        self.assertNotIn(year, derive_validation_errors({**leap, "Id10024": "2024-01-01"}, now=NOW))
+        self.assertIn(year, derive_validation_errors({**leap, "Id10021": "2025-01-01", "Id10024": "2024-01-01"}, now=NOW))
+        month = {"Id10013": "yes", "Id10020": "no", "dob_precision": "month_year",
+                 "dob_month_year": "2020-06-01", "Id10022": "no"}
+        self.assertIn(year, derive_validation_errors({**month, "Id10024": "2019-01-01"}, now=NOW))
+        self.assertNotIn(year, derive_validation_errors({**month, "Id10024": "2020-01-01"}, now=NOW))
+        by_year = {**month, "dob_precision": "year", "dob_year": "2020-01-01"}
+        self.assertIn(year, derive_validation_errors({**by_year, "Id10024": "2019-01-01"}, now=NOW))
+        self.assertNotIn(year, derive_validation_errors({**by_year, "Id10024": "2020-01-01"}, now=NOW))
+        self.assertNotIn(year, derive_validation_errors({"Id10013": "yes", "Id10020": "no", "Id10022": "no",
+                                                         "Id10024": "1990-01-01"}, now=NOW))
+        exact = {"question": "Id10023_b", "rule": "constraint"}
+        dead = {**month, "Id10022": "yes"}
+        self.assertIn(exact, derive_validation_errors({**dead, "Id10023_b": "2020-05-31"}, now=NOW))
+        self.assertNotIn(exact, derive_validation_errors({**dead, "Id10023_b": "2020-06-01"}, now=NOW))
+
     def test_answering_a_question_the_server_considers_irrelevant_is_reported_as_relevant(self):
         # Id10021 (date of birth) is only relevant once Id10020='yes'; here
         # it is answered without that gate.

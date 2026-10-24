@@ -122,6 +122,7 @@ function invalidCurrentValue(question: InstrumentQuestion): AnswerValue {
   const source = question.constraint?.source ?? "";
   if (question.name === "age_group") return "child";
   if (question.name === "Id10260") return "DK Ref";
+  if (question.name === "Id10024") return "2025-01-01"; // a year before the birth year in constraintBase
   if (question.dataType === "date") return source.includes("Id10021") ? "2026-06-01" : "2999-01-01";
   if (question.dataType === "string[]") {
     const exclusive =
@@ -159,6 +160,8 @@ function constraintData(question: InstrumentQuestion): SubmissionData {
     data.Id10388 = "no";
   }
   if (source.includes("Id10413")) data.Id10413 = "no";
+  // The death-vs-birth checks read Id10021 only while Id10020 is yes.
+  if (question.name === "Id10024" || question.name === "Id10023_b") data.Id10020 = "yes";
   return data;
 }
 

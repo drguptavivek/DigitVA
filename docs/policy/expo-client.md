@@ -350,6 +350,38 @@ at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
   start, or an invalid or unset value, keeps the block. Remove the setting from
   builds after expiry.
 
+## Offline gate (native; `digitva-5u65`)
+
+Owner rule, 2026-10-24, from a training phone whose error log filled with
+"Unable to resolve host" failures: the Android app makes no server call while
+the phone has no network (no Wi-Fi and no mobile data), and says it is offline
+instead of raising errors.
+
+- **State:** `expo-network` (`mobile/digitva-collect/src/network.ts`). The phone is
+  offline when `isConnected === false` or `isInternetReachable === false`. An
+  unknown (`null`/`undefined`) reachability counts as online, so calls
+  proceed and a real failure is handled as before.
+- **Gate:** every JSON/raw request of `src/api.ts` (so background and periodic
+  sync, notification polls, foreground refresh, draft sync, attachment upload
+  and Send now), the update check and the clock re-check refuse before
+  `fetch` while offline, with an `OfflineError` (a `TypeError`, so existing
+  "no network" handling applies). An `OfflineError` is never filed in the
+  error log, never raises the background-error banner and sets only the
+  header's Offline marker. All work stays in the encrypted store.
+- **Send now offline:** a calm info toast, "You're offline. Your work is saved
+  and will send when you're back online." No request, no error.
+- **Reconnect:** on the change to connected the app runs one pass (debounced
+  2 seconds): the foreground poll and, for each unlocked account, one sync so
+  queued work goes out.
+- **Indicator:** the header's "Offline" marker shows while the phone is
+  offline (accessible label "Offline"), not only after a failed request.
+- **Real failures:** when the state is unknown or online but a call still
+  fails at the network level, it is logged once per offline spell (a spell
+  ends at the next successful response or connectivity change), not once per
+  attempt.
+- Web is unchanged: the gate is inert unless the native shell has started the
+  watch.
+
 ## Update check
 
 - The app asks its own server `GET /api/v1/app/android/latest` (public, no

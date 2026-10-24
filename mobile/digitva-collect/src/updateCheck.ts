@@ -5,6 +5,7 @@
  * installs anything. Failures are silent: "unknown" is shown as "Couldn't check" in Settings and nowhere else.
  */
 import { APP_VERSION } from "./appVersion";
+import { assertOnline } from "./network";
 import { getUiPreference, setUiPreference } from "./preferences";
 
 export type UpdateResult = { status: "available"; version: string; url: string } | { status: "current" } | { status: "unknown" };
@@ -20,6 +21,7 @@ export function versionCode(version: string): number | null {
 }
 
 async function getJson(url: string): Promise<unknown> {
+  assertOnline();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {

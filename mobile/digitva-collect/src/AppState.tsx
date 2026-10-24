@@ -34,6 +34,7 @@ import { createAutoLock, type AutoLock } from "./autoLock";
 import { setUiLocale } from "./i18n";
 import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interviewerDb";
 import { errorText } from "./ui";
+import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline } from "./network";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
 import type { ClientBootstrap } from "./client/api";
@@ -43,6 +44,8 @@ import { loadPhoneClock, usePhoneClock } from "./phoneClock";
 
 const UI_LOCALE_KEY = "ui_locale";
 const POLL_MS = 60_000;
+/** After the phone comes back online, wait this long (a flapping connection) before the one catch-up pass. */
+const RECONNECT_DEBOUNCE_MS = 2_000;
 const POLL_MAX_MS = 600_000;
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -102,7 +105,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [error, setErrorText] = useState<string>();
   const [errorBlocking, setErrorBlocking] = useState(false);
   const [backgroundErrorText, setBackgroundErrorText] = useState<string>();
-  const [offline, setOffline] = useState(false);
+  const [failedOffline, setOffline] = useState(false);
+  const offline = useIsOffline() || failedOffline;
   const router = useRouter();
   const beforeLock = useRef(new Set<() => Promise<void>>());
   const accountsRef = useRef<Account[]>([]);
@@ -145,7 +149,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (text === undefined) setOffline(false);
   }, []);
   const reportBackgroundError = useCallback((e: unknown) => {
-    setBackgroundErrorText(errorText(e));
+    // Offline is shown by the header marker only; no banner, no log entry.
+    setBackgroundErrorText(e instanceof OfflineError ? undefined : errorText(e));
     setOffline(e instanceof TypeError);
   }, []);
   const dismissBackgroundError = useCallback(() => setBackgroundError(undefined), [setBackgroundError]);
@@ -231,6 +236,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const refreshUnlocked = useCallback(async () => {
     await flushBeforeRefresh();
+    if (isOffline()) return;
     for (const account of accountsRef.current) {
       if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
       const handle = isUnlocked(account.user_id)
@@ -258,6 +264,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const pollForegroundNotifications = useCallback(async (): Promise<boolean> => {
     try {
       await flushBeforeRefresh();
+      if (isOffline()) return true;
       for (const account of accountsRef.current) {
         if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
         const handle = isUnlocked(account.user_id)
@@ -313,6 +320,33 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setReady(true);
     })();
   }, [reload]);
+
+  // Network watch; on reconnect, one debounced pass sends what queued up while offline.
+  useEffect(() => {
+    const stopWatch = startNetworkWatch();
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    const stopReconnect = onReconnect(() => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(async () => {
+        try {
+          for (const account of accountsRef.current) {
+            if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+            if (account.collection_access !== true || !isUnlocked(account.user_id)) continue;
+            await runNativeSync(account.user_id, await openInterviewerDb(account.user_id));
+            bumpRefresh();
+          }
+          await pollForegroundNotifications();
+        } catch (syncError) {
+          reportBackgroundError(syncError);
+        }
+      }, RECONNECT_DEBOUNCE_MS);
+    });
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      stopReconnect();
+      stopWatch();
+    };
+  }, [bumpRefresh, pollForegroundNotifications, reportBackgroundError]);
 
   useEffect(() => {
     let previous = NativeAppState.currentState;

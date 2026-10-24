@@ -12,6 +12,7 @@ import { installErrorLog } from "../errorLogDb";
 import { flushErrors, setErrorRoute } from "../errorLog";
 import { t } from "../i18n";
 import { isUnlocked, openInterviewerDb, unsentWork } from "../interviewerDb";
+import { isOffline, OfflineError } from "../network";
 import { readNotificationState } from "../notificationState";
 import { refreshAuthorizedProjectDefinitions, refreshCases, refreshReferenceData } from "../sync";
 import { useToast } from "../toast";
@@ -101,6 +102,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       toast.show({ kind: outcome.failed ? "error" : "success", text: outcome.text });
       dataChanged?.();
     } catch (error) {
+      if (error instanceof OfflineError) {
+        toast.show({ kind: "info", text: t("offlineSendNow") });
+        return;
+      }
       const text = errorText(error);
       setResult(oneLine(text));
       toast.show({ kind: "error", text });
@@ -111,10 +116,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     }
   }, [userId, toast, dataChanged, reload]);
 
-  const sendNow = useCallback(() => run(async (id, db) => {
+  const sendNow = useCallback(async () => {
+    // Offline: no request, no error; the work is already saved on the phone.
+    if (isOffline()) return void toast.show({ kind: "info", text: t("offlineSendNow") });
+    await run(async (id, db) => {
     const { sync } = await syncAccount(id, db);
     return { text: t("syncResult", { sent: sync.sent, failed: sync.failed, remaining: sync.remaining }), failed: sync.failed > 0 };
-  }), [run, syncAccount]);
+    });
+  }, [run, syncAccount, toast]);
 
   const refreshNow = useCallback(() => run(async (id, db) => {
     const fresh = await refreshReferenceData(id, db, { force: true });

@@ -37,6 +37,9 @@ jest.mock("../src/errorLog", () => ({ flushErrors: jest.fn(), setErrorRoute: (pa
 jest.mock("../src/nativeShell/sheets", () => ({ AccountSheet: () => null, HelpSheet: () => null, SyncSheet: () => null }));
 jest.mock("../src/ui", () => ({ errorText: (e: unknown) => `err:${String(e)}\nRef: x` }));
 
+let mockOffline = false;
+jest.mock("../src/network", () => ({ ...jest.requireActual("../src/network"), isOffline: () => mockOffline }));
+
 import { ShellProvider } from "../src/nativeShell/shell";
 import { useShell, type Shell } from "../src/nativeShell/shellContext";
 
@@ -54,6 +57,7 @@ beforeEach(() => {
   mockParams = { userId: "u1" };
   mockUnsent = 2;
   mockLastFull = null;
+  mockOffline = false;
 });
 afterEach(async () => { await act(async () => tree.unmount()); });
 
@@ -120,4 +124,13 @@ it("opens and closes one sheet at a time", async () => {
   expect(shell.sheet).toBe("help");
   act(() => shell.closeSheet());
   expect(shell.sheet).toBeNull();
+});
+
+it("Send now offline is a calm toast and no request", async () => {
+  mockOffline = true;
+  await mount();
+  await act(async () => { await shell.sendNow(); });
+  expect(mockSync).not.toHaveBeenCalled();
+  expect(mockToast).toHaveBeenCalledWith({ kind: "info", text: "You're offline. Your work is saved and will send when you're back online." });
+  expect(shell.sync.result).toBeUndefined();
 });

@@ -61,3 +61,18 @@
 - A measured table: baseline vs in-process vs `:icd11`.
 - One case self-coded on the phone and visible on staging, with a parity verdict
   between the offline and server DORIS results.
+
+## Owner decisions 2026-10-24 (after phase A)
+
+- The engine's start-up telemetry/HTTPS call may connect. The app must never crash
+  because of it: bundle an Android OpenSSL build for the engine (the linux-bionic
+  NativeAOT runtime looks for libssl, which Android does not expose to apps), give the
+  call a short timeout, and keep the engine in the `:icd11` process so an engine
+  failure never takes down the coding screens (restart on next use, "offline engine
+  unavailable" in the UI).
+- A background worker runs the async jobs: a priority queue in the engine process
+  (interactive search/DORIS first, then init and index build, then cache saves), with
+  progress reported to the app and resume after a kill. Sync of coded cases runs in an
+  app-side background worker, so it survives the screen closing.
+- Start-up: warm up in the background after launch; persist the built index; save the
+  cache when the app is backgrounded (follow-up after the current start-up writer).

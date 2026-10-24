@@ -76,3 +76,9 @@
   app-side background worker, so it survives the screen closing.
 - Start-up: warm up in the background after launch; persist the built index; save the
   cache when the app is backgrounded (follow-up after the current start-up writer).
+- Profiling builds (owner 2026-10-24): a Plus **dev build** (debug, dev client on Metro
+  over USB) for Hermes/React DevTools/Android Studio profiling, plus a **profileable
+  release** Plus build (`android:profileable shell="true"`) for representative numbers.
+  Engine phases and calls emit `android.os.Trace` sections so one Perfetto trace shows
+  UI, search and DORIS together. Queued after the start-up writer; Haiku writer, Sonnet
+  reviewer.

@@ -202,7 +202,7 @@
       }
     }
     if (candidate.indexOf("/admin/panels/") !== -1) {
-      var after = candidate.split("/admin/panels/")[1] || "";
+      var after = (candidate.split("/admin/panels/")[1] || "").split(/[?#]/)[0];
       var slug = after.replace(/^\/+|\/+$/g, "").split("/")[0];
       if (slug) return "admin_" + slug;
     }

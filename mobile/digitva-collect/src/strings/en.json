@@ -1276,5 +1276,8 @@
   "interviewLastSaved": "Last saved {time}",
   "interviewCompleted": "Completed {time}",
   "interviewSubmitted": "Submitted {time}",
-  "interviewSaved": "Saved {time}"
+  "interviewSaved": "Saved {time}",
+  "usersColActions": "Actions",
+  "usersMoreActions": "More actions for {name}",
+  "orgBranchUnit": "1 unit below"
 }

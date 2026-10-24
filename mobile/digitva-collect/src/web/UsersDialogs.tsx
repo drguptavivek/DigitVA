@@ -11,7 +11,7 @@ import {
 } from "../users/api";
 import type { JsonRequester } from "../workspace/api";
 import { browserErrorText } from "./common";
-import { formatDisplayTimestamp } from "./DeathsList";
+import { formatWhen } from "../ui/interviewRows";
 
 /**
  * The Users page dialogs (digitva-9npt): the Status popup (GET /users/<id>/status, never a secret or a code) and the
@@ -56,7 +56,7 @@ export function DialogFrame({ title, onClose, children }: { title: string; onClo
   );
 }
 
-const when = (value: string | null | undefined) => (value ? formatDisplayTimestamp(value) : t("usersStNever"));
+const when = (value: string | null | undefined) => (value ? formatWhen(value) : t("usersStNever"));
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const s = useDialogStyles();

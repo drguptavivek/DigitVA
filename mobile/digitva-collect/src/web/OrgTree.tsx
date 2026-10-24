@@ -266,7 +266,7 @@ function Node({ id, title, unitName, mine, myRoles, via = [], level, count, onSh
             style={layout.branch}
           >
             <Chevron expanded={branchOpen} />
-            <Text style={[layout.branchText, { color: ui.foreground }]} aria-hidden>{t("orgBranchUnits", { count: kids.length })}</Text>
+            <Text style={[layout.branchText, { color: ui.foreground }]} aria-hidden>{kids.length === 1 ? t("orgBranchUnit") : t("orgBranchUnits", { count: kids.length })}</Text>
           </FoldButton>
         ) : null}
         {toggle?.error ? <Text style={styles.error} accessibilityRole="alert">{toggle.error}</Text> : null}

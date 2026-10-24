@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Image, Modal, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View, type ViewStyle } from "react-native";
 
 import { useAppState } from "../AppState";
 import { t, type StringKey } from "../i18n";
@@ -14,7 +14,7 @@ import type { JsonRequester } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { ChipGroup } from "./caseFilters";
 import { browserErrorText, WebShell } from "./common";
-import { formatDisplayTimestamp } from "./DeathsList";
+import { formatWhen } from "../ui/interviewRows";
 import { AccountUpload, GrantGrid, grantLine } from "./UsersAdminTools";
 import { SignInQrDialog, StatusDialog } from "./UsersDialogs";
 import { FilterSheet, FiltersButton, QuickChips } from "./UsersFilters";
@@ -49,6 +49,20 @@ function enrolmentLabel(user: DirectoryUser): string {
   return t("usersEnrolNone");
 }
 
+export type UserColumnKey = "name" | "contact" | "roles" | "status" | "app" | "actions";
+
+/** The wide table's columns: order, header text and layout, shared by the header and the rows. */
+export const USER_COLUMNS: { key: UserColumnKey; head: StringKey; style: ViewStyle }[] = [
+  { key: "name", head: "usersColName", style: { flex: 1.2, flexBasis: 0, minWidth: 110, maxWidth: 260 } },
+  { key: "contact", head: "usersColContact", style: { flex: 1.8, flexBasis: 0, minWidth: 150, maxWidth: 320 } },
+  { key: "roles", head: "usersColRoles", style: { flex: 1.6, flexBasis: 0, minWidth: 120, maxWidth: 320 } },
+  { key: "status", head: "usersColStatus", style: { width: 84, flexShrink: 0 } },
+  { key: "app", head: "usersColApp", style: { flex: 1.3, flexBasis: 0, minWidth: 130, maxWidth: 260 } },
+  { key: "actions", head: "usersColActions", style: { width: 56, flexShrink: 0, alignItems: "flex-end" } },
+];
+
+const COL = StyleSheet.create(Object.fromEntries(USER_COLUMNS.map((c) => [c.key, c.style])) as Record<UserColumnKey, ViewStyle>);
+
 function useStyles() {
   const { colors } = useTheme();
   return useMemo(() => StyleSheet.create({
@@ -60,16 +74,11 @@ function useStyles() {
     label: { ...typography.caption, fontWeight: "600", color: colors.textMuted, fontFamily: controls.fontFamily },
     row: { flexDirection: "row", gap: spacing.xs, paddingVertical: spacing.xs, borderBottomWidth: 1, borderColor: colors.border, alignItems: "flex-start" },
     head: { ...typography.caption, fontWeight: "700", color: colors.textMuted, fontFamily: controls.fontFamily },
-    cell: { flex: 1, minWidth: 0, gap: spacing.xxs },
     line: { alignItems: "center" },
-    nameCell: { flex: 1.2, minWidth: 0 },
-    contactCell: { flex: 1.8, minWidth: 0 },
-    statusCell: { width: 80 },
-    appCell: { flex: 1.3, minWidth: 0 },
-    actionsCell: { flexDirection: "row", gap: spacing.xs, flexShrink: 0, justifyContent: "flex-end" },
+    menuBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.md, backgroundColor: "rgba(0,0,0,0.5)" },
+    menu: { width: "100%", maxWidth: 320, gap: spacing.xs, padding: spacing.md, borderRadius: radius.lg, backgroundColor: colors.surface },
     toolbar: { flexDirection: "row", gap: spacing.xs, alignItems: "center" },
     searchBox: { flex: 1, minWidth: 0 },
-    wideCell: { flex: 2, minWidth: 0, gap: spacing.xxs },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
     counts: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
     count: { minWidth: 120, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
@@ -114,7 +123,7 @@ function ActivityPanel({ request, user }: { request: JsonRequester; user: Direct
         ))}
       </View>
       <Text style={styles.muted}>
-        {activity.last_active_at ? t("usersLastActive", { when: formatDisplayTimestamp(activity.last_active_at) }) : t("usersNeverActive")}
+        {activity.last_active_at ? t("usersLastActive", { when: formatWhen(activity.last_active_at) }) : t("usersNeverActive")}
       </Text>
     </View>
   );
@@ -155,7 +164,7 @@ function EnrolmentDialog({ request, user, onClose }: { request: JsonRequester; u
             <>
               <Image style={s.qr} accessibilityLabel={t("usersCodeQr")} source={{ uri: `data:image/png;base64,${issued.qr_png}` }} />
               <Text style={s.code} selectable>{issued.code}</Text>
-              <Text style={styles.muted}>{t("usersCodeOnce", { when: formatDisplayTimestamp(issued.expires_at), uses: issued.max_uses })}</Text>
+              <Text style={styles.muted}>{t("usersCodeOnce", { when: formatWhen(issued.expires_at), uses: issued.max_uses })}</Text>
             </>
           ) : emailed ? (
             <Text style={styles.text}>{t("usersCodeEmailed")}</Text>
@@ -186,9 +195,36 @@ function EnrolmentDialog({ request, user, onClose }: { request: JsonRequester; u
   );
 }
 
-function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: {
+type ActionProps = {
   user: DirectoryUser; open: boolean; onToggle: () => void; onIssue: () => void; onStatus: () => void; onQr: () => void;
-}) {
+};
+
+/** The row's one "⋯" button (wide table): the actions would not fit beside the other columns, so they live in a menu. */
+function UserActionsMenu(props: ActionProps) {
+  const s = useStyles();
+  const styles = useUiStyles();
+  const [shown, setShown] = useState(false);
+  const close = () => setShown(false);
+  const then = (fn: () => void) => () => { close(); fn(); };
+  return (
+    <>
+      <Button size="sm" kind="secondary" label="⋯" accessibilityLabel={t("usersMoreActions", { name: props.user.name })} expanded={shown} onPress={() => setShown(true)} />
+      {shown ? (
+        <Modal visible transparent animationType="fade" onRequestClose={close}>
+          <View style={s.menuBackdrop}>
+            <View style={s.menu} accessibilityViewIsModal>
+              <Text style={styles.headline} accessibilityRole="header">{props.user.name}</Text>
+              <UserActions {...props} onToggle={then(props.onToggle)} onIssue={then(props.onIssue)} onStatus={then(props.onStatus)} onQr={then(props.onQr)} />
+              <Button kind="secondary" label={t("usersCodeClose")} onPress={close} />
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </>
+  );
+}
+
+function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: ActionProps) {
   const s = useStyles();
   return (
     <View style={s.actions}>
@@ -333,36 +369,40 @@ export default function UsersScreen() {
 
       {wide && users.length ? (
         <View testID="users-table">
-          <View style={[s.row, s.line]}>
-            <Text style={[s.head, s.nameCell]}>{t("usersColName")}</Text>
-            <Text style={[s.head, s.contactCell]}>{t("usersColContact")}</Text>
-            <Text style={[s.head, s.wideCell]}>{t("usersColRoles")}</Text>
-            <Text style={[s.head, s.statusCell]}>{t("usersColStatus")}</Text>
-            <Text style={[s.head, s.appCell]}>{t("usersColApp")}</Text>
-            <View style={s.actionsCell} />
+          <View style={[s.row, s.line]} testID="users-head">
+            {USER_COLUMNS.map((c) => (
+              <View key={c.key} style={COL[c.key]} testID={`users-col-${c.key}`}><Text style={s.head} numberOfLines={1}>{t(c.head)}</Text></View>
+            ))}
           </View>
-          {users.map((user) => (
-            <View key={user.user_id} testID="users-row">
-              <View style={[s.row, s.line]} testID="users-line">
-                <Text style={[styles.text, s.nameCell]} numberOfLines={1}>{user.name}</Text>
-                <Text style={[styles.muted, s.contactCell]} numberOfLines={1} selectable>{[user.email, user.phone].filter(Boolean).join(" · ")}</Text>
-                <View style={s.wideCell}><RolesCell user={user} /></View>
-                <Text style={[styles.muted, s.statusCell]} numberOfLines={1}>{user.active ? t("usersActive") : t("usersInactive")}</Text>
-                <Text style={[styles.muted, s.appCell]} numberOfLines={1}>{enrolmentLabel(user)}</Text>
-                <View style={s.actionsCell}>
-                  <UserActions
-                    user={user}
-                    open={openActivity === user.user_id}
-                    onToggle={() => toggle(user.user_id)}
-                    onIssue={() => setIssuing(user)}
-                    onStatus={() => setStatusFor(user)}
-                    onQr={() => setQrFor(user)}
-                  />
+          {users.map((user) => {
+            const contact = [user.email, user.phone].filter(Boolean).join(" · ");
+            const app = enrolmentLabel(user);
+            const cells: Record<UserColumnKey, ReactNode> = {
+              name: <Text style={styles.text} numberOfLines={1} {...({ title: user.name } as object)}>{user.name}</Text>,
+              contact: <Text style={styles.muted} numberOfLines={1} selectable {...({ title: contact } as object)}>{contact}</Text>,
+              roles: <RolesCell user={user} />,
+              status: <Text style={styles.muted} numberOfLines={1}>{user.active ? t("usersActive") : t("usersInactive")}</Text>,
+              app: <Text style={styles.muted} numberOfLines={1} {...({ title: app } as object)}>{app}</Text>,
+              actions: (
+                <UserActionsMenu
+                  user={user}
+                  open={openActivity === user.user_id}
+                  onToggle={() => toggle(user.user_id)}
+                  onIssue={() => setIssuing(user)}
+                  onStatus={() => setStatusFor(user)}
+                  onQr={() => setQrFor(user)}
+                />
+              ),
+            };
+            return (
+              <View key={user.user_id} testID="users-row">
+                <View style={[s.row, s.line]} testID="users-line">
+                  {USER_COLUMNS.map((c) => <View key={c.key} style={COL[c.key]} testID={`users-col-${c.key}`}>{cells[c.key]}</View>)}
                 </View>
+                {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
               </View>
-              {openActivity === user.user_id ? <ActivityPanel request={request} user={user} /> : null}
-            </View>
-          ))}
+            );
+          })}
         </View>
       ) : null}
 

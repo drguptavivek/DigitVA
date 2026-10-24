@@ -1,5 +1,5 @@
 import React, { type ReactNode } from "react";
-import { Image, Modal, Text } from "react-native";
+import { Image, Modal, StyleSheet, Text } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ApiError } from "../src/api";
@@ -20,9 +20,10 @@ jest.mock("../src/web/common", () => ({
   WebShell: ({ children }: { children: ReactNode }) => <>{children}</>,
   browserErrorText: () => "server error",
 }));
-jest.mock("../src/web/DeathsList", () => ({ formatDisplayTimestamp: (value: string) => value }));
+let mockFormat = (value: string) => value;
+jest.mock("../src/ui/interviewRows", () => ({ formatWhen: (value: string) => mockFormat(value) }));
 
-import UsersScreen from "../src/web/UsersScreen";
+import UsersScreen, { USER_COLUMNS } from "../src/web/UsersScreen";
 
 const ASHA = {
   user_id: "u1",
@@ -74,8 +75,16 @@ afterEach(() => {
 const byTestId = (tree: ReactTestRenderer, id: string) => tree.root.findAll((n) => typeof n.type === "string" && n.props.testID === id);
 const text = (tree: ReactTestRenderer) => tree.root.findAllByType(Text).map((n) => [n.props.children].flat().join("")).join("|");
 
+const pressable = (tree: ReactTestRenderer, label: string) => tree.root.findAll((n) => typeof n.props.onPress === "function" && n.props.accessibilityLabel === label);
+
+/** The wide table keeps a row's actions in its "More actions" menu: open it first when the button is not on screen. */
 async function press(tree: ReactTestRenderer, label: string) {
-  const [target] = tree.root.findAll((n) => typeof n.props.onPress === "function" && n.props.accessibilityLabel === label);
+  const menuLabel = /^(?:Show the status of|Create a sign-in QR for|Issue an app enrolment code for) (.+)$/.exec(label)?.[1] ?? (label === "Activity" ? "Asha Devi" : "");
+  if (menuLabel && !pressable(tree, label).length) {
+    const [menu] = pressable(tree, `More actions for ${menuLabel}`);
+    await act(async () => { menu.props.onPress(); });
+  }
+  const [target] = pressable(tree, label);
   if (!target) throw new Error(`no button labelled ${label}`);
   await act(async () => {
     target.props.onPress();
@@ -130,6 +139,7 @@ const hasButton = (tree: ReactTestRenderer, label: string) => labelled(tree, lab
 
 describe("UsersScreen", () => {
   beforeEach(() => {
+    mockFormat = (value) => value;
     mockWidth = 1280;
     mockRequest.mockReset();
     mockRequest.mockImplementation(route);
@@ -190,19 +200,54 @@ describe("UsersScreen", () => {
     expect(text(tree)).not.toContain("SECRET-CODE");
   });
 
-  it("shows one line per user on a wide screen with the actions in the last column", async () => {
+  it("shows one line per user on a wide screen with a single menu button in the last column", async () => {
     const tree = await render();
     const [line] = byTestId(tree, "users-line");
     const last = line.children[line.children.length - 1] as ReactTestInstance;
     const inLast = (label: string) => last.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function").length > 0;
-    expect(inLast("Activity")).toBe(true);
-    expect(inLast("Issue an app enrolment code for Asha Devi")).toBe(true);
-    expect(inLast("Show the status of Asha Devi")).toBe(true);
-    expect(inLast("Create a sign-in QR for Asha Devi")).toBe(true);
+    expect(inLast("More actions for Asha Devi")).toBe(true);
+    expect(inLast("Show the status of Asha Devi")).toBe(false); // behind the menu until it is opened
     // name, contact, roles, status and app are single-line text
     const oneLine = tree.root.findAll((n) => typeof n.type === "string" && n.props.numberOfLines === 1).map((n) => n.props.children);
     expect(oneLine).toEqual(expect.arrayContaining(["Asha Devi", "asha@example.org · 9876500001", "Active"]));
     expect(text(tree)).toContain("1 of 1 users");
+  });
+
+  it("lines the header up with the cells: same columns, order and layout", async () => {
+    const tree = await render();
+    const keys = (row: ReactTestInstance) => row.children.map((c) => (c as ReactTestInstance).props.testID);
+    const [head] = byTestId(tree, "users-head");
+    const [line] = byTestId(tree, "users-line");
+    const expected = USER_COLUMNS.map((c) => `users-col-${c.key}`);
+    expect(keys(head)).toEqual(expected);
+    expect(keys(line)).toEqual(expected);
+    const flat = (n: ReactTestInstance) => StyleSheet.flatten((n as ReactTestInstance).props.style);
+    const headStyles = head.children.map((c) => flat(c as ReactTestInstance));
+    const lineStyles = line.children.map((c) => flat(c as ReactTestInstance));
+    expect(lineStyles).toEqual(headStyles);
+    expect(text(tree)).toContain("Actions");
+    // every column is bounded, so none can push the row wider than the page
+    for (const c of USER_COLUMNS) expect(c.style.width ?? c.style.maxWidth).toBeDefined();
+  });
+
+  it("reaches every action through the row menu", async () => {
+    const tree = await render();
+    await press(tree, "More actions for Asha Devi");
+    for (const label of ["Activity", "Issue an app enrolment code for Asha Devi", "Show the status of Asha Devi", "Create a sign-in QR for Asha Devi"]) {
+      expect(hasButton(tree, label)).toBe(true);
+    }
+    await press(tree, "Show the status of Asha Devi");
+    expect(mockRequest).toHaveBeenLastCalledWith("/api/v1/users/u1/status");
+    expect(hasButton(tree, "Create a sign-in QR for Asha Devi")).toBe(false); // the menu closed
+  });
+
+  it("formats the status dialog times with the app's formatter", async () => {
+    mockFormat = (value) => `FMT(${value.slice(0, 10)})`;
+    const tree = await render();
+    await press(tree, "Show the status of Asha Devi");
+    expect(text(tree)).toContain("Created FMT(2026-09-01)");
+    expect(text(tree)).toContain("Last seen FMT(2026-10-21)");
+    expect(text(tree)).not.toContain("T08:00:00Z");
   });
 
   it("summarises many roles on one line and expands them on press", async () => {
@@ -322,7 +367,10 @@ describe("UsersScreen", () => {
     const coder = { ...ASHA, user_id: "u2", name: "Coder Dev", grants: [{ ...ASHA.grants[0], role: "coder" }] };
     mockRequest.mockImplementation((path: string) => (String(path).startsWith("/api/v1/users?") ? Promise.resolve({ ...PAGE, users: [ASHA, coder], total: 2 }) : route(path)));
     const tree = await render();
+    await press(tree, "More actions for Asha Devi");
     expect(hasButton(tree, "Create a sign-in QR for Asha Devi")).toBe(true);
+    await press(tree, "Close");
+    await press(tree, "More actions for Coder Dev");
     expect(hasButton(tree, "Create a sign-in QR for Coder Dev")).toBe(false);
     expect(hasButton(tree, "Show the status of Coder Dev")).toBe(true);
   });

@@ -326,6 +326,10 @@ describe("OrganizationScreen", () => {
     // Siblings: none of the three contains another.
     for (const sc of inner) expect(items(sc).filter((n) => n !== sc)).toHaveLength(0);
     expect(root.findAll((n) => host(n) && n.props["aria-selected"] === true)).toHaveLength(2);
+    const all = JSON.stringify(tree.toJSON());
+    expect(all).toContain("1 unit below");
+    expect(all).not.toContain("1 units below");
+    expect(all).toContain("3 units below");
   });
 
   it("falls back to the flat layout when the server sends no parent ids", async () => {

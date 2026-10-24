@@ -1276,5 +1276,8 @@
   "interviewLastSaved": "अंतिम बार सहेजा: {time}",
   "interviewCompleted": "पूरा हुआ: {time}",
   "interviewSubmitted": "जमा किया गया: {time}",
-  "interviewSaved": "सहेजा गया: {time}"
+  "interviewSaved": "सहेजा गया: {time}",
+  "usersColActions": "कार्रवाई",
+  "usersMoreActions": "{name} के लिए और कार्रवाइयाँ",
+  "orgBranchUnit": "नीचे 1 इकाई"
 }

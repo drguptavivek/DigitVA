@@ -90,3 +90,19 @@
   is kept on disk with size and sha256 recorded. Later inits block the network (the
   dead-proxy guard). The engine check shows whether setup downloaded or used the shipped
   copies, so parity with the server stays explainable.
+
+## Progress 2026-10-25 (bead digitva-hs7e)
+
+- WHO downloads follow the three-case rule (docs/current-state/expo-client.md). An init fetches only for (a) the
+  first setup, (b) a WHO file missing or the wrong size (restored from the shipped copy
+  first), or (c) the explicit "Update WHO files" button, which ends `:icd11` and runs
+  one fetching init in a new process. Everything else stays behind the dead proxy.
+- The setup record lists only WHO files (shipped set in `who-files.json`, with
+  size and sha256 from `stage-engine.js`). Engine-built files (`.pbf`, `.annex`,
+  `.annexu`, DORIS `log.txt`) are no longer reported as downloads.
+- Start-up checks sizes only; sha256 runs on a fetch. Same-size corruption waits for
+  the next update.
+- Phone SM-E146B, plus build: first setup (shipped copies, no WHO file changed), a
+  proxied relaunch with the same setup line, and "Update WHO files" by deep link
+  (process restart, fetching init, result line) were run. Not run on the device: the
+  offline "No connection" path, and the missing or wrong-size restore.

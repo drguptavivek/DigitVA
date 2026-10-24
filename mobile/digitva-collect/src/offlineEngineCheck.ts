@@ -68,13 +68,19 @@ export function describeProgress(progress: EngineProgress): string {
 }
 
 /**
- * How the first setup ran, with the files it changed (names and sizes; no hashes). "downloaded" means the setup init
- * fetched WHO files; "shipped" means only the APK's copies were used.
+ * What the WHO files are, from the setup record: the WHO files a fetch changed (names and sizes; no hashes), or the
+ * shipped copies when nothing changed.
  */
 export function describeSetup(setup: EngineSetup): string {
-  if (setup.mode !== "downloaded") return "shipped copies";
+  if (setup.mode !== "downloaded" || setup.files.length === 0) return "shipped copies (no newer WHO files)";
   const files = setup.files.map((file) => `${file.path} (${file.size} B)`).join("; ");
-  return `downloaded ${setup.files.length} files${files ? `: ${files}` : ""}`;
+  return `downloaded ${setup.files.length} files: ${files}`;
+}
+
+/** The result line of "Update WHO files": what it changed, that it found nothing new, or why it failed. */
+export function describeUpdate(result: EngineInit): string {
+  if (!result.ok) return result.error === "no_connection" ? "No connection; kept the current WHO files." : "Failed; kept the shipped copies.";
+  return result.setup ? describeSetup(result.setup) : "shipped copies (no newer WHO files)";
 }
 
 /** Runs init, search, codeinfo, DORIS (cold and warm) and CoDEdit once, reporting each step's timings. */

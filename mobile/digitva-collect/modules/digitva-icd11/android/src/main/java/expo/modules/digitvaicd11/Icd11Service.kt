@@ -22,6 +22,9 @@ import java.util.concurrent.atomic.AtomicLong
  * is still queued or running waits for it, so no call reaches an engine that is not up yet. A job killed with the
  * process is simply run again by the next process: the init is idempotent and the data copy restarts cleanly.
  *
+ * OP_UPDATE (the explicit "Update WHO files") is a setup-priority job too: it runs after the calls queued before it. It
+ * ends this process, so the app's next init starts a new one that may fetch WHO files (EngineHost.init).
+ *
  * Messages: what = op (OP_*), arg1 = request id echoed in the reply, data["input"] = request text; replyTo receives the
  * result as a Bundle. While an init runs, the worker also sends WHAT_PROGRESS bundles (phase, percent) to the same
  * replyTo; the app routes them to the icd11Progress event and never resolves a promise from them.
@@ -50,6 +53,10 @@ class Icd11Service : Service() {
       val op = msg.what
       val id = msg.arg1
       val input = msg.data.getString("input").orEmpty()
+      if (op == OP_UPDATE) {
+        submit(PRIORITY_SETUP, Runnable { refreshWhoFiles(replyTo, id) })
+        return
+      }
       if (op == OP_INIT) {
         progressTo = replyTo
         val done = CompletableFuture<Unit>()
@@ -77,6 +84,23 @@ class Icd11Service : Service() {
 
   private fun submit(priority: Int, task: Runnable) {
     jobs.put(Job(priority, seq.getAndIncrement(), task))
+  }
+
+  /**
+   * Offline: answers "no_connection" and keeps the engine. Online: marks the refresh, replies "restarting" and ends
+   * this process. The reply goes out before the process ends, as a failed fetch's does (EngineHost.init).
+   */
+  private fun refreshWhoFiles(replyTo: Messenger, id: Int) {
+    if (!isOnline(applicationContext)) {
+      answer(replyTo, OP_UPDATE, id) { mapOf("ok" to false, "error" to "no_connection") }
+      return
+    }
+    if (!EngineData.requestRefresh(applicationContext)) {
+      answer(replyTo, OP_UPDATE, id) { mapOf("ok" to false, "error" to "failed") }
+      return
+    }
+    answer(replyTo, OP_UPDATE, id) { mapOf("ok" to true, "restarting" to true) }
+    Process.killProcess(Process.myPid())
   }
 
   /** Runs [work] and replies with its map. Any throwable becomes a generic code: engine text never leaves the process. */
@@ -112,6 +136,8 @@ class Icd11Service : Service() {
 
   companion object {
     const val OP_INIT = 0
+    /** Explicit WHO-file update (EngineData.requestRefresh); a request op, handled here rather than by the engine. */
+    const val OP_UPDATE = 5
     /** Reply `what` for progress reports; never a request op. */
     const val WHAT_PROGRESS = 100
     /** Lower runs first. Housekeeping has no job yet; the level is reserved so it never delays a call. */

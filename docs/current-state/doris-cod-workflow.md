@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-10-24
 ---
 
 # DORIS COD Workflow
@@ -426,3 +426,18 @@ the ingress, configure a secure public cookie for TLS and verify the deployed
 WHO image digest and ingress log format against this release.
 
 Policy: [DORIS COD Workflow Policy](../policy/doris-cod-workflow.md).
+
+## WHO date-pair crash (2026-10-24)
+
+Reproduced on the pinned `whoicd/icd-api:2.6.0` image: DORIS answers "Internal
+system error" (`reject: true`) and CoDEdit answers HTTP 500 when
+`AdministrativeData.DateBirth` and `DateDeath` are both present and either is
+year-only (`YYYY`). Month precision (`YYYY-MM`), a full date, either date alone,
+an absent date, an age inconsistent with the dates, manner of death and the
+external-cause fields are not triggers. `who_safe_certificate`
+(`app/services/doris_certificate.py`) leaves the year-only date out of the
+request to both WHO engines only; the stored certificate, its digest and the
+coder's entry are unchanged, and `process_certificate` returns `who_notes`
+(plain sentences the web and Expo result panels show) naming what was left out.
+A remaining WHO "Internal system error" also adds a `who_notes` line telling the
+coder to check the certificate or choose the cause without DORIS.

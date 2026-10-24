@@ -108,6 +108,8 @@ export interface DorisProcessReply {
   doris: DorisProcessEngine;
   codedit: DorisProcessEngine;
   process_token: string;
+  /** Plain-language notes on what was left out of, or went wrong in, the WHO request. */
+  who_notes?: string[];
 }
 
 export interface SmartvaRunReply {

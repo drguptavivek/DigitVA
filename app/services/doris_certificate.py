@@ -393,6 +393,28 @@ def drop_inapplicable_sections(certificate: dict) -> list[str]:
     return dropped
 
 
+def who_safe_certificate(certificate: dict) -> tuple[dict, list[str]]:
+    """Copy of ``certificate`` safe to send to WHO, plus the paths left out.
+
+    WHO's DORIS and CoDEdit crash ("Internal system error" / HTTP 500) when both
+    DateBirth and DateDeath are present and either is year-only (``YYYY``);
+    month precision (``YYYY-MM``) is accepted. Reproduced on the pinned
+    whoicd/icd-api 2.6.0 image, see docs/current-state/doris-cod-workflow.md.
+    The year-only date is left out of the WHO request only; the coder's
+    certificate keeps it.
+    """
+
+    safe = copy.deepcopy(certificate)
+    admin = safe.get("AdministrativeData")
+    omitted: list[str] = []
+    if isinstance(admin, dict) and admin.get("DateBirth") and admin.get("DateDeath"):
+        for key in ("DateBirth", "DateDeath"):
+            if len(admin[key]) == 4:
+                del admin[key]
+                omitted.append(f"AdministrativeData.{key}")
+    return safe, omitted
+
+
 def normalize_certificate(certificate: object, release: str = DEFAULT_ICD11_RELEASE) -> dict:
     """Return a bounded copy suitable for WHO, without mutating caller data."""
 

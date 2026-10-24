@@ -9,6 +9,7 @@ from app.services.doris_certificate import (
     canonical_json_bytes,
     normalize_certificate,
     verify_certificate_codes,
+    who_safe_certificate,
 )
 from app.services.who_icd_api import (
     DEFAULT_ICD11_RELEASE,
@@ -29,6 +30,12 @@ _DORIS_KEYS = {
     "warning",
 }
 _CODEDIT_KEYS = {"report", "tabularReport", "issueIds"}
+
+
+_OMITTED_LABEL = {
+    "AdministrativeData.DateBirth": "date of birth",
+    "AdministrativeData.DateDeath": "date of death",
+}
 
 
 def canonical_digest(value: object) -> str:
@@ -129,8 +136,19 @@ def process_certificate(
     certificate = normalize_certificate(payload.get("certificate"), release=release)
     verify_certificate_codes(certificate, release=release)
 
-    doris = _run_engine("doris", certificate, release)
-    codedit = _run_engine("codedit", certificate, release)
+    who_certificate, omitted = who_safe_certificate(certificate)
+    doris = _run_engine("doris", who_certificate, release)
+    codedit = _run_engine("codedit", who_certificate, release)
+    notes = [
+        f"The {_OMITTED_LABEL[path]} is year-only, which WHO's DORIS cannot process together "
+        "with the other date. It was left out of the WHO check; your entry is kept."
+        for path in omitted
+    ]
+    if str(((doris["result"] or {}).get("error")) or "").startswith("Internal system error"):
+        notes.append(
+            "WHO's DORIS failed internally on this certificate. Check the dates, manner of "
+            "death and external-cause fields for an inconsistency, or choose the cause without DORIS."
+        )
     return {
         "schema_version": 1,
         "client_revision": revision,
@@ -145,4 +163,5 @@ def process_certificate(
         ),
         "doris": doris,
         "codedit": codedit,
+        "who_notes": notes,
     }

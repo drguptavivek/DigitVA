@@ -380,3 +380,46 @@ class TestDorisProcessing(BaseTestCase):
         self.assertEqual(response["doris"]["status"], "malformed_response")
         self.assertEqual(response["codedit"]["status"], "completed")
         self.assertTrue(codeinfo.called)
+
+    @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
+    @patch("app.services.doris_processing.post_mortality_processor")
+    def test_year_only_date_with_other_date_is_left_out_of_who_request_only(self, processor, _codeinfo_mock):
+        processor.side_effect = [_processor("doris", {}), _processor("codedit", {})]
+        payload = _payload()
+        payload["certificate"]["AdministrativeData"].update(DateBirth="1980", DateDeath="2026-10")
+
+        response = process_certificate(payload)
+
+        for call in processor.call_args_list:
+            sent = call.args[1]["AdministrativeData"]
+            self.assertNotIn("DateBirth", sent)
+            self.assertEqual(sent["DateDeath"], "2026-10")
+        self.assertEqual(response["certificate"]["AdministrativeData"]["DateBirth"], "1980")
+        self.assertEqual(len(response["who_notes"]), 1)
+        self.assertIn("date of birth", response["who_notes"][0])
+
+    @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
+    @patch("app.services.doris_processing.post_mortality_processor")
+    def test_single_or_month_precision_dates_are_sent_unchanged(self, processor, _codeinfo_mock):
+        for dates in ({"DateBirth": "1980"}, {"DateDeath": "2026"}, {"DateBirth": "1980-05", "DateDeath": "2026-10"}):
+            processor.side_effect = [_processor("doris", {}), _processor("codedit", {})]
+            payload = _payload()
+            payload["certificate"]["AdministrativeData"].update(dates)
+            response = process_certificate(payload)
+            self.assertEqual(processor.call_args_list[-1].args[1]["AdministrativeData"], {"Sex": 1, "EstimatedAge": "P44Y", **dates})
+            self.assertEqual(response["who_notes"], [])
+
+    @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
+    @patch("app.services.doris_processing.post_mortality_processor")
+    def test_who_internal_error_gets_an_actionable_note(self, processor, _codeinfo_mock):
+        result = {
+            "code": None, "stemCode": None, "uri": None, "stemURI": None, "report": None,
+            "tabularReport": "", "reject": True, "warning": None,
+            "error": "Internal system error, contact your administrator or icd@who.int",
+        }
+        processor.side_effect = [(200, json.dumps(result).encode()), _processor("codedit", {})]
+
+        response = process_certificate(_payload())
+
+        self.assertEqual(response["doris"]["status"], "rejected")
+        self.assertIn("failed internally", response["who_notes"][0])

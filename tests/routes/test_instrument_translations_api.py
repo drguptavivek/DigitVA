@@ -787,6 +787,16 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         self.assertEqual(len(all_missing["items"]), 1)
         self.assertGreater(sum(all_missing["items"][0]["missing_counts"].values()), 0)
 
+    def test_machine_drafts_filter_lists_only_rows_with_a_machine_draft(self):
+        self._login(self.base_admin_id)
+        _string("hi", "HIGH_LOW_VERY/high", "मशीन मसौदा", kind="choice", source="machine")
+        db.session.commit()
+        drafts = self.client.get(self._api("/questions?missing=machine_drafts")).get_json()
+        self.assertTrue(drafts["items"])
+        self.assertTrue(any(item.get("list_name") == "HIGH_LOW_VERY" for item in drafts["items"]))
+        everything = self.client.get(self._api("/questions?missing=all")).get_json()
+        self.assertGreater(everything["total"], drafts["total"])
+
     def test_missing_option_and_note_filters_and_orphan_choices(self):
         self._login(self.base_admin_id)
         choice_key = "HIGH_LOW_VERY/high"

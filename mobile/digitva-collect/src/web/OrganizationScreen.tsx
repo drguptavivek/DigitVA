@@ -12,23 +12,27 @@ import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { Chevron, FoldButton } from "./Chevron";
-import { dropUnitAndBelow, OrgTree, roleNames, type OpenedUnit } from "./OrgTree";
+import { RoleSentence } from "../ui/RoleChip";
+import { dropUnitAndBelow, OrgTree, type OpenedUnit } from "./OrgTree";
 
 function unitErrorText(error: unknown): string {
   if (error instanceof ClientApiError && error.status === 404) return t("orgUnitNotAllowed");
   return browserErrorText(error);
 }
 
-/** One line of where the user holds which role: whole project, then each own unit, then each site. */
-function roleSummary(project: OrgProject): string {
+type SummaryLine = { k: "orgWholeProject" | "orgRolesAt"; params?: { place: string }; roles: { role: string }[] };
+
+/** Where the user holds which role: whole project, then each own unit, then each site. */
+function roleSummary(project: OrgProject): SummaryLine[] {
   const positions = project.my_positions;
-  const parts: string[] = [];
-  if (positions?.project_roles.length) parts.push(t("orgWholeProject", { roles: roleNames(positions.project_roles) }));
+  const lines: SummaryLine[] = [];
+  const plain = (roles: string[]) => roles.map((role) => ({ role }));
+  if (positions?.project_roles.length) lines.push({ k: "orgWholeProject", roles: plain(positions.project_roles) });
   for (const unit of project.my_units) {
-    if (unit.roles?.length) parts.push(t("orgRolesAt", { roles: roleNames(unit.roles.map((r) => r.role)), place: unit.unit_name }));
+    if (unit.roles?.length) lines.push({ k: "orgRolesAt", params: { place: unit.unit_name }, roles: plain(unit.roles.map((r) => r.role)) });
   }
-  for (const site of positions?.sites ?? []) parts.push(t("orgRolesAt", { roles: roleNames(site.roles), place: site.site_name }));
-  return parts.join("; ");
+  for (const site of positions?.sites ?? []) lines.push({ k: "orgRolesAt", params: { place: site.site_name }, roles: plain(site.roles) });
+  return lines;
 }
 
 /** Only project-level roles: nothing to place in the card body beyond the summary, so it starts folded. */
@@ -109,7 +113,7 @@ export default function OrganizationScreen() {
             >
               <View style={{ flex: 1, gap: spacing.xxs }}>
                 <Text style={styles.headline}>{heading}</Text>
-                {summary ? <Text style={styles.muted}>{summary}</Text> : null}
+                {summary.map((line, index) => <RoleSentence key={index} k={line.k} params={line.params} roles={line.roles} textStyle={styles.muted} />)}
               </View>
               <Chevron expanded={!isFolded} />
             </FoldButton>
@@ -119,15 +123,16 @@ export default function OrganizationScreen() {
                   <View style={{ gap: spacing.xxs }}>
                     <Text style={styles.text}>{t("orgSitesHeading")}</Text>
                     {sites.map((site) => (
-                      <Text key={site.site_id} style={styles.text}>
-                        {`${site.site_name} · ${t("orgYouRoles", { roles: roleNames(site.roles) })}`}
-                      </Text>
+                      <View key={site.site_id} style={{ gap: spacing.xxs }}>
+                        <Text style={styles.text}>{site.site_name}</Text>
+                        <RoleSentence k="orgYouRoles" roles={site.roles.map((role) => ({ role }))} textStyle={styles.text} />
+                      </View>
                     ))}
                   </View>
                 ) : null}
                 {project.has_tree === false ? null : (
                   <>
-                    {project.my_units.length === 0 && !summary ? <Text style={styles.muted}>{t("orgNoPlacement")}</Text> : null}
+                    {project.my_units.length === 0 && !summary.length ? <Text style={styles.muted}>{t("orgNoPlacement")}</Text> : null}
                     <OrgTree project={project} opened={opened} onToggle={(id) => void toggle(id)} />
                   </>
                 )}

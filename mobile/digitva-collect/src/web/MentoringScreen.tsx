@@ -19,7 +19,8 @@ import { fontSize, radius, spacing, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
-import { describeProjectGrants, openServerPage, projectActionItems } from "./roleHome";
+import { RoleSentence } from "../ui/RoleChip";
+import { describeProjectGrantRows, openServerPage, projectActionItems } from "./roleHome";
 
 interface InstituteRosterProps {
   institute: MentoringInstituteSummary;
@@ -638,7 +639,7 @@ export default function MentoringScreen() {
             </View>
           ) : (
             activeProjects.map((project) => {
-              const roleLines = describeProjectGrants(project.grants, project.sites, t);
+              const roleRows = describeProjectGrantRows(project.grants, project.sites, t);
               const actions = projectActionItems(project, bootstrap.access.roles);
               const actionKeys = new Set(actions.map((a) => a.key));
 
@@ -648,10 +649,11 @@ export default function MentoringScreen() {
                     {`${project.project_name} (${project.project_id})`}
                   </Text>
                   <Text style={styles.muted}>Assigned Roles & Coverage:</Text>
-                  {roleLines.map((line, idx) => (
-                    <Text key={`${project.project_id}-role-${idx}`} style={styles.text}>
-                      {line}
-                    </Text>
+                  {roleRows.map((row, idx) => (
+                    <View key={`${project.project_id}-role-${idx}`} style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center" }}>
+                      <RoleSentence k="homeRoleWithScope" params={{ scope: row.scope }} roles={[{ role: row.role }]} textStyle={styles.text} />
+                      {row.suffix ? <Text style={styles.text}>{row.suffix}</Text> : null}
+                    </View>
                   ))}
 
                   <View style={screenStyles.buttonRow}>

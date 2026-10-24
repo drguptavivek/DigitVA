@@ -6,21 +6,11 @@ import type { BelowUnit, OrgPerson, OrgProject, UnitPeople, UnitRole } from "../
 import { radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 import { Chevron, FoldButton } from "./Chevron";
-import { roleLabelKey } from "./roleHome";
-
-/** Role values as plain labels, joined: "Coder, Reviewer". */
-export function roleNames(roles: string[]): string {
-  return roles.map((role) => t(roleLabelKey(role))).join(", ");
-}
-
-/** A unit grant's roles with their cadre: "Coder (Medical Officer), Reviewer". */
-function unitRoleNames(roles: UnitRole[]): string {
-  return roles.map(({ role, cadre }) => (cadre ? t("orgRoleCadre", { role: t(roleLabelKey(role)), cadre }) : t(roleLabelKey(role)))).join(", ");
-}
+import { RoleChip, RoleSentence } from "../ui/RoleChip";
+import { roleCodeOfLabel, roleLabelKey } from "./roleHome";
 
 /** A role reaching a node from above: from a unit grant (`unit`) or a project grant (`unit` null). */
-type Via = { roles: string; unit: string | null };
-const viaText = ({ roles, unit }: Via) => (unit ? t("orgViaUnit", { roles, unit }) : t("orgViaProject", { roles }));
+type Via = { roles: UnitRole[]; unit: string | null };
 
 /** A Below unit opened in place: its people and child units, or why they did not load. */
 export type OpenedUnit = { loading: boolean; error: string; detail?: UnitPeople };
@@ -81,7 +71,11 @@ function PeopleList({ people }: { people: OrgPerson[] }) {
       {people.map((person, index) => (
         <View key={`${index}-${person.name}`}>
           <Text style={[styles.muted, layout.person]}>{person.name}</Text>
-          {person.roles?.length ? <Text style={[styles.muted, layout.roles]}>{person.roles.join(" · ")}</Text> : null}
+          {person.roles?.length ? (
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs }}>
+              {person.roles.map((label) => <RoleChip key={label} role={roleCodeOfLabel(label) ?? ""} label={label} />)}
+            </View>
+          ) : null}
         </View>
       ))}
     </>
@@ -175,7 +169,7 @@ type NodeProps = {
   unitName: string;
   mine?: boolean;
   /** The user's own roles here (unit grants), already labelled. */
-  myRoles?: string;
+  myRoles?: UnitRole[];
   /** Roles reaching this node from a unit above or the project; none and no own roles mutes the node. */
   via?: Via[];
   count: number;
@@ -208,7 +202,9 @@ function Node({ id, title, unitName, mine, myRoles, via = [], level, count, onSh
         <Text style={[styles.text, layout.unitName, layout.wrap, roleless ? { color: ui.mutedForeground } : family && { color: family.foreground }]}>{title}</Text>
         {mine ? (
           <View style={[layout.badge, layout.wrap, { backgroundColor: ui.primary }]} accessibilityLabel={t("orgYouAreHere")}>
-            <Text style={[layout.badgeText, { color: ui.primaryForeground }]}>{myRoles ? t("orgYouRoles", { roles: myRoles }) : t("orgYou")}</Text>
+            {myRoles?.length
+              ? <RoleSentence k="orgYouRoles" roles={myRoles} textStyle={[layout.badgeText, { color: ui.primaryForeground }]} />
+              : <Text style={[layout.badgeText, { color: ui.primaryForeground }]}>{t("orgYou")}</Text>}
           </View>
         ) : null}
       </View>
@@ -255,7 +251,7 @@ function Node({ id, title, unitName, mine, myRoles, via = [], level, count, onSh
           ) : null}
         </View>
         {via.map((entry, index) => (
-          <Text key={index} style={[layout.roles, { color: ui.mutedForeground }]}>{viaText(entry)}</Text>
+          <RoleSentence key={index} k={entry.unit ? "orgViaUnit" : "orgViaProject"} params={entry.unit ? { unit: entry.unit } : undefined} roles={entry.roles} textStyle={[layout.roles, { color: ui.mutedForeground }]} />
         ))}
         {kids.length ? (
           <FoldButton
@@ -366,7 +362,7 @@ function OrgNodes({ project, opened, onToggle, onShow }: NodesProps) {
       </Node>
     ) })),
     ...project.my_level.map((unit) => ({ unit, render: (kids: ReactNode[], via: Via[]) => (
-      <Node key={unit.org_unit_id} id={unit.org_unit_id} title={ownTitle(unit)} unitName={unit.unit_name} level={levelOf(unit.org_unit_id)} mine={mine.has(unit.org_unit_id)} myRoles={unitRoleNames(ownRoles(unit.org_unit_id))} via={via} count={unit.people.length} onShowPeople={() => onShow({ id: unit.org_unit_id, title: ownTitle(unit), people: unit.people })}>
+      <Node key={unit.org_unit_id} id={unit.org_unit_id} title={ownTitle(unit)} unitName={unit.unit_name} level={levelOf(unit.org_unit_id)} mine={mine.has(unit.org_unit_id)} myRoles={ownRoles(unit.org_unit_id)} via={via} count={unit.people.length} onShowPeople={() => onShow({ id: unit.org_unit_id, title: ownTitle(unit), people: unit.people })}>
         {kids}
       </Node>
     ) })),
@@ -390,11 +386,11 @@ function OrgNodes({ project, opened, onToggle, onShow }: NodesProps) {
   // A unit grant covers its subtree: each node passes its own roles down as "via <unit>", on top of what reached it.
   const build = (entry: (typeof entries)[number], via: Via[]): ReactNode => {
     const own = ownRoles(entry.unit.org_unit_id);
-    const below = own.length ? [...via, { roles: roleNames(own.map((r) => r.role)), unit: entry.unit.unit_name }] : via;
+    const below = own.length ? [...via, { roles: own.map(({ role }) => ({ role, cadre: null })), unit: entry.unit.unit_name }] : via;
     return entry.render((kidsOf.get(entry.unit.org_unit_id) ?? []).map((kid) => build(kid, below)), via);
   };
   const projectRoles = project.my_positions?.project_roles ?? [];
-  const rootVia: Via[] = projectRoles.length ? [{ roles: roleNames(projectRoles), unit: null }] : [];
+  const rootVia: Via[] = projectRoles.length ? [{ roles: projectRoles.map((role) => ({ role, cadre: null })), unit: null }] : [];
   return <View role="tree" style={{ gap: spacing.xs }}>{roots.map((root) => build(root, rootVia))}</View>;
 }
 

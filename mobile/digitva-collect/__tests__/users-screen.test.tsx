@@ -155,7 +155,7 @@ describe("UsersScreen", () => {
     expect(byTestId(wide, "users-table")).toHaveLength(1);
     expect(text(wide)).toContain("asha@example.org");
     expect(text(wide)).toContain("9876500001");
-    expect(text(wide)).toContain("Interviewer · PHC A");
+    expect(text(wide)).toContain("Interviewer|PHC A");
     expect(byTestId(wide, "users-card")).toHaveLength(0);
 
     mockWidth = 375;
@@ -256,7 +256,7 @@ describe("UsersScreen", () => {
       ? Promise.resolve({ ...PAGE, users: [{ ...ASHA, grants: [grant("interviewer", "PHC A"), grant("coder", "PHC B"), grant("reviewer", "PHC C")] }] })
       : route(path)));
     const tree = await render();
-    expect(text(tree)).toContain("Interviewer · PHC A +2 more");
+    expect(text(tree)).toContain("Interviewer|PHC A|+2 more");
     expect(text(tree)).not.toContain("PHC C");
     await press(tree, "Show all roles of Asha Devi");
     expect(text(tree)).toContain("PHC C");

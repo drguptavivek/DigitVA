@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { t, type StringKey } from "../i18n";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { RoleChip, RoleChips } from "../ui/RoleChip";
 import {
   applyUpload, enrolmentProjects, getGrid, GRID_ROLES, previewUpload, primaryUnit, rolesAt, saveGridRow, UPLOAD_TEMPLATE,
   type GridFilters, type GridOptions, type GridRole, type GridSave, type GridUser, type UploadFile, type UploadResult,
@@ -34,11 +35,23 @@ const ROLE_COLUMN: Record<GridRole, StringKey> = {
   data_manager: "usersGridManager",
 };
 
-/** "Role · place" for a grant, the Users list's grant line. */
+const grantPlace = (grant: UserGrant) =>
+  grant.unit_name ?? grant.site_name ?? t("usersWholeProject", { project: grant.project_name ?? grant.project_id });
+
+/** "Role · place" for a grant (the plain text of GrantView, used for labels). */
 export function grantLine(grant: UserGrant): string {
-  const role = t(roleLabelKey(grant.role));
-  const place = grant.unit_name ?? grant.site_name;
-  return place ? t("usersRoleAt", { role, place }) : t("usersRoleAt", { role, place: t("usersWholeProject", { project: grant.project_name ?? grant.project_id }) });
+  return t("usersRoleAt", { role: t(roleLabelKey(grant.role)), place: grantPlace(grant) });
+}
+
+/** A grant as a role chip followed by its place. */
+export function GrantView({ grant }: { grant: UserGrant }) {
+  const styles = useUiStyles();
+  return (
+    <RoleChips>
+      <RoleChip role={grant.role} />
+      <Text style={styles.muted}>{grantPlace(grant)}</Text>
+    </RoleChips>
+  );
 }
 
 function useStyles() {
@@ -79,7 +92,7 @@ function RoleBox({ role, checked, editable, onToggle, name }: { role: GridRole; 
       testID={`grid-role-${role}`}
     >
       <View style={[s.box, checked && s.boxOn, !editable && s.boxOff]} />
-      <Text style={styles.muted}>{t(ROLE_COLUMN[role])}</Text>
+      <RoleChip role={role} label={t(ROLE_COLUMN[role])} />
     </Pressable>
   );
 }
@@ -224,7 +237,7 @@ function GridRow({ user, projectId, units, options, request, wide, onSaved, onIs
   const hints = elsewhere.length ? (
     <View>
       <Text style={s.label}>{t("usersGridElsewhere")}</Text>
-      {elsewhere.map((g, i) => <Text key={i} style={styles.muted}>{grantLine(g)}</Text>)}
+      {elsewhere.map((g, i) => <GrantView key={i} grant={g} />)}
     </View>
   ) : null;
   const feedback = (

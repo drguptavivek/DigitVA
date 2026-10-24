@@ -5,6 +5,7 @@ import { useAppState } from "../AppState";
 import { t, type StringKey } from "../i18n";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
+import { RoleChips } from "../ui/RoleChip";
 import {
   activeFilterCount, DEFAULT_FILTERS, emailEnrolmentCode, enrolmentProjects, filtersFromSearch, filtersToSearch, getUserActivity,
   getUsers, issueEnrolmentCode, signInQrCandidate,
@@ -15,7 +16,7 @@ import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { ChipGroup } from "./caseFilters";
 import { browserErrorText, WebShell } from "./common";
 import { formatWhen } from "../ui/interviewRows";
-import { AccountUpload, GrantGrid, grantLine } from "./UsersAdminTools";
+import { AccountUpload, GrantGrid, GrantView } from "./UsersAdminTools";
 import { SignInQrDialog, StatusDialog } from "./UsersDialogs";
 import { FilterSheet, FiltersButton, QuickChips } from "./UsersFilters";
 
@@ -244,9 +245,9 @@ function UserActions({ user, open, onToggle, onIssue, onStatus, onQr }: ActionPr
 function RolesCell({ user }: { user: DirectoryUser }) {
   const styles = useUiStyles();
   const [open, setOpen] = useState(false);
-  const lines = user.grants.map(grantLine);
-  if (!lines.length) return <Text style={styles.muted} numberOfLines={1}>{t("usersNoRoles")}</Text>;
-  if (lines.length === 1) return <Text style={styles.muted} numberOfLines={1}>{lines[0]}</Text>;
+  const { grants } = user;
+  if (!grants.length) return <Text style={styles.muted} numberOfLines={1}>{t("usersNoRoles")}</Text>;
+  if (grants.length === 1) return <GrantView grant={grants[0]} />;
   return (
     <Pressable
       accessibilityRole="button"
@@ -255,8 +256,13 @@ function RolesCell({ user }: { user: DirectoryUser }) {
       onPress={() => setOpen((current) => !current)}
     >
       {open
-        ? lines.map((line, index) => <Text key={index} style={styles.muted}>{line}</Text>)
-        : <Text style={styles.muted} numberOfLines={1}>{t("usersRolesMore", { summary: lines[0], count: lines.length - 1 })}</Text>}
+        ? grants.map((grant, index) => <GrantView key={index} grant={grant} />)
+        : (
+          <RoleChips>
+            <GrantView grant={grants[0]} />
+            <Text style={styles.muted}>{t("usersRolesMore", { summary: "", count: grants.length - 1 }).trim()}</Text>
+          </RoleChips>
+        )}
     </Pressable>
   );
 }
@@ -411,7 +417,7 @@ export default function UsersScreen() {
           <Text style={styles.headline}>{user.name}</Text>
           {user.email ? <Text style={styles.muted} selectable>{user.email}</Text> : null}
           {user.phone ? <Text style={styles.muted} selectable>{user.phone}</Text> : null}
-          {user.grants.map((grant, index) => <Text key={index} style={styles.text}>{grantLine(grant)}</Text>)}
+          {user.grants.map((grant, index) => <GrantView key={index} grant={grant} />)}
           <Text style={styles.muted}>
             {`${user.active ? t("usersActive") : t("usersInactive")} · ${enrolmentLabel(user)}`}
           </Text>

@@ -799,6 +799,19 @@ it("rejects blank and over-limit private notes before writing", async () => {
   await act(async () => tree.unmount());
 });
 
+it("shows the private note's saved time formatted, not as a raw ISO timestamp", async () => {
+  const api = apiFor(workspace("coding"), { getNote: jest.fn(async () => ({ va_sid: "sid-1", content: "x", updated_at: "2026-10-24T08:58:49.681263+00:00" })) });
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<PrivateNotePanel identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onAllocationLost={jest.fn()} />);
+    await flush();
+  });
+  const text = JSON.stringify(tree.toJSON());
+  expect(text).toMatch(/"Saved ","\d{1,2} Oct 2026, /);
+  expect(text).not.toContain("T08:58:49");
+  await act(async () => tree.unmount());
+});
+
 it("clears the note and exits when the allocation is lost", async () => {
   const onAllocationLost = jest.fn();
   const api = apiFor(workspace("coding"), { getNote: jest.fn().mockRejectedValue(new ApiError(403, "no_allocation")) });

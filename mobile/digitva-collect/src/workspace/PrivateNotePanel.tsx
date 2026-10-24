@@ -3,6 +3,7 @@ import { AppState as NativeAppState, Text, TextInput, View } from "react-native"
 
 import { ApiError } from "../api";
 import { Button, errorText, useUiStyles } from "../ui";
+import { formatWhen } from "../ui/interviewRows";
 import type { WorkspaceApi } from "./api";
 import type { NotePayload } from "./contracts";
 
@@ -121,6 +122,8 @@ export function PrivateNotePanel({
     setNoteState({ ...currentNote, content: value });
   };
 
+  const savedAt = formatWhen(note?.updated_at);
+
   return (
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.headline}>Private note</Text>
@@ -134,7 +137,7 @@ export function PrivateNotePanel({
           <TextInput accessibilityLabel="Private note" placeholder="Private note" value={content} onChangeText={updateContent} style={styles.input} multiline maxLength={20_000} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <Button label="Save private note" onPress={() => void save()} loading={saving} disabled={saving} />
-          {note?.updated_at ? <Text style={styles.muted}>Saved {note.updated_at}</Text> : null}
+          {savedAt ? <Text style={styles.muted}>Saved {savedAt}</Text> : null}
         </>
       )}
     </View>

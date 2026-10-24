@@ -1033,3 +1033,12 @@ describe("final COD remark (digitva-p9j0)", () => {
     await act(async () => tree.unmount());
   });
 });
+
+test("the DORIS reply keeps the server's notes about what was sent to WHO", () => {
+  const { parseDorisProcess } = jest.requireActual("../src/workspace/contracts");
+  const base = { schema_version: 1, client_revision: 0, icd_release: "2026-01", certificate: {}, certificate_digest: "d", result_digest: "r",
+    doris: { status: "completed", result: null }, codedit: { status: "completed", result: null }, process_token: "t",
+    who_notes: ["The date of birth is year-only. It was left out of the WHO check; your entry is kept.", 7] };
+  const parsed = parseDorisProcess(base);
+  expect(parsed.who_notes).toEqual(["The date of birth is year-only. It was left out of the WHO check; your entry is kept."]);
+});

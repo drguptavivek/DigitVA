@@ -941,5 +941,7 @@ export function parseDorisProcess(value: unknown): DorisProcessReply {
     codedit: engine(source.codedit, "doris.process.codedit"),
     process_token: string(source.process_token, "doris.process.process_token"),
     ucod_parts: parseUcodParts(source.ucod_parts),
+    // Notes the server added about what it sent to WHO (e.g. a year-only date left out); dropped before, so coders never saw them.
+    who_notes: Array.isArray(source.who_notes) ? source.who_notes.filter((note): note is string => typeof note === "string") : [],
   };
 }

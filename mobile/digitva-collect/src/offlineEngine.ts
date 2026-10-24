@@ -68,6 +68,8 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
 
   /** Android can kill the engine process (low memory) while the app lives; its next incarnation needs a new init. */
   async function call(op: EngineOp, input: string): Promise<Awaited<ReturnType<NativeEngine["call"]>>> {
+    // A re-init after a lost process may be under way; calling before it lands would hit an uninitialised engine.
+    if (inflight) await inflight;
     const wasReady = ready !== undefined;
     try {
       const raw = await native!.call(op, input);

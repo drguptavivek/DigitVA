@@ -152,6 +152,24 @@ describe("offlineEngine start-up sharing and recovery", () => {
     expect(await other.search("x")).toMatchObject({ ok: false, error: "native_error" });
   });
 
+  it("a call made while an init is in flight waits for it before reaching the engine", async () => {
+    let finishInit!: () => void;
+    const init = jest.fn(() => new Promise<Awaited<ReturnType<NativeEngine["init"]>>>((resolve) => {
+      finishInit = () => resolve({ ok: true, copyMs: 0, initMs: 1, ms: 1, cached: false });
+    }));
+    const call = jest.fn(fakeNative().call);
+    const engine = createOfflineEngine(fakeNative({ init, call }));
+    const pendingInit = engine.init();
+    const pendingSearch = engine.search("x");
+    await Promise.resolve();
+    expect(init).toHaveBeenCalledTimes(1);
+    expect(call).not.toHaveBeenCalled();
+    finishInit();
+    await pendingInit;
+    expect(await pendingSearch).toMatchObject({ ok: true });
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
   it("does not retry a call that never had an init", async () => {
     const call = jest.fn(async () => ({ ok: false, error: "not_initialized", status: 503, nativeMs: 0 }));
     const init = jest.fn(fakeNative().init);

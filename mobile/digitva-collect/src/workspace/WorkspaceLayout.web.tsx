@@ -7,6 +7,20 @@ import { useWebStyles, type WebPalette } from "./webPalette";
 import { useScrollMemory } from "./useScrollMemory";
 import type { WorkspaceLayoutProps } from "./WorkspaceLayout";
 
+// react-dom ships without types here (no @types/react-dom); same hand-typed call as AppHeader.web.tsx.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createPortal } = require("react-dom") as { createPortal: (children: React.ReactNode, container: Element) => React.ReactElement };
+
+/**
+ * Renders fixed overlays (notes tab, notes and case-info panels) under document.body. react-native-web Views
+ * create a stacking context, so inside the layout a fixed panel's z-index cannot beat the sticky app header;
+ * at the root it can. Context still flows through a portal. Without a DOM (native-style test renderer) it is inline.
+ */
+function BodyOverlay({ children }: { children: React.ReactNode }) {
+  const body = typeof document === "undefined" ? undefined : document.body;
+  return body?.nodeType === 1 ? createPortal(children, body) : <>{children}</>;
+}
+
 const ROBOTO = "Roboto, Arial, sans-serif";
 const WIDE_BREAKPOINT = 900;
 // Below this the section rail is replaced by a hamburger that opens a left flyout.
@@ -395,6 +409,7 @@ export function WorkspaceLayout({
       </View>
     </ScrollView>
 
+    <BodyOverlay>
     {notes ? <>
       <Pressable nativeID="digitva-notes-trigger" accessibilityRole="button" accessibilityLabel="Open Notes" onPress={() => setNotesOpen(true)} style={[webStyles.notesTab, !wide && webStyles.notesTabMobile, (notesOpen || (phone && categoriesOpen)) && webStyles.notesTabOpen]}>
         <FaIcon name="fa-paperclip" color={w.onBar} /> <Text style={webStyles.notesTabText}>Notes</Text>
@@ -431,6 +446,7 @@ export function WorkspaceLayout({
         {hintsCard}
       </ScrollView>
     </View>
+    </BodyOverlay>
   </View>;
 }
 

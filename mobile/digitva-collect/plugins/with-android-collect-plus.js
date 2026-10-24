@@ -22,6 +22,16 @@ function plusBuildRequested(env = process.env) {
   return env.APP_VARIANT === "plus";
 }
 
+/**
+ * Plus only: a profileable release lets `adb shell perfetto` (scripts/android-trace.sh) record the app and the
+ * :icd11 engine process, with the icd11.* trace sections. Not added to the plain build, which stays unprofileable.
+ */
+function addProfileable(application) {
+  if (!application || typeof application !== "object") throw new Error("Plus build: AndroidManifest application must be an object");
+  application.profileable = [{ $: { "android:shell": "true" } }];
+  return application;
+}
+
 const PLUS_GRADLE_BLOCK = `
 ${GRADLE_MARKER}: the engine .so is dlopen'ed from nativeLibraryDir and must stay unstripped.
 android {
@@ -60,6 +70,7 @@ module.exports = function withAndroidCollectPlus(config) {
     const application = config.modResults.manifest.application?.[0];
     if (!application) throw new Error("Plus build: AndroidManifest has no application element");
     application.$["android:extractNativeLibs"] = "true";
+    addProfileable(application);
     return config;
   });
   config = withAppBuildGradle(config, (config) => {
@@ -83,4 +94,5 @@ module.exports = function withAndroidCollectPlus(config) {
 module.exports.plusBuildRequested = plusBuildRequested;
 module.exports.patchPlusGradle = patchPlusGradle;
 module.exports.patchPlainSettings = patchPlainSettings;
+module.exports.addProfileable = addProfileable;
 module.exports.MODULE_NAME = MODULE_NAME;

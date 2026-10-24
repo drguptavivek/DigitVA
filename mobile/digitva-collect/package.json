@@ -9,6 +9,8 @@
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android",
     "build:debug": "expo prebuild --platform android && cd android && ./gradlew assembleDebug",
+    "android:plus:dev": "APP_VARIANT=plus expo prebuild --platform android --clean --no-install && APP_VARIANT=plus expo run:android --variant debug",
+    "android:plus:release": "APP_VARIANT=plus expo prebuild --platform android --clean --no-install && cd android && ./gradlew assembleRelease",
     "export:web": "expo export --platform web && mkdir -p dist/ui-strings && cp src/strings/*.json dist/ui-strings/",
     "typecheck": "tsc --noEmit",
     "test": "jest"

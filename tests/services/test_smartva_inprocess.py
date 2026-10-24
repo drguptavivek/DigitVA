@@ -53,7 +53,7 @@ class FakeLib:
 
 def _form(**over):
     fields = dict(
-        form_id="F1", form_smartvacountry="IND", form_smartvahiv="False",
+        form_id="F1", project_id="NOPRJ", form_smartvacountry="IND", form_smartvahiv="False",
         form_smartvamalaria="False", form_smartvahce="True", form_smartvafreetext="false",
     )
     return SimpleNamespace(**{**fields, **over})

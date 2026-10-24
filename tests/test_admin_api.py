@@ -654,6 +654,43 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertEqual(toggle_resp.get_json()["status"], "active")
 
+    def test_project_country_validates_saves_and_never_restamps(self):
+        """rou1: SmartVA's ISO3 list; Unknown clears."""
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+        create_resp = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJCT1", "project_name": "Country", "project_nickname": "C",
+                  "project_country_iso3": "bgd"},
+            headers=headers,
+        )
+        self.assertEqual(create_resp.status_code, 201)
+        self.assertEqual(create_resp.get_json()["project"]["project_country_iso3"], "BGD")
+
+        for good, stored in (("IND", "IND"), ("Unknown", None), (None, None)):
+            resp = self.client.put(
+                "/admin/api/projects/PRJCT1", json={"project_country_iso3": good}, headers=headers
+            )
+            self.assertEqual(resp.status_code, 200, good)
+            self.assertEqual(resp.get_json()["project"]["project_country_iso3"], stored)
+        self.client.put("/admin/api/projects/PRJCT1", json={"project_country_iso3": "IND"}, headers=headers)
+        for bad in ("XXX", "India", "IN", 5, ["IND"]):
+            resp = self.client.put(
+                "/admin/api/projects/PRJCT1", json={"project_country_iso3": bad}, headers=headers
+            )
+            self.assertEqual(resp.status_code, 400, bad)
+            self.assertIn("project_country_iso3", resp.get_json()["error"])
+        self.assertEqual(db.session.get(VaProjectMaster, "PRJCT1").project_country_iso3, "IND")
+        self.assertEqual(
+            self.client.post(
+                "/admin/api/projects",
+                json={"project_id": "PRJCT2", "project_name": "Bad", "project_nickname": "B",
+                      "project_country_iso3": "XXX"},
+                headers=headers,
+            ).status_code,
+            400,
+        )
+
     def test_project_recode_window_defaults_saves_and_validates(self):
         """digitva-yeg3.2: 24 hours by default; 1..10080 whole minutes."""
         self._login(self.admin_user_id)

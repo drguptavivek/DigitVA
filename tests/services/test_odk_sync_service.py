@@ -226,6 +226,43 @@ class OdkSyncServiceTests(BaseTestCase):
             submission.active_payload_version_id,
         )
 
+    def test_upsert_stamps_the_project_country_once_per_form_and_keeps_it(self):
+        """rou1: new rows carry the country at ingest; a revision or a later
+        setting change leaves the stamp alone; one lookup per form."""
+        from sqlalchemy import event
+
+        project = db.session.get(VaProjectMaster, self.PROJECT_ID)
+        form = db.session.get(VaForms, self.FORM_ID)
+        project.project_country_iso3 = "BGD"
+        db.session.commit()
+        self.addCleanup(setattr, project, "project_country_iso3", None)
+        records = [self._record(f"uuid:sync-country-{n}", "yes") for n in range(3)]
+        sids = [f"uuid:sync-country-{n}-{self.FORM_ID.lower()}" for n in range(3)]
+
+        country_selects = []
+
+        def count(conn, cursor, statement, *args):
+            if "project_country_iso3" in statement and statement.lstrip().startswith("SELECT"):
+                country_selects.append(statement)
+
+        event.listen(db.engine, "before_cursor_execute", count)
+        try:
+            _upsert_form_submissions(form, records, set(), {})
+        finally:
+            event.remove(db.engine, "before_cursor_execute", count)
+        db.session.commit()
+        self.assertEqual(len(country_selects), 1)
+        for sid in sids:
+            self.assertEqual(db.session.get(VaSubmissions, sid).va_country_iso3, "BGD")
+
+        project.project_country_iso3 = "IND"
+        db.session.commit()
+        records[0]["SubmitterName"] = "Someone else"
+        records[0]["updatedAt"] = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+        _upsert_form_submissions(form, records, set(), {})
+        db.session.commit()
+        self.assertEqual(db.session.get(VaSubmissions, sids[0]).va_country_iso3, "BGD")
+
     def test_gap_sync_dispatches_canonical_repair_per_missing_batch(self):
         now = datetime.now(timezone.utc)
         mapping = db.session.scalar(

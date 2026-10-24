@@ -11,6 +11,7 @@ from dateutil import parser
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_project_odk import MapProjectOdk
 from app.models.va_forms import VaForms
+from app.services.project_country_service import project_country
 from app.services import org_unit_routing_service as org_routing
 from app.services.runtime_form_sync_service import (
     get_active_mapping_for_form,
@@ -854,6 +855,8 @@ def _upsert_form_submissions(
     # the project's levels and its unit-code lookups.
     # See app/services/org_unit_routing_service.py.
     routing_context = org_routing.context_for_form(va_form)
+    # One lookup per form, stamped on each new submission (never on a revision).
+    country_iso3 = project_country(va_form.project_id)
 
     for va_submission, fields, prefetched in _prepared_submissions(
         va_form,
@@ -941,6 +944,7 @@ def _upsert_form_submissions(
                 VaSubmissions(
                     va_sid=va_submission_sid,
                     va_form_id=fields["va_form_id"],
+                    va_country_iso3=country_iso3,
                     va_submission_date=fields["va_submission_date"],
                     va_odk_updatedat=va_submission_updatedat,
                     va_data_collector=fields["va_data_collector"],

@@ -58,6 +58,13 @@ def _rs_lib(path: str):
     return lib
 
 
+def smartva_country(va_form) -> str:
+    """The project's country, else the form's own (kept for compatibility)."""
+    from app.services.project_country_service import project_country
+
+    return project_country(va_form.project_id) or va_form.form_smartvacountry
+
+
 def _bool_flag(option: str, raw: str) -> int:
     """1/0 for the spellings the smartva-rs CLI accepts (its parse_bool_flag);
     anything else raises, so the library cannot read a flag differently."""
@@ -78,7 +85,7 @@ def _run_in_process(va_form, hiv_value, malaria_value, inputfile, outputdir, lib
     rc = lib.smartva_run_directory(
         os.fsencode(inputfile),
         os.fsencode(outputdir),
-        va_form.form_smartvacountry.encode(),
+        smartva_country(va_form).encode(),
         _bool_flag("hiv", hiv_value),
         _bool_flag("malaria", malaria_value),
         _bool_flag("hce", va_form.form_smartvahce),
@@ -162,7 +169,7 @@ def _smartva_command(va_form, hiv_value, malaria_value, inputfile, outputdir) ->
         prefix = [sys.executable, *launcher, "--figures", "True" if charts else "False"]
     return [
         *prefix,
-        "--country", va_form.form_smartvacountry,
+        "--country", smartva_country(va_form),
         "--hiv", hiv_value,
         "--malaria", malaria_value,
         "--hce", va_form.form_smartvahce,

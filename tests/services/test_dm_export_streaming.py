@@ -289,6 +289,16 @@ class DmExportStreamingTests(BaseTestCase):
         self.assertEqual(actual[:2], (SMARTVA_FRONT, "sid"))
         self.assertEqual(actual, _smartva_view(self._golden("smartva_input.csv")))
 
+    def test_export_carries_the_country_stamp(self):
+        """rou1: the header has the column and the row cell reads the stamp."""
+        from app.services.data_management_service import _dm_submission_export_row
+
+        self.assertIn("va_country_iso3", self._submissions(redact=False).splitlines()[0].split(","))
+        self.assertEqual(
+            _dm_submission_export_row({"va_country_iso3": "BGD"}, "UTC", False)["va_country_iso3"],
+            "BGD",
+        )
+
     def test_the_golden_files_exercise_what_they_are_meant_to(self):
         """Non-vacuity: the fixture really hits each case the goldens pin."""
         plain = self._golden("submissions_plain.csv")

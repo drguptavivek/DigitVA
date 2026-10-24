@@ -1045,6 +1045,32 @@ be chosen once its PII set is confirmed
 ([New Form Type Onboarding](new-form-type-onboarding.md)), which is where the
 second pair of eyes already sits.
 
+## Project country (decided 2026-10-24, `digitva-rou1`)
+
+SmartVA needs the country of the deaths it analyses. It was a per-form setting
+(`va_forms.form_smartvacountry`); the country belongs to the project.
+
+1. **Setting.** `va_project_master.project_country_iso3` is an ISO 3166-1
+   alpha-3 code chosen from exactly SmartVA's own country list
+   (`app/utils/va_smartva/va_smartva_06_smartvacountries.py`, a frozen copy of
+   `vendor/smartva-analyze/.../countries.py`). SmartVA's `Unknown` is stored as
+   null. An admin edits it in Project Setup; the server rejects a code outside
+   the list.
+2. **Stamp.** Every submission records the project's country at ingest in
+   `va_submissions.va_country_iso3` (nullable): ODK sync, web intake, and
+   device bundle ingest (which submits through web intake). A later revision of
+   the same submission keeps the stamp it has. Changing the project country
+   does **not** rewrite existing stamps: a stamp is the country in force when
+   the case arrived. Re-stamping is a separate owner decision.
+3. **SmartVA run.** The run uses the project's country; when the project has
+   none it falls back to the form's `form_smartvacountry`, which is kept for
+   compatibility. A new form defaults to the project's country when one is set.
+4. **Backfill.** The migration sets a project's country from its forms when all
+   of the project's forms agree, and leaves it null otherwise, then stamps
+   existing submissions from their project. Counts are logged.
+5. **Exposure.** The data-management CSV export carries `va_country_iso3`; the
+   admin project API carries `project_country_iso3`.
+
 ## Open
 
 *Nothing open.*

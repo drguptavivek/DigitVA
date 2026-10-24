@@ -66,6 +66,10 @@ Key fields:
 - `recode_window_minutes` (1..10080, default 1440; TRN01 60): the coder
   recode / reviewer-eligibility window, migration `c8e4a2f6b1d3`
   (docs/policy/coding-workflow-state-machine.md, "Recode Window")
+- `project_country_iso3` (nullable, SmartVA's list): stamped on each new
+  `va_submissions.va_country_iso3` and used by SmartVA ahead of
+  `va_forms.form_smartvacountry`, migration `c3f9a1d7e2b4`
+  (docs/policy/va-form-project-configuration.md, "Project country")
 - `masked_cod_required` (default true)
 - `cod_entry_mode` (`simple` by default, or `doris` when unmasked and ICD-11)
 

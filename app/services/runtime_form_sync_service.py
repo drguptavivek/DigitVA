@@ -3,6 +3,7 @@ import re
 import sqlalchemy as sa
 
 from app import db
+from app.services.project_country_service import project_country
 from app.models import (
     MapProjectSiteOdk,
     VaForms,
@@ -218,6 +219,7 @@ def ensure_runtime_form_for_mapping(
             form_type=_form_type_name(mapping),
             form_type_id=mapping.form_type_id,
             form_status=VaStatuses.active,
+            form_smartvacountry=project_country(mapping.project_id) or "IND",
         )
         db.session.add(existing)
         forms_by_mapping[_mapping_key(mapping)] = existing
@@ -311,6 +313,7 @@ def ensure_web_runtime_form(project_id: str, site_id: str) -> VaForms:
         form_type_id=form_type.form_type_id if form_type else None,
         form_source="web",
         form_status=VaStatuses.active,
+        form_smartvacountry=project_country(project_id) or "IND",
     )
     db.session.add(form)
     db.session.flush()

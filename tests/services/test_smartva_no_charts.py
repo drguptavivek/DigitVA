@@ -40,7 +40,7 @@ def _command(app, charts, engine="python", rs_present=True):
     from app.utils.va_smartva import va_smartva_03_runsmartva as runner
 
     form = SimpleNamespace(
-        form_id="F1", form_smartvacountry="IND", form_smartvahiv="False", form_smartvamalaria="False",
+        form_id="F1", project_id="NOPRJ", form_smartvacountry="IND", form_smartvahiv="False", form_smartvamalaria="False",
         form_smartvahce="True", form_smartvafreetext="True",
     )
     app.config["SMARTVA_CHARTS"] = charts
@@ -74,6 +74,28 @@ class RunnerChartsSwitchTests(BaseTestCase):
         self.assertEqual(off[off.index("--figures") + 1], "False")
         self.assertEqual(on[1:3], ["-m", "smartva.va_cli"])
         self.assertEqual(on[on.index("--figures") + 1], "True")
+
+
+class RunnerCountryTests(BaseTestCase):
+    """rou1: the project's country wins; the form's is the fallback."""
+
+    def test_project_country_beats_the_form_country(self):
+        from app import db
+        from app.models import VaProjectMaster, VaStatuses
+        from app.utils.va_smartva.va_smartva_03_runsmartva import smartva_country
+
+        form = SimpleNamespace(project_id="RCTRY1", form_smartvacountry="IND")
+        self.assertEqual(smartva_country(form), "IND")  # no such project
+        project = VaProjectMaster(
+            project_id="RCTRY1", project_code="RCTRY1", project_name="Country",
+            project_nickname="Country", project_status=VaStatuses.active,
+        )
+        db.session.add(project)
+        db.session.flush()
+        self.assertEqual(smartva_country(form), "IND")  # project country unset
+        project.project_country_iso3 = "BGD"
+        db.session.flush()
+        self.assertEqual(smartva_country(form), "BGD")
 
 
 class RunnerEngineTests(BaseTestCase):

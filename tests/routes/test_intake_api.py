@@ -511,6 +511,8 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(fetched["envelope"]["currentSection"], "background")
         self.assertEqual(fetched["envelope"]["data"]["Id10013"], "yes")
 
+        db.session.get(VaProjectMaster, self.PROJECT_ID).project_country_iso3 = "BGD"
+        db.session.commit()
         submitted = self.client.post(
             f"/api/v1/intake/drafts/{draft['draft_id']}/submit",
             json={
@@ -534,6 +536,8 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(submitted.status_code, 201, submitted.get_json())
         va_sid = submitted.get_json()["va_sid"]
         self.assertIsNotNone(db.session.get(VaSubmissions, va_sid))
+        # rou1: stamped with the project's country at ingest.
+        self.assertEqual(db.session.get(VaSubmissions, va_sid).va_country_iso3, "BGD")
         self.assertEqual(submitted.get_json()["draft"]["status"], "submitted")
         self.assertIs(submitted.get_json()["superseded"], False)
         self.assertEqual(
@@ -1480,8 +1484,9 @@ class IntakeApiTests(BaseTestCase):
         }
 
     # Statements one device upload of a registered case issues (digitva-anzv):
-    # 77 before the interviewer context and the locked case were passed down.
-    DEVICE_SUBMIT_MAX_STATEMENTS = 70
+    # 77 before the interviewer context and the locked case were passed down;
+    # 72 with the project-country stamp on the web form and the submission.
+    DEVICE_SUBMIT_MAX_STATEMENTS = 72
 
     def test_a_device_submit_issues_no_more_statements_than_the_recorded_ceiling(self):
         death_id = self._case()

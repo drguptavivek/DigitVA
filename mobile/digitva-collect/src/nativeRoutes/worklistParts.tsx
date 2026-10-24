@@ -8,7 +8,7 @@ import { FlatList, Pressable, Text, TextInput, View } from "react-native";
 
 import { t } from "../i18n";
 import { clock } from "../nativeShell/shellContext";
-import { controls, radius, spacing, typography, useTheme } from "../theme";
+import { controlText, controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { CaseCard } from "../ui/CaseCard";
 import { ChoiceSheet, type ChoiceList } from "../ui/ChoiceSheet";
@@ -172,13 +172,29 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
             accessibilityLabel={text}
             accessibilityState={{ selected: on }}
             onPress={() => onChange(chip.key)}
-            style={{ minHeight: 40, paddingHorizontal: spacing.sm, justifyContent: "center", borderRadius: radius.full, borderWidth: 1, borderColor: on ? ui.primary : ui.input, backgroundColor: on ? ui.primary : ui.background }}
+            style={{ minHeight: controls.minTouchTarget, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, borderWidth: 1, borderColor: on ? ui.primary : ui.input, backgroundColor: on ? ui.primary : ui.background }}
           >
-            <Text style={{ ...typography.subhead, fontWeight: on ? "600" : "400", color: on ? ui.primaryForeground : ui.foreground }}>{text}</Text>
+            <Text numberOfLines={1} style={{ ...typography.subhead, ...controlText, lineHeight: 22, fontWeight: on ? "600" : "400", color: on ? ui.primaryForeground : ui.foreground }}>{text}</Text>
           </Pressable>
         );
       })}
     </View>
+  );
+}
+
+/** Delete draft: a small outlined danger action, never the loudest thing on the card. */
+function DeleteDraftButton({ onPress }: { onPress(): void }) {
+  const { ui } = useTheme();
+  const label = t("deleteDraft");
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={{ minHeight: controls.minTouchTarget, paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.md, borderWidth: 1, borderColor: ui.destructiveText }}
+    >
+      <Text style={{ ...typography.subhead, ...controlText, lineHeight: 22, fontWeight: "500", color: ui.destructiveText }}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -197,13 +213,19 @@ export function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item:
       dateOfDeath={item.dateOfDeath}
       area={item.unit}
       badges={[item.badge]}
-      actions={item.action ? <Button size="sm" label={item.action.label} onPress={() => onAction(item.action as InterviewAction)} /> : null}
+      actions={(
+        <>
+          {/* The main action is wide and one line; Delete draft follows it as a small secondary action. */}
+          {item.action ? <Button label={item.action.label} onPress={() => onAction(item.action as InterviewAction)} style={{ flexGrow: 1, flexShrink: 0, minWidth: 140 }} /> : null}
+          {item.deletable && onDelete ? <DeleteDraftButton onPress={() => onDelete(item)} /> : null}
+        </>
+      )}
     >
+      {item.timeText ? <Text testID="time-line" style={{ ...typography.subhead, color: colors.textMuted }}>{item.timeText}</Text> : null}
       {item.lines.map((line, index) => (
         <Text key={index} style={line.tone === "error" ? styles.error : { ...typography.subhead, color: colors.textMuted }}>{line.text}</Text>
       ))}
       {item.retryDemo ? <Button kind="secondary" size="sm" label={item.retryLabel ?? t("demoDraftRetry")} onPress={() => onRetryDemo(item)} /> : null}
-      {item.deletable && onDelete ? <Button kind="danger" size="sm" label={t("deleteDraft")} onPress={() => onDelete(item)} /> : null}
     </CaseCard>
   );
 }

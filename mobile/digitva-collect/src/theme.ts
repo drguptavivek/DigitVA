@@ -156,6 +156,13 @@ export const typography = {
   caption: { fontSize: fontSize.caption, lineHeight: 16, fontWeight: "400" as const }
 } as const satisfies Record<string, TextStyle>;
 
+/**
+ * Text inside a control (button, chip, badge, tab). Android adds font padding above/below the glyphs, which
+ * pushes Devanagari high or low in a pill; this removes it and centres the line box. Pair it with a line height
+ * of at least 1.4x the font size (Devanagari matras need it) and symmetric vertical padding on the container.
+ */
+export const controlText = { includeFontPadding: false, textAlignVertical: "center", textAlign: "center" } as const satisfies TextStyle;
+
 /** One radius scale (lg cards, md controls, sm chips/badges inside controls, full pills/dots). */
 export const radius = uiRadius;
 

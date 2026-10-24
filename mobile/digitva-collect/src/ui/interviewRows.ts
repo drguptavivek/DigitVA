@@ -6,7 +6,7 @@
 import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
 import type { DraftRow } from "../drafts";
-import { t } from "../i18n";
+import { t, uiLocale, type StringKey } from "../i18n";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
 import type { RevisionRow, SubmittedRevisionSummary } from "../revisions";
@@ -47,6 +47,8 @@ export interface InterviewItem {
   retryLabel?: string;
   /** A draft never sent (in progress, no server copy, no refusal): the card offers Delete draft. */
   deletable?: DraftRow;
+  /** The card's one key time ("Started 24 Oct 2026, 10:42 am"), in the UI language and the phone's time zone. */
+  timeText?: string;
   search: Array<string | null | undefined>;
   updatedAt: string;
 }
@@ -119,6 +121,19 @@ const draftIssueLines = (draft: DraftRow, refusal?: SendRefusal): InterviewItem[
   ...(draft.upload_issue == null ? refusalLine(refusal) : []),
 ];
 
+/** "24 Oct 2026, 10:42 am" for a stored ISO timestamp, in the UI language and the phone's time zone; "" when unusable. */
+export function formatWhen(value: string | null | undefined): string {
+  const date = value ? new Date(value) : undefined;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString(uiLocale() === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+/** The labelled time, or undefined when the timestamp is missing or unreadable. */
+const whenText = (key: StringKey, value: string | null | undefined): string | undefined => {
+  const time = formatWhen(value);
+  return time ? t(key, { time }) : undefined;
+};
+
 function dateOnly(value: string | null | undefined): string | null {
   if (!value) return null;
   const date = new Date(value);
@@ -141,11 +156,15 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
     const ready = draft.completed === 1;
     items.push({
       key: `draft-${draft.id}`, kind: "drafts",
-      title: known?.name || draft.unique_id || draft.id.slice(0, 8),
-      caseId: known?.name ? known.unique_id : undefined,
+      // A draft with no name and no case id yet is "Untitled"; its short local id stays as the small muted line.
+      title: known?.name || draft.unique_id || t("untitledInterview"),
+      caseId: known?.name ? known.unique_id : draft.unique_id ? undefined : draft.id.slice(0, 8),
       ageYears: known?.age, sex: known?.sex, dateOfDeath: dateOnly(known?.died), unit: known?.unit_name ?? undefined,
       badge: ready ? { label: t("draftReady"), tone: "accent" } : { label: t("badgeDraft"), tone: "warning" },
       action: ready ? undefined : { type: "resume", draft, label: t("actionResume") },
+      timeText: ready
+        ? whenText("interviewCompleted", draft.completed_at ?? draft.updated_at)
+        : whenText("interviewStarted", draft.started_at) ?? whenText("interviewLastSaved", draft.updated_at),
       lines: [...(known ? caseLines(known) : []), ...draftIssueLines(draft, src.refusals?.get(draft.id))],
       retryDemo: draft.upload_issue === "demo_limit" || draft.upload_issue === "case_conflict" ? draft : undefined,
       retryLabel: draft.upload_issue === "case_conflict" ? t("retryHeld") : undefined,
@@ -161,6 +180,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       sex: reg.fields.deceased_sex, dateOfDeath: reg.fields.date_of_death,
       badge: { label: attention ? t("needsEdit") : t("pendingSend"), tone: attention ? "warning" : "neutral" },
       action: { type: "registration", clientDeathId: reg.client_death_id, label: t("viewDetails") },
+      timeText: whenText("interviewSaved", reg.created_at),
       lines: attention ? refusalLine(src.refusals?.get(reg.client_death_id)) : [], search: [reg.fields.deceased_name], updatedAt: reg.created_at,
     });
   }
@@ -171,6 +191,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       caseId: name ? (row.unique_id ?? undefined) : undefined,
       badge: { label: t("badgeRevision"), tone: row.state === "attention" ? "warning" : "accent" },
       action: { type: "revise", source: row, label: t("reviseInterview") },
+      timeText: whenText("interviewSaved", row.updated_at),
       lines: [{ text: localRevisionStatus(row), tone: row.state === "attention" ? "error" : undefined }],
       search: [name, row.unique_id], updatedAt: row.updated_at,
     });
@@ -185,6 +206,8 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       unit: row.unit_name ?? undefined,
       badge: terminal ? { label: t("badgeSent"), tone: "neutral" } : { label: t("badgeTodo"), tone: "accent" },
       action: { type: "case", deathId: row.death_id, projectId: row.project_id, label: startable ? t("actionStart") : t("viewDetails") },
+      // Only a finished case has a key time: the server's last change is when it was accepted.
+      timeText: terminal ? whenText("interviewSubmitted", row.updated_at) : undefined,
       lines: caseLines(row),
       search: [row.name, row.unique_id, row.unit_name, row.village], updatedAt: row.updated_at,
     });
@@ -199,6 +222,7 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       caseId: name ? (row.unique_id ?? undefined) : undefined,
       badge: { label: t("badgeSent"), tone: "neutral" },
       action: { type: "revise", source: row, label: t("reviseInterview") }, lines: [],
+      timeText: whenText("interviewSubmitted", row.updated_at),
       search: [name, row.unique_id], updatedAt: row.updated_at ?? "",
     });
   }

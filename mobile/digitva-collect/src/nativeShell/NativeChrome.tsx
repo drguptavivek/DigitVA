@@ -10,7 +10,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { useAppState } from "../AppState";
 import { t, UI_LOCALES } from "../i18n";
-import { spacing, typography, ui, useTheme } from "../theme";
+import { controlText, spacing, typography, ui, useTheme } from "../theme";
 import { activeNativeTab, isPreLoginRoute, nativeTabs, type NativeTab } from "./navAdapter";
 import { useShell, type SyncStatus } from "./shellContext";
 
@@ -154,7 +154,7 @@ function TabBar() {
           >
             {on ? <View style={{ position: "absolute", top: 0, left: 8, right: 8, height: 3, borderRadius: 4, backgroundColor: tokens.primary }} /> : null}
             <Icon name={tab.key} color={color} />
-            <Text numberOfLines={1} style={{ ...typography.caption, fontWeight: "500", color }}>{t(tab.labelKey)}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.92} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, ...controlText, lineHeight: 18, alignSelf: "stretch", paddingHorizontal: 2, fontWeight: "500", color }}>{t(tab.labelKey)}</Text>
             {badge ? (
               <View style={{ position: "absolute", top: 4, left: "55%", minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: tokens.destructiveText, alignItems: "center", justifyContent: "center" }}>
                 <Text style={{ fontSize: 11, fontWeight: "700", color: "#FFFFFF" }}>{badge > 99 ? "99+" : badge}</Text>

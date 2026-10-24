@@ -64,6 +64,9 @@ export interface DraftRow {
   base_updated_at?: string | null;
   draft_sync_dirty?: number;
   draft_sync_blocked?: number;
+  /** The envelope's startedAt / completedAt, read by listDrafts for the Interviews list. */
+  started_at?: string | null;
+  completed_at?: string | null;
 }
 
 /** An unfinished registered-case snapshot selected for one sync attempt. */
@@ -461,7 +464,7 @@ export function createDraftStore(
 
 /** Newest first; metadata only, never answers. */
 export function listDrafts(db: Db): Promise<DraftRow[]> {
-  return db.getAllAsync<DraftRow>(`SELECT ${ROW_COLUMNS} FROM drafts ORDER BY updated_at DESC`, []);
+  return db.getAllAsync<DraftRow>(`SELECT ${ROW_COLUMNS}, json_extract(envelope, '$.startedAt') AS started_at, json_extract(envelope, '$.completedAt') AS completed_at FROM drafts ORDER BY updated_at DESC`, []);
 }
 
 export async function getDraftRow(db: Db, id: string): Promise<DraftRow | null> {

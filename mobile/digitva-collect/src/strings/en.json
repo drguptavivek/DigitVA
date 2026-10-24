@@ -1270,5 +1270,11 @@
   "deleteDraftTitle": "Delete this draft?",
   "deleteDraftMessage": "This interview was never sent. Deleting it removes its answers, recordings and photographs from this phone. This cannot be undone.",
   "deleteDraftDone": "Draft deleted",
-  "deleteDraftFailed": "The draft could not be deleted."
+  "deleteDraftFailed": "The draft could not be deleted.",
+  "untitledInterview": "Untitled interview",
+  "interviewStarted": "Started {time}",
+  "interviewLastSaved": "Last saved {time}",
+  "interviewCompleted": "Completed {time}",
+  "interviewSubmitted": "Submitted {time}",
+  "interviewSaved": "Saved {time}"
 }

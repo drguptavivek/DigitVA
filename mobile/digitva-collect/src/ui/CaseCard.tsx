@@ -7,7 +7,7 @@ import { Platform, StyleSheet, Text, View } from "react-native";
 
 import { t, type StringKey } from "../i18n";
 import { MapsPinButton } from "../web/LocationCapture";
-import { controls, radius, spacing, typography, useTheme } from "../theme";
+import { controlText, controls, radius, spacing, typography, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 
 export function sexLabel(value: string | null | undefined): string {
@@ -48,17 +48,17 @@ export function useCaseCardStyles() {
     caseId: { ...typography.subhead, color: colors.text, fontFamily: MONOSPACE },
     caseIdMuted: { ...typography.caption, color: colors.textMuted, fontFamily: MONOSPACE },
     badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
-    badge: { paddingVertical: spacing.xxs / 2, paddingHorizontal: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    badge: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, alignItems: "center", justifyContent: "center", borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     badgeAccent: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
     badgeWarning: { borderColor: ui.warningBorder, backgroundColor: ui.warning },
-    badgeText: { ...typography.subhead, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
+    badgeText: { ...typography.subhead, ...controlText, lineHeight: 22, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
     badgeAccentText: { color: ui.accentForeground },
     badgeWarningText: { color: ui.warningForeground },
     noticeBanner: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     noticeBannerDanger: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
     noticeBannerAccent: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
     noticeText: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
-    cardActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
+    cardActions: { flexDirection: "row", flexWrap: "wrap", flexGrow: 1, flexShrink: 1, gap: spacing.xs, alignItems: "center" },
     actionButton: { minHeight: controls.minTouchTarget },
     listHeader: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, alignItems: "center" },
   }), [colors, ui]);

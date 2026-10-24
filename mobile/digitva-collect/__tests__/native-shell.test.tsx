@@ -165,6 +165,15 @@ describe("header and tabs", () => {
     expect(value.openSheet).toHaveBeenCalledWith("sync");
     expect(texts(tree)).not.toMatch(/coding|review/i);
   });
+  it("keeps tab labels on one line and fits them to the tab width", async () => {
+    const tree = await render(<NativeTabs />, shellValue());
+    const labels = tree.root.findAll((n) => n.props.numberOfLines === 1 && n.props.adjustsFontSizeToFit === true);
+    expect(labels.length).toBeGreaterThanOrEqual(3);
+    for (const label of labels) {
+      expect(label.props.minimumFontScale).toBeGreaterThanOrEqual(0.92);
+      expect(label.props.style).toMatchObject({ includeFontPadding: false, alignSelf: "stretch" });
+    }
+  });
   it("renders no tabs while the shell hides them", async () => {
     const tree = await render(<NativeTabs />, shellValue({ tabs: false }));
     expect(tree.toJSON()).toBeNull();

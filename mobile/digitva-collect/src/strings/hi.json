@@ -1270,5 +1270,11 @@
   "deleteDraftTitle": "यह ड्राफ़्ट हटाएँ?",
   "deleteDraftMessage": "यह साक्षात्कार कभी भेजा नहीं गया। इसे हटाने पर इसके उत्तर, रिकॉर्डिंग और फ़ोटो इस फ़ोन से हट जाएँगे। इसे वापस नहीं किया जा सकता।",
   "deleteDraftDone": "ड्राफ़्ट हटा दिया गया",
-  "deleteDraftFailed": "ड्राफ़्ट हटाया नहीं जा सका।"
+  "deleteDraftFailed": "ड्राफ़्ट हटाया नहीं जा सका।",
+  "untitledInterview": "बिना नाम का साक्षात्कार",
+  "interviewStarted": "शुरू किया: {time}",
+  "interviewLastSaved": "अंतिम बार सहेजा: {time}",
+  "interviewCompleted": "पूरा हुआ: {time}",
+  "interviewSubmitted": "जमा किया गया: {time}",
+  "interviewSaved": "सहेजा गया: {time}"
 }

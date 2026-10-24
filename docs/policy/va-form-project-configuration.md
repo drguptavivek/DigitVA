@@ -797,6 +797,29 @@ strings a language lacks to be drafted by Azure Translator, then review them.
 - **Batching:** requests go to Azure in batches within its element and
   character limits, with backoff on 429 and 5xx (the shared client).
 
+### Carrying translations across servers (decided 2026-10-24, `digitva-3b65`)
+
+Questionnaire translations made on staging (machine drafts included) must
+survive the production cutover. `flask translations dump` writes every
+`map_instrument_translations` row, with the `mas_instrument_locales` metadata
+needed to load it, to a versioned JSON file (`"format": "digitva-translations"`,
+`"version": 1`); `flask translations load <file> [--dry-run]` inserts it.
+
+- **Insert only, idempotent.** A row is skipped when the target already has a
+  row for that (instrument, locale, item kind, item key, field) of any source.
+  Nothing is updated or deleted. An item the target's reference form lacks is
+  skipped and counted.
+- **Authors by email.** `updated_by` is dumped as the user's email and mapped
+  back by email; an unknown email loads as no author and is counted.
+- **Missing locale.** A locale the target lacks is created as the normal import
+  does (`draft`, inactive, version 0). Approval and activation are never carried
+  over: they stay explicit administrative actions on the target.
+- **Served rows bump the version.** Loading any non-`machine` row into a locale
+  raises that locale's `version` by one, once per run, as an accept or edit
+  does, so web and phones refresh. A run that loads only machine drafts does not.
+- **Not carried:** the suggestion queue (`map_instrument_translation_suggestions`)
+  is project-scoped review workflow, not translation content.
+
 ### A bulk re-import demotes an approved locale, after warning (decided 2026-09-20)
 
 **Re-importing into a locale an administrator already approved returns it to

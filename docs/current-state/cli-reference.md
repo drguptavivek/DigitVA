@@ -266,6 +266,26 @@ Translator (needs `AZURE_TRANSLATOR_KEY` and `AZURE_TRANSLATOR_REGION`).
 Insert-only, never served until accepted. `--dry-run` counts and calls no
 provider. Policy: `docs/policy/ui-strings.md`.
 
+```bash
+docker compose exec minerva_app_service uv run flask ui-strings bake --locale hi --out <dir>
+```
+
+Writes `<dir>/hi.json`: the bundled file with the accepted (`edited`) overrides
+merged in, `en.json` key order, machine drafts excluded; stops on a placeholder
+mismatch. Copy the file over `mobile/digitva-collect/src/strings/` and commit.
+
+## `translations` — Carry translations across servers
+
+```bash
+docker compose exec minerva_app_service uv run flask translations dump <file.json> [--ui-strings/--no-ui-strings] [--questionnaire/--no-questionnaire] [--locale hi]...
+docker compose exec minerva_app_service uv run flask translations load <file.json> [--dry-run]
+```
+
+`dump` writes every UI-string and questionnaire translation row (all sources,
+authors as emails). `load` is insert-only and idempotent: existing rows are never
+overwritten; it prints inserted / skipped_existing / skipped_unknown / errors per
+store, locale and source. Policy: `docs/policy/ui-strings.md`.
+
 ## `instrument-translations machine-translate`
 
 ```bash

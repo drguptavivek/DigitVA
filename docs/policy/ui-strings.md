@@ -120,6 +120,35 @@ language lacks to be drafted by machine, then review each draft.
   at a time; the last run's per-language counts (created, rejected, skipped,
   errors) are shown on the page.
 
+## Keeping translations across a cutover (decided 2026-10-24, digitva-3b65)
+
+Translations made on staging (machine drafts and reviewed or edited text) must
+not be lost when production goes live. Two routes, used together:
+
+- **Dump and load.** `flask translations dump <file.json>` writes every row of
+  `mas_ui_string_override` and of the questionnaire store
+  (`map_instrument_translations`, see `docs/policy/va-form-project-configuration.md`,
+  "Carrying translations across servers"), all sources including `machine`.
+  `flask translations load <file.json> [--dry-run]` inserts them on the target.
+  Load is insert-only and idempotent: a row whose (locale, key) already exists
+  on the target, of any source, is skipped and never overwritten. Authors travel
+  as email addresses (user ids differ between servers); an unknown email loads
+  as no author and is counted. The file holds translations only: no secrets, no
+  personal data. Texts are never logged.
+- **Bake into the app.** `flask ui-strings bake --locale hi --out <dir>` writes
+  the bundled locale file with the accepted (`edited`) overrides merged over it,
+  in the source format of `mobile/digitva-collect/src/strings/<locale>.json`
+  (key order of `en.json`, two-space indent, no ASCII escaping, trailing
+  newline). Only keys present in `en.json` are written, and a placeholder set
+  that differs from the English stops the bake with nothing written. Machine
+  drafts are excluded. A locale with no bundled file yet (pa, mr, ...) gets one
+  built from accepted rows only. The command reads the database it runs against,
+  so run it on the server holding the reviewed strings.
+
+Workflow: translate and review on staging -> `bake` -> the owner commits the
+files -> release the app. After a bake the override rows may stay: they equal
+the bundle. Machine drafts are carried by dump and load only, never baked.
+
 ## Storage
 
 Corrections and machine candidates live in `mas_ui_string_override`, one row per

@@ -458,6 +458,9 @@ def create_app(config_class=None, register_routes=True):
     from app.commands.ui_strings import init_app as init_ui_string_commands
     init_ui_string_commands(app)
 
+    from app.commands.translations import init_app as init_translation_commands
+    init_translation_commands(app)
+
     from app.commands.repair import init_app as init_repair_commands
     init_repair_commands(app)
 

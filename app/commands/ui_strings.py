@@ -27,5 +27,24 @@ def machine_translate(locales, dry_run, limit):
         click.echo(f"{code}: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
 
 
+@ui_strings_group.command("bake")
+@click.option("--locale", required=True, help="Locale to bake, e.g. hi.")
+@click.option("--out", "out_dir", required=True, type=click.Path(file_okay=False))
+def bake_cmd(locale, out_dir):
+    """Write <out>/<locale>.json: bundled strings plus accepted corrections (no machine drafts)."""
+    from pathlib import Path
+
+    from app.services.ui_string_bake import bake
+
+    try:
+        text, changed = bake(locale)
+    except (UiStringError, OSError, ValueError) as exc:
+        raise click.ClickException(str(exc))
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"{locale}.json").write_text(text, encoding="utf-8")
+    click.echo(f"wrote {out / (locale + '.json')}: {changed} string(s) changed from the bundle")
+
+
 def init_app(app):
     app.cli.add_command(ui_strings_group)

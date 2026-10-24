@@ -4,7 +4,7 @@ import json
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from urllib3.exceptions import ProtocolError, ReadTimeoutError
 
@@ -423,3 +423,52 @@ class TestDorisProcessing(BaseTestCase):
 
         self.assertEqual(response["doris"]["status"], "rejected")
         self.assertIn("failed internally", response["who_notes"][0])
+
+
+class TestDorisCallLog(BaseTestCase):
+    """DORIS_CALL_LOG debug log: full request/response, free text masked, never raises."""
+
+    def _run(self, flag, logger=None):
+        payload = _payload()
+        payload["certificate"]["Part1"][0]["Conditions"][0]["Text"] = "Secret clinical wording"
+        payload["certificate"]["AdministrativeData"].update(DateDeath="2026-10-01")
+        self.app.config["DORIS_CALL_LOG"] = flag
+        logger = logger or MagicMock()
+        with patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo), \
+             patch("app.services.doris_processing.post_mortality_processor", side_effect=_processor), \
+             patch("app.logging.va_logger.doris_call_logger", logger):
+            with self.app.app_context():
+                result = process_certificate(payload, va_sid="VA-SECRET-SID-1", actor_role="coder")
+        return result, logger
+
+    def test_flag_on_writes_one_masked_json_line_per_engine(self):
+        _, logger = self._run(True)
+        self.assertEqual(logger.info.call_count, 2)
+        line = logger.info.call_args_list[0].args[0]
+        row = json.loads(line)
+        self.assertEqual(row["engine"], "doris")
+        self.assertEqual(row["app_outcome"], "accepted")
+        self.assertEqual(row["http_status"], 200)
+        self.assertEqual(row["actor_role"], "coder")
+        self.assertEqual(row["response"]["code"], "1B10.Z")
+        cond = row["request"]["Part1"][0]["Conditions"][0]
+        self.assertEqual(cond["Code"], "1B10.Z")
+        self.assertEqual(row["request"]["AdministrativeData"]["DateDeath"], "2026-10-01")
+        self.assertEqual(cond["Text"], "[text 23 chars]")
+        self.assertNotIn("Secret clinical wording", line)
+        self.assertNotIn("VA-SECRET-SID-1", line)
+        self.assertEqual(len(row["case"]), 10)
+
+    def test_flag_off_writes_no_file_line_but_info_line_exists(self):
+        with self.assertLogs("app.services.doris_processing", level="INFO") as logs:
+            _, logger = self._run(False)
+        logger.info.assert_not_called()
+        self.assertTrue(any("doris_call engine=doris case=" in m for m in logs.output))
+        self.assertFalse(any("VA-SECRET-SID-1" in m for m in logs.output))
+
+    def test_logging_failure_does_not_break_processing(self):
+        broken = MagicMock()
+        broken.info.side_effect = OSError("disk full")
+        result, _ = self._run(True, logger=broken)
+        self.assertEqual(result["doris"]["status"], "completed")
+        self.assertEqual(result["codedit"]["status"], "completed")

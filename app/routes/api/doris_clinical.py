@@ -401,6 +401,8 @@ def clinical_process(va_sid: str):
             process_payload,
             release=DEFAULT_ICD11_RELEASE,
             who_image_digest=who_image_digest,
+            va_sid=va_sid,
+            actor_role=context.role,
         )
     except DorisCertificateError as exc:
         fields = [{"path": field.path, "message": field.message} for field in exc.fields]

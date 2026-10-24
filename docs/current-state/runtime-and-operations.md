@@ -887,6 +887,7 @@ Current log outputs:
 - `logs/celery_slow_queries.log`
 - `logs/grants.log`
 - `logs/slow_requests.log`
+- `logs/doris_calls.log` (only with `DORIS_CALL_LOG=1`; daily rotation, 7 files; see `docs/current-state/doris-cod-workflow.md`)
 
 All log files rotate every 6 hours, each rotated file is gzipped (`<name>.log.<UTC timestamp>.gz`), and 840 rotated files (210 days) are kept before the oldest is deleted (`LOG_BACKUP_COUNT` in `app/logging/va_logger.py`). Database audit records are kept permanently.
 

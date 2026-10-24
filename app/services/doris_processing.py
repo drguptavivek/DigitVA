@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
+import time
+
+from flask import current_app, has_app_context
 
 from app.services.doris_certificate import (
     canonical_json_bytes,
@@ -96,26 +100,93 @@ def validate_processor_envelope(name: str, envelope: object) -> dict:
     return envelope
 
 
-def _run_engine(name: str, certificate: dict, release: str) -> dict:
+_log = logging.getLogger(__name__)
+_FREE_TEXT_KEYS = {"Text", "Reason", "DescriptionExternalCause", "PerinatalDescription"}
+_call_log_warned = False
+
+
+def _mask_free_text(value: object) -> object:
+    """Copy of a certificate with every free-text field replaced by its length."""
+
+    if isinstance(value, dict):
+        return {
+            k: f"[text {len(v)} chars]" if k in _FREE_TEXT_KEYS and isinstance(v, str)
+            else _mask_free_text(v)
+            for k, v in value.items()
+        }
+    if isinstance(value, list):
+        return [_mask_free_text(v) for v in value]
+    return value
+
+
+def _record_call(name, certificate, ctx, started, http_status, response, outcome, error, omitted):
+    """INFO line always; full JSON line in logs/doris_calls.log only when
+    DORIS_CALL_LOG is on. Never raises: a logging fault must not fail the check."""
+
+    global _call_log_warned
+    ms = round((time.monotonic() - started) * 1000)
+    case = ctx.get("case") or "-"
+    try:
+        _log.info(
+            'doris_call engine=%s case=%s outcome=%s status=%s ms=%s error="%s"',
+            name, case, outcome, http_status, ms, (error or "")[:200].replace('"', "'"),
+        )
+        if not (has_app_context() and current_app.config.get("DORIS_CALL_LOG")):
+            return
+        from app.logging.va_logger import doris_call_logger
+
+        doris_call_logger.info(json.dumps({
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "engine": name,
+            "case": case,
+            "actor_role": ctx.get("actor_role"),
+            "ms": ms,
+            "http_status": http_status,
+            "request": _mask_free_text(certificate),
+            "response": response,
+            "omitted": omitted,
+            "app_outcome": outcome,
+        }, ensure_ascii=False, sort_keys=True))
+    except Exception:  # noqa: BLE001
+        if not _call_log_warned:
+            _call_log_warned = True
+            _log.warning("doris_call logging failed", exc_info=True)
+
+
+def _run_engine(name: str, certificate: dict, release: str, ctx: dict | None = None,
+                omitted: list[str] | None = None) -> dict:
+    ctx = ctx or {}
+    omitted = omitted or []
+    started = time.monotonic()
+
+    def done(envelope, http_status, response, outcome, error=""):
+        _record_call(name, certificate, ctx, started, http_status, response, outcome, error, omitted)
+        return envelope
+
     try:
         status_code, content = post_mortality_processor(name, certificate, release=release)
     except WhoIcdApiTimeout:
-        return {"status": "timeout", "result": None}
+        return done({"status": "timeout", "result": None}, None, "timeout", "http_error", "timeout")
     except WhoIcdApiUnavailable:
-        return {"status": "unavailable", "result": None}
+        return done({"status": "unavailable", "result": None}, None, "unavailable", "http_error", "unavailable")
+    text = content.decode("utf-8", "replace") if isinstance(content, bytes) else str(content)
     if status_code < 200 or status_code >= 300:
-        return {"status": "unavailable", "result": None}
+        return done({"status": "unavailable", "result": None}, status_code, text, "http_error", f"HTTP {status_code}")
     try:
         result = json.loads(content)
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return {"status": "malformed_response", "result": None}
+        return done({"status": "malformed_response", "result": None}, status_code, text, "http_error", "non-JSON response")
     expected_keys = _DORIS_KEYS if name == "doris" else _CODEDIT_KEYS
     if not isinstance(result, dict) or not expected_keys.issubset(result):
-        return {"status": "malformed_response", "result": None}
+        return done({"status": "malformed_response", "result": None}, status_code, result, "http_error", "unexpected response shape")
     if name == "doris" and not isinstance(result["reject"], bool):
-        return {"status": "malformed_response", "result": None}
-    status = "rejected" if name == "doris" and result["reject"] else "completed"
-    return {"status": status, "result": result}
+        return done({"status": "malformed_response", "result": None}, status_code, result, "http_error", "unexpected response shape")
+    rejected = name == "doris" and result["reject"]
+    return done(
+        {"status": "rejected" if rejected else "completed", "result": result},
+        status_code, result, "rejected" if rejected else "accepted",
+        str(result.get("error") or "") if rejected else "",
+    )
 
 
 def process_certificate(
@@ -123,8 +194,13 @@ def process_certificate(
     *,
     release: str = DEFAULT_ICD11_RELEASE,
     who_image_digest: str = "",
+    va_sid: str | None = None,
+    actor_role: str | None = None,
 ) -> dict:
-    """Validate a phase-0 process payload and return both independent results."""
+    """Validate a phase-0 process payload and return both independent results.
+
+    va_sid / actor_role only label the DORIS_CALL_LOG debug line; the sid is
+    logged as a short hash, never raw."""
 
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         raise ValueError("Unsupported DORIS process schema version.")
@@ -137,8 +213,12 @@ def process_certificate(
     verify_certificate_codes(certificate, release=release)
 
     who_certificate, omitted = who_safe_certificate(certificate)
-    doris = _run_engine("doris", who_certificate, release)
-    codedit = _run_engine("codedit", who_certificate, release)
+    ctx = {
+        "case": hashlib.sha256(va_sid.encode()).hexdigest()[:10] if va_sid else None,
+        "actor_role": actor_role,
+    }
+    doris = _run_engine("doris", who_certificate, release, ctx, omitted)
+    codedit = _run_engine("codedit", who_certificate, release, ctx, omitted)
     notes = [
         f"The {_OMITTED_LABEL[path]} is year-only, which WHO's DORIS cannot process together "
         "with the other date. It was left out of the WHO check; your entry is kept."

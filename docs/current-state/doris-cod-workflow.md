@@ -441,3 +441,33 @@ coder's entry are unchanged, and `process_certificate` returns `who_notes`
 (plain sentences the web and Expo result panels show) naming what was left out.
 A remaining WHO "Internal system error" also adds a `who_notes` line telling the
 coder to check the certificate or choose the cause without DORIS.
+
+## DORIS call debug log (owner decision 2026-10-24)
+
+Policy note: to debug DORIS failures the owner approved logging the full data
+sent to and received from WHO DORIS and CoDEdit. This is a temporary, opt-in
+debug aid, off by default, and must be switched off once the fault is found.
+
+- Enable: set `DORIS_CALL_LOG=1` in the staging `.env`, then restart
+  `minerva_app_service` (and the Celery services if they run the check). Unset
+  or `0` disables it.
+- Output: one JSON line per engine call (two per certificate check) in
+  `logs/doris_calls.log`: `ts`, `engine` (`doris`|`codedit`), `case` (first 10
+  hex of the SHA-256 of the `va_sid`), `actor_role`, `ms`, `http_status`,
+  `request` (the exact body sent to WHO, after `who_safe_certificate`),
+  `response` (the exact JSON WHO returned, or the text or status for a
+  non-JSON or failed reply), `omitted` (fields left out of the WHO request) and
+  `app_outcome` (`accepted`|`rejected`|`http_error`).
+- Privacy: no names are in a certificate. Free text (condition `Text`,
+  `Reason`, `DescriptionExternalCause`, `PerinatalDescription`) is replaced by
+  `[text N chars]`; codes, URIs, dates, sex, age, durations and manner are kept.
+  The `va_sid`, user email and tokens are never written. WHO's own `report`
+  text in the response is logged as returned.
+- Read: inside the container `/app/logs/doris_calls.log`; on the host the bind
+  mount `<repo>/logs/doris_calls.log`. e.g. `jq -c 'select(.app_outcome!="accepted")' logs/doris_calls.log`.
+- Retention: rotated daily, gzipped (`doris_calls.log.<UTC date>.gz`), 7 files
+  kept, so about a week. Delete the files when the debugging ends.
+- Always on, flag or not: one INFO line in the normal app log,
+  `doris_call engine=… case=… outcome=… status=… ms=… error="…"`; read with
+  `docker logs minerva_app_service 2>&1 | grep doris_call`.
+- Logging never raises: a failed write is warned once and the check proceeds.

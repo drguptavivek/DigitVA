@@ -31,7 +31,8 @@ const createBootstrap = (userId = "u1", name = "Interviewer") => ({
 });
 let mockBootstrap = createBootstrap();
 
-jest.mock("expo-router", () => ({ useRouter: () => ({ replace: mockReplace, push: mockPush, setParams: mockSetParams, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
+const mockNavigation = { addListener: () => () => undefined, dispatch: () => undefined };
+jest.mock("expo-router", () => ({ useNavigation: () => mockNavigation, useIsFocused: () => true, useRouter: () => ({ replace: mockReplace, push: mockPush, setParams: mockSetParams, back: jest.fn() }), useLocalSearchParams: () => mockParams }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap }) }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key), uiLocale: () => mockLocale }));
 jest.mock("../src/ui", () => ({
@@ -94,6 +95,7 @@ import { getCases, registerDeath, startDraft } from "../src/client/api";
 import * as sharedApi from "../src/api";
 import * as identifiersApi from "../src/identifiers";
 import { TextInput } from "react-native";
+import { guardedNavigate, leaveDialogOpen, stayOnPage } from "../src/web/navigationGuard";
 
 const mockRegisterDeath = registerDeath as jest.Mock;
 const mockStartDraft = startDraft as jest.Mock;
@@ -1199,6 +1201,53 @@ describe("DeathRegistrationScreen", () => {
     expect(JSON.stringify(tree!.toJSON())).not.toContain("Fresh address");
     await act(async () => tree!.unmount());
     Object.defineProperty(global, "document", { configurable: true, value: originalDocument });
+  });
+
+  it("keeps typed values when the browser tab is hidden and shown again, and nothing is on screen meanwhile", async () => {
+    mockParams = {};
+    const originalDocument = global.document;
+    let visibilityHandler: (() => void) | undefined;
+    const testDocument = {
+      visibilityState: "visible",
+      addEventListener: (name: string, handler: () => void) => {
+        if (name === "visibilitychange") visibilityHandler = handler;
+      },
+      removeEventListener: jest.fn(),
+    } as unknown as Document;
+    Object.defineProperty(global, "document", { configurable: true, value: testDocument });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    await act(async () => tree!.root.findByProps({ "data-field": "deceased_name" }).props.onClick("Asha"));
+    expect(tree!.root.findByProps({ "data-field": "deceased_name" }).props["data-value"]).toBe("Asha");
+
+    (testDocument as { visibilityState: string }).visibilityState = "hidden";
+    await act(async () => visibilityHandler?.());
+    expect(tree!.root.findAllByProps({ "data-field": "deceased_name" })).toHaveLength(0);
+    (testDocument as { visibilityState: string }).visibilityState = "visible";
+    await act(async () => visibilityHandler?.());
+    expect(tree!.root.findByProps({ "data-field": "deceased_name" }).props["data-value"]).toBe("Asha");
+    await act(async () => tree!.unmount());
+    Object.defineProperty(global, "document", { configurable: true, value: originalDocument });
+  });
+
+  it("guards leaving once something is typed, and not before", async () => {
+    mockParams = {};
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const clean = jest.fn();
+    guardedNavigate(clean);
+    expect(clean).toHaveBeenCalledTimes(1);
+
+    await act(async () => tree!.root.findByProps({ "data-field": "deceased_name" }).props.onClick("Asha"));
+    const dirty = jest.fn();
+    guardedNavigate(dirty);
+    expect(dirty).not.toHaveBeenCalled();
+    expect(leaveDialogOpen()).toBe(true);
+    stayOnPage();
+    expect(leaveDialogOpen()).toBe(false);
+    await act(async () => tree!.unmount());
   });
 
   describe("death-site GPS fix", () => {

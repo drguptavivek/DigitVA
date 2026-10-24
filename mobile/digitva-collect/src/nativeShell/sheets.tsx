@@ -101,6 +101,8 @@ export function HelpSheet() {
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState<string>();
   const entries = faqEntries(query);
+  // Leaving the open form from here would skip its save, so the "go" buttons that navigate are not offered on it.
+  const leavesForm = screen === "form" || screen === "revision";
   /** The two sheets swap in place; the others close Help and open their screen. */
   function goTo(target: FaqTarget) {
     if (target === "account" || target === "sync") return shell.openSheet(target);
@@ -140,7 +142,7 @@ export function HelpSheet() {
           {openId === entry.id || query.trim() ? (
             <View style={{ paddingBottom: spacing.sm, gap: spacing.xs }}>
               <Text style={{ ...typography.body, color: ui.popoverForeground }}>{entry.answer}</Text>
-              {entry.target && (entry.target === "account" || entry.target === "sync" || shell.userId) ? (
+              {entry.target && (entry.target === "account" || entry.target === "sync" || (shell.userId && !leavesForm)) ? (
                 <Button kind="secondary" label={entry.goLabel!} onPress={() => goTo(entry.target!)} />
               ) : null}
             </View>

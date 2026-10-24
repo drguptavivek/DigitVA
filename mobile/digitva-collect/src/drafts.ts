@@ -791,14 +791,17 @@ export async function projectIds(db: Db): Promise<string[]> {
 
 /**
  * Work on this phone the server has not acknowledged yet: drafts, offline
- * registrations, queued contact attempts and visits, and queued revisions.
+ * registrations, queued contact attempts and visits, queued revisions and, for the whole phone, the
+ * registration still being typed.
  * Each row is deleted on acknowledgement, so every remaining row is unsent.
  */
 export async function countUnsentWork(db: Db, projectId?: string): Promise<number> {
   const where = projectId ? " WHERE project_id = ?" : "";
+  // The new registration being typed lives in meta (nativeRoutes/register.tsx); the per-project purge checks skip it.
+  const typing = projectId ? "0" : "(SELECT COUNT(*) FROM meta WHERE key = 'registration-in-progress')";
   const row = await db.getFirstAsync<{ n: number }>(
     `SELECT (SELECT COUNT(*) FROM drafts${where}) + (SELECT COUNT(*) FROM registrations${where})
-       + (SELECT COUNT(*) FROM case_actions${where}) + (SELECT COUNT(*) FROM revision_drafts${where}) AS n`,
+       + (SELECT COUNT(*) FROM case_actions${where}) + (SELECT COUNT(*) FROM revision_drafts${where}) + ${typing} AS n`,
     projectId ? [projectId, projectId, projectId, projectId] : []
   );
   return Number(row?.n ?? 0);

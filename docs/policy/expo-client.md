@@ -252,6 +252,22 @@ top bar.
   language from the script, voice-typing tip) are described in
   [DigitVA overrides](digitva-who-form-overrides.md), "Interviewer assists".
 
+## Leaving a form
+
+Owner, 2026-10-24. An interviewer never loses typed work by leaving a screen.
+
+- Every exit saves first: the on-screen Back/Leave, the Android hardware back
+  and the back-swipe, the Help sheet's "go" buttons, and the tabs. The phone
+  flushes the open answer before leaving. If that save fails the app asks
+  "Your last answers could not be saved. Leave anyway?" (Stay is the default).
+- Exits that end or discard work ask first, with Stay as the default: "Finish
+  as incomplete", Cancel of an edit to a saved registration, and (web) leaving
+  a registration with unsent typing. The browser's own leave prompt also guards
+  reload and close.
+- Hiding the browser tab never clears typed fields. Values stay in memory and
+  are not drawn on screen while the tab is hidden, and come back when it is shown.
+- Sign-out and re-enrol count the registration in progress as unsent work.
+
 ## Phone shell: header, tabs and Help
 
 Owner-approved design, 2026-10-23 (`digitva-gmt7`). The Android app has a 48 dp

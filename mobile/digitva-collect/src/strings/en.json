@@ -1289,5 +1289,13 @@
   "usersStatusHeading": "Account status",
   "orgUserRoles": "{name}: {roles}",
   "orgUserHere": "{name} is here",
-  "usersOpenCard": "Open details of {name}"
+  "usersOpenCard": "Open details of {name}",
+  "stay": "Stay",
+  "leaveAnyway": "Leave anyway",
+  "leaveUnsavedTitle": "Not saved",
+  "leaveUnsavedMessage": "Your last answers could not be saved. Leave anyway?",
+  "finishIncompleteTitle": "Finish as incomplete?",
+  "finishIncompleteMessage": "It will be queued to send and can no longer be edited here.",
+  "discardChangesTitle": "Discard your changes?",
+  "discardChangesMessage": "Your changes to this registration are not saved. Discard your changes?"
 }

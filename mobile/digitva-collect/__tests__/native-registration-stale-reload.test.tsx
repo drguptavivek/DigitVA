@@ -10,7 +10,10 @@ let mockPatch: jest.Mock;
 const mockRouter = { back: jest.fn(), replace: jest.fn() };
 const mockAccount = { user_id: "u1", collection_access: true, registered_deaths_access: true };
 
+const mockNavigation = { addListener: () => () => undefined, dispatch: () => undefined };
 jest.mock("expo-router", () => ({
+  useNavigation: () => mockNavigation,
+  useIsFocused: () => true,
   Redirect: () => null,
   useLocalSearchParams: () => mockParams,
   useRouter: () => mockRouter,

@@ -2,6 +2,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
+import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
+
 import { ApiError, SUPERVISION_ROLES, getLocalStationLaunchToken, getCaseDetail, getRegisteredDeaths, hasInterviewRegistrationAccess, intakeContextFromAccess, requestClientJson, type CaseDetail, type CaseRow, type IntakeBootstrap, type RegistrationInput } from "../api";
 import { INTAKE_API, registerDeath, startDraft } from "../client/api";
 import { useAppState } from "../AppState";
@@ -168,6 +170,8 @@ export default function DeathRegistrationScreen() {
   const [editingReadOnly, setEditingReadOnly] = useState(false);
   const [privateBootstrap, setPrivateBootstrap] = useState(bootstrap);
   const [isVisible, setIsVisible] = useState(true);
+  // True once the user typed or chose something not yet saved; cleared when the form resets or a save lands.
+  const dirtyRef = useRef(false);
   const registrationBase = useRef<Partial<RegistrationInput> | undefined>(undefined);
   const registrationUpdatedAt = useRef<string | undefined>(undefined);
   const registrationSource = useRef<"mine" | "case" | undefined>(undefined);
@@ -211,15 +215,9 @@ export default function DeathRegistrationScreen() {
       activeRef.current = document.visibilityState === "visible";
       setIsVisible(activeRef.current);
       if (!activeRef.current) {
+        // Typed work stays in memory (policy: "Leaving a form"); the private UI is simply not rendered while hidden.
         registrationGeneration.current += 1;
-        setFields({}); setLocation(null); setWebConsent(null);
-        setSex("");
         setListMode(false);
-        setEditingDeathId(undefined);
-        registrationBase.current = undefined;
-        registrationUpdatedAt.current = undefined;
-        registrationSource.current = undefined;
-        registrationSourceCursor.current = undefined;
         registeredDeathCursors.current = { owner: bootstrapRef.current, byDeath: {} };
         setMessage("");
         setNotice("");
@@ -405,7 +403,13 @@ export default function DeathRegistrationScreen() {
     date_of_birth_partial: fields.date_of_birth_partial
   });
 
+  useEffect(() => {
+    if (!Object.keys(fields).length) dirtyRef.current = false;
+  }, [fields]);
+  useNavigationGuard(() => dirtyRef.current, async () => false);
+
   function updateField(key: keyof RegistrationInput, value: string) {
+    dirtyRef.current = true;
     setFields((previous) => ({ ...previous, [key]: value }));
     setValidationIssues((previous) => (previous[key] ? { ...previous, [key]: undefined } : previous));
     setDraftIssues((previous) => (previous[key] ? { ...previous, [key]: undefined } : previous));
@@ -699,6 +703,7 @@ export default function DeathRegistrationScreen() {
         // Only active codes: the server refuses a change to a deactivated type (a stored value of one stays as it is).
         const idChanges = idShown ? identifierChanges(Object.fromEntries(idTypes.map((type) => [type.code, idBase.current[type.code]])), typed) : {};
         if (!Object.keys(changes).length && !Object.keys(locationChanges).length && !Object.keys(idChanges).length) {
+          dirtyRef.current = false;
           if (bootstrap.capabilities.registeredDeaths) showList(true);
           else router.replace(collectionPath as never);
           return;
@@ -709,6 +714,7 @@ export default function DeathRegistrationScreen() {
           csrf: bootstrap.csrf
         });
         if (!current()) return;
+        dirtyRef.current = false;
         if (!record(result) || !record(result.case) || result.case.death_id !== editingDeathId || typeof result.case.updated_at !== "string") {
           throw new ApiError(200, "malformed_response");
         }
@@ -760,6 +766,7 @@ export default function DeathRegistrationScreen() {
         bootstrap.csrf
       );
       if (!current()) return;
+      dirtyRef.current = false;
       const finishCreate = async () => {
       const mayStartInterview = !saveOnly && bootstrap.capabilities.intake &&
         hasInterviewRegistrationAccess(bootstrap.access, projectId, siteId, orgUnitId || undefined) &&
@@ -1018,6 +1025,7 @@ export default function DeathRegistrationScreen() {
                 kind={sex === value ? "primary" : "secondary"}
                 label={t(`sex${value[0].toUpperCase()}${value.slice(1)}` as "sexMale")}
                 onPress={() => {
+                  dirtyRef.current = true;
                   setSex(value);
                   setValidationIssues((previous) => ({ ...previous, deceased_sex: undefined }));
                   setAgeConfirmationPending(false);
@@ -1043,7 +1051,7 @@ export default function DeathRegistrationScreen() {
             if (field.key === "address") return (
               <View key={field.key}>
                 {closed ? null : renderField(field)}
-                <LocationCapture value={location} onChange={setLocation} />
+                <LocationCapture value={location} onChange={(fix) => { dirtyRef.current = true; setLocation(fix); }} />
               </View>
             );
             return closed ? null : renderField(field);
@@ -1060,6 +1068,7 @@ export default function DeathRegistrationScreen() {
               warnings={idWarnings}
               disabled={busy}
               onChange={(code, value) => {
+                dirtyRef.current = true;
                 setIdValues((previous) => ({ ...previous, [code]: value }));
                 setIdErrors((previous) => (previous[code] ? { ...previous, [code]: "" } : previous));
                 setAgeConfirmationPending(false);
@@ -1103,14 +1112,14 @@ export default function DeathRegistrationScreen() {
           {!editingDeathId && bootstrap?.capabilities.intake ? (
             <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t("save")} onPress={() => void submit(false, true)} />
           ) : null}
-          <Button kind="secondary" label={t("cancel")} onPress={() => {
+          <Button kind="secondary" label={t("cancel")} onPress={() => guardedNavigate(() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {
               setEditingDeathId(undefined);
               setFields({}); setLocation(null); setWebConsent(null);
               setSex("");
               showList(true);
             } else router.back();
-          }} />
+          })} />
         </>
       ) : (
         <Text style={styles.muted}>{message || t("noSites")}</Text>

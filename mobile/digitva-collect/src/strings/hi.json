@@ -1289,5 +1289,13 @@
   "usersStatusHeading": "खाते की स्थिति",
   "orgUserRoles": "{name}: {roles}",
   "orgUserHere": "{name} यहाँ हैं",
-  "usersOpenCard": "{name} का विवरण खोलें"
+  "usersOpenCard": "{name} का विवरण खोलें",
+  "stay": "रुकें",
+  "leaveAnyway": "फिर भी छोड़ें",
+  "leaveUnsavedTitle": "सहेजा नहीं गया",
+  "leaveUnsavedMessage": "आपके आख़िरी उत्तर सहेजे नहीं जा सके। फिर भी छोड़ें?",
+  "finishIncompleteTitle": "अधूरा मानकर समाप्त करें?",
+  "finishIncompleteMessage": "इसे भेजने की कतार में रखा जाएगा और यहाँ इसे फिर बदला नहीं जा सकेगा।",
+  "discardChangesTitle": "अपने बदलाव छोड़ें?",
+  "discardChangesMessage": "इस पंजीकरण में आपके बदलाव सहेजे नहीं गए हैं। बदलाव छोड़ दें?"
 }

@@ -60,11 +60,34 @@ const mockRevisionDefinition = {
   provenance: "served",
   pin: { instrumentVersion: "served-v2", definitionSha256: "b".repeat(64), definitionExtensions: ["mobility"] },
 };
+let mockConfirmProps: Record<string, unknown> | undefined;
 const mockReload = jest.fn();
 const mockChooseUiLocale = jest.fn(async () => undefined);
 const mockActivity = jest.fn();
 
+const mockRemoveListeners: Array<(event: { data: { action: { type: string } }; preventDefault: () => void }) => void> = [];
+const mockNavigation = {
+  addListener: (_name: string, callback: (typeof mockRemoveListeners)[number]) => {
+    mockRemoveListeners.push(callback);
+    return () => { mockRemoveListeners.splice(mockRemoveListeners.indexOf(callback), 1); };
+  },
+  dispatch: jest.fn(),
+};
+const mockHardwareBack = (type = "GO_BACK") => {
+  const event = { data: { action: { type } }, preventDefault: jest.fn() };
+  mockRemoveListeners.forEach((listener) => listener(event));
+  return event;
+};
+beforeEach(() => { mockRemoveListeners.length = 0; });
+jest.mock("../src/ConfirmDialog", () => ({
+  ConfirmDialog: (props: Record<string, unknown>) => {
+    mockConfirmProps = props;
+    return (jest.requireActual("react") as typeof React).createElement("section", { "data-confirm": true });
+  },
+}));
 jest.mock("expo-router", () => ({
+  useNavigation: () => mockNavigation,
+  useIsFocused: () => true,
   Redirect: () => null,
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
@@ -597,6 +620,12 @@ describe("native submitted-interview revisions", () => {
       const validate = jest.fn(() => ({ valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "completed" } }));
       await act(async () => { (mockFormProps.onReady as (value: unknown) => void)({ validate }); });
       await choose("finishIncomplete");
+      expect(validate).not.toHaveBeenCalled();
+      expect(mockConfirmProps).toMatchObject({ title: "finishIncompleteTitle", cancelLabel: "stay" });
+      await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+      expect(validate).not.toHaveBeenCalled();
+      await choose("finishIncomplete");
+      await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
       expect(validate).toHaveBeenCalledTimes(1);
 
       await choose("formHelp");
@@ -606,6 +635,38 @@ describe("native submitted-interview revisions", () => {
       await settle();
       expect(mockSaveDraft).toHaveBeenCalledTimes(2);
       expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    });
+
+    it("hardware back flushes the open answer and leaves through the worklist", async () => {
+      const tree = await openForm();
+      mockRouter.replace.mockClear();
+      mockSaveDraft.mockClear();
+      let event!: ReturnType<typeof mockHardwareBack>;
+      await act(async () => { event = mockHardwareBack(); });
+      await settle();
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+      await act(async () => tree.unmount());
+    });
+
+    it("a failed save on back asks first: Stay keeps the form, Leave anyway leaves", async () => {
+      const tree = await openForm();
+      mockRouter.replace.mockClear();
+      mockSaveDraft.mockRejectedValueOnce(new Error("disk"));
+      await act(async () => { mockHardwareBack(); });
+      await settle();
+      expect(mockRouter.replace).not.toHaveBeenCalled();
+      expect(mockConfirmProps).toMatchObject({ title: "leaveUnsavedTitle", message: "leaveUnsavedMessage", cancelLabel: "stay" });
+      await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+      expect(tree.root.findAllByProps({ "data-confirm": true })).toHaveLength(0);
+      expect(mockRouter.replace).not.toHaveBeenCalled();
+      mockSaveDraft.mockRejectedValueOnce(new Error("disk"));
+      await act(async () => { mockHardwareBack(); });
+      await settle();
+      await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+      await act(async () => tree.unmount());
     });
 
     it("shows Not saved after a failed save and Saved after the next one", async () => {

@@ -83,6 +83,7 @@ import {
 import { reconcileCaseDraft } from "../draftSync";
 import { applyTranslations } from "../translations";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { useLeaveGuard } from "../leaveGuard";
 import { FormTopBar, Sheet, type SaveState, type SheetItem } from "../FormTopBar";
 import { revisionName } from "../revisionLabel";
 import { useShell } from "../nativeShell/shellContext";
@@ -291,6 +292,9 @@ export default function Form() {
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const leaveGuard = useLeaveGuard();
   const toast = useToast();
   const shell = useShell();
   const [blockedReferenceData, setBlockedReferenceData] = useState(false);
@@ -942,15 +946,20 @@ export default function Form() {
     router.replace({ pathname: "/worklist", params: { userId: account!.user_id, view: "interviews", filter: "drafts" } });
   }
 
+  /** Flush first; a failed save asks before leaving so typed answers are never dropped silently. */
   async function leave() {
     try {
       await controller.current?.saveDraft();
     } catch (error) {
+      setSaveState("unsaved");
       setMessage(errorText(error));
+      setConfirmLeave(true);
       return;
     }
+    leaveGuard.release();
     router.back();
   }
+  leaveGuard.handler.current = () => void leave();
 
   async function saveNow() {
     setSaveState("saving");
@@ -1015,6 +1024,7 @@ export default function Form() {
     await controller.current?.saveDraft();
     await markCompleted(loaded.db, draftId, completion);
     await clearSendError(loaded.db, draftId);
+    leaveGuard.release();
     router.back();
   }
 
@@ -1028,7 +1038,7 @@ export default function Form() {
     loaded.project.form_options?.available_locales,
   );
   const menuItems: SheetItem[] = [
-    { key: "finish", label: t("finishIncomplete"), onPress: finishIncomplete },
+    { key: "finish", label: t("finishIncomplete"), onPress: () => setConfirmFinish(true) },
     ...(locales.length > 1 ? [{ key: "language", label: t("questionnaireLanguage"), onPress: () => setLanguageOpen(true) }] : []),
     { key: "help", label: t("formHelp"), onPress: () => shell.openSheet("help") },
     { key: "preview", label: t("formPreviewAnswers"), onPress: () => controller.current?.openPreview() },
@@ -1054,6 +1064,26 @@ export default function Form() {
         onProblems={() => controller.current?.showProblems()}
         consentChip={consentChip}
       />
+      {confirmLeave ? (
+        <ConfirmDialog
+          title={t("leaveUnsavedTitle")}
+          message={t("leaveUnsavedMessage")}
+          confirmLabel={t("leaveAnyway")}
+          cancelLabel={t("stay")}
+          onConfirm={() => { setConfirmLeave(false); leaveGuard.release(); router.back(); }}
+          onCancel={() => setConfirmLeave(false)}
+        />
+      ) : null}
+      {confirmFinish ? (
+        <ConfirmDialog
+          title={t("finishIncompleteTitle")}
+          message={t("finishIncompleteMessage")}
+          confirmLabel={t("finishIncomplete")}
+          cancelLabel={t("stay")}
+          onConfirm={() => { setConfirmFinish(false); finishIncomplete(); }}
+          onCancel={() => setConfirmFinish(false)}
+        />
+      ) : null}
       {confirmDelete ? (
         <ConfirmDialog
           destructive

@@ -393,6 +393,13 @@ describe("draft store", () => {
     expect(await db.getFirstAsync("SELECT project_id FROM form_definitions WHERE project_id = ?", ["PROJECT2"])).toEqual({ project_id: "PROJECT2" });
   });
 
+  it("counts the registration still being typed in the phone total, not in a project's", async () => {
+    expect(await countUnsentWork(db)).toBe(0);
+    await setMeta(db, "registration-in-progress", { clientDeathId: "c1", fields: { deceased_name: "Asha" } });
+    expect(await countUnsentWork(db)).toBe(1);
+    expect(await countUnsentWork(db, "PROJECT1")).toBe(0);
+  });
+
   it("keeps every unsent row and draft config of a project that leaves access, dropping only server copies", async () => {
     const store = createDraftStore(db, { projectId: "PROJECT1", siteId: "SITE1" });
     await store.save(draft("unsent", "2026-09-30T01:00:00Z", { Id10007: "kept" }));

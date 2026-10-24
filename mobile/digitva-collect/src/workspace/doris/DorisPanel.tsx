@@ -13,7 +13,7 @@ import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
-import { Alert, Body, Button, ButtonGlyph, Card, CardTitle, Chip, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
+import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, Chip, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, gap, uiRadius, useLayout, useUi } from "./ui";
 import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 import { CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
@@ -1094,6 +1094,8 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
   const dr = object(processing?.doris.result ?? savedDoris.result);
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
   const ucodParts = processing?.ucod_parts ?? [];
+  const [showDetails, setShowDetails] = useState(false);
+  const hasDetails = typeof dr.stemCode === "string" || typeof dr.uri === "string" || ucodParts.length > 1;
   // An empty report is no box at all; a run of blank lines reads as one blank line.
   const report = (value: unknown) => {
     const body = collapseBlankLines(value);
@@ -1109,13 +1111,22 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
       {ucodParts.length ? (
         <View>
           {ucodClusterLines(ucodParts).map((line) => <Body key={line}>{line}</Body>)}
-          {ucodParts.length > 1 ? <Muted>{UCOD_CLUSTER_EXPLANATION}</Muted> : null}
+          {typeof dr.code === "string" ? <Badge variant="outline" mono>{dr.code}</Badge> : null}
+        </View>
+      ) : typeof dr.code === "string" ? <Body>Computed UCOD: {dr.code}</Body> : null}
+      <DorisChecks doris={processing?.doris ?? savedDoris} codedit={processing?.codedit ?? savedCodedit} api={api} vaSid={vaSid} />
+      {hasDetails ? (
+        <View>
+          <Button label={showDetails ? "Hide details" : "Details"} variant="outline" accessibilityLabel={showDetails ? "Hide DORIS code details" : "Show DORIS code details"} accessibilityState={{ expanded: showDetails }} onPress={() => setShowDetails((v) => !v)} />
+          {showDetails ? (
+            <View>
+              {ucodParts.length > 1 ? <Muted>{UCOD_CLUSTER_EXPLANATION}</Muted> : null}
+              {typeof dr.stemCode === "string" ? <Muted>Computed stem: {dr.stemCode}</Muted> : null}
+              {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
+            </View>
+          ) : null}
         </View>
       ) : null}
-      {typeof dr.code === "string" ? (ucodParts.length ? <Muted>Computed UCOD: {dr.code}</Muted> : <Body>Computed UCOD: {dr.code}</Body>) : null}
-      {typeof dr.stemCode === "string" ? (ucodParts.length ? <Muted>Computed stem: {dr.stemCode}</Muted> : <Body>Computed stem: {dr.stemCode}</Body>) : null}
-      {typeof dr.uri === "string" ? <Muted>Computed URI: {dr.uri}</Muted> : null}
-      <DorisChecks doris={processing?.doris ?? savedDoris} codedit={processing?.codedit ?? savedCodedit} api={api} vaSid={vaSid} />
       {report(dr.report)}
       <Separator />
       <Body>CoDEdit: {codeditStatus ?? "not processed"}</Body>

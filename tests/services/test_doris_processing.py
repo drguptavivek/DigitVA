@@ -396,7 +396,24 @@ class TestDorisProcessing(BaseTestCase):
             self.assertEqual(sent["DateDeath"], "2026-10")
         self.assertEqual(response["certificate"]["AdministrativeData"]["DateBirth"], "1980")
         self.assertEqual(len(response["who_notes"]), 1)
-        self.assertIn("date of birth", response["who_notes"][0])
+        self.assertEqual(
+            response["who_notes"][0],
+            "Year-only dates left out of the WHO check: birth. Your entries are kept.",
+        )
+
+    @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
+    @patch("app.services.doris_processing.post_mortality_processor")
+    def test_two_year_only_dates_give_one_combined_note(self, processor, _codeinfo_mock):
+        processor.side_effect = [_processor("doris", {}), _processor("codedit", {})]
+        payload = _payload()
+        payload["certificate"]["AdministrativeData"].update(DateBirth="1980", DateDeath="2026")
+
+        response = process_certificate(payload)
+
+        self.assertEqual(
+            response["who_notes"],
+            ["Year-only dates left out of the WHO check: birth, death. Your entries are kept."],
+        )
 
     @patch("app.services.doris_certificate.get_icd11_codeinfo", side_effect=_codeinfo)
     @patch("app.services.doris_processing.post_mortality_processor")

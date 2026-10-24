@@ -40,6 +40,14 @@ export function roleLabelKey(role: string): StringKey {
   return ROLE_KEY_MAP[role] ?? "role_collaborator";
 }
 
+/** Role code of a server label ("Interview Supervisor", "Viewer (with PII)"); unknown labels give null. */
+export function roleCodeOfLabel(label: string): string | null {
+  const key = label.trim().toLowerCase();
+  if (key === "viewer") return "collaborator";
+  if (key === "viewer (with pii)") return "collaborator_pii";
+  return Object.keys(ROLE_KEY_MAP).find((code) => code.replace(/_/g, " ") === key) ?? null;
+}
+
 /** True when the user holds any active role, admin flag, mentoring membership, or project grant. */
 export function hasAnyRoleOrProject(bootstrap: RoleBootstrap): boolean {
   const roles = bootstrap.access?.roles ?? [];
@@ -70,6 +78,14 @@ export function describeProjectGrant(
 ): string {
   const roleKey = ROLE_KEY_MAP[grant.role];
   const roleText = roleKey ? translate(roleKey) : grant.role;
+  const scopeText = grantScope(grant, sites, translate);
+  const base = translate("homeRoleWithScope", { role: roleText, scope: scopeText });
+  return grant.active ? base : `${base}${translate("homeRoleInactiveSuffix")}`;
+}
+
+type Translate = (key: StringKey, params?: Record<string, string | number>) => string;
+
+function grantScope(grant: AccessProject["grants"][number], sites: AccessProject["sites"] | undefined, translate: Translate): string {
   let scopeText = translate("homeScopeProject");
   if (grant.scope === "project_site") {
     const matchedSite = (sites ?? []).find((s) => s.site_id === grant.site_id);
@@ -80,8 +96,7 @@ export function describeProjectGrant(
   } else if (grant.scope === "org_unit") {
     scopeText = translate("homeScopeUnit", { unit: grant.unit_name ?? grant.org_unit_id ?? "" });
   }
-  const base = translate("homeRoleWithScope", { role: roleText, scope: scopeText });
-  return grant.active ? base : `${base}${translate("homeRoleInactiveSuffix")}`;
+  return scopeText;
 }
 
 /**
@@ -91,8 +106,17 @@ export function describeProjectGrant(
 export function describeProjectGrants(
   grants: AccessProject["grants"] | undefined,
   sites: AccessProject["sites"] | undefined,
-  translate: (key: StringKey, params?: Record<string, string | number>) => string,
+  translate: Translate,
 ): string[] {
+  return describeProjectGrantRows(grants, sites, translate).map((row) => row.line);
+}
+
+/** The same lines with the role code and scope kept apart, for screens that draw the role as a chip. */
+export function describeProjectGrantRows(
+  grants: AccessProject["grants"] | undefined,
+  sites: AccessProject["sites"] | undefined,
+  translate: Translate,
+): { role: string; scope: string; suffix: string; line: string }[] {
   const list = grants ?? [];
   const grouped = new Map<
     string,
@@ -122,21 +146,20 @@ export function describeProjectGrants(
       }
     }
   }
-  const lines: string[] = [];
+  const rows: { role: string; scope: string; suffix: string; line: string }[] = [];
   for (const entry of grouped.values()) {
-    if (!entry.allScope && entry.areas.length <= 1) {
-      lines.push(describeProjectGrant(entry.singleGrant, sites, translate));
-      continue;
-    }
+    const single = !entry.allScope && entry.areas.length <= 1;
+    const scope = single
+      ? grantScope(entry.singleGrant, sites, translate)
+      : entry.allScope
+        ? translate("homeScopeProject")
+        : translate("homeScopeUnit", { unit: entry.areas.join(", ") });
+    const suffix = entry.active ? "" : translate("homeRoleInactiveSuffix");
     const roleKey = ROLE_KEY_MAP[entry.role];
-    const roleText = roleKey ? translate(roleKey) : entry.role;
-    const scopeText = entry.allScope
-      ? translate("homeScopeProject")
-      : translate("homeScopeUnit", { unit: entry.areas.join(", ") });
-    const base = translate("homeRoleWithScope", { role: roleText, scope: scopeText });
-    lines.push(entry.active ? base : `${base}${translate("homeRoleInactiveSuffix")}`);
+    const line = `${translate("homeRoleWithScope", { role: roleKey ? translate(roleKey) : entry.role, scope })}${suffix}`;
+    rows.push({ role: entry.role, scope, suffix, line });
   }
-  return lines;
+  return rows;
 }
 
 /**

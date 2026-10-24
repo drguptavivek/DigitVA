@@ -192,7 +192,7 @@ describe("OrganizationScreen", () => {
     const shown = textOf(dialog);
     expect(shown).toContain("District · District");
     expect(shown).toContain("Dr Root");
-    expect(shown).toContain("Coder · Interview Supervisor");
+    expect(shown).toContain("Coder|Interview Supervisor");
     expect(shown).not.toContain("Asha Mid");
     for (const hidden of [...CADRES, "root@example.com", "9000000001"]) expect(shown).not.toContain(hidden);
 
@@ -480,16 +480,16 @@ describe("OrganizationScreen", () => {
     const tree = await render();
 
     const [own] = tree.root.findAll((n) => host(n) && n.props["aria-selected"] === true);
-    expect(textOf(own)).toContain("You: Coder (Medical Officer), Reviewer");
+    expect(textOf(own)).toContain("You:|Coder (Medical Officer)|Reviewer");
     const item = (name: string) => tree.root.findAll((n) => host(n) && n.props.role === "treeitem" && textOf(n).startsWith(name))[0];
-    expect(textOf(item("Village X"))).toContain("Coder, Reviewer · via Sub-centre B");
+    expect(textOf(item("Village X"))).toContain("Coder|Reviewer|· via Sub-centre B");
     // Ancestors hold no role: no via line on them.
     expect(textOf(item("District")).split("Sub-centre B")[0]).not.toContain("via");
     // A lazily opened child inherits too.
     await press(tree, "Open Village X");
-    expect(textOf(item("Hamlet Y"))).toContain("Coder, Reviewer · via Sub-centre B");
+    expect(textOf(item("Hamlet Y"))).toContain("Coder|Reviewer|· via Sub-centre B");
     // The summary line names the unit role.
-    expect(text(tree)).toContain("Coder, Reviewer at Sub-centre B");
+    expect(textOf(tree.root)).toContain("Coder|Reviewer|at Sub-centre B");
   });
 
   it("folds a project with only project-level roles, showing its header and summary", async () => {
@@ -501,7 +501,7 @@ describe("OrganizationScreen", () => {
     const tree = await render();
 
     expect(text(tree)).toContain("ICMR · ICMR01");
-    expect(text(tree)).toContain("Coder, Data manager · whole project");
+    expect(textOf(tree.root)).toContain("Coder|Data manager|· whole project");
     expect(expandedOf(tree, "Show ICMR · ICMR01")).toBe(false);
     expect(tree.root.findAll((n) => host(n) && n.props.role === "tree")).toHaveLength(0);
     await press(tree, "Show ICMR · ICMR01");
@@ -521,9 +521,9 @@ describe("OrganizationScreen", () => {
 
     expect(expandedOf(tree, "Hide Project One · P1")).toBe(true);
     expect(text(tree)).toContain(en.orgSitesHeading);
-    expect(text(tree)).toContain("Site One · You: Coder");
-    expect(text(tree)).toContain("Data manager · whole project; Coder at Site One");
-    expect(text(tree)).toContain("Data manager · via project");
+    expect(textOf(tree.root)).toContain("Site One|You:|Coder");
+    expect(textOf(tree.root)).toContain("Data manager|· whole project|Coder|at Site One");
+    expect(textOf(tree.root)).toContain("Data manager|· via project");
     expect(text(tree)).not.toContain(en.orgNoPlacement);
   });
 

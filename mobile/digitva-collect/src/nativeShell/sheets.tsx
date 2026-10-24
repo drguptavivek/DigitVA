@@ -12,6 +12,7 @@ import { radius, spacing, typography, useTheme } from "../theme";
 import { useToast } from "../toast";
 import { APP_VERSION } from "../appVersion";
 import { Button } from "../ui";
+import { RoleChip, RoleChips } from "../ui/RoleChip";
 import { BottomSheet, SheetRow } from "./BottomSheet";
 import { faqEntries, type FaqTarget } from "./faq";
 import { helpContent, helpGuideUrl, helpScreenFor } from "./helpContent";
@@ -24,9 +25,16 @@ export function syncSummary(sync: SyncStatus): string {
   return parts.join(" · ");
 }
 
-function roleLine(account: { collection_access?: boolean; registration_access?: boolean }, project?: string): string {
-  const roles = [account.collection_access ? t("role_interviewer") : "", account.registration_access ? t("role_death_reporter") : ""].filter(Boolean);
-  return [roles.join(", "), project].filter(Boolean).join(" · ");
+/** The account's phone roles as chips, then the project name. */
+function RoleLine({ account, project }: { account: { collection_access?: boolean; registration_access?: boolean }; project?: string }) {
+  const { ui } = useTheme();
+  const roles = [account.collection_access ? "interviewer" : "", account.registration_access ? "death_reporter" : ""].filter(Boolean);
+  return (
+    <RoleChips>
+      {roles.map((role) => <RoleChip key={role} role={role} />)}
+      {project ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{project}</Text> : null}
+    </RoleChips>
+  );
 }
 
 export function AccountSheet() {
@@ -52,7 +60,7 @@ export function AccountSheet() {
   }
   return (
     <BottomSheet visible={shell.sheet === "account"} title={account?.name ?? t("accountsTitle")} onClose={shell.closeSheet}>
-      <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{account ? roleLine(account, device?.project_name) : ""}</Text>
+      {account ? <RoleLine account={account} project={device?.project_name} /> : null}
       <Text style={{ ...typography.caption, color: ui.mutedForeground, marginBottom: spacing.xs }}>{syncSummary(shell.sync)}</Text>
       <SheetRow label={t("settings")} onPress={go(() => router.push({ pathname: "/settings", params: { userId } }))} />
       <SheetRow label={t("formHelp")} onPress={() => shell.openSheet("help")} />

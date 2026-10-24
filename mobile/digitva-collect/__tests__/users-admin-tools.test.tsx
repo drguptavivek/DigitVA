@@ -149,7 +149,7 @@ describe("Users admin tools", () => {
     expect(lastCall()[0]).toContain("role=interviewer");
     expect(byTestId(tree, "grid-table")).toHaveLength(1);
     expect(text(tree)).toContain("Created 2026-10-20T10:00:00+00:00");
-    expect(text(tree)).toContain("Coder · PHC B");  // the other unit, read only
+    expect(text(tree)).toContain("Coder|PHC B");  // the other unit, read only
     expect(checked(tree, "interviewer")).toBe(true);
     expect(checked(tree, "coder")).toBe(false);
   });

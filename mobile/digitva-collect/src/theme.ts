@@ -128,6 +128,44 @@ export const ui: Record<ColorMode, UiTokens> = {
   }
 };
 
+export type RoleTone = "reporter" | "interviewer" | "supervisor" | "coder" | "reviewer" | "manager" | "pi" | "admin" | "neutral";
+type RoleColours = { bg: string; border: string; fg: string };
+
+/** Role chip colours: soft fill, strong border, text >= 4.5:1 on the fill (ui-token-contrast test). The name is always written too. */
+export const roleTones: Record<ColorMode, Record<RoleTone, RoleColours>> = {
+  light: {
+    reporter: { bg: "#FFE4E6", border: "#E11D48", fg: "#9F1239" },
+    interviewer: { bg: "#DBEAFE", border: "#2563EB", fg: "#1E3A8A" },
+    supervisor: { bg: "#FEF3C7", border: "#D97706", fg: "#78350F" },
+    coder: { bg: "#DCFCE7", border: "#16A34A", fg: "#14532D" },
+    reviewer: { bg: "#EDE9FE", border: "#7C3AED", fg: "#4C1D95" },
+    manager: { bg: "#CFFAFE", border: "#0891B2", fg: "#164E63" },
+    pi: { bg: "#FAE8FF", border: "#C026D3", fg: "#701A75" },
+    admin: { bg: "#CBD5E1", border: "#334155", fg: "#0F172A" },
+    neutral: { bg: "#F1F5F9", border: "#64748B", fg: "#334155" }
+  },
+  dark: {
+    reporter: { bg: "#4C1426", border: "#FB7185", fg: "#FFE4E6" },
+    interviewer: { bg: "#172A52", border: "#60A5FA", fg: "#DBEAFE" },
+    supervisor: { bg: "#46300A", border: "#FBBF24", fg: "#FEF3C7" },
+    coder: { bg: "#0F3B22", border: "#4ADE80", fg: "#DCFCE7" },
+    reviewer: { bg: "#2E1F5C", border: "#A78BFA", fg: "#EDE9FE" },
+    manager: { bg: "#0B3A47", border: "#22D3EE", fg: "#CFFAFE" },
+    pi: { bg: "#4A1559", border: "#E879F9", fg: "#FAE8FF" },
+    admin: { bg: "#475569", border: "#CBD5E1", fg: "#F8FAFC" },
+    neutral: { bg: "#243449", border: "#7C90AB", fg: "#E2E8F0" }
+  }
+};
+
+const ROLE_TONE: Record<string, RoleTone> = {
+  death_reporter: "reporter", interviewer: "interviewer", interview_supervisor: "supervisor", coder: "coder",
+  reviewer: "reviewer", data_manager: "manager", project_pi: "pi", site_pi: "pi", admin: "admin"
+};
+
+/** The tone name of a role code; coding_tester, collaborators and unknown codes are neutral. */
+export const roleToneName = (role: string): RoleTone => ROLE_TONE[role] ?? "neutral";
+export const roleTone = (mode: ColorMode, role: string): RoleColours => roleTones[mode][roleToneName(role)];
+
 /** shadcn --radius 0.5rem: lg = radius, md = radius - 2px, sm = radius - 4px. */
 export const uiRadius = { lg: 8, md: 6, sm: 4, full: 9999 } as const;
 

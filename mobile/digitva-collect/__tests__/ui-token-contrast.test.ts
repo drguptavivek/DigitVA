@@ -1,5 +1,5 @@
 /** Every text/background pair the unified tokens put on screen keeps >= 4.5:1 (UI edges and the focus ring >= 3:1), light and dark. */
-import { palette, ui, type ColorMode } from "../src/theme";
+import { palette, roleTones, ui, type ColorMode } from "../src/theme";
 import { webPalette } from "../src/workspace/webPalette";
 import { whoWebThemeVars } from "../src/whoWebTheme";
 import { getTheme } from "../src/theme";
@@ -99,5 +99,17 @@ describe.each(modes)("%s token pairs", (mode) => {
   ];
   it.each(edges)("%s keeps 3:1", (_name, fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(3);
+  });
+
+  // Role chips (src/ui/RoleChip.tsx): text on the soft fill, edge against the card, one fill per tone.
+  const tones = Object.entries(roleTones[mode]);
+  it.each(tones)("role chip %s: text keeps 4.5:1 on its fill", (_name, tone) => {
+    expect(contrast(tone.fg, tone.bg)).toBeGreaterThanOrEqual(4.5);
+  });
+  it.each(tones)("role chip %s: edge keeps 3:1 on the card", (_name, tone) => {
+    expect(contrast(tone.border, t.card)).toBeGreaterThanOrEqual(3);
+  });
+  it("role chip tones have distinct fills", () => {
+    expect(new Set(tones.map(([, tone]) => tone.bg)).size).toBe(tones.length);
   });
 });

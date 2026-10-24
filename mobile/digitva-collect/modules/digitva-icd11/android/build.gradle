@@ -31,6 +31,19 @@ preBuild.dependsOn 'verifyEngineStaged'
 // libssl needs a libcrypto.so 1.1 ABI, which cannot sit beside expo-sqlite's 3.3.2 libcrypto in one APK.
 // The AAR has no jni/ folder, only prefab libs, so the arm64 libssl.so is copied out of it into a build dir.
 def opensslVersion = '3.3.2-1'
+// expo-sqlite packages its own libcrypto.so from the same artifact when SQLCipher is on (app.json useSQLCipher), and
+// libssl.so here must load beside it. Two OpenSSL builds in one process would fail in ways that look like engine bugs,
+// so the build fails here, with the fix named, when the versions differ. With SQLCipher off expo-sqlite ships no
+// libcrypto.so, loadOpenSsl() fails, and every init skips the WHO fetches (EngineHost).
+def sqliteGradle = rootProject.file('../node_modules/expo-sqlite/android/build.gradle')
+def sqliteMatch = sqliteGradle.exists() ? (sqliteGradle.text =~ /io\.github\.ronickg:openssl:([^'"\s]+)/) : null
+def sqliteOpenSsl = sqliteMatch != null && sqliteMatch.find() ? sqliteMatch.group(1) : null
+if (sqliteOpenSsl != opensslVersion) {
+  throw new GradleException(
+    "Collect Plus: io.github.ronickg:openssl is ${opensslVersion} here but expo-sqlite pins " +
+    "${sqliteOpenSsl ?: 'no version (expo-sqlite/android/build.gradle is missing; run npm ci)'}. " +
+    'Set opensslVersion in modules/digitva-icd11/android/build.gradle to the expo-sqlite version.')
+}
 configurations {
   opensslAar
 }

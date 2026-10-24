@@ -31,15 +31,24 @@ class DigitvaIcd11Module : Module() {
   private val mainHandler = Handler(Looper.getMainLooper())
   private val nextId = AtomicInteger(1)
   private val pending = ConcurrentHashMap<Int, Promise>()
+  // Ids of pending OP_UPDATE requests. A process that dies before answering one restarts it (see lost()).
+  private val updateIds = ConcurrentHashMap.newKeySet<Int>()
   private val replies = Messenger(object : Handler(Looper.getMainLooper()) {
     override fun handleMessage(msg: Message) {
       if (msg.what == Icd11Service.WHAT_PROGRESS) {
         sendEvent("icd11Progress", mapOf("phase" to msg.data.getString("phase"), "percent" to msg.data.getInt("percent")))
         return
       }
-      val promise = pending.remove(msg.arg1) ?: return
+      val id = msg.arg1
+      val promise = pending.remove(id) ?: return
+      val update = updateIds.remove(id)
       val result = Icd11Service.toMap(msg.data)
-      if (result["restarting"] == true) restartForUpdate(promise) else promise.resolve(result)
+      if (result["restarting"] == true) {
+        restartForUpdate(promise)
+      } else {
+        if (update && result["ok"] != true) dropRefresh()
+        promise.resolve(result)
+      }
     }
   })
 
@@ -63,7 +72,8 @@ class DigitvaIcd11Module : Module() {
 
   /**
    * The update ended the engine process. Unbind first, so the old connection makes no disconnect callback that would
-   * clear the new binding, then init in a new process; that init settles [promise].
+   * clear the new binding. Every other request waiting on the old process fails; [promise] is settled by the init that
+   * runs in the new process.
    */
   private fun restartForUpdate(promise: Promise) {
     val context = appContext.reactContext ?: return promise.reject("ERR_ICD11_PROCESS", "engine process stopped", null)
@@ -75,22 +85,47 @@ class DigitvaIcd11Module : Module() {
     service = null
     binding = false
     queued.clear()
+    rejectPending()
     send(Icd11Service.OP_INIT, "", promise)
   }
 
-  /** The engine process died or never bound: fail what is waiting; the next request binds again. */
+  /**
+   * The engine process died or never bound. A pending update counts as restarting: its request may have written the
+   * refresh flag, and the init in the new process reads it. That init is not an update request, so a process that dies
+   * again only fails what is waiting. Anything else fails, and the next request binds again.
+   */
   private fun lost() {
     service = null
     binding = false
     queued.clear()
-    val waiting = pending.keys.toList()
-    for (id in waiting) pending.remove(id)?.reject("ERR_ICD11_PROCESS", "engine process stopped", null)
+    val update = pending.keys.firstOrNull { it in updateIds }?.let { pending.remove(it) }
+    if (update != null) return restartForUpdate(update)
+    rejectPending()
+  }
+
+  /** Fails every request still waiting on an engine process that is going away. */
+  private fun rejectPending() {
+    updateIds.clear()
+    for (id in pending.keys.toList()) pending.remove(id)?.reject("ERR_ICD11_PROCESS", "engine process stopped", null)
+  }
+
+  /** A request that could not be delivered fails alone; a refresh request that never ran drops its flag. */
+  private fun failRequest(id: Int) {
+    val promise = pending.remove(id) ?: return
+    if (updateIds.remove(id)) dropRefresh()
+    promise.reject("ERR_ICD11_PROCESS", "engine process stopped", null)
+  }
+
+  /** A failed update must not leave its refresh flag for an unrelated later init to act on. */
+  private fun dropRefresh() {
+    appContext.reactContext?.let { EngineData.takeRefresh(it) }
   }
 
   private fun send(op: Int, input: String, promise: Promise) {
     val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
     val id = nextId.getAndIncrement()
     pending[id] = promise
+    if (op == Icd11Service.OP_UPDATE) updateIds.add(id)
     val message = Message.obtain(null, op, id, 0).apply {
       replyTo = replies
       data = Bundle().apply { putString("input", input) }
@@ -101,7 +136,7 @@ class DigitvaIcd11Module : Module() {
         try {
           bound.send(message)
         } catch (_: Exception) {
-          pending.remove(id)?.reject("ERR_ICD11_PROCESS", "engine process stopped", null)
+          failRequest(id)
         }
         return@post
       }

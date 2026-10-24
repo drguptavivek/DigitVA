@@ -3,6 +3,7 @@ const {
   withAndroidManifest,
   withAppBuildGradle,
   withDangerousMod,
+  withGradleProperties,
   withSettingsGradle,
 } = require("@expo/config-plugins");
 
@@ -17,6 +18,9 @@ const MODULE_NAME = "digitva-icd11";
 const ENGINE_LIB = "libdigitva_icd11.so";
 const SETTINGS_MARKER = "// DigitVA Collect Plus: engine module is plus-only";
 const GRADLE_MARKER = "// DigitVA Collect Plus: extracted native libraries";
+const JVM_ARGS_KEY = "org.gradle.jvmargs";
+// The engine's native build and its ~130 MB .so need more heap than the Gradle default; plain builds keep the default.
+const PLUS_JVM_ARGS = "-Xmx6144m -XX:MaxMetaspaceSize=512m";
 
 function plusBuildRequested(env = process.env) {
   return env.APP_VARIANT === "plus";
@@ -50,6 +54,15 @@ function patchPlusGradle(contents) {
   return `${contents.trimEnd()}\n${PLUS_GRADLE_BLOCK}`;
 }
 
+/** Plus only: sets org.gradle.jvmargs, replacing an existing entry in place and appending one otherwise. */
+function patchPlusGradleProperties(properties) {
+  if (!Array.isArray(properties)) throw new Error("Android gradle.properties contents must be an array");
+  const entry = { type: "property", key: JVM_ARGS_KEY, value: PLUS_JVM_ARGS };
+  const index = properties.findIndex((item) => item.type === "property" && item.key === JVM_ARGS_KEY);
+  if (index === -1) return [...properties, entry];
+  return properties.map((item, i) => (i === index ? entry : item));
+}
+
 /** Plain build: keep the plus-only module out of Expo autolinking. */
 function patchPlainSettings(contents) {
   if (typeof contents !== "string") throw new Error("Android settings.gradle contents must be a string");
@@ -73,6 +86,10 @@ module.exports = function withAndroidCollectPlus(config) {
     addProfileable(application);
     return config;
   });
+  config = withGradleProperties(config, (config) => {
+    config.modResults = patchPlusGradleProperties(config.modResults);
+    return config;
+  });
   config = withAppBuildGradle(config, (config) => {
     if (config.modResults.language !== "groovy") {
       throw new Error("withAndroidCollectPlus requires an app/build.gradle Groovy template");
@@ -93,6 +110,7 @@ module.exports = function withAndroidCollectPlus(config) {
 
 module.exports.plusBuildRequested = plusBuildRequested;
 module.exports.patchPlusGradle = patchPlusGradle;
+module.exports.patchPlusGradleProperties = patchPlusGradleProperties;
 module.exports.patchPlainSettings = patchPlainSettings;
 module.exports.addProfileable = addProfileable;
 module.exports.MODULE_NAME = MODULE_NAME;

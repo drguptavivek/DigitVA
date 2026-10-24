@@ -62,7 +62,7 @@ internal object EngineData {
     partial.mkdirs()
     val total = countAssets(context, ASSET_ROOT)
     var done = 0
-    copyDir(context, ASSET_ROOT, partial) {
+    copyDir(context, ASSET_ROOT, partial, partial) {
       done++
       if (total > 0) onPercent(done * 100 / total)
     }
@@ -77,17 +77,23 @@ internal object EngineData {
     root(context).deleteRecursively()
   }
 
-  /** The setup record, or null on a fresh install, after a data reset, or when the record cannot be read. */
-  fun setupRecord(context: Context): JSONObject? =
-    try {
-      JSONObject(setupFile(context).readText())
+  /**
+   * The setup record, or null only on a fresh install or after a data reset. A record that exists but cannot be read is
+   * an interrupted setup ("attempt"), so the next init starts from shipped copies and never fetches as a first setup.
+   */
+  fun setupRecord(context: Context): JSONObject? {
+    val file = setupFile(context)
+    if (!file.exists()) return null
+    return try {
+      JSONObject(file.readText())
     } catch (_: Exception) {
-      null
+      JSONObject().put("state", "attempt")
     }
+  }
 
   /** Written before a setup or fetch runs: if the process dies in there, the record still says "attempt". */
   fun markAttempt(context: Context) {
-    setupFile(context).writeText(JSONObject().put("state", "attempt").toString())
+    writeAtomic(setupFile(context), JSONObject().put("state", "attempt").toString())
   }
 
   /**
@@ -96,7 +102,7 @@ internal object EngineData {
    */
   fun writeRecord(context: Context, accepted: Map<String, WhoFile>) {
     val state = if (accepted.isEmpty()) "shipped" else "downloaded"
-    setupFile(context).writeText(JSONObject().put("state", state).put("files", toJson(accepted)).toString())
+    writeAtomic(setupFile(context), JSONObject().put("state", state).put("files", toJson(accepted)).toString())
   }
 
   /** The downloads the record accepts, or none. An "attempt" record accepts nothing. */
@@ -127,7 +133,7 @@ internal object EngineData {
       repaired.add(path)
       kept.remove(path)
       if (shipped.containsKey(path)) {
-        copyAsset(context, "$ASSET_ROOT/$path.bin", file)
+        copyAsset(context, "$ASSET_ROOT/$path.bin", file, root)
       } else {
         file.delete()
       }
@@ -200,27 +206,53 @@ internal object EngineData {
     }
   }
 
+  /** Writes [text] to a ".tmp" sibling and renames it over [file], so a killed write never leaves half a file. */
+  private fun writeAtomic(file: File, text: String) {
+    val tmp = File(file.parentFile, "${file.name}.tmp")
+    tmp.writeText(text)
+    if (!tmp.renameTo(file)) {
+      tmp.delete()
+      throw IOException("engine data rename failed")
+    }
+  }
+
   private fun countAssets(context: Context, assetDir: String): Int =
     (context.assets.list(assetDir) ?: emptyArray()).sumOf { name ->
       if (name.endsWith(".bin")) 1 else countAssets(context, "$assetDir/$name")
     }
 
-  private fun copyDir(context: Context, assetDir: String, target: File, onFile: () -> Unit) {
+  /** Copies the assets under [assetDir] into [target]; [engineDir] is the data dir that [target] belongs to. */
+  private fun copyDir(context: Context, assetDir: String, target: File, engineDir: File, onFile: () -> Unit) {
     val names = context.assets.list(assetDir) ?: emptyArray()
     for (name in names) {
       val assetPath = "$assetDir/$name"
       if (name.endsWith(".bin")) {
-        copyAsset(context, assetPath, File(target, name.removeSuffix(".bin")))
+        copyAsset(context, assetPath, File(target, name.removeSuffix(".bin")), engineDir)
         onFile()
       } else {
         File(target, name).mkdirs()
-        copyDir(context, assetPath, File(target, name), onFile)
+        copyDir(context, assetPath, File(target, name), engineDir, onFile)
       }
     }
   }
 
-  private fun copyAsset(context: Context, assetPath: String, out: File) {
+  /**
+   * Writes one asset to [out] through a ".tmp" file that is renamed into place. A directory in the way is removed only
+   * when it lies inside [engineDir] (our own data); anywhere else it is an error, so a bad path never deletes elsewhere.
+   */
+  private fun copyAsset(context: Context, assetPath: String, out: File, engineDir: File) {
+    if (out.isDirectory) {
+      if (!out.canonicalPath.startsWith(engineDir.canonicalPath + File.separator)) {
+        throw IOException("engine data path is a directory outside the engine data")
+      }
+      out.deleteRecursively()
+    }
     out.parentFile?.mkdirs()
-    context.assets.open(assetPath).use { input -> out.outputStream().use { input.copyTo(it, 1 shl 20) } }
+    val tmp = File(out.parentFile, "${out.name}.tmp")
+    context.assets.open(assetPath).use { input -> tmp.outputStream().use { input.copyTo(it, 1 shl 20) } }
+    if (!tmp.renameTo(out)) {
+      tmp.delete()
+      throw IOException("engine data rename failed")
+    }
   }
 }

@@ -289,6 +289,16 @@ They are NOT replaced by `@role_required()`.
 - The Expo web client warns at 28 minutes ("You will be signed out in 2
   minutes because of inactivity", with "Stay signed in", which counts as
   activity) and signs out at 30; see `docs/policy/expo-client.md`.
+- **Absolute cap** (owner decision 2026-10-24; `digitva-vq05`): a cookie
+  session also ends `SESSION_ABSOLUTE_LIFETIME` (12 hours, `config.py`) after
+  sign-in, however active. `signed_in_at` (UTC epoch seconds) is set only by
+  `_complete_login`; re-authentication refreshes `auth_verified_at` but never
+  this stamp. Past the cap the request is refused like an idle one (`logout_user()`,
+  session cleared) with `401 {"code": "session_expired"}` on API/JSON/HTMX or a
+  redirect to sign-in with `reason=expired` ("Your session ended after 12
+  hours. Please sign in again.") on pages. A session without the stamp is
+  stamped on its next request (no mass sign-out on deploy). Bearer requests
+  are untouched.
 - **No "Remember me".** The sign-in form has no such checkbox, nothing calls
   `login_user(remember=True)`, and a remember cookie from before this rule is
   never honoured: the request is anonymous and the cookie is cleared.

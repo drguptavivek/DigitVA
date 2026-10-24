@@ -77,7 +77,10 @@ section 5. In the web client:
   `localStorage`, `clearWebRecall()`; `digitva-3rec`) and leaves.
 - Any `401` with code `session_idle` goes to the sign-in page with "Signed
   out after 30 minutes of inactivity".
-- The phone app (bearer token) has no idle sign-out.
+- Any `401` with code `session_expired` (the 12-hour cap from sign-in,
+  `digitva-vq05`) goes to the sign-in page with `reason=expired`: "Your
+  session ended after 12 hours. Please sign in again."
+- The phone app (bearer token) has no idle sign-out and no 12-hour cap.
 
 ## Role home and login landing
 

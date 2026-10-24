@@ -33,7 +33,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.services import mobile_sign_in_service, public_demo_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
-from app.utils.idle_session import IDLE_MESSAGE, stamp_activity
+from app.utils.idle_session import EXPIRED_MESSAGE, IDLE_MESSAGE, stamp_activity, stamp_signed_in
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services import user_account_service as accounts
 from app.services.user_account_service import canonical_mobile
@@ -207,6 +207,7 @@ def _complete_login(user, *, nudge_if_no_passkey: bool, method: str) -> None:
     session.permanent = True
     login_user(user)
     stamp_activity()
+    stamp_signed_in()
     session["auth_verified_at"] = datetime.now(timezone.utc).isoformat()
     if nudge_if_no_passkey and not has_passkey:
         session["passkey_nudge"] = True
@@ -251,6 +252,8 @@ def va_login():
     if request.method == "GET" and request.args.get("reason") == "idle":
         # The Expo client lands here after its own idle sign-out.
         flash(IDLE_MESSAGE, "warning")
+    elif request.method == "GET" and request.args.get("reason") == "expired":
+        flash(EXPIRED_MESSAGE, "warning")
     maintenance_notice = None
     if should_block_non_admin_after_cutoff():
         maintenance = get_active_site_maintenance()

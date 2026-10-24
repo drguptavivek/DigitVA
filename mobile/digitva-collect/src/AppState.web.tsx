@@ -417,7 +417,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // Idle sign-out (docs/policy/expo-client.md): the page reaches the sign-in page with a reason the Flask
   // login page shows. The logout POST is best effort: the server may already have ended the session.
-  const goToSignIn = useCallback((signOutFirst: boolean) => {
+  const goToSignIn = useCallback((signOutFirst: boolean, reason = "idle") => {
     if (loggingOut.current) return;
     void (async () => {
       if (signOutFirst) await flushBeforeSignOut();
@@ -435,15 +435,20 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         }
       }
       const login = bootstrap?.links.login ?? "/vaauth/valogin?next=%2Fapp%2F";
-      window.location.assign(`${login}${login.includes("?") ? "&" : "?"}reason=idle`);
+      window.location.assign(`${login}${login.includes("?") ? "&" : "?"}reason=${reason}`);
     })();
   }, [bootstrap, flushBeforeSignOut]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const idle = () => goToSignIn(false);
+    const expired = () => goToSignIn(false, "expired");
     window.addEventListener("digitva-session-idle", idle);
-    return () => window.removeEventListener("digitva-session-idle", idle);
+    window.addEventListener("digitva-session-expired", expired);
+    return () => {
+      window.removeEventListener("digitva-session-idle", idle);
+      window.removeEventListener("digitva-session-expired", expired);
+    };
   }, [goToSignIn]);
 
   const idleWarning = useIdleSignOut(

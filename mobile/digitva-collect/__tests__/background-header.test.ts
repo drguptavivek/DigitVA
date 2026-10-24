@@ -30,4 +30,12 @@ describe("X-DigitVA-Background", () => {
     await expect(requestClientJson("/api/v1/intake/cases")).rejects.toMatchObject({ status: 401 });
     expect(dispatch.mock.calls[0][0].type).toBe("digitva-session-idle");
   });
+
+  it("a session_expired refusal raises digitva-session-expired", async () => {
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(response({ code: "session_expired" }, 401));
+    const dispatch = jest.fn();
+    Object.defineProperty(window, "dispatchEvent", { configurable: true, value: dispatch });
+    await expect(requestClientJson("/api/v1/intake/cases")).rejects.toMatchObject({ status: 401 });
+    expect(dispatch.mock.calls[0][0].type).toBe("digitva-session-expired");
+  });
 });

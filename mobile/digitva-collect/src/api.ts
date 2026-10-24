@@ -722,6 +722,10 @@ export async function runAsBackground<T>(task: () => Promise<T>): Promise<T> {
 
 /** The server signed the session out for inactivity; the app goes to the sign-in page. */
 function signalSessionIdle(code: string | undefined, cookie: boolean): void {
+  if (cookie && code === "session_expired" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new Event("digitva-session-expired"));
+    return;
+  }
   if (code !== "session_idle" || !cookie) return;
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
     window.dispatchEvent(new Event("digitva-session-idle"));

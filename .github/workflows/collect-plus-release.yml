@@ -25,7 +25,7 @@ env:
   ICD11_ENGINE_TAG: icd11-engine-v2026.10.25.1
   # sha256 of icd11-engine-<version>.tar.gz, printed by scripts/publish-icd11-engine.sh after the owner publishes the
   # engine release. Until it is set, the build fails at once (the placeholder is not a sha256).
-  ICD11_ENGINE_SHA256: REPLACE_WITH_ENGINE_SHA256
+  ICD11_ENGINE_SHA256: 975887076aabe5c126475b886e97ff8388699084a9ca53d426e09e3abd2ac0a3
 
 jobs:
   build:

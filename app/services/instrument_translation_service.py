@@ -142,7 +142,7 @@ LIFECYCLE_STATES = (LIFECYCLE_DRAFT, LIFECYCLE_IN_REVIEW, LIFECYCLE_APPROVED)
 MAX_STRING_PAGE_SIZE = 200
 # Query values accepted by the translation question list.
 _MISSING_FILTERS = frozenset(
-    {"all", "missing_labels", "missing_options", "missing_notes", "any_missing"}
+    {"all", "missing_labels", "missing_options", "missing_notes", "any_missing", "machine_drafts"}
 )
 # The longest reference string is a ~6,400-character guidance note and
 # Devanagari runs longer than English, so this bounds an edit without
@@ -1577,6 +1577,18 @@ def _question_missing_counts(row: dict) -> dict[str, int]:
     return {"labels": labels, "options": options, "notes": notes}
 
 
+def _question_row_has_machine_draft(row: dict) -> bool:
+    """True when the label, a choice or a note of the row is a machine draft awaiting review."""
+    if row.get("source") == SOURCE_MACHINE:
+        return True
+    if any(choice.get("source") == SOURCE_MACHINE for choice in row.get("choices", [])):
+        return True
+    return any(
+        (note := row.get(key)) and note.get("source") == SOURCE_MACHINE
+        for key in ("hint", "guidance", "constraint_message")
+    )
+
+
 def _question_row_has_extension(row: dict, extension: str) -> bool:
     """Match an extension using row or nested-option provenance."""
     if extension == "base":
@@ -1711,7 +1723,9 @@ def list_questions(
 
     for row in rows:
         row["missing_counts"] = _question_missing_counts(row)
-    if missing != "all":
+    if missing == "machine_drafts":
+        rows = [row for row in rows if _question_row_has_machine_draft(row)]
+    elif missing != "all":
         category = {
             "missing_labels": "labels",
             "missing_options": "options",

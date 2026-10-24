@@ -3,15 +3,21 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 APK EXPECTED_CERT_SHA256 EXPECTED_API_BASE_URL EXPECTED_VERSION_CODE" >&2
+  echo "usage: $0 APK EXPECTED_CERT_SHA256 EXPECTED_API_BASE_URL EXPECTED_VERSION_CODE [EXPECTED_PACKAGE]" >&2
   exit 2
 }
 
-[[ $# -eq 4 ]] || usage
+[[ $# -eq 4 || $# -eq 5 ]] || usage
 apk=$1
 expected_cert=$2
 expected_api=$3
 expected_version_code=$4
+# Collect Plus has its own package id (com.causeofdeathindia.digitvacollect.plus); the release app is the default.
+expected_package=${5:-com.causeofdeathindia.digitvacollect}
+[[ "$expected_package" =~ ^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$ ]] || {
+  echo "expected package must be an Android package id" >&2
+  exit 1
+}
 
 [[ -s "$apk" ]] || { echo "APK does not exist or is empty: $apk" >&2; exit 1; }
 [[ "$expected_api" == https://* ]] || {
@@ -70,11 +76,13 @@ badging=$("$aapt" dump badging "$apk")
 package_name=$(sed -n "s/^package: name='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
 version_code=$(sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
 app_label=$(sed -n "s/^application-label:'\([^']*\)'.*/\1/p" <<<"$badging" | head -n 1)
-[[ "$package_name" == com.causeofdeathindia.digitvacollect ]] || {
+[[ "$package_name" == "$expected_package" ]] || {
   echo "unexpected Android package: ${package_name:-missing}" >&2
   exit 1
 }
-[[ "$app_label" == "DigitVA" ]] || {
+expected_label="DigitVA"
+[[ "$expected_package" == *.plus ]] && expected_label="DigitVA Collect Plus"
+[[ "$app_label" == "$expected_label" ]] || {
   echo "unexpected Android application label: ${app_label:-missing}" >&2
   exit 1
 }

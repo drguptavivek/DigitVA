@@ -23,12 +23,54 @@ tasks.register('verifyEngineStaged') {
 }
 preBuild.dependsOn 'verifyEngineStaged'
 
+// The engine's .NET runtime dlopens libssl by name (libssl.so.3, .1.1, .1.0.2 ..., then libssl.so) and aborts when
+// none loads, and Android exposes no system OpenSSL to apps. The OpenSSL prebuilt that expo-sqlite already depends on
+// (io.github.ronickg:openssl, OpenSSL 3.3.2, Apache-2.0; prefab AAR, pulled at build time, not vendored) supplies the
+// matching libssl.so. Its libcrypto.so is not copied here: expo-sqlite packages the same artifact's libcrypto.so under
+// the same name, and libssl.so loads that one. Google's NDK OpenSSL AAR (only 1.1.1q is published) was rejected: its
+// libssl needs a libcrypto.so 1.1 ABI, which cannot sit beside expo-sqlite's 3.3.2 libcrypto in one APK.
+// The AAR has no jni/ folder, only prefab libs, so the arm64 libssl.so is copied out of it into a build dir.
+def opensslVersion = '3.3.2-1'
+// expo-sqlite packages its own libcrypto.so from the same artifact when SQLCipher is on (app.json useSQLCipher), and
+// libssl.so here must load beside it. Two OpenSSL builds in one process would fail in ways that look like engine bugs,
+// so the build fails here, with the fix named, when the versions differ. With SQLCipher off expo-sqlite ships no
+// libcrypto.so, loadOpenSsl() fails, and every init skips the WHO fetches (EngineHost).
+def sqliteGradle = rootProject.file('../node_modules/expo-sqlite/android/build.gradle')
+def sqliteMatch = sqliteGradle.exists() ? (sqliteGradle.text =~ /io\.github\.ronickg:openssl:([^'"\s]+)/) : null
+def sqliteOpenSsl = sqliteMatch != null && sqliteMatch.find() ? sqliteMatch.group(1) : null
+if (sqliteOpenSsl != opensslVersion) {
+  throw new GradleException(
+    "Collect Plus: io.github.ronickg:openssl is ${opensslVersion} here but expo-sqlite pins " +
+    "${sqliteOpenSsl ?: 'no version (expo-sqlite/android/build.gradle is missing; run npm ci)'}. " +
+    'Set opensslVersion in modules/digitva-icd11/android/build.gradle to the expo-sqlite version.')
+}
+configurations {
+  opensslAar
+}
+dependencies {
+  opensslAar "io.github.ronickg:openssl:${opensslVersion}@aar"
+}
+def opensslLibsDir = layout.buildDirectory.dir('openssl-jnilibs/arm64-v8a')
+tasks.register('extractOpenSsl', Copy) {
+  from { configurations.opensslAar.collect { zipTree(it) } }
+  include 'prefab/modules/ssl/libs/android.arm64-v8a/libssl.so'
+  includeEmptyDirs = false
+  eachFile { details -> details.relativePath = new RelativePath(true, details.name) }
+  into opensslLibsDir
+}
+preBuild.dependsOn 'extractOpenSsl'
+
 android {
   namespace "expo.modules.digitvaicd11"
   defaultConfig {
     versionCode 1
     versionName '0.1.0'
     ndk { abiFilters 'arm64-v8a' }
+  }
+  sourceSets {
+    main {
+      jniLibs.srcDir(layout.buildDirectory.dir('openssl-jnilibs').get().asFile)
+    }
   }
   externalNativeBuild {
     cmake {

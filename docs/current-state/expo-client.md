@@ -423,15 +423,59 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   serializes calls); init runs once per that process and a failed init is sticky
   until it restarts. Engine error payloads are never logged or returned.
 - Engine network calls (found by running the host build with a logging proxy and
-  an HTTP event trace): at every start the WHO loaders try to download files that
+  an HTTP event trace): at start-up the WHO loaders try to download files that
   already ship in the app, over HTTPS: `icdcdn.who.int` `languageresources/codingtool/languageResources.txt`
-  (twice), `icd11files.blob.core.windows.net` `doris/DORIS_v2.1_1.2.0.zip` (and the
-  index `released-index-files/...pbf.zip` path). They only refresh or fetch missing
-  data; offline they fail and the local files are used. The engine has no setting
-  that turns this off (no key in its configuration). With INTERNET granted the call
-  would load OpenSSL, unreachable from an app, and the .NET runtime aborts the
-  process, so `EngineHost` points `http(s)_proxy` at a dead local port: each
-  attempt fails at once, before any TLS. No telemetry or licence call was seen.
+  (twice), `icd11files.blob.core.windows.net` `doris/DORIS_v2.1_1.2.0.zip` and the
+  index `released-index-files/...pbf.zip`. The engine has no setting that turns
+  this off, and without OpenSSL its .NET runtime aborts the process. No telemetry
+  or licence call was seen.
+- **Download rule.** `EngineHost` lets an init fetch only online, with OpenSSL
+  loaded, and only for one of three reasons: (a) the first setup after an install
+  or data reset (no setup record); (b) a WHO file is missing or the wrong size at
+  start-up (`EngineData.repair` restores the shipped copy first, then the fetch
+  runs); (c) the user asks for it: "Update WHO files" (the Offline engine check
+  screen, Settings > Collect Plus, or `digitvacollectplus://engine-check?update=1`).
+  Every other init blocks the network: `http(s)_proxy` point at a dead local port,
+  so each attempt fails before any TLS and the engine uses the local files. A
+  fetching init has a 50 s budget (`SETUP_BUDGET_MS`); past it the process ends.
+  A failed fetch ends the process too, and the next init starts from shipped
+  copies.
+- **OpenSSL.** `io.github.ronickg:openssl:3.3.2-1` (OpenSSL 3.3.2, Apache-2.0),
+  a prefab AAR that expo-sqlite already pulls in transitively. `build.gradle`
+  copies its arm64 `libssl.so` into the build; `libcrypto.so` is the copy
+  expo-sqlite packages from the same artifact. Nothing is vendored; the AAR is
+  fetched at build time. Google's NDK OpenSSL AAR was rejected: only 1.1.1q is
+  published, and its libcrypto cannot sit beside expo-sqlite's 3.3.2 one.
+- **WHO-supplied files.** `bundle/Data/languageResources.txt`, the release
+  `data/icd11_..._en.pbf.gz`, the index `data/ix_..._v5.7.pbf.zip` and the DORIS
+  rule files in `data/DORIS_v2.1_1.2.0/` (AddCodes, AgeRelated, MainSteps,
+  OtherConditionMappings, Rules, ValueSets, info). They are the shipped files
+  listed with size and sha256 in the APK's `digitva-icd11/who-files.json`, written
+  by `stage-engine.js` from the staged copies. DORIS's own zip ships nowhere; it
+  is tracked only once a fetch stores it. Engine-built files (unzipped `.pbf`,
+  `.annex`, `.annexu`, DORIS `log.txt`, `ixconf`) are never tracked or reported.
+- **Setup record** `filesDir/icd11-<DATA_VERSION>.setup.json`: `state` is
+  `attempt` (a setup or fetch started and did not finish; the next init discards
+  the data and starts from shipped copies), `downloaded` or `shipped`; `files`
+  lists the WHO files that differ from the shipped copies (size, sha256). After a
+  fetch the WHO files on disk are hashed (about 0.13 s for the 48 MB set on a Mac;
+  slower on the phone) and compared with what was expected. The init reports
+  "downloaded N files: ..." only when this run changed a WHO file, and otherwise
+  "shipped copies (no newer WHO files)".
+- **Integrity.** Each init size-checks every WHO file (cheap; it catches missing
+  and truncated files). A missing or wrong-size file gets its shipped copy back,
+  or is removed when only a download could supply it. sha256 is not checked on
+  ordinary starts: it would cost time on every start for little gain, since the
+  copies are ours and a fetch hashes what it stores. A same-size corruption is
+  therefore not caught until the next fetch, which "Update WHO files" triggers.
+- **Worker priorities** (`Icd11Service`, one thread): interactive calls (0),
+  first setup, init and the WHO update (1), housekeeping (2, reserved). A call
+  that arrives during an init waits for it. "Update WHO files" is a priority-1 job,
+  so it runs after the calls queued before it. Offline it answers
+  `no_connection` and keeps the engine. Online it writes a refresh flag, replies
+  "restarting" and ends `:icd11`. The app then unbinds, rebinds and runs an init
+  in the new process, and that init settles the update's promise. Calls made while
+  it runs wait for it (`offlineEngine.updateWhoFiles()`, `inflight`).
 - Start-up (SM-E146B, warm data, from `init-timings.txt` written by the bridge):
   the work is CPU bound (about 21 s user, 1.4 s system) and is not an index
   rebuild: the unzipped index and `.annexu` already on disk are not rewritten on a
@@ -458,28 +502,52 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   Hosting the engine in the main process also works now (init 17.4 and 17.7 s in
   two runs; one run returned a native error that was not diagnosed): steady PSS
   666 MB, peak 948 MB in the UI process, so `:icd11` stays the default.
-- `src/offlineEngine.ts`: `available / init / search / codeinfo / doris / codedit`,
-  each with timings; "unavailable" on web and in the plain build. Concurrent
-  `init()` calls share one request; `warmUpOfflineEngine` and
-  `scheduleEngineWarmUp` start it in the background.
+- `src/offlineEngine.ts`: `available / init / updateWhoFiles / search / codeinfo /
+  doris / codedit`, each with timings; "unavailable" on web and in the plain
+  build. Concurrent `init()` calls share one request; `warmUpOfflineEngine` and
+  `scheduleEngineWarmUp` start it in the background. `updateWhoFiles()` takes the
+  same in-flight slot, so calls made meanwhile wait for it.
 - `src/nativeRoutes/plusWorkspace.tsx`: Coding, Reviewing and Workspace routes
   render `QueueScreen` / `CaseWorkspaceScreen` (plain: `CodingOnWeb`).
 - Hidden check: Settings > Collect Plus > "Offline engine check", or
   `digitvacollectplus://engine-check?run=1` (`src/nativeRoutes/engineCheck.tsx`).
-- Build: `APP_VARIANT=plus npx expo prebuild --platform android --clean`, then
-  `cd android && ./gradlew assembleRelease`; install with `adb install -r`.
-  `npm run android:plus:release` does both steps; its `prebuild --clean` deletes and
-  regenerates the gitignored `android/` folder, so local edits there are lost.
+  The same screen has "Update WHO files" (Settings has a shortcut too); its
+  deep link is `digitvacollectplus://engine-check?update=1`. The result line says
+  what changed, "no newer WHO files", "No connection" or "Failed; kept the shipped
+  copies".
+- **Build: GitHub Actions only** (owner rule, 2026-10-25). No APK, Gradle or Expo
+  build runs on the developer Mac. `.github/workflows/collect-plus-release.yml`
+  (`workflow_dispatch`: `publish`, `tag` such as `collect-plus-v0.3.10-plus.1`)
+  runs the same steps the release does: vendor build, `npm ci`, typecheck, tests,
+  `APP_VARIANT=plus npx expo prebuild`, `./gradlew assembleRelease` for arm64 only,
+  `scripts/verify-android-release.sh` (with the Plus package id), then a sha256. The
+  publish job creates a public prerelease with the APK and its `.sha256`, signed with
+  the release key from the `android-release` environment (plus signs with the release
+  key only in this workflow; a local plus build keeps debug signing).
+- **Engine input.** The workflow does not read `private/`. It downloads the engine
+  release asset `icd11-engine-<version>.tar.gz` (`scripts/package-icd11-engine.sh`
+  packs it from the spike; `scripts/publish-icd11-engine.sh` publishes it, run by the
+  owner only), checks `ICD11_ENGINE_SHA256` pinned in the workflow, extracts it and
+  stages from that folder (`DIGITVA_ICD11_SPIKE_DIR`, same layout). The workflow stops
+  at once while the sha256 pin is the placeholder. The engine tag must equal
+  `scripts/icd11-engine.env`; a step checks it.
+- Gradle heap for plus: `org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=512m`
+  (`plugins/with-android-collect-plus.js`); the plain build keeps the default.
+- OpenSSL pairing: the module build fails when its `io.github.ronickg:openssl` version
+  differs from the one in `expo-sqlite/android/build.gradle`. With SQLCipher off
+  (`expo.sqlite.useSQLCipher`) expo-sqlite ships no `libcrypto.so`, so `loadOpenSsl()`
+  fails and every init skips the WHO fetches.
+- Local `npm run android:plus:*` scripts remain in `package.json` but are not run
+  under the owner rule; the Expo web bundle comes from `expo-web-release.yml`.
 
 ### Profiling
 
-- **Dev build** (`npm run android:plus:dev` in `mobile/digitva-collect`): a plus
-  debug build, prebuilt and staged from `private/` like the release. It is the
-  standard debug build (no `expo-dev-client`, which the app does not depend on):
-  start Metro with `npx expo start`, then `adb reverse tcp:8081 tcp:8081` so the
-  phone reaches it over USB. Use it with Hermes, React DevTools and Android Studio.
-- **Profileable release** (`npm run android:plus:release`): the plus config plugin
-  (`addProfileable` in `plugins/with-android-collect-plus.js`) adds
+- **Dev build**: a local plus debug build is not made on the developer Mac (owner
+  rule, 2026-10-25). Metro over USB (`npx expo start`, `adb reverse tcp:8081
+  tcp:8081`) needs an installed build, which comes from CI; use it with Hermes,
+  React DevTools and Android Studio once one is installed.
+- **Profileable release** (built by `collect-plus-release.yml`): the plus config
+  plugin (`addProfileable` in `plugins/with-android-collect-plus.js`) adds
   `<profileable android:shell="true"/>` to the merged manifest. The plain build
   gets no such tag. Use this build for representative numbers.
 - `scripts/android-profile.sh <package> <out_dir> [interval] [duration]`: samples

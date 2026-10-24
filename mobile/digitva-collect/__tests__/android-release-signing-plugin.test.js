@@ -1,5 +1,6 @@
 const {
   patchAndroidReleaseSigning,
+  releaseSigningRequested,
   validateReleaseSigningEnv,
 } = require("../plugins/with-android-release-signing");
 
@@ -54,6 +55,12 @@ describe("withAndroidReleaseSigning", () => {
     expect(() => validateReleaseSigningEnv({ ...releaseEnv, ANDROID_RELEASE_STORE_FILE: "key.jks" })).toThrow(
       "must be an absolute path"
     );
+  });
+
+  it("signs plus with the release key only in the release build, debug otherwise", () => {
+    expect(releaseSigningRequested({})).toBe(true);
+    expect(releaseSigningRequested({ APP_VARIANT: "plus" })).toBe(false);
+    expect(releaseSigningRequested({ APP_VARIANT: "plus", DIGITVA_ANDROID_RELEASE_BUILD: "1" })).toBe(true);
   });
 
   it("fails an unknown Gradle template instead of guessing", () => {

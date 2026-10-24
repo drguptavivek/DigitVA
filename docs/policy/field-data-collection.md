@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 ---
 
 # Field Data Collection Policy
@@ -634,10 +634,13 @@ case-workspace screens and carries the offline WHO ICD-11 / DORIS engine from th
 owner's private spike (`private/icd11-offline-spike`, never committed). It exists
 to profile coding on a phone (bead digitva-hs7e).
 
-- **adb or local install only.** It is never uploaded to `/download/android`,
-  never attached to a release, never pinned in `docker-compose.yml`, and never
-  handed to interviewers. The ICD-11 licence ruling (2026-10-21) is the reason it
-  stays off public downloads.
+- **Experimental, not for interviewers.** It is never uploaded to `/download/android`,
+  never pinned in `docker-compose.yml`, and never handed to interviewers. Since the
+  owner's decision of 2026-10-25 it may be published as a public GitHub prerelease
+  (`collect-plus-release.yml`, arm64 only) and its engine as a release asset
+  (`icd11-engine-<version>`); the ICD-11 licence ruling (2026-10-21) and its
+  obligations are in `docs/policy/icd11-local-api-runtime.md`. Builds run only on
+  GitHub Actions.
 - It installs beside the plain app and shares nothing with it: another package,
   another encrypted store, another URL scheme (`digitvacollectplus`).
 - The plain build is unchanged: it has no engine, no engine assets and no module

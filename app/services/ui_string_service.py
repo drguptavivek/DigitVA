@@ -85,11 +85,16 @@ def _read_bundle(path: Path) -> dict:
     return data
 
 
+_LOCALE_FILE = re.compile(r"^[a-z]{2,3}$")
+
+
 def _shipped_codes() -> set[str]:
     folder = _ui_dir()
     if not folder.is_dir():
         return set()
-    return {p.stem for p in folder.glob("*.json")}
+    # Only real locale files: a macOS-built export can carry AppleDouble
+    # "._hi.json" metadata files, which are not JSON.
+    return {p.stem for p in folder.glob("*.json") if _LOCALE_FILE.match(p.stem)}
 
 
 def locales() -> list[str]:

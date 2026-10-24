@@ -34,6 +34,15 @@ class UiStringServiceTests(BaseTestCase):
     def test_locales_lists_shipped_files_except_en(self):
         self.assertEqual(svc.locales(), ["hi"])
 
+    def test_macos_metadata_files_are_not_locales(self):
+        # A macOS-built tarball carries AppleDouble "._hi.json" files (binary, not JSON).
+        folder = Path(self.root) / "ui-strings"
+        (folder / "._hi.json").write_bytes(b"\x00\x05\x16\x07\xa3 not json")
+        (folder / "._en.json").write_bytes(b"\x00\x05\x16\x07\xa3 not json")
+        self.assertEqual(svc.locales(), ["hi"])
+        self.assertNotIn("._hi", svc.reviewable_locales())
+        self.assertEqual(svc._bundle("hi")["navCoding"], "कोडिंग")
+
     def test_no_export_means_no_locales(self):
         self.app.config["EXPO_CLIENT_DIST"] = os.path.join(self.root, "absent")
         self.assertEqual(svc.locales(), [])

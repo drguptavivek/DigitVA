@@ -2696,14 +2696,15 @@ def _my_positions(project_id: str, grants: list, site_names: dict) -> dict:
     }
 
 
-def my_organization(user, *, project_ids=None) -> dict:
+def my_organization(user, *, project_ids=None, people=True) -> dict:
     """The My organization page's data: every project the user holds a live
     grant in, with ``has_tree`` and ``my_positions`` (their own roles). The
     tree lists (``my_units``, ``above``, ``my_level``, ``below``) are filled for
     org-tree projects and empty for sites-mode projects.
 
     *user* may be another person (the Users page): *project_ids* then limits the
-    projects to the viewer's own.
+    projects to the viewer's own, and ``people=False`` empties every people list
+    and count, so the reply names no other worker.
     """
     grants_by_project, resolved = _granted(user)
     if project_ids is not None:
@@ -2729,7 +2730,7 @@ def my_organization(user, *, project_ids=None) -> dict:
                   "my_units": [], "above": [], "my_level": [], "below": []}
         )
         block["has_tree"] = has_tree
-        if getattr(user, "is_public_demo", False):
+        if not people or getattr(user, "is_public_demo", False):
             for unit in (*block["above"], *block["my_level"]):
                 unit["people"] = []
             for unit in block["below"]:

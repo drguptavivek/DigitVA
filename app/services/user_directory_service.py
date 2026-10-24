@@ -501,7 +501,7 @@ def user_placement(viewer, user_id: str) -> dict:
 
     scope = _Scope(viewer)
     user = _visible_user(scope, user_id)
-    return org.my_organization(user, project_ids=None if scope.is_admin else scope.project_ids)
+    return org.my_organization(user, project_ids=None if scope.is_admin else scope.project_ids, people=False)
 
 
 _STATUS_EVENTS = ("email_verified", "verification_email_sent", "password_generated", "terms_accepted")

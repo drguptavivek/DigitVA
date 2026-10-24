@@ -10,6 +10,7 @@ import uuid
 import sqlalchemy as sa
 
 from app import db, limiter
+from app.services import organization_service as org
 from tests.authz.fixture import SP, TA, AuthzFixtureMixin
 from tests.base import BaseTestCase
 from tests.routes.test_users_api import URL
@@ -57,6 +58,24 @@ class UsersPlacementTests(AuthzFixtureMixin, BaseTestCase):
         self.assertIn(TA, projects)
         self.assertEqual(set(projects), {TA, SP})
         self.assertEqual(projects[SP]["my_positions"]["project_roles"], ["collaborator"])
+
+    def test_no_other_worker_is_named(self):
+        unit = self.units["P1"]
+        cadre = next(c.cadre_id for c in org.list_cadres(TA)
+                     if org.get_level_cadre_permission(unit.org_level_id, c.cadre_id) is not None)
+        org.create_worker(TA, org_unit_id=unit.org_unit_id, cadre_id=cadre,
+                          worker_name="Zed Bystander", worker_code="ZBY01")
+        db.session.commit()
+        peer = self.users["reviewer_p1"].name  # also placed at P1, by a grant
+        for viewer in ("admin", "pi_ta"):
+            body = self._get(viewer, "coder_p1")
+            self.assertEqual([u["unit_name"] for u in body["projects"][0]["my_units"]], ["P1"])
+            raw = str(body)
+            self.assertNotIn("Zed Bystander", raw)
+            self.assertNotIn(peer, raw)
+            self.assertNotIn(self.users["coder_p1"].email, raw)
+            for key in ("above", "my_level"):
+                self.assertTrue(all(u["people"] == [] for u in body["projects"][0][key]))
 
     def test_query_count_is_bounded(self):
         self._login(str(self.users["admin"].user_id))

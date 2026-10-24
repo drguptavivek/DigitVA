@@ -698,7 +698,9 @@ same 404 rule as activity; it never carries a password, hash, token or code.
 listed user's place in each project's organization, in the shape of "My
 organization", to the same viewers and under the same 404 rule as status. It
 is limited to the projects the viewer holds a managing grant in: a data manager
-never sees the target's grants in other projects. An admin sees every project the user holds.
+never sees the target's grants in other projects. An admin sees every project the user holds. The reply is the target's own
+placement only: every people list is empty and no other worker is named, for
+every viewer including an admin.
 
 ### Users page admin tools: upload and grant grid (owner 2026-10-22, digitva-cgmc)
 

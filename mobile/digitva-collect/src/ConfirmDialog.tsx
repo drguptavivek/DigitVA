@@ -58,7 +58,8 @@ export function ConfirmDialog({
       <View style={s.backdrop}>
         <View
           accessibilityViewIsModal
-          accessibilityRole={"alertdialog" as never}
+          // "alertdialog" exists only on the web: Android throws on an unknown accessibilityRole and the app closes.
+          {...(Platform.OS === "web" ? { role: "alertdialog" as never } : { accessibilityRole: "alert" as const })}
           accessibilityLabel={title}
           style={[s.dialog, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >

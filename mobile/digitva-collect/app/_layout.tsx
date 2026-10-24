@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
+import { isPlusVariant } from "../src/appVariant";
 import { applyScreenCaptureBlock } from "../src/screenCapture";
 import { useTheme } from "../src/theme";
 import { useWhoWebTheme } from "../src/whoWebTheme";
@@ -66,6 +67,11 @@ export default function RootLayout() {
   useWhoWebTheme();
   useEffect(() => {
     applyScreenCaptureBlock();
+  }, []);
+  // Collect Plus: load the offline engine in the background (its own process) while the coder signs in and browses.
+  useEffect(() => {
+    if (Platform.OS !== "android" || !isPlusVariant()) return undefined;
+    return (require("../src/offlineEngine") as typeof import("../src/offlineEngine")).scheduleEngineWarmUp();
   }, []);
   return (
     <SafeAreaProvider>

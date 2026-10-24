@@ -30,9 +30,12 @@ internal class EngineHost(private val context: Context) {
       val data = File(root, "data")
       // The engine's .NET runtime reads TMPDIR from the C environment.
       Os.setenv("TMPDIR", data.path + "/", true)
-      // The engine makes a background HTTPS call during start-up (not needed offline). With INTERNET granted it
-      // loads OpenSSL, which an app cannot reach (nothing public on Android), and the .NET runtime aborts the
-      // process ("No usable version of libssl"). A dead proxy makes the call fail before any TLS is set up.
+      // At start-up the engine's DORIS and language-resource loaders try to download WHO files that are already
+      // shipped (icdcdn.who.int languageResources.txt twice, icd11files.blob.core.windows.net DORIS and index zips);
+      // the engine has no setting to switch that off. With INTERNET granted the call loads OpenSSL, which an app
+      // cannot reach (nothing public on Android), and the .NET runtime aborts the process ("No usable version of
+      // libssl"). A dead proxy makes each attempt fail at once, before any TLS is set up, and the engine falls back
+      // to the local files.
       for (name in listOf("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY")) Os.setenv(name, "http://127.0.0.1:9", true)
       val lib = File(context.applicationInfo.nativeLibraryDir, "libdigitva_icd11.so")
       if (!lib.exists() || EngineJni.load(lib.path) != 0) {
@@ -46,7 +49,7 @@ internal class EngineHost(private val context: Context) {
           EngineData.discard(context)
           fail("init_failed", copyMs, initMs, millis(start))
         } else {
-          mapOf("ok" to true, "copyMs" to copyMs, "initMs" to initMs, "ms" to millis(start), "cached" to false)
+          mapOf("ok" to true, "copyMs" to copyMs, "initMs" to initMs, "ms" to millis(start), "cached" to false, "phases" to phases(root))
         }
       }
     } catch (error: Exception) {
@@ -56,6 +59,19 @@ internal class EngineHost(private val context: Context) {
     }
     initResult = result
     return result
+  }
+
+  /**
+   * Phase end times inside the engine's init ("config=3900 doris=12500 index=17900 ready=17901", ms since init start),
+   * written by the bridge. Numbers and fixed labels only; empty if the file is missing or not in that shape.
+   */
+  private fun phases(root: File): String {
+    val text = try {
+      File(root, "init-timings.txt").readText().trim()
+    } catch (_: Exception) {
+      ""
+    }
+    return if (PHASES_FORMAT.matches(text)) text else ""
   }
 
   fun call(op: String, input: String): Map<String, Any?> {
@@ -76,6 +92,7 @@ internal class EngineHost(private val context: Context) {
 
   private companion object {
     const val TAG = "DigitvaIcd11"
+    val PHASES_FORMAT = Regex("[a-z]+=[0-9]+( [a-z]+=[0-9]+)*")
     val OPS = mapOf(
       "search" to EngineJni.SEARCH,
       "codeinfo" to EngineJni.CODEINFO,

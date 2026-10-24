@@ -78,7 +78,7 @@ export async function runEngineCheck(engine: OfflineEngine, onStep: (step: Check
     name: "init",
     ok: init.ok,
     ms: init.ms,
-    note: init.ok ? `copy ${init.copyMs.toFixed(0)} ms, engine ${init.initMs.toFixed(0)} ms${init.cached ? " (already up)" : ""}` : init.error,
+    note: init.ok ? `copy ${init.copyMs.toFixed(0)} ms, engine ${init.initMs.toFixed(0)} ms${init.cached ? " (already up)" : ""}${init.phases ? ` [${init.phases}]` : ""}` : init.error,
   });
   if (!init.ok) return steps;
   push({ name: "search", ...summarize(await engine.search("myocardial infarction"), (data) => {

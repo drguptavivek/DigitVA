@@ -5863,7 +5863,7 @@
     },
     {
       "calculation": null,
-      "constraint": null,
+      "constraint": ". <= today() and if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})",
       "control": "date",
       "dataType": "date",
       "name": "Id10071",

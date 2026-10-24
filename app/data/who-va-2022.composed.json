@@ -27871,7 +27871,32 @@
     {
       "ageGroup": "ALL",
       "appearance": "no-calendar",
-      "constraintMessage": {},
+      "constraint": {
+        "source": ". <= today() and if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})"
+      },
+      "constraintMessage": {
+        "en": "Date of registration cannot be before the date of death."
+      },
+      "constraintReasons": [
+        {
+          "constraint": {
+            "source": ". <= today()"
+          },
+          "message": {
+            "en": "Date of registration cannot be in the future.",
+            "hi": "पंजीकरण की तारीख भविष्य में नहीं हो सकती।"
+          }
+        },
+        {
+          "constraint": {
+            "source": "if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})"
+          },
+          "message": {
+            "en": "Date of registration cannot be before the date of death.",
+            "hi": "पंजीकरण की तारीख मृत्यु की तारीख से पहले की नहीं हो सकती।"
+          }
+        }
+      ],
       "control": "date",
       "dataType": "date",
       "guidance": {
@@ -27895,7 +27920,12 @@
       "sourceRow": 488,
       "sourceType": "date",
       "validation": {
-        "constraintMessage": {},
+        "constraint": {
+          "source": ". <= today() and if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})"
+        },
+        "constraintMessage": {
+          "en": "Date of registration cannot be before the date of death."
+        },
         "dataType": "date",
         "required": true
       }
@@ -33947,5 +33977,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-09bfef9a99"
+  "version": "2026081401-0e105c1d52"
 }

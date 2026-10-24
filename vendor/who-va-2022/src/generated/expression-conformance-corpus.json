@@ -10026,6 +10026,92 @@
         },
         {
           "currentValue": "",
+          "data": {
+            "Id10022": "",
+            "Id10023": "",
+            "Id10024": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": "1915-01-01",
+          "data": {
+            "Id10022": "yes",
+            "Id10023": "hello world",
+            "Id10024": "1915-01-01"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": "2020-06-15",
+          "data": {
+            "Id10022": "no",
+            "Id10023": "0",
+            "Id10024": "2020-06-15"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": "2099-01-01",
+          "data": {
+            "Id10022": "not_a_real_choice",
+            "Id10023": "  ",
+            "Id10024": "2099-01-01"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10022": "yes",
+            "Id10023": "hello world",
+            "Id10024": "1915-01-01"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        },
+        {
+          "currentValue": "",
+          "data": {
+            "Id10022": "yes",
+            "Id10023": "0",
+            "Id10024": "2099-01-01"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": ". <= today() and if(selected(${Id10022}, 'yes'), string-length(${Id10023}) = 0 or . >= ${Id10023}, string-length(${Id10024}) = 0 or . >= ${Id10024})"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": "",
           "data": {},
           "error": null,
           "result": false,
@@ -22424,60 +22510,6 @@
       ],
       "parseError": null,
       "source": "selected(${sa12}, 'yes')"
-    },
-    {
-      "cases": [
-        {
-          "currentValue": null,
-          "data": {},
-          "error": null,
-          "result": true,
-          "resultIsNaN": false,
-          "scenario": "missing"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10476_audio": ""
-          },
-          "error": null,
-          "result": true,
-          "resultIsNaN": false,
-          "scenario": "candidate_0"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10476_audio": "hello world"
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_1"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10476_audio": "0"
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_2"
-        },
-        {
-          "currentValue": null,
-          "data": {
-            "Id10476_audio": "  "
-          },
-          "error": null,
-          "result": false,
-          "resultIsNaN": false,
-          "scenario": "candidate_3"
-        }
-      ],
-      "parseError": null,
-      "source": "string-length(${Id10476_audio})=0"
     }
   ],
   "now": "2024-06-15T09:00:00",

@@ -36,6 +36,12 @@ ND01 is the available ICMR workbook in this comparison; it must not be relabelle
 | `Id10308` pregnancy question | WHO requiredness | Required | DORIS A9; implemented browser behavior, proposal status remains `proposed` in the source block. |
 | `Id10340` hysterectomy | WHO relevance | Asked only after a recorded pregnancy event, excluding the specified short injury interval | DORIS A10; implemented browser behavior, proposal status remains `proposed`. Exact expression is defined once in `DORIS_ID10340_RELEVANT`. Server retains WHO’s broader relevance. |
 
+### Date of registration `Id10071` (owner decision 2026-10-24, `digitva-y5te`)
+
+Always-on core override in `vendor/who-va-2022/src/instrument.ts` (`withRegistrationDateChecks`), so the server composition (`whoOverrides: false`) carries it too. WHO has no constraint on this field. The registration date cannot be in the future and cannot be before the date of death: the day (`Id10023`) when `Id10022` is yes, else only the year (`Id10024`, stored `YYYY-01-01`), so a same-year registration is never rejected. With no death date only the future check applies. Messages (en/hi): "Date of registration cannot be before the date of death." / "Date of registration cannot be in the future."
+
+One constraint, two messages: the engine gained `constraintReasons` (question field; when `constraint` fails, the first reason whose own constraint fails supplies the message, else `constraintMessage`). The change alters the semantic signature, so the composed definition version moved from `2026081401-09bfef9a99` to `2026081401-0e105c1d52`. Drafts and submissions pinned to the older version keep it (the server's `_stored_rules(version)`, the phone's `translationsForDraft` pack fallback) and do not get the check. The server only records constraint disagreements (`derive_validation_errors`, `Id10071` / `constraint`); it never refuses a submission (digitva-cal.2).
+
 ### Defaults and prefill for new interviews (owner decision 2026-10-23)
 
 Always-on core overrides in `vendor/who-va-2022/src/instrument.ts`, carried as `defaultValue` in the composed definition. The session applies a literal `defaultValue` only when the key is absent from the initial data, so prefill and saved answers win. They affect new interviews on the new definition version; drafts and saved answers pinned to an older version keep that version's definition and are untouched.

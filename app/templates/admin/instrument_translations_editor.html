@@ -36,6 +36,8 @@
       <input type="search" class="form-control form-control-sm" id="ite-search"
              placeholder="Search question code or English text" aria-label="Search translations" style="width:20rem;">
       <button class="btn btn-sm btn-outline-secondary" id="ite-search-btn">Search</button>
+      <button class="btn btn-sm btn-outline-primary d-none" id="ite-mt-run"
+              title="Azure drafts for this language's missing strings; each draft waits for your review">Draft missing with Azure</button>
       <label class="visually-hidden" for="ite-missing">Missing translation filter</label>
       <select class="form-select form-select-sm" id="ite-missing" aria-label="Missing translation filter" style="width:auto;">
         <option value="all">All fields</option>
@@ -137,6 +139,26 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
       method: method || 'GET', headers: headers,
       body: body ? JSON.stringify(body) : undefined,
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); });
+  }
+
+  // Machine drafts for this language (digitva-m2ve): same endpoint as the panel's card.
+  function initMachineButton() {
+    var button = document.getElementById('ite-mt-run');
+    apiJson(API + '/machine-translate').then(function (res) {
+      if (!res.ok || !res.data.configured) return;
+      var offered = (res.data.locales || []).map(function (l) { return l.code || l; });
+      if (offered.indexOf(LOCALE) === -1) return;
+      button.classList.remove('d-none');
+      if (res.data.running) button.disabled = true;
+    });
+    button.addEventListener('click', function () {
+      alertBox();
+      apiJson(API + '/machine-translate', 'POST', { locales: [LOCALE] }).then(function (res) {
+        if (!res.ok) { alertBox('danger', res.data.error || 'The run was not queued.'); return; }
+        button.disabled = true;
+        alertBox('success', 'Queued. Machine drafts of medical terms must be checked by a clinician-translator before accepting. Reload in a few minutes and filter by missing or machine drafts.');
+      }).catch(function () { alertBox('danger', 'Network error.'); });
+    });
   }
 
   function esc(s) {
@@ -934,6 +956,7 @@ import { parseRichText, richTextToPlain } from "{{ url_for('static', filename='v
   document.getElementById('ite-search').value = state.q;
   document.getElementById('ite-missing').value = state.missing;
   loadQuestions();
+  initMachineButton();
 
 }());
 </script>

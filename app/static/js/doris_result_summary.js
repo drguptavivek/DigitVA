@@ -53,21 +53,44 @@ function certificateTitle(certificate, codes) {
 // An empty CoDEdit issue list ([] or '') names nothing: it must not add a "reported:" item.
 function hasIssueIds(value) { return Array.isArray(value) ? value.length > 0 : Boolean(value); }
 
-var UCOD_ROLE_NOTE = {stem: '', extension: ' (extension)', postcoordinated: ' (postcoordinated manifestation)'};
+var UCOD_ROLE_NOTE = {stem: '', extension: ' (extension)', postcoordinated: ' (manifestation)'};
 export var UCOD_CLUSTER_EXPLANATION = 'A "/" joins the stem code DORIS chose as the underlying cause to the code(s) it attached to it as manifestations or details; "&" adds an extension code to a stem.';
 
-// The computed UCOD as titled codes (server-resolved ucod_parts), one line each, with
-// the raw code and URI kept small underneath. Nothing is added when the server sent no parts.
+// The computed UCOD as titled codes (server-resolved ucod_parts), one line each:
+// "Underlying cause: CODE title", then "+ CODE title (manifestation)". The full code
+// is a chip only when it adds something beyond the first line (same layout as the Expo screen).
 function appendUcodCluster(container, parts, dr) {
-  if (!Array.isArray(parts) || !parts.length) return;
   var cluster = el('div', 'doris-summary-cluster mb-2');
   parts.forEach(function (part, index) {
     var label = part.title ? part.code + ' ' + part.title : part.code;
-    cluster.appendChild(el('div', '', index === 0 ? 'Underlying cause: ' + label : 'with ' + label + (UCOD_ROLE_NOTE[part.role] || '')));
+    cluster.appendChild(el('div', '', index === 0 ? 'Underlying cause: ' + label : '+ ' + label + (UCOD_ROLE_NOTE[part.role] || '')));
   });
-  if (parts.length > 1) cluster.appendChild(el('div', 'small text-muted', UCOD_CLUSTER_EXPLANATION));
-  cluster.appendChild(el('div', 'small text-muted', 'Computed UCOD: ' + dr.code + (dr.uri ? ' · ' + dr.uri : '')));
+  if (dr.code && dr.code !== parts[0].code) cluster.appendChild(el('span', 'doris-summary-code', dr.code));
   container.appendChild(cluster);
+}
+
+// Without ucod_parts (older saved runs) the code alone is the cause; its title
+// comes from the certificate or, failing that, WHO via lookupTitle.
+function appendBareCode(container, dr, certificate, lookupTitle) {
+  var title = el('span', '', certificateTitle(certificate || {}, [dr.code, dr.stemCode]));
+  var line = el('div', 'doris-summary-cluster mb-2');
+  line.append(document.createTextNode('Underlying cause: '), el('span', 'doris-summary-code', dr.code), document.createTextNode(' '), title);
+  container.appendChild(line);
+  if (!title.textContent && lookupTitle) {
+    lookupTitle(dr.code).then(function (text) { if (text && title.isConnected) title.textContent = text; }).catch(function () {});
+  }
+}
+
+// Collapsed "Details": the "/" and "&" explanation, stem and URI.
+function appendCodeDetails(container, parts, dr) {
+  var many = Array.isArray(parts) && parts.length > 1;
+  if (!many && !dr.stemCode && !dr.uri) return;
+  var details = el('details', 'small text-muted mb-2');
+  details.appendChild(el('summary', '', 'Details'));
+  if (many) details.appendChild(el('div', '', UCOD_CLUSTER_EXPLANATION));
+  if (dr.stemCode) details.appendChild(el('div', '', 'Computed stem: ' + dr.stemCode));
+  if (dr.uri) details.appendChild(el('div', '', 'Computed URI: ' + dr.uri));
+  container.appendChild(details);
 }
 
 // lookupTitle(code) -> Promise<string>; used only when the code is not on
@@ -77,20 +100,19 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
   var dr = doris.result || {}; var cr = codedit.result || {};
   container.replaceChildren();
 
-  if (doris.status !== 'completed') {
+  // WHO's reason is shown in full, as the Expo screen does; the rest of the rule trace stays in Technical details.
+  if (doris.status === 'rejected') {
+    container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS rejected the certificate.'));
+    if (dr.error) container.appendChild(el('div', 'alert alert-danger py-2 mb-2', dr.error));
+  } else if (doris.status !== 'completed') {
     container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS did not run (' + String(doris.status || 'unavailable').replaceAll('_', ' ') + '). Choose the underlying cause without it.'));
   } else if (dr.reject || !dr.code) {
     container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS could not select an underlying cause from this certificate.' + (dr.error ? ' ' + dr.error : '')));
   } else {
-    container.appendChild(el('p', 'small text-muted mb-1', 'DORIS suggests this underlying cause'));
-    var headline = el('p', 'doris-summary-headline mb-2');
-    var title = el('span', 'fw-semibold', certificateTitle(certificate || {}, [dr.code, dr.stemCode]));
-    headline.append(el('span', 'doris-summary-code', dr.code), document.createTextNode(' '), title);
-    container.appendChild(headline);
-    appendUcodCluster(container, processing.ucod_parts, dr);
-    if (!title.textContent && lookupTitle) {
-      lookupTitle(dr.code).then(function (text) { if (text && title.isConnected) title.textContent = text; }).catch(function () {});
-    }
+    container.appendChild(el('p', 'small text-muted mb-1', 'DORIS: completed'));
+    if (Array.isArray(processing.ucod_parts) && processing.ucod_parts.length) appendUcodCluster(container, processing.ucod_parts, dr);
+    else appendBareCode(container, dr, certificate, lookupTitle);
+    appendCodeDetails(container, processing.ucod_parts, dr);
   }
 
   (processing.who_notes || []).forEach(function (note) { container.appendChild(el('p', 'small text-muted mb-1', note)); });

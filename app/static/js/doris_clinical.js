@@ -2,7 +2,7 @@ import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v
 import { mount as mountInterval } from './doris_interval.js?v=4';
 import * as Rules from './doris_rules.js?v=4';
 import * as Fields from './doris_fields.js?v=2';
-import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=5';
+import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
 
 (function () {
   'use strict';

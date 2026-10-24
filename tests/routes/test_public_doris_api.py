@@ -94,6 +94,58 @@ class TestPublicDorisApi:
         assert response.get_json() == {"schema_version": 1, "item": item}
         assert selected.get_json() == {"schema_version": 1, "item": item}
 
+    def test_codeinfo_rejects_a_different_code_and_never_uses_the_stem_uri(self):
+        token = self._csrf()
+        headers = {"X-CSRFToken": token}
+        stem_uri = "http://id.who.int/icd/release/11/2026-01/mms/1"
+        # WHO answers for the stem 1B10 when asked for 1B10.Z: that is not the code asked for.
+        other = {"code": "1B10", "stemId": stem_uri, "title": "Tuberculosis"}
+        with patch("app.public_doris.routes.get_icd11_codeinfo", return_value=other):
+            mismatch = self.client.post(
+                "/api/v1/doris-demo/codeinfo",
+                json={"schema_version": 1, "code": "1B10.Z"},
+                headers=headers,
+            )
+        assert mismatch.status_code == 422
+        assert mismatch.get_json()["error"]["code"] == "CODE_NOT_FOUND"
+
+        # Without the expression URI the item is refused, not completed with the stem's URI.
+        matching = {"code": "1B10.Z", "stemId": stem_uri, "title": "Tuberculosis"}
+        with (
+            patch("app.public_doris.routes.get_icd11_codeinfo", return_value=matching),
+            patch("app.public_doris.routes.expected_expression_uri", return_value=None),
+        ):
+            no_uri = self.client.post(
+                "/api/v1/doris-demo/codeinfo",
+                json={"schema_version": 1, "code": "1B10.Z"},
+                headers=headers,
+            )
+        assert no_uri.status_code == 422
+        assert no_uri.get_json()["error"]["code"] == "CODE_NOT_FOUND"
+
+    def test_selection_check_rejects_extra_keys(self):
+        token = self._csrf()
+        item = {
+            "code": "1B10.Z",
+            "title": "Respiratory tuberculosis",
+            "uri": "http://id.who.int/icd/release/11/2026-01/mms/882244568/unspecified",
+            "release": "2026-01",
+            "postcoordination": False,
+        }
+        with patch("app.public_doris.routes._codeinfo_item", return_value=item):
+            response = self.client.post(
+                "/api/v1/doris-demo/selection-check",
+                json={
+                    "schema_version": 1,
+                    "code": item["code"],
+                    "uri": item["uri"],
+                    "title": item["title"],
+                },
+                headers={"X-CSRFToken": token},
+            )
+        assert response.status_code == 422
+        assert response.get_json()["error"]["code"] == "INVALID_INPUT"
+
     def test_terms_normalizes_and_strips_upstream_markup(self):
         token = self._csrf()
         upstream = _upstream(
@@ -174,7 +226,10 @@ class TestPublicDorisApi:
             response = self.client.post(
                 "/api/v1/doris-demo/process", json=request_payload, headers=headers
             )
+        # The demo renders this envelope as the normal summary, so the body must stay a processing result.
         assert response.status_code == 503
+        assert response.get_json()["doris"]["status"] == "unavailable"
+        assert response.get_json()["codedit"]["status"] == "timeout"
 
         with patch("app.public_doris.routes._capacity.acquire", return_value=False):
             busy = self.client.post(

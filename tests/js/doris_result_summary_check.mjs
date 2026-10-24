@@ -26,7 +26,28 @@ const box4 = { children: [], replaceChildren(){ this.children = []; }, appendChi
 renderSummary(box4, {ucod_parts: [{code: '5A14', title: 'Diabetes mellitus, type unspecified', role: 'stem'}, {code: 'BA41.Z', title: 'Acute myocardial infarction, unspecified', role: 'postcoordinated'}], doris: {status: 'completed', result: {code: '5A14/BA41.Z', stemCode: '5A14', uri: 'http://x/1', report: '', warning: ''}}, codedit: {status: 'completed', result: {}}}, {}, null);
 const clusterText = box4.children.find(c => c.className.includes('doris-summary-cluster')).children.map(c => c.textContent);
 if (clusterText[0] !== 'Underlying cause: 5A14 Diabetes mellitus, type unspecified') throw new Error('stem line: ' + clusterText[0]);
-if (clusterText[1] !== 'with BA41.Z Acute myocardial infarction, unspecified (postcoordinated manifestation)') throw new Error('with line: ' + clusterText[1]);
-if (!clusterText[2].includes('joins the stem code')) throw new Error('no explanation');
-if (clusterText[3] !== 'Computed UCOD: 5A14/BA41.Z · http://x/1') throw new Error('raw code lost: ' + clusterText[3]);
-if (box3.children.some(c => c.className.includes('doris-summary-cluster'))) throw new Error('cluster without parts');
+if (clusterText[1] !== '+ BA41.Z Acute myocardial infarction, unspecified (manifestation)') throw new Error('manifestation line: ' + clusterText[1]);
+if (clusterText[2] !== '5A14/BA41.Z') throw new Error('full code chip: ' + clusterText[2]);
+if (clusterText.some(text => text.includes('Computed UCOD'))) throw new Error('raw code line not moved into Details');
+const details = box4.children.find(c => c.tag === 'details');
+if (!details || details.children[0].textContent !== 'Details') throw new Error('no collapsed Details');
+const detailText = details.children.map(c => c.textContent).join('\n');
+if (!detailText.includes('joins the stem code') || !detailText.includes('Computed stem: 5A14') || !detailText.includes('Computed URI: http://x/1')) throw new Error('details incomplete: ' + detailText);
+
+// One code: its line alone, no duplicate chip.
+const box5 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
+renderSummary(box5, {ucod_parts: [{code: 'PA60', title: 'Some injury', role: 'stem'}], doris: {status: 'completed', result: {code: 'PA60', stemCode: 'PA60', report: '', warning: ''}}, codedit: {status: 'completed', result: {}}}, {}, null);
+const single = box5.children.find(c => c.className.includes('doris-summary-cluster')).children.map(c => c.textContent);
+if (single.length !== 1 || single[0] !== 'Underlying cause: PA60 Some injury') throw new Error('single code: ' + single.join(' | '));
+
+// A rejected run says DORIS rejected the certificate and shows WHO's reason; it does not say "did not run".
+const box6 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
+renderSummary(box6, {doris: {status: 'rejected', result: {reject: true, code: null, error: 'Stem PA60 is not a valid starting point.'}}, codedit: {status: 'completed', result: {}}}, {}, null);
+const rejected = box6.children.map(c => c.textContent);
+if (!rejected.includes('DORIS rejected the certificate.') || !rejected.includes('Stem PA60 is not a valid starting point.')) throw new Error('rejection not shown: ' + rejected.join(' | '));
+if (rejected.some(text => text.includes('did not run'))) throw new Error('rejection reported as did not run');
+
+// An engine that did not run keeps the "did not run" wording.
+const box7 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
+renderSummary(box7, {doris: {status: 'unavailable', result: null}, codedit: {status: 'completed', result: {}}}, {}, null);
+if (!box7.children.some(c => c.textContent === 'DORIS did not run (unavailable). Choose the underlying cause without it.')) throw new Error('unavailable wording');

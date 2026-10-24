@@ -77,42 +77,35 @@ def _plain_text(value: object) -> str:
     return html.unescape(_TAG_RE.sub("", value if isinstance(value, str) else "")).strip()
 
 
-def _item_from_codeinfo(info: dict) -> dict | None:
-    code = info.get("code")
-    uri = info.get("stemId")
-    title = _plain_text(info.get("title") or info.get("label"))
-    if not all(isinstance(value, str) and value for value in (code, uri, title)):
+def _codeinfo_item(code: str) -> dict | None:
+    # Same rules as the clinical route (doris_clinical._codeinfo_item): WHO must
+    # answer for this exact code, and its URI is the expression URI, never the stem's.
+    info = get_icd11_codeinfo(code, release=DEFAULT_ICD11_RELEASE)
+    if not isinstance(info, dict) or info.get("code") != code:
         return None
-    return {
+    uri = expected_expression_uri(code, DEFAULT_ICD11_RELEASE)
+    if not uri:
+        return None
+    title = _plain_text(info.get("title") or info.get("label"))
+    stem_uri = info.get("stemId")
+    if not isinstance(stem_uri, str) or not stem_uri.startswith("http://id.who.int/"):
+        return None
+    entity = proxy_who_icd_request(stem_uri.removeprefix("http://id.who.int/")).json()
+    if not isinstance(entity, dict):
+        return None
+    if not title:
+        title = _plain_text(entity.get("title") or entity.get("label"))
+    if not title:
+        return None
+    item = {
         "code": code,
         "title": title,
         "uri": uri,
         "release": DEFAULT_ICD11_RELEASE,
         "postcoordination": False,
     }
-
-
-def _codeinfo_item(code: str) -> dict | None:
-    info = get_icd11_codeinfo(code, release=DEFAULT_ICD11_RELEASE)
-    if not isinstance(info, dict):
-        return None
-    item = _item_from_codeinfo(info)
-    uri = info.get("stemId")
-    if not isinstance(uri, str) or not uri.startswith("http://id.who.int/"):
-        return None
-    resource = uri.removeprefix("http://id.who.int/")
-    upstream = proxy_who_icd_request(resource)
-    entity = upstream.json()
-    if not isinstance(entity, dict):
-        return None
-    if item is None:
-        enriched = dict(info)
-        enriched["title"] = entity.get("title")
-        item = _item_from_codeinfo(enriched)
-    if item is not None:
-        item["uri"] = expected_expression_uri(code) or item["uri"]
-        if "&" not in code and "/" not in code:
-            item.update(search_context_from_entity(entity))
+    if "&" not in code and "/" not in code:
+        item.update(search_context_from_entity(entity))
     return item
 
 
@@ -214,12 +207,14 @@ def selection_check():
     uri = payload.get("uri") if payload else None
     if (
         payload is None
+        or set(payload) != {"schema_version", "code", "uri"}
         or payload.get("schema_version") != 1
         or not isinstance(code, str)
         or not isinstance(uri, str)
         or not code.strip()
         or len(code.strip()) > 128
-        or len(uri) > 2048
+        or not uri.strip()
+        or len(uri.strip()) > 2048
     ):
         return _error("INVALID_INPUT", "The selected ICD-11 code is invalid.", 422)
     try:

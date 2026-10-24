@@ -32,7 +32,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "$PUBLISH" == "true" ]]; then
+          # A tag names the archive file even without publishing, so it is always checked when given.
+          if [[ "$PUBLISH" == "true" || -n "$INPUT_TAG" ]]; then
             [[ "$INPUT_TAG" =~ ^expo-web-v[0-9]{4}\.[0-9]{2}\.[0-9]{2}(\.[0-9]+)?$ ]] || {
               echo "Release tag must look like expo-web-v2026.10.25.1" >&2
               exit 1

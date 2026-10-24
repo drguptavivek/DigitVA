@@ -150,6 +150,12 @@ class VaProjectMaster(db.Model):
     recode_window_minutes: so.Mapped[int] = so.mapped_column(
         sa.Integer(), nullable=False, default=1440, server_default="1440"
     )
+    # ISO 3166-1 alpha-3 from SmartVA's country list; null = Unknown. Stamped
+    # onto each new submission (va_submissions.va_country_iso3) and used by
+    # SmartVA. Policy: docs/policy/va-form-project-configuration.md.
+    project_country_iso3: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(3), nullable=True
+    )
     # Phase 4a of docs/planning/s3-attachment-plan.md: DigitVA keeps its own
     # permanent copy of every attachment and serves from that store first.
     # When true, a store miss on a live submission is self-healed by fetching

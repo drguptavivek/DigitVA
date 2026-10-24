@@ -65,6 +65,7 @@ from app.services import (
     training_scope,
 )
 from app.services import org_unit_routing_service as org_routing
+from app.services.project_country_service import project_country
 from app.services import organization_service as org
 from app.services import web_intake_attachment_service as attachments
 from app.services.authz import Action, can, resolve_grants, subtree_select, supervision
@@ -2568,6 +2569,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
     submission = VaSubmissions(
         va_sid=va_sid,
         va_form_id=fields["va_form_id"],
+        va_country_iso3=project_country(form.project_id),
         va_submission_date=fields["va_submission_date"],
         va_odk_updatedat=fields["va_odk_updatedat"],
         va_data_collector=fields["va_data_collector"],

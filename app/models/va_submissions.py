@@ -67,6 +67,10 @@ class VaSubmissions(db.Model):
         nullable=True,
         index=True,
     )
+    # The project's country when the case arrived (never rewritten later).
+    va_country_iso3: so.Mapped[Optional[str]] = so.mapped_column(
+        sa.String(3), nullable=True
+    )
     va_submission_date: so.Mapped[Optional[datetime]] = so.mapped_column(
         sa.DateTime, nullable=True, index=True
     )

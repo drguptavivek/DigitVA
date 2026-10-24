@@ -23,6 +23,8 @@ from flask_wtf.csrf import generate_csrf
 from app import db, limiter
 from app.decorators import role_required
 from app.services.odk_case_service import ODK_SYNC_USER_ID
+from app.services.project_country_service import parse_project_country, project_country
+from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries as _SMARTVA_COUNTRIES
 from app.services.recode_window import (
     DEFAULT_RECODE_WINDOW_MINUTES,
     MAX_RECODE_WINDOW_MINUTES,
@@ -427,6 +429,7 @@ def _serialize_project(project, form_type_codes=None):
         "demo_training_enabled": project.demo_training_enabled,
         "demo_retention_minutes": project.demo_retention_minutes,
         "recode_window_minutes": project.recode_window_minutes,
+        "project_country_iso3": project.project_country_iso3,
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
         "web_intake_mode": project.web_intake_mode,
         "self_coding_enabled": project.self_coding_enabled,
@@ -1475,6 +1478,10 @@ def admin_create_project():
     if error:
         return _json_error(error, 400)
 
+    project_country_iso3, error = parse_project_country(payload.get("project_country_iso3"))
+    if error:
+        return _json_error(error, 400)
+
     if not project_id or not project_name or not project_nickname:
         return _json_error("project_id, project_name, and project_nickname are required.", 400)
         
@@ -1554,6 +1561,7 @@ def admin_create_project():
         demo_training_enabled=bool(payload.get("demo_training_enabled", False)),
         demo_retention_minutes=demo_retention_minutes,
         recode_window_minutes=recode_window_minutes,
+        project_country_iso3=project_country_iso3,
         # Only the keys the payload supplied, so the column defaults stand.
         **form_option_updates,
     )
@@ -1789,6 +1797,13 @@ def admin_update_project(project_id):
         if error:
             return _json_error(error, 400)
         updates["recode_window_minutes"] = recode_window_minutes
+
+    # Existing submissions keep the country they were stamped with.
+    if "project_country_iso3" in payload:
+        country, error = parse_project_country(payload["project_country_iso3"])
+        if error:
+            return _json_error(error, 400)
+        updates["project_country_iso3"] = country
 
     # Everything validated: apply.
     for field, value in updates.items():
@@ -3057,7 +3072,7 @@ def registration_numbers_page():
 @admin.get("/panels/projects")
 @role_required("admin")
 def admin_panel_projects():
-    return render_template("admin/panels/projects.html")
+    return render_template("admin/panels/projects.html", smartva_countries=_SMARTVA_COUNTRIES)
 
 
 @admin.get("/panels/project-setup/<project_id>")
@@ -5205,7 +5220,9 @@ def admin_odk_site_mappings_save(project_id):
     form_smartvamalaria = (data.get("form_smartvamalaria") or "False").strip()
     form_smartvahce = (data.get("form_smartvahce") or "True").strip()
     form_smartvafreetext = (data.get("form_smartvafreetext") or "True").strip()
-    form_smartvacountry = (data.get("form_smartvacountry") or "IND").strip().upper()
+    form_smartvacountry = (
+        data.get("form_smartvacountry") or project_country(project_id) or "IND"
+    ).strip().upper()
     org_unit_id_raw = (data.get("org_unit_id") or "").strip()
 
     if not site_id or odk_project_id is None or not odk_form_id:

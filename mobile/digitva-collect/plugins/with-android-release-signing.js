@@ -106,9 +106,16 @@ function patchAndroidReleaseSigning(contents, env = process.env) {
   return updated;
 }
 
+/**
+ * Plus gets the release key only in the CI release build (DIGITVA_ANDROID_RELEASE_BUILD=1, set by
+ * collect-plus-release.yml). A local Plus build keeps the template's debug signing and never sees the release key.
+ */
+function releaseSigningRequested(env = process.env) {
+  return !plusBuildRequested(env) || releaseBuildRequested(env);
+}
+
 module.exports = function withAndroidReleaseSigning(config) {
-  // Collect Plus is experimental and adb-only: it keeps the template's debug signing and never sees the release key.
-  if (plusBuildRequested()) return config;
+  if (!releaseSigningRequested()) return config;
   return withAppBuildGradle(config, (config) => {
     if (config.modResults.language !== "groovy") {
       throw new Error("withAndroidReleaseSigning requires an app/build.gradle Groovy template");
@@ -121,3 +128,4 @@ module.exports = function withAndroidReleaseSigning(config) {
 module.exports.patchAndroidReleaseSigning = patchAndroidReleaseSigning;
 module.exports.validateReleaseSigningEnv = validateReleaseSigningEnv;
 module.exports.releaseBuildRequested = releaseBuildRequested;
+module.exports.releaseSigningRequested = releaseSigningRequested;

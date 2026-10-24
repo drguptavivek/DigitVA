@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 ---
 
 # Runtime And Operations
@@ -222,10 +222,12 @@ checksum (a missing or wrong pin fails the build) and installs it at
 `/opt/digitva/expo-client`, outside the `.:/app` bind mount;
 `EXPO_CLIENT_DIST` points there. Dev (`docker-compose.override.yml`) serves
 its own `npm run export:web` build from the checkout instead. To publish a new
-export: build it on a developer machine (`vendor/who-va-2022` `npm run build`,
-then `npm run export:web` in `mobile/digitva-collect`), tar the `dist`
-contents, `gh release create` with the tarball and its `.sha256`, bump the two
-pins, run `Server images`.
+export: run `Expo web export release` (`.github/workflows/expo-web-release.yml`,
+`workflow_dispatch` with `publish=true` and `tag=expo-web-vYYYY.MM.DD.N`). It builds
+the vendored WHO package, runs the tests and `npm run export:web`, tars `dist` with
+a fixed order and mtime, refuses AppleDouble entries, and writes the `.sha256`. The
+publish job creates the release (`--latest=false`). Then bump the two pins and run
+`Server images`. No export is built on a developer machine.
 
 ### Android APK download
 

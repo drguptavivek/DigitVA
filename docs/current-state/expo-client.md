@@ -515,20 +515,39 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   deep link is `digitvacollectplus://engine-check?update=1`. The result line says
   what changed, "no newer WHO files", "No connection" or "Failed; kept the shipped
   copies".
-- Build: `APP_VARIANT=plus npx expo prebuild --platform android --clean`, then
-  `cd android && ./gradlew assembleRelease`; install with `adb install -r`.
-  `npm run android:plus:release` does both steps; its `prebuild --clean` deletes and
-  regenerates the gitignored `android/` folder, so local edits there are lost.
+- **Build: GitHub Actions only** (owner rule, 2026-10-25). No APK, Gradle or Expo
+  build runs on the developer Mac. `.github/workflows/collect-plus-release.yml`
+  (`workflow_dispatch`: `publish`, `tag` such as `collect-plus-v0.3.10-plus.1`)
+  runs the same steps the release does: vendor build, `npm ci`, typecheck, tests,
+  `APP_VARIANT=plus npx expo prebuild`, `./gradlew assembleRelease` for arm64 only,
+  `scripts/verify-android-release.sh` (with the Plus package id), then a sha256. The
+  publish job creates a public prerelease with the APK and its `.sha256`, signed with
+  the release key from the `android-release` environment (plus signs with the release
+  key only in this workflow; a local plus build keeps debug signing).
+- **Engine input.** The workflow does not read `private/`. It downloads the engine
+  release asset `icd11-engine-<version>.tar.gz` (`scripts/package-icd11-engine.sh`
+  packs it from the spike; `scripts/publish-icd11-engine.sh` publishes it, run by the
+  owner only), checks `ICD11_ENGINE_SHA256` pinned in the workflow, extracts it and
+  stages from that folder (`DIGITVA_ICD11_SPIKE_DIR`, same layout). The workflow stops
+  at once while the sha256 pin is the placeholder. The engine tag must equal
+  `scripts/icd11-engine.env`; a step checks it.
+- Gradle heap for plus: `org.gradle.jvmargs=-Xmx6144m -XX:MaxMetaspaceSize=512m`
+  (`plugins/with-android-collect-plus.js`); the plain build keeps the default.
+- OpenSSL pairing: the module build fails when its `io.github.ronickg:openssl` version
+  differs from the one in `expo-sqlite/android/build.gradle`. With SQLCipher off
+  (`expo.sqlite.useSQLCipher`) expo-sqlite ships no `libcrypto.so`, so `loadOpenSsl()`
+  fails and every init skips the WHO fetches.
+- Local `npm run android:plus:*` scripts remain in `package.json` but are not run
+  under the owner rule; the Expo web bundle comes from `expo-web-release.yml`.
 
 ### Profiling
 
-- **Dev build** (`npm run android:plus:dev` in `mobile/digitva-collect`): a plus
-  debug build, prebuilt and staged from `private/` like the release. It is the
-  standard debug build (no `expo-dev-client`, which the app does not depend on):
-  start Metro with `npx expo start`, then `adb reverse tcp:8081 tcp:8081` so the
-  phone reaches it over USB. Use it with Hermes, React DevTools and Android Studio.
-- **Profileable release** (`npm run android:plus:release`): the plus config plugin
-  (`addProfileable` in `plugins/with-android-collect-plus.js`) adds
+- **Dev build**: a local plus debug build is not made on the developer Mac (owner
+  rule, 2026-10-25). Metro over USB (`npx expo start`, `adb reverse tcp:8081
+  tcp:8081`) needs an installed build, which comes from CI; use it with Hermes,
+  React DevTools and Android Studio once one is installed.
+- **Profileable release** (built by `collect-plus-release.yml`): the plus config
+  plugin (`addProfileable` in `plugins/with-android-collect-plus.js`) adds
   `<profileable android:shell="true"/>` to the merged manifest. The plain build
   gets no such tag. Use this build for representative numbers.
 - `scripts/android-profile.sh <package> <out_dir> [interval] [duration]`: samples

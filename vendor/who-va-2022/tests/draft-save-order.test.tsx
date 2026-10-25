@@ -45,6 +45,7 @@ describe("draft save ordering", () => {
     document.body.append(container);
     const root = createRoot(container);
     let finishFirstSave: (() => void) | undefined;
+    let onRestored: (() => void) | undefined;
     const saved: WhoVaDraft[] = [];
     const save = vi.fn(async (draft: WhoVaDraft) => {
       saved.push(draft);
@@ -54,7 +55,15 @@ describe("draft save ordering", () => {
         });
     });
 
-    root.render(<WhoVaForm instrument={instrument} draftStore={{ save }} />);
+    // saveDraft ignores calls until the mount-time draft restore settles
+    // (digitva-ybz), so wait for that signal instead of the first render.
+    const restored = new Promise<void>((resolve) => {
+      onRestored = resolve;
+    });
+    root.render(
+      <WhoVaForm instrument={instrument} draftStore={{ save }} onDraftRestored={() => onRestored?.()} />
+    );
+    await restored;
     await vi.waitFor(() => expect(container.textContent).toContain("Section 1 of 3"));
     const next = Array.from(container.querySelectorAll<HTMLElement>('[role="button"]')).find(
       (candidate) => candidate.textContent === "Next"

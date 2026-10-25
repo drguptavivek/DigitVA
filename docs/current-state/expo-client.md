@@ -8,6 +8,9 @@ last_updated: 2026-10-25
 
 # Expo Client Hosting And Access
 
+The [2026-10-25 connectivity profile](expo-connectivity-profile.md) records
+measured cold/warm performance, recovery checks and matched-build acceptance.
+
 DigitVA serves the Expo web export under `/app/`. The export is read from
 `mobile/digitva-collect/dist` by default; `EXPO_CLIENT_DIST` can point to the
 deployment's dedicated export directory. The route serves regular files only

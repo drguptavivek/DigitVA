@@ -6,69 +6,66 @@ Read `AGENTS.md`, `docs/current-state/README.md` and the relevant policy.
 Owner focus: DigitVA web app, training and Android. Product branding is DigitVA.
 Preserve unrelated `scripts/loadtest/restore.sh` and orientation files.
 Use Docker for commands. Owner authorized local Docker web exports for diagnosis
-on 2026-10-25; release artifacts/APKs remain CI-built. HMR is at localhost:8051.
-DORIS stays 1.1.176 pending an approved official WHO image.
+on 2026-10-25; published releases/APKs remain CI-built. HMR: localhost:8051.
+Owner accepts roughly 1.5 s slower cold direct interview; do not implement the
+proposed startup-overlap optimization. Owner's DORIS target stays 1.1.176 pending
+an official WHO image approved for upgrade. Preserve the immutable WHO image
+digest; verify the runtime DLL version rather than trusting the Compose comment.
 
-## Ranked work
+## Ranked next steps
 
-1. `digitva-k2s1`: finish production browser acceptance and the paired build CI.
-   Pushed 8b79f0b5d and 3b6befa11. CI40191960858/40194481274 correctly failed the
-   WHO-in-initial-common gate. Local source maps exposed the remaining cause:
-   native whoControls.ts won over whoControls.web.tsx. Working tree now has a
-   .web.ts shim to whoControlsWeb.tsx; WHO preloaded entry avoids the other nested
-   import edge. Local Docker export passed: initial2341188 raw/597461 gzip,
-   WHO runtime1246324 raw/250155 gzip deferred, zero WHO sources in initial JS.
-   Owner accepts the cold direct-interview trade-off (~1.5 s); do not add the
-   proposed startup-overlap optimization. Local browser medians (three trials,
-   1.6 Mbps down/512 kbps up/400 ms): home6.269->4.990 s; cached1.948->1.944 s;
-   interview cold9.405->10.897 s; cached4.851->4.880 s. Cache/retry/save checks
-   still pending. Traces: /private/tmp/digitva-web-profile-20261025.
-   `digitva-k2s1.1`: two CI jobs/outputs, one matched release, implemented in
-   working tree. WHO package artifact+who-build.json -> verified app build;
-   public manifest pins WHO version/commit/archive+dist hashes. Complete app
-   archive/Docker contract unchanged. No independently deployed WHO frontend.
-   Final app Jest180/2706, typecheck, Node33, helper CLI round trip and YAML pass;
-   backend519/125 subtests passed before packaging-only changes. Audit ready.
-2. `digitva-bc56`: training routes and read scopes implemented; finish acceptance
-   then close. Canonical /training/interview (case/form children), /training/coding
-   (case), /training/reporting and /training/reviewing (case), with legacy redirects.
-   Keep server areas interview/coding/review. HMR synthetic training form opens
-   and saves. Back-to-collection now uses its explicit list route for deep links.
-   The identifier warning on8053 is the old comparison build; current8054 has none.
-   Broader case-by-ID guard finding bc56.1 was withdrawn: the documented workspace
-   API retains specific-form grants and owned allocation checks; do not change it.
-3. `digitva-dv58`: WHO vendor Docker serial Vitest933/935; draft-save-order failure
-   repeats on unchanged8b79f0b5 baseline; navigation test passes both isolated
-   reruns. Build/typecheck/entrypoint regressions pass. No assertions skipped.
-4. `digitva-ydgv`: training interview welcome + existing DPDP consent not yet
-   implemented. Reuse notices/audit; no invented legal approval or NQA changes.
-5. `digitva-e1t9`: intermittent ICD picker backdrop without panel; logs did not
+1. `digitva-5mbn`: remaining web acceptance and a separately approved release/
+   staging window. Follow docs/current-state/split-production-deploy.md's
+   matched web release sequence. Accepted build source is
+   3eaaf3b0c9b4f01763c3aa98685c106040687a48, CI40198746587 (both jobs passed,
+   publish=false). It is not a published web release or updated Compose pin.
+   Publish a fresh matched WHO/app release, verify artifacts, commit app release
+   pins, then build the server image of that pin commit. Do not deploy the web
+   source SHA with old pins and expect new browser code. Remaining acceptance:
+   physical device, complete interview submission and mid-transfer interruption;
+   the blocked-chunk retry and offline edit/reconnect/save/reload passed Chrome.
+2. `digitva-ydgv`: approved training interview welcome + existing DPDP consent
+   not yet implemented. Reuse notices/audit; no invented legal approval or NQA
+   changes. TRN01's single-stage configuration remains an explicit owner decision.
+3. `digitva-e1t9`: intermittent ICD picker backdrop without panel; logs did not
    prove a root cause. `digitva-lo67`: empty text child toast remains untraced.
-6. `digitva-bx43`: optional DORIS hints only, discuss first; no mandatory fields.
+4. `digitva-dv58`: WHO vendor Docker serial Vitest933/935; draft-save-order
+   failure repeats on unchanged8b79f0b5 baseline; navigation passes both isolated
+   reruns. Build/typecheck/entrypoint regressions pass. No assertions skipped.
+5. `digitva-bx43`: optional DORIS hints only, discuss first; no mandatory fields.
    `digitva-ve8n`: Expo login idea, discussion only. TanStack Router discussed:
-   keep Expo Router for this release; a web-only shell migration needs its own plan.
-7. `digitva-5mbn`: remaining web acceptance. Owner authorized disposable staging
-   test cases, and chose local Chrome rather than native phone testing.
+   keep Expo Router this release; web-only shell migration needs its own plan.
 
-## Runtime and verification
+## Runtime and release caveats
 
 Staging digitvav3 (i-0b2caee6465bfcac1, ap-south-1, profile digitva, /data/DigitVA)
-remains image d7f8ac86e, web expo-web-v2026.10.25.1; no deployment for this work.
-Migration head c3f9a1d7e2b4. Preserve APK0.3.10 override
+last verified image d7f8ac86e, web expo-web-v2026.10.25.1; no deployment for this
+work. Recheck live state before a future deployment. Migration head at acceptance
+c3f9a1d7e2b4. Preserve APK0.3.10 override
 DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted. DORIS_CALL_LOG=1 remains on.
-TRN01 stays single-stage, masked_cod_required=False, NQA=False: discuss before
-changing. Use scripts/deploy-staging.sh after approved CI; rollback73561675a.
+TRN01: single-stage, masked_cod_required=False, NQA=False; discuss before changing.
+Use scripts/deploy-staging.sh with the full CI-built server SHA and its printed
+rollback. Previous rollback reference73561675a must be refreshed from live host.
 
-Local HMR /app redirects to root (Expo57 dev base URL behavior). The own profiling
-container digitva_web_profile serves old baseline on8053 and current local export
-on8054; prefer8051/8054 for current tests. Restore temporary CDP flags and remove
-only own profiling container when finished. Never treat HMR timings as production.
-Own synthetic fixture: death1cdfce1e-e2ea-41e2-8fae-9265bbe3ac6b,
-training draftb869db8f-25f9-45bf-bc88-ccc865e7b4fb; normal profiling draft
-1edc4153-3e5b-4f70-8f56-1db4f95b3e0c. Do not alter other testadmin drafts.
-Screenshots: /private/tmp/digitva-training-canonical-form.png and
-/private/tmp/digitva-current-training-worklist.png. Public cache inventory proves
-WHO cached with no WHO script element on home; no API/private data cached.
+The public WHO package is a verified CI build input. Browser WHO chunks remain
+part of the complete matched app archive, lazy-loaded or warmed after eligible
+login. Never deploy the WHO archive as an independent frontend or cache APIs/
+answers/private definitions. Preserve canonical clinical rules and native entrypoints.
+Updates wait for old tabs to close; don't force worker activation mid-interview.
+Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56. Evidence and limits are in
+`docs/current-state/expo-connectivity-profile.md`; history is in CHANGELOG.md.
+
+Local HMR /app redirects to root (Expo57 dev base URL behavior). The old8053
+comparison export is obsolete; use8051 HMR for development. Profiling containers
+are temporary and removed at closeout. Local traces and downloaded CI artifacts
+remain under /private/tmp/digitva-web-profile-20261025 and
+/private/tmp/digitva-paired-ci-40198746587. No HMR timing claims.
+Owned synthetic fixture: death1cdfce1e-e2ea-41e2-8fae-9265bbe3ac6b,
+training draftb869db8f-25f9-45bf-bc88-ccc865e7b4fb (test age changed to99);
+normal profiling draft1edc4153-3e5b-4f70-8f56-1db4f95b3e0c.
+Do not alter other testadmin drafts. Screenshot of exact CI artifact:
+/private/tmp/digitva-ci-training-recovery.png. Saved answers survived reload;
+Save and leave returned to /app/training/interview without identifier warnings.
 
 ## Other queued work
 

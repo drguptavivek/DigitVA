@@ -23,6 +23,105 @@ the previous image's rollback command. The shared server-side procedure remains
 The shared SSM command helper is `scripts/ssm.sh`; load-test scripts use the
 same helper.
 
+## Digitvav3: matched web release before the server image
+
+This is the release sequence for the split WHO/app build introduced on
+2026-10-25. Preparing these instructions does not authorize a deployment.
+The accepted diagnostic run
+[40198746587](https://github.com/drguptavivek/DigitVA/actions/runs/40198746587)
+used source `3eaaf3b0c9b4f01763c3aa98685c106040687a48` with publishing disabled.
+Its `expo-web-dev-3eaaf3b` artifact is not a published release or an updated
+Compose pin. See [acceptance results](expo-connectivity-profile.md).
+
+1. From the reviewed `main` commit, dispatch **Expo web export release**
+   (`.github/workflows/expo-web-release.yml`) with `publish=true` and a new,
+   unused `expo-web-vYYYY.MM.DD[.N]` tag. The workflow currently accepts only
+   `main`; confirm the run's resolved `headSha` is the intended web source.
+   From the operator's checkout, with `WEB_TAG` set to that new tag:
+
+   ```bash
+   gh workflow run expo-web-release.yml --ref main -f publish=true -f tag="$WEB_TAG"
+   ```
+
+2. Require both **Build WHO package** and **Build DigitVA app**, followed by
+   **publish**, to succeed. The first job produces a package and complete-file
+   hashes; the second verifies that exact input before exporting the app.
+   Inspect `web-bundle-profile.json` in the run artifact: all gates must pass,
+   the canonical instrument must be deferred, and `who_component.source_commit`
+   must match the run's `headSha`. Do not waive a gate because export succeeded.
+
+3. Download and verify the published release into a new directory:
+
+   ```bash
+   gh release download "$WEB_TAG" --dir "$RELEASE_DIR" \
+     --pattern "$WEB_TAG.tar.gz*" --pattern "$WEB_TAG-who-package.tgz*" \
+     --pattern who-build.json
+   (cd "$RELEASE_DIR" && shasum -a 256 -c "$WEB_TAG.tar.gz.sha256")
+   (cd "$RELEASE_DIR" && shasum -a 256 -c "$WEB_TAG-who-package.tgz.sha256")
+   ```
+
+   Set `RELEASE_DIR` to an empty operator-owned directory first. Compare
+   `who-build.json` version/source/hash values to the run's profile and the
+   app archive's `asset-manifest.json` `components.who`. Both archives belong
+   to one release. Deploy the **complete app archive** through the existing
+   image build; do not serve the WHO package archive as a second frontend.
+   Production hosts need neither Node nor a separate WHO installation.
+
+4. Set only `EXPO_WEB_TAG` and `EXPO_WEB_SHA256` in `docker-compose.yml`
+   `x-release-pins` to the published app tag and verified **app tarball** SHA.
+   Commit and push those pins. This produces a new **server source commit**;
+   it will differ from the web build commit because it records the release
+   pins. Do not use the WHO archive hash for `EXPO_WEB_SHA256`. Retain the
+   Android/SmartVA pins and the existing immutable WHO ICD/DORIS image digest
+   unless separately approved. Read the running engine's reported version;
+   an image tag or Compose comment alone does not establish the DLL version.
+
+5. Dispatch **Server images** for the full 40-character server commit:
+
+   ```bash
+   gh workflow run server-images.yml --ref main -f ref="$SERVER_SHA"
+   ```
+
+   The owner approves the `server-images` GitHub environment when requested.
+   Wait for success and confirm the image tag is exactly `SERVER_SHA`.
+   Publishing a web release alone does not change a running server.
+
+6. In an approved staging window, run the repository wrapper from the Mac:
+
+   ```bash
+   scripts/deploy-staging.sh "$SERVER_SHA"
+   ```
+
+   It uses SSM, verifies the database backup, refuses a dirty host checkout,
+   checks disk and image availability, deploys without server-side builds,
+   and verifies the hosted APK files and unrelated `.env` settings did not
+   change. Keep `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`; staging's
+   hosted APK 0.3.10 is independent of the older Compose APK pin. Require
+   `DEPLOY_STAGING_OK`; record its previous commit/image and rollback command.
+
+7. Check the installed public manifest reports the intended web tag/source
+   and matching WHO metadata, app health is healthy, and migration current
+   equals head. In a newly opened browser tab, sign in and check coding,
+   `/app/training/interview`, resume/save/reload of an owned test interview,
+   and the ICD search panel. Verify manifest/HTML/worker revalidation and
+   hashed immutable assets through the public ingress. Existing tabs may
+   retain their current worker until closed; do not force-activate an update
+   during an interview. The public asset cache must contain no API responses,
+   answers or private form definitions. Preserve TRN01's single-stage/NQA-off
+   configuration. Healthy containers alone are not signed-in UI acceptance.
+
+For an interactive staging session, the operator can use:
+
+```bash
+aws ssm start-session --target i-0b2caee6465bfcac1 --region ap-south-1 --profile digitva
+```
+
+Use the deployment output's rollback command as the `ubuntu` checkout owner
+on `/data/DigitVA`, or `make prod-rollback TAG=<previous-full-image-sha>` there.
+Rolling back the server commit restores its previous web release pins as well;
+do not mix old/new WHO chunks or manually replace files in an immutable image.
+Keep the verified backup and follow section 6 for any schema/data recovery.
+
 ```
 Proxy host (nginx, public TLS) ──HTTPS :8000──► App host (ingress, app, Celery, Redis, WHO ICD-11 API, DORIS demo)
                                                        └──TLS :5432──► DB host (PostgreSQL 18)

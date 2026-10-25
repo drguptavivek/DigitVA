@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Web acceptance and deployment handoff** (`digitva-3yaw`; implementation
+  `3eaaf3b0c`): record measured performance, recovery checks and remaining vendor
+  test limitations. Document matched WHO/app publishing, verified app pins,
+  protected server-image build, SSM deployment and rollback. Close completed
+  `digitva-k2s1`, `digitva-k2s1.1` and `digitva-bc56`; retain queued work in the
+  rewritten handoff. No release publication or deployment during closeout.
+
 - **Matched WHO and DigitVA builds** (`digitva-k2s1.1`, `digitva-k2s1`,
   `digitva-bc56`): build WHO as a verified package artifact before the app job,
   record its version/commit/hashes in the asset manifest, and publish both as one
@@ -13,7 +20,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   local Docker export passes the strict gate (about 30% less initial gzip JS).
   Direct interview links return to their explicit training/collection list after
   saving. App Jest180/2706, typecheck, Node33 and artifact round trip passed;
-  connectivity acceptance and the final paired CI run remain in progress.
+  paired CI40198746587 passed; both downloaded artifacts and the final strict
+  bundle profile verified. Three-trial poor-network home startup improved
+  6.269 to 4.990 s; the owner accepted 1.492 s slower cold direct interviews.
+  WHO download retry and offline-save/reconnect/reload passed in Chrome.
+  See docs/current-state/expo-connectivity-profile.md. No staging deployment.
 
 - **WHO preloaded web package entry** (`digitva-k2s1`): add an explicit
   `/web/preloaded` namespace using the canonical instrument and shared renderer.

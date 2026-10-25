@@ -21,14 +21,15 @@ Tests: targeted pytest on a database of your own; one full suite at a time.
 
 ## State (2026-10-25)
 
-Migration head `c3f9a1d7e2b4` (dev and staging). Main `4afc2f8c8`.
+Migration head `c3f9a1d7e2b4` (dev and staging).
 
 Staging `https://digitvav3.causeofdeathindia.com` (AWS arm64 `i-0b2caee6465bfcac1`,
-profile `digitva`, `/data/DigitVA`) runs image `73561675a`, web
-`expo-web-v2026.10.24.10`, and a locally uploaded **APK 0.3.10** (override in
-`.env`; every deploy resets it to the image's 0.3.6 — rerun the upload script).
+profile `digitva`, `/data/DigitVA`) runs image `d7f8ac86e`, web
+`expo-web-v2026.10.25.1`, and a locally uploaded **APK 0.3.10** (override in
+`.env`; preserve `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`).
 `DORIS_CALL_LOG=1` is still on there (turn off when DORIS debugging ends). The
-owner runs deploy/upload scripts; agent SSM is read-only.
+owner authorized this session's SSM deploy (`digitva-pjc8`). Future staging deploys:
+`scripts/deploy-staging.sh <full-sha>` after CI passes; rollback image `73561675ad00fe510ab7237925df86f59509f767`.
 
 CI workflows (main): `server-images.yml`, `android-release.yml`,
 `expo-web-release.yml` (new) and `collect-plus-release.yml` (new; pins engine
@@ -38,31 +39,25 @@ the `android-release` environment: the owner approves each run in GitHub.
 
 ## Ranked next steps
 
-1. **Deploy the DORIS parity fixes** (`digitva-pjc8`, owner authorized SSM deploy
-   2026-10-25): web `expo-web-v2026.10.25.1` published (CI `40160961967`) and
-   pinned with verified checksum. Next: CI server image, verified DB backup,
-   deploy to Digitvav3. Preserve `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`
-   and APK 0.3.10; do not use the old template's override-removal step.
-   Do not push to main while an image build runs.
-2. **Publish Collect Plus** `collect-plus-v0.3.10-plus.1` (prerelease) on the
+1. **Publish Collect Plus** `collect-plus-v0.3.10-plus.1` (prerelease) on the
    owner's go; install on the SM-E146B, confirm warm-up and the engine check.
-3. **Collect Plus phase B** (`digitva-hs7e`): in Plus, route DorisPanel search,
+2. **Collect Plus phase B** (`digitva-hs7e`): in Plus, route DorisPanel search,
    codeinfo and process to the offline engine; native ICD-11 search UI (the picker
    WebView host is server-served); parity check and sync at final save (server
    process token); offline case queue. Then phase C profiling (baseline vs
    `:icd11`), using `scripts/android-profile.sh` and `scripts/android-trace.sh`.
-4. **DORIS parity pass 3** (`digitva-knh9`): demo gets dates/manner/surgery/autopsy,
+3. **DORIS parity pass 3** (`digitva-knh9`): demo gets dates/manner/surgery/autopsy,
    WHO field labels, pregnancy follow-ups hidden until Yes, search 3 chars/500 ms,
    rule trace behind Details in Expo.
-5. **Standard CI across projects**: proposal card "Standard CI: reusable workflows
+4. **Standard CI across projects**: proposal card "Standard CI: reusable workflows
    + S3 via OIDC" (owner chose GitHub Actions; public `ci-templates` repo and the
    AWS OIDC role need the owner's go).
-6. `digitva-om65` (P1): remove the screenshot allowance after 2026-10-30.
-7. Open P1s: `digitva-fvbc` (web autosave loops on `csrf_failed`), `digitva-owbz`,
+5. `digitva-om65` (P1): remove the screenshot allowance after 2026-10-30.
+6. Open P1s: `digitva-fvbc` (web autosave loops on `csrf_failed`), `digitva-owbz`,
    `digitva-46xk`, `digitva-342x`; mentor view `digitva-oux5` (an early feedback
    model/migration is recovered in `private/worktree-patches/`).
-8. Hindi review of the ~240 new keys in `mobile/digitva-collect/src/strings/hi.json`.
-9. Older: `digitva-zfsa`, `digitva-yufk` (STT), public demo deploy `digitva-77v5.7`,
+7. Hindi review of the ~240 new keys in `mobile/digitva-collect/src/strings/hi.json`.
+8. Older: `digitva-zfsa`, `digitva-yufk` (STT), public demo deploy `digitva-77v5.7`,
    SmartVA `digitva-vv4h`, `cpak`, `zkgx`, `jish`, `wh4w`.
 
 ## Open owner decisions
@@ -98,6 +93,8 @@ path is not batched; no EC2 upsize until measured load calls for it.
 
 ## Caveats
 
+- Standalone `deploy-server.sh` dirty-submodule guard: `digitva-22lb`; staging wrapper is guarded.
+- Do not push to main while an image build runs. Use full 40-character SHAs for CI refs.
 - Quote backticks in `bd create -d "..."`; `bd update --notes` REPLACES notes —
   use `--append-notes`.
 - Worktree removal with `--force` deletes untracked files: check

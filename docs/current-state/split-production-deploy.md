@@ -3,7 +3,7 @@ title: Split Production Deploy Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-25
 ---
 
 # Split Production Deploy Runbook
@@ -13,6 +13,13 @@ proxy host, an app host running Docker Compose, and a database host running
 native PostgreSQL. Run each step by hand over SSM. Placeholders and file
 locations are as in [Split Production TLS](split-production-tls.md); this
 runbook does not repeat the one-time setup described there.
+
+For Digitvav3 staging, use the repository's `scripts/deploy-staging.sh <full-git-sha>`
+from the Mac after the `Server images` workflow passes. It connects through SSM
+to `i-0b2caee6465bfcac1` (`digitva` profile, `ap-south-1`), verifies a database
+backup before deployment, preserves the hosted Android APK override, and prints
+the previous image's rollback command. The shared server-side procedure remains
+`scripts/deploy-server.sh`; neither script builds on the server.
 
 ```
 Proxy host (nginx, public TLS) ──HTTPS :8000──► App host (ingress, app, Celery, Redis, WHO ICD-11 API, DORIS demo)

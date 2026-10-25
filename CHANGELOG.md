@@ -9,6 +9,13 @@ What landed, newest first. Details live in the commits and the linked docs;
   `expo-web-v2026.10.25.1` (CI run `40160961967`, source `3ad5cefdb`), so the
   next server image includes the DORIS parity fixes; archive checksum verified
   against the published checksum asset and GitHub asset digest.
+- **Digitvav3 parity deployment** (`digitva-pjc8`; image `d7f8ac86e`, CI
+  `40161375783`): verified database backup before SSM deployment, healthy
+  services, migration head unchanged, live web entry matches the release bytes,
+  hosted APK 0.3.10 preserved. Reusable Mac wrapper `scripts/deploy-staging.sh`
+  replaces the scratchpad procedure; usage in the split deployment runbook.
+  Independent review and nine shell checks passed; command dispatch keeps child
+  processes from consuming the script source through standard input.
 - **Builds only on GitHub Actions** (`a57176256`, `16bf80760`, `775da2c0e`): new
   `expo-web-release.yml` and `collect-plus-release.yml`; the ICD-11 engine bundle is the
   public release `icd11-engine-v2026.10.25.1` (`scripts/package-icd11-engine.sh`,

@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Web parity release** (`digitva-pjc8`): publish and pin
+  `expo-web-v2026.10.25.1` (CI run `40160961967`, source `3ad5cefdb`), so the
+  next server image includes the DORIS parity fixes; archive checksum verified
+  against the published checksum asset and GitHub asset digest.
 - **Builds only on GitHub Actions** (`a57176256`, `16bf80760`, `775da2c0e`): new
   `expo-web-release.yml` and `collect-plus-release.yml`; the ICD-11 engine bundle is the
   public release `icd11-engine-v2026.10.25.1` (`scripts/package-icd11-engine.sh`,

@@ -38,11 +38,11 @@ the `android-release` environment: the owner approves each run in GitHub.
 
 ## Ranked next steps
 
-1. **Publish and deploy the DORIS parity fixes** (waiting for the owner's go):
-   `gh workflow run expo-web-release.yml -f publish=true -f tag=expo-web-v2026.10.25.1`,
-   pin `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `docker-compose.yml`, run
-   `server-images.yml`, then the owner deploys (template: scratchpad
-   `deploy-staging-pull-11.sh`, bump SHA/rollback) and re-uploads APK 0.3.10.
+1. **Deploy the DORIS parity fixes** (`digitva-pjc8`, owner authorized SSM deploy
+   2026-10-25): web `expo-web-v2026.10.25.1` published (CI `40160961967`) and
+   pinned with verified checksum. Next: CI server image, verified DB backup,
+   deploy to Digitvav3. Preserve `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`
+   and APK 0.3.10; do not use the old template's override-removal step.
    Do not push to main while an image build runs.
 2. **Publish Collect Plus** `collect-plus-v0.3.10-plus.1` (prerelease) on the
    owner's go; install on the SM-E146B, confirm warm-up and the engine check.

@@ -78,6 +78,13 @@ interview startup and revision reduction await it. Native keeps its existing
 static runtime. Browser coding and registration use small app-owned controls;
 clinical form definitions and engine behavior stay in the WHO package.
 
+The module imports the additive WHO `/web/preloaded` entry once and aliases its
+namespace as core and web. That entry reuses the canonical instrument and shared
+browser renderer without the package's nested lazy instrument import. The
+ordinary WHO root, `/web` and `/native` exports retain their loading behavior.
+This packaging boundary prevents Metro from hoisting the otherwise shared
+instrument into an initial common script; the CI marker gate verifies placement.
+
 `web/interviewAssetCache.ts` starts optional warming only after authenticated
 access includes an interview action. Registration alone does not warm assets.
 The public manifest's `interviewRuntime` group lists the runtime chunk and hashed

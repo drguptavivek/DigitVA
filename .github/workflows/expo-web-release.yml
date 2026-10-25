@@ -59,6 +59,9 @@ jobs:
           pnpm --dir vendor/who-va-2022 install --frozen-lockfile
           pnpm --dir vendor/who-va-2022 run build
 
+      - name: Check WHO entrypoint boundaries
+        run: pnpm --dir vendor/who-va-2022 exec vitest run tests/web-preloaded.test.ts tests/runtime-boundary.test.ts --no-file-parallelism
+
       - name: Install mobile dependencies from the lockfile
         working-directory: mobile/digitva-collect
         run: npm ci

@@ -5,6 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     native: "src/native.tsx",
     web: "src/web.tsx",
+    "web-preloaded": "src/web-preloaded.tsx",
     "web-component": "src/web-component.tsx"
   },
   format: ["esm"],

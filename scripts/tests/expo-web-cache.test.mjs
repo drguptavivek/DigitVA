@@ -182,6 +182,7 @@ test("worker warms only the WHO group, retains completed assets and retries a ba
   });
   let firstWarm;
   handlers.message({
+    source: { id: "client-a" },
     data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 1 },
     waitUntil: (promise) => { firstWarm = promise; },
   });
@@ -192,6 +193,7 @@ test("worker warms only the WHO group, retains completed assets and retries a ba
   corruptRuntime = false;
   let retry;
   handlers.message({
+    source: { id: "client-a" },
     data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 2 },
     waitUntil: (promise) => { retry = promise; },
   });
@@ -217,11 +219,13 @@ test("worker cancellation aborts a pending WHO warm and stale starts do not rest
   });
   let warming;
   handlers.message({
+    source: { id: "client-a" },
     data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 4 },
     waitUntil: (promise) => { warming = promise; },
   });
   await new Promise((resolve) => setTimeout(resolve, 0));
   handlers.message({
+    source: { id: "client-a" },
     data: { type: "cancel-interview-assets", release: "release", generation: 5 },
     waitUntil: () => assert.fail("cancel does not wait for a download"),
   });
@@ -230,10 +234,96 @@ test("worker cancellation aborts a pending WHO warm and stale starts do not rest
   resolveFetch();
   let stale;
   handlers.message({
+    source: { id: "client-a" },
     data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 4 },
     waitUntil: (promise) => { stale = promise; },
   });
   assert.equal(stale, undefined);
+});
+
+test("a new browser client may restart with a fresh generation after an old client reached 40", async (t) => {
+  const { dist } = fixture(t);
+  const runtime = "_expo/static/js/web/whoRuntimeModule-" + "c".repeat(32) + ".js";
+  writeFileSync(join(dist, runtime), "WHO runtime");
+  buildAssetCache(dist, "release", "a".repeat(40));
+  const handlers = {};
+  const entries = new Map();
+  const cache = { match: async (key) => entries.get(key)?.clone(), put: async (key, value) => entries.set(key, value) };
+  let calls = 0;
+  vm.runInNewContext(readFileSync(join(dist, "asset-worker.js"), "utf8"), {
+    self: { location: { origin: "https://example.com" }, addEventListener: (type, handler) => { handlers[type] = handler; } },
+    caches: { open: async () => cache }, URL, crypto: webcrypto, AbortController,
+    fetch: async () => { calls += 1; return new Response("WHO runtime"); },
+  });
+  let oldWarm;
+  handlers.message({
+    source: { id: "old-client" },
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 40 },
+    waitUntil: (promise) => { oldWarm = promise; },
+  });
+  await oldWarm;
+  entries.clear();
+  let freshWarm;
+  handlers.message({
+    source: { id: "new-client" },
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 2 },
+    waitUntil: (promise) => { freshWarm = promise; },
+  });
+  await freshWarm;
+  assert.equal(calls, 2);
+  let sourceMissing;
+  handlers.message({
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 3 },
+    waitUntil: (promise) => { sourceMissing = promise; },
+  });
+  assert.equal(sourceMissing, undefined);
+});
+
+test("an old client's cancellation cannot abort a newer client's warm job", async (t) => {
+  const { dist } = fixture(t);
+  const runtime = "_expo/static/js/web/whoRuntimeModule-" + "c".repeat(32) + ".js";
+  writeFileSync(join(dist, runtime), "WHO runtime");
+  buildAssetCache(dist, "release", "a".repeat(40));
+  const handlers = {};
+  const entries = new Map();
+  const cache = { match: async () => undefined, put: async (key, value) => entries.set(key, value) };
+  let fetchCount = 0;
+  let oldStarted;
+  let newStarted;
+  const oldFetchStarted = new Promise((resolve) => { oldStarted = resolve; });
+  const newFetchStarted = new Promise((resolve) => { newStarted = resolve; });
+  vm.runInNewContext(readFileSync(join(dist, "asset-worker.js"), "utf8"), {
+    self: { location: { origin: "https://example.com" }, addEventListener: (type, handler) => { handlers[type] = handler; } },
+    caches: { open: async () => cache }, URL, crypto: webcrypto, AbortController,
+    fetch: async (_url, options) => new Promise((resolve, reject) => {
+      fetchCount += 1;
+      if (fetchCount === 1) oldStarted();
+      else newStarted();
+      options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      if (fetchCount > 1) resolve(new Response("WHO runtime"));
+    }),
+  });
+  let oldWarm;
+  handlers.message({
+    source: { id: "old-client" },
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 40 },
+    waitUntil: (promise) => { oldWarm = promise; },
+  });
+  await oldFetchStarted;
+  let newWarm;
+  handlers.message({
+    source: { id: "new-client" },
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 2 },
+    waitUntil: (promise) => { newWarm = promise; },
+  });
+  await newFetchStarted;
+  handlers.message({
+    source: { id: "old-client" },
+    data: { type: "cancel-interview-assets", release: "release", generation: 41 },
+    waitUntil: () => assert.fail("cancel does not wait for a download"),
+  });
+  await Promise.all([oldWarm, newWarm]);
+  assert.equal(entries.size, 1);
 });
 
 test("registration waits for page load but never warms anonymously", async (t) => {

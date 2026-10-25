@@ -37,16 +37,26 @@ npm install react react-native
 
 ## Package entry points
 
-| Import                                    | Purpose                                                       |
-| ----------------------------------------- | ------------------------------------------------------------- |
-| `@drguptavivek/who-2022-va`               | Headless instrument, expression, session, and submission APIs |
-| `@drguptavivek/who-2022-va/native`        | Expo and React Native `WhoVaForm`                             |
-| `@drguptavivek/who-2022-va/web`           | React web `WhoVaForm`, rendered through React Native Web      |
-| `@drguptavivek/who-2022-va/web-component` | `<who-va-2022-form>` wrapper for non-React web apps           |
+| Import                                    | Purpose                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------ |
+| `@drguptavivek/who-2022-va`               | Headless instrument, expression, session, and submission APIs            |
+| `@drguptavivek/who-2022-va/native`        | Expo and React Native `WhoVaForm`                                        |
+| `@drguptavivek/who-2022-va/web`           | React web `WhoVaForm`, rendered through React Native Web                 |
+| `@drguptavivek/who-2022-va/web/preloaded` | Core, canonical instrument and React web APIs in one preloaded namespace |
+| `@drguptavivek/who-2022-va/web-component` | `<who-va-2022-form>` wrapper for non-React web apps                      |
 
 ## Runtime performance
 
 The canonical JSON remains one offline artifact, but the `/native` and `/web` form entry points no longer parse it when the application bundle starts. They dynamically load and cache it when a form first needs the default instrument. The root `@drguptavivek/who-2022-va` entry keeps the synchronous `whoVa2022Instrument` export for headless and server compatibility; applications concerned about startup cost can import `loadWhoVa2022Instrument` instead.
+
+Hosts that already manage an interview download boundary can dynamically import
+`@drguptavivek/who-2022-va/web/preloaded`. It exposes the same core and browser
+APIs together with the canonical instrument, using the shared renderer and an
+already-resolved instrument loader. This avoids a second nested instrument
+import that some bundlers hoist into their initial common script. Keep this
+entry behind the host's asynchronous boundary: importing it eagerly also loads
+the instrument eagerly. The ordinary root, `/web` and `/native` entry points
+retain their existing loading behavior.
 
 Opening the first default form still parses the complete instrument once. The runtime does not fetch a section at a time: relevance, calculations, navigation, and final validation can refer to questions in other sections, and the instrument must continue working completely offline. This trades a single predictable parse for simpler, reliable interviews; only the current section's controls are rendered. Further section chunking should be considered only if profiling the target low-spec devices shows this deferred parse is still material.
 
@@ -138,25 +148,25 @@ Prefill evidence is mutually exclusive: choose date of birth or reported age, an
 
 `WHO_VA_FORM_VERSION` identifies the implemented form model separately from the WHO instrument version and the draft schema version. Drafts and validation/completion results carry the form and instrument identifiers as metadata outside canonical WHO answer data.
 
-| Prefill data                              | WHO code                   | Label                                        | Expected shape                                                                       |
-| ----------------------------------------- | -------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `presets.hivAidsMortality`                | `Id10002`                  | Is this a region of high HIV/AIDS mortality? | `"high" \| "low" \| "veryl"`                                                         |
-| `presets.malariaMortality`                | `Id10003`                  | Is this a region of high malaria mortality?  | `"high" \| "low" \| "veryl"`                                                         |
-| `interviewer.name`                        | `Id10010`                  | Name of VA interviewer                       | Letters and spaces only                                                              |
-| `interviewer.age`                         | `Id10010a`                 | Age of VA interviewer                        | Number, 18-89 or 99                                                                  |
-| `interviewer.sex`                         | `Id10010b`                 | Sex of VA interviewer                        | `"female" \| "male" \| "undetermined"`                                               |
-| `interviewer.id`                          | `Id10010c`                 | ID of VA interviewer                         | Non-empty string                                                                     |
-| `interviewer.language`                    | `language`                 | Interview language                           | ISO/BCP-47 language tag string, for example `"en"` or `"hi-IN"`                      |
-| `deceased.givenNames`                     | `Id10017`                  | First or given name(s) of the deceased       | Non-empty string                                                                     |
-| `deceased.surname`                        | `Id10018`                  | Surname(s) or family name(s) of the deceased | Non-empty string                                                                     |
-| `deceased.sex`                            | `Id10019`                  | Sex of the deceased                          | `"female" \| "male" \| "undetermined"`                                               |
-| `deceased.citizenship`                    | `Id10052`                  | Citizenship/nationality                      | `"citizen_at_birth" \| "naturalized_citizen" \| "foreign_national" \| "dk" \| "ref"` |
-| `deceased.dateOfBirth`                    | `Id10021`                  | When was the deceased born?                  | ISO date string, `YYYY-MM-DD`; also sets `Id10020="yes"`                             |
-| `deceased.ageInYears`                     | `age_adult`                | Adult age in years                           | Number, 12-119; also sets `Id10020="no"`, `age_group="adult"`                        |
-| `deceased.dateOfDeath`                    | `Id10023_a` or `Id10023_b` | When did (s)he die?                          | ISO date string, `YYYY-MM-DD`; also sets `Id10022="yes"`                             |
-| `deceased.yearOfDeath`                    | `Id10024`                  | Please indicate the year of death            | Four-digit year string; also sets `Id10022="no"`                                     |
+| Prefill data                              | WHO code                   | Label                                        | Expected shape                                                                             |
+| ----------------------------------------- | -------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `presets.hivAidsMortality`                | `Id10002`                  | Is this a region of high HIV/AIDS mortality? | `"high" \| "low" \| "veryl"`                                                               |
+| `presets.malariaMortality`                | `Id10003`                  | Is this a region of high malaria mortality?  | `"high" \| "low" \| "veryl"`                                                               |
+| `interviewer.name`                        | `Id10010`                  | Name of VA interviewer                       | Letters and spaces only                                                                    |
+| `interviewer.age`                         | `Id10010a`                 | Age of VA interviewer                        | Number, 18-89 or 99                                                                        |
+| `interviewer.sex`                         | `Id10010b`                 | Sex of VA interviewer                        | `"female" \| "male" \| "undetermined"`                                                     |
+| `interviewer.id`                          | `Id10010c`                 | ID of VA interviewer                         | Non-empty string                                                                           |
+| `interviewer.language`                    | `language`                 | Interview language                           | ISO/BCP-47 language tag string, for example `"en"` or `"hi-IN"`                            |
+| `deceased.givenNames`                     | `Id10017`                  | First or given name(s) of the deceased       | Non-empty string                                                                           |
+| `deceased.surname`                        | `Id10018`                  | Surname(s) or family name(s) of the deceased | Non-empty string                                                                           |
+| `deceased.sex`                            | `Id10019`                  | Sex of the deceased                          | `"female" \| "male" \| "undetermined"`                                                     |
+| `deceased.citizenship`                    | `Id10052`                  | Citizenship/nationality                      | `"citizen_at_birth" \| "naturalized_citizen" \| "foreign_national" \| "dk" \| "ref"`       |
+| `deceased.dateOfBirth`                    | `Id10021`                  | When was the deceased born?                  | ISO date string, `YYYY-MM-DD`; also sets `Id10020="yes"`                                   |
+| `deceased.ageInYears`                     | `age_adult`                | Adult age in years                           | Number, 12-119; also sets `Id10020="no"`, `age_group="adult"`                              |
+| `deceased.dateOfDeath`                    | `Id10023_a` or `Id10023_b` | When did (s)he die?                          | ISO date string, `YYYY-MM-DD`; also sets `Id10022="yes"`                                   |
+| `deceased.yearOfDeath`                    | `Id10024`                  | Please indicate the year of death            | Four-digit year string; also sets `Id10022="no"`                                           |
 | `location.country/state/district/village` | `Id10055`                  | Usual residence                              | Strings composed as `country, state, district, village`; place of death is never prefilled |
-| `location.deathPlace`                     | `Id10055`                  | Usual residence                              | Non-empty string, appended after `; ` when structured location is present            |
+| `location.deathPlace`                     | `Id10055`                  | Usual residence                              | Non-empty string, appended after `; ` when structured location is present                  |
 
 Language dropdown options display the English language name plus the local/native name. For custom language choices, use the ISO/BCP-47 tag as the choice value and provide `label.en` plus a native label keyed by the same tag or its base language, for example `{ value: "hi-IN", label: { en: "Hindi (India)", "hi-IN": "हिन्दी" } }`.
 

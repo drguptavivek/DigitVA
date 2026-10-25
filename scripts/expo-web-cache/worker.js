@@ -41,10 +41,16 @@ self.addEventListener("fetch", (event) => {
 
 let warming;
 let warmingGeneration = 0;
+let warmingOwnerId;
 let warmingAbort;
 
-function cancelWarming(generation) {
-  if (!Number.isInteger(generation) || generation < warmingGeneration) return;
+function sourceClientId(event) {
+  const id = event.source?.id;
+  return typeof id === "string" && id.length > 0 ? id : undefined;
+}
+
+function cancelWarming(ownerId, generation) {
+  if (!ownerId || ownerId !== warmingOwnerId || !Number.isInteger(generation) || generation < warmingGeneration) return;
   warmingGeneration = generation;
   warmingAbort?.abort();
   warmingAbort = undefined;
@@ -52,23 +58,29 @@ function cancelWarming(generation) {
 
 self.addEventListener("message", (event) => {
   const message = event.data;
+  const ownerId = sourceClientId(event);
+  if (!ownerId) return;
   if (message?.release !== manifest.release || !Number.isInteger(message.generation)) return;
   if (message.type === "cancel-interview-assets") {
-    cancelWarming(message.generation);
+    cancelWarming(ownerId, message.generation);
     return;
   }
   if (message.type !== "warm-interview-assets" || message.group !== "interviewRuntime") return;
-  if (message.generation < warmingGeneration) return;
+  if (ownerId === warmingOwnerId && message.generation < warmingGeneration) return;
   const previous = warming;
-  if (previous && message.generation === warmingGeneration) {
+  if (previous && ownerId === warmingOwnerId && message.generation === warmingGeneration) {
     event.waitUntil(previous);
     return;
   }
-  cancelWarming(message.generation);
+  // A newly loaded page gets a new WindowClient id and a fresh generation
+  // counter. It may replace the previous page's job, but the old page cannot
+  // cancel the new owner's job.
+  if (previous) warmingAbort?.abort();
+  warmingOwnerId = ownerId;
+  warmingGeneration = message.generation;
   // Sequential requests keep background downloads from competing with foreground form requests.
   const controller = new AbortController();
   warmingAbort = controller;
-  warmingGeneration = message.generation;
   const paths = manifest.groups?.interviewRuntime ?? [];
   const run = (async () => {
     if (previous) await previous.catch(() => undefined);
@@ -79,8 +91,7 @@ self.addEventListener("message", (event) => {
       if (await cache.match(path)) continue;
       try {
         await downloadAsset(path, controller.signal);
-      } catch (error) {
-        if (!controller.signal.aborted) return;
+      } catch {
         return;
       }
     }

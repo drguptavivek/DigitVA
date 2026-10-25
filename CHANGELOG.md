@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **WHO preloaded web package entry** (`digitva-k2s1`): add an explicit
+  `/web/preloaded` namespace using the canonical instrument and shared renderer.
+  Preserve ordinary WHO root/web/native loading and exports. CI40191960858
+  correctly rejected the first split because its nested instrument import put
+  the form JSON into initial common code; keep that placement gate enforced.
+
 - **WHO interview loading and training routes** (`digitva-k2s1`, `digitva-bc56`):
   isolate the WHO core and renderer behind one asynchronous browser boundary,
   keep coding/registration controls lightweight, and warm only verified public

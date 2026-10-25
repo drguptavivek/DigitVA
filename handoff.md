@@ -13,12 +13,18 @@ Preserve unrelated dirty `scripts/loadtest/restore.sh` and orientation files.
 ## Ranked current work (2026-10-25)
 
 1. `digitva-k2s1`: approved WHO runtime isolation and authenticated background
-   asset caching implemented in the working tree; CI export and final browser
-   acceptance remain open. One async web WHO core+renderer boundary; local small
+   asset caching pushed in8b79f0b5d; CI40191960858 exported successfully but
+   instrument placement gate failed: WHO's nested lazy loader still hoists its
+   instrument into initial common589141raw/93214gzip. Initialtotal3086281/730121
+   versus baseline3629765/856474. Preserve the failing gate; additive preloaded
+   WHO web packaging entry implemented and HMR verified; corrective CI pending.
+   Browser acceptance remains open. Legacy WHO root/web/native retain lazy APIs.
+   One async web WHO core+renderer boundary; local small
    UI controls and browser-safe case/revision utilities remove eager imports.
    Native retains static WHO runtime. Public manifest warming requires interview
    access, foreground/online/4G/no-save-data; verified completed chunks survive
-   cancellation/retry. Full Jest180/2705, typecheck, Node18 and backend519/125
+   cancellation/retry (including new-page client ownership). Full Jest180/2705,
+   typecheck, Node20 and backend519/125
    subtests passed on the integrated change. CI profiles all initial scripts
    and canonical instrument placement, not only entry.
    Baseline artifact a14f6fa24 is mounted on8053, candidate on8054 after CI;
@@ -31,9 +37,13 @@ Preserve unrelated dirty `scripts/loadtest/restore.sh` and orientation files.
    Live HMR synthetic training draft opens and saves; screenshot
    /private/tmp/digitva-training-canonical-form.png. Final CI/browser acceptance
    still required before closing these beads.
-   `digitva-bc56.1`: final audit found pre-existing workspace auxiliary APIs
-   ignoring training scope; shared case-SID guard planned before release.
-   CI-only frontend profiling may proceed while that backend fix is completed.
+   `digitva-bc56.1` closed without changes: broader case-by-ID guard finding
+   withdrawn after checking the documented API contract. Those routes retain
+   specific-form authorization and owned allocations; do not change that contract
+   incidentally while fixing training navigation or interview scope.
+   `digitva-dv58`: vendor Docker serial Vitest933/935; save-order failure repeats
+   in unchanged8b79f0b5 baseline, navigation test passes both isolated reruns.
+   Vendor build/typecheck and targeted package boundary tests pass. No test skipped.
 2. Closed `digitva-grmg`: subsequent owner-reported whiteout on death-registration
    navigation/reload fixed locally: themed WebShell/loading status plus
    public/index.html prepaint. Full Jest175/2689, typecheck, Node7 and final audit

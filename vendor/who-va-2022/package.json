@@ -41,6 +41,11 @@
       "browser": "./dist/web.js",
       "import": "./dist/web.js"
     },
+    "./web/preloaded": {
+      "types": "./dist/web-preloaded.d.ts",
+      "browser": "./dist/web-preloaded.js",
+      "import": "./dist/web-preloaded.js"
+    },
     "./web-component": {
       "types": "./dist/web-component.d.ts",
       "browser": "./dist/web-component.js",

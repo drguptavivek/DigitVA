@@ -8,12 +8,23 @@ import type { AccessSummary, ClientBootstrap, ClientCsrf, TrainingArea } from ".
 import { accessCapabilities, requestClientJson } from "./api";
 import type { JsonRequester } from "./workspace/api";
 
-/** Training sub-menu routes. */
+/** Canonical browser routes.  The area keys intentionally remain the server's stable scope names. */
 export const TRAINING_ROUTES: Record<TrainingArea, string> = {
   interview: "/training/interview",
   coding: "/training/coding",
-  review: "/training/review",
+  review: "/training/reviewing",
 };
+
+export const TRAINING_REPORTING_ROUTE = "/training/reporting";
+export const TRAINING_INTERVIEW_CASE_ROUTE = "/training/interview/case";
+export const TRAINING_INTERVIEW_FORM_ROUTE = "/training/interview/form";
+export const TRAINING_CODING_CASE_ROUTE = "/training/coding/case";
+export const TRAINING_REVIEWING_CASE_ROUTE = "/training/reviewing/case";
+
+/** Legacy compatibility only: canonical routes never infer scope from a query parameter. */
+export function hasLegacyTrainingParam(value: unknown): boolean {
+  return (Array.isArray(value) ? value[0] : value) === "1";
+}
 
 /** Where an interview, once left, returns to. */
 export const TRAINING_INTERVIEW_HOME = TRAINING_ROUTES.interview;

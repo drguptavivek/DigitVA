@@ -3,13 +3,19 @@
  * Shared by the browser interview (src/web/InterviewScreen.tsx) and the phone (src/nativeRoutes/form.tsx).
  * Only definition labels are used, never answers.
  */
-import { localizeText, type InstrumentDefinition } from "@drguptavivek/who-2022-va";
+import type { InstrumentDefinition } from "@drguptavivek/who-2022-va";
 
 const MAX_REFUSAL_FIELDS = 5;
 const MAX_LABEL_CHARS = 80;
 
 function plainLabel(text: Record<string, string | undefined>, locale: string, fallback: string): string {
-  const flat = localizeText(text, locale, fallback).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const normalized = locale.trim().replaceAll("_", "-").toLowerCase();
+  const language = normalized.split("-")[0] ?? "";
+  const candidates = [...new Set([normalized, language, "en"].filter(Boolean))];
+  const localized = candidates.map((candidate) => text[candidate]).find((value): value is string => Boolean(value))
+    ?? Object.values(text).find((value): value is string => Boolean(value))
+    ?? fallback;
+  const flat = localized.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   return flat.length > MAX_LABEL_CHARS ? `${flat.slice(0, MAX_LABEL_CHARS - 1)}…` : flat;
 }
 

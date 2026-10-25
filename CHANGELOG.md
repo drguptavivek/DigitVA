@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **WHO interview loading and training routes** (`digitva-k2s1`, `digitva-bc56`):
+  isolate the WHO core and renderer behind one asynchronous browser boundary,
+  keep coding/registration controls lightweight, and warm only verified public
+  interview assets after eligible login. Add CI checks for all initial scripts
+  and canonical instrument placement. Keep training flows under
+  `/training/interview`, `/training/coding`, `/training/reporting` and
+  `/training/reviewing`, with legacy redirects and consistent scoped API reads,
+  saves and configuration. Jest180/2705, typecheck, Node18 and backend519/125
+  subtests passed; live HMR training form opened and saved. CI-only production
+  export and connectivity acceptance follow this commit; no staging deploy.
+
 - **Web startup and local navigation** (`a14f6fa24`; `digitva-grmg`, `digitva-cklz`): paint
   the saved/system theme before React starts and keep navigation/loading status
   visible while deferred screens load. Route the local HMR legacy home links

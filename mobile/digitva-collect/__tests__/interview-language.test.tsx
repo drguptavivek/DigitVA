@@ -80,10 +80,17 @@ jest.mock("../src/client/serverDraftStore", () => ({
 }));
 jest.mock("@drguptavivek/who-2022-va", () => ({
   createWhoVa2022Instrument: () => ({id: "WHO_2022_VA", version: "1", sections: [], questions: []}),
+  createWhoVaInitialDataFromPrefill: () => ({}),
   compileInstrumentDefinition: jest.fn(), ENGINE_VERSION: 1, reduceNationalIdData: (data: unknown) => data, WHO_VA_FORM_VERSION: "2022",
   WHO_VA_BUILT_IN_UI_TRANSLATIONS: {hi: {back: "पीछे", moreSectionsNote: "उत्तर देने पर और अनुभाग दिखेंगे"}},
 }), {virtual: true});
 jest.mock("@drguptavivek/who-2022-va/web", () => ({WhoVaForm: () => null}), {virtual: true});
+// InterviewScreen downloads the browser WHO runtime through the shared loader;
+// keep this unit suite synchronous and focused on screen behaviour.
+jest.mock("../src/web/whoRuntimeLoader", () => ({
+  loadWhoCoreRuntime: jest.fn(async () => jest.requireMock("@drguptavivek/who-2022-va")),
+  loadWhoWebRuntime: jest.fn(async () => jest.requireMock("@drguptavivek/who-2022-va/web")),
+}));
 const mockGetDraftConsent = jest.fn();
 const mockPostDraftConsent = jest.fn();
 const mockFetchConsentConfig = jest.fn();
@@ -107,6 +114,7 @@ import { t, setUiLocale } from "../src/i18n";
 import { guardedNavigate, leaveDialogOpen, leavePage, leaveSaveFailed, saveAndLeave, stayOnPage } from "../src/web/navigationGuard";
 import { AppHeaderBar } from "../src/web/AppHeader";
 import { whoFormTheme } from "../src/whoWebTheme";
+import { loadWhoCoreRuntime, loadWhoWebRuntime } from "../src/web/whoRuntimeLoader";
 
 jest.mock("../src/prefill", () => ({initialDataFromPrefill: () => ({})}));
 
@@ -129,6 +137,8 @@ beforeEach(() => {
   mockGetDraftConsent.mockReset().mockResolvedValue({consent_required: false, decision: null, covered_fields: [], client_draft_id: null});
   mockPostDraftConsent.mockReset();
   mockFetchConsentConfig.mockReset().mockResolvedValue(null);
+  (loadWhoCoreRuntime as jest.Mock).mockReset().mockResolvedValue(jest.requireMock("@drguptavivek/who-2022-va"));
+  (loadWhoWebRuntime as jest.Mock).mockReset().mockResolvedValue(jest.requireMock("@drguptavivek/who-2022-va/web"));
 });
 
 function deferred<T>() {
@@ -155,6 +165,25 @@ it("starts a later-page case using its authorized detail by id", async () => {
   await act(async () => {tree = create(<InterviewScreen />);});
   expect(getCaseDetail).toHaveBeenCalledWith("/api/v1/intake/cases", "later-page", mockBootstrap.csrf);
   expect(startDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", {project_id: "P2", site_id: "S2", org_unit_id: "U2", death_id: "later-page"}, mockBootstrap.csrf);
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
+  await act(async () => tree.unmount());
+});
+
+it("retries a failed WHO runtime download before creating a new draft", async () => {
+  const core = jest.requireMock("@drguptavivek/who-2022-va");
+  const web = jest.requireMock("@drguptavivek/who-2022-va/web");
+  (loadWhoCoreRuntime as jest.Mock)
+    .mockRejectedValueOnce(new Error("chunk download failed"))
+    .mockResolvedValue(core);
+  (loadWhoWebRuntime as jest.Mock).mockResolvedValue(web);
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<InterviewScreen />); });
+  expect(startDraft).not.toHaveBeenCalled();
+  const retry = tree.root.findAllByType("mock-button" as unknown as React.ElementType)
+    .find((node) => node.props.label === "Try again");
+  expect(retry).toBeDefined();
+  await act(async () => { retry?.props.onPress(); });
+  expect(getDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", mockBootstrap.csrf);
   expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
   await act(async () => tree.unmount());
 });

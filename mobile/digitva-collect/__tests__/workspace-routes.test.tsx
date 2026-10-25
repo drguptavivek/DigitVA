@@ -147,7 +147,7 @@ describe("browser workspace routes", () => {
       expect(paths().filter((path) => /\/coding\/(stats|available|allocation)/.test(path))).toHaveLength(3);
       expect(paths().every((path) => /[?&]training=1(&|$)/.test(path))).toBe(true);
       queue.onOpen({ vaSid: "sid-1", mode: "coding" });
-      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/workspace", params: { vaSid: "sid-1", mode: "coding", training: "1" } });
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/training/coding/case", params: { vaSid: "sid-1", mode: "coding" } });
       await act(async () => { renderer.unmount(); });
     });
 
@@ -196,10 +196,10 @@ describe("browser workspace routes", () => {
       await act(async () => { queue.unmount(); });
 
       trainee(["coding", "review"]);
-      mockRouteParams = { vaSid: "sid-3", mode: "reviewing", training: "1" };
-      const caseView = await render(<WorkspaceScreen />);
+      mockRouteParams = { vaSid: "sid-3", mode: "reviewing" };
+      const caseView = await render(<TrainingReviewScreen />);
       caseView.root.findByType("case-workspace" as never).props.onExit();
-      expect(mockRouter.replace).toHaveBeenCalledWith("/training/review");
+      expect(mockRouter.replace).toHaveBeenCalledWith("/training/reviewing");
       await act(async () => { caseView.unmount(); });
       expect(ReviewingScreen).toBeDefined();
     });

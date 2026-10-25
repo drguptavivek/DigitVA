@@ -18,6 +18,7 @@ from app import db, limiter
 from app.decorators import role_required
 from app.routes.api.request_helpers import browser_session_only, error, intake_error, parse_body
 from app.services import consent_service
+from app.services import training_scope
 from app.services import web_intake_service as intake_svc
 
 bp = Blueprint("intake_consent_api", __name__)
@@ -46,6 +47,7 @@ def _consent_refused(exc):
 def get_draft_consent(draft_id):
     """``{consent_required, decision (granted|refused|withdrawn|null),
     covered_fields, client_draft_id}``."""
+    training_scope.resolve("interview")
     draft = intake_svc.get_draft(current_user, draft_id)
     return jsonify(consent_service.draft_consent_status(draft))
 
@@ -57,6 +59,7 @@ def post_draft_consent(draft_id):
     """Body ``{"consent": <5.3 object>}``; replies 201 with the GET shape.
     422 ``consent_invalid``, 409 ``conflict`` (a reused ``client_id``), 409
     for a draft no longer open, 404 for anyone else's draft."""
+    training_scope.resolve("interview")
     draft = intake_svc.get_draft(current_user, draft_id, require_open=True)
     status = consent_service.record_draft_consent(current_user, draft, parse_body().get("consent"))
     db.session.commit()

@@ -5,14 +5,14 @@ import { Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
-import { startTraining, TRAINING_ROUTES } from "../training";
+import { startTraining, TRAINING_REPORTING_ROUTE, TRAINING_ROUTES } from "../training";
 import { spacing } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { DeathsListPanel } from "./DeathsList";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { TrainingScope } from "../AppState";
-import { DeathRegistrationScreen } from "./LazyInterviewScreen";
+import { CaseDetailScreen, DeathRegistrationScreen, InterviewScreen } from "./LazyInterviewScreen";
 import { ConfidentialityNotice, TrainingChecklistView, TrainingNone, useTrainingMe } from "./TrainingChecklist";
 
 const AREA_LABELS = { interview: "trainingInterview", coding: "trainingCoding", review: "trainingReview" } as const;
@@ -85,6 +85,15 @@ export function TrainingRegisterScreen() {
   return <TrainingScope fallback={<TrainingNone />}><DeathRegistrationScreen /></TrainingScope>;
 }
 
+/** The WHO interview form and case detail stay in the Training scope for their entire lifecycle. */
+export function TrainingInterviewFormScreen() {
+  return <TrainingScope fallback={<TrainingNone />}><InterviewScreen /></TrainingScope>;
+}
+
+export function TrainingInterviewCaseScreen() {
+  return <TrainingScope fallback={<TrainingNone />}><CaseDetailScreen /></TrainingScope>;
+}
+
 function TrainingInterview() {
   const router = useRouter();
   const styles = useUiStyles();
@@ -102,7 +111,7 @@ function TrainingInterview() {
           <Text style={styles.headline}>{t("trainingWorkList")}</Text>
           <DeathsListPanel
             headerAction={registers ? (
-              <Button size="sm" label={t("trainingReportDeath")} onPress={() => router.push("/training/register" as never)} />
+              <Button size="sm" label={t("trainingReportDeath")} onPress={() => router.push(TRAINING_REPORTING_ROUTE as never)} />
             ) : undefined}
           />
         </>

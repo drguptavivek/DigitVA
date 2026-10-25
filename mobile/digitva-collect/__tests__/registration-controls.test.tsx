@@ -54,21 +54,21 @@ describe("death registration field controls", () => {
     await act(async () => {
       tree = create(<RegistrationFieldControl field="age_years" label="Age" value="" onChange={onChange} onIssue={onIssue} />);
     });
-    const control = tree.root.findByProps({ "data-testid": "integer-control" });
-    expect(control.props.question.required).toBe(false);
-    act(() => control.props.onAnswer(-1));
+    const control = tree.root.findByProps({ testID: "question-age_years" });
+    expect(control.props.accessibilityLabel).toBe("Age");
+    act(() => control.props.onChangeText("-1"));
     expect(onChange).toHaveBeenCalledWith("-1");
     expect(onIssue).toHaveBeenCalledWith("errAge");
-    act(() => control.props.onAnswer(0));
+    act(() => control.props.onChangeText("0"));
     expect(onChange).toHaveBeenLastCalledWith("0");
     expect(onIssue).toHaveBeenLastCalledWith();
-    act(() => control.props.onAnswer(42));
+    act(() => control.props.onChangeText("42"));
     expect(onChange).toHaveBeenLastCalledWith("42");
     expect(onIssue).toHaveBeenLastCalledWith();
-    act(() => control.props.onAnswer(125));
+    act(() => control.props.onChangeText("125"));
     expect(onChange).toHaveBeenLastCalledWith("125");
     expect(onIssue).toHaveBeenLastCalledWith();
-    act(() => control.props.onAnswer(126));
+    act(() => control.props.onChangeText("126"));
     expect(onChange).toHaveBeenLastCalledWith("126");
     expect(onIssue).toHaveBeenLastCalledWith("errAge");
     await act(async () => tree!.unmount());

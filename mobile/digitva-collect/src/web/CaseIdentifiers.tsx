@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
-import { ApiError } from "../api";
+import { ApiError, type ClientCsrf } from "../api";
 import { IdentifierFields, identifierIssueText, MONOSPACE } from "../IdentifierFields";
 import { t } from "../i18n";
 import {
@@ -46,13 +46,14 @@ type Editable = { death_id: string; project_id?: string; updated_at?: string | n
  * may write this case (absent means no; the flag already folds in the closed-case rule). It opens
  * the same fields in a small panel and saves through PUT /intake/cases/<id>/identifiers.
  */
-export function AddIdentifierAction({ row, onChanged }: { row: Editable; onChanged: () => void }) {
+export function AddIdentifierAction({ row, csrf, onChanged }: { row: Editable; csrf?: ClientCsrf; onChanged: () => void }) {
   if (row.can_edit_identifiers !== true) return null;
-  return <AddIdentifierPanel row={row} onChanged={onChanged} />;
+  return <AddIdentifierPanel row={row} csrf={csrf} onChanged={onChanged} />;
 }
 
-function AddIdentifierPanel({ row, onChanged }: { row: Editable; onChanged: () => void }) {
+function AddIdentifierPanel({ row, csrf, onChanged }: { row: Editable; csrf?: ClientCsrf; onChanged: () => void }) {
   const { bootstrap } = useAppState();
+  const requestCsrf = csrf ?? bootstrap?.csrf;
   const styles = useUiStyles();
   const [open, setOpen] = useState(false);
   const [types, setTypes] = useState<IdentifierType[]>([]);
@@ -73,11 +74,11 @@ function AddIdentifierPanel({ row, onChanged }: { row: Editable; onChanged: () =
   useEffect(() => {
     if (!bootstrap) return;
     setTypesState("loading");
-    loadIdentifierTypes(row.project_id ?? "", bootstrap.csrf).then(
+    loadIdentifierTypes(row.project_id ?? "", requestCsrf).then(
       (loaded) => { if (alive.current) { setTypes(loaded); setTypesState("ready"); } },
       () => { if (alive.current) setTypesState("error"); },
     );
-  }, [bootstrap, row.project_id]);
+  }, [bootstrap, requestCsrf, row.project_id]);
 
   function show() {
     if (!bootstrap) return;
@@ -114,7 +115,7 @@ function AddIdentifierPanel({ row, onChanged }: { row: Editable; onChanged: () =
     setErrors({});
     setMessage("");
     try {
-      const reply = await putCaseIdentifiers(bootstrap.links.intakeCases, row.death_id, changes, updatedAt.current, bootstrap.csrf);
+      const reply = await putCaseIdentifiers(bootstrap.links.intakeCases, row.death_id, changes, updatedAt.current, requestCsrf!);
       if (!alive.current) return;
       const stamp = (reply.case as { updated_at?: unknown } | undefined)?.updated_at;
       if (typeof stamp === "string") updatedAt.current = stamp;

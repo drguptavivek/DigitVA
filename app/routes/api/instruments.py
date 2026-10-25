@@ -31,6 +31,7 @@ from flask_login import current_user, login_required
 from app import db, limiter
 from app.models import VaProjectMaster, VaStatuses
 from app.services import served_form_service
+from app.services import training_scope
 from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import (
     BASE_LOCALE,
@@ -149,6 +150,7 @@ def instrument_definition(instrument_code: str):
     """
     from app.routes.api.organization import form_options_project, project_instrument_and_extensions
 
+    training_scope.resolve("interview")
     code = (instrument_code or "").strip().upper()
     project_id = (request.args.get("project_id") or "").strip().upper()
     if not project_id:

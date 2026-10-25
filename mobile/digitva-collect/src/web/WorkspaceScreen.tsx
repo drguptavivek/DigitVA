@@ -21,7 +21,9 @@ import { Chevron, FoldButton } from "./Chevron";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { KpiStrip } from "./KpiStrip";
 import { dataAccess, hasAnyRoleOrProject, openServerPage, statisticsAllowed } from "./roleHome";
-import { TRAINING_ROUTES, takeTrainingRedirect } from "../training";
+import {
+  TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, takeTrainingRedirect,
+} from "../training";
 import { TrainingShell } from "./TrainingChecklist";
 
 type RouteParams = { vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[]; training?: string | string[] };
@@ -160,16 +162,15 @@ function currentPathMode(forcedMode: WorkspaceMode | undefined, routeMode: strin
 }
 
 /**
- * *training*: the Training menu's queue (`/training/coding`, `/training/review`): the same screen, asking the server for
- * the training scope. The scope comes from the route (this prop), never from a query on the normal routes; on a case
- * (`/workspace?vaSid`) a `training=1` param only decides where Exit and the menu highlight go.
+ * *training*: the Training menu's queue (`/training/coding`, `/training/reviewing`) and case routes, asking the
+ * server for the training scope. The scope comes from the route (this prop), never from a query on normal routes.
  */
 function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forcedMode?: WorkspaceMode; training?: boolean } = {}) {
   const router = useRouter();
   const params = useLocalSearchParams<RouteParams>();
   const vaSid = first(params.vaSid)?.trim();
   const mode = currentPathMode(forcedMode, first(params.mode));
-  const training = trainingRoute || (Boolean(vaSid) && first(params.training) === "1");
+  const training = trainingRoute;
   const trainingHome = mode === "reviewing" ? TRAINING_ROUTES.review : TRAINING_ROUTES.coding;
   const { bootstrap, loginUrl, reload } = useAppState();
   const styles = useUiStyles();
@@ -190,7 +191,10 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   const section = first(params.section);
   useEffect(() => {
     // replace, not setParams: setParams keeps keys it is not given a value for.
-    if (caseWithQueueParams) router.replace({ pathname: "/workspace", params: { vaSid, mode, ...(section ? { section } : {}), ...(training ? { training: "1" } : {}) } });
+    if (caseWithQueueParams) router.replace({
+      pathname: training ? (mode === "reviewing" ? TRAINING_REVIEWING_CASE_ROUTE : TRAINING_CODING_CASE_ROUTE) : "/workspace",
+      params: { vaSid, mode, ...(section ? { section } : {}) },
+    });
   }, [caseWithQueueParams, router, vaSid, mode, section, training]);
 
   useEffect(() => {
@@ -221,9 +225,13 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   }, [checkKey, reload, userId]);
 
   const activeBootstrap = sessionCheck?.key === checkKey ? sessionCheck.bootstrap : undefined;
+  const workspaceCsrf = useMemo(
+    () => activeBootstrap ? (training ? { ...activeBootstrap.csrf, training: true as const } : activeBootstrap.csrf) : undefined,
+    [activeBootstrap, training],
+  );
   const requester: JsonRequester | undefined = useMemo(
-    () => activeBootstrap ? createWebWorkspaceTransport(activeBootstrap.csrf) : undefined,
-    [activeBootstrap],
+    () => workspaceCsrf ? createWebWorkspaceTransport(workspaceCsrf) : undefined,
+    [workspaceCsrf],
   );
   const api: WorkspaceApi | undefined = useMemo(
     () => requester ? createWorkspaceApi(requester, { training }) : undefined,
@@ -312,7 +320,10 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     Shell={trainingRoute ? (mode === "reviewing" ? ReviewTrainingShell : CodingTrainingShell) : WebShell}
     initialView={parseQueueParams(params)}
     onViewChange={(view) => { if (ownsQueueParams(window.location.search)) router.setParams(serializeQueueParams(view)); }}
-    onOpen={(identity) => router.push({ pathname: "/workspace", params: { vaSid: identity.vaSid, mode: identity.mode, ...(trainingRoute ? { training: "1" } : {}) } })}
+    onOpen={(identity) => router.push({
+      pathname: trainingRoute ? (identity.mode === "reviewing" ? TRAINING_REVIEWING_CASE_ROUTE : TRAINING_CODING_CASE_ROUTE) : "/workspace",
+      params: { vaSid: identity.vaSid, mode: identity.mode },
+    })}
   />;
 
   async function openView() {

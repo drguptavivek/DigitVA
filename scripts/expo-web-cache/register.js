@@ -2,21 +2,15 @@
 (() => {
   if (!("serviceWorker" in navigator) || !window.isSecureContext) return;
   const release = __DIGITVA_RELEASE__;
+  window.__DIGITVA_WEB_RELEASE__ = release;
   async function register() {
     try {
       await navigator.serviceWorker.register("/app/asset-worker.js", {
         scope: "/app/", updateViaCache: "none",
       });
-      const registration = await navigator.serviceWorker.ready;
-      const connection = navigator.connection;
-      if (connection?.saveData || connection?.effectiveType !== "4g") return;
-      const warm = () => {
-        if (document.visibilityState === "visible" && navigator.onLine !== false) {
-          registration.active?.postMessage({ type: "warm-public-assets", release });
-        }
-      };
-      if ("requestIdleCallback" in window) window.requestIdleCallback(warm, { timeout: 10000 });
-      else window.setTimeout(warm, 3000);
+      // Registration is intentionally anonymous. AppState.web starts the
+      // interview-only warm after authenticated access is known; this keeps
+      // login, coding and coder-only sessions cache-light.
     } catch {
       // Storage restrictions or offline registration must not prevent normal app loading.
     }

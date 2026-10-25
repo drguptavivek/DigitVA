@@ -38,6 +38,7 @@ from app.models import (
 from app.routes.api.request_helpers import error as api_error
 from app.services import organization_service as org
 from app.services import served_form_service
+from app.services import training_scope
 from app.services import web_intake_service as intake_svc
 from app.services.authz import reachable_unit_ids
 from app.services.instrument_translation_service import active_locale_versions
@@ -672,6 +673,7 @@ def project_form_options(project_id: str):
     not narrowed by what the grants reach -- project configuration is the same
     for everyone who may see the project at all.
     """
+    training_scope.resolve("interview")
     project, refusal = form_options_project(project_id)
     if refusal is not None:
         return refusal
@@ -688,10 +690,17 @@ def form_options_project(project_id: str) -> tuple[VaProjectMaster | None, tuple
     nothing in it). Returns ``(project, None)`` or ``(None, (response, status))``.
     """
     project_id = (project_id or "").strip().upper()
-    reachable = _reachable_unit_ids(project_id, None)
     project = db.session.get(VaProjectMaster, project_id)
     if project is None or project.project_status != VaStatuses.active:
         return None, api_error("Project not found.", status_code=404)
+    if not training_scope.keeps_project(project_id):
+        return None, api_error("You do not have access to that project.", status_code=403)
+    reachable = _reachable_unit_ids(project_id, None)
+    if training_scope.current() == training_scope.ONLY:
+        from app.services.training_demo_service import may_use_area
+
+        if project_id != training_scope.training_project_id() or not may_use_area(current_user.user_id, "interview"):
+            return None, api_error("You do not have access to that project.", status_code=403)
     if reachable is not None and not reachable:
         return None, api_error("You do not have access to that project.", status_code=403)
     return project, None

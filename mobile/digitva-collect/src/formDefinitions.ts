@@ -1,11 +1,8 @@
 import * as Crypto from "expo-crypto";
-import {
-  compileInstrumentDefinition,
-  ENGINE_VERSION,
-  type InstrumentDefinition,
-} from "@drguptavivek/who-2022-va";
+import type { InstrumentDefinition } from "@drguptavivek/who-2022-va";
 
 import type { RawApiResponse } from "./api";
+import { loadWhoCoreRuntime } from "./whoCoreRuntime";
 
 export interface DefinitionIdentity {
   accountId: string;
@@ -182,7 +179,8 @@ export async function verifyAndCompileDefinition(input: {
     throw new FormDefinitionError("invalid_definition");
   }
   const engineVersion = Number(parsed.engineVersion);
-  if (engineVersion > ENGINE_VERSION) {
+  const whoRuntime = await loadWhoCoreRuntime();
+  if (engineVersion > whoRuntime.ENGINE_VERSION) {
     throw new FormDefinitionError("incompatible_engine");
   }
 
@@ -190,7 +188,7 @@ export async function verifyAndCompileDefinition(input: {
   try {
     definition = parsed as unknown as InstrumentDefinition;
     normalizeDefinitionAsts(definition);
-    compileInstrumentDefinition(definition);
+    whoRuntime.compileInstrumentDefinition(definition);
   } catch {
     throw new FormDefinitionError("invalid_definition");
   }
@@ -298,10 +296,8 @@ export function prepareProjectInstrument(
     if (question.validation)
       question.validation.choiceValues = choices.map((choice) => choice.value);
   }
-  try {
-    compileInstrumentDefinition(copy);
-  } catch {
-    throw new FormDefinitionError("invalid_definition");
-  }
+  // `definition` was compiled and verified before reaching this helper. The
+  // narration narrowing only removes choices, so it cannot invalidate the
+  // already-compiled expression graph.
   return copy;
 }

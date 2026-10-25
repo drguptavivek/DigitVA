@@ -24,6 +24,7 @@ import { createNotificationPollGate, drainNotificationPages } from "./notificati
 import { resetFirstHomeLoad } from "./web/roleHome";
 import { clearBrowserDraft } from "./workspace/doris/browserDraft";
 import { browserSessionStore, clearAllScroll } from "./workspace/viewState";
+import { setInterviewAssetWarmEligibility } from "./web/interviewAssetCache";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 const NOTIFICATION_AUTH_RETRY_MS = 60_000;
@@ -111,6 +112,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const loggingOut = useRef(false);
   const refreshInFlight = useRef<Promise<void> | undefined>(undefined);
   const definitionSession = useRef<BrowserDefinitionSession | undefined>(undefined);
+  const interviewWarmContextGeneration = useRef(0);
   const beforeSignOut = useRef(new Set<() => Promise<void>>());
   const notificationSession = useRef<BrowserNotificationSession | undefined>(undefined);
   const notificationAuthRetry = useRef<{ userId: string; retryAt: number } | undefined>(undefined);
@@ -147,6 +149,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const applyDefinitionAccess = useCallback((result: BootstrapResult): boolean => {
     if (!result.authenticated) {
+      setInterviewAssetWarmEligibility(false);
       clearBrowserDraft();
       if (definitionSession.current) {
         clearDefinitionSession();
@@ -156,11 +159,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
 
     const { user, access } = result.bootstrap;
-    const intakeProjects = new Set(access.projects
+    const accessProjects = access.training?.project
+      ? [...access.projects, access.training.project]
+      : access.projects;
+    const intakeProjects = new Set(accessProjects
       .filter((project) => project.actions.interview.length > 0)
       .map((project) => project.project_id));
     const previous = definitionSession.current;
     if (previous?.accountId !== user.user_id) {
+      interviewWarmContextGeneration.current += 1;
+      setInterviewAssetWarmEligibility(intakeProjects.size > 0, interviewWarmContextGeneration.current);
       if (previous) clearBrowserDraft();
       clearDefinitionSession();
       definitionSession.current = {
@@ -192,7 +200,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       accessChanged = true;
     }
     previous.intakeProjects = intakeProjects;
-    if (accessChanged) setSessionGeneration((current) => current + 1);
+    if (accessChanged) {
+      interviewWarmContextGeneration.current += 1;
+      setSessionGeneration((current) => current + 1);
+    }
+    setInterviewAssetWarmEligibility(intakeProjects.size > 0, interviewWarmContextGeneration.current);
     return accessChanged;
   }, [clearDefinitionSession]);
 
@@ -393,6 +405,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await flushBeforeSignOut();
     clearWebRecall();
     clearBrowserDraft();
+    setInterviewAssetWarmEligibility(false);
     // Stop every source of authenticated traffic first: a request that ends after the logout response
     // would save the old session again and keep the user signed in. The signed-in state stays untouched
     // until the page navigates away: clearing it re-mounts screens, and their loaders would send exactly
@@ -432,6 +445,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       abortClientRequests();
       clearWebRecall();
       clearBrowserDraft();
+      setInterviewAssetWarmEligibility(false);
       const link = bootstrap?.links.logout;
       if (signOutFirst && link && bootstrap) {
         try {

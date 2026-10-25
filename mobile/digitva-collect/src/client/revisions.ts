@@ -1,10 +1,13 @@
-import { reduceNationalIdData, type SubmissionData } from "@drguptavivek/who-2022-va";
+import type { SubmissionData } from "@drguptavivek/who-2022-va";
 
-import { ClientApiError, requestClientJson, type ClientCsrf, type DraftResponse, type DraftSummary } from "./api";
-import { localDateTimeWithOffset } from "../drafts";
+import { ClientApiError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
+import { getSubmittedRevisions, type SubmittedRevisionSummary } from "./revisionList";
+import { localDateTimeWithOffset } from "./localDateTime";
+import { loadWhoCoreRuntime } from "../whoCoreRuntime";
 import type { DefinitionPin } from "../formDefinitionRuntime";
 
-const INTAKE_DRAFTS = "/api/v1/intake/drafts";
+export { getSubmittedRevisions, type SubmittedRevisionSummary };
+
 const INCOMPLETE_OUTCOMES = new Set(["partially_completed", "respondent_unavailable", "refused"]);
 const PARTIAL_OUTCOMES = new Set(["partially_completed", "respondent_unavailable"]);
 const REVISION_OUTCOMES = new Set(["completed", "partially_completed", "respondent_unavailable", "refused"]);
@@ -14,13 +17,6 @@ export type RevisionReasonCode =
   | "respondent_correction"
   | "more_information"
   | "finish_partial";
-
-export interface SubmittedRevisionSummary extends DraftSummary {
-  status: "submitted";
-  va_sid: string;
-  created_at: string;
-  updated_at: string;
-}
 
 export interface RevisionDetail extends DraftResponse {
   draft: SubmittedRevisionSummary;
@@ -64,18 +60,6 @@ export interface RevisionAck {
   answers_sha256: string;
   outcome: string;
   workflow_state: string;
-}
-
-/** Return only the server's bounded, newest-first submitted metadata list. */
-export async function getSubmittedRevisions(csrf: ClientCsrf, training = false): Promise<SubmittedRevisionSummary[]> {
-  const result = await requestClientJson<{ drafts: SubmittedRevisionSummary[] }>(
-    `${INTAKE_DRAFTS}?status=submitted${training ? "&training=1" : ""}`,
-    { csrf },
-  );
-  if (!Array.isArray(result?.drafts) || result.drafts.length > 200 || !result.drafts.every(isSubmittedSummary)) {
-    throw new ClientApiError(200, "malformed_response");
-  }
-  return result.drafts.slice(0, 200);
 }
 
 /** Fetch raw submitted answers only after the interviewer opens a revision. */
@@ -143,7 +127,8 @@ export async function createRevisionSnapshot(
     generation: number;
   },
 ): Promise<RevisionSnapshot> {
-  const answersJson = JSON.stringify(reduceNationalIdData(input.data));
+  const whoRuntime = await loadWhoCoreRuntime();
+  const answersJson = JSON.stringify(whoRuntime.reduceNationalIdData(input.data));
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(answersJson));
   const answersSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
   return {
@@ -219,13 +204,6 @@ export function revisionOutcome(data: SubmissionData, valid: boolean): string | 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function isSubmittedSummary(value: unknown): value is SubmittedRevisionSummary {
-  return isRecord(value) && value.status === "submitted" && validId(value.draft_id) &&
-    validId(value.project_id) && validId(value.site_id) && validId(value.va_sid) &&
-    typeof value.created_at === "string" && typeof value.updated_at === "string" &&
-    !("envelope" in value) && !("prefill" in value) && !("answers_json" in value) && !("data" in value);
 }
 
 function isHash(value: unknown): value is string {

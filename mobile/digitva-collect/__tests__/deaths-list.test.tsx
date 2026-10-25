@@ -41,7 +41,7 @@ jest.mock("../src/client/api", () => ({
   registerDeath: jest.fn(),
   startDraft: jest.fn(),
 }));
-jest.mock("../src/client/revisions", () => ({ getSubmittedRevisions: jest.fn() }));
+jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/i18n", () => ({
   t: (key: string, values: Record<string, string> = {}) => key + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : ""),
 }));
@@ -69,7 +69,7 @@ import { DeathsList, DeathsListPanel } from "../src/web/DeathsList";
 import { withinLastDays } from "../src/web/caseFilters";
 import * as identifiersApi from "../src/identifiers";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
-import { getSubmittedRevisions } from "../src/client/revisions";
+import { getSubmittedRevisions } from "../src/client/revisionList";
 
 const mockGetCases = getCases as jest.Mock;
 
@@ -242,6 +242,19 @@ describe("DeathsList cards", () => {
     expect(cards.every(Boolean)).toBe(true);
     const primaries = cards.map((card) => card.findAll((n) => n.type === "button" && n.props["data-kind"] === "primary").map((n) => n.props["data-label"]));
     expect(primaries).toEqual([["startInterview"], ["resumeInterview"], ["editRegistration"]]);
+    await act(async () => tree.unmount());
+  });
+
+  it("carries training scope into start and resume interview routes", async () => {
+    mockBootstrap = { ...makeBootstrap(["interviewer"], { intake: true }), scope: "training" } as typeof mockBootstrap;
+    const tree = await render(<DeathsListPanel />);
+    const resume = tree.root.findAll((node) => node.props["data-label"] === "resumeInterview")[0];
+    expect(resume).toBeDefined();
+    await act(async () => resume.props.onClick());
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/training/interview/form",
+      params: expect.objectContaining({ draftId: "dr2", projectId: "P1", siteId: "S1" }),
+    });
     await act(async () => tree.unmount());
   });
 

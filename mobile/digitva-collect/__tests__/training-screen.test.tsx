@@ -126,7 +126,7 @@ describe("Training interview area", () => {
     expect(renderer.root.findAllByType("deaths-list" as never)).toHaveLength(1);
     expect(renderer.root.findAllByType("supervision-panel" as never)).toHaveLength(1);
     button(renderer, "trainingReportDeath")[0].props.onPress();
-    expect(mockPush).toHaveBeenCalledWith("/training/register");
+    expect(mockPush).toHaveBeenCalledWith("/training/reporting");
     await act(async () => { renderer.unmount(); });
   });
 

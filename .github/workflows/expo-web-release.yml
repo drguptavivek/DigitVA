@@ -75,8 +75,34 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
+          set -euo pipefail
           node --test scripts/tests/expo-web-cache.test.mjs
           node scripts/build-expo-web-cache.mjs mobile/digitva-collect/dist "${INPUT_TAG:-expo-web-dev-${GITHUB_SHA:0:7}}" "$GITHUB_SHA"
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          node --test scripts/tests/expo-web-profile.test.mjs
+          node scripts/profile-expo-web.mjs mobile/digitva-collect/dist "$RUNNER_TEMP/release-assets/web-bundle-profile.json"
+
+      - name: Summarize web bundle profile
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          profile="$RUNNER_TEMP/release-assets/web-bundle-profile.json"
+          if [[ ! -s "$profile" ]]; then
+            echo "## Expo web bundle profile" >> "$GITHUB_STEP_SUMMARY"
+            echo "The profiler did not produce a report; inspect the failed build step." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          node --input-type=module - "$profile" <<'NODE' >> "$GITHUB_STEP_SUMMARY"
+          import { readFileSync } from "node:fs";
+          const report = JSON.parse(readFileSync(process.argv[2], "utf8"));
+          const largest = report.largest_chunks.slice(0, 5).map((chunk) => `| ${chunk.path} | ${chunk.raw_bytes} | ${chunk.gzip_bytes} |`).join("\n");
+          console.log("## Expo web bundle profile");
+          console.log(`Initial JavaScript: **${report.initial.raw_bytes} raw bytes**, **${report.initial.gzip_bytes} gzip bytes**.`);
+          console.log(`Deferred JavaScript: ${report.deferred.raw_bytes} raw bytes, ${report.deferred.gzip_bytes} gzip bytes.`);
+          console.log(`Runtime chunks: ${report.deferred.runtime_chunks.map((chunk) => chunk.path).join(", ") || "none"}.`);
+          console.log("\n| Largest chunk | Raw bytes | Gzip bytes |\n| --- | ---: | ---: |\n" + largest);
+          NODE
 
       - name: Package and checksum the export
         id: package
@@ -87,6 +113,7 @@ jobs:
           set -euo pipefail
           test -s mobile/digitva-collect/dist/index.html
           test -s mobile/digitva-collect/dist/ui-strings/en.json
+          test -s "$RUNNER_TEMP/release-assets/web-bundle-profile.json"
           name="${INPUT_TAG:-expo-web-dev-${GITHUB_SHA:0:7}}"
           archive="$RUNNER_TEMP/release-assets/$name.tar.gz"
           mkdir -p "$RUNNER_TEMP/release-assets"
@@ -103,10 +130,12 @@ jobs:
           echo "sha256=$(cut -d' ' -f1 "$archive.sha256")" >> "$GITHUB_OUTPUT"
 
       - name: Upload export artifact
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: expo-web-${{ github.sha }}
-          if-no-files-found: error
+          # Keep the size report available when an acceptance gate fails.
+          if-no-files-found: warn
           retention-days: 14
           path: ${{ runner.temp }}/release-assets/
 

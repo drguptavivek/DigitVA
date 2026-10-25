@@ -244,11 +244,19 @@ def identifier_types():
     through their effective roles), and for an admin in any project; anything
     else is 403 ``project_forbidden``, alike whether the project exists or
     not. Either credential."""
+    training_scope.resolve("interview")
     project_id = identifier_types_svc.normalise_project_id(request.args.get("project_id"))
     if not project_id:
         raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
-    if not (resolve_grants(current_user).is_admin
-            or identifier_types_svc.supervises_project(current_user, project_id)):
+    if not training_scope.keeps_project(project_id):
+        return error("This project is not available in this area.", "project_forbidden", 403)
+    if training_scope.current() == training_scope.ONLY:
+        from app.services.training_demo_service import may_use_area
+
+        if project_id != training_scope.training_project_id() or not may_use_area(current_user.user_id, "interview"):
+            return error("This project is not available in this area.", "project_forbidden", 403)
+    elif not (resolve_grants(current_user).is_admin
+              or identifier_types_svc.supervises_project(current_user, project_id)):
         require_project(project_id, DEATH_REGISTERING_ROLES)
     return jsonify({
         "project_id": project_id,
@@ -268,6 +276,7 @@ def consent_config():
     (required). Who: as ``identifier_types``; anything else is 403
     ``project_forbidden``. A project without consent settings answers
     ``consent_required: false`` and no notice versions. Either credential."""
+    training_scope.resolve("interview")
     project_id = identifier_types_svc.normalise_project_id(request.args.get("project_id"))
     if not project_id:
         raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
@@ -393,6 +402,7 @@ def case_detail(death_id):
     the worklist would list it (any project of the caller's, any state);
     otherwise 404. Starting or resuming the interview is
     ``POST links.start_interview`` with the case's project, site and id."""
+    training_scope.resolve("interview")
     row = intake_svc.get_case_detail(current_user, death_id, context=interviewer_context())
     return jsonify({"case": _case_body(*row)})
 
@@ -402,6 +412,7 @@ def case_detail(death_id):
 def possible_duplicates(death_id):
     """Cases in the caller's reach that may be the same death (a warning;
     never blocks submit, never merges). Out-of-scope ids read as 404."""
+    training_scope.resolve("interview")
     death = intake_svc.get_death(current_user, death_id)
     return jsonify({"possible_duplicates": intake_svc.possible_duplicates(current_user, death)})
 
@@ -707,6 +718,7 @@ def start_draft():
 @bp.get("/drafts/<draft_id>")
 @role_required("interviewer")
 def get_draft(draft_id):
+    training_scope.resolve("interview")
     draft = intake_svc.get_draft(current_user, draft_id)
     return jsonify(
         {
@@ -1295,6 +1307,7 @@ def supervised_case_detail(death_id):
     interviewer_name, completed_at, outcome}``. Interviewers never see these
     names. ``visit_note``: the case's visit note as the viewer may see it
     (``visit_note_for_viewer``), or null. 404 outside the caller's reach."""
+    training_scope.resolve("interview")
     death = intake_svc.get_supervised_case(current_user, death_id)
     redact_pii = should_redact_pii(current_user)
     note = visit_notes_for([death.va_sid] if death.va_sid else [], redact_pii=redact_pii).get(death.va_sid)
@@ -1319,6 +1332,7 @@ def supervised_possible_duplicates(death_id):
     """Cases in the caller's supervision reach that may be the same death as
     this one (a warning; never blocks, never merges). Only supervisor-row
     fields. 404 outside the caller's reach."""
+    training_scope.resolve("interview")
     death = intake_svc.get_supervised_case(current_user, death_id)
     rows = intake_svc.possible_duplicates(
         current_user, death, scope=case_svc.supervised_case_condition(current_user)

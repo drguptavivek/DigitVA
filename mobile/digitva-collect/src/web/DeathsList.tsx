@@ -19,6 +19,10 @@ import {
 import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { rememberCasePreviews } from "./newCasePreview";
 import { CaseCard, formatDisplayTimestamp, sexLabel, useCaseCardStyles, type CaseBadge } from "../ui/CaseCard";
+import {
+  TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE,
+  TRAINING_REPORTING_ROUTE,
+} from "../training";
 export { CaseCard, formatDisplayTimestamp, sexLabel, useCaseCardStyles };
 export type { CaseBadge };
 
@@ -249,7 +253,7 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
     void list.changeProject(undefined);
   };
   const openEdit = (row: CaseRow) => router.push({
-    pathname: training ? "/training/register" : "/death-registration",
+    pathname: training ? TRAINING_REPORTING_ROUTE : "/death-registration",
     params: { deathId: row.death_id, ...(row.can_interview === false ? { registered: "mine" } : {}) },
   });
 
@@ -335,24 +339,24 @@ export function DeathsList({ list, headerAction }: { list: DeathCases; headerAct
               {codeNow && workspaceApi && typeof row.va_sid === "string" ? <CodeNowButton
                 api={workspaceApi}
                 vaSid={row.va_sid}
-                onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
+                onOpen={(vaSid) => router.push({ pathname: training ? TRAINING_CODING_CASE_ROUTE : "/workspace", params: { vaSid, mode: "coding" } })}
                 onAccessLost={() => {
                   void appState.reload();
                   router.replace("/workspace");
                 }}
               /> : null}
               {resume ? (
-                <Button size="sm" style={c.actionButton} kind={kind("resume")} label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: {
+                <Button size="sm" style={c.actionButton} kind={kind("resume")} label={t("resumeInterview")} onPress={() => router.push({ pathname: training ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview", params: {
                   draftId: row.my_draft_id!, ...(row.project_id ? { projectId: row.project_id } : {}), ...(row.site_id ? { siteId: row.site_id } : {}),
                   ...(row.org_unit_id ? { orgUnitId: row.org_unit_id } : {}),
                 } })} />
               ) : null}
               {start ? (
-                <Button size="sm" style={c.actionButton} kind={kind("start")} label={t("startInterview")} onPress={() => router.push({ pathname: "/interview", params: { deathId: row.death_id } })} />
+                <Button size="sm" style={c.actionButton} kind={kind("start")} label={t("startInterview")} onPress={() => router.push({ pathname: training ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview", params: { deathId: row.death_id } })} />
               ) : null}
               {edit ? <Button size="sm" style={c.actionButton} kind={kind("edit")} label={t("editRegistration")} onPress={() => openEdit(row)} /> : null}
               {interviewable ? (
-                <Button size="sm" style={c.actionButton} kind={kind("view")} label={t("viewDetails")} onPress={() => router.push({ pathname: "/case", params: { deathId: row.death_id } })} />
+                <Button size="sm" style={c.actionButton} kind={kind("view")} label={t("viewDetails")} onPress={() => router.push({ pathname: training ? TRAINING_INTERVIEW_CASE_ROUTE : "/case", params: { deathId: row.death_id } })} />
               ) : null}
               <AddIdentifierAction row={row} onChanged={() => void list.refresh()} />
             </>}

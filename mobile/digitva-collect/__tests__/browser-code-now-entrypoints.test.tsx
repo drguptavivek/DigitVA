@@ -21,7 +21,7 @@ jest.mock("../src/client/api", () => ({
   getDrafts: async () => ({ drafts: [] }),
   getIntakeContext: async () => ({ context: [] }),
 }));
-jest.mock("../src/client/revisions", () => ({ getSubmittedRevisions: async () => [] }));
+jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: async () => [] }));
 jest.mock("../src/workspace/api", () => ({ createWorkspaceApi: () => mockWorkspaceApi }));
 jest.mock("../src/workspace/transport.web", () => ({ createWebWorkspaceTransport: () => jest.fn() }));
 jest.mock("../src/workspace/CodeNowButton", () => jest.requireActual("../src/workspace/CodeNowButton"));

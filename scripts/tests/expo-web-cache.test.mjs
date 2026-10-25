@@ -59,6 +59,22 @@ test("deterministic manifest includes only public build assets and generates val
   assert.notEqual(buildAssetCache(dist, "release-2", "b".repeat(40)).manifest_sha256, manifest.manifest_sha256);
 });
 
+test("manifest groups only the deferred WHO runtime and its hashed JS closure", (t) => {
+  const { dist } = fixture(t);
+  const runtime = "_expo/static/js/web/whoRuntimeModule-" + "c".repeat(32) + ".js";
+  const nested = "_expo/static/js/web/whoNested-" + "d".repeat(32) + ".js";
+  const coding = "_expo/static/js/web/CodingScreen-" + "e".repeat(32) + ".js";
+  writeFileSync(join(dist, runtime), `import "${nested.split("/").at(-1)}";`);
+  writeFileSync(join(dist, nested), "nested WHO runtime");
+  writeFileSync(join(dist, coding), "coding runtime");
+  const manifest = buildAssetCache(dist, "release", "a".repeat(40));
+  assert.deepEqual(manifest.groups.interviewRuntime, [
+    `/app/${nested}`,
+    `/app/${runtime}`,
+  ]);
+  assert.equal(manifest.groups.interviewRuntime.includes(`/app/${coding}`), false);
+});
+
 test("an old worker cannot serve an unversioned asset reused by the next release", (t) => {
   const { dist } = fixture(t);
   mkdirSync(join(dist, "assets"));
@@ -136,7 +152,91 @@ test("worker caches verified assets, ignores clinical/navigation requests, and r
   assert.equal(calls.length, 3);
 });
 
-test("registration waits for page load and skips warming on slow or metered connections", async (t) => {
+test("worker warms only the WHO group, retains completed assets and retries a bad asset", async (t) => {
+  const { dist } = fixture(t);
+  const runtime = "_expo/static/js/web/whoRuntimeModule-" + "c".repeat(32) + ".js";
+  const dependency = "_expo/static/js/web/aWhoDependency-" + "d".repeat(32) + ".js";
+  writeFileSync(join(dist, runtime), `import "${dependency.split("/").at(-1)}";`);
+  writeFileSync(join(dist, dependency), "WHO dependency");
+  const manifest = buildAssetCache(dist, "release", "a".repeat(40));
+  const handlers = {};
+  const entries = new Map();
+  const cache = {
+    match: async (key) => entries.get(key)?.clone(),
+    put: async (key, value) => entries.set(key, value),
+  };
+  const calls = [];
+  const bodies = new Map([
+    [`/app/${dependency}`, "WHO dependency"],
+    [`/app/${runtime}`, "import \"aWhoDependency-" + "d".repeat(32) + ".js\";"],
+  ]);
+  let corruptRuntime = true;
+  vm.runInNewContext(readFileSync(join(dist, "asset-worker.js"), "utf8"), {
+    self: { location: { origin: "https://example.com" }, addEventListener: (type, handler) => { handlers[type] = handler; } },
+    caches: { open: async () => cache }, URL, crypto: webcrypto, AbortController,
+    fetch: async (url, options) => {
+      calls.push([url, options]);
+      const path = new URL(url, "https://example.com").pathname;
+      return new Response(path === `/app/${runtime}` && corruptRuntime ? "corrupt" : bodies.get(path));
+    },
+  });
+  let firstWarm;
+  handlers.message({
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 1 },
+    waitUntil: (promise) => { firstWarm = promise; },
+  });
+  await firstWarm;
+  assert.deepEqual([...entries.keys()], [`/app/${dependency}`]);
+  assert.deepEqual(calls.map(([url]) => new URL(url, "https://example.com").pathname), [`/app/${dependency}`, `/app/${runtime}`]);
+
+  corruptRuntime = false;
+  let retry;
+  handlers.message({
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 2 },
+    waitUntil: (promise) => { retry = promise; },
+  });
+  await retry;
+  assert.deepEqual([...entries.keys()], [`/app/${dependency}`, `/app/${runtime}`]);
+  assert.equal(calls.filter(([url]) => new URL(url, "https://example.com").pathname === `/app/${dependency}`).length, 1);
+});
+
+test("worker cancellation aborts a pending WHO warm and stale starts do not restart it", async (t) => {
+  const { dist } = fixture(t);
+  const runtime = "_expo/static/js/web/whoRuntimeModule-" + "c".repeat(32) + ".js";
+  writeFileSync(join(dist, runtime), "WHO runtime");
+  buildAssetCache(dist, "release", "a".repeat(40));
+  const handlers = {};
+  let resolveFetch;
+  vm.runInNewContext(readFileSync(join(dist, "asset-worker.js"), "utf8"), {
+    self: { location: { origin: "https://example.com" }, addEventListener: (type, handler) => { handlers[type] = handler; } },
+    caches: { open: async () => ({ match: async () => undefined, put: async () => undefined }) }, URL, crypto: webcrypto, AbortController,
+    fetch: (url, options) => new Promise((resolve, reject) => {
+      resolveFetch = () => resolve(new Response("WHO runtime"));
+      options.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    }),
+  });
+  let warming;
+  handlers.message({
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 4 },
+    waitUntil: (promise) => { warming = promise; },
+  });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  handlers.message({
+    data: { type: "cancel-interview-assets", release: "release", generation: 5 },
+    waitUntil: () => assert.fail("cancel does not wait for a download"),
+  });
+  await warming;
+  assert.equal(resolveFetch !== undefined, true);
+  resolveFetch();
+  let stale;
+  handlers.message({
+    data: { type: "warm-interview-assets", group: "interviewRuntime", release: "release", generation: 4 },
+    waitUntil: (promise) => { stale = promise; },
+  });
+  assert.equal(stale, undefined);
+});
+
+test("registration waits for page load but never warms anonymously", async (t) => {
   const { dist } = fixture(t);
   buildAssetCache(dist, "release", "a".repeat(40));
   for (const connection of [undefined, {}, { effectiveType: "unknown" },
@@ -159,11 +259,8 @@ test("registration waits for page load and skips warming on slow or metered conn
     await onLoad();
     assert.equal(registrations[0][0], "/app/asset-worker.js");
     assert.equal(registrations[0][1].updateViaCache, "none");
-    if (connection?.effectiveType === "4g" && !connection.saveData) {
-      assert.equal(typeof idle, "function");
-      idle();
-      assert.equal(messages[0].type, "warm-public-assets");
-    } else assert.equal(idle, undefined);
+    assert.equal(idle, undefined);
+    assert.deepEqual(messages, []);
   }
 });
 

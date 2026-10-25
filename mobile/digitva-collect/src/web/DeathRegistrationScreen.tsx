@@ -15,7 +15,7 @@ import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel } from "./DeathsList";
-import { TRAINING_INTERVIEW_HOME } from "../training";
+import { TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_INTERVIEW_HOME, TRAINING_REPORTING_ROUTE } from "../training";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { convertPrecision, type Precision } from "../workspace/doris/dateFieldShared";
 import { LocationCapture, type GpsFix } from "./LocationCapture";
@@ -150,7 +150,7 @@ export default function DeathRegistrationScreen() {
   const styles = useUiStyles();
   // Inside the Training screens (training scope) this screen lives under /training and returns to the Training list.
   const training = bootstrap?.scope === "training";
-  const registerPath = training ? "/training/register" : "/death-registration";
+  const registerPath = training ? TRAINING_REPORTING_ROUTE : "/death-registration";
   const collectionPath = training ? TRAINING_INTERVIEW_HOME : "/collection";
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [projectId, setProjectId] = useState("");
@@ -796,7 +796,7 @@ export default function DeathRegistrationScreen() {
         bootstrap.csrf
       );
       if (!current()) return;
-      router.replace({ pathname: "/interview", params: { draftId: draft.draft.draft_id } });
+      router.replace({ pathname: training ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview", params: { draftId: draft.draft.draft_id } });
       };
       const duplicates = identifierWarnings(registration);
       if (Object.keys(duplicates).length) {

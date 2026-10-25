@@ -905,7 +905,7 @@ def get_death(user: VaUsers, death_id: object, *, entries: list[dict] | None = N
         death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
     except ValueError:
         death = None
-    if death is None:
+    if death is None or not training_scope.keeps_project(death.project_id):
         raise WebIntakeError("Death entry not found.", 404)
     try:
         _require_scope(user, death.project_id, death.site_id, death.org_unit_id, entries=entries)
@@ -1791,7 +1791,7 @@ def get_draft(user: VaUsers, draft_id: object, *, require_open: bool = False) ->
         draft = db.session.get(VaWebIntakeDraft, uuid.UUID(str(draft_id)))
     except ValueError:
         draft = None
-    if draft is None or draft.user_id != user.user_id:
+    if draft is None or draft.user_id != user.user_id or not training_scope.keeps_project(draft.project_id):
         raise WebIntakeError("Draft not found.", 404)
     if require_open and draft.status != "draft":
         raise WebIntakeError("This draft is no longer editable.", 409)
@@ -4417,7 +4417,9 @@ def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
         death = None
     # An admin may open any case here, as the choose action allows (they find
     # the case id in the admin panels; the supervision list stays grant-scoped).
-    if death is None or not (user.is_admin() or cases.is_interview_supervisor_for(user, death)):
+    if death is None or not training_scope.keeps_project(death.project_id) or not (
+        user.is_admin() or cases.is_interview_supervisor_for(user, death)
+    ):
         raise WebIntakeError("Case not found.", 404)
     return death
 

@@ -1,8 +1,4 @@
-import {
-  compileInstrumentDefinition,
-  type InstrumentDefinition,
-  type WhoVaDraft,
-} from "@drguptavivek/who-2022-va";
+import type { InstrumentDefinition, WhoVaDraft } from "@drguptavivek/who-2022-va";
 
 import {
   FormDefinitionError,
@@ -16,6 +12,7 @@ import {
   downloadHistoricalDefinition,
   readDefinitionExtensions,
 } from "./formDefinitionHistory";
+import { loadWhoCoreRuntime } from "./whoCoreRuntime";
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const EXTENSION_PATTERN = /^[a-z][a-z0-9_]{0,31}$/;
@@ -192,9 +189,9 @@ export async function resolveNewInterviewDefinition(
   return served(downloaded.value, input.narrationLanguageCodes);
 }
 
-function bundled(input: ResolveNewInterviewDefinitionInput): ResolvedInstrument {
+async function bundled(input: ResolveNewInterviewDefinitionInput): Promise<ResolvedInstrument> {
   return {
-    instrument: prepareBundledInstrument(input.bundledOriginal.instrument, input.narrationLanguageCodes),
+    instrument: await prepareBundledInstrument(input.bundledOriginal.instrument, input.narrationLanguageCodes),
     provenance: "bundled-original",
     pin: null,
   };
@@ -281,7 +278,7 @@ export async function resolveSavedEnvelopeDefinition(
         fallback.instrumentVersion === envelope.instrumentVersion
       ) {
         return {
-          instrument: prepareBundledInstrument(fallback.instrument, input.narrationLanguageCodes),
+          instrument: await prepareBundledInstrument(fallback.instrument, input.narrationLanguageCodes),
           provenance: "bundled-original",
           pin: null,
         };
@@ -290,7 +287,7 @@ export async function resolveSavedEnvelopeDefinition(
       throw new PinnedDefinitionError("unknown_saved_definition");
     }
     return {
-      instrument: prepareBundledInstrument(legacy.instrument, input.narrationLanguageCodes),
+      instrument: await prepareBundledInstrument(legacy.instrument, input.narrationLanguageCodes),
       provenance: "bundled-original",
       pin: null,
     };
@@ -318,14 +315,14 @@ export async function resolveSavedEnvelopeDefinition(
   return served(value, input.narrationLanguageCodes, pin);
 }
 
-function served(
+async function served(
   value: VerifiedFormDefinition,
   narrationLanguageCodes: readonly string[],
   knownPin?: DefinitionPin,
-): ResolvedInstrument {
+): Promise<ResolvedInstrument> {
   const extensions = readDefinitionExtensions(value);
   return {
-    instrument: prepareProjectInstrument(value, narrationLanguageCodes),
+    instrument: await compilePreparedProjectInstrument(value, narrationLanguageCodes),
     provenance: "served",
     pin: knownPin ?? Object.freeze({
       instrumentVersion: value.identity.composedVersion,
@@ -335,10 +332,24 @@ function served(
   };
 }
 
-function prepareBundledInstrument(
+async function compilePreparedProjectInstrument(
+  value: VerifiedFormDefinition,
+  narrationLanguageCodes: readonly string[],
+): Promise<InstrumentDefinition> {
+  const copy = prepareProjectInstrument(value, narrationLanguageCodes);
+  try {
+    const whoRuntime = await loadWhoCoreRuntime();
+    whoRuntime.compileInstrumentDefinition(copy);
+  } catch {
+    throw new FormDefinitionError("invalid_definition");
+  }
+  return copy;
+}
+
+async function prepareBundledInstrument(
   definition: InstrumentDefinition,
   narrationLanguageCodes: readonly string[],
-): InstrumentDefinition {
+): Promise<InstrumentDefinition> {
   if (narrationLanguageCodes.some((code) => typeof code !== "string" || !code.trim())) {
     throw new FormDefinitionError("invalid_narration_languages");
   }
@@ -352,7 +363,8 @@ function prepareBundledInstrument(
     if (question.validation) question.validation.choiceValues = choices.map((choice) => choice.value);
   }
   try {
-    compileInstrumentDefinition(copy);
+    const whoRuntime = await loadWhoCoreRuntime();
+    whoRuntime.compileInstrumentDefinition(copy);
   } catch {
     throw new FormDefinitionError("invalid_definition");
   }

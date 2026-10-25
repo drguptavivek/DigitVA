@@ -29,6 +29,21 @@ the server's current HTML. Interview screens load on demand and failed downloads
 offer retry; background asset warming requires a reported fast connection
 without a data-saving preference.
 
+The login, navigation and coding bundles must not import the WHO interview
+runtime as a value. Browser interview compilation and rendering share one
+asynchronous runtime boundary. Small presentation controls may be implemented
+locally to keep this boundary intact; clinical definitions, validation and
+translation rules remain canonical.
+
+After authenticated access confirms interview capability, an idle foreground
+browser may download the manifest's WHO runtime group sequentially on a reported
+4G connection without data saving. This downloads public bytes without executing
+the interview runtime. Anonymous and coder-only sessions do not warm this group.
+Logout, account/access changes, hiding the page or losing connectivity cancel
+warming; completed verified assets remain reusable. Unknown and slower links
+load interview assets on demand. Caching public assets does not make the browser
+interview offline: server draft saves and submission still require connectivity.
+
 The native collection app remains the offline path. It uses the existing
 encrypted device store and bearer device sessions (`/api/v1/auth`). A device token is
 accepted on every `/api/v1/` route, same route and body as the browser

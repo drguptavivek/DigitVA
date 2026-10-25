@@ -45,7 +45,7 @@ describe("Training menu", () => {
     expect(menu(["coding"])?.children?.map((child) => child.route)).toEqual(["/training/coding"]);
     expect(menu(["interview", "coding", "review"])?.children?.map((child) => child.labelKey))
       .toEqual(["trainingInterview", "trainingCoding", "trainingReview"]);
-    expect(menu(["review"])?.children?.map((child) => child.route)).toEqual(["/training/review"]);
+    expect(menu(["review"])?.children?.map((child) => child.route)).toEqual(["/training/reviewing"]);
     expect(menu(["interview"])?.labelKey).toBe("navTraining");
   });
 
@@ -62,7 +62,7 @@ describe("Training menu", () => {
     expect(activeTab("/training/coding")).toBe("/training/coding");
     expect(activeTab("/training/register")).toBe("/training");
     expect(activeTab("/workspace", { mode: "coding", training: "1" })).toBe("/training/coding");
-    expect(activeTab("/workspace", { mode: "reviewing", training: "1" })).toBe("/training/review");
+    expect(activeTab("/workspace", { mode: "reviewing", training: "1" })).toBe("/training/reviewing");
     expect(activeTab("/workspace", { mode: "coding" })).toBe("/coding");
   });
 });
@@ -149,7 +149,7 @@ describe("the two project sets never mix", () => {
 describe("writes from the Training screens", () => {
   const view = trainingBootstrap(boot(access(["interview"])))!;
 
-  test("carry training=1; reads, real writes and an explicit training param are left as they are", async () => {
+  test("carry training=1 on reads and writes, while explicit or normal requests stay unchanged", async () => {
     await requestClientJson("/api/v1/intake/drafts", { method: "POST", json: {}, csrf: view.csrf });
     expect(lastUrl()).toBe("/api/v1/intake/drafts?training=1");
     await requestClientJson("/api/v1/intake/drafts/x/submit?a=1", { method: "POST", json: {}, csrf: view.csrf });
@@ -157,7 +157,7 @@ describe("writes from the Training screens", () => {
     await requestClientJson("/api/v1/intake/drafts?training=1", { method: "POST", json: {}, csrf: view.csrf });
     expect(lastUrl()).toBe("/api/v1/intake/drafts?training=1");
     await requestClientJson("/api/v1/intake/drafts", { csrf: view.csrf });
-    expect(lastUrl()).toBe("/api/v1/intake/drafts");
+    expect(lastUrl()).toBe("/api/v1/intake/drafts?training=1");
     await requestClientJson("/api/v1/intake/drafts", { method: "POST", json: {}, csrf });
     expect(lastUrl()).toBe("/api/v1/intake/drafts");
   });

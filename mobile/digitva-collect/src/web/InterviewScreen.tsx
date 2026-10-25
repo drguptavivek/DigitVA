@@ -1,12 +1,9 @@
-import {
-  createWhoVa2022Instrument,
-  WHO_VA_BUILT_IN_UI_TRANSLATIONS,
-  WHO_VA_FORM_VERSION,
-  type SubmissionData,
-  type InstrumentDefinition,
-  type SubmissionValidationResult
+import type {
+  SubmissionData,
+  InstrumentDefinition,
+  SubmissionValidationResult
 } from "@drguptavivek/who-2022-va";
-import { WhoVaForm, type WhoVaDraftController } from "@drguptavivek/who-2022-va/web";
+import type { WhoVaDraftController } from "@drguptavivek/who-2022-va/web";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
@@ -20,7 +17,6 @@ import { formTagExtensions, PinnedDefinitionError, readDefinitionPin, resolveNew
 import { FormDefinitionError, type DefinitionRequest } from "../formDefinitions";
 import { FormDefinitionHistoryError } from "../formDefinitionHistory";
 import type { Prefill } from "../cases";
-import { initialDataFromPrefill } from "../prefill";
 import { readWebRecall, recallFromData, withInterviewerRecall, writeWebRecall } from "../interviewerRecall";
 import { refusalFieldsText, refusalProblems } from "../refusalText";
 import { fetchProjectConsentConfig, getDraftConsent, postDraftConsent, type ConsentRecordEnvelope, type DraftConsentStatus, type ProjectConsentConfig } from "../consent";
@@ -36,6 +32,8 @@ import { ContextualHelpBanner } from "./ContextualHelp";
 import { InterviewCaseStrip } from "./InterviewCaseStrip";
 import { RespondentConsentPanel } from "./StationConsentPanel";
 import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
+import { loadWhoCoreRuntime, loadWhoWebRuntime, type WhoWebRuntime } from "./whoRuntimeLoader";
+import type { WhoCoreRuntime } from "../whoCoreRuntime";
 
 /**
  * The package's own UI strings (en, plus its built-in Hindi and French packs)
@@ -44,9 +42,27 @@ import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
  * built-in packs, so they are spread back in; every other locale falls back
  * to the blank English entry.
  */
-export const INTERVIEW_UI_TRANSLATIONS = Object.fromEntries(
-  Object.entries({ en: {}, ...WHO_VA_BUILT_IN_UI_TRANSLATIONS }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
-);
+export function interviewUiTranslations(core: WhoCoreRuntime) {
+  return Object.fromEntries(
+    Object.entries({ en: {}, ...core.WHO_VA_BUILT_IN_UI_TRANSLATIONS }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
+  );
+}
+
+interface WhoInterviewRuntime {
+  core: WhoCoreRuntime;
+  web: WhoWebRuntime;
+}
+
+function initialDataFromLoadedRuntime(core: WhoCoreRuntime, prefill: Prefill | undefined): SubmissionData | undefined {
+  if (!prefill) return undefined;
+  let data: SubmissionData = {};
+  try {
+    data = core.createWhoVaInitialDataFromPrefill({ interviewer: prefill.interviewer, deceased: prefill.deceased }) ?? {};
+  } catch {
+    console.warn("prefill mapping failed");
+  }
+  return { ...data, ...(prefill.answers ?? {}) };
+}
 
 /**
  * The package's footer row (Back, Save draft, Preview, Next; testID
@@ -193,11 +209,12 @@ function revisionErrorText(error: unknown): string {
 /** Normalize legacy empty identity placeholders and reject a different composed instrument before the form mounts. */
 export function normalizeRevisionEnvelope(
   envelope: RevisionDetail["envelope"],
-  instrument: InstrumentDefinition
+  instrument: InstrumentDefinition,
+  formVersion = "2022"
 ): RevisionDetail["envelope"] {
   const acceptedInstrumentIds = new Set([instrument.id, "WHO_2022_VA", "va_who_2022"]);
   if (
-    (envelope.formVersion && envelope.formVersion !== WHO_VA_FORM_VERSION) ||
+    (envelope.formVersion && envelope.formVersion !== formVersion) ||
     (envelope.instrumentId && !acceptedInstrumentIds.has(envelope.instrumentId)) ||
     (envelope.instrumentVersion && envelope.instrumentVersion !== instrument.version)
   ) {
@@ -205,7 +222,7 @@ export function normalizeRevisionEnvelope(
   }
   return {
     ...envelope,
-    formVersion: envelope.formVersion || WHO_VA_FORM_VERSION,
+    formVersion: envelope.formVersion || formVersion,
     instrumentId: envelope.instrumentId || instrument.id,
     instrumentVersion: envelope.instrumentVersion || instrument.version,
   };
@@ -226,6 +243,8 @@ export default function InterviewScreen() {
   }>();
   const appState = useAppState();
   const { bootstrap, chooseUiLocale, onBeforeLock } = appState;
+  // Training routes are wrapped in TrainingScope; the scoped bootstrap is authoritative.
+  const requestCsrf = bootstrap?.csrf;
   const { definitionCache, hasServedDefinition, markServedDefinition, sessionGeneration } =
     appState as typeof appState & BrowserDefinitionAccess;
   const styles = useUiStyles();
@@ -244,6 +263,11 @@ export default function InterviewScreen() {
   const [locales, setLocales] = useState<FormOptions["available_locales"]>([]);
   const [store, setStore] = useState<ServerDraftStore | RevisionMemoryStore>();
   const [controller, setController] = useState<WhoVaDraftController>();
+  const [whoRuntime, setWhoRuntime] = useState<WhoInterviewRuntime>();
+  const whoRuntimeRef = useRef<WhoInterviewRuntime | undefined>(undefined);
+  const [runtimeError, setRuntimeError] = useState<unknown>();
+  const [runtimeRetry, setRuntimeRetry] = useState(0);
+  const [runtimeLoading, setRuntimeLoading] = useState(false);
   // What a refused submit named, listed in the form's problems popup instead of a red banner.
   const [serverProblems, setServerProblems] = useState<ReturnType<typeof refusalProblems>>();
   // Changed since the last acknowledged save. A ref, not state: the navigation guard reads it in the same tick a
@@ -294,19 +318,37 @@ export default function InterviewScreen() {
   );
 
   const initialise = useCallback(async (isInitializationActive: () => boolean) => {
-    if (!bootstrap || !definitionCache) return;
+    if (!bootstrap || !definitionCache || !requestCsrf) return;
     const currentDefinitionCache: DefinitionCache = definitionCache;
     const generation = generationRef.current;
     const requestSessionGeneration = sessionGeneration;
     const isCurrent = () => isInitializationActive() && generationRef.current === generation &&
       bootstrapRef.current === bootstrap && requestSessionGeneration === sessionGeneration;
     if (!isCurrent()) return;
+    let runtime = whoRuntimeRef.current;
+    if (!runtime) {
+      setRuntimeLoading(true);
+      setRuntimeError(undefined);
+      try {
+        const [core, web] = await Promise.all([loadWhoCoreRuntime(), loadWhoWebRuntime()]);
+        runtime = { core, web };
+        whoRuntimeRef.current = runtime;
+        if (isCurrent()) setWhoRuntime(runtime);
+      } catch (error) {
+        if (isCurrent()) setRuntimeError(error);
+        throw error;
+      } finally {
+        if (isCurrent()) setRuntimeLoading(false);
+      }
+    }
+    if (!runtime || !isCurrent()) return;
+    const loadedRuntime = runtime;
     setLoadedBootstrap(undefined);
     // Load only after the reset's save of the previous store, or the draft read misses those answers.
     await resetSaveRef.current;
     if (!isCurrent()) return;
     // "all": a training interview opens here too (the lists, not this by-id screen, keep the two apart).
-    const nextIntake = await getIntakeContext(bootstrap.csrf, "interview", "all");
+    const nextIntake = await getIntakeContext(requestCsrf, "interview", "all");
     if (!isCurrent()) return;
     setIntake(nextIntake);
     let nextDraftId = params.draftId;
@@ -314,12 +356,12 @@ export default function InterviewScreen() {
     let options: FormOptions | undefined;
     let resolved: ResolvedInstrument | undefined;
     let adopted = false;
-    const request = definitionRequest(bootstrap.csrf, isCurrent);
+    const request = definitionRequest(requestCsrf, isCurrent);
     const accountId = bootstrap.user.user_id;
 
     async function resolveNew(projectId: string, formOptions: FormOptions): Promise<ResolvedInstrument> {
       instrumentCode(formOptions);
-      const bundled = createWhoVa2022Instrument(formOptions.enabled_extensions ?? []);
+      const bundled = loadedRuntime.core.createWhoVa2022Instrument(formOptions.enabled_extensions ?? []);
       return resolveNewInterviewDefinition({
         accountId,
         projectId,
@@ -345,7 +387,7 @@ export default function InterviewScreen() {
       if (!params.revisionProjectId || !params.revisionSiteId || !params.revisionVaSid) {
         throw new ClientApiError(400, "malformed_response");
       }
-      nextRevision = await getRevisionDetail(bootstrap.links.intakeDrafts, params.revisionDraftId, bootstrap.csrf, {
+      nextRevision = await getRevisionDetail(bootstrap.links.intakeDrafts, params.revisionDraftId, requestCsrf, {
         draft_id: params.revisionDraftId,
         project_id: params.revisionProjectId,
         site_id: params.revisionSiteId,
@@ -356,7 +398,7 @@ export default function InterviewScreen() {
       setDraftId(nextDraftId);
     }
     if (!nextDraftId && params.deathId) {
-      const { case: caseRow } = await getCaseDetail(bootstrap.links.intakeCases, params.deathId, bootstrap.csrf);
+      const { case: caseRow } = await getCaseDetail(bootstrap.links.intakeCases, params.deathId, requestCsrf);
       if (!isCurrent()) return;
       if (!caseRow?.prefill) throw new Error("caseActionsUnavailable");
       if (!caseRow.project_id || !caseRow.site_id) throw new Error("case_context_missing");
@@ -364,7 +406,7 @@ export default function InterviewScreen() {
         nextDraftId = caseRow.my_draft_id;
         setDraftId(nextDraftId);
       } else {
-        options = await getProjectFormOptions(caseRow.project_id, bootstrap.csrf);
+        options = await getProjectFormOptions(caseRow.project_id, requestCsrf);
         if (!isCurrent()) return;
         resolved = await resolveNew(caseRow.project_id, options);
         if (!isCurrent()) return;
@@ -376,7 +418,7 @@ export default function InterviewScreen() {
             ...(caseRow.org_unit_id ? { org_unit_id: caseRow.org_unit_id } : {}),
             death_id: params.deathId
           },
-          bootstrap.csrf
+          requestCsrf
         );
         if (!isCurrent()) return;
         nextDraftId = started.draft.draft_id;
@@ -386,7 +428,7 @@ export default function InterviewScreen() {
     if (!nextDraftId && !params.deathId && params.projectId && params.siteId) {
       const context = nextIntake.context.find((entry) => entry.project_id === params.projectId && entry.site_id === params.siteId);
       if (!context || !["direct", "both"].includes(context.web_intake_mode ?? "")) throw new Error("intake_configuration_unavailable");
-      options = await getProjectFormOptions(params.projectId, bootstrap.csrf);
+      options = await getProjectFormOptions(params.projectId, requestCsrf);
       if (!isCurrent()) return;
       resolved = await resolveNew(params.projectId, options);
       if (!isCurrent()) return;
@@ -397,23 +439,23 @@ export default function InterviewScreen() {
           site_id: params.siteId,
           ...(params.orgUnitId ? { org_unit_id: params.orgUnitId } : {})
         },
-        bootstrap.csrf
+        requestCsrf
       );
       if (!isCurrent()) return;
       nextDraftId = started.draft.draft_id;
       setDraftId(nextDraftId);
     }
     if (!nextDraftId) throw new Error("draft_missing");
-    const nextDraft = nextRevision ?? await getDraft(bootstrap.links.intakeDrafts, nextDraftId, bootstrap.csrf);
+    const nextDraft = nextRevision ?? await getDraft(bootstrap.links.intakeDrafts, nextDraftId, requestCsrf);
     if (!isCurrent()) return;
-    options ??= await getProjectFormOptions(nextDraft.draft.project_id, bootstrap.csrf);
+    options ??= await getProjectFormOptions(nextDraft.draft.project_id, requestCsrf);
     if (!isCurrent()) return;
     instrumentCode(options);
     if (!resolved) {
       if (!nextRevision && !readDefinitionPin(nextDraft.envelope) && !nextDraft.envelope.instrumentVersion) {
         resolved = await resolveNew(nextDraft.draft.project_id, options);
       } else {
-        const bundledFallback = createWhoVa2022Instrument(options.enabled_extensions ?? []);
+        const bundledFallback = loadedRuntime.core.createWhoVa2022Instrument(options.enabled_extensions ?? []);
         const projectId = nextDraft.draft.project_id;
         const formOptions = options;
         resolved = await resolveSavedEnvelopeDefinition({
@@ -442,12 +484,12 @@ export default function InterviewScreen() {
     const normalizedRevision = nextRevision
       ? {
           ...nextRevision,
-          envelope: withDefinitionPin(normalizeRevisionEnvelope(nextRevision.envelope, base), resolved.pin),
+          envelope: withDefinitionPin(normalizeRevisionEnvelope(nextRevision.envelope, base, loadedRuntime.core.WHO_VA_FORM_VERSION), resolved.pin),
         }
       : undefined;
     const savedLocale = nextDraft.envelope.locale;
     const nextLocale = savedLocale ?? questionnaireDefault(options.available_locales, options.default_locale);
-    const translated = await translatedResolvedInstrument(resolved, nextLocale, options, bootstrap.csrf);
+    const translated = await translatedResolvedInstrument(resolved, nextLocale, options, requestCsrf);
     if (!isCurrent()) return;
     const nextInstrument = translated.instrument;
     setTranslationFallback(translated.fallback);
@@ -457,9 +499,9 @@ export default function InterviewScreen() {
     const prefill = nextDraft.prefill as Prefill;
     // A new interview only (never a revision): the interviewer's own details from their last one.
     const prefillData = nextRevision
-      ? (initialDataFromPrefill(prefill) as SubmissionData)
+      ? (initialDataFromLoadedRuntime(loadedRuntime.core, prefill) as SubmissionData)
       : withInterviewerRecall(
-          initialDataFromPrefill(prefill),
+          initialDataFromLoadedRuntime(loadedRuntime.core, prefill),
           readWebRecall(bootstrap.user.user_id),
           bootstrap.user.name,
         );
@@ -470,7 +512,7 @@ export default function InterviewScreen() {
       ? new RevisionMemoryStore({ ...normalizedRevision.envelope, data: initialData })
       : new ServerDraftStore({
           endpoint: bootstrap.links.intakeDrafts,
-          csrf: bootstrap.csrf,
+          csrf: requestCsrf,
           sectionOf,
           initialData,
           definitionPin: resolved.pin,
@@ -498,7 +540,7 @@ export default function InterviewScreen() {
     setInstrument(nextInstrument);
     setStore(nextStore);
     setLoadedBootstrap(bootstrap);
-  }, [bootstrap, chooseUiLocale, definitionCache, hasServedDefinition, markServedDefinition, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId, sessionGeneration]);
+  }, [bootstrap, chooseUiLocale, definitionCache, hasServedDefinition, markServedDefinition, params.deathId, params.draftId, params.orgUnitId, params.projectId, params.revisionDraftId, params.revisionProjectId, params.revisionSiteId, params.revisionVaSid, params.siteId, runtimeRetry, sessionGeneration]);
 
   useEffect(() => {
     const open = openInterviewRef.current;
@@ -551,9 +593,9 @@ export default function InterviewScreen() {
     if (!bootstrap || !draftId || !draft || revision) return undefined;
     let live = true;
     void (async () => {
-      const status = await getDraftConsent(bootstrap.links.intakeDrafts, draftId, bootstrap.csrf);
+      const status = await getDraftConsent(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
       const config = status.consent_required && !status.decision
-        ? await fetchProjectConsentConfig(draft.draft.project_id, bootstrap.csrf)
+        ? await fetchProjectConsentConfig(draft.draft.project_id, requestCsrf!)
         : null;
       if (live) setConsentGate({ status, config });
     })().catch((error) => { if (live) setMessage(interviewErrorText(error)); });
@@ -565,7 +607,7 @@ export default function InterviewScreen() {
     setBusy(true);
     setMessage("");
     try {
-      const status = await postDraftConsent(bootstrap.links.intakeDrafts, draftId, envelope, bootstrap.csrf);
+      const status = await postDraftConsent(bootstrap.links.intakeDrafts, draftId, envelope, requestCsrf!);
       setConsentGate({ ...consentGate, status });
     } catch (error) {
       setMessage(interviewErrorText(error));
@@ -612,9 +654,9 @@ export default function InterviewScreen() {
       }
       await controller?.saveDraft();
       if (store instanceof ServerDraftStore) await store.flush();
-      const options = await getProjectFormOptions(draft.draft.project_id, bootstrap.csrf);
+      const options = await getProjectFormOptions(draft.draft.project_id, requestCsrf!);
       if (!isCurrent()) return false;
-      const next = await translatedResolvedInstrument(resolvedInstrument, nextLocale, options, bootstrap.csrf);
+      const next = await translatedResolvedInstrument(resolvedInstrument, nextLocale, options, requestCsrf!);
       if (!isCurrent()) return false;
       const translationVersion = options.translation_versions?.[nextLocale] ?? 0;
       store.setLocaleMetadata(nextLocale, translationVersion);
@@ -648,7 +690,7 @@ export default function InterviewScreen() {
     const isCurrent = () => generationRef.current === accountGeneration && bootstrapRef.current === bootstrap;
     setBusy(true);
     try {
-      const acknowledgement = await postRevision(bootstrap.csrf, snapshot);
+      const acknowledgement = await postRevision(requestCsrf!, snapshot);
       if (!isCurrent() || pendingRevisionRef.current !== snapshot) return;
       pendingRevisionRef.current = undefined;
       setRevision((current) => current ? {
@@ -695,7 +737,7 @@ export default function InterviewScreen() {
       } catch (error) {
         if (!isCurrent()) return;
         if (!(store instanceof ServerDraftStore) || !(error instanceof ClientApiError) || error.status !== 409) throw error;
-        const currentDraft = await getDraft(bootstrap.links.intakeDrafts, draftId, bootstrap.csrf);
+        const currentDraft = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
         if (!isCurrent()) return;
         if (currentDraft.draft.status !== "submitted") throw error;
       }
@@ -748,7 +790,7 @@ export default function InterviewScreen() {
         bootstrap.links.intakeDrafts,
         draftId,
         { valid: result.valid, issues: result.issues, data },
-        bootstrap.csrf,
+        requestCsrf!,
         store instanceof ServerDraftStore ? store.getServerUpdatedAt() : undefined,
       );
       if (!isCurrent()) return;
@@ -860,6 +902,11 @@ export default function InterviewScreen() {
         "--who-2022-web-sticky-top": `${showCaseStrip ? caseStripHeight : 0}px`
       } as unknown as ViewStyle)
     : undefined;
+  const WhoVaFormComponent = whoRuntime?.web.WhoVaForm;
+  const uiTranslations = useMemo(
+    () => whoRuntime ? interviewUiTranslations(whoRuntime.core) : undefined,
+    [whoRuntime],
+  );
 
   return (
     <WebShell
@@ -878,7 +925,20 @@ export default function InterviewScreen() {
       ) : null}
     >
       <ContextualHelpBanner screen="interview" />
-      {loadedBootstrap === bootstrap && instrument && store && draftId ? (
+      {runtimeError ? (
+        <View style={styles.row}>
+          <Text style={styles.error} accessibilityRole="alert">
+            {t("interviewTitle")}: {t("serverUnavailable")}
+          </Text>
+          <Button
+            kind="secondary"
+            label={t("retry")}
+            onPress={() => setRuntimeRetry((value) => value + 1)}
+          />
+        </View>
+      ) : runtimeLoading || !WhoVaFormComponent ? (
+        <Text style={styles.muted}>{t("loading")}</Text>
+      ) : loadedBootstrap === bootstrap && instrument && store && draftId ? (
         <>
           {/* Leaves the interview; the footer's Back only steps to the previous
               section. Answers autosave (and the footer's Save draft saves at
@@ -947,13 +1007,13 @@ export default function InterviewScreen() {
           ) : null}
           {consentRefused ? <Text style={styles.muted} testID="consent-refused-note">{t("consentRefusedInterview")}</Text> : null}
           {consentPending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
-            <WhoVaForm
+            <WhoVaFormComponent
               theme={whoTheme}
               key={`${draftId}:${locale}`}
               instrument={instrument}
               locale={locale}
               showEnglish={locale !== "en"}
-              uiTranslations={INTERVIEW_UI_TRANSLATIONS}
+              uiTranslations={uiTranslations}
               draftId={draftId}
               draftStore={store}
               autoSaveDraftOnChange

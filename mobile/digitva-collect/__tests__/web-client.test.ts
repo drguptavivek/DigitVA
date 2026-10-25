@@ -6,9 +6,11 @@ import {
   getCaseDetail,
   getInstrumentTranslations,
   getProjectFormOptions,
+  requestRaw,
   requestClientJson,
 } from "../src/client/api";
 import { ServerDraftStore } from "../src/client/serverDraftStore";
+import { getIdentifierTypes } from "../src/identifiers";
 
 type MockResponseOptions = {
   status: number;
@@ -179,6 +181,42 @@ describe("browser client", () => {
         headers: expect.objectContaining({ "X-CSRFToken": "csrf" }),
       }),
     );
+  });
+
+  it("keeps every WHO startup GET in the training scope", async () => {
+    const trainingCsrf = { ...csrf, training: true as const };
+    const urls: string[] = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("/form-options")) return response({ status: 200, body: {} });
+      if (url.includes("/translations/")) return response({ status: 200, body: {} });
+      if (url.includes("/identifier-types")) return response({ status: 200, body: { identifier_types: [] } });
+      if (url.includes("/intake/cases/")) return response({ status: 200, body: { case: { death_id: "d1" } } });
+      if (url.includes("/forms/definition")) return response({ status: 200, body: "{}" });
+      return response({
+        status: 200,
+        body: {
+          draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+          envelope: {
+            schemaVersion: 1, formVersion: "f1", id: "d1", instrumentId: "who-2022-va", instrumentVersion: "v1",
+            currentSection: "s1", createdAt: "2026-10-03T00:00:00Z", updatedAt: "2026-10-03T00:01:00Z", data: {},
+          },
+          prefill: {},
+        },
+      });
+    });
+
+    await getProjectFormOptions("p1", trainingCsrf);
+    await getInstrumentTranslations("WHO_2022_VA", "hi", trainingCsrf);
+    await getIdentifierTypes("p1", trainingCsrf);
+    await getCaseDetail("/api/v1/intake/cases", "d1", trainingCsrf);
+    await requestRaw("", "/api/v1/forms/definition", { csrf: trainingCsrf });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf: trainingCsrf, sectionOf: new Map() });
+    await store.load("d1");
+
+    expect(urls.every((url) => url.includes("training=1"))).toBe(true);
+    expect(urls).toContain("/api/v1/intake/drafts/d1?training=1");
   });
 
   it("polls the signed-in user's bounded notification metadata with cookie credentials", async () => {

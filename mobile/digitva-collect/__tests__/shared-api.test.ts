@@ -1,6 +1,6 @@
 import {
   ApiError, ClientApiError, accessCapabilities, fetchClientBootstrap, getAccessSummary,
-  getCaseDetail, getCases, getIntakeContext, getProjectFormOptions, getRegisteredDeaths, intakeContextFromAccess, parseAccessSummary, parseRegisteredDeathPage, registerDeath,
+  getCaseDetail, getCases, getDraft, getIntakeContext, getProjectFormOptions, getRegisteredDeaths, intakeContextFromAccess, parseAccessSummary, parseRegisteredDeathPage, registerDeath,
   requestClientJson, requestJson, requestRaw, submitDraft, type AccessSummary
 } from "../src/api";
 import { Platform } from "react-native";
@@ -483,6 +483,19 @@ it("leaves case-row presentation flags for strict true-only rendering", async ()
   const detail = await getCaseDetail("/api/v1/intake/cases", "d1", csrf);
   expect(rows.cases.map((row) => row.code_now)).toEqual([true, "true", undefined]);
   expect(detail.case.code_now).toBe("true");
+});
+
+it("keeps training case and draft reads inside the training scope", async () => {
+  const trainingCsrf = { ...csrf, training: true as const };
+  const fetch = jest.spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(response({ case: { death_id: "training-case" } }))
+    .mockResolvedValueOnce(response({ draft: { draft_id: "training-draft" }, envelope: {}, prefill: {} }));
+  await getCaseDetail("/api/v1/intake/cases", "training-case", trainingCsrf);
+  await getDraft("/api/v1/intake/drafts", "training-draft", trainingCsrf);
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+    "/api/v1/intake/cases/training-case?training=1",
+    "/api/v1/intake/drafts/training-draft?training=1",
+  ]);
 });
 
 it.each([

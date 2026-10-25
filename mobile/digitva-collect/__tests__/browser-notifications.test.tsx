@@ -15,7 +15,7 @@ jest.mock("../src/client/api", () => ({
   getCases: jest.fn(),
   getDrafts: jest.fn(),
 }));
-jest.mock("../src/client/revisions", () => ({ getSubmittedRevisions: jest.fn() }));
+jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/AppState", () => jest.requireActual("../src/AppState.web"));
 jest.mock("expo-router", () => ({ useRouter: () => ({ push: jest.fn() }), useLocalSearchParams: () => ({}) }));
 jest.mock("../src/ui", () => ({
@@ -28,7 +28,7 @@ jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: Rea
 import { AppStateProvider, useAppState } from "../src/AppState.web";
 import { ApiError, getCases, getDrafts, getIntakeContext, requestClientJson } from "../src/client/api";
 import { loadBrowserSession } from "../src/client/session";
-import { getSubmittedRevisions } from "../src/client/revisions";
+import { getSubmittedRevisions } from "../src/client/revisionList";
 import CollectionScreen from "../src/web/CollectionScreen";
 import { ConfirmDialog } from "../src/ConfirmDialog";
 

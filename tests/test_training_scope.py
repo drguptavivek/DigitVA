@@ -439,6 +439,10 @@ class InterviewScopeTests(TrainingScopeBase):
         real_id = self._case(self.BASE_PROJECT_ID, self.BASE_SITE_ID, None, "R")
         scoped = {c["death_id"] for c in self.get("/api/v1/intake/cases?training=1").get_json()["cases"]}
         self.assertEqual(scoped, {training_id})  # the subject exists in the training scope
+        self.assertEqual(self.get(f"/api/v1/intake/cases/{training_id}?training=1").status_code, 200)
+        self.assertEqual(self.get(f"/api/v1/intake/cases/{training_id}").status_code, 404)
+        self.assertEqual(self.get(f"/api/v1/intake/cases/{training_id}/possible-duplicates?training=1").status_code, 200)
+        self.assertEqual(self.get(f"/api/v1/intake/cases/{training_id}/possible-duplicates").status_code, 404)
         normal = {c["death_id"] for c in self.get("/api/v1/intake/cases").get_json()["cases"]}
         self.assertIn(real_id, normal)
         self.assertNotIn(training_id, normal)
@@ -448,6 +452,37 @@ class InterviewScopeTests(TrainingScopeBase):
         self.assertIn(training_id, supervised)
         self.assertNotIn(training_id, {
             c["death_id"] for c in self.get("/api/v1/intake/supervision/cases").get_json()["cases"]})
+        self.assertEqual(self.get(f"/api/v1/intake/supervision/cases/{training_id}?training=1").status_code, 200)
+        self.assertEqual(self.get(f"/api/v1/intake/supervision/cases/{training_id}").status_code, 404)
+        self.assertEqual(self.get(f"/api/v1/intake/supervision/cases/{training_id}/possible-duplicates?training=1").status_code, 200)
+        self.assertEqual(self.get(f"/api/v1/intake/supervision/cases/{training_id}/possible-duplicates").status_code, 404)
+
+    def test_training_form_configuration_is_scoped(self):
+        options = self.get("/api/v1/organization/TRN01/form-options?training=1")
+        self.assertEqual(options.status_code, 200, options.get_json())
+        form_types = options.get_json()["form_types"]
+        instrument_code = next(item["instrument_code"] for item in form_types if item["is_default"])
+        self.assertEqual(self.get("/api/v1/organization/TRN01/form-options").status_code, 403)
+        self.assertEqual(
+            self.get(f"/api/v1/organization/{self.BASE_PROJECT_ID}/form-options?training=1").status_code,
+            403,
+        )
+        definition = self.get(
+            f"/api/v1/instruments/{instrument_code}/definition?project_id=TRN01&training=1"
+        )
+        self.assertEqual(definition.status_code, 200, definition.get_json())
+        self.assertEqual(
+            self.get(f"/api/v1/instruments/{instrument_code}/definition?project_id=TRN01").status_code,
+            403,
+        )
+        self.assertEqual(
+            self.get("/api/v1/intake/identifier-types?project_id=TRN01&training=1").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.get("/api/v1/intake/identifier-types?project_id=TRN01").status_code,
+            403,
+        )
 
     def test_registered_deaths_and_drafts_follow_the_scope(self):
         training_id = self._training_death()
@@ -460,6 +495,8 @@ class InterviewScopeTests(TrainingScopeBase):
         self.assertNotIn(training_id, {d["death_id"] for d in self.get("/api/v1/intake/deaths?registered=mine").get_json()["deaths"]})
         scoped = {d["draft_id"] for d in self.get("/api/v1/intake/drafts?training=1").get_json()["drafts"]}
         self.assertIn(draft_id, scoped)
+        self.assertEqual(self.get(f"/api/v1/intake/drafts/{draft_id}?training=1").status_code, 200)
+        self.assertEqual(self.get(f"/api/v1/intake/drafts/{draft_id}").status_code, 404)
         self.assertNotIn(draft_id, {d["draft_id"] for d in self.get("/api/v1/intake/drafts").get_json()["drafts"]})
 
     def test_a_replayed_client_draft_id_cannot_cross_the_line(self):

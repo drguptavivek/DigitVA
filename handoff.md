@@ -12,18 +12,28 @@ Preserve unrelated dirty `scripts/loadtest/restore.sh` and orientation files.
 
 ## Ranked current work (2026-10-25)
 
-1. `digitva-k2s1`: public manifest/cache and deferred web screens pushed in
-   b133babc1. Non-publishing CI export40185207054 passed, artifact hash
-   db019624bc37d4dfaed7a24a1bca3bff6d994be8402cddffd0f3ce17541e9e70.
-   Initial scripts total 3,629,765 bytes versus baseline3,688,839; deterministic
-   gzip(level9)856,474 versus871,854 (~1.8% smaller). Seven chunks versus2;
-   most WHO code remains eager. No network timing claim: slow/interrupted
-   browser profiling remains open. Read-only import/CI artifact diagnosis found
-   eager WHO instrument via AppState.web/formDefinitionCache/formDefinitions and
-   CollectionScreen revisions/drafts; renderer/calendar via whoControls.web from
-   coding/supervision. Metro hoists shared async deps into eager common. Next:
-   planner for one shared async web WHO runtime (~6-9files), no vendor/native
-   changes, then initial-script-set CI measurement. No staging deploy.
+1. `digitva-k2s1`: approved WHO runtime isolation and authenticated background
+   asset caching implemented in the working tree; CI export and final browser
+   acceptance remain open. One async web WHO core+renderer boundary; local small
+   UI controls and browser-safe case/revision utilities remove eager imports.
+   Native retains static WHO runtime. Public manifest warming requires interview
+   access, foreground/online/4G/no-save-data; verified completed chunks survive
+   cancellation/retry. Full Jest180/2705, typecheck, Node18 and backend519/125
+   subtests passed on the integrated change. CI profiles all initial scripts
+   and canonical instrument placement, not only entry.
+   Baseline artifact a14f6fa24 is mounted on8053, candidate on8054 after CI;
+   own container digitva_web_profile. Sanitized traces in
+   /private/tmp/digitva-web-profile-20261025. No staging deploy.
+   `digitva-bc56`: profiling exposed training by-ID scope omissions; backend
+   guards and browser propagation tested, namespace implemented at owner request:
+   /training/interview, /training/coding, /training/reporting, /training/reviewing
+   plus child details/forms, legacy redirects. Keep stable API area keys.
+   Live HMR synthetic training draft opens and saves; screenshot
+   /private/tmp/digitva-training-canonical-form.png. Final CI/browser acceptance
+   still required before closing these beads.
+   `digitva-bc56.1`: final audit found pre-existing workspace auxiliary APIs
+   ignoring training scope; shared case-SID guard planned before release.
+   CI-only frontend profiling may proceed while that backend fix is completed.
 2. Closed `digitva-grmg`: subsequent owner-reported whiteout on death-registration
    navigation/reload fixed locally: themed WebShell/loading status plus
    public/index.html prepaint. Full Jest175/2689, typecheck, Node7 and final audit

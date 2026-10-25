@@ -1,13 +1,4 @@
-import { WhoVaQuestionControls, type WhoVaQuestionControlProps } from "@drguptavivek/who-2022-va/web";
-import {
-  resolveUiMessages,
-  WHO_VA_BUILT_IN_UI_TRANSLATIONS,
-  type AnswerValue,
-  type InstrumentQuestion,
-  type QuestionControl,
-  type ValidationIssue
-} from "@drguptavivek/who-2022-va";
-import { Platform, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import type { RegistrationInput } from "../client/api";
 import { localToday } from "../cases";
@@ -15,7 +6,7 @@ import { t, uiLocale } from "../i18n";
 import { MultilineInput } from "../MultilineInput";
 import { PhoneField } from "../PhoneInput";
 import { useUiStyles } from "../ui";
-import { useTheme } from "../theme";
+import { WhoVaQuestionControls, type LightweightAnswer, type WhoVaQuestionControlProps } from "../whoControls.web";
 import { DateControl } from "../workspace/doris/DateControl.web";
 
 type RegistrationField = keyof RegistrationInput;
@@ -34,13 +25,20 @@ export function registrationFieldKind(field: RegistrationField): RegistrationFie
   return "text";
 }
 
+type RegistrationQuestion = WhoVaQuestionControlProps["question"] & Record<string, unknown> & {
+  control: "date" | "integer" | "text";
+  dataType: "date" | "number" | "string";
+};
+
+type RegistrationIssue = { question: string; code: string; message: string };
+
 function questionFor(
   field: RegistrationField,
   label: string,
   locale: string,
-  control: QuestionControl,
+  control: RegistrationQuestion["control"],
   appearance?: string
-): InstrumentQuestion {
+): RegistrationQuestion {
   return {
     name: field,
     order: 0,
@@ -60,18 +58,17 @@ function questionFor(
 }
 
 function controlProps(
-  question: InstrumentQuestion,
-  value: AnswerValue | undefined,
-  onAnswer: (next: AnswerValue | undefined) => void,
+  question: RegistrationQuestion,
+  value: LightweightAnswer,
+  onAnswer: (next: LightweightAnswer) => void,
   locale: string,
-  issues: ValidationIssue[]
+  issues: RegistrationIssue[]
 ): WhoVaQuestionControlProps {
   return {
     question,
     value,
     data: {},
     locale,
-    messages: resolveUiMessages(locale, WHO_VA_BUILT_IN_UI_TRANSLATIONS),
     issues,
     onAnswer
   };
@@ -95,7 +92,6 @@ export function RegistrationFieldControl({
   dateAppearance?: RegistrationDateAppearance;
 }) {
   const styles = useUiStyles();
-  const theme = useTheme();
   const locale = uiLocale();
   const kind = registrationFieldKind(field);
   const question = questionFor(
@@ -105,10 +101,10 @@ export function RegistrationFieldControl({
     kind === "date" ? "date" : kind === "integer" ? "integer" : "text",
     dateAppearance === "exact" ? undefined : dateAppearance
   );
-  const issues: ValidationIssue[] = issueMessage
+  const issues: RegistrationIssue[] = issueMessage
     ? [{ question: field, code: "constraint", message: issueMessage }]
     : [];
-  const onAnswer = (next: AnswerValue | undefined) => {
+  const onAnswer = (next: LightweightAnswer) => {
     if (kind === "integer" && typeof next === "number" && (next < 0 || next > 125)) {
       onChange(String(next));
       onIssue?.(t("errAge"));
@@ -117,40 +113,6 @@ export function RegistrationFieldControl({
     onChange(next == null ? "" : String(next));
     onIssue?.();
   };
-  const controlValue =
-    kind !== "date" || dateAppearance === "exact"
-      ? value
-      : dateAppearance === "month-year" && /^\d{4}-\d{2}$/.test(value)
-        ? `${value}-01`
-        : dateAppearance === "year" && /^\d{4}$/.test(value)
-          ? `${value}-01-01`
-          : "";
-  const onDateAnswer = (next: AnswerValue | undefined) => {
-    if (next == null || typeof next !== "string") {
-      onChange("");
-      return;
-    }
-    if (dateAppearance === "month-year") onChange(/^\d{4}-\d{2}-\d{2}$/.test(next) ? next.slice(0, 7) : "");
-    else if (dateAppearance === "year") onChange(/^\d{4}-\d{2}-\d{2}$/.test(next) ? next.slice(0, 4) : "");
-    else onChange(next);
-  };
-  const themed = Platform.OS === "web" ? ({
-    "--who-2022-web-color-brand": theme.colors.accent,
-    "--who-2022-web-color-brand-deep": theme.colors.accentPressed,
-    "--who-2022-web-color-brand-soft": theme.colors.accentSoft,
-    "--who-2022-web-color-canvas": theme.colors.background,
-    "--who-2022-web-color-surface": theme.colors.surface,
-    "--who-2022-web-color-ink": theme.colors.text,
-    "--who-2022-web-color-muted": theme.colors.textMuted,
-    "--who-2022-web-color-border": theme.colors.border,
-    "--who-2022-web-color-control-border": theme.colors.border,
-    "--who-2022-web-color-ink-subtle": theme.colors.textMuted,
-    "--who-2022-web-color-guidance": theme.colors.warning,
-    "--who-2022-web-color-danger": theme.colors.danger,
-    "--who-2022-web-color-danger-border": theme.colors.danger,
-    "--who-2022-web-color-danger-strong": theme.colors.danger,
-    "--who-2022-web-color-danger-soft": theme.colors.dangerSoft
-  } as unknown as Record<string, string>) : undefined;
 
   // Date of birth uses the browser's own controls by precision; the value formats stay YYYY-MM-DD, YYYY-MM and YYYY.
   if (field === "date_of_birth" || field === "date_of_birth_partial") {
@@ -172,18 +134,22 @@ export function RegistrationFieldControl({
   }
   if (kind === "date") {
     return (
-      <View style={themed}>
-      <WhoVaQuestionControls.Date
-        {...controlProps(question, controlValue || undefined, dateAppearance === "exact" ? onAnswer : onDateAnswer, locale, issues)}
-        onDraftIssue={(_draft, issue) => onIssue?.(issue?.message)}
-      />
-      {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
+      <View>
+        <DateControl
+          precision={dateAppearance === "year" ? "year" : dateAppearance === "month-year" ? "month" : "date"}
+          label={label}
+          value={value}
+          placeholder={t("dobSelectYear")}
+          error={Boolean(issueMessage)}
+          onChange={(next) => { onChange(next); onIssue?.(); }}
+        />
+        {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
       </View>
     );
   }
   if (kind === "integer") {
     return (
-      <View style={themed}>
+      <View>
         <WhoVaQuestionControls.Integer {...controlProps(question, value ? Number(value) : undefined, onAnswer, locale, issues)} />
         {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
       </View>
@@ -191,7 +157,7 @@ export function RegistrationFieldControl({
   }
   if (kind === "phone") {
     return (
-      <View style={themed}>
+      <View>
         <PhoneField
           label={label}
           value={value}
@@ -211,7 +177,7 @@ export function RegistrationFieldControl({
     );
   }
   return (
-    <View style={themed}>
+    <View>
       <WhoVaQuestionControls.Text {...controlProps(question, value || undefined, onAnswer, locale, issues)} />
       {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
     </View>

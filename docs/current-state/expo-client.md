@@ -72,6 +72,28 @@ use deferred imports and offer retry when a chunk download fails. Native route
 imports are unchanged. CI export size and throttled-browser measurements remain
 release acceptance gates; HMR timings are not production measurements.
 
+`whoCoreRuntime.web.ts` and `web/whoRuntimeLoader.ts` resolve one asynchronous
+`whoRuntimeModule` for both WHO core and web renderer. Definition compilation,
+interview startup and revision reduction await it. Native keeps its existing
+static runtime. Browser coding and registration use small app-owned controls;
+clinical form definitions and engine behavior stay in the WHO package.
+
+`web/interviewAssetCache.ts` starts optional warming only after authenticated
+access includes an interview action. Registration alone does not warm assets.
+The public manifest's `interviewRuntime` group lists the runtime chunk and hashed
+JavaScript dependencies. The worker fetches and verifies these sequentially,
+without importing or executing them. It cancels when the authenticated context
+changes or the page is hidden/offline; completed chunks survive a retry. Anonymous
+worker registration itself does not warm assets. Private forms and API responses
+remain outside the public cache.
+
+CI runs `scripts/profile-expo-web.mjs` against every initial HTML script (including
+Metro common/runtime), reports deterministic gzip sizes and deferred chunks,
+validates the manifest, and enforces the initial-byte budget. The JSON report is
+included with the web artifact. A deferred filename alone does not prove the WHO
+instrument stayed out of Metro's common chunk; inspect the emitted graph and
+compare browser transfers before accepting a release.
+
 The browser starts by calling `GET /api/v1/me/access`. A signed-in session
 receives the user's whole access body (see [API v1](api-v1.md)) and a CSRF
 token in the `X-CSRFToken` response header. An anonymous browser receives a
@@ -335,8 +357,14 @@ Login, onboarding and device sign-in endpoints: [Authentication, Login and Onboa
 Policy: `docs/policy/training-demo-project.md`, `docs/policy/expo-client.md`.
 Served at `/app/training` (the Flask welcome and sign-in `next` point there while
 the export is present). Routes (`mobile/digitva-collect/app/training/`): `/training` (overview, Start),
-`/training/interview`, `/training/coding`, `/training/review`, and
-`/training/register` (death registration in the training scope). Screens:
+`/training/interview`, `/training/coding`, `/training/reviewing`, and
+`/training/reporting` (death registration in the training scope). Interview
+details and forms live at `/training/interview/case` and
+`/training/interview/form`; coding/review workspaces use
+`/training/coding/case` and `/training/reviewing/case`. Legacy
+`/training/register`, `/training/review` and ordinary detail links carrying
+`training=1` redirect to their canonical training wrapper. Server API scope keys
+remain `interview`, `coding`, and `review`. Screens:
 `src/web/TrainingScreen.tsx` (overview, Interview area), `TrainingChecklist.tsx`
 (participation hook, confidentiality notice, area checklists, queue shell);
 helpers in `src/training.ts`.

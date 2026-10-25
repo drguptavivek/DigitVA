@@ -6,8 +6,11 @@ const cacheName = `${cachePrefix}${manifest.release}:${manifest.manifest_sha256}
 const assets = new Map(manifest.assets.filter((asset) => asset.cacheable === true).map((asset) => [asset.path, asset]));
 
 /** Store only a verified public build asset; cookies and API responses never enter this cache. */
-async function downloadAsset(path) {
-  const response = await fetch(path, { credentials: "omit", cache: "no-cache", redirect: "error" });
+async function downloadAsset(path, signal) {
+  const response = await fetch(path, {
+    credentials: "omit", cache: "no-cache", redirect: "error", signal,
+    priority: signal ? "low" : "auto",
+  });
   if (!response.ok || response.type === "opaque") throw new Error("asset_unavailable");
   const bytes = await response.clone().arrayBuffer();
   const expected = assets.get(path);
@@ -37,15 +40,55 @@ self.addEventListener("fetch", (event) => {
 });
 
 let warming;
+let warmingGeneration = 0;
+let warmingAbort;
+
+function cancelWarming(generation) {
+  if (!Number.isInteger(generation) || generation < warmingGeneration) return;
+  warmingGeneration = generation;
+  warmingAbort?.abort();
+  warmingAbort = undefined;
+}
+
 self.addEventListener("message", (event) => {
-  if (event.data?.type !== "warm-public-assets" || event.data.release !== manifest.release) return;
+  const message = event.data;
+  if (message?.release !== manifest.release || !Number.isInteger(message.generation)) return;
+  if (message.type === "cancel-interview-assets") {
+    cancelWarming(message.generation);
+    return;
+  }
+  if (message.type !== "warm-interview-assets" || message.group !== "interviewRuntime") return;
+  if (message.generation < warmingGeneration) return;
+  const previous = warming;
+  if (previous && message.generation === warmingGeneration) {
+    event.waitUntil(previous);
+    return;
+  }
+  cancelWarming(message.generation);
   // Sequential requests keep background downloads from competing with foreground form requests.
-  if (!warming) warming = (async () => {
+  const controller = new AbortController();
+  warmingAbort = controller;
+  warmingGeneration = message.generation;
+  const paths = manifest.groups?.interviewRuntime ?? [];
+  const run = (async () => {
+    if (previous) await previous.catch(() => undefined);
+    if (controller.signal.aborted || message.generation !== warmingGeneration) return;
     const cache = await caches.open(cacheName);
-    for (const path of assets.keys()) {
+    for (const path of paths) {
+      if (controller.signal.aborted || message.generation !== warmingGeneration) return;
       if (await cache.match(path)) continue;
-      try { await downloadAsset(path); } catch { break; }
+      try {
+        await downloadAsset(path, controller.signal);
+      } catch (error) {
+        if (!controller.signal.aborted) return;
+        return;
+      }
     }
-  })().finally(() => { warming = undefined; });
+  })();
+  const wrapped = run.finally(() => {
+    if (warmingAbort === controller) warmingAbort = undefined;
+    if (warming === wrapped) warming = undefined;
+  });
+  warming = wrapped;
   event.waitUntil(warming);
 });

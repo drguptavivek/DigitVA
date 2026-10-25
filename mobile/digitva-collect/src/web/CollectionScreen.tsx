@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { getDrafts, getIntakeContext, runAsBackground, type DraftSummary, type IntakeBootstrap } from "../client/api";
-import { getSubmittedRevisions, type SubmittedRevisionSummary } from "../client/revisions";
+import { getSubmittedRevisions, type SubmittedRevisionSummary } from "../client/revisionList";
 import { useAppState } from "../AppState";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";

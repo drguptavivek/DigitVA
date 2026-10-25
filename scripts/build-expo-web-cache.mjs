@@ -36,7 +36,40 @@ export function buildAssetCache(dist, release, sourceCommit) {
   collect("_expo");
   if (existsSync(join(dist, "assets"))) collect("assets");
   if (!assets.length) throw new Error("Export has no public assets");
-  const identity = { schema: 1, release, source_commit: sourceCommit, assets };
+  // WHO is loaded by the web runtime loader, so it is not an HTML entrypoint.
+  // Keep its hashed chunk and any hashed JS chunks it names in a separate group;
+  // the service worker can warm this group without downloading coding, login or
+  // unrelated public assets. Metro may split the runtime into nested chunks, so
+  // follow references until the closure stops changing.
+  const byBasename = new Map(assets.map((asset) => [asset.path.split("/").at(-1), asset]));
+  const interviewRuntime = assets
+    .filter((asset) => asset.cacheable && /\/whoRuntimeModule-[^/]+\.js$/i.test(asset.path))
+    .map((asset) => asset.path);
+  const queued = [...interviewRuntime];
+  const seen = new Set(interviewRuntime);
+  while (queued.length) {
+    const current = queued.shift();
+    if (!current) continue;
+    const file = join(dist, current.slice("/app/".length));
+    if (!file.endsWith(".js")) continue;
+    const source = readFileSync(file, "utf8");
+    const references = source.match(/[A-Za-z0-9_@()\-]+-[0-9a-f]{32,64}\.js/g) ?? [];
+    for (const basename of references) {
+      const asset = byBasename.get(basename);
+      if (!asset || !asset.cacheable || seen.has(asset.path)) continue;
+      seen.add(asset.path);
+      queued.push(asset.path);
+      interviewRuntime.push(asset.path);
+    }
+  }
+  interviewRuntime.sort();
+  const identity = {
+    schema: 2,
+    release,
+    source_commit: sourceCommit,
+    assets,
+    groups: { interviewRuntime },
+  };
   const manifest = { ...identity, manifest_sha256: sha256(JSON.stringify(identity)) };
   const json = JSON.stringify(manifest);
   writeFileSync(join(dist, "asset-manifest.json"), `${json}\n`);

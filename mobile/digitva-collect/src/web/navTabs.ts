@@ -1,7 +1,7 @@
 /** Pure navigation rules of the browser app: the items a user sees, which one is current, when the phone bottom bar shows. */
 import type { ClientBootstrap } from "../client/api";
 import type { StringKey } from "../i18n";
-import { TRAINING_ROUTES, trainingAreas } from "../training";
+import { TRAINING_REPORTING_ROUTE, TRAINING_ROUTES, trainingAreas } from "../training";
 import { dataAccess, roleScreens, statisticsAllowed } from "./roleHome";
 
 /** Pre-login and device screens: nobody is signed in to see navigation there. */
@@ -95,7 +95,11 @@ export function activeTab(pathname: string, params: NavParams = {}): string | un
   }
   // Training: the overview, or one of its sub-items.
   if (pathname === "/training" || pathname.startsWith("/training/")) {
-    return Object.values(TRAINING_ROUTES).includes(pathname) ? pathname : "/training";
+    if (pathname === TRAINING_REPORTING_ROUTE) return TRAINING_ROUTES.interview;
+    if (pathname === TRAINING_ROUTES.interview || pathname.startsWith(`${TRAINING_ROUTES.interview}/`)) return TRAINING_ROUTES.interview;
+    if (pathname === TRAINING_ROUTES.coding || pathname.startsWith(`${TRAINING_ROUTES.coding}/`)) return TRAINING_ROUTES.coding;
+    if (pathname === TRAINING_ROUTES.review || pathname.startsWith(`${TRAINING_ROUTES.review}/`)) return TRAINING_ROUTES.review;
+    return "/training";
   }
   // The interview form and a case's details are reached from VA Interview.
   if (["/worklist", "/interview", "/case", "/form"].includes(pathname)) return "/collection";

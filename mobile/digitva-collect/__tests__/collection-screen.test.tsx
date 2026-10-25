@@ -47,7 +47,7 @@ jest.mock("../src/client/api", () => ({
   getCases: jest.fn(),
   getDrafts: jest.fn()
 }));
-jest.mock("../src/client/revisions", () => ({ getSubmittedRevisions: jest.fn() }));
+jest.mock("../src/client/revisionList", () => ({ getSubmittedRevisions: jest.fn() }));
 jest.mock("../src/i18n", () => ({
   t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : "") + (values.id ? `:${values.id}` : ""),
 }));
@@ -61,7 +61,7 @@ jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: Rea
 import CollectionScreen from "../src/web/CollectionScreen";
 import { EMPTY_ADVANCED, matchesAdvanced } from "../src/web/caseFilters";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
-import { getSubmittedRevisions } from "../src/client/revisions";
+import { getSubmittedRevisions } from "../src/client/revisionList";
 
 const mockGetIntakeContext = getIntakeContext as jest.Mock;
 const mockGetCases = getCases as jest.Mock;

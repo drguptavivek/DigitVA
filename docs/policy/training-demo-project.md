@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-25
 ---
 
 # Training and demo project (TRN01)
@@ -184,16 +184,24 @@ Its sub-items follow the training roles the user holds:
 | --- | --- | --- |
 | Interview | `death_reporter`, `interviewer`, `interview_supervisor` | `/app/training/interview` |
 | Coding | `coder` (the screen names the coder slot) | `/app/training/coding` |
-| Review | `reviewer_data_manager` | `/app/training/review` |
+| Review | `reviewer_data_manager` | `/app/training/reviewing` |
 
 - `/app/training` is the overview: the confidentiality notice (cases are
   consented and their text answers pseudonymised; photos, documents and audio
   are original and must not be copied, photographed or shared), the session
   name and code, and the **Start** button. Start records `onboarded_at`
   (`complete_onboarding` and `remember_onboarding_checked`) and is idempotent.
-- `/app/training/interview|coding|review` show that area's checklist and its
+- `/app/training/interview|coding|reviewing` show that area's checklist and its
   work list, which are the ordinary Interview, Coding and Review screens in a
   training scope (below).
+- Training death reporting uses `/app/training/reporting`. Interview case
+  details and forms use `/app/training/interview/case` and
+  `/app/training/interview/form`; coding and review details use
+  `/app/training/coding/case` and `/app/training/reviewing/case`.
+  These reuse the ordinary screens under the training wrapper. The stable API
+  permission areas remain `interview`, `coding`, and `review`; reporting uses
+  the existing interview-area registration permissions. Legacy training URLs
+  redirect into this namespace while retaining record and revision parameters.
 - The JSON API is `GET /api/v1/training/me` (the participations, the areas to
   show, whether onboarding is pending) and `POST /api/v1/training/me/start`
   (browser writes carry `X-CSRFToken`, JSON included). The menu needs no

@@ -2,6 +2,7 @@ import React from "react";
 import { act, create } from "react-test-renderer";
 
 jest.mock("../src/client/session", () => ({ loadBrowserSession: jest.fn() }));
+jest.mock("../src/web/interviewAssetCache", () => ({ setInterviewAssetWarmEligibility: jest.fn() }));
 jest.mock("../src/preferences", () => ({
   ...jest.requireActual("../src/preferences"),
   getUiLocalePreference: async () => "en",
@@ -14,6 +15,7 @@ import { claimFirstHomeLoad } from "../src/web/roleHome";
 import { loadBrowserSession } from "../src/client/session";
 import { DORIS_DRAFT_KEY } from "../src/workspace/doris/browserDraft";
 import { ApiError, requestClientJson } from "../src/api";
+import { setInterviewAssetWarmEligibility } from "../src/web/interviewAssetCache";
 
 let state: ReturnType<typeof useAppState>;
 function Consumer() { state = useAppState(); return null; }
@@ -94,6 +96,79 @@ it("removes cached browser definitions when interviewer actions disappear", asyn
 
   expect(removeProject).toHaveBeenCalledWith("P2");
   expect(state.bootstrap?.access.projects.map(({ project_id }) => project_id)).toEqual(["P1", "P2"]);
+  await act(async () => tree.unmount());
+});
+
+it("includes an interview-enabled training project for browser definitions and warming", async () => {
+  const trainingProject = {
+    project_id: "TRN01", project_name: "Training", has_tree: false,
+    grants: [{ role: "interviewer", active: true, source: "assigned" }],
+    actions: { interview: [{ site_id: "S1" }], register_death: [] },
+  };
+  const trainingOnly = {
+    ...bootstrap,
+    access: {
+      ...bootstrap.access, projects: [],
+      training: { project_id: "TRN01", areas: ["interview"], pending: false, project: trainingProject },
+    },
+  };
+  (loadBrowserSession as jest.Mock).mockResolvedValueOnce({ authenticated: true, bootstrap: trainingOnly });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+
+  expect(setInterviewAssetWarmEligibility).toHaveBeenLastCalledWith(true, expect.any(Number));
+  expect(state.hasServedDefinition("TRN01")).toBe(false);
+  await state.markServedDefinition("TRN01");
+  expect(state.hasServedDefinition("TRN01")).toBe(true);
+  await act(async () => tree.unmount());
+});
+
+it("cancels warming and removes served definitions after training interview access is lost", async () => {
+  const project = (interview: boolean) => ({
+    project_id: "TRN01", project_name: "Training", has_tree: false,
+    grants: [{ role: "interviewer", active: true, source: "assigned" }],
+    actions: { interview: interview ? [{ site_id: "S1" }] : [], register_death: [] },
+  });
+  const training = (interview: boolean) => ({
+    project_id: "TRN01", areas: ["coding"], pending: false, project: project(interview),
+  });
+  const interviewer = {
+    ...bootstrap, access: { ...bootstrap.access, projects: [], training: training(true) },
+  };
+  (loadBrowserSession as jest.Mock).mockResolvedValueOnce({ authenticated: true, bootstrap: interviewer });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  expect(setInterviewAssetWarmEligibility).toHaveBeenLastCalledWith(true, expect.any(Number));
+  await state.markServedDefinition("TRN01");
+
+  const interviewLost = {
+    ...interviewer, access: { ...interviewer.access, training: training(false) },
+  };
+  (loadBrowserSession as jest.Mock).mockResolvedValue(interviewLost);
+  await act(async () => { handlers["digitva-access-stale"](); });
+  expect(setInterviewAssetWarmEligibility).toHaveBeenLastCalledWith(false);
+  await expect(state.markServedDefinition("TRN01")).rejects.toMatchObject({ status: 403 });
+  await act(async () => tree.unmount());
+});
+
+it("does not warm or serve a training project with coder-only access", async () => {
+  const trainingProject = {
+    project_id: "TRN01", project_name: "Training", has_tree: false,
+    grants: [{ role: "coder", active: true, source: "assigned" }],
+    actions: { interview: [], register_death: [] },
+  };
+  const coderOnly = {
+    ...bootstrap,
+    access: {
+      ...bootstrap.access, projects: [],
+      training: { project_id: "TRN01", areas: ["coding"], pending: false, project: trainingProject },
+    },
+  };
+  (loadBrowserSession as jest.Mock).mockResolvedValueOnce({ authenticated: true, bootstrap: coderOnly });
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
+  expect(setInterviewAssetWarmEligibility).toHaveBeenLastCalledWith(false, expect.any(Number));
+  await expect(state.markServedDefinition("TRN01")).rejects.toMatchObject({ status: 403 });
   await act(async () => tree.unmount());
 });
 

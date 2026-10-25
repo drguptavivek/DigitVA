@@ -749,8 +749,9 @@ export async function fetchProjectConsentConfig(
   csrf: ClientCsrf,
 ): Promise<ProjectConsentConfig | null> {
   try {
+    const path = `/api/v1/intake/consent-config?project_id=${encodeURIComponent(projectId)}`;
     const res = await requestClientJson<unknown>(
-      `/api/v1/intake/consent-config?project_id=${encodeURIComponent(projectId)}`,
+      csrf.training ? `${path}&training=1` : path,
       { csrf },
     );
     const parsed = normaliseProjectConsentConfig(res);
@@ -772,7 +773,8 @@ export interface DraftConsentStatus {
 }
 
 export function getDraftConsent(draftsLink: string, draftId: string, csrf: ClientCsrf): Promise<DraftConsentStatus> {
-  return requestClientJson(`${draftsLink}/${encodeURIComponent(draftId)}/consent`, { csrf });
+  const path = `${draftsLink}/${encodeURIComponent(draftId)}/consent`;
+  return requestClientJson(csrf.training ? `${path}?training=1` : path, { csrf });
 }
 
 export function postDraftConsent(

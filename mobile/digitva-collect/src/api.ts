@@ -686,9 +686,9 @@ function rememberCsrf(response: Response): ClientCsrf | undefined {
   return currentCsrf;
 }
 
-/** A write made inside the Training screens carries `training=1`; the server refuses a write across the training/real line. */
-function scopedPath(path: string, method: string | undefined, snapshot?: ClientCsrf): string {
-  if (!snapshot?.training || !method || method === "GET" || /[?&]training=/.test(path)) return path;
+/** Every request made inside the Training screens carries `training=1`; reads must not fall back to the normal scope. */
+function scopedPath(path: string, snapshot?: ClientCsrf): string {
+  if (!snapshot?.training || /[?&]training=/.test(path)) return path;
   return `${path}${path.includes("?") ? "&" : "?"}training=1`;
 }
 
@@ -799,7 +799,7 @@ async function requestOnce<T>(
   if (tracked) cookieRequests.add(controller);
   try {
     assertOnline();
-    const response = await fetch(`${server}${scopedPath(path, options.method, options.csrf)}`, {
+    const response = await fetch(`${server}${scopedPath(path, options.csrf)}`, {
       method: options.method ?? "GET",
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",
@@ -938,7 +938,7 @@ export async function requestRaw(
   if (tracked) cookieRequests.add(controller);
   try {
     assertOnline();
-    const response = await fetch(`${server}${scopedPath(path, options.method, options.csrf)}`, {
+    const response = await fetch(`${server}${scopedPath(path, options.csrf)}`, {
       method: options.method ?? "GET",
       credentials: options.token !== undefined || server ? "omit" : "include",
       cache: "no-store",
@@ -1112,7 +1112,8 @@ export function getCaseDetail(
   csrf: ClientCsrf,
 ): Promise<{ case: CaseDetail }> {
   const base = link.replace(/\/+$/, "");
-  return requestClientJson(`${base}/${encodeURIComponent(deathId)}`, { csrf });
+  const path = `${base}/${encodeURIComponent(deathId)}`;
+  return requestClientJson(csrf.training ? `${path}?training=1` : path, { csrf });
 }
 
 export type CaseActionAck = CaseDetail;
@@ -1182,7 +1183,8 @@ export function getDraft(
   draftId: string,
   csrf: ClientCsrf,
 ): Promise<DraftResponse> {
-  return requestClientJson(`${link}/${encodeURIComponent(draftId)}`, { csrf });
+  const path = `${link}/${encodeURIComponent(draftId)}`;
+  return requestClientJson(csrf.training ? `${path}?training=1` : path, { csrf });
 }
 
 export function submitDraft(

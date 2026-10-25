@@ -26,6 +26,9 @@ import { RegistrationFieldControl } from "./registrationControls";
 import { CodeNowButton } from "../workspace/CodeNowButton";
 import { createWorkspaceApi } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
+import {
+  TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_ROUTES,
+} from "../training";
 
 const CONTACT_OUTCOMES = [
   "reached",
@@ -103,6 +106,9 @@ export default function NewCaseDetailScreen() {
   const params = useLocalSearchParams<{ deathId?: string | string[] }>();
   const deathId = paramValue(params.deathId);
   const { bootstrap, reload } = useAppState();
+  const training = bootstrap?.scope === "training";
+  // Training routes are wrapped in TrainingScope; the scoped bootstrap is authoritative.
+  const requestCsrf = bootstrap?.csrf;
   const styles = useUiStyles();
   const [row, setRow] = useState<CaseDetail>();
   const [loading, setLoading] = useState(true);
@@ -136,7 +142,7 @@ export default function NewCaseDetailScreen() {
       const result = await getCaseDetail(
         bootstrap.links.intakeCases,
         deathId,
-        bootstrap.csrf,
+        requestCsrf!,
       );
       if (!isCurrent()) return false;
       setRow(result.case);
@@ -229,14 +235,14 @@ export default function NewCaseDetailScreen() {
             outcome: outcome!,
             ...(at && outcome !== "refused" ? { next_visit_at: at } : {}),
           },
-          bootstrap.csrf,
+          requestCsrf!,
         );
       } else {
         await setCaseVisit(
           bootstrap.links.intakeCases,
           row.death_id,
           { next_visit_at: at },
-          bootstrap.csrf,
+          requestCsrf!,
         );
       }
       if (!isCurrent()) return;
@@ -284,7 +290,7 @@ export default function NewCaseDetailScreen() {
       ].includes(currentState);
     if (canResume && row.my_draft_id) {
       router.push({
-        pathname: "/interview",
+        pathname: training ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview",
         params: { draftId: row.my_draft_id },
       });
       return;
@@ -310,11 +316,11 @@ export default function NewCaseDetailScreen() {
           ...(row.org_unit_id ? { org_unit_id: row.org_unit_id } : {}),
           death_id: row.death_id,
         },
-        bootstrap.csrf,
+        requestCsrf!,
       );
       if (isCurrent())
         router.push({
-          pathname: "/interview",
+          pathname: training ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview",
           params: { draftId: result.draft.draft_id },
         });
     } catch (error) {
@@ -345,7 +351,7 @@ export default function NewCaseDetailScreen() {
   const submitted = row ? submittedInterview(row) : undefined;
   // The revision opens the existing interview screen, which asks for the reason.
   const correctInterview = submitted?.canRevise && submitted.draftId && row?.project_id && row.site_id
-    ? () => router.push({ pathname: "/interview", params: {
+    ? () => router.push({ pathname: training ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview", params: {
       revisionDraftId: submitted.draftId!,
       revisionProjectId: row.project_id!,
       revisionSiteId: row.site_id!,
@@ -387,8 +393,8 @@ export default function NewCaseDetailScreen() {
                 api={workspaceApi}
                 vaSid={row.va_sid}
                 disabled={busy}
-                onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
-                onAccessLost={() => { void reload(); router.replace("/workspace"); }}
+                onOpen={(vaSid) => router.push({ pathname: training ? TRAINING_CODING_CASE_ROUTE : "/workspace", params: { vaSid, mode: "coding" } })}
+                onAccessLost={() => { void reload(); router.replace(training ? TRAINING_ROUTES.coding : "/workspace"); }}
               />
             ) : row.code_now === true ? (
               <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
@@ -402,7 +408,7 @@ export default function NewCaseDetailScreen() {
               <Text style={styles.muted}>{t("otherCompleteInterviewNotice")}</Text>
             ) : null}
             <IdentifierFacts identifiers={row.identifiers} variant="detail" />
-            <AddIdentifierAction row={row} onChanged={() => void load()} />
+            <AddIdentifierAction row={row} csrf={requestCsrf} onChanged={() => void load()} />
             {[
               detailLine(
                 t("fieldSex").replace(/\s*\*\s*$/, ""),

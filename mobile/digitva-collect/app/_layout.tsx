@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, Platform, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
@@ -10,6 +10,7 @@ import { applyScreenCaptureBlock } from "../src/screenCapture";
 import { useTheme } from "../src/theme";
 import { useWhoWebTheme } from "../src/whoWebTheme";
 import { ToastProvider } from "../src/toast";
+import { t } from "../src/i18n";
 import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
 import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
@@ -20,6 +21,7 @@ let notificationRegistrationWarningShown = false;
 /** Every touch anywhere restarts the idle-lock timer; the touch itself goes on to its target. */
 function ActivityRoot() {
   const { activity, ready, accounts } = useAppState();
+  const { colors } = useTheme();
   useEffect(() => {
     if (!ready || Platform.OS !== "android") return;
     const eligible = accounts.some(
@@ -35,7 +37,11 @@ function ActivityRoot() {
     });
   }, [accounts, ready]);
   if (Platform.OS === "web" && !ready) {
-    return <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}><ActivityIndicator /></View>;
+    return <View accessibilityRole="progressbar" accessibilityLabel={t("loading")}
+      style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12, backgroundColor: colors.background }}>
+      <ActivityIndicator color={colors.accent} />
+      <Text style={{ color: colors.textMuted }}>{t("loading")}</Text>
+    </View>;
   }
   return (
     <View

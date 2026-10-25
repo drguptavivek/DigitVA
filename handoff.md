@@ -12,33 +12,24 @@ Preserve unrelated dirty `scripts/loadtest/restore.sh` and orientation files.
 
 ## Ranked current work (2026-10-25)
 
-1. `digitva-k2s1`: versioned public web-asset manifest/cache and lazy interview,
-   registration/case-detail loading implemented, focused tests pass. Final audit passed;
-   CI export size comparison and slow/interrupted-browser profiling pending.
-   Browser CDP enable stalled for about 58 minutes; no reliable profile captured.
-   Owner approved the exact 57-file commit and CI-only export (2026-10-25),
-   including running Beads checks separately and skipping the local export hook.
-   Exact scope: /private/tmp/digitva-web-reviewed-files.txt.
-   No new staging deployment yet. Native/offline engine is outside this task.
-2. `digitva-akbt`: per-tab COD reload recovery and WHO-prefill reset implemented.
-   Retain nested COD lines/intervals/selection/remarks/pending private notes;
-   exclude demographic fields and processing proof. Fresh authorized context
-   required; restored certificates must be processed again. Clear final submit,
-   release/lost access, next form, logout/expiry. SmartVA/saved notes reload from
-   server; reset keeps them. Local Chrome SADEMO acceptance passed: ICD selection,
-   3-day interval, pending note and chosen cause survived reload; proof required
-   reprocessing. Reset retained note/WHO defaults and did not resurrect causes
-   after reload. No assessment submitted. Screenshot in /private/tmp/digitva-local-coding-acceptance.png.
-3. `digitva-55zu`, `digitva-dmcl`, `digitva-dmcl.1`, `digitva-26h6`: inline VA
-   code/title + case-definition note, hide year-only technical note, SmartVA
-   auto-start/status polling and enqueue guard, Docker HMR implemented. Prior
-   final audit passed after documentation fix. HMR Fast Refresh visibly verified.
-   These changes are in the shared dirty tree awaiting integrated landing.
-   Local Chrome shows inline VA mapping/right-hand definition and masked SmartVA
-   status Done. Narrow/Step2 browser checks pending. RN development toast warns
-   about unexpected text node '.' (`digitva-lo67`); source unverified. Chip text
-   omitted from AX because its explicit label is Remove condition N, not a proven
-   missing visual code. Browser-control calls later stopped before dispatch.
+1. `digitva-k2s1`: public manifest/cache and deferred web screens pushed in
+   b133babc1. Non-publishing CI export40185207054 passed, artifact hash
+   db019624bc37d4dfaed7a24a1bca3bff6d994be8402cddffd0f3ce17541e9e70.
+   Initial scripts total 3,629,765 bytes versus baseline3,688,839; deterministic
+   gzip(level9)856,474 versus871,854 (~1.8% smaller). Seven chunks versus2;
+   most WHO code remains eager. No network timing claim: slow/interrupted
+   browser profiling and deeper split investigation remain open. No staging deploy.
+2. `digitva-grmg`: subsequent owner-reported whiteout on death-registration
+   navigation/reload fixed locally: themed WebShell/loading status plus
+   public/index.html prepaint. Full Jest175/2689, typecheck, Node7 and final audit
+   pass. Chrome html/body/root now opaque theme; final updated CI export pending.
+   `digitva-cklz` closed: exact /vaindex,/index routes proxied to Flask, both
+   Admin shortcuts and logo verified. Only HMR ingress recreated.
+3. Closed implementation beads digitva-akbt/55zu/dmcl/dmcl.1/26h6: pushed
+   b133babc1, CI pass, Chrome recovery/reset/note/VA-card and SmartVA checks pass.
+   Screenshots: /private/tmp/digitva-local-coding-acceptance.png,
+   digitva-admin-console-verified.png and digitva-loading-theme-verified.png.
+   Remaining rendering toast tracked digitva-lo67; no missing visual code proven.
 4. `digitva-ydgv`: approved training interview welcome + existing DPDP consent
    flow not implemented yet. Reuse current notices/audit; do not invent legal
    approval or change masking/NQA. New and existing TRN01 need idempotent setup.

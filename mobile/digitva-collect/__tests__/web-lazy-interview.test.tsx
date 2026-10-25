@@ -2,12 +2,31 @@ import React from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
+jest.mock("../src/theme", () => ({ useTheme: () => ({ colors: { background: "#131E2E", accent: "#78A9FF", textMuted: "#B5C2D1" } }) }));
+jest.mock("../src/web/common", () => ({
+  WebShell: ({ children }: { children: React.ReactNode }) => require("react").createElement("web-shell", null, children),
+}));
 jest.mock("../src/ui", () => ({
   useUiStyles: () => ({ card: {}, text: {} }),
   Button: (props: object) => require("react").createElement("button", props),
 }));
 
 import { DeferredScreen } from "../src/web/LazyInterviewScreen";
+
+test("pending route downloads keep a themed shell and visible loading status", async () => {
+  let finish!: (value: { default: React.ComponentType }) => void;
+  const load = () => new Promise<{ default: React.ComponentType }>((resolve) => { finish = resolve; });
+  let renderer!: ReactTestRenderer;
+  await act(async () => { renderer = create(<DeferredScreen load={load} />); });
+  expect(renderer.root.findAllByType("web-shell" as never)).toHaveLength(1);
+  const loading = renderer.root.findAll((node) => node.type === "View" as never && node.props.testID === "web-route-loading")[0];
+  expect(loading.props.style.backgroundColor).toBe("#131E2E");
+  expect(loading.props.accessibilityLabel).toBe("loading");
+  expect(JSON.stringify(renderer.toJSON())).toContain("loading");
+  await act(async () => { finish({ default: () => React.createElement("interview-ready") }); });
+  expect(renderer.root.findAllByType("interview-ready" as never)).toHaveLength(1);
+  await act(async () => { renderer.unmount(); });
+});
 
 test("interview downloads only on use and a failed download can retry without page reload", async () => {
   const load = jest.fn()

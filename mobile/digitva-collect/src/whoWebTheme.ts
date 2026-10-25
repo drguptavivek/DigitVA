@@ -56,12 +56,15 @@ export function whoFormTheme({ ui }: Pick<Theme, "ui">): FormTheme {
 
 /** Web only: keep the package's choice controls on the app theme, light and dark. */
 export function useWhoWebTheme() {
-  const { ui } = useTheme();
+  const { ui, mode } = useTheme();
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const style = document.documentElement.style;
+    style.setProperty("--digitva-page-background", ui.page);
+    style.setProperty("--digitva-page-foreground", ui.foreground);
+    style.colorScheme = mode;
     for (const [name, value] of Object.entries(whoWebThemeVars({ ui }))) style.setProperty(name, value);
-  }, [ui]);
+  }, [ui, mode]);
 }
 
 /** The form theme of the current light or dark mode; a new object only when the mode changes. */

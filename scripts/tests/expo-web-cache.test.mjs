@@ -8,6 +8,31 @@ import vm from "node:vm";
 
 import { buildAssetCache } from "../build-expo-web-cache.mjs";
 
+test("single-output HTML paints the saved theme before hydration, including blocked storage", () => {
+  const html = readFileSync(new URL("../../mobile/digitva-collect/public/index.html", import.meta.url), "utf8");
+  const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  assert.match(html, /html, body, #root[^}]*background: var\(--digitva-page-background\)/);
+  assert.match(html, /id="digitva-startup" role="status"/);
+  for (const [preference, systemDark, expectedDark] of [
+    ["light", true, false], ["dark", false, true], [null, true, true], ["system", false, false],
+    ["invalid", true, true], ["blocked", true, true],
+  ]) {
+    const properties = {};
+    const style = { setProperty: (name, value) => { properties[name] = value; } };
+    vm.runInNewContext(script, {
+      localStorage: { getItem: (key) => {
+        assert.equal(key, "ui_theme");
+        if (preference === "blocked") throw new Error("Storage denied");
+        return preference;
+      } },
+      window: { matchMedia: () => ({ matches: systemDark }) },
+      document: { documentElement: { style } },
+    });
+    assert.equal(properties["--digitva-page-background"], expectedDark ? "#131E2E" : "#F6F8FB");
+    assert.equal(style.colorScheme, expectedDark ? "dark" : "light");
+  }
+});
+
 function fixture(t) {
   const dist = mkdtempSync(join(tmpdir(), "digitva-assets-"));
   t.after(() => rmSync(dist, { recursive: true, force: true }));

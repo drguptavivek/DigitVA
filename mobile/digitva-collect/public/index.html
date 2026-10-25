@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>%WEB_TITLE%</title>
+    <style id="expo-reset">
+      :root { --digitva-page-background: #F6F8FB; --digitva-page-foreground: #09090B; color-scheme: light; }
+      @media (prefers-color-scheme: dark) {
+        :root { --digitva-page-background: #131E2E; --digitva-page-foreground: #F4F7FB; color-scheme: dark; }
+      }
+      html, body, #root { height: 100%; background: var(--digitva-page-background); color: var(--digitva-page-foreground); }
+      body { overflow: hidden; margin: 0; }
+      #root { display: flex; flex: 1; }
+      #digitva-startup { display: flex; flex: 1; align-items: center; justify-content: center; gap: 12px; font: 16px system-ui, sans-serif; }
+    </style>
+    <script>
+      // Match the UI-only preference before the deferred app bundle can paint.
+      (() => {
+        let preference;
+        try { preference = localStorage.getItem("ui_theme"); } catch {}
+        const dark = preference === "dark" || (preference !== "light" && window.matchMedia?.("(prefers-color-scheme: dark)").matches === true);
+        const style = document.documentElement.style;
+        style.setProperty("--digitva-page-background", dark ? "#131E2E" : "#F6F8FB");
+        style.setProperty("--digitva-page-foreground", dark ? "#F4F7FB" : "#09090B");
+        style.colorScheme = dark ? "dark" : "light";
+      })();
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run DigitVA.</noscript>
+    <div id="root"><div id="digitva-startup" role="status" aria-live="polite">DigitVA · Loading…</div></div>
+  </body>
+</html>

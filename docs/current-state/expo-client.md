@@ -32,7 +32,9 @@ local ingress redirects `/app` and `/app/*` to their root-path equivalents;
 production and the static export remain mounted at `/app/`.
 The Expo `/admin` route stays on Metro; `/admin/` and its Flask admin console
 remain on Flask. The `/api/v1/intake/` APIs and legacy `/intake/` pages also
-stay on Flask, while the slashless `/intake` route stays on Metro.
+stay on Flask, while the slashless `/intake` route stays on Metro. Flask's
+public-site aliases `/vaindex` and `/index` remain on Flask; `/` is Metro's app
+home.
 
 The HMR overlay points Flask at the small
 `deploy/expo-hmr/index.html` sentinel only to mark the Expo client as present;

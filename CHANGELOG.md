@@ -5,6 +5,22 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Interview welcome card, live case summary strip, and TRN01 DPDP consent**
+  (`digitva-ydgv`, `digitva-idvp`): render the project welcome note (`Before
+  you begin` / `intake_note` when `intake_screen` is enabled) before mounting
+  the questionnaire on new Expo web and native phone drafts, and keep
+  `ServerDraftStore.load()` pin-only writes from prematurely stamping
+  `initialData` or `current_section` onto unstarted server drafts. Render the
+  `Case id <unique_id> · <unit or project/site>`, save state (`Saved HH:MM:SS
+  (N sections)` / `Not saved yet`), and live `Name / DOD / Age / Sex` summary
+  strip on Expo web `InterviewScreen` for both direct and registered-death
+  interviews. Configure `TRN01` (`setup_training_project`) to use the standard
+  welcome default (`web_intake_intake_note = NULL`) and require respondent DPDP
+  consent using the seeded English and Hindi draft notices pending legal review
+  while preserving existing notices, retention, contacts, and single-stage
+  settings (`docs/policy/training-demo-project.md`). Jest 180/2711,
+  `make check-web`, and full pytest 6346 passed.
+
 - **Published matched web release** (`digitva-9f8n`):
   `expo-web-v2026.10.25.2` from `1892f085d`, publication run40200511607.
   WHO/app builds and publish passed; both downloaded archive checksums, matching

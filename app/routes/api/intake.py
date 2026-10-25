@@ -280,8 +280,15 @@ def consent_config():
     project_id = identifier_types_svc.normalise_project_id(request.args.get("project_id"))
     if not project_id:
         raise devices.DeviceAuthError("project_id is required.", "invalid_request", 400)
-    if not (resolve_grants(current_user).is_admin
-            or identifier_types_svc.supervises_project(current_user, project_id)):
+    if not training_scope.keeps_project(project_id):
+        return error("This project is not available in this area.", "project_forbidden", 403)
+    if training_scope.current() == training_scope.ONLY:
+        from app.services.training_demo_service import may_use_area
+
+        if project_id != training_scope.training_project_id() or not may_use_area(current_user.user_id, "interview"):
+            return error("This project is not available in this area.", "project_forbidden", 403)
+    elif not (resolve_grants(current_user).is_admin
+              or identifier_types_svc.supervises_project(current_user, project_id)):
         require_project(project_id, DEATH_REGISTERING_ROLES)
     return jsonify(consent_svc.get_consent_config(project_id))
 

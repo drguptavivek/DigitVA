@@ -42,6 +42,8 @@ from tests.training_demo_fixtures import (
 class SetupAndSessionTests(TrainingDemoTestBase):
     def test_project_is_configured_as_decided(self):
         from app.routes.api.organization import project_instrument_and_extensions
+        from app.services import consent_service
+        from app.services.web_intake_service import DEFAULT_INTAKE_NOTE, resolve_intake_note
 
         project = db.session.get(VaProjectMaster, "TRN01")
         self.assertEqual(project.project_structure_mode, "organization")
@@ -55,13 +57,82 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertEqual(project.coding_intake_mode, "pick_and_choose")
         self.assertEqual(project.web_intake_available_locales, ["en"])
         self.assertEqual(project.web_intake_narration_languages, ["english", "hindi"])
+        self.assertIsNone(project.web_intake_intake_note)
+        self.assertEqual(resolve_intake_note(project), DEFAULT_INTAKE_NOTE)
         self.assertEqual(project.recode_window_minutes, 60)
         _code, extensions = project_instrument_and_extensions(project)
         self.assertEqual(
             set(extensions),
-            {"digitva_core", "doris_support_whova_2022", "narration_language", "death_summary",
-             "medical_records", "geography"},
+            {"digitva_core", "doris_support_whova_2022", "intake_screen", "narration_language",
+             "death_summary", "medical_records", "geography"},
         )
+        consent_cfg = consent_service.get_consent_config("TRN01")
+        self.assertTrue(consent_cfg["consent_required"])
+        self.assertEqual([v["language"] for v in consent_cfg["notice_versions"]], ["en", "hi"])
+        active_versions = consent_service.active_versions("TRN01")
+        self.assertEqual([v.language for v in active_versions], ["en", "hi"])
+        self.assertTrue(all(v.approved_by is None and v.approved_at is None for v in active_versions))
+
+    def test_setup_preserves_consent_customizations_and_audits_actor(self):
+        from app.models import MapConsentAudit, MasProjectConsentSettings
+        from app.services import consent_service
+
+        audit_rows = db.session.scalars(
+            sa.select(MapConsentAudit).where(MapConsentAudit.project_id == "TRN01")
+        ).all()
+        self.assertEqual(
+            {row.event for row in audit_rows},
+            {"consent_notice_created", "consent_settings_saved"},
+        )
+        self.assertTrue(all(row.actor_user_id is not None and row.actor_role == "admin" for row in audit_rows))
+
+        initial_version_ids = [v.notice_version_id for v in consent_service.active_versions("TRN01")]
+        consent_service.save_settings(
+            self.admin,
+            "TRN01",
+            {
+                "retention": {"period_days": 180, "expiry_action": "lock"},
+                "contacts": {"deletion": {"email": "del@example.org", "phone": "111"}},
+            },
+        )
+        project = db.session.get(VaProjectMaster, "TRN01")
+        project.web_intake_intake_note = "Custom welcome"
+        db.session.flush()
+
+        audit_count_before = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MapConsentAudit).where(MapConsentAudit.project_id == "TRN01")
+        )
+        svc.setup_training_project(actor=self.admin)
+
+        settings = db.session.get(MasProjectConsentSettings, "TRN01")
+        self.assertTrue(settings.consent_required)
+        self.assertEqual(settings.retention_period_days, 180)
+        self.assertEqual(settings.expiry_action, "lock")
+        self.assertEqual(settings.contacts["deletion"]["email"], "del@example.org")
+        self.assertEqual(
+            [v.notice_version_id for v in consent_service.active_versions("TRN01")],
+            initial_version_ids,
+        )
+        self.assertEqual(project.web_intake_intake_note, "Custom welcome")
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(sa.func.count()).select_from(MapConsentAudit).where(MapConsentAudit.project_id == "TRN01")
+            ),
+            audit_count_before,
+        )
+
+        project.web_intake_intake_note = ""
+        settings.consent_required = False
+        db.session.flush()
+        svc.setup_training_project(actor=self.admin)
+        self.assertIsNone(project.web_intake_intake_note)
+        self.assertTrue(settings.consent_required)
+        self.assertEqual(settings.retention_period_days, 180)
+        self.assertEqual(settings.expiry_action, "lock")
+        self.assertEqual(settings.contacts["deletion"]["email"], "del@example.org")
+
+        with self.assertRaises(svc.TrainingDemoSetupError):
+            svc.setup_training_project(actor=self.base_coder_user)
 
     def test_setup_updates_the_narration_languages_of_an_existing_project(self):
         project = db.session.get(VaProjectMaster, "TRN01")

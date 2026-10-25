@@ -24,10 +24,12 @@ reset and accounts are unchanged.
   TRN01 too.
 - ICD-11 coding through DORIS (`icd_classification` `icd11`, `cod_entry_mode`
   `doris`), `masked_cod_required` off, narrative quality assessment off, social
-  autopsy off for coders and reviewers, no intake welcome note, no ABHA.
+  autopsy off for coders and reviewers, no ABHA.
   Enabled form extensions: `digitva_core`, `doris_support_whova_2022`,
-  `narration_language`, `death_summary`, `medical_records`, `geography`.
-  Coding intake is `pick_and_choose`.
+  `intake_screen`, `narration_language`, `death_summary`, `medical_records`,
+  `geography`. Coding intake is `pick_and_choose`.
+- Intake welcome note: standard welcome default (`web_intake_intake_note` is `NULL`, which resolves to `DEFAULT_INTAKE_NOTE` and enables `intake_screen`).
+- Respondent DPDP consent: required (`consent_required = true`), using the seeded English and Hindi draft notices pending legal review; setup preserves any existing notice versions, retention settings, contacts, and refusal behaviour without claiming legal approval.
 - The coder recode window (`recode_window_minutes`) is 60 minutes, not the
   24-hour default (owner 2026-10-22), so a trainee's coded case reaches review
   within the training. `setup` sets it on a new TRN01 and resets it to 60 on an

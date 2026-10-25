@@ -115,6 +115,7 @@ interface Loaded extends DraftHost {
   config: DraftConfig;
   definition: ResolvedInstrument;
   accessVersion: number;
+  hasStartedSection: boolean;
   /** The interviewer's own details from their last interview (src/interviewerRecall.ts). */
   recall?: InterviewerRecall;
   accountName?: string;
@@ -126,6 +127,7 @@ interface DraftConfig {
   enabledExtensions: string[];
   instrumentCode: string;
   translationVersion?: number;
+  intakeNote?: string | null;
 }
 
 type ConsentDecision = "granted" | "refused" | "none";
@@ -155,6 +157,7 @@ function configFromReference(project: ProjectSettings): DraftConfig {
     enabledExtensions: [...(options?.enabled_extensions ?? [])],
     instrumentCode,
     translationVersion: options?.translation_versions?.[locale],
+    intakeNote: options?.intake_note ?? null,
   };
 }
 
@@ -168,7 +171,10 @@ function isDraftConfig(value: unknown): value is DraftConfig {
     config.enabledExtensions.every((entry) => typeof entry === "string") &&
     typeof config.instrumentCode === "string" &&
     (config.translationVersion === undefined ||
-      typeof config.translationVersion === "number")
+      typeof config.translationVersion === "number") &&
+    (config.intakeNote === undefined ||
+      config.intakeNote === null ||
+      typeof config.intakeNote === "string")
   );
 }
 
@@ -315,6 +321,7 @@ export default function Form() {
   const [refusal, setRefusal] = useState<SendRefusal | undefined>();
   // The "N problems" chip and the safe-area insets the form's own overlays (Sections drawer, problems list) need.
   const [problemCount, setProblemCount] = useState(0);
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const insets = useSafeAreaInsets();
   const serverProblems = useMemo(() => refusalProblems(refusal, t("refusalNotAcceptedNoReason")), [refusal]);
 
@@ -326,6 +333,7 @@ export default function Form() {
     setBlockedReferenceData(false);
     setMessage("");
     setTranslationFallback(false);
+    setWelcomeDismissed(false);
     controller.current = undefined;
     session.current = undefined;
     if (!account || !draftId) {
@@ -623,12 +631,14 @@ export default function Form() {
         }
         const recall = await getMeta<InterviewerRecall>(db, RECALL_META_KEY);
         if (!active || generation !== loadGeneration.current) return;
+        const hasStartedSection = Boolean(existingDraft && (!envelope || envelope.currentSection));
         setLoaded({
           db,
           project: project!,
           config,
           definition,
           accessVersion: lockVersion,
+          hasStartedSection,
           recall,
           accountName: referenceData?.bootstrap.user?.name,
           ...host,
@@ -916,6 +926,25 @@ export default function Form() {
     );
   }
   if (consentView.kind !== "ready") return <ActivityIndicator style={{ flex: 1 }} />;
+
+  const intakeNote = (loaded.config.intakeNote ?? loaded.project.form_options?.intake_note ?? "").trim();
+  const showWelcome =
+    !welcomeDismissed &&
+    !loaded.hasStartedSection &&
+    loaded.config.enabledExtensions.includes("intake_screen") &&
+    Boolean(intakeNote);
+  if (showWelcome) {
+    return (
+      <Screen title={t("beforeYouBegin")} variant="immersive">
+        <View testID="native-interview-welcome-card" style={[styles.card, { margin: 16, gap: 12 }]}>
+          <Text style={styles.headline}>{t("beforeYouBegin")}</Text>
+          <Text style={styles.text}>{intakeNote}</Text>
+          <Button label={t("startQuestionnaire")} onPress={() => setWelcomeDismissed(true)} />
+          <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
+        </View>
+      </Screen>
+    );
+  }
 
   /** Save what is typed, then close the questionnaire for the consent screen (its answers come back from the stored draft). */
   async function changeConsent() {

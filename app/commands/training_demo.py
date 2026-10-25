@@ -1,6 +1,6 @@
 """Training & demo project (TRN01) operations.
 
-  flask training-demo setup
+  flask training-demo setup [--by admin@example.org]
   flask training-demo create-session --name "..." [--coder-slots 20] --by admin@example.org
   flask training-demo list-sessions
   flask training-demo add-participant S001 user@example.org coder,reviewer_data_manager --by admin@example.org
@@ -16,6 +16,7 @@ Policy: docs/policy/training-demo-project.md.
 """
 
 import json
+import uuid
 
 import click
 import sqlalchemy as sa
@@ -32,7 +33,11 @@ def training_demo_group():
 
 
 def _admin(email: str) -> VaUsers:
-    user = db.session.scalar(sa.select(VaUsers).where(sa.func.lower(VaUsers.email) == email.strip().lower()))
+    text = email.strip()
+    try:
+        user = db.session.get(VaUsers, uuid.UUID(text))
+    except ValueError:
+        user = db.session.scalar(sa.select(VaUsers).where(sa.func.lower(VaUsers.email) == text.lower()))
     if user is None:
         raise click.ClickException("No user has that --by email address.")
     return user
@@ -50,9 +55,10 @@ by_option = click.option("--by", "by", required=True, help="Email of the adminis
 
 
 @training_demo_group.command("setup")
-def setup():
+@click.option("--by", default=None, help="Admin email or user UUID for consent audit (defaults to first active admin).")
+def setup(by):
     """Create TRN01 and its fixed structure, or confirm it (idempotent)."""
-    _run(service.setup_training_project)
+    _run(lambda: service.setup_training_project(actor=_admin(by) if by else None))
 
 
 @training_demo_group.command("check-source")

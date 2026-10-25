@@ -26,15 +26,12 @@ digest; verify the runtime DLL version rather than trusting the Compose comment.
    source SHA with old pins and expect new browser code. Remaining acceptance:
    physical device, complete interview submission and mid-transfer interruption;
    the blocked-chunk retry and offline edit/reconnect/save/reload passed Chrome.
-2. `digitva-ydgv`: approved training interview welcome + existing DPDP consent
-   not yet implemented. Reuse notices/audit; no invented legal approval or NQA
-   changes. TRN01's single-stage configuration remains an explicit owner decision.
-3. `digitva-e1t9`: intermittent ICD picker backdrop without panel; logs did not
+2. `digitva-e1t9`: intermittent ICD picker backdrop without panel; logs did not
    prove a root cause. `digitva-lo67`: empty text child toast remains untraced.
-4. `digitva-dv58`: WHO vendor Docker serial Vitest933/935; draft-save-order
+3. `digitva-dv58`: WHO vendor Docker serial Vitest933/935; draft-save-order
    failure repeats on unchanged8b79f0b5 baseline; navigation passes both isolated
    reruns. Build/typecheck/entrypoint regressions pass. No assertions skipped.
-5. `digitva-bx43`: optional DORIS hints only, discuss first; no mandatory fields.
+4. `digitva-bx43`: optional DORIS hints only, discuss first; no mandatory fields.
    `digitva-ve8n`: Expo login idea, discussion only. TanStack Router discussed:
    keep Expo Router this release; web-only shell migration needs its own plan.
 
@@ -45,7 +42,9 @@ last verified image d7f8ac86e, web expo-web-v2026.10.25.1; no deployment for thi
 work. Recheck live state before a future deployment. Migration head at acceptance
 c3f9a1d7e2b4. Preserve APK0.3.10 override
 DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted. DORIS_CALL_LOG=1 remains on.
-TRN01: single-stage, masked_cod_required=False, NQA=False; discuss before changing.
+TRN01: single-stage, masked_cod_required=False, NQA=False, standard intake welcome
+and seeded DPDP consent enabled (`docs/policy/training-demo-project.md`); discuss
+before changing.
 Use scripts/deploy-staging.sh with the full CI-built server SHA and its printed
 rollback. Previous rollback reference73561675a must be refreshed from live host.
 
@@ -54,8 +53,9 @@ part of the complete matched app archive, lazy-loaded or warmed after eligible
 login. Never deploy the WHO archive as an independent frontend or cache APIs/
 answers/private definitions. Preserve canonical clinical rules and native entrypoints.
 Updates wait for old tabs to close; don't force worker activation mid-interview.
-Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56. Evidence and limits are in
-`docs/current-state/expo-connectivity-profile.md`; history is in CHANGELOG.md.
+Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56, digitva-ydgv, digitva-idvp.
+Evidence and limits are in `docs/current-state/expo-connectivity-profile.md`;
+history is in CHANGELOG.md.
 
 Local HMR /app redirects to root (Expo57 dev base URL behavior). The old8053
 comparison export is obsolete; use8051 HMR for development. Profiling containers

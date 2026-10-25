@@ -1487,6 +1487,7 @@ export interface ProjectSettings {
     available_locales?: Array<{ code: string; label: string; under_review?: boolean }>;
     default_locale?: string;
     translation_versions?: Record<string, number>;
+    intake_note?: string | null;
   };
   prefill_policy: PrefillPolicy;
 }

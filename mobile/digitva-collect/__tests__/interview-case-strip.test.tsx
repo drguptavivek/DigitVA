@@ -2,7 +2,7 @@ import React, { act } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { create, type ReactTestRenderer } from "react-test-renderer";
 
-import { caseStripParts, InterviewCaseStrip } from "../src/web/InterviewCaseStrip";
+import { caseStripParts, formatLiveCaseSummary, InterviewCaseStrip } from "../src/web/InterviewCaseStrip";
 import { Screen } from "../src/ui";
 import { setUiLocale } from "../src/i18n";
 
@@ -69,4 +69,65 @@ it("with a lead, Screen scrolls the lead and the title row with the content, so 
   expect(plain.findAll((node) => node.type === Text && node.props.children === "body").length).toBe(1);
   expect(plain.findAll((node) => node.type === Text && node.props.children === "Collection")).toHaveLength(0);
   expect(tree.root.findAll((node) => node.type === Text && node.props.children === "Collection").length).toBe(1);
+});
+
+it("formats live case summary placeholders for an empty direct interview and updates as answers arrive", () => {
+  expect(formatLiveCaseSummary(undefined, {}).join(" · ")).toBe("— · DOD: — · Age: — · Sex: —");
+
+  expect(
+    formatLiveCaseSummary(undefined, {
+      Id10017: "Ramesh",
+      Id10018: "Kumar",
+      Id10023: "2026-10-01",
+      ageInYears: 64,
+      Id10019: "male",
+    }).join(" · "),
+  ).toBe("Ramesh Kumar · DOD: 2026-10-01 · Age: 64 yr · Sex: Male");
+
+  expect(
+    formatLiveCaseSummary(undefined, {
+      Id10023: "2026-10-01",
+      dob_known: "yes",
+      dob_type: "month_year",
+      dob_month_year: "1980-05",
+    }).join(" · "),
+  ).toBe("— · DOD: 2026-10-01 · Age: ~46 yr · Sex: —");
+});
+
+it("renders the case id, location, save status and live summary row when showLiveSummary is enabled", () => {
+  let tree!: ReactTestRenderer;
+  act(() => {
+    tree = create(
+      <InterviewCaseStrip
+        prefill={undefined}
+        showLiveSummary
+        uniqueId="PHC01-000146"
+        locationLabel="PHC-AAM PHC 1"
+        saveStatus="Saved 23:19:18 (8 sections)"
+        answers={{}}
+      />,
+    );
+  });
+  const meta = tree.root.findByProps({ testID: "interview-case-meta" });
+  const save = tree.root.findByProps({ testID: "interview-save-status" });
+  const summary = tree.root.findByProps({ testID: "interview-case-summary" });
+  expect(meta.props.children).toBe("Case id PHC01-000146 · PHC-AAM PHC 1");
+  expect(save.props.children).toBe("Saved 23:19:18 (8 sections)");
+  expect(summary.props.children).toBe("— · DOD: — · Age: — · Sex: —");
+
+  act(() => {
+    tree.update(
+      <InterviewCaseStrip
+        prefill={undefined}
+        showLiveSummary
+        uniqueId="PHC01-000146"
+        locationLabel="PHC-AAM PHC 1"
+        saveStatus="Saved 23:19:18 (8 sections)"
+        answers={{ Id10017: "Asha", Id10018: "Devi", Id10023: "2026-09-22", ageInYears: 51, Id10019: "female" }}
+      />,
+    );
+  });
+  expect(tree.root.findByProps({ testID: "interview-case-summary" }).props.children).toBe(
+    "Asha Devi · DOD: 2026-09-22 · Age: 51 yr · Sex: Female",
+  );
 });

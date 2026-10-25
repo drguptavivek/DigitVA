@@ -36,7 +36,9 @@ from app.models import (
     MapTrainingCase,
     MapTrainingParticipant,
     MasCadre,
+    MasConsentNoticeVersion,
     MasOrgUnit,
+    MasProjectConsentSettings,
     MasTrainingSession,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -60,7 +62,7 @@ from app.models.mas_training import (
     MAX_CODER_SLOTS,
     PARTICIPANT_ROLES,
 )
-from app.services import authz
+from app.services import authz, consent_service
 from app.services import organization_service as org
 from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError, _spreadsheet_safe
@@ -137,6 +139,10 @@ class TrainingDemoError(ValueError):
     @property
     def message(self) -> str:
         return MESSAGES.get(self.code, self.code).format(**self.params)
+
+
+class TrainingDemoSetupError(TrainingDemoError):
+    """Raised when training project setup cannot resolve an active admin actor."""
 
 
 def _utcnow() -> datetime:
@@ -227,15 +233,42 @@ def _web_form() -> VaForms:
 # Project setup
 # ---------------------------------------------------------------------------
 
-def setup_training_project() -> dict:
+def _resolve_setup_admin(actor: VaUsers | uuid.UUID | None) -> VaUsers:
+    if isinstance(actor, uuid.UUID):
+        actor = db.session.get(VaUsers, actor)
+    if actor is not None:
+        if not (actor.is_active and actor.is_admin()):
+            raise TrainingDemoSetupError("Consent setup requires an active admin user.")
+        return actor
+    resolved = next(
+        (
+            u
+            for u in db.session.scalars(
+                sa.select(VaUsers)
+                .where(VaUsers.user_status == VaStatuses.active)
+                .order_by(VaUsers.user_id)
+            )
+            if u.is_admin()
+        ),
+        None,
+    )
+    if resolved is None:
+        raise TrainingDemoSetupError("Consent setup requires an active admin user.")
+    return resolved
+
+
+def setup_training_project(actor: VaUsers | None = None) -> dict[str, int | bool]:
     """Create TRN01 and its fixed structure, or confirm an existing one. Idempotent.
 
     Needs ``DIGITVA_TRAINING_PROJECT_ID=TRN01``. An existing TRN01 is adopted
     only when it is an organization, web-only project without ODK mappings;
     its settings are then left as they are, except the narration languages
-    (English and Hindi), which are set to the fixed pair, and the recode
-    window, which is set to 60 minutes. Created: the project and its web
-    form, the template levels and cadres, a "Trainee" cadre allowed to do
+    (English and Hindi), which are set to the fixed pair, the recode
+    window, which is set to 60 minutes, an empty welcome note, which is
+    reset to ``None`` (the standard welcome default), and DPDP consent,
+    which is enabled using the seeded English and Hindi draft notices
+    (pending legal review) when none exist yet. Created: the project and its
+    web form, the template levels and cadres, a "Trainee" cadre allowed to do
     every training task at the PHC and sub-centre levels, and the fixed
     district and CHC units above the session roots. Commits.
     """
@@ -263,7 +296,7 @@ def setup_training_project() -> dict:
                 web_intake_default_locale="en",
                 web_intake_available_locales=["en"],
                 web_intake_narration_languages=list(NARRATION_LANGUAGES),
-                web_intake_intake_note="",
+                web_intake_intake_note=None,
                 web_intake_death_summary_enabled=True,
                 web_intake_medical_records_enabled=True,
                 recode_window_minutes=TRAINING_RECODE_WINDOW_MINUTES,
@@ -277,6 +310,16 @@ def setup_training_project() -> dict:
                 project.web_intake_narration_languages = list(NARRATION_LANGUAGES)
             if project.recode_window_minutes != TRAINING_RECODE_WINDOW_MINUTES:
                 project.recode_window_minutes = TRAINING_RECODE_WINDOW_MINUTES
+            if project.web_intake_intake_note == "":
+                project.web_intake_intake_note = None
+        resolved_actor = _resolve_setup_admin(actor)
+        if not consent_service.active_versions(TRAINING_PROJECT_ID):
+            consent_service.seed_notice_versions(resolved_actor, TRAINING_PROJECT_ID)
+        settings = db.session.get(MasProjectConsentSettings, TRAINING_PROJECT_ID)
+        if settings is None or not settings.consent_required:
+            consent_service.save_settings(
+                resolved_actor, TRAINING_PROJECT_ID, {"consent_required": True}
+            )
         org.ensure_organization_site(TRAINING_PROJECT_ID)
         org.seed_default_organization(TRAINING_PROJECT_ID)
         levels = {level.level_code: level for level in org.list_levels(TRAINING_PROJECT_ID)}

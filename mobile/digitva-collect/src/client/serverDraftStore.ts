@@ -32,6 +32,7 @@ export interface ServerDraftStoreOptions {
   locale?: string;
   translationVersion?: number;
   onError?: (error: unknown) => void;
+  onSaveAcknowledged?: (info: { savedSections: number; updatedAt?: string }) => void;
 }
 
 export interface DraftLocaleMetadata {
@@ -48,6 +49,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private readonly identity?: ServerDraftStoreOptions["identity"];
   private definitionPin: DefinitionPin | null;
   private readonly onError?: (error: unknown) => void;
+  private readonly onSaveAcknowledged?: (info: { savedSections: number; updatedAt?: string }) => void;
   private locale?: string;
   private translationVersion?: number;
   private baseline: BaselineMap = {};
@@ -81,6 +83,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.locale = options.locale;
     this.translationVersion = options.translationVersion;
     this.onError = options.onError;
+    this.onSaveAcknowledged = options.onSaveAcknowledged;
   }
 
   setLocaleMetadata(locale: string, translationVersion: number | undefined): void {
@@ -115,6 +118,9 @@ export class ServerDraftStore implements WhoVaDraftStore {
     }
     if (savedPin) this.definitionPin = savedPin;
     const savedData = (envelope.data ?? {}) as Record<string, unknown>;
+    const serverCurrentSection =
+      envelope.currentSection ||
+      (typeof response.draft?.current_section === "string" ? response.draft.current_section : "");
     // Server drafts can predate fields added by a new registration prefill.
     // Apply those defaults underneath the saved answers so a partial draft is
     // completed without ever replacing an answer already stored on the server.
@@ -140,12 +146,17 @@ export class ServerDraftStore implements WhoVaDraftStore {
         serialise(value)
       ])
     );
-    this.lastSection = envelope.currentSection;
+    this.lastSection = serverCurrentSection;
     this.draftId = id;
     this.serverUpdatedAt = response.draft.updated_at;
     this.loaded = true;
     const pinnedEnvelope = withDefinitionPin(envelope, this.definitionPin);
-    if (this.definitionPin && !savedPin) await this.writeDraft(pinnedEnvelope);
+    if (this.definitionPin && !savedPin) {
+      await this.writeDraft(
+        { ...pinnedEnvelope, data: savedData as SubmissionData, currentSection: serverCurrentSection },
+        { isPinOnly: true }
+      );
+    }
     return pinnedEnvelope;
   }
 
@@ -193,7 +204,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     });
   }
 
-  private async writeDraft(draft: WhoVaDraft): Promise<void> {
+  private async writeDraft(draft: WhoVaDraft, options?: { isPinOnly?: boolean }): Promise<void> {
     const sections = splitBySection({ ...this.retained, ...(draft.data as Record<string, unknown>) }, this.sectionOf);
     const changed: SectionMap = {};
     // Empty sections must replace their saved answers too.
@@ -216,7 +227,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
       csrf: this.csrf,
       json: {
         sections: changed,
-        current_section: draft.currentSection,
+        ...(draft.currentSection ? { current_section: draft.currentSection } : {}),
         if_updated_at: this.serverUpdatedAt,
         meta: {
           schemaVersion: draft.schemaVersion,
@@ -251,6 +262,13 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.baselineLocale = this.locale;
     this.baselineTranslationVersion = this.translationVersion;
     this.baselineDefinitionPin = this.definitionPin;
+    if (!options?.isPinOnly) {
+      const savedSections =
+        acknowledgement.saved_sections > 0
+          ? acknowledgement.saved_sections
+          : Object.values(this.baseline).filter((value) => value !== "{}").length;
+      this.onSaveAcknowledged?.({ savedSections, updatedAt: this.serverUpdatedAt });
+    }
   }
 }
 

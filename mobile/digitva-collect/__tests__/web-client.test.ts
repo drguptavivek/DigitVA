@@ -682,4 +682,88 @@ describe("server draft store", () => {
     });
     expect(requests[2].body?.sections).toEqual({ s1: { Id10007: "edited answer" } });
   });
+
+  it("does not write initialData sections or current_section on a pin-only load of a brand-new draft", async () => {
+    const requests: Array<{ method: string; body?: Record<string, unknown> }> = [];
+    const acknowledged: Array<{ savedSections: number; updatedAt?: string }> = [];
+    const pin = {
+      instrumentVersion: "served-2",
+      definitionSha256: "a".repeat(64),
+      definitionExtensions: ["digitva_core", "intake_screen"],
+    };
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      const method = init?.method ?? "GET";
+      const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : undefined;
+      requests.push({ method, body });
+      if (method === "PATCH") {
+        return response({
+          status: 200,
+          body: {
+            saved_sections: Object.keys((body?.sections as Record<string, unknown>) ?? {}).length,
+            draft: { draft_id: "d1", updated_at: `revision-${requests.length}` },
+          },
+        });
+      }
+      return response({
+        status: 200,
+        body: {
+          draft: {
+            draft_id: "d1",
+            project_id: "p1",
+            site_id: "s1",
+            current_section: null,
+            updated_at: "revision-0",
+          },
+          envelope: {
+            ...draft,
+            instrumentVersion: "",
+            currentSection: "",
+            data: {},
+          },
+          prefill: {},
+        },
+      });
+    });
+
+    const store = new ServerDraftStore({
+      endpoint: "/api/v1/intake/drafts",
+      csrf,
+      sectionOf: new Map([
+        ["Id10010", "Interviewer"],
+        ["Id10017", "Deceased"],
+      ]),
+      initialData: { Id10010: "Interviewer Name" },
+      identity: {
+        instrumentId: "WHO_2022_VA",
+        instrumentVersion: "served-2",
+        firstSection: "Interviewer",
+      },
+      definitionPin: pin,
+      onSaveAcknowledged: (info) => acknowledged.push(info),
+    });
+
+    const loaded = await store.load("d1");
+    expect(loaded?.currentSection).toBe("Interviewer");
+    expect(loaded?.data).toEqual({ Id10010: "Interviewer Name" });
+    expect(requests).toHaveLength(2);
+    expect(requests[1].method).toBe("PATCH");
+    expect(requests[1].body?.sections).toEqual({});
+    expect(requests[1].body?.current_section).toBeUndefined();
+    expect(acknowledged).toEqual([]);
+
+    const savePromise = store.save({
+      ...loaded!,
+      currentSection: "Interviewer",
+      data: { Id10010: "Interviewer Name", Id10017: "Asha" },
+    });
+    await store.flush();
+    await savePromise;
+    expect(requests).toHaveLength(3);
+    expect(requests[2].body?.current_section).toBe("Interviewer");
+    expect(requests[2].body?.sections).toEqual({
+      Interviewer: { Id10010: "Interviewer Name" },
+      Deceased: { Id10017: "Asha" },
+    });
+    expect(acknowledged).toEqual([{ savedSections: 2, updatedAt: "revision-3" }]);
+  });
 });

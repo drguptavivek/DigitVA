@@ -768,6 +768,45 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("renders the welcome card before WhoVaForm on a new draft when intake_screen and intake_note are configured", async () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    const packData = pack() as ReturnType<typeof pack>;
+    const project = packData.projects[0].project as Record<string, unknown>;
+    project.form_options = {
+      ...(project.form_options as Record<string, unknown>),
+      enabled_extensions: ["intake_screen"],
+      intake_note: "Before you begin: confirm the respondent has consented.",
+    };
+    mockReference = packData;
+    mockCachedReference = packData;
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    (getMeta as jest.Mock).mockImplementation(async (_db: unknown, key: string) =>
+      key === "consentConfig"
+        ? { project_id: "P1", consent_required: false, notice_versions: [], fetched_at: "2026-10-20T00:00:00Z" }
+        : undefined,
+    );
+
+    let tree!: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Form />);
+    });
+    await settle();
+    await settle();
+
+    expect(tree.root.findByProps({ testID: "native-interview-welcome-card" })).toBeDefined();
+    expect(dump(tree)).toContain("Before you begin: confirm the respondent has consented.");
+    expect(mockFormProps.instrument).toBeUndefined();
+
+    const startBtn = tree.root.findByProps({ "data-label": "startQuestionnaire" });
+    await act(async () => {
+      startBtn.props.onClick();
+    });
+
+    expect(tree.root.findAllByProps({ testID: "native-interview-welcome-card" })).toHaveLength(0);
+    expect(mockFormProps.instrument).toEqual(mockServedInstrument);
+    await act(async () => tree.unmount());
+  });
+
   it("downloads and verifies the current served definition through the native route", async () => {
     const id = "44444444-4444-4444-8444-444444444444";
     const definition = {

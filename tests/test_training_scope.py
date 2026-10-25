@@ -460,7 +460,10 @@ class InterviewScopeTests(TrainingScopeBase):
     def test_training_form_configuration_is_scoped(self):
         options = self.get("/api/v1/organization/TRN01/form-options?training=1")
         self.assertEqual(options.status_code, 200, options.get_json())
-        form_types = options.get_json()["form_types"]
+        options_json = options.get_json()
+        self.assertTrue(options_json["intake_note"])
+        self.assertIn("intake_screen", options_json["enabled_extensions"])
+        form_types = options_json["form_types"]
         instrument_code = next(item["instrument_code"] for item in form_types if item["is_default"])
         self.assertEqual(self.get("/api/v1/organization/TRN01/form-options").status_code, 403)
         self.assertEqual(
@@ -481,6 +484,13 @@ class InterviewScopeTests(TrainingScopeBase):
         )
         self.assertEqual(
             self.get("/api/v1/intake/identifier-types?project_id=TRN01").status_code,
+            403,
+        )
+        consent_cfg = self.get("/api/v1/intake/consent-config?project_id=TRN01&training=1")
+        self.assertEqual(consent_cfg.status_code, 200, consent_cfg.get_json())
+        self.assertTrue(consent_cfg.get_json()["consent_required"])
+        self.assertEqual(
+            self.get("/api/v1/intake/consent-config?project_id=TRN01").status_code,
             403,
         )
 

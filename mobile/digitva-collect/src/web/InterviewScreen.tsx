@@ -285,6 +285,10 @@ export default function InterviewScreen() {
   const [revisionReason, setRevisionReason] = useState<RevisionReasonCode>();
   const [needsNewSnapshot, setNeedsNewSnapshot] = useState(false);
   const [caseStripHeight, setCaseStripHeight] = useState(0);
+  const [formOptions, setFormOptions] = useState<FormOptions>();
+  const [liveAnswers, setLiveAnswers] = useState<Record<string, unknown>>({});
+  const [saveInfo, setSaveInfo] = useState<{ savedSections: number; updatedAt?: string }>({ savedSections: 0 });
+  const [welcomePending, setWelcomePending] = useState(false);
   const [loadedBootstrap, setLoadedBootstrap] = useState(bootstrap);
   const bootstrapRef = useRef(bootstrap);
   const generationRef = useRef(0);
@@ -508,6 +512,20 @@ export default function InterviewScreen() {
     const initialData = normalizedRevision
       ? { ...prefillData, ...normalizedRevision.envelope.data }
       : prefillData;
+    const hasStartedSection = Boolean(
+      nextDraft.draft.current_section || nextDraft.envelope?.currentSection
+    );
+    const shouldShowWelcome =
+      !nextRevision &&
+      !hasStartedSection &&
+      (options.enabled_extensions ?? []).includes("intake_screen") &&
+      Boolean(options.intake_note?.trim());
+    const initialSavedCount =
+      typeof nextDraft.draft.sections_saved === "number"
+        ? nextDraft.draft.sections_saved
+        : Object.keys((nextDraft.envelope?.data as Record<string, unknown>) ?? {}).length > 0
+          ? 1
+          : 0;
     const nextStore = normalizedRevision
       ? new RevisionMemoryStore({ ...normalizedRevision.envelope, data: initialData })
       : new ServerDraftStore({
@@ -523,6 +541,10 @@ export default function InterviewScreen() {
           },
           locale: nextLocale,
           translationVersion: nextDraft.envelope.translation_version ?? options.translation_versions?.[nextLocale] ?? 0,
+          onSaveAcknowledged: (info) => {
+            if (!isCurrent()) return;
+            setSaveInfo(info);
+          },
           onError: (error) => {
             if (!isCurrent()) return;
             saveFailedRef.current = true;
@@ -531,6 +553,13 @@ export default function InterviewScreen() {
         });
     if (nextStore instanceof ServerDraftStore) await nextStore.load(nextDraftId);
     if (!isCurrent()) return;
+    setFormOptions(options);
+    setWelcomePending(shouldShowWelcome);
+    setLiveAnswers(((nextDraft.envelope?.data as Record<string, unknown>) ?? {}));
+    setSaveInfo({
+      savedSections: initialSavedCount,
+      updatedAt: hasStartedSection ? nextDraft.draft.updated_at : undefined,
+    });
     setDraft(nextDraft);
     setRevision(normalizedRevision);
     setLocale(nextLocale);
@@ -558,6 +587,10 @@ export default function InterviewScreen() {
     setInstrument(undefined);
     setResolvedInstrument(undefined);
     setFormAdopted(false);
+    setFormOptions(undefined);
+    setLiveAnswers({});
+    setSaveInfo({ savedSections: 0 });
+    setWelcomePending(false);
     setStore(undefined);
     setController(undefined);
     dirtyRef.current = false;
@@ -873,8 +906,52 @@ export default function InterviewScreen() {
 
   const localeLabel = useMemo(() => locales?.find((entry) => entry.code === locale)?.label ?? locale, [locale, locales]);
   const availableLocales = locales ?? [];
-  // Only an interview started from a reported death; a direct one has no case to show.
-  const showCaseStrip = !!draft?.draft.death_id;
+  const showCaseStrip = Boolean(draft);
+  const stripPrefill = draft?.draft.death_id || revision ? draftPrefill : undefined;
+  const locationLabel = useMemo(() => {
+    if (!draft) return null;
+    const projectId = draft.draft.project_id;
+    const siteId = draft.draft.site_id;
+    const orgUnitId = draft.draft.org_unit_id;
+    const contextList = Array.isArray(intake?.context) ? intake.context : [];
+    const entry = contextList.find((item) => item.project_id === projectId && item.site_id === siteId);
+    if (orgUnitId) {
+      const unit = entry?.org_units?.find((item) => item.org_unit_id === orgUnitId);
+      if (unit) {
+        const projectEntry = [
+          ...(bootstrap?.access.projects ?? []),
+          ...(bootstrap?.access.training?.project ? [bootstrap.access.training.project] : []),
+        ].find((p) => p.project_id === projectId);
+        const levelName =
+          unit.level_name ??
+          projectEntry?.levels?.find((l) => l.level_code === unit.level_code)?.level_name;
+        const label = [levelName, unit.unit_name].filter(Boolean).join(" ");
+        if (label) return label;
+      }
+      if (draft.draft.org_unit_name) return draft.draft.org_unit_name;
+    }
+    if (entry) {
+      return [entry.project_name || entry.project_id, entry.site_name || entry.site_id]
+        .filter(Boolean)
+        .join(" / ") || null;
+    }
+    return [projectId, draft.draft.site_name || siteId].filter(Boolean).join(" / ") || null;
+  }, [bootstrap, draft, intake]);
+  const saveStatusLabel = useMemo(() => {
+    if (saveInfo.updatedAt && saveInfo.savedSections > 0) {
+      let time = saveInfo.updatedAt;
+      if (!/^\d{2}:\d{2}:\d{2}$/.test(time)) {
+        const parsed = new Date(time);
+        if (!Number.isNaN(parsed.getTime())) {
+          time = parsed.toTimeString().slice(0, 8);
+        }
+      }
+      return saveInfo.savedSections === 1
+        ? t("interviewSavedSectionOne", { time })
+        : t("interviewSavedSections", { time, count: saveInfo.savedSections });
+    }
+    return t("interviewNotSavedYet");
+  }, [saveInfo]);
   const consentPending = !revision && (!consentGate || (consentGate.status.consent_required && !consentGate.status.decision));
   const webFormStyle = Platform.OS === "web"
     ? ({
@@ -946,7 +1023,17 @@ export default function InterviewScreen() {
           <View style={styles.row}>
             <Button kind="secondary" label={t("backToCollection")} onPress={() => guardedNavigate(() => router.replace(collectionPath as never))} />
           </View>
-          {showCaseStrip ? <InterviewCaseStrip prefill={draftPrefill} onHeight={setCaseStripHeight} /> : null}
+          {showCaseStrip ? (
+            <InterviewCaseStrip
+              prefill={stripPrefill}
+              onHeight={setCaseStripHeight}
+              uniqueId={draft?.draft.unique_id}
+              locationLabel={locationLabel}
+              saveStatus={revision ? null : saveStatusLabel}
+              answers={liveAnswers}
+              showLiveSummary
+            />
+          ) : null}
           {revision ? (
             <View>
               <Text style={styles.headline}>{t("revisionReason")}</Text>
@@ -1006,7 +1093,45 @@ export default function InterviewScreen() {
             ) : <Text style={styles.muted}>{t("loading")}</Text>
           ) : null}
           {consentRefused ? <Text style={styles.muted} testID="consent-refused-note">{t("consentRefusedInterview")}</Text> : null}
-          {consentPending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
+          {!consentPending && welcomePending && formOptions?.intake_note?.trim() ? (
+            <View
+              testID="interview-welcome-card"
+              style={[
+                welcomeStyles.card,
+                { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+              ]}
+            >
+              <Text
+                testID="interview-welcome-title"
+                style={[styles.headline, welcomeStyles.title, { color: theme.colors.text }]}
+              >
+                {t("beforeYouBegin")}
+              </Text>
+              <Text
+                testID="interview-welcome-note"
+                style={[welcomeStyles.note, { color: theme.colors.text }]}
+              >
+                {formOptions.intake_note.trim()}
+              </Text>
+              <View style={welcomeStyles.actions}>
+                <Pressable
+                  testID="interview-welcome-start"
+                  accessibilityRole="button"
+                  accessibilityLabel={t("startQuestionnaire")}
+                  onPress={() => setWelcomePending(false)}
+                  style={({ pressed }) => [
+                    welcomeStyles.button,
+                    { backgroundColor: theme.colors.accent, opacity: pressed ? 0.85 : 1 },
+                  ]}
+                >
+                  <Text style={[welcomeStyles.buttonText, { color: theme.colors.onAccent }]}>
+                    {t("startQuestionnaire")}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+          {consentPending || welcomePending ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaFormComponent
               theme={whoTheme}
               key={`${draftId}:${locale}`}
@@ -1018,11 +1143,20 @@ export default function InterviewScreen() {
               draftStore={store}
               autoSaveDraftOnChange
               onDraftController={setController}
+              onReady={(session) => {
+                const snap = session?.getSnapshot?.();
+                if (snap?.data && typeof snap.data === "object" && Object.keys(snap.data).length > 0) {
+                  setLiveAnswers(snap.data as Record<string, unknown>);
+                }
+              }}
               onChange={(data) => {
                 if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
                 setNeedsNewSnapshot(false);
                 dirtyRef.current = true;
                 changedDataRef.current = data;
+                if (data && typeof data === "object") {
+                  setLiveAnswers(data as Record<string, unknown>);
+                }
                 if (!(store instanceof RevisionMemoryStore) && loadedBootstrap)
                   writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
               }}
@@ -1030,6 +1164,9 @@ export default function InterviewScreen() {
                 if (!(store instanceof ServerDraftStore)) return;
                 saveFailedRef.current = false;
                 if (saved?.data === changedDataRef.current) dirtyRef.current = false;
+                if (saved?.data && typeof saved.data === "object") {
+                  setLiveAnswers(saved.data as Record<string, unknown>);
+                }
               }}
               onDraftError={(error) => {
                 saveFailedRef.current = true;
@@ -1202,4 +1339,28 @@ const languageStyles = StyleSheet.create({
   option: { minHeight: 48, borderRadius: 8, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16 },
   optionLabel: { fontSize: 16, lineHeight: 22, flexShrink: 1 },
   check: { width: 20, fontSize: 18, fontWeight: "700", textAlign: "center" }
+});
+
+const welcomeStyles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: 20,
+    gap: 12,
+    maxWidth: 768,
+    width: "100%",
+    alignSelf: "center",
+  },
+  title: { fontSize: 20, fontWeight: "700" },
+  note: { fontSize: 16, lineHeight: 22 },
+  actions: { flexDirection: "row", marginTop: 4 },
+  button: {
+    minHeight: 44,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  buttonText: { fontSize: 16, fontWeight: "600" },
 });

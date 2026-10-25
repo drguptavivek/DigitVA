@@ -193,13 +193,87 @@ it("shows the reported death's case strip when the draft is linked to a death, n
   (getDraft as jest.Mock).mockResolvedValue(caseDraft);
   let tree!: ReturnType<typeof create>;
   await act(async () => {tree = create(<InterviewScreen />);});
-  expect(JSON.stringify(tree.toJSON())).toContain("Asha Devi · 51\u00A0y · Female · Died\u00A02026-09-22");
+  expect(JSON.stringify(tree.toJSON())).toContain("Asha Devi · DOD: 2026-09-22 · Age: 51 yr · Sex: Female");
   await act(async () => tree.unmount());
 
   (getDraft as jest.Mock).mockResolvedValue({...caseDraft, draft: {project_id: "P", death_id: null}});
   await act(async () => {tree = create(<InterviewScreen />);});
   expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
   expect(JSON.stringify(tree.toJSON())).not.toContain("Asha Devi");
+  expect(JSON.stringify(tree.toJSON())).toContain("— · DOD: — · Age: — · Sex: —");
+  await act(async () => tree.unmount());
+});
+
+it("shows the Before you begin welcome card on a new draft with intake_screen andintake_note, and opens WhoVaForm on Start questionnaire", async () => {
+  const note = "Before you begin: confirm the respondent has consented and you are in a private setting.";
+  (getIntakeContext as jest.Mock).mockResolvedValue({
+    context: [
+      {
+        project_id: "P",
+        project_name: "Project",
+        site_id: "S",
+        site_name: "Site",
+        web_intake_mode: "direct",
+        org_units: [{ org_unit_id: "U1", unit_name: "PHC 1", level_name: "PHC-AAM" }],
+      },
+    ],
+  });
+  (getProjectFormOptions as jest.Mock).mockResolvedValue({
+    instrument_version: "server-v1",
+    definition_sha256: mockDefinitionSha256,
+    enabled_extensions: ["digitva_core", "intake_screen"],
+    intake_note: note,
+    narration_languages: [{ code: "en", label: "English" }],
+    form_types: [{ instrument_code: "WHO_2022_VA", is_default: true }],
+    available_locales: [{ code: "en", label: "English" }],
+    translation_versions: {},
+  });
+  (getDraft as jest.Mock).mockResolvedValue({
+    draft: {
+      draft_id: "draft-1",
+      unique_id: "PHC01-000146",
+      project_id: "P",
+      site_id: "S",
+      org_unit_id: "U1",
+      current_section: null,
+      updated_at: "2026-10-04T11:00:00+05:30",
+    },
+    envelope: {
+      id: "draft-1",
+      schemaVersion: 1,
+      formVersion: "2022",
+      instrumentId: "WHO_2022_VA",
+      instrumentVersion: "server-v1",
+      definitionSha256: mockDefinitionSha256,
+      definitionExtensions: [],
+      currentSection: "",
+      createdAt: "2026-10-04T10:00:00+05:30",
+      updatedAt: "2026-10-04T11:00:00+05:30",
+      locale: "en",
+      data: {},
+    },
+    prefill: {},
+  });
+
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {
+    tree = create(<InterviewScreen />);
+  });
+
+  expect(tree.root.findByProps({ testID: "interview-welcome-card" })).toBeDefined();
+  expect(tree.root.findByProps({ testID: "interview-welcome-title" }).props.children).toBe("Before you begin");
+  expect(tree.root.findByProps({ testID: "interview-welcome-note" }).props.children).toBe(note);
+  expect(tree.root.findByProps({ testID: "interview-case-meta" }).props.children).toBe("Case id PHC01-000146 · PHC-AAM PHC 1");
+  expect(tree.root.findByProps({ testID: "interview-save-status" }).props.children).toBe("Not saved yet");
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+
+  const startBtn = tree.root.findByProps({ testID: "interview-welcome-start" });
+  await act(async () => {
+    startBtn.props.onPress();
+  });
+
+  expect(tree.root.findAllByProps({ testID: "interview-welcome-card" })).toHaveLength(0);
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(1);
   await act(async () => tree.unmount());
 });
 

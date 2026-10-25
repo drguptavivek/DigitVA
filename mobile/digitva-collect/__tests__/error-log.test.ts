@@ -150,7 +150,7 @@ describe("export", () => {
     expect(name).toBe("digitva-errors-2026-10-23.txt");
     expect(text).toContain("File: digitva-errors-2026-10-23.txt");
     expect(text).toContain("Exported: 2026-10-23T10:00:00.000Z");
-    expect(text).toContain("App: DigitVA Collect v");
+    expect(text).toContain("App: DigitVA v");
     expect(text.indexOf("e2")).toBeLessThan(text.indexOf("e1"));
     expect(shown).toBe(2);
   });

@@ -137,7 +137,7 @@ export function buildErrorExport(entries: ErrorEntry[], now: Date, maxChars = 60
   const date = now.toISOString().slice(0, 10);
   const name = `digitva-errors-${date}.txt`;
   const { device, android } = deviceInfo();
-  let text = [`File: ${name}`, `App: DigitVA Collect v${APP_VERSION}`, `Device: ${device}, Android ${android}`, `Exported: ${now.toISOString()}`, `Entries: ${entries.length}`, ""].join("\n");
+  let text = [`File: ${name}`, `App: DigitVA v${APP_VERSION}`, `Device: ${device}, Android ${android}`, `Exported: ${now.toISOString()}`, `Entries: ${entries.length}`, ""].join("\n");
   let shown = 0;
   for (const entry of entries) {
     const line = `${entry.at} | v${entry.appVersion} | ${entry.route || "-"} | ${entry.what} | ${entry.device}, Android ${entry.android}\n`;

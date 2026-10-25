@@ -1,7 +1,5 @@
 export { default as CollectionScreen } from "./web/CollectionScreen";
-export { default as CaseDetailScreen } from "./web/newCaseDetailScreen";
-export { default as DeathRegistrationScreen } from "./web/DeathRegistrationScreen";
-export { default as InterviewScreen } from "./web/InterviewScreen";
+export { CaseDetailScreen, DeathRegistrationScreen, InterviewScreen } from "./web/LazyInterviewScreen";
 export { default as SettingsScreen } from "./web/SettingsScreen";
 export { default as OrganizationScreen } from "./web/OrganizationScreen";
 export { default as WorkspaceScreen } from "./web/WorkspaceScreen";

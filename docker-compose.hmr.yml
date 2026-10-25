@@ -1,0 +1,40 @@
+# Local-only Expo web HMR overlay.  This file is never used by staging or
+# production: it keeps Metro and its dependencies inside Docker while the
+# checkout remains bind-mounted for live edits.
+services:
+  minerva_app_service:
+    environment:
+      - EXPO_CLIENT_DIST=/app/deploy/expo-hmr
+    # The HMR nginx service owns localhost:8051 while Flask remains reachable
+    # on the Compose network. `!reset` is supported by Compose v2/v5.
+    ports: !reset []
+    volumes:
+      - ./mobile/digitva-collect/src/strings:/app/deploy/expo-hmr/ui-strings:ro
+
+  digitva_web_hmr:
+    image: node:22-bookworm-slim
+    working_dir: /workspace/mobile/digitva-collect
+    command: ["sh", "-lc", "npm ci && npm run web:hmr"]
+    volumes:
+      - .:/workspace
+      # Keep the host checkout's node_modules untouched.
+      - digitva_hmr_node_modules:/workspace/mobile/digitva-collect/node_modules
+    expose:
+      - "8081"
+    restart: unless-stopped
+
+  digitva_hmr_ingress:
+    image: nginx:1.29-alpine
+    ports:
+      - "127.0.0.1:8051:80"
+    volumes:
+      - ./deploy/expo-hmr-nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      minerva_app_service:
+        condition: service_healthy
+      digitva_web_hmr:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  digitva_hmr_node_modules:

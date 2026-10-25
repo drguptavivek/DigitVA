@@ -3,10 +3,50 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-10
+last_updated: 2026-10-25
 ---
 
 # DORIS COD Workflow Policy
+
+## Cause reference presentation
+
+The suggested and independently selected underlying COD show their associated
+VA cause code and title directly underneath the ICD code and title. This applies
+to the single-stage editor and both steps of masked coding. The selected cause's
+case definition appears in a note-style card beside the selection on wide screens
+and below it on narrow screens. Mapping and definition content retain their
+existing attribution; the display does not change coding or mapping decisions.
+
+The technical note about omitting year-only dates from the WHO request is not
+shown in result panels. Recorded dates and the existing WHO request adaptation
+remain unchanged; actionable processing errors remain visible.
+
+Opening a case for coding queues SmartVA automatically when there is no result
+for the current payload and the caller may run it. Existing queued, running or
+completed work is not regenerated; failed work retains its explicit retry action.
+This uses the authenticated, CSRF-protected run action, not a side effect of a GET.
+Queued or running status is refreshed while the case workspace is in the
+foreground, independently of whether the navigation drawer is open. Once
+processing finishes, the workspace reloads the permitted result without requiring
+a manual page refresh. This does not expose SmartVA during a masked first step
+or change the training project's masking and NQA settings.
+
+## Browser reload recovery (2026-10-25)
+
+After a fresh authorized workspace read, a per-tab session-storage draft may
+restore ordered Part I/II conditions, intervals, the selected underlying cause,
+COD remarks and pending private-note text. Its opaque context binds it to the
+actor, allocation, form and active payload. It excludes demographic fields,
+interview narrative, credentials and processing proof. Free text entered into
+the permitted COD and note fields remains the user's responsibility.
+
+Restoring requires DORIS processing again before certificate submission. Reset
+reapplies the current interview's WHO prefill and clears cause assignments and
+processing, while retaining remarks, notes and server-held SmartVA results.
+Final submission, release/lost access, another form, logout or session expiry
+clear recovery data. Step 1 submission clears only the COD portion so an unsaved
+note can continue into Step 2. Failed processing or submission retains the draft.
+This is reload recovery, not an offline submission queue.
 
 ## Project modes
 

@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Web coding recovery and delivery** (`digitva-akbt`, `digitva-k2s1`,
+  `digitva-55zu`, `digitva-dmcl`, `digitva-26h6`): recover permitted COD fields,
+  remarks and pending notes after reload; reset to interview prefill; show VA
+  references inline and refresh SmartVA independently of its drawer. Add opt-in
+  Docker HMR, deferred interviewer loading and release-versioned public-asset
+  caches. Production export and connectivity profiling remain CI/browser gates;
+  this code change does not deploy a new staging version.
+
 - **Shared SSM helper** (`digitva-gxvx`): move to `scripts/ssm.sh` so deployment
   and load-test watchdog commands use the same helper outside the load-test folder.
 - **Web parity release** (`digitva-pjc8`): publish and pin

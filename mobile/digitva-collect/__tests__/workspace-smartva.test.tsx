@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { createWorkspaceApi, type WorkspaceApi } from "../src/workspace/api";
 import { SmartvaStatusPanel } from "../src/workspace/SmartvaStatusPanel";
 import { parseWorkspace, WorkspaceContractError } from "../src/workspace/contracts";
+import { useSmartvaLifecycle } from "../src/workspace/useSmartvaLifecycle";
 
 const baseWorkspace = {
   case: {
@@ -27,6 +28,11 @@ function makeApi(overrides: Partial<WorkspaceApi> = {}): WorkspaceApi {
 
 function action(renderer: ReactTestRenderer, label: string) {
   return renderer.root.findAll((node) => node.props.accessibilityLabel === label)[0];
+}
+
+function LifecycleProbe({ api, active = true, status = "not_requested", canRun = true, onChanged = jest.fn() }: { api: WorkspaceApi; active?: boolean; status?: "not_requested" | "queued" | "running" | "done" | "failed"; canRun?: boolean; onChanged?: () => void }) {
+  const state = useSmartvaLifecycle({ api, identity: { vaSid: "sid/1", mode: "coding" }, status, canRun, active, onChanged });
+  return <>{`${state.status}:${state.busy}:${state.error}`}</>;
 }
 
 async function settle() {
@@ -59,6 +65,57 @@ test("runSmartva uses the allocation-scoped POST and validates the queued reply"
     init: { method: "POST", json: { regenerate: true } },
   }]);
   await expect(createWorkspaceApi(async () => ({ va_sid: "sid/1", status: "unexpected" })).runSmartva("sid/1")).rejects.toBeInstanceOf(WorkspaceContractError);
+});
+
+test("status API uses a non-PII GET and validates can_run", async () => {
+  const calls: Array<{ path: string; init?: unknown }> = [];
+  const api = createWorkspaceApi(async (path, init) => {
+    calls.push({ path, init });
+    return { va_sid: "sid/1", status: "queued", can_run: true };
+  });
+  await expect(api.getSmartvaStatus("sid/1")).resolves.toEqual({ va_sid: "sid/1", status: "queued", can_run: true });
+  expect(calls).toEqual([{ path: "/api/v1/coding/submissions/sid%2F1/smartva", init: undefined }]);
+  await expect(createWorkspaceApi(async () => ({ va_sid: "sid/1", status: "queued", can_run: "yes" })).getSmartvaStatus("sid/1")).rejects.toThrow("smartva.status.can_run");
+});
+
+test("coding lifecycle auto-queues once, polls terminal status, and never retries failed", async () => {
+  jest.useFakeTimers();
+  const getSmartvaStatus = jest.fn()
+    .mockResolvedValueOnce({ va_sid: "sid/1", status: "not_requested", can_run: true })
+    .mockResolvedValueOnce({ va_sid: "sid/1", status: "queued", can_run: true })
+    .mockResolvedValueOnce({ va_sid: "sid/1", status: "done", can_run: true });
+  const runSmartva = jest.fn().mockResolvedValue({ va_sid: "sid/1", status: "queued" });
+  const onChanged = jest.fn();
+  const api = makeApi({ getSmartvaStatus, runSmartva });
+  let renderer!: ReactTestRenderer;
+  await act(async () => { renderer = create(<LifecycleProbe api={api} onChanged={onChanged} />); await Promise.resolve(); await Promise.resolve(); });
+  expect(runSmartva).toHaveBeenCalledTimes(1);
+  await act(async () => { jest.advanceTimersByTime(3_000); await Promise.resolve(); await Promise.resolve(); });
+  await act(async () => { jest.advanceTimersByTime(3_000); await Promise.resolve(); await Promise.resolve(); });
+  expect(getSmartvaStatus).toHaveBeenCalledTimes(3);
+  expect(onChanged).toHaveBeenCalledTimes(1);
+  const failedApi = makeApi({ getSmartvaStatus: jest.fn(async () => ({ va_sid: "sid/1", status: "failed" as const, can_run: true })), runSmartva: jest.fn() });
+  await act(async () => { renderer.update(<LifecycleProbe api={failedApi} />); await Promise.resolve(); await Promise.resolve(); });
+  expect(failedApi.runSmartva).not.toHaveBeenCalled();
+  await act(async () => renderer.unmount());
+  jest.useRealTimers();
+});
+
+test("coding lifecycle pauses hidden polling and ignores stale case responses", async () => {
+  jest.useFakeTimers();
+  let resolveStatus!: (value: { va_sid: string; status: "queued"; can_run: boolean }) => void;
+  const getSmartvaStatus = jest.fn((_sid: string) => new Promise<{ va_sid: string; status: "queued"; can_run: boolean }>(resolve => { resolveStatus = resolve; }));
+  const api = makeApi({ getSmartvaStatus });
+  let renderer!: ReactTestRenderer;
+  await act(async () => { renderer = create(<LifecycleProbe api={api} />); });
+  expect(getSmartvaStatus).toHaveBeenCalledTimes(1);
+  await act(async () => { renderer.update(<LifecycleProbe api={api} active={false} />); jest.advanceTimersByTime(9_000); });
+  expect(getSmartvaStatus).toHaveBeenCalledTimes(1);
+  await act(async () => { resolveStatus({ va_sid: "sid/1", status: "queued", can_run: true }); await Promise.resolve(); });
+  await act(async () => { renderer.update(<LifecycleProbe api={api} active />); await Promise.resolve(); });
+  expect(getSmartvaStatus).toHaveBeenCalledTimes(2);
+  await act(async () => renderer.unmount());
+  jest.useRealTimers();
 });
 
 test("SmartVA panel mirrors source labels, keeps result details out, and refreshes after queueing", async () => {

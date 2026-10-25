@@ -59,6 +59,8 @@ export interface PickerBridgeOptions {
   identity: WorkspaceIdentity;
   /** The certificate revision now; a verified code is dropped if it moved on. */
   revision: () => number;
+  /** False once this modal was replaced, closed or unmounted. */
+  isActive?: () => boolean;
   /** A 403 means the allocation is lost: the owner must stop editing. */
   onForbidden: () => void;
   /** False in final-cause mode: a free-text `uncoded` message is then ignored. Defaults to true. */
@@ -100,6 +102,8 @@ function failure(error: unknown): PickerFailure {
 /** Maps picker messages onto the existing client; one bridge per open picker. */
 export function createPickerBridge(options: PickerBridgeOptions) {
   const { api, request, identity } = options;
+  let disposed = false;
+  const active = () => !disposed && (options.isActive?.() ?? true);
   // Verified (code, uri) pairs and the revision they were verified at.
   const verified = new Map<string, { choice: PickerChoice; revision: number }>();
 
@@ -120,7 +124,7 @@ export function createPickerBridge(options: PickerBridgeOptions) {
         const sent = options.revision();
         const reply = await api.checkDorisSelection(identity.vaSid, code, str(body, "uri", MAX_URI));
         const choice = { code: reply.item.code, title: reply.item.title, uri: reply.item.uri };
-        verified.set(`${choice.code}\n${choice.uri}`, { choice, revision: sent });
+        if (active() && sent === options.revision()) verified.set(`${choice.code}\n${choice.uri}`, { choice, revision: sent });
         return reply as unknown as JsonValue;
       }
       case "postcoordination":
@@ -142,12 +146,17 @@ export function createPickerBridge(options: PickerBridgeOptions) {
   /** Handle one page message; `reply` posts a response back to the page. */
   async function handle(message: unknown, reply: (reply: PickerReply) => void): Promise<void> {
     const source = plain(message);
-    if (!source) return;
+    if (!source || !active()) return;
     if (source.t === "req" && typeof source.id === "number" && typeof source.path === "string") {
       const id = source.id;
+      const revision = options.revision();
+      const current = () => active() && revision === options.revision();
       try {
-        reply({ t: "res", id, ok: true, data: await call(source.path, source.body) });
+        const data = await call(source.path, source.body);
+        if (!current()) return;
+        reply({ t: "res", id, ok: true, data });
       } catch (error) {
+        if (!current()) return;
         if (error instanceof ApiError && error.status === 403) options.onForbidden();
         reply({ t: "res", id, ok: false, error: failure(error) });
       }
@@ -160,9 +169,11 @@ export function createPickerBridge(options: PickerBridgeOptions) {
       const value = source.text.trim();
       if (value && value.length <= MAX_TEXT) options.onUncoded(value);
     } else if (source.t === "close") {
+      disposed = true;
+      verified.clear();
       options.onClose();
     }
   }
 
-  return { handle };
+  return { handle, dispose: () => { disposed = true; verified.clear(); } };
 }

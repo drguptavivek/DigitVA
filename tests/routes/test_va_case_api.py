@@ -405,6 +405,18 @@ class VaCaseApiTests(BaseTestCase):
         self._login(user or self.base_coder_id)
         return self.client.post(f"{BASE}/{sid}/{tail}", json=body, headers=self._csrf_headers())
 
+    def _smartva_get(self, sid, user=None):
+        self._login(user or self.base_coder_id)
+        return self.client.get(f"/api/v1/coding/submissions/{sid}/smartva")
+
+    def _smartva_post(self, sid, body=None, user=None):
+        self._login(user or self.base_coder_id)
+        return self.client.post(
+            f"/api/v1/coding/submissions/{sid}/smartva",
+            json=body or {},
+            headers=self._csrf_headers(),
+        )
+
     def test_icd_classification_follows_the_project(self):
         sid = self._coding_case()
         self.assertEqual(self._workspace(sid)["case"]["icd_classification"], "icd10")
@@ -636,6 +648,56 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(body["smartva"]["causes"][0]["cause"], "Stroke")
         self.assertEqual(body["smartva_status"], "done")
 
+    @patch("app.routes.api.coding.smartva_service.enqueue_smartva")
+    def test_smartva_status_is_minimal_live_and_never_enqueues(self, enqueue):
+        sid = self._coding_case()
+        response = self._smartva_get(sid)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(set(response.get_json()), {"va_sid", "status", "can_run"})
+        self.assertEqual(response.get_json(), {"va_sid": sid, "status": "not_requested", "can_run": True})
+        enqueue.assert_not_called()
+
+        db.session.add(VaSmartvaResults(
+            va_sid=sid, payload_version_id=get_active_payload_version(sid).payload_version_id,
+            va_smartva_status=VaStatuses.active, va_smartva_cause1="Stroke",
+            va_smartva_outcome=VaSmartvaResults.OUTCOME_SUCCESS,
+        ))
+        db.session.commit()
+        done = self._smartva_get(sid)
+        self.assertEqual(done.status_code, 200, done.get_json())
+        self.assertEqual(done.get_json(), {"va_sid": sid, "status": "done", "can_run": True})
+        self.assertNotIn("cause", done.get_json())
+        enqueue.assert_not_called()
+
+    def test_smartva_status_denies_unknown_out_of_scope_and_view_only_access(self):
+        unknown = self._smartva_get("uuid:does-not-exist")
+        self.assertEqual((unknown.status_code, unknown.get_json()["code"]), (404, "not_found"))
+
+        outside = self._coding_case(form_id=self.DEVICE_FORM_ID)
+        response = self._smartva_get(outside)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "forbidden"))
+
+        view_only = self._collaborator()
+        response = self._smartva_get(self._case(), user=view_only)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "forbidden"))
+
+    @patch("app.routes.api.coding.smartva_service.enqueue_smartva", return_value=True)
+    @patch("app.routes.api.coding.smartva_service.smartva_run_allowed", return_value=True)
+    @patch("app.routes.api.coding.smartva_service.smartva_status", return_value="not_requested")
+    def test_smartva_post_keeps_coding_authorization_and_audit_role(self, status, allowed, enqueue):
+        sid = self._coding_case()
+        response = self._smartva_post(sid)
+        self.assertEqual(response.status_code, 202, response.get_json())
+        self.assertEqual(response.get_json(), {"va_sid": sid, "status": "queued"})
+        enqueue.assert_called_once_with(
+            sid, "coding_page", regenerate=False,
+            requested_by=(str(self.base_coder_user.user_id), "vacoder"),
+        )
+
+        view_only = self._collaborator()
+        denied = self._smartva_post(sid, user=view_only)
+        self.assertEqual((denied.status_code, denied.get_json()["code"]), (403, "forbidden"))
+
     def test_the_reviewer_workspace_shows_the_reviewer_steps(self):
         self._mode(masked=True)
         sid = self._reviewing_case()
@@ -767,10 +829,12 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(doris["prefill_provenance"], {})
         self.assertEqual(doris["saved_processing"], {
             "certificate": self._CERT, "doris": {"status": "ok"}, "codedit": {"status": "ok"},
-            "final_choice": "B20 HIV disease",
+            "final_choice": "B20 HIV disease", "ucod_parts": [], "who_notes": [],
         })
         self.assertEqual(doris["step1_certificate"], self._CERT)
-        self.assertEqual(doris["step1_processing"], {"doris": {"status": "ok"}, "codedit": {"status": "ok"}})
+        self.assertEqual(doris["step1_processing"], {
+            "doris": {"status": "ok"}, "codedit": {"status": "ok"}, "ucod_parts": [], "who_notes": [],
+        })
         # Display-only: no process token is minted by the read.
         self.assertNotIn("process_token", doris["saved_processing"])
 
@@ -798,7 +862,7 @@ class VaCaseApiTests(BaseTestCase):
         sid = self._coding_case(payload={"Id10019": "female"})
         # No prior final: the interview prefill.
         doris = self._workspace(sid)["doris"]
-        self.assertEqual(set(doris), {"initial_certificate", "prefill_provenance"})
+        self.assertEqual(set(doris), {"initial_certificate", "prefill_provenance", "reset_certificate", "reset_prefill_provenance"})
         self.assertEqual(doris["initial_certificate"]["AdministrativeData"]["Sex"], 2)
         db.session.add(VaFinalAssessments(
             va_sid=sid, va_finassess_by=self.base_coder_user.user_id,
@@ -810,6 +874,43 @@ class VaCaseApiTests(BaseTestCase):
         doris = self._workspace(sid)["doris"]
         self.assertEqual(doris["initial_certificate"], self._CERT)
         self.assertEqual(doris["prefill_provenance"], {})
+        self.assertEqual(doris["reset_certificate"]["AdministrativeData"]["Sex"], 2)
+        self.assertNotIn("Part1", doris["reset_certificate"])
+
+    def test_browser_draft_context_is_stable_and_bound_to_payload_and_allocation(self):
+        sid = self._coding_case()
+        first = self._workspace(sid)["case"]
+        self.assertEqual(len(first["doris_draft_context"]), 64)
+        self.assertEqual(first["doris_draft_context"], self._workspace(sid)["case"]["doris_draft_context"])
+        self.assertEqual(first["payload_version_id"], str(get_active_payload_version(sid).payload_version_id))
+        allocation = db.session.scalar(sa.select(VaAllocations).where(
+            VaAllocations.va_sid == sid,
+            VaAllocations.va_allocated_to == self.base_coder_id,
+            VaAllocations.va_allocation_status == VaStatuses.active,
+        ))
+        allocation.va_allocation_id = uuid.uuid4()
+        db.session.commit()
+        second = self._workspace(sid)["case"]
+        self.assertNotEqual(first["doris_draft_context"], second["doris_draft_context"])
+        submission = db.session.get(VaSubmissions, sid)
+        ensure_active_payload_version(submission, payload_data={"changed": "payload"},
+                                      source_updated_at=datetime.now(UTC), created_by_role="vasystem")
+        db.session.commit()
+        third = self._workspace(sid)["case"]
+        self.assertNotEqual(second["payload_version_id"], third["payload_version_id"])
+        self.assertNotEqual(second["doris_draft_context"], third["doris_draft_context"])
+
+    def test_browser_draft_fingerprint_does_not_grant_access(self):
+        sid = self._coding_case()
+        fingerprint = self._workspace(sid)["case"]["doris_draft_context"]
+        db.session.execute(sa.update(VaAllocations).where(
+            VaAllocations.va_sid == sid,
+        ).values(va_allocation_status=VaStatuses.deactive))
+        db.session.commit()
+        response = self.client.get(f"{BASE}/{sid}/workspace", query_string={
+            "mode": "coding", "doris_draft_context": fingerprint,
+        })
+        self.assertEqual(response.status_code, 403)
 
     def _coder_final_behind_a_step_one(self, sid):
         coder_initial = self._initial(sid, doris_certificate=self._CERT, **self._RESULTS)
@@ -842,7 +943,9 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(doris["saved_processing"]["certificate"], own)
         self.assertEqual(doris["saved_processing"]["final_choice"], "B20 HIV disease")
         self.assertEqual(doris["step1_certificate"], own)
-        self.assertEqual(doris["step1_processing"], {"doris": {"status": "ok"}, "codedit": {"status": "ok"}})
+        self.assertEqual(doris["step1_processing"], {
+            "doris": {"status": "ok"}, "codedit": {"status": "ok"}, "ucod_parts": [], "who_notes": [],
+        })
 
     def test_an_unmasked_doris_reviewer_starts_from_the_coder_final_then_their_own(self):
         self._doris(masked=False)

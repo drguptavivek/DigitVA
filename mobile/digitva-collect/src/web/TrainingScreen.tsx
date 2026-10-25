@@ -12,7 +12,7 @@ import { browserErrorText, WebShell } from "./common";
 import { DeathsListPanel } from "./DeathsList";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { TrainingScope } from "../AppState";
-import DeathRegistrationScreen from "./DeathRegistrationScreen";
+import { DeathRegistrationScreen } from "./LazyInterviewScreen";
 import { ConfidentialityNotice, TrainingChecklistView, TrainingNone, useTrainingMe } from "./TrainingChecklist";
 
 const AREA_LABELS = { interview: "trainingInterview", coding: "trainingCoding", review: "trainingReview" } as const;

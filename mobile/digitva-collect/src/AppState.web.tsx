@@ -22,6 +22,7 @@ import { loadBrowserSession } from "./client/session";
 import type { BootstrapResult } from "./client/api";
 import { createNotificationPollGate, drainNotificationPages } from "./notificationPoll";
 import { resetFirstHomeLoad } from "./web/roleHome";
+import { clearBrowserDraft } from "./workspace/doris/browserDraft";
 import { browserSessionStore, clearAllScroll } from "./workspace/viewState";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
@@ -146,6 +147,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const applyDefinitionAccess = useCallback((result: BootstrapResult): boolean => {
     if (!result.authenticated) {
+      clearBrowserDraft();
       if (definitionSession.current) {
         clearDefinitionSession();
         setSessionGeneration((current) => current + 1);
@@ -159,6 +161,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       .map((project) => project.project_id));
     const previous = definitionSession.current;
     if (previous?.accountId !== user.user_id) {
+      if (previous) clearBrowserDraft();
       clearDefinitionSession();
       definitionSession.current = {
         accountId: user.user_id,
@@ -228,6 +231,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (generation === browserRequestGeneration.current) {
           if (error instanceof ApiError && [401, 403].includes(error.status)) {
+            clearBrowserDraft();
             resetFirstHomeLoad();
             clearDefinitionSession();
             clearNotificationSession();
@@ -388,6 +392,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (!link || !bootstrap) return;
     await flushBeforeSignOut();
     clearWebRecall();
+    clearBrowserDraft();
     // Stop every source of authenticated traffic first: a request that ends after the logout response
     // would save the old session again and keep the user signed in. The signed-in state stays untouched
     // until the page navigates away: clearing it re-mounts screens, and their loaders would send exactly
@@ -426,6 +431,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       browserRequestGeneration.current += 1;
       abortClientRequests();
       clearWebRecall();
+      clearBrowserDraft();
       const link = bootstrap?.links.logout;
       if (signOutFirst && link && bootstrap) {
         try {

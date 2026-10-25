@@ -7,6 +7,7 @@ client is being built.
 
 import functools
 import os
+import re
 from pathlib import Path
 
 from flask import Blueprint, abort, current_app, send_file
@@ -23,6 +24,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "data",
         "demo",
         "enrol",
+        "engine-check",
         "form",
         "home",
         "index",
@@ -103,7 +105,18 @@ def _serve(relative_path: str):
 
     asset = _safe_file(root, relative_path)
     if asset is not None:
-        return send_file(asset)
+        # Only content-addressed assets are immutable; entrypoints must see each release.
+        hashed_asset = relative_path.startswith(("_expo/", "assets/")) and re.search(
+            r"[.-][0-9a-f]{32,64}\.", asset.name
+        )
+        # Release tarballs have fixed mtimes: stat-based validators can match changed bytes.
+        response = send_file(asset, conditional=bool(hashed_asset), etag=bool(hashed_asset))
+        if not hashed_asset:
+            response.headers.pop("Last-Modified", None)
+        response.headers["Cache-Control"] = (
+            "public, max-age=31536000, immutable" if hashed_asset else "no-cache"
+        )
+        return response
 
     # A path with a file extension is an asset request.  Unknown assets must
     # remain 404 instead of receiving the application's index document.
@@ -114,7 +127,8 @@ def _serve(relative_path: str):
     index = _safe_file(root, "index.html")
     if index is None:
         abort(404)
-    response = send_file(index)
+    response = send_file(index, conditional=False, etag=False)
+    response.headers.pop("Last-Modified", None)
     response.headers["Cache-Control"] = "no-cache"
     return response
 

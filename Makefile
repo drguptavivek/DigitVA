@@ -22,8 +22,10 @@ APP_SERVICE  = minerva_app_service
 # Servers run CI-built images (docs/policy/server-builds.md): the images
 # overlay swaps build: for image: ...:$DIGITVA_IMAGE_TAG (set in .env).
 COMPOSE_PROD_IMAGES = $(COMPOSE_PROD) -f docker-compose.images.yml
+COMPOSE_HMR = docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.hmr.yml
 
 .PHONY: dev dev-build dev-rebuild dev-down dev-restart \
+        dev-hmr dev-hmr-stop \
         prod prod-build prod-rebuild prod-down prod-pull prod-rollback \
         logs logs-app ps shell \
         migrate db-head test test-parallel test-projects \
@@ -42,6 +44,8 @@ help:
 	@echo "  make dev-rebuild     Force full rebuild then start dev"
 	@echo "  make dev-down        Stop dev stack"
 	@echo "  make dev-restart     Restart app service only"
+	@echo "  make dev-hmr         Start local Expo web HMR in Docker (same-origin 8051)"
+	@echo "  make dev-hmr-stop    Stop HMR containers and restore ordinary Flask 8051"
 	@echo ""
 	@echo "Prod"
 	@echo "  make prod            Start prod stack from the pinned CI image (no build)"
@@ -159,6 +163,20 @@ dev-down:
 
 dev-restart:
 	$(COMPOSE) restart $(APP_SERVICE)
+
+# Local-only Expo web HMR. Validate the complete file set before creating or
+# recreating containers; this never builds an Expo export or an APK.
+dev-hmr: ensure-secrets
+	$(COMPOSE_HMR) config --quiet
+	$(COMPOSE_HMR) --profile icd11 up -d
+	# Recreate only the proxy so changes to its bind-mounted nginx file take effect.
+	$(COMPOSE_HMR) up -d --no-deps --force-recreate digitva_hmr_ingress
+
+# Stop only the HMR services, then let the ordinary dev Compose definition
+# recreate Flask with its direct localhost:8051 binding. Volumes are retained.
+dev-hmr-stop:
+	$(COMPOSE_HMR) stop digitva_hmr_ingress digitva_web_hmr
+	$(COMPOSE) up -d $(APP_SERVICE)
 
 # ---------------------------------------------------------------------------
 # Prod (docker-compose.yml, no dev override; + external-db overlay on split hosts)

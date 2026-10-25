@@ -127,6 +127,10 @@ export interface SmartvaRunReply {
   status: SmartvaStatus;
 }
 
+export interface SmartvaStatusReply extends SmartvaRunReply {
+  can_run: boolean;
+}
+
 export interface WorkspaceCategoryNav {
   code: string;
   label: string;
@@ -190,6 +194,9 @@ export interface SocialAutopsy {
 export interface WorkspacePayload {
   case: {
     va_sid: string;
+    /** Opaque recovery discriminator; never grants access. Old servers may omit it. */
+    doris_draft_context?: string | null;
+    payload_version_id?: string | null;
     instance_name: string;
     // The deceased's name, sent only to a coder who may see it (coding mode); null/absent otherwise.
     deceased_name?: string | null;
@@ -229,6 +236,8 @@ export interface WorkspacePayload {
   other_conditions_options: string[] | null;
   doris: null | {
     initial_certificate: JsonObject;
+    reset_certificate?: JsonObject;
+    reset_prefill_provenance?: JsonValue;
     prefill_provenance: JsonValue;
     saved_processing?: JsonObject | null;
     step1_certificate?: JsonObject | null;
@@ -569,6 +578,15 @@ export function parseSmartvaRun(value: unknown): SmartvaRunReply {
   return { va_sid: string(source.va_sid, "smartva.run.va_sid"), status: smartvaStatus(source.status, "smartva.run.status") };
 }
 
+export function parseSmartvaStatus(value: unknown): SmartvaStatusReply {
+  const source = record(value, "smartva.status");
+  return {
+    va_sid: string(source.va_sid, "smartva.status.va_sid"),
+    status: smartvaStatus(source.status, "smartva.status.status"),
+    can_run: boolean(source.can_run, "smartva.status.can_run"),
+  };
+}
+
 export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePayload {
   const source = record(value, "workspace");
   const caseSource = record(source.case, "workspace.case");
@@ -585,6 +603,8 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
   const dorisSource = source.doris === null ? null : record(source.doris, "workspace.doris");
   const doris = dorisSource === null ? null : {
     initial_certificate: object(dorisSource.initial_certificate, "workspace.doris.initial_certificate"),
+    ...(dorisSource.reset_certificate !== undefined ? { reset_certificate: object(dorisSource.reset_certificate, "workspace.doris.reset_certificate") } : {}),
+    ...(dorisSource.reset_prefill_provenance !== undefined ? { reset_prefill_provenance: parseJsonValue(dorisSource.reset_prefill_provenance, "workspace.doris.reset_prefill_provenance") } : {}),
     prefill_provenance: parseJsonValue(dorisSource.prefill_provenance, "workspace.doris.prefill_provenance"),
     ...(dorisSource.saved_processing !== undefined ? { saved_processing: dorisSource.saved_processing === null ? null : object(dorisSource.saved_processing, "workspace.doris.saved_processing") } : {}),
     ...(dorisSource.step1_certificate !== undefined ? { step1_certificate: dorisSource.step1_certificate === null ? null : object(dorisSource.step1_certificate, "workspace.doris.step1_certificate") } : {}),
@@ -593,6 +613,8 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
   const result: WorkspacePayload = {
     case: {
       va_sid: string(caseSource.va_sid, "workspace.case.va_sid"),
+      ...(caseSource.doris_draft_context !== undefined ? { doris_draft_context: nullableString(caseSource.doris_draft_context, "workspace.case.doris_draft_context") } : {}),
+      ...(caseSource.payload_version_id !== undefined ? { payload_version_id: nullableString(caseSource.payload_version_id, "workspace.case.payload_version_id") } : {}),
       instance_name: string(caseSource.instance_name, "workspace.case.instance_name"),
       ...(caseSource.deceased_name !== undefined ? { deceased_name: nullableString(caseSource.deceased_name, "workspace.case.deceased_name") } : {}),
       form_type_code: string(caseSource.form_type_code, "workspace.case.form_type_code"),

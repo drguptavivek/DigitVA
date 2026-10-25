@@ -12,6 +12,7 @@ jest.mock("../src/i18n", () => ({ setUiLocale: (value: string) => value, t: (key
 import { AppStateProvider, useAppState } from "../src/AppState.web";
 import { claimFirstHomeLoad } from "../src/web/roleHome";
 import { loadBrowserSession } from "../src/client/session";
+import { DORIS_DRAFT_KEY } from "../src/workspace/doris/browserDraft";
 import { ApiError, requestClientJson } from "../src/api";
 
 let state: ReturnType<typeof useAppState>;
@@ -163,6 +164,7 @@ it("does not navigate away while the session still answers after every attempt",
 
 it("lands on the home again after sign-out in the same tab", async () => {
   useSessionStorage();
+  window.sessionStorage.setItem(DORIS_DRAFT_KEY, "pending-cod");
   expect(claimFirstHomeLoad("u1")).toBe(true);
   expect(claimFirstHomeLoad("u1")).toBe(false);
   let tree!: ReturnType<typeof create>;
@@ -171,16 +173,19 @@ it("lands on the home again after sign-out in the same tab", async () => {
   (loadBrowserSession as jest.Mock).mockResolvedValue(signedOut);
   await act(async () => { await state.logout(); });
   expect(claimFirstHomeLoad("u1")).toBe(true);
+  expect(window.sessionStorage.getItem(DORIS_DRAFT_KEY)).toBeNull();
   await act(async () => tree.unmount());
 });
 
 it("lands on the home again after the session expires in the same tab", async () => {
   useSessionStorage();
+  window.sessionStorage.setItem(DORIS_DRAFT_KEY, "pending-cod");
   expect(claimFirstHomeLoad("u1")).toBe(true);
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<AppStateProvider><Consumer /></AppStateProvider>); });
   (loadBrowserSession as jest.Mock).mockRejectedValue(new ApiError(401, "unauthorized", "/vaauth/valogin"));
   await act(async () => { handlers["digitva-access-stale"](); });
   expect(claimFirstHomeLoad("u1")).toBe(true);
+  expect(window.sessionStorage.getItem(DORIS_DRAFT_KEY)).toBeNull();
   await act(async () => tree.unmount());
 });

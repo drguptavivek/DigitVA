@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-25
 ---
 
 # Expo Web Client Boundary
@@ -14,6 +14,20 @@ ordinary Flask login session and server-side web-intake drafts; it does not
 persist questionnaire answers, identifiers or attachments in browser storage.
 This follows the browser path in the [Field Data Collection
 Policy](field-data-collection.md).
+
+The COD editor has an explicit per-tab reload-recovery exception for COD lines,
+selection, remarks and pending private notes; its boundaries and clearing rules
+are in [DORIS COD Workflow](doris-cod-workflow.md#browser-reload-recovery-2026-10-25).
+It does not persist questionnaire answers or demographic fields.
+
+Production releases may cache only manifest-listed public web build assets.
+Release/source identity and SHA-256 hashes separate caches; HTML, manifest and
+worker revalidate. API responses, authentication, clinical records, private form
+configuration and attachments never enter this asset cache. Worker activation
+waits for existing tabs, preserving active interviews. New document requests use
+the server's current HTML. Interview screens load on demand and failed downloads
+offer retry; background asset warming requires a reported fast connection
+without a data-saving preference.
 
 The native collection app remains the offline path. It uses the existing
 encrypted device store and bearer device sessions (`/api/v1/auth`). A device token is

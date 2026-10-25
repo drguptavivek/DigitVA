@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { SmartvaStatus, WorkspaceIdentity } from "./contracts";
+import type { SmartvaLifecycleState } from "./useSmartvaLifecycle";
 
 const STATUS_LABELS: Record<SmartvaStatus, string> = {
   not_requested: "Not requested",
@@ -21,6 +22,8 @@ export type SmartvaStatusPanelProps = {
   resultVisible?: boolean;
   visible?: boolean;
   onChanged?: () => void | Promise<void>;
+  /** Screen-owned lifecycle state; standalone callers retain the legacy manual behavior. */
+  lifecycle?: SmartvaLifecycleState;
 };
 
 /** Status-only SmartVA controls; result details remain in the assessment steps. */
@@ -32,6 +35,7 @@ export function SmartvaStatusPanel({
   resultVisible = false,
   visible = true,
   onChanged,
+  lifecycle,
 }: SmartvaStatusPanelProps) {
   const styles = useUiStyles();
   const contextKey = `${identity.vaSid}:${identity.mode}`;
@@ -71,19 +75,26 @@ export function SmartvaStatusPanel({
     setLocalStatus(undefined);
   }, [api, contextKey, status, canRun, visible]);
 
-  if (!visible || status === undefined || canRun === undefined) return null;
-
-  const currentStatus = localStatus ?? status;
-  const action = identity.mode !== "view" && canRun && currentStatus === "done"
+  const currentStatus = lifecycle?.status ?? localStatus ?? status;
+  const currentCanRun = lifecycle?.canRun ?? canRun;
+  const currentBusy = lifecycle?.busy ?? busy;
+  const currentError = lifecycle?.error || error;
+  const currentMessage = lifecycle?.message || message;
+  if (!visible || currentStatus === undefined || currentCanRun === undefined) return null;
+  const action = identity.mode !== "view" && currentCanRun && currentStatus === "done"
     ? { label: "Regenerate", regenerate: true }
-    : identity.mode !== "view" && canRun && currentStatus === "failed"
+    : identity.mode !== "view" && currentCanRun && currentStatus === "failed"
       ? { label: "Run again", regenerate: false }
-      : identity.mode !== "view" && canRun && currentStatus === "not_requested"
+      : identity.mode !== "view" && currentCanRun && currentStatus === "not_requested"
         ? { label: "Run SmartVA", regenerate: false }
         : null;
 
   const run = () => {
-    if (!action || busy || !mountedRef.current || !foregroundRef.current) return;
+    if (!action || currentBusy || !mountedRef.current || !foregroundRef.current) return;
+    if (lifecycle) {
+      void lifecycle.run(action.regenerate);
+      return;
+    }
     const generation = generationRef.current;
     const requestContext = contextRef.current;
     const isCurrent = () => mountedRef.current
@@ -118,9 +129,9 @@ export function SmartvaStatusPanel({
         Status: <Text style={styles.headline}>{STATUS_LABELS[currentStatus]}</Text>
         {currentStatus === "done" ? <Text style={styles.muted}>{resultVisible ? " (result shown in the assessment steps)" : " (result not displayed in this assessment step)"}</Text> : null}
       </Text>
-      {action ? <Button label={action.label} kind={currentStatus === "done" ? "secondary" : "primary"} onPress={run} disabled={busy} loading={busy} /> : null}
-      {message ? <Text style={styles.muted}>{message}</Text> : null}
-      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      {action ? <Button label={action.label} kind={currentStatus === "done" ? "secondary" : "primary"} onPress={run} disabled={currentBusy} loading={currentBusy} /> : null}
+      {currentMessage ? <Text style={styles.muted}>{currentMessage}</Text> : null}
+      {currentError ? <Text accessibilityRole="alert" style={styles.error}>{currentError}</Text> : null}
     </View>
   );
 }

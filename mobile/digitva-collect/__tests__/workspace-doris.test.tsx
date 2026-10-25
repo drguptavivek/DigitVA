@@ -1,5 +1,5 @@
 import React from "react";
-import { AppState, Modal } from "react-native";
+import { AppState, Modal, Platform } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 jest.mock("../src/ui", () => {
@@ -47,10 +47,13 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
 const mockFrame: { props: any } = { props: null };
 jest.mock("../src/workspace/doris/IcdPickerFrame", () => ({ IcdPickerFrame: (props: any) => { mockFrame.props = props; return null; } }));
 
+import * as viewState from "../src/workspace/viewState";
+import { activateBrowserDraft, clearBrowserDraft, DORIS_DRAFT_KEY, draftContext, readCodDraft, readPendingNote, saveCodDraft, savePendingNote } from "../src/workspace/doris/browserDraft";
 import { ApiError } from "../src/api";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
 import type { DorisProcessReply, JsonObject, WorkspaceIdentity, WorkspacePayload } from "../src/workspace/contracts";
 import { DorisPanel } from "../src/workspace/doris/DorisPanel";
+import { AssociatedVaCodes } from "../src/workspace/doris/CodeDetailsSheet";
 import { dorisGuidance, parseDorisOptions } from "../src/workspace/doris/guidance";
 import { UNKNOWN_UNIT, parseInterval, serializeInterval } from "../src/workspace/doris/interval";
 
@@ -405,6 +408,10 @@ function allText(tree: ReactTestRenderer): string {
   const walk = (node: any) => { if (typeof node === "string") out.push(node); else if (node?.children) node.children.forEach(walk); };
   walk(tree.toJSON());
   return out.join("|");
+}
+
+function hostNodesWithTestId(tree: ReactTestRenderer, testID: string): ReactTestInstance[] {
+  return tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID);
 }
 
 const whoSeed: JsonObject = {
@@ -894,25 +901,90 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
     await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
     await act(async () => flush());
-    expect(tree.root.findAllByProps({ testID: "digitva-addition" })).toHaveLength(0);
+    expect(hostNodesWithTestId(tree, "digitva-addition")).toHaveLength(1);
     await act(async () => tree.root.findAllByProps({ accessibilityLabel: "Details for CA40" })[0].props.onPress());
     await act(async () => flush());
     expect(allText(tree)).toContain("DigitVA addition — not from WHO");
     await act(async () => tree.unmount());
   });
 
-  it("shows the associated VA code under the chosen cause, with its case definition behind a toggle", async () => {
+  it("shows the associated VA code and its plain-text case definition under the chosen cause", async () => {
     const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => ({ icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case <b>text</b></p>" })) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
     await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-    expect(allText(tree)).not.toContain("Associated VA codes");
+    expect(allText(tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
     await act(async () => quickButton(tree, "Use DORIS result").props.onPress());
     await act(async () => flush());
     expect(api.getVaDefinitionForIcd).toHaveBeenCalledWith("CA40");
+    expect(api.getVaDefinitionForIcd).toHaveBeenCalledTimes(1);
     expect(allText(tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
-    expect(allText(tree)).not.toContain("Case text");
-    await act(async () => byLabel(tree, "Case definition").props.onPress());
     expect(allText(tree)).toContain("Case text");
+    expect(hostNodesWithTestId(tree, "associated-va-codes")).toHaveLength(2);
+    expect(hostNodesWithTestId(tree, "va-definition-note")).toHaveLength(1);
+    expect(allText(tree)).toContain("DigitVA addition — not from WHO");
+    await act(async () => tree.unmount());
+  });
+
+  it("shows VA mapping directly under concrete suggestions in Step 1 and masked Step 2, without duplicate selected notes", async () => {
+    const definition = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case definition</p>" };
+    const initialApi = apiFor({ getVaDefinitionForIcd: jest.fn(async () => definition) });
+    const initial = renderPanel(makeWorkspace({ seed: whoSeed }), initialApi);
+    await act(async () => { byLabel(initial.tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => flush());
+    expect(allText(initial.tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    await act(async () => quickButton(initial.tree, "Use DORIS result").props.onPress());
+    await act(async () => flush());
+    expect(hostNodesWithTestId(initial.tree, "associated-va-codes")).toHaveLength(2);
+    expect(hostNodesWithTestId(initial.tree, "va-definition-note")).toHaveLength(1);
+    expect(allText(initial.tree)).toContain("Case definition");
+    await act(async () => initial.tree.unmount());
+
+    const maskedBase = makeWorkspace({ step: "final", masked: true });
+    const maskedWorkspace = { ...maskedBase, assessments: { ...maskedBase.assessments, initial: { immediate_cod: "Pneumonia", antecedent_cod: "CA40" } } } as WorkspacePayload;
+    const maskedApi = apiFor({ getVaDefinitionForIcd: jest.fn(async () => definition) });
+    const masked = renderPanel(maskedWorkspace, maskedApi);
+    await act(async () => flush());
+    expect(allText(masked.tree)).toContain("DORIS suggests: |CA40");
+    expect(allText(masked.tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    await act(async () => quickButton(masked.tree, "Use Step 1 underlying cause").props.onPress());
+    await act(async () => flush());
+    expect(hostNodesWithTestId(masked.tree, "associated-va-codes")).toHaveLength(3);
+    expect(hostNodesWithTestId(masked.tree, "va-definition-note")).toHaveLength(1);
+    await act(async () => masked.tree.unmount());
+  });
+
+  it("retries a rejected VA mapping lookup instead of caching the transient failure", async () => {
+    const definition = { icd_code: "CA40", classification: "icd11", va_code: "VAs-01.01", title: "Sepsis", definition_html: "<p>Case definition</p>" };
+    let attempts = 0;
+    const api = apiFor({ getVaDefinitionForIcd: jest.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("temporary mapping failure");
+      return definition;
+    }) });
+    const first = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(first.tree, "Process current certificate").props.onPress(); await flushAll(); });
+    expect(allText(first.tree)).not.toContain("Associated VA codes");
+    await act(async () => first.tree.unmount());
+    const second = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(second.tree, "Process current certificate").props.onPress(); await flushAll(); });
+    expect(attempts).toBe(2);
+    expect(allText(second.tree)).toContain("Associated VA codes: VAs-01.01 Sepsis");
+    await act(async () => second.tree.unmount());
+  });
+
+  it("does not render a late mapping result for the previous code", async () => {
+    let resolveOld!: (value: any) => void;
+    const oldDefinition = { icd_code: "CA40", classification: "icd11", va_code: "VAs-old", title: "Old cause", definition_html: "<p>Old definition</p>" };
+    const newDefinition = { icd_code: "CA41", classification: "icd11", va_code: "VAs-new", title: "New cause", definition_html: "<p>New definition</p>" };
+    const api = apiFor({ getVaDefinitionForIcd: jest.fn((code: string) => code === "CA40" ? new Promise((resolve) => { resolveOld = resolve; }) : Promise.resolve(newDefinition)) });
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<AssociatedVaCodes api={api} code="CA40" />); await flushAll(); });
+    await act(async () => { tree.update(<AssociatedVaCodes api={api} code="CA41" />); await flushAll(); });
+    expect(allText(tree)).toContain("VAs-new");
+    expect(allText(tree)).not.toContain("VAs-old");
+    await act(async () => { resolveOld(oldDefinition); await flushAll(); });
+    expect(allText(tree)).toContain("VAs-new");
+    expect(allText(tree)).not.toContain("VAs-old");
     await act(async () => tree.unmount());
   });
 
@@ -1114,7 +1186,7 @@ describe("DORIS parity with the public demo: reopened titles and notes, Part 2, 
   const stemTitle = { code: "5A14", title: "Diabetes mellitus, type unspecified", role: "stem", uri: null };
   const cluster = { code: "5A14/BA41.Z", stemCode: "5A14" };
 
-  it("shows a reopened run's stored UCOD titles and year-only note, not the raw computed code", async () => {
+  it("shows a reopened run's stored UCOD titles while hiding year-only technical notes", async () => {
     const api = apiFor();
     const saved = {
       certificate,
@@ -1127,8 +1199,32 @@ describe("DORIS parity with the public demo: reopened titles and notes, Part 2, 
     const { tree } = renderPanel(makeWorkspace({ processing: saved }), api);
     const text = allText(tree);
     expect(text).toContain("Underlying cause: 5A14 Diabetes mellitus, type unspecified");
-    expect(text).toContain("Year-only dates left out of the WHO check: date of death. Your entries are kept.");
+    expect(text).not.toContain("Year-only dates left out of the WHO check:");
     expect(text).not.toContain("Computed UCOD:");
+    await act(async () => tree.unmount());
+  });
+
+  it("hides the earlier stored year-only wording but keeps actionable WHO/internal errors", async () => {
+    const liveApi = apiFor({ processDoris: jest.fn(async () => ({ ...processReply, who_notes: ["Year-only dates left out of the WHO check: date of death. Your entries are kept.", "WHO internal engine failure: retry the certificate."] })) });
+    const live = renderPanel(makeWorkspace(), liveApi);
+    await act(async () => { byLabel(live.tree, "Process current certificate").props.onPress(); await flush(); });
+    expect(allText(live.tree)).not.toContain("Year-only dates left out of the WHO check:");
+    expect(allText(live.tree)).toContain("WHO internal engine failure: retry the certificate.");
+    await act(async () => live.tree.unmount());
+
+    const saved = {
+      certificate,
+      doris: { status: "completed", result: { code: "CA40", stemCode: "CA40" } },
+      codedit: { status: "completed", result: {} },
+      who_notes: [
+        "The date of birth is year-only. It was left out of the WHO check; your entry is kept.",
+        "WHO internal engine failure: retry the certificate.",
+      ],
+    } as unknown as JsonObject;
+    const { tree } = renderPanel(makeWorkspace({ processing: saved }), apiFor());
+    const text = allText(tree);
+    expect(text).not.toContain("The date of birth is year-only.");
+    expect(text).toContain("WHO internal engine failure: retry the certificate.");
     await act(async () => tree.unmount());
   });
 
@@ -1187,6 +1283,194 @@ describe("DORIS parity with the public demo: reopened titles and notes, Part 2, 
     await act(async () => byLabel(tree, "Show DORIS code details").props.onPress());
     expect(allText(tree)).toContain("RE_W_IV_CodeURIMismatch");
     expect(allText(tree)).toContain("0,RE_W_IV_CodeURIMismatch,BER-CE-9");
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("web reload recovery", () => {
+  const values = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+    key: (index: number) => [...values.keys()][index] ?? null,
+    get length() { return values.size; },
+  };
+  let platform: PropertyDescriptor | undefined;
+  beforeEach(() => {
+    platform = Object.getOwnPropertyDescriptor(Platform, "OS");
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+    jest.spyOn(viewState, "browserSessionStore").mockReturnValue(store);
+    clearBrowserDraft();
+    values.clear();
+  });
+  afterEach(() => {
+    clearBrowserDraft();
+    jest.restoreAllMocks();
+    if (platform) Object.defineProperty(Platform, "OS", platform);
+  });
+  function authorizedWorkspace(): WorkspacePayload {
+    const workspace = makeWorkspace({ step: "final", seed: { ...certificate, AdministrativeData: { Sex: 1, DateBirth: "2000-01-01" } } });
+    workspace.case.doris_draft_context = "opaque-user-allocation-context";
+    workspace.case.payload_version_id = "payload-1";
+    workspace.doris!.reset_certificate = { AdministrativeData: { Sex: 2, DateBirth: "2001-01-01" } };
+    workspace.smartva = { cause: "Server SmartVA" };
+    activateBrowserDraft(draftContext(workspace, identity));
+    return workspace;
+  }
+
+  it("reload restores COD/remark/selection, uses fresh demographics and requires reprocessing", async () => {
+    const workspace = authorizedWorkspace();
+    const first = renderPanel(workspace, apiFor());
+    await act(async () => byLabel(first.tree, "Part I line 1 interval").props.onChangeText("3"));
+    await act(async () => byLabel(first.tree, "COD remark").props.onChangeText("Retained remark"));
+    // Store a selected cause as the real picker does, without retaining its process proof.
+    const context = draftContext(workspace, identity)!;
+    const saved = readCodDraft(context, "final")!;
+    saveCodDraft(context, { ...saved, selectedCause: { code: "CA40", title: "Chosen pneumonia", uri: "https://who.int/CA40" } });
+    await act(async () => first.tree.unmount());
+    const freshWorkspace = { ...workspace, doris: { ...workspace.doris!, initial_certificate: { ...certificate, AdministrativeData: { Sex: 2, DateBirth: "2002-01-01" } } } };
+    const api = apiFor();
+    const second = renderPanel(freshWorkspace, api);
+    expect(byLabel(second.tree, "COD remark").props.value).toBe("Retained remark");
+    expect(byLabel(second.tree, "Part I line 1 interval").props.value).toBe("3");
+    expect(allText(second.tree)).toContain("Chosen pneumonia");
+    expect(byLabel(second.tree, "Save final COD").props.disabled).toBe(true);
+    expect(allText(second.tree)).not.toContain("DORIS and CoDEdit");
+    await act(async () => { byLabel(second.tree, "Process current certificate").props.onPress(); await flush(); });
+    const sent = (api.processDoris as jest.Mock).mock.calls[0][3];
+    expect(sent.AdministrativeData).toEqual({ Sex: 2, DateBirth: "2002-01-01" });
+    expect(sent.Part1[0].Conditions[0].Interval).toBe("P3D");
+    expect(values.get(DORIS_DRAFT_KEY)).not.toContain("DateBirth");
+    await act(async () => second.tree.unmount());
+  });
+
+  it("failed final submission keeps recovery data and successful submission clears it", async () => {
+    const workspace = authorizedWorkspace();
+    const api = apiFor({ saveFinal: jest.fn().mockRejectedValueOnce(new Error("Network failed")).mockResolvedValueOnce({ va_sid: "sid-1", final_assessment_id: "final-1" }) });
+    const { tree, onDone } = renderPanel(workspace, api);
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("Keep on failure"));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+    await pickViaPicker("CA40");
+    await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+    expect(onDone).not.toHaveBeenCalled();
+    expect(readCodDraft(draftContext(workspace, identity), "final")?.remark).toBe("Keep on failure");
+    await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+    expect(onDone).toHaveBeenCalledTimes(1);
+    expect(values.has(DORIS_DRAFT_KEY)).toBe(false);
+    await act(async () => tree.unmount());
+  });
+
+  it.each(["remark", "certificate"])("late final-save success preserves newer same-case %s edits", async (field) => {
+    const workspace = authorizedWorkspace();
+    let complete!: (value: Awaited<ReturnType<WorkspaceApi["saveFinal"]>>) => void;
+    const api = apiFor({ saveFinal: jest.fn(() => new Promise((resolve) => { complete = resolve; })) as WorkspaceApi["saveFinal"] });
+    const { tree, onDone } = renderPanel(workspace, api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+    await pickViaPicker("CA40");
+    await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flush(); });
+    await act(async () => field === "remark"
+      ? byLabel(tree, "COD remark").props.onChangeText("Newer unsaved remark")
+      : byLabel(tree, "Part I line 1 interval").props.onChangeText("4"));
+    const before = values.get(DORIS_DRAFT_KEY);
+    expect(before).toContain(field === "remark" ? "Newer unsaved remark" : "P4D");
+    await act(async () => { complete({ va_sid: "sid-1", final_assessment_id: "saved" }); await flushAll(); });
+    expect(onDone).not.toHaveBeenCalled();
+    expect(values.get(DORIS_DRAFT_KEY)).toBe(before);
+    await act(async () => tree.unmount());
+  });
+
+  it("late final-save success cannot clear another case's draft", async () => {
+    const workspace = authorizedWorkspace();
+    let complete!: (value: Awaited<ReturnType<WorkspaceApi["saveFinal"]>>) => void;
+    const api = apiFor({ saveFinal: jest.fn(() => new Promise((resolve) => { complete = resolve; })) as WorkspaceApi["saveFinal"] });
+    const { tree, onDone, request } = renderPanel(workspace, api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+    await pickViaPicker("CA40");
+    await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flush(); });
+    const nextIdentity = { ...identity, vaSid: "sid-2" };
+    const next = { ...workspace, case: { ...workspace.case, va_sid: "sid-2", doris_draft_context: "case-two-context" } };
+    activateBrowserDraft(draftContext(next, nextIdentity));
+    await act(async () => tree.update(<DorisPanel workspace={next} identity={nextIdentity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} />));
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("Second case draft"));
+    const before = values.get(DORIS_DRAFT_KEY);
+    await act(async () => { complete({ va_sid: "sid-1", final_assessment_id: "saved" }); await flushAll(); });
+    expect(onDone).not.toHaveBeenCalled();
+    expect(values.get(DORIS_DRAFT_KEY)).toBe(before);
+    expect(byLabel(tree, "COD remark").props.value).toBe("Second case draft");
+    await act(async () => tree.unmount());
+  });
+
+  it.each([false, true])("stale ICD-11 403 preserves current edits (new case: %s)", async (navigate) => {
+    const workspace = authorizedWorkspace();
+    let fail!: (error: unknown) => void;
+    const api = apiFor({ getDorisCodeInfo: jest.fn(() => new Promise((_resolve, reject) => { fail = reject; })) as WorkspaceApi["getDorisCodeInfo"] });
+    const { tree, onDone, request } = renderPanel(workspace, api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    const quick = tree.root.findAll((node) => typeof node.props.label === "string" && node.props.label.startsWith("Use DORIS result") && typeof node.props.onPress === "function")[0];
+    await act(async () => { quick.props.onPress(); await flush(); });
+    if (navigate) {
+      const nextIdentity = { ...identity, vaSid: "sid-2" };
+      const next = { ...workspace, case: { ...workspace.case, va_sid: "sid-2", doris_draft_context: "case-two-context" } };
+      activateBrowserDraft(draftContext(next, nextIdentity));
+      await act(async () => tree.update(<DorisPanel workspace={next} identity={nextIdentity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} />));
+    }
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("Newer draft"));
+    const before = values.get(DORIS_DRAFT_KEY);
+    await act(async () => { fail(new ApiError(403, "no_allocation")); await flushAll(); });
+    expect(onDone).not.toHaveBeenCalled();
+    expect(values.get(DORIS_DRAFT_KEY)).toBe(before);
+    expect(byLabel(tree, "COD remark").props.value).toBe("Newer draft");
+    await act(async () => tree.unmount());
+  });
+
+  it.each(["certificate edit", "remark edit", "close", "navigation"])("stale picker-page 403 cannot clear the current draft after %s", async (change) => {
+    const workspace = authorizedWorkspace();
+    let fail!: (error: unknown) => void;
+    const api = apiFor({ searchDorisTerms: jest.fn(() => new Promise((_resolve, reject) => { fail = reject; })) as WorkspaceApi["searchDorisTerms"] });
+    const { tree, onDone, request } = renderPanel(workspace, api);
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("Keep this draft"));
+    await act(async () => byLabel(tree, "Search Part I line 1 condition").props.onSubmitEditing());
+    const oldFrame = mockFrame.props;
+    const reply = jest.fn();
+    await act(async () => { oldFrame.onMessage({ t: "req", id: 77, path: "terms", body: { query: "pneu" } }, reply); await flush(); });
+    expect(api.searchDorisTerms).toHaveBeenCalledTimes(1);
+    if (change === "certificate edit") await act(async () => byLabel(tree, "Part I line 1 interval").props.onChangeText("4"));
+    else if (change === "remark edit") await act(async () => byLabel(tree, "COD remark").props.onChangeText("Newer remark"));
+    else if (change === "close") await act(async () => oldFrame.onMessage({ t: "close" }, reply));
+    else {
+      const nextIdentity = { ...identity, vaSid: "sid-2" };
+      const next = { ...workspace, case: { ...workspace.case, va_sid: "sid-2", doris_draft_context: "case-two-context" } };
+      activateBrowserDraft(draftContext(next, nextIdentity));
+      await act(async () => tree.update(<DorisPanel workspace={next} identity={nextIdentity} api={api} request={request} onSaved={async () => undefined} onDone={onDone} />));
+      await act(async () => byLabel(tree, "COD remark").props.onChangeText("New form draft"));
+    }
+    const before = values.get(DORIS_DRAFT_KEY);
+    expect(before).toBeDefined();
+    await act(async () => { fail(new ApiError(403, "no_allocation")); await flushAll(); });
+    expect(onDone).not.toHaveBeenCalled();
+    expect(values.get(DORIS_DRAFT_KEY)).toBe(before);
+    expect(tree.root.findAllByProps({ accessibilityLabel: "COD remark" }).length).toBeGreaterThan(0);
+    expect(reply).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("reset clears causes and processing while retaining remarks, pending note and server SmartVA", async () => {
+    const workspace = authorizedWorkspace();
+    savePendingNote(draftContext(workspace, identity), "Keep pending note");
+    const { tree } = renderPanel(workspace, apiFor());
+    await act(async () => byLabel(tree, "COD remark").props.onChangeText("Keep remark"));
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Reset DORIS from interview").props.onPress());
+    expect(byLabel(tree, "COD remark").props.value).toBe("Keep remark");
+    expect(byLabel(tree, "Save final COD").props.disabled).toBe(true);
+    expect(allText(tree)).not.toContain("Pneumonia");
+    expect(readPendingNote(draftContext(workspace, identity))).toBe("Keep pending note");
+    expect(readCodDraft(draftContext(workspace, identity), "final")?.certificate.Part1).toEqual([{ Conditions: [] }, { Conditions: [] }, { Conditions: [] }]);
+    expect(workspace.smartva).toEqual({ cause: "Server SmartVA" });
     await act(async () => tree.unmount());
   });
 });

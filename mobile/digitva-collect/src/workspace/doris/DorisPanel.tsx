@@ -19,9 +19,10 @@ import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
 import { UCOD_CLUSTER_EXPLANATION, certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks, ucodClusterLines } from "./resultSummary";
 import { dorisWarningCodes } from "./dorisWarnings";
+import { browserDraftGeneration, clearCaseBrowserDraft, clearCodDraft, draftContext, readCodDraft, saveCodDraft } from "./browserDraft";
 
 type CertificateState = {
-  owner: { api: WorkspaceApi; request: JsonRequester; vaSid: string; mode: WorkspaceIdentity["mode"]; step: WorkspacePayload["step"]; projectMode: WorkspacePayload["case"]["project_mode"] };
+  owner: { api: WorkspaceApi; request: JsonRequester; vaSid: string; mode: WorkspaceIdentity["mode"]; step: WorkspacePayload["step"]; projectMode: WorkspacePayload["case"]["project_mode"]; fingerprint?: string | null; recoveryGeneration: number };
   certificate: JsonObject;
   revision: number;
   processing: DorisProcessReply | null;
@@ -122,15 +123,14 @@ function hasAdministrativeData(certificate: JsonObject): boolean {
 /**
  * Unsaved editor drafts, in memory only, per signed-in requester and per `draftKey`. They survive the panel
  * unmounting on a section switch, a hidden tab (the workspace suspends) and the ICD browser tab, and are
- * dropped on a successful save or a lost allocation. Never written to browser storage: the certificate
- * holds health data and free text (viewState.ts keeps drafts out of sessionStorage on purpose).
+ * dropped on a successful save or a lost allocation. browserDraft.ts separately keeps only the
+ * owner-approved COD fields and remarks in per-tab storage, without processing proof or demographics.
  */
-// ponytail: a page reload still loses the draft; persist server-side if that matters.
 type Draft = Omit<CertificateState, "owner" | "busy" | "error" | "cleared">;
 const drafts = new WeakMap<JsonRequester, Map<string, Draft>>();
 
 function draftKey(owner: CertificateState["owner"]): string {
-  return `${owner.vaSid}:${owner.mode}:${owner.step}:${owner.projectMode}`;
+  return `${owner.vaSid}:${owner.mode}:${owner.step}:${owner.projectMode}:${owner.fingerprint ?? ""}:${owner.recoveryGeneration}`;
 }
 
 function draftsFor(request: JsonRequester): Map<string, Draft> {
@@ -154,18 +154,19 @@ function initialState(owner: CertificateState["owner"], workspace: WorkspacePayl
   if (draft) return { ...draft, owner, busy: false, error: "", cleared: false, notice: draft.notice || "Unsaved draft restored." };
   const maskedStepTwo = workspace.case.project_mode === "masked_doris" && workspace.step === "final";
   const seeded = maskedStepTwo ? { certificate: {}, derivedAge: null } : initialCertificate(workspace);
-  const certificate = seeded.certificate;
+  const recovered = readCodDraft(draftContext(workspace, { vaSid: owner.vaSid, mode: owner.mode }), workspace.step);
+  const certificate = recovered ? { ...seeded.certificate, ...recovered.certificate } : seeded.certificate;
   return {
     owner,
     certificate,
     adminSeen: hasAdministrativeData(certificate),
     derivedAge: seeded.derivedAge,
-    remark: savedRemark(workspace, owner.mode),
+    remark: recovered?.remark ?? savedRemark(workspace, owner.mode),
     revision: 0,
     processing: null,
-    selectedCause: null,
+    selectedCause: recovered?.selectedCause ?? null,
     error: "",
-    notice: "",
+    notice: recovered ? "Unsaved COD restored. Process the certificate again before saving." : "",
     busy: false,
     reconfirm: false,
     cleared: false,
@@ -173,7 +174,7 @@ function initialState(owner: CertificateState["owner"], workspace: WorkspacePayl
 }
 
 function sameOwner(left: CertificateState["owner"] | undefined, right: CertificateState["owner"]): boolean {
-  return left?.api === right.api && left.request === right.request && left.vaSid === right.vaSid && left.mode === right.mode && left.step === right.step && left.projectMode === right.projectMode;
+  return left?.api === right.api && left.request === right.request && left.vaSid === right.vaSid && left.mode === right.mode && left.step === right.step && left.projectMode === right.projectMode && left.fingerprint === right.fingerprint && left.recoveryGeneration === right.recoveryGeneration;
 }
 
 function codeFromResult(result: JsonObject | null): string {
@@ -210,7 +211,7 @@ function makeSaveError(error: unknown): string {
   return [`${nested.message}${fields.length ? ` Check: ${fields.join("; ")}` : ""}`, ref].filter(Boolean).join("\n");
 }
 
-/** DORIS editor and process proof stay in memory (the draft map above) and are allocation-scoped. */
+/** Allocation-scoped editor; only whitelisted COD fields survive a web reload. Processing proof stays in memory. */
 export function DorisPanel({
   workspace,
   identity,
@@ -226,7 +227,7 @@ export function DorisPanel({
   onSaved: () => Promise<void>;
   onDone: () => void;
 }) {
-  const owner = { api, request, vaSid: identity.vaSid, mode: identity.mode, step: workspace.step, projectMode: workspace.case.project_mode };
+  const owner = { api, request, vaSid: identity.vaSid, mode: identity.mode, step: workspace.step, projectMode: workspace.case.project_mode, fingerprint: workspace.case.doris_draft_context, recoveryGeneration: browserDraftGeneration() };
   const [stored, setStored] = useState<CertificateState>(() => initialState(owner, workspace));
   const [notCodeableReason, setNotCodeableReason] = useState("");
   const [notCodeableOther, setNotCodeableOther] = useState("");
@@ -240,7 +241,7 @@ export function DorisPanel({
   const workspaceRef = useRef(workspace);
   const generation = useRef(0);
   const live = useRef(true);
-  const identityKey = `${identity.vaSid}:${identity.mode}:${workspace.step}:${workspace.case.project_mode}`;
+  const identityKey = `${identity.vaSid}:${identity.mode}:${workspace.step}:${workspace.case.project_mode}:${workspace.case.doris_draft_context ?? ""}:${owner.recoveryGeneration}`;
   const masked = workspace.case.project_mode === "masked_doris";
   const isInitial = workspace.step === "initial";
   const canEdit = identity.mode !== "view" && (workspace.step === "initial" || (workspace.step === "final" && !masked));
@@ -273,7 +274,7 @@ export function DorisPanel({
 
   // derivedAge is only passed by the callers that change EstimatedAge or the dates; undefined leaves it as it is.
   const invalidate = useCallback((nextCertificate: JsonObject, message = "Certificate changed. Process it again before saving.", derivedAge?: string | null) => {
-    update((current) => ({ ...current, certificate: applyVisibility(nextCertificate), adminSeen: current.adminSeen || hasAdministrativeData(nextCertificate), ...(derivedAge === undefined ? {} : { derivedAge }), revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, notice: message, error: "" }));
+    update((current) => ({ ...current, certificate: applyVisibility(nextCertificate), adminSeen: current.adminSeen || hasAdministrativeData(nextCertificate), ...(derivedAge === undefined ? {} : { derivedAge }), revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, busy: false, notice: message, error: "" }));
   }, [update, workspace.case.age]);
 
   const setField = (section: string, key: string, value: JsonValue | undefined) => {
@@ -307,6 +308,9 @@ export function DorisPanel({
       forgetDraft(stored.owner);
       return;
     }
+    saveCodDraft(draftContext(workspaceRef.current, { vaSid: stored.owner.vaSid, mode: stored.owner.mode }), {
+      step: stored.owner.step, certificate: stored.certificate, selectedCause: stored.selectedCause, remark: stored.remark,
+    });
     const { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark } = stored;
     draftsFor(stored.owner.request).set(draftKey(stored.owner), { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark });
   }, [stored]);
@@ -356,10 +360,12 @@ export function DorisPanel({
     };
   }, [api, identityKey, onSaved, request, workspace]);
 
-  const currentRequest = (requestId: number, sentRevision: number) => live.current && sameOwner(ownerRef.current, owner) && generation.current === requestId && stateRef.current.revision === sentRevision;
+  const currentRequest = (requestId: number, sentRevision: number) => live.current && sameOwner(ownerRef.current, owner) && generation.current === requestId && stateRef.current.revision === sentRevision && owner.recoveryGeneration === browserDraftGeneration();
 
   const clearAllocation = () => {
+    if (!live.current || !sameOwner(ownerRef.current, owner) || owner.recoveryGeneration !== browserDraftGeneration()) return;
     forgetDraft(owner);
+    clearCaseBrowserDraft(draftContext(workspace, identity));
     generation.current += 1;
     live.current = false;
     setStored((current) => sameOwner(current.owner, owner) ? { ...current, certificate: {}, processing: null, selectedCause: null, busy: false, cleared: true } : current);
@@ -429,15 +435,17 @@ export function DorisPanel({
           antecedent_cod: state.selectedCause.code,
           ...dorisFields,
         }, identity.mode === "reviewing" ? "reviewing" : "coding");
-        forgetDraft(owner);
         if (!currentRequest(requestId, sentRevision)) return;
+        forgetDraft(owner);
+        clearCodDraft(draftContext(workspace, identity));
         await onSaved();
       } else {
         const body: JsonObject = { conclusive_cod: state.selectedCause.code, remark: state.remark };
         Object.assign(body, dorisFields);
         await api.saveFinal(identity.vaSid, body, identity.mode === "reviewing" ? "reviewing" : "coding");
-        forgetDraft(owner);
         if (!currentRequest(requestId, sentRevision)) return;
+        forgetDraft(owner);
+        clearCaseBrowserDraft(draftContext(workspace, identity));
         onDone();
       }
     } catch (saveError) {
@@ -469,8 +477,9 @@ export function DorisPanel({
     update((current) => ({ ...current, busy: true, error: "" }));
     try {
       await api.saveNotCodeable(identity.vaSid, { reason: notCodeableReason, other: notCodeableReason === "others" ? notCodeableOther.trim() : "" });
-      forgetDraft(owner);
       if (!currentRequest(requestId, sentRevision)) return;
+      forgetDraft(owner);
+      clearCaseBrowserDraft(draftContext(workspace, identity));
       onDone();
     } catch (reportError) {
       if (!currentRequest(requestId, sentRevision)) return;
@@ -480,11 +489,34 @@ export function DorisPanel({
     }
   };
 
+  const setRemark = (value: string) => {
+    generation.current += 1;
+    update((current) => ({ ...current, remark: value, busy: false }));
+  };
+
   const chooseFinalCause = (choice: { code: string; title: string; uri: string } | null) => {
-    update((current) => ({ ...current, selectedCause: choice, error: "", notice: choice ? "Final underlying cause selected independently from the DORIS result." : "" }));
+    generation.current += 1;
+    update((current) => ({ ...current, selectedCause: choice, busy: false, error: "", notice: choice ? "Final underlying cause selected independently from the DORIS result." : "" }));
   };
 
   // Clearing also outdates a quick-add still waiting on WHO, so it cannot re-select what was just cleared.
+  const resetCertificate = () => {
+    generation.current += 1;
+    intervalErrors.current = {};
+    setPickerTarget(null);
+    const currentWorkspace = workspaceRef.current;
+    const resetDoris = currentWorkspace.doris;
+    const resetSeed = copy(resetDoris?.reset_certificate ?? resetDoris?.initial_certificate ?? {});
+    resetSeed.Part1 = [];
+    delete resetSeed.Part2;
+    const seed = initialCertificate({ ...currentWorkspace, doris: resetDoris ? { ...resetDoris, initial_certificate: resetSeed, prefill_provenance: resetDoris.reset_prefill_provenance ?? resetDoris.prefill_provenance, saved_processing: null } : null });
+    update((current) => {
+      const next = { ...current, certificate: seed.certificate, derivedAge: seed.derivedAge, revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, busy: false, error: "", notice: "DORIS reset to the interview data. Remarks, notes and SmartVA results are retained." };
+      saveCodDraft(draftContext(workspaceRef.current, identity), { step: workspaceRef.current.step, certificate: next.certificate, selectedCause: null, remark: next.remark });
+      return next;
+    });
+  };
+
   const clearFinalCause = () => {
     generation.current += 1;
     chooseFinalCause(null);
@@ -498,11 +530,13 @@ export function DorisPanel({
     for (const code of codes) {
       try {
         const info = await api.getDorisCodeInfo(identity.vaSid, code);
+        if (!currentRequest(requestId, sentRevision)) return;
         const check = await api.checkDorisSelection(identity.vaSid, info.item.code, info.item.uri);
         if (!currentRequest(requestId, sentRevision)) return;
         chooseFinalCause({ code: check.item.code, title: check.item.title, uri: check.item.uri });
         return;
       } catch (codeError) {
+        if (!currentRequest(requestId, sentRevision)) return;
         if (codeError instanceof ApiError && codeError.status === 403) {
           clearAllocation();
           return;
@@ -534,6 +568,7 @@ export function DorisPanel({
       request={request}
       identity={identity}
       revision={revision}
+      requestGeneration={generation.current}
       onForbidden={loseAllocation}
       onClose={() => setPickerTarget(null)}
       onUncoded={(value) => { applyPicked(pickerTarget, { Text: value }); setPickerTarget(null); }}
@@ -562,7 +597,7 @@ export function DorisPanel({
         {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
         <FinalCausePicker api={api} label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
           quick={step2QuickChoices(ownInitial, workspace.smartva)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
-        <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={(value) => update((current) => ({ ...current, remark: value }))} />
+        <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />
         {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
         <Button label="Save final cause" disabled={!selected || state.busy} loading={state.busy} onPress={() => void saveMaskedFinal()} />
         <Separator testID="doris-actions-separator" />
@@ -589,8 +624,9 @@ export function DorisPanel({
     update((current) => ({ ...current, busy: true, error: "" }));
     try {
       await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code, remark: state.remark }, identity.mode === "reviewing" ? "reviewing" : "coding");
-      forgetDraft(owner);
       if (!currentRequest(requestId, sentRevision)) return;
+      forgetDraft(owner);
+      clearCaseBrowserDraft(draftContext(workspace, identity));
       onDone();
     } catch (saveError) {
       if (!currentRequest(requestId, sentRevision)) return;
@@ -630,13 +666,14 @@ export function DorisPanel({
       <CertificateLine key={`${identityKey}:part2`} searching={pickerTarget !== null} index={0} line={object(certificate.Part2) as CertificateLine} part2 age={age} warning={warns.Part2} onSearch={(query) => setPickerTarget({ kind: "part2", query })} onChange={(next) => { const copyCert = copy(certificate); copyCert.Part2 = next; invalidate(copyCert); }} onRemove={() => { const next = copy(certificate); delete next.Part2; invalidate(next); }} />
       <CertificateDetails certificate={certificate} provenance={provenance} shown={shown} warns={warns} onChange={setField} />
       {processing ? <ProcessingSummary processing={processing} api={api} vaSid={identity.vaSid} /> : null}
-      {processing ? (
+      {processing || state.selectedCause ? (
         <FinalCausePicker api={api} label={isInitial ? "Confirm Step 1 underlying cause" : "Choose and confirm the final underlying cause"} value={state.selectedCause} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
-          quick={dorisQuickChoices(processing, dorisTitle)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
+          quick={processing ? dorisQuickChoices(processing, dorisTitle) : []} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
       ) : null}
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
-      {isInitial ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={(value) => update((current) => ({ ...current, remark: value }))} />}
+      {isInitial ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
+      <Button label="Reset DORIS from interview" variant="secondary" disabled={state.busy} onPress={resetCertificate} />
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
       <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />
       <Separator testID="doris-actions-separator" />
@@ -769,7 +806,7 @@ function Step1AssignedCard({ initial }: { initial: WorkspaceAssessment | null })
   );
 }
 
-/** The saved Step 1 DORIS suggestion for information on masked Step 2, with its "Check before you decide" items. */
+/** The saved Step 1 DORIS suggestion for information on masked Step 2, with its VA mapping and checks. */
 function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: JsonObject | null; certificate: JsonObject | null; api: WorkspaceApi; vaSid: string; onDetails: (code: string) => void }) {
   const codes = suggestedDorisCodes(saved);
   const { stem, known } = stemAndKnownTitle(saved, certificate ?? {});
@@ -780,9 +817,12 @@ function Step1DorisCard({ saved, certificate, api, vaSid, onDetails }: { saved: 
       {!saved ? <Muted>No DORIS result was saved with Step 1.</Muted> : (
         <>
           {codes.length ? (
-            <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: gap.sm }}>
-              <Body style={{ flexShrink: 1 }}>DORIS suggests: {codes[0]}{title ? ` — ${title}` : ""}</Body>
-              <InfoButton code={codes[0]} onPress={onDetails} />
+            <View style={{ gap: gap.xs }}>
+              <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: gap.sm }}>
+                <Body style={{ flexShrink: 1 }}>DORIS suggests: {codes[0]}{title ? ` — ${title}` : ""}</Body>
+                <InfoButton code={codes[0]} onPress={onDetails} />
+              </View>
+              <AssociatedVaCodes api={api} code={codes[0]} />
             </View>
           ) : <Alert variant="destructive">DORIS could not select an underlying cause from this certificate.</Alert>}
           <DorisChecks doris={object(saved.doris)} codedit={object(saved.codedit)} api={api} vaSid={vaSid} />
@@ -834,7 +874,7 @@ function DorisChecks({ doris, codedit, api, vaSid }: { doris: unknown; codedit: 
   return object(doris).status === "completed" ? <Muted>No problems found in the certificate.</Muted> : null;
 }
 
-/** Selected final cause with its ⓘ and ✕, the quick-add choices, then the search that opens the shared ICD-11 picker. */
+/** Selected final cause with its ⓘ and ✕, VA note, quick-add choices, then the shared ICD-11 picker. */
 function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick, onDetails, onClear }: {
   api: WorkspaceApi;
   label: string;
@@ -847,25 +887,30 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
   onClear: () => void;
 }) {
   const layout = useLayout();
+  const { phone } = useUi();
   return (
     <Card>
       <CardTitle>{label}</CardTitle>
       {value ? (
-        <View style={[layout.row, { flexWrap: "nowrap" }]}>
-          <Body style={{ flexShrink: 1 }}>{value.code} — {value.title}</Body>
-          <InfoButton code={value.code} onPress={onDetails} />
-          <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
+        <View testID="selected-cause-layout" style={phone ? { gap: gap.sm } : { flexDirection: "row", alignItems: "flex-start", gap: gap.md }}>
+          <View style={phone ? undefined : { flex: 1, minWidth: 0 }}>
+            <View style={[layout.row, { flexWrap: "nowrap" }]}>
+              <Body style={{ flexShrink: 1 }}>{value.code} — {value.title}</Body>
+              <InfoButton code={value.code} onPress={onDetails} />
+              <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><ButtonGlyph destructive>✕</ButtonGlyph></Button>
+            </View>
+            <AssociatedVaCodes api={api} code={value.code} />
+          </View>
+          <AssociatedVaCodes api={api} code={value.code} showDefinition attribution style={phone ? undefined : { flex: 1, minWidth: 0 }} />
         </View>
       ) : null}
-      {value ? <AssociatedVaCodes api={api} code={value.code} /> : null}
       {quick.map((choice) => (
-        <View key={choice.key} style={layout.row}>
+        <View key={choice.key} style={{ gap: gap.xs }}>
           {"search" in choice ? (
-            <Button variant="outline" size="sm" label={choice.label} onPress={() => onOpen(choice.search)} style={{ flexShrink: 1 }} />
+            <View style={layout.row}><Button variant="outline" size="sm" label={choice.label} onPress={() => onOpen(choice.search)} style={{ flexShrink: 1 }} /></View>
           ) : (
-            <QuickChoiceButton choice={choice} onQuick={onQuick} />
+            <QuickChoiceButton choice={choice} onQuick={onQuick} api={api} onDetails={onDetails} />
           )}
-          {"codes" in choice ? <InfoButton code={choice.codes[0]} onPress={onDetails} /> : null}
         </View>
       ))}
       <Muted>Or search ICD-11 for your own code</Muted>
@@ -874,8 +919,18 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
   );
 }
 
-function QuickChoiceButton({ choice, onQuick }: { choice: Extract<QuickChoice, { codes: string[] }>; onQuick: (codes: string[]) => void }) {
-  return <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flexShrink: 1 }} />;
+function QuickChoiceButton({ choice, onQuick, api, onDetails }: { choice: Extract<QuickChoice, { codes: string[] }>; onQuick: (codes: string[]) => void; api: WorkspaceApi; onDetails: (code: string) => void }) {
+  const layout = useLayout();
+  const code = choice.codes[0];
+  return (
+    <View style={{ gap: gap.xs }}>
+      <View style={layout.row}>
+        <Button variant="outline" size="sm" label={choice.label} onPress={() => onQuick(choice.codes)} style={{ flexShrink: 1 }} />
+        <InfoButton code={code} onPress={onDetails} />
+      </View>
+      {code ? <AssociatedVaCodes api={api} code={code} /> : null}
+    </View>
+  );
 }
 
 function CertificateLine({ index, line, part2 = false, age, warning, searching, onSearch, isLast, onAddBelow, onChange, onRemove, onMove }: {
@@ -1133,7 +1188,8 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
   const cr = object(processing?.codedit.result ?? savedCodedit.result);
   // A reopened run (no live reply) carries its stored UCOD titles and notes beside the engine envelopes.
   const ucodParts = parseUcodParts(processing?.ucod_parts ?? saved?.ucod_parts);
-  const whoNotes = processing?.who_notes ?? array(saved?.who_notes).filter((note): note is string => typeof note === "string");
+  const whoNotes = (processing?.who_notes ?? array(saved?.who_notes).filter((note): note is string => typeof note === "string"))
+    .filter((note) => !isTechnicalWhoNote(note));
   const [showDetails, setShowDetails] = useState(false);
   // An empty report is no box at all; a run of blank lines reads as one blank line.
   const report = (value: unknown) => {
@@ -1174,6 +1230,12 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
       {saved && typeof saved.final_choice === "string" ? <Body>Saved Step 1 choice: {saved.final_choice}</Body> : null}
     </Card>
   );
+}
+
+/** Year-only omission notes are implementation detail; actionable WHO/internal errors remain visible. */
+function isTechnicalWhoNote(note: string): boolean {
+  return note.startsWith("Year-only dates left out of the WHO check:")
+    || (note.startsWith("The date of ") && note.includes(" is year-only. It was left out of the WHO check;"));
 }
 
 /** Renders only the owner's Step 1 conditions for masked Step 2 review. */

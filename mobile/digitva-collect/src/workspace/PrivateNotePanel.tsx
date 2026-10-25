@@ -6,15 +6,18 @@ import { Button, errorText, useUiStyles } from "../ui";
 import { formatWhen } from "../ui/interviewRows";
 import type { WorkspaceApi } from "./api";
 import type { NotePayload } from "./contracts";
+import { readPendingNote, savePendingNote, type DraftContext } from "./doris/browserDraft";
 import { NotesCloseContext } from "./notesClose";
 
-/** Loads and saves the caller's allocation-scoped private note in memory only. */
+/** Load saved notes from the server; recover only pending text in the approved per-tab draft. */
 export function PrivateNotePanel({
   identity,
   api,
   onAllocationLost,
   onNoteChanged,
+  draftContext,
 }: {
+  draftContext?: DraftContext;
   identity: { vaSid: string; mode: "coding" | "reviewing" };
   api: WorkspaceApi;
   onAllocationLost: () => void;
@@ -46,7 +49,7 @@ export function PrivateNotePanel({
     try {
       const response = await api.getNote(identity.vaSid, identity.mode);
       if (!current()) return;
-      setNoteState({ api, vaSid: identity.vaSid, mode: identity.mode, note: response, content: response.content ?? "" });
+      setNoteState({ api, vaSid: identity.vaSid, mode: identity.mode, note: response, content: readPendingNote(draftContext) ?? response.content ?? "" });
     } catch (loadError) {
       if (!current()) return;
       if (loadError instanceof ApiError && loadError.status === 403) {
@@ -56,7 +59,7 @@ export function PrivateNotePanel({
     } finally {
       if (current()) setBusy(false);
     }
-  }, [api, identity.mode, identity.vaSid, onAllocationLost]);
+  }, [api, identity.mode, identity.vaSid, onAllocationLost, draftContext?.fingerprint]);
 
   useEffect(() => {
     void load();
@@ -106,7 +109,12 @@ export function PrivateNotePanel({
     try {
       const response = await api.saveNote(identity.vaSid, identity.mode, content);
       if (!current()) return;
-      setNoteState({ api, vaSid: identity.vaSid, mode: identity.mode, note: response, content: response.content ?? "" });
+      setNoteState((previous) => {
+        const pending = previous?.api === api && previous.vaSid === identity.vaSid && previous.mode === identity.mode && previous.content !== content
+          ? previous.content : undefined;
+        savePendingNote(draftContext, pending);
+        return { api, vaSid: identity.vaSid, mode: identity.mode, note: response, content: pending ?? response.content ?? "" };
+      });
     } catch (saveError) {
       if (!current()) return;
       if (saveError instanceof ApiError && saveError.status === 403) {
@@ -120,6 +128,7 @@ export function PrivateNotePanel({
 
   const updateContent = (value: string) => {
     if (!currentNote) return;
+    savePendingNote(draftContext, value === currentNote.note.content ? undefined : value);
     setNoteState({ ...currentNote, content: value });
   };
 

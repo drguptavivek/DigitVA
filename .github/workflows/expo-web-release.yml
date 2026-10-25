@@ -71,6 +71,13 @@ jobs:
         working-directory: mobile/digitva-collect
         run: npm run export:web
 
+      - name: Version public web assets
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          node --test scripts/tests/expo-web-cache.test.mjs
+          node scripts/build-expo-web-cache.mjs mobile/digitva-collect/dist "${INPUT_TAG:-expo-web-dev-${GITHUB_SHA:0:7}}" "$GITHUB_SHA"
+
       - name: Package and checksum the export
         id: package
         env:

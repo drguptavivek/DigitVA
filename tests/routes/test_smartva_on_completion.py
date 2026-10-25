@@ -1037,6 +1037,8 @@ class SmartvaOnCompletionTests(BaseTestCase):
             smartva_service.enqueue_smartva(va_sid, "coding_page", requested_by=(self.coder_id, "vacoder"))
             self.assertIsNone(cache.get(flag))
             self.assertEqual(smartva_service.run_marker(va_sid), "queued")  # subject is in place
+        # The previous delay was mocked; finish that run before testing a new dispatch failure.
+        smartva_service.clear_run_marker(va_sid)
         with mock.patch(DELAY, side_effect=ConnectionError("broker down")):
             self.assertFalse(smartva_service.enqueue_smartva(va_sid, "web_intake_submit"))
         self.assertIsNone(cache.get(flag))

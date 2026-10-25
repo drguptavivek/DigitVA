@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState as NativeAppState, Platform, Pressable, Text, View } from "react-native";
 
 import { ApiError } from "../api";
@@ -10,11 +10,13 @@ import { PrivateNotePanel } from "./PrivateNotePanel";
 import { QualityPanels } from "./QualityPanels";
 import { SimpleCodPanel } from "./SimpleCodPanel";
 import { SmartvaStatusPanel } from "./SmartvaStatusPanel";
+import { useSmartvaLifecycle } from "./useSmartvaLifecycle";
 import { WorkflowHistory } from "./WorkflowHistory";
 import type { WorkspaceApi } from "./api";
 import type { CategoryPayload, NotePayload, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
 import { browserSessionStore, clearScroll, resolveSection } from "./viewState";
 import { WorkspaceLayout } from "./WorkspaceLayout";
+import { activateBrowserDraft, clearCaseBrowserDraft, draftContext } from "./doris/browserDraft";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 
 const VIEW_FINAL_CATEGORIES: WorkspacePayload["categories"] = [
@@ -60,6 +62,8 @@ export function CaseWorkspaceScreen({
   const [historyRetryCursor, setHistoryRetryCursor] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [qualityError, setQualityError] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const generation = useRef(0);
   const categoryGeneration = useRef(0);
   const eventGeneration = useRef(0);
@@ -68,7 +72,7 @@ export function CaseWorkspaceScreen({
   const nativeActive = useRef(NativeAppState.currentState === "active");
   const browserVisible = useRef(typeof document === "undefined" || document.visibilityState === "visible");
   /** Keep private case data scoped to a foreground, visible screen. */
-  const canReadPrivateData = useCallback(() => !suspended.current
+  const canReadPrivateData = useCallback(() => mounted.current && !suspended.current
     && nativeActive.current
     && NativeAppState.currentState === "active"
     && browserVisible.current
@@ -81,16 +85,22 @@ export function CaseWorkspaceScreen({
   /** Leaving the case forgets its saved scroll offsets. */
   const leave = useCallback(() => clearScroll(browserSessionStore(), context.current.mode, context.current.vaSid), []);
   const workspace = loadedWorkspace?.vaSid === identity.vaSid && loadedWorkspace.mode === identity.mode && loadedWorkspace.api === api ? loadedWorkspace.payload : null;
+  const workspaceRef = useRef(workspace);
+  workspaceRef.current = workspace;
   const category = loadedCategory?.vaSid === identity.vaSid && loadedCategory.mode === identity.mode && loadedCategory.api === api ? loadedCategory.payload : null;
   const currentEvents = loadedEvents?.vaSid === identity.vaSid && loadedEvents.mode === identity.mode && loadedEvents.api === api ? loadedEvents : null;
   const events = currentEvents?.payload ?? null;
 
   const finish = useCallback(() => {
+    if (!canReadPrivateData() || context.current.api !== api || context.current.vaSid !== identity.vaSid || context.current.mode !== identity.mode) return;
+    if (workspaceRef.current) clearCaseBrowserDraft(draftContext(workspaceRef.current, identity));
     leave();
     (callbacks.current.onDone ?? callbacks.current.onExit)();
-  }, [leave]);
+  }, [api, canReadPrivateData, identity.mode, identity.vaSid, leave]);
 
   const loseAllocation = useCallback(() => {
+    if (!mounted.current || context.current.api !== api || context.current.vaSid !== identity.vaSid || context.current.mode !== identity.mode) return;
+    if (workspaceRef.current) clearCaseBrowserDraft(draftContext(workspaceRef.current, identity));
     generation.current += 1;
     categoryGeneration.current += 1;
     eventGeneration.current += 1;
@@ -104,7 +114,7 @@ export function CaseWorkspaceScreen({
     setError(identity.mode === "view" ? "You no longer have access to this case." : "Your case allocation is no longer active.");
     leave();
     callbacks.current.onExit();
-  }, [identity.mode, leave]);
+  }, [api, identity.mode, identity.vaSid, leave]);
 
   const loadEvents = useCallback(async (cursor: string | undefined, workspaceRequest: number) => {
     if (eventInFlight.current !== null || identity.mode !== "view" || !canReadPrivateData()) return;
@@ -194,6 +204,7 @@ export function CaseWorkspaceScreen({
     try {
       const result = await api.getWorkspace(identity.vaSid, identity.mode);
       if (!current()) return;
+      activateBrowserDraft(draftContext(result, identity));
       setLoadedWorkspace({ vaSid: identity.vaSid, mode: identity.mode, api, payload: result });
       setLoading(false);
       // An intake-only view (the submitter or a supervisor) gets the answers, not the coding sections or history.
@@ -317,6 +328,29 @@ export function CaseWorkspaceScreen({
     setSavedNote(note ? { api, vaSid: identity.vaSid, mode: identity.mode, note } : null);
   }, [api, canReadPrivateData, identity.mode, identity.vaSid]);
 
+  const smartvaChanged = useCallback(() => loadWorkspace(selectedCategory.current), [loadWorkspace]);
+  const smartvaLifecycle = useSmartvaLifecycle({
+    api,
+    identity,
+    status: workspace?.smartva_status,
+    canRun: workspace?.smartva_can_run,
+    active: workspace !== null && canReadPrivateData(),
+    onChanged: smartvaChanged,
+  });
+
+  // Keep callbacks stable for note loaders, but bind them to the rendered allocation/payload.
+  const scopedCallbacks = useMemo(() => {
+    const ownsWorkspace = () => mounted.current && workspace !== null
+      && context.current.api === api && context.current.vaSid === identity.vaSid && context.current.mode === identity.mode
+      && workspaceRef.current?.step === workspace.step
+      && workspaceRef.current?.case.payload_version_id === workspace.case.payload_version_id
+      && workspaceRef.current?.case.doris_draft_context === workspace.case.doris_draft_context;
+    return {
+      finish: () => { if (ownsWorkspace()) finish(); },
+      loseAllocation: () => { if (ownsWorkspace()) loseAllocation(); },
+    };
+  }, [api, identity.vaSid, identity.mode, workspace?.step, workspace?.case.payload_version_id, workspace?.case.doris_draft_context, finish, loseAllocation]);
+
   const identityKey = `${identity.mode}:${identity.vaSid}`;
   if (loading || !workspace) {
     return <Screen title="Case workspace" headerAction={<Button label="Exit" kind="secondary" onPress={onExit} />}>
@@ -325,7 +359,7 @@ export function CaseWorkspaceScreen({
   }
 
   const privateNotes = identity.mode !== "view" ? (
-    <PrivateNotePanel key={`${identityKey}:notes`} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={loseAllocation} onNoteChanged={noteChanged} />
+    <PrivateNotePanel draftContext={draftContext(workspace, identity)} key={`${identityKey}:notes`} identity={{ vaSid: identity.vaSid, mode: identity.mode as "coding" | "reviewing" }} api={api} onAllocationLost={scopedCallbacks.loseAllocation} onNoteChanged={noteChanged} />
   ) : null;
   const browser = Platform.OS === "web";
   const effectiveCategories = browser && identity.mode === "view" && workspace.case.history_available !== false
@@ -353,9 +387,9 @@ export function CaseWorkspaceScreen({
           masked DORIS final step renders it inside its own card. */}
       {workspace.smartva !== null && !(workspace.case.project_mode === "masked_doris" && workspace.step === "final") ? <SmartVaReference value={workspace.smartva} /> : null}
       {workspace.case.project_mode.endsWith("_doris") ? (
-        renderDoris ? renderDoris(workspace, loadWorkspace, finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
+        renderDoris ? renderDoris(workspace, loadWorkspace, scopedCallbacks.finish) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (
-        <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={api} onSaved={reloadAfterCodSave} onAllocationLost={loseAllocation} onDone={finish} />
+        <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={api} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
       )}
     </View>
   ) : null;
@@ -384,7 +418,7 @@ export function CaseWorkspaceScreen({
       onExit={() => { leave(); onExit(); }}
       notes={Platform.OS === "web" ? privateNotes : undefined}
       nextBlockedReason={nextBlockedReason}
-      smartvaPanel={browser && identity.mode !== "view" ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} onChanged={() => loadWorkspace(selectedCategory.current)} /> : undefined}
+      smartvaPanel={browser && identity.mode !== "view" ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} lifecycle={identity.mode === "coding" ? smartvaLifecycle : undefined} onChanged={smartvaChanged} /> : undefined}
     >
       <ContextualHelpBanner
         screen={

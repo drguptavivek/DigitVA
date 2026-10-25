@@ -19,7 +19,7 @@ function setup(overrides: Partial<WorkspaceApi> = {}, request: JsonRequester = j
   const bridge = createPickerBridge({ api, request, identity, revision: () => revision, allowUncoded: () => allowUncoded, ...handlers });
   const replies: PickerReply[] = [];
   const send = async (message: unknown) => { await bridge.handle(message, (reply) => replies.push(reply)); };
-  return { api, request, handlers, send, replies, bump: () => { revision += 1; } };
+  return { api, request, handlers, send, replies, dispose: bridge.dispose, bump: () => { revision += 1; } };
 }
 
 describe("picker transport bridge", () => {
@@ -89,6 +89,19 @@ describe("picker transport bridge", () => {
     await send({ t: "req", id: 7, path: "terms", body: { query: "pneu" } });
     expect(handlers.onForbidden).toHaveBeenCalledTimes(1);
     expect(replies[0]).toEqual({ t: "res", id: 7, ok: false, error: { code: "FORBIDDEN", message: "HTTP 403 FORBIDDEN", status: 403 } });
+  });
+
+  it.each(["revision", "dispose", "close"])("ignores late forbidden replies after %s", async (change) => {
+    let reject!: (error: unknown) => void;
+    const { handlers, send, replies, bump, dispose } = setup({ searchDorisTerms: jest.fn(() => new Promise((_resolve, fail) => { reject = fail; })) as WorkspaceApi["searchDorisTerms"] });
+    const pending = send({ t: "req", id: 7, path: "terms", body: { query: "pneu" } });
+    if (change === "revision") bump();
+    else if (change === "dispose") dispose();
+    else await send({ t: "close" });
+    reject(new ApiError(403, "FORBIDDEN"));
+    await pending;
+    expect(handlers.onForbidden).not.toHaveBeenCalled();
+    expect(replies).toHaveLength(0);
   });
 
   it("hides unexpected error detail from the page", async () => {

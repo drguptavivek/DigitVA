@@ -974,3 +974,34 @@ it("renders the private notes and the COD editor as siblings without a duplicate
   errors.mockRestore();
   await act(async () => tree.unmount());
 });
+
+
+it.each(["case", "payload", "allocation", "step"])("old child completion/lost-allocation callbacks cannot clear the new %s workspace", async (change) => {
+  const first = workspace("coding", "initial");
+  first.case.payload_version_id = "payload-1";
+  first.case.doris_draft_context = "allocation-1";
+  const next: WorkspacePayload = { ...first, case: { ...first.case } };
+  if (change === "case") next.case.va_sid = "sid-2";
+  else if (change === "payload") next.case.payload_version_id = "payload-2";
+  else if (change === "allocation") next.case.doris_draft_context = "allocation-2";
+  else next.step = "final";
+  const api = apiFor(first);
+  const onExit = jest.fn();
+  const onDone = jest.fn();
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={onExit} onDone={onDone} />); await flush(); });
+  const oldCallbacks = tree.root.findByType(SimpleCodPanel).props;
+  (api.getWorkspace as jest.Mock).mockResolvedValue(next);
+  if (change === "case") {
+    await act(async () => { tree.update(<CaseWorkspaceScreen identity={{ vaSid: "sid-2", mode: "coding" }} api={api} onExit={onExit} onDone={onDone} />); await flush(); });
+  } else {
+    await act(async () => { await oldCallbacks.onSaved(); await flush(); });
+  }
+  const current = tree.root.findByType(SimpleCodPanel).props;
+  expect(current.workspace.case).toEqual(next.case);
+  await act(async () => { oldCallbacks.onDone(); oldCallbacks.onAllocationLost(); await flush(); });
+  expect(onExit).not.toHaveBeenCalled();
+  expect(onDone).not.toHaveBeenCalled();
+  expect(tree.root.findByType(SimpleCodPanel).props.workspace.case).toEqual(next.case);
+  await act(async () => tree.unmount());
+});

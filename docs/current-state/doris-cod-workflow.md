@@ -450,9 +450,29 @@ external-cause fields are not triggers. `who_safe_certificate`
 (`app/services/doris_certificate.py`) leaves the year-only date out of the
 request to both WHO engines only; the stored certificate, its digest and the
 coder's entry are unchanged, and `process_certificate` returns `who_notes`
-(plain sentences the web and Expo result panels show) naming what was left out.
+naming what was left out. The Expo result panel suppresses this technical
+date-omission note; it remains in the processor response for diagnostics.
 A remaining WHO "Internal system error" also adds a `who_notes` line telling the
 coder to check the certificate or choose the cause without DORIS.
+
+## Inline VA reference and SmartVA refresh
+
+The Expo editor shows the mapped VA cause code and title below suggested and
+selected ICD causes in either coding step. The selected cause's plain-text case
+definition is an expanded note beside the selection on desktop, stacked below
+on phones. Its DigitVA attribution is retained; WHO metadata stays in the details
+sheet. Lookups are shared by API instance and ICD code, with rejected requests
+evicted so a later attempt can recover.
+
+`GET /api/v1/coding/submissions/<sid>/smartva` is an authorized, read-only status
+response containing only `va_sid`, `status`, and `can_run`. It uses the same
+coding/review/triage scope checks as the existing CSRF-protected POST action.
+The case-screen lifecycle starts a missing run when coding begins and polls
+queued/running work in the foreground independently of the navigation drawer.
+Terminal status reloads the permitted result once; masked Step 1 still receives
+no SmartVA result. Atomic enqueue claims avoid duplicate dispatch from concurrent
+case opens. The intake after-commit path uses its known fresh-payload context
+without adding outcome queries to the submission path.
 
 ## Readable computed UCOD (2026-10-24)
 

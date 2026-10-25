@@ -1496,6 +1496,9 @@ SMARTVA_RUN_MARKER_TTL_SECONDS = 1800
 #: limit (600 s) but not by much: if the lead is killed, the case's own task
 #: has already skipped on it, and the sweep runs the case once it expires.
 SMARTVA_CLAIMED_MARKER_TTL_SECONDS = 660
+# A claimant paused before recording queued work is accepted for at most 60 s;
+# older orphan claims fail visibly until the normal claim TTL permits retry.
+SMARTVA_ENQUEUE_IN_PROGRESS_SECONDS = 60
 
 SMARTVA_NOT_REQUESTED = "not_requested"
 SMARTVA_QUEUED = "queued"
@@ -1533,12 +1536,18 @@ def plain_run_key(va_sid: str) -> str:
     return f"smartva-plain:{va_sid}"
 
 
+def enqueue_claim_key(va_sid: str) -> str:
+    return f"smartva-enqueue:{va_sid}"
+
+
 def clear_run_marker(va_sid: str) -> None:
-    """Drop the run marker and the plain-run flag with it."""
-    try:
-        flask_cache.delete_many(run_marker_key(va_sid), plain_run_key(va_sid))
-    except Exception:
-        log.warning("SmartVA [%s]: could not clear the run marker.", va_sid, exc_info=True)
+    """Drop the run marker, enqueue claim, and plain-run flag."""
+    # delete_many can leave present keys behind when other keys are absent.
+    for key in (run_marker_key(va_sid), enqueue_claim_key(va_sid), plain_run_key(va_sid)):
+        try:
+            flask_cache.delete(key)
+        except Exception:
+            log.warning("SmartVA [%s]: could not clear a run key.", va_sid, exc_info=True)
 
 
 def claim_queued_plain_runs(
@@ -1633,6 +1642,11 @@ def has_current_payload_result(va_sid: str) -> bool:
     return _current_payload_result_outcome(va_sid) is not None
 
 
+def _has_current_payload_success(va_sid: str) -> bool:
+    """Whether the current payload already has a successful SmartVA result."""
+    return _current_payload_result_outcome(va_sid) == VaSmartvaResults.OUTCOME_SUCCESS
+
+
 def smartva_status(va_sid: str) -> str:
     """``not_requested | queued | running | done | failed``, from the Redis
     marker (queued/running) and the active result of the current payload. One
@@ -1671,15 +1685,92 @@ def enqueue_smartva(
     *,
     regenerate: bool = False,
     requested_by: tuple[str, str] | None = None,
+    _known_no_current_result: bool = False,
 ) -> bool:
-    """Queue ``run_smartva_for_submission`` and mark the run queued; False when
-    the broker refused. Call only once the case change is committed.
+    """Queue ``run_smartva_for_submission`` once per active case run.
+    False when dispatch or its Redis claim fails. Call only once the case
+    change is committed.
     *requested_by* is the ``(user_id, role)`` of a person's regenerate request.
     A plain run (neither) also gets the ``smartva-plain`` flag, which lets
-    another starting plain run of the form take it into its batch."""
+    another starting plain run of the form take it into its batch.
+    ``_known_no_current_result`` is reserved for after-commit callbacks that
+    have just committed a new active payload version."""
     from app.tasks.sync_tasks import run_smartva_for_submission
 
+    if (
+        not regenerate
+        and not _known_no_current_result
+        and _has_current_payload_success(va_sid)
+    ):
+        return True
+
+    try:
+        claimed = flask_cache.add(
+            enqueue_claim_key(va_sid),
+            {"state": "dispatching", "started_at": time.time()},
+            timeout=SMARTVA_CLAIMED_MARKER_TTL_SECONDS,
+        )
+    except Exception:
+        log.warning("SmartVA [%s]: could not claim the enqueue.", va_sid, exc_info=True)
+        return False
+    if not claimed:
+        if run_marker(va_sid) in (SMARTVA_QUEUED, SMARTVA_RUNNING):
+            return True
+        if not _known_no_current_result and _has_current_payload_success(va_sid):
+            return True
+        try:
+            active_claim = flask_cache.get(enqueue_claim_key(va_sid))
+        except Exception:
+            log.warning("SmartVA [%s]: could not inspect the enqueue claim.", va_sid, exc_info=True)
+            return False
+        if (
+            isinstance(active_claim, dict)
+            and active_claim.get("state") == "dispatching"
+            and isinstance(active_claim.get("started_at"), (int, float))
+            and time.time() - active_claim["started_at"] <= SMARTVA_ENQUEUE_IN_PROGRESS_SECONDS
+        ):
+            return True
+        log.warning("SmartVA [%s]: enqueue claim exists without queued work.", va_sid)
+        return False
+
+    if run_marker(va_sid) == SMARTVA_RUNNING:
+        try:
+            flask_cache.delete(enqueue_claim_key(va_sid))
+        except Exception:
+            log.warning(
+                "SmartVA [%s]: could not release its redundant claim.",
+                va_sid,
+                exc_info=True,
+            )
+        return True
+
+    if not regenerate and not _known_no_current_result:
+        try:
+            if _has_current_payload_success(va_sid):
+                clear_run_marker(va_sid)
+                return True
+        except Exception:
+            try:
+                flask_cache.delete(enqueue_claim_key(va_sid))
+            except Exception:
+                log.warning(
+                    "SmartVA [%s]: could not release the failed enqueue claim.",
+                    va_sid,
+                    exc_info=True,
+                )
+            raise
+
     set_run_marker(va_sid, SMARTVA_QUEUED)
+    try:
+        flask_cache.set(
+            enqueue_claim_key(va_sid),
+            True,
+            timeout=SMARTVA_CLAIMED_MARKER_TTL_SECONDS,
+        )
+    except Exception:
+        log.warning("SmartVA [%s]: could not confirm the enqueue claim.", va_sid, exc_info=True)
+        clear_run_marker(va_sid)
+        return False
     if not regenerate and not requested_by:
         try:
             flask_cache.set(plain_run_key(va_sid), triggered_by, timeout=SMARTVA_RUN_MARKER_TTL_SECONDS)
@@ -1703,6 +1794,8 @@ def queue_smartva_after_commit(va_sid: str, triggered_by: str) -> None:
     the KPI recount does) so the worker sees the committed payload and state.
     The queued marker is set now, not after the commit, so the 30 s sweep that
     sees the committed ``smartva_pending`` row also sees the marker and skips it.
+    Its callers have created or changed the active payload, so no current-payload
+    result can exist yet.
     """
     info = db.session().info
     if info.get(_NO_QUEUE):
@@ -1731,10 +1824,16 @@ def _queue_smartva_runs(session):
     if session.in_nested_transaction():
         return
     queued = session.info.pop(_QUEUE_SIDS, None)
-    for va_sid, triggered_by in (queued or {}).items():
+    if not queued:
+        return
+    for va_sid, triggered_by in queued.items():
         # The case is committed; a missed run leaves the coding page on
         # not_requested, where the Run SmartVA button starts it.
-        enqueue_smartva(va_sid, triggered_by)
+        enqueue_smartva(
+            va_sid,
+            triggered_by,
+            _known_no_current_result=True,
+        )
 
 
 @sa.event.listens_for(Session, "after_soft_rollback")

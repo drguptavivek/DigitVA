@@ -15,6 +15,56 @@ when they resolve inside that directory. It uses `index.html` for the known
 Expo client routes and returns `404` for missing assets, unknown routes and
 path traversal attempts.
 
+## Local web HMR (opt-in, 2026-10-25)
+
+`make dev-hmr` starts the Expo web client in a local Node 22 container with the
+checkout bind-mounted for live edits. Metro listens only inside the Compose
+network; `digitva_hmr_ingress` owns `http://localhost:8051` and proxies the
+Expo shell, Metro assets and `/hot` websocket to it. Flask API, intake,
+authentication, static and support paths remain behind that same origin, so
+cookies, CSRF, passkeys and the ICD picker keep their local `localhost:8051`
+origin. The existing ICD service remains available on `localhost:8382` and the
+ordinary profile ingress on `localhost:8052`.
+
+In Metro development, open the client at `/` or a route such as `/login`.
+Expo Router 57 disables its configured `/app` base URL in development, so the
+local ingress redirects `/app` and `/app/*` to their root-path equivalents;
+production and the static export remain mounted at `/app/`.
+The Expo `/admin` route stays on Metro; `/admin/` and its Flask admin console
+remain on Flask. The `/api/v1/intake/` APIs and legacy `/intake/` pages also
+stay on Flask, while the slashless `/intake` route stays on Metro.
+
+The HMR overlay points Flask at the small
+`deploy/expo-hmr/index.html` sentinel only to mark the Expo client as present;
+the browser shell itself comes from Metro. `src/strings/*.json` is mounted as
+`ui-strings` for the administrative bundle reader; Metro bundles client strings
+from source. `GET /api/v1/ui-strings/<locale>` supplies database corrections only
+and retains its existing 60-second cache. A named Docker volume holds
+`mobile/digitva-collect/node_modules`; the host's dependencies are not
+overwritten. `make dev-hmr-stop` stops only the two HMR containers and restores
+the ordinary Flask binding on port 8051. This path does not run an Expo export,
+APK or Gradle build; release artifacts remain CI-built.
+
+## Versioned production assets
+
+The web release workflow runs `scripts/build-expo-web-cache.mjs` after the Expo
+export. It generates `asset-manifest.json`, `asset-worker.js` and
+`cache-register.js`, recording release, source commit, byte sizes and SHA-256
+hashes. The worker verifies downloads and caches only listed `_expo`/`assets`
+files whose names contain a content hash. Unversioned files remain inventory
+entries but bypass the worker, so an older tab cannot serve stale bytes at a
+reused URL. It never caches navigation, API responses or private form definitions.
+Old exports without a manifest continue to work without this cache.
+
+HTML and worker files revalidate; content-addressed assets receive immutable
+cache headers. An update waits for old tabs to close rather than replacing a
+running interview. Idle warming is sequential and requires a reported 4G
+connection without a data-saving preference; unknown or slower links use only
+on-demand caching. Web interview, registration and case-detail screens
+use deferred imports and offer retry when a chunk download fails. Native route
+imports are unchanged. CI export size and throttled-browser measurements remain
+release acceptance gates; HMR timings are not production measurements.
+
 The browser starts by calling `GET /api/v1/me/access`. A signed-in session
 receives the user's whole access body (see [API v1](api-v1.md)) and a CSRF
 token in the `X-CSRFToken` response header. An anonymous browser receives a

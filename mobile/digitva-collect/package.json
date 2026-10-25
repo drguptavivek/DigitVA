@@ -6,6 +6,7 @@
   "scripts": {
     "vendor:build": "npm --prefix ../../vendor/who-va-2022 run build && rm -rf node_modules/@drguptavivek/who-2022-va && npm install ../../vendor/who-va-2022",
     "start": "expo start",
+    "web:hmr": "expo start --web --host lan --port 8081",
     "android": "expo run:android",
     "prebuild": "expo prebuild --platform android",
     "build:debug": "expo prebuild --platform android && cd android && ./gradlew assembleDebug",

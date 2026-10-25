@@ -337,6 +337,30 @@ def send_back(va_sid):
     return jsonify(reply)
 
 
+def _smartva_authorization(va_sid):
+    """Return the SmartVA audit role, or the authz error response."""
+    for action, role in (
+        (Action.CODE, "vacoder"), (Action.REVIEW, "reviewer"), (Action.TRIAGE, "data_manager")
+    ):
+        decision = can(current_user, action, va_sid)
+        if decision:
+            return role
+    if decision.reason is Reason.NOT_FOUND:
+        return api_error(decision.message, "not_found", 404)
+    return api_error(decision.message, "forbidden", 403)
+
+
+@bp.get("/submissions/<va_sid>/smartva")
+@role_required("coder", "coding_tester", "reviewer", "data_manager", "admin")
+def smartva_status(va_sid):
+    """Return only the current SmartVA state and whether this caller may run it."""
+    authorized = _smartva_authorization(va_sid)
+    if not isinstance(authorized, str):
+        return authorized
+    panel = smartva_service.smartva_panel(va_sid)
+    return jsonify({"va_sid": va_sid, "status": panel["status"], "can_run": bool(panel["can_run"])})
+
+
 @bp.post("/submissions/<va_sid>/smartva")
 @role_required("coder", "coding_tester", "reviewer", "data_manager", "admin")
 @limiter.limit("10 per minute")
@@ -356,16 +380,10 @@ def run_smartva(va_sid):
     # A coding-level grant, not VIEW: a viewer-only grant or a coder outside
     # the case's scope may look at it but not start a run. The first action
     # that passes names the requester's role in the audit rows.
-    for action, role in (
-        (Action.CODE, "vacoder"), (Action.REVIEW, "reviewer"), (Action.TRIAGE, "data_manager")
-    ):
-        decision = can(current_user, action, va_sid)
-        if decision:
-            break
-    else:
-        if decision.reason is Reason.NOT_FOUND:
-            return api_error(decision.message, "not_found", 404)
-        return api_error(decision.message, "forbidden", 403)
+    authorized = _smartva_authorization(va_sid)
+    if not isinstance(authorized, str):
+        return authorized
+    role = authorized
     regenerate = parse_body().get("regenerate", False)
     if not isinstance(regenerate, bool):
         return api_error("regenerate must be true or false.", "invalid_request", 422)

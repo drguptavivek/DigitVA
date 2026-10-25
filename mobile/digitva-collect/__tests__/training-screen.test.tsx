@@ -30,7 +30,7 @@ jest.mock("../src/web/common", () => {
 jest.mock("../src/web/roleHome", () => ({ openServerPage: jest.fn() }));
 jest.mock("../src/web/DeathsList", () => ({ DeathsListPanel: ({ headerAction }: { headerAction?: React.ReactNode }) => require("react").createElement("deaths-list", null, headerAction) }));
 jest.mock("../src/web/SupervisionPanel", () => ({ SupervisionPanel: () => require("react").createElement("supervision-panel") }));
-jest.mock("../src/web/DeathRegistrationScreen", () => ({ __esModule: true, default: () => require("react").createElement("registration") }));
+jest.mock("../src/web/LazyInterviewScreen", () => ({ DeathRegistrationScreen: () => require("react").createElement("registration") }));
 jest.mock("../src/training", () => ({
   ...jest.requireActual("../src/training"),
   getTrainingMe: (...args: unknown[]) => mockGetMe(...args),

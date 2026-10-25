@@ -1,13 +1,28 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, View } from "react-native";
+import { Modal, Pressable, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { t as tr } from "../../i18n";
 import { errorText } from "../../ui";
 import type { WorkspaceApi } from "../api";
 import type { DorisCodeInfoItem, VaDefinition, WorkspaceIdentity } from "../contracts";
-import { Alert, Body, Button, Card, CardTitle, FieldHint, Muted, gap, useUi } from "./ui";
+import { Alert, Body, Button, Card, CardTitle, FieldHint, Muted, gap, uiRadius, useUi } from "./ui";
 
 const ENTITIES: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": "\"", "&#39;": "'", "&nbsp;": " " };
+const vaDefinitionCache = new WeakMap<WorkspaceApi, Map<string, Promise<VaDefinition | null>>>();
+
+function getVaDefinition(api: WorkspaceApi, code: string): Promise<VaDefinition | null> {
+  let byCode = vaDefinitionCache.get(api);
+  if (!byCode) vaDefinitionCache.set(api, byCode = new Map());
+  let request = byCode.get(code);
+  if (!request) {
+    request = Promise.resolve().then(() => api.getVaDefinitionForIcd(code)).catch(() => {
+      if (byCode?.get(code) === request) byCode.delete(code);
+      return null;
+    });
+    byCode.set(code, request);
+  }
+  return request;
+}
 
 /** Plain text of a stored definition: tags dropped, the common entities decoded, whitespace collapsed. Never HTML. */
 export function definitionPlainText(html: string): string {
@@ -32,9 +47,8 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
       .then((reply) => { if (live) setItem(reply.item); })
       .catch((failure) => { if (live) setError(errorText(failure)); });
     // The VA cause is extra information: a failed lookup leaves the sheet without it rather than showing an error.
-    api.getVaDefinitionForIcd(code)
-      .then((found) => { if (live) setDefinition(found); })
-      .catch(() => { if (live) setDefinition(null); });
+    getVaDefinition(api, code)
+      .then((found) => { if (live) setDefinition(found); });
     return () => { live = false; };
   }, [api, code, identity.vaSid]);
   return (
@@ -68,28 +82,26 @@ export function CodeDetailsSheet({ api, identity, code, onClose }: { api: Worksp
 }
 
 /**
- * The VA cause a chosen ICD-11 code maps to, under the selection: "Associated VA codes: VAs-xx.xx title" and its case
- * definition behind a toggle. Nothing renders while loading or when the code has no VA cause.
+ * The VA cause a chosen ICD-11 code maps to. Suggestions show only the mapping label; the selected cause can also show
+ * its plain-text definition. Nothing renders while loading or when the code has no VA cause.
  */
-export function AssociatedVaCodes({ api, code }: { api: WorkspaceApi; code: string }) {
-  const [definition, setDefinition] = useState<VaDefinition | null>(null);
-  const [open, setOpen] = useState(false);
+export function AssociatedVaCodes({ api, code, showDefinition = false, attribution = false, style }: { api: WorkspaceApi; code: string; showDefinition?: boolean; attribution?: boolean; style?: StyleProp<ViewStyle> }) {
+  const { t } = useUi();
+  const [loaded, setLoaded] = useState<{ api: WorkspaceApi; code: string; definition: VaDefinition | null } | null>(null);
   useEffect(() => {
     let live = true;
-    setDefinition(null);
-    setOpen(false);
-    api.getVaDefinitionForIcd(code)
-      .then((found) => { if (live) setDefinition(found); })
-      .catch(() => { if (live) setDefinition(null); });
+    getVaDefinition(api, code)
+      .then((found) => { if (live) setLoaded({ api, code, definition: found }); });
     return () => { live = false; };
   }, [api, code]);
+  const definition = loaded?.api === api && loaded.code === code ? loaded.definition : null;
   if (!definition) return null;
   const text = definitionPlainText(definition.definition_html);
   return (
-    <View testID="associated-va-codes" style={{ gap: gap.xs }}>
-      <Body>{`Associated VA codes: ${definition.va_code} ${definition.title}`}</Body>
-      {text ? <Button label={open ? "Hide case definition" : "Case definition"} variant="outline" size="sm" onPress={() => setOpen(!open)} /> : null}
-      {open ? <Muted>{text}</Muted> : null}
+    <View testID={showDefinition ? "va-definition-note" : "associated-va-codes"} style={[{ gap: gap.xs, backgroundColor: t.warning, borderColor: t.warningBorder, borderWidth: 1, borderLeftWidth: 4, borderRadius: uiRadius.md, paddingHorizontal: gap.md, paddingVertical: gap.sm }, style]}>
+      {showDefinition ? <Body style={{ color: t.warningForeground, fontWeight: "600" }}>Case definition</Body> : <Body style={{ color: t.warningForeground, fontWeight: "600" }}>{`Associated VA codes: ${definition.va_code} ${definition.title}`}</Body>}
+      {showDefinition ? (text ? <Body style={{ color: t.warningForeground }}>{text}</Body> : <Muted>No definition text for this VA cause.</Muted>) : null}
+      {showDefinition && attribution ? <FieldHint testID="digitva-addition">{tr("digitvaAddition")}</FieldHint> : null}
     </View>
   );
 }

@@ -15,19 +15,30 @@ refuses ``mode=view``.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 from dataclasses import dataclass
 from datetime import UTC
 
-from flask import Blueprint, jsonify, request
+import sqlalchemy as sa
+from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
-from app.models import VaFinalAssessments, VaForms, VaProjectMaster, VaStatuses, VaSubmissions
+from app.models import (
+    VaAllocation,
+    VaAllocations,
+    VaFinalAssessments,
+    VaForms,
+    VaProjectMaster,
+    VaStatuses,
+    VaSubmissions,
+)
 from app.routes.api.request_helpers import error as api_error
 from app.services import smartva_service
 from app.services import web_intake_service as intake_svc
-from app.services.icd11_titles import stored_cod_label
 from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
     category_block_code,
@@ -36,18 +47,18 @@ from app.services.case_content_service import (
     get_active_smartva,
     get_case_artifacts,
     get_section_data,
-    payload_for_viewer,
     get_step1_prefill,
+    payload_for_viewer,
     reviewing_step,
     smartva_summary,
     social_autopsy_enabled,
     viewer_source_payload,
 )
+from app.services.case_list_service import coding_names
 from app.services.category_rendering_service import (
     get_category_rendering_service,
     get_visible_category_codes,
 )
-from app.services.case_list_service import coding_names
 from app.services.cod_entry_mode import is_masked
 from app.services.cod_entry_mode import project_mode as get_project_mode
 from app.services.coder_cod_service import (
@@ -59,9 +70,10 @@ from app.services.coder_cod_service import (
 from app.services.coder_workflow_service import get_active_coding_allocation
 from app.services.coding_service import _count_attachments_per_category
 from app.services.demo_project_service import is_demo_training_project
-from app.services.doris_context_service import workspace_doris
+from app.services.doris_context_service import doris_initial, workspace_doris
 from app.services.field_mapping_service import get_mapping_service
 from app.services.final_cod_authority_service import get_active_recode_episode
+from app.services.icd11_titles import stored_cod_label
 from app.services.icd_coding_value import DEFAULT_ICD_CLASSIFICATION
 from app.services.narrative_qa_service import NARRATIVE_QA_FIELDS, NARRATIVE_QA_MAX_SCORE
 from app.services.payload_bound_coding_artifact_service import (
@@ -77,7 +89,10 @@ from app.services.reviewer_final_assessment_service import (
     get_latest_active_reviewer_final_assessment,
 )
 from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
-from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
+from app.services.submission_payload_version_service import (
+    get_active_payload_version,
+    joined_payload,
+)
 from app.services.user_note_service import get_active_note, save_note
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import (
@@ -228,6 +243,30 @@ def _authorize(va_sid: str):
         recode_active=recode_active,
         intake_only=session.intake_only,
     )
+
+
+def _draft_context(case: _Case) -> str | None:
+    """Opaque per-actor/allocation/payload discriminator, after normal authorization.
+
+    It is only compared by the client for reload recovery, never accepted as proof.
+    """
+    if case.mode == "view" or case.active_version is None:
+        return None
+    allocation_id = db.session.scalar(sa.select(VaAllocations.va_allocation_id).where(
+        VaAllocations.va_sid == case.submission.va_sid,
+        VaAllocations.va_allocated_to == current_user.user_id,
+        VaAllocations.va_allocation_for == (VaAllocation.coding if case.mode == "coding" else VaAllocation.reviewing),
+        VaAllocations.va_allocation_status == VaStatuses.active,
+    ).limit(1))
+    if allocation_id is None:
+        return None
+    values = [str(current_user.user_id), str(allocation_id), case.submission.va_sid,
+              str(case.active_version.payload_version_id), case.mode, case.project_mode]
+    return hmac.new(
+        str(current_app.config["SECRET_KEY"]).encode(),
+        json.dumps(values, separators=(",", ":")).encode(),
+        hashlib.sha256,
+    ).hexdigest()
 
 
 def _survey_location(case: _Case, nav, viewer_payload) -> dict:
@@ -562,6 +601,8 @@ def workspace(va_sid):
     body = {
         "case": {
             "va_sid": va_sid,
+            "payload_version_id": str(case.active_version.payload_version_id) if case.active_version else None,
+            "doris_draft_context": _draft_context(case),
             "instance_name": case.submission.va_uniqueid_masked,
             # The coding header only (coding-workflow-state-machine.md,
             # "Names on the coding screens"); None when the caller may not see it.
@@ -634,6 +675,12 @@ def workspace(va_sid):
             reviewer_final=artifacts.va_reviewer_final_assess,
         ),
     }
+    if body["doris"] is not None:
+        reset_certificate, reset_provenance = doris_initial(
+            None, case.submission, case.project_mode,
+            should_redact_pii(current_user), case.active_version,
+        )
+        body["doris"].update(reset_certificate=reset_certificate, reset_prefill_provenance=reset_provenance)
     return _private(jsonify(body))
 
 

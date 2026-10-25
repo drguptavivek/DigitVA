@@ -110,3 +110,8 @@
   proxied relaunch with the same setup line, and "Update WHO files" by deep link
   (process restart, fetching init, result line) were run. Not run on the device: the
   offline "No connection" path, and the missing or wrong-size restore.
+- DORIS engine (owner 2026-10-25): server and Collect Plus both stay on DorisRuleEngine
+  1.1.176 (whoicd/icd-api:2.6.0; the same DLL, sha256 c3c17cf1...). Move both together to
+  1.2.1 only when WHO ships it in an official ICD-API image. The third-party 10,010-case
+  suite (frozen DORIS 1.2.1 outputs) matched the dev server on cause, URI, reject, report
+  and errors for every case; it has no year-only dates.

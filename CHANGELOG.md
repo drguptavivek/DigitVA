@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Published matched web release** (`digitva-9f8n`):
+  `expo-web-v2026.10.25.2` from `1892f085d`, publication run40200511607.
+  WHO/app builds and publish passed; both downloaded archive checksums, matching
+  source/component metadata and strict web profile verified. Compose pins and
+  staging remain unchanged; server image/deployment are separate steps.
+
 - **Web acceptance and deployment handoff** (`digitva-3yaw`; implementation
   `3eaaf3b0c`): record measured performance, recovery checks and remaining vendor
   test limitations. Document matched WHO/app publishing, verified app pins,

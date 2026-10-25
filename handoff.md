@@ -14,13 +14,15 @@ digest; verify the runtime DLL version rather than trusting the Compose comment.
 
 ## Ranked next steps
 
-1. `digitva-5mbn`: remaining web acceptance and a separately approved release/
+1. `digitva-5mbn`: remaining web acceptance and a separately approved
    staging window. Follow docs/current-state/split-production-deploy.md's
-   matched web release sequence. Accepted build source is
-   3eaaf3b0c9b4f01763c3aa98685c106040687a48, CI40198746587 (both jobs passed,
-   publish=false). It is not a published web release or updated Compose pin.
-   Publish a fresh matched WHO/app release, verify artifacts, commit app release
-   pins, then build the server image of that pin commit. Do not deploy the web
+   matched web release sequence. Published expo-web-v2026.10.25.2 from source
+   1892f085ddb5ca41ca6ee1c7d0449ef0470f8b9d; CI40200511607 all jobs passed.
+   App tarball SHA256:
+   63c9db9b987498a9c85c061278e46ebdbdb3c7093c319820349ae41b571a45f0.
+   Both archive checksums, matching WHO/app metadata and strict profile verified
+   after download. digitva-9f8n closed. Compose pins remain .1; next commit app
+   release pins, then build the server image of that pin commit. Do not deploy the web
    source SHA with old pins and expect new browser code. Remaining acceptance:
    physical device, complete interview submission and mid-transfer interruption;
    the blocked-chunk retry and offline edit/reconnect/save/reload passed Chrome.

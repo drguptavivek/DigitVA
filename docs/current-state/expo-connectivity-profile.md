@@ -87,3 +87,19 @@ Sanitized local traces and artifact verification outputs are under
 `/private/tmp/digitva-web-profile-20261025` and
 `/private/tmp/digitva-paired-ci-40198746587`; these temporary files are not
 required for running the application.
+
+## Published release
+
+The owner subsequently authorized publication. Run
+[40200511607](https://github.com/drguptavivek/DigitVA/actions/runs/40200511607)
+built and published [expo-web-v2026.10.25.2](https://github.com/drguptavivek/DigitVA/releases/tag/expo-web-v2026.10.25.2)
+from `1892f085ddb5ca41ca6ee1c7d0449ef0470f8b9d`. Both downloaded archive
+checksums, app/WHO release/source/component metadata and a fresh strict profile
+passed. Published initial scripts total 2,340,741 raw / 597,097 gzip bytes;
+the slight difference from the prior artifact is public release metadata.
+App archive SHA-256:
+`63c9db9b987498a9c85c061278e46ebdbdb3c7093c319820349ae41b571a45f0`.
+WHO archive SHA-256:
+`a6eca940dd775a7fff17b86f1e2f14e410ec1939cfd5311983e6226fa0425b42`.
+This publication did not update Compose pins, build a server image or deploy
+staging. Those steps follow the deployment runbook.

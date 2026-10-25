@@ -3,119 +3,110 @@
 ## Start here
 
 Read `AGENTS.md`, `docs/current-state/README.md`, then the policy for the piece
-you take. What already landed: `CHANGELOG.md`. Load tests, measured
-optimizations and dropped ideas (Oct 2026): `docs/kb/load-test-and-optimizations-2026-10.md`. Owner focus (bd memory
-`focus-2026-10-22`): station app paused; training (TRN01), the Expo web app and
-digitva-collect (Android, collection only). digitva-coder will be a new Expo
-project in its own folder. The owner owns `vendor/who-va-2022` and decides
-commit timing. With parallel sessions, one committer session lands everything;
-the others commit only to their own worktree branch.
+you take. What already landed: `CHANGELOG.md`. Owner focus (bd memory
+`focus-2026-10-22`): training, the Expo web app, digitva-collect (Android), and the
+experimental **Collect Plus** variant (offline coding, bead `digitva-hs7e`, plan
+`.tasks/2026-10-24-collect-plus-offline-coding.md`). The owner owns
+`vendor/who-va-2022` and decides commit timing; one committer session lands
+everything, workers commit only to their worktree branch.
 
-Tests: one full suite at a time, `-n 2` (~15-19 min) on a database of your own,
-and not while other sessions benchmark against dev Postgres: concurrent load
-OOM-killed it twice on 2026-10-22 and made a full suite drop ~90 tests. Dev
-`minerva_db` is now capped at 1 GB (override); `-n 4` can still overflow the
-lock table during schema setup.
+Working rules the owner set on 2026-10-24/25 (bd memories): **no local APK, Gradle or
+Expo web-export builds on the Mac — build only on GitHub Actions**
+(`builds-on-ci-only`); Haiku writers, Sonnet reviewer before every merge
+(`code-writer-model`); coders' phones have at least 6 GB RAM (`coder-phone-ram`);
+DORIS engine stays 1.1.176 on server and phone until WHO ships 1.2.1 in an official
+ICD-API image (`doris-engine-version`).
 
-## State (2026-10-24)
+Tests: targeted pytest on a database of your own; one full suite at a time.
 
-Migration head `89f755b1156c`; dev is at the head. Hosts never compile:
-`smartva-rs` and the Expo web export are pinned GitHub releases, SHA-checked in
-Docker stages (`x-release-pins` in `docker-compose.yml`). CI builds the server
-image (`server-images.yml`, `ghcr.io/drguptavivek/digitva-app:<sha>`); servers
-only pull (`make prod-pull`, `scripts/deploy-server.sh <sha>`). Dev serves the
-working tree's export (`EXPO_CLIENT_DIST` in the override).
+## State (2026-10-25)
 
-Staging: `https://digitvav3.causeofdeathindia.com`, AWS arm64
-`i-0b2caee6465bfcac1` (ap-south-1, profile `digitva`, `/data/DigitVA`); read-only
-checks via `aws ssm send-command`. Never change staging without asking. The
-owner runs the deploy scripts (agent SSM writes are blocked); keep pull output out
-of SSM output (24 KB cap). Staging runs `ec1b2d34f` (pull-only deploy),
-`expo-web-v2026.10.24.4`, Azure Translator configured. Staging serves a
-locally built 0.3.3 APK through `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`
-in its `.env` (file in `/data/DigitVA/private/android-hosted`). CI
-`android-v0.3.3` is published and pinned in `9b64ec372` (image run 40023434115);
-deploying that image removes the override
-(`sed -i '/^DIGITVA_ANDROID_APK_DIR=/d' .env`).
+Migration head `c3f9a1d7e2b4` (dev and staging). Main `4afc2f8c8`.
+
+Staging `https://digitvav3.causeofdeathindia.com` (AWS arm64 `i-0b2caee6465bfcac1`,
+profile `digitva`, `/data/DigitVA`) runs image `73561675a`, web
+`expo-web-v2026.10.24.10`, and a locally uploaded **APK 0.3.10** (override in
+`.env`; every deploy resets it to the image's 0.3.6 — rerun the upload script).
+`DORIS_CALL_LOG=1` is still on there (turn off when DORIS debugging ends). The
+owner runs deploy/upload scripts; agent SSM is read-only.
+
+CI workflows (main): `server-images.yml`, `android-release.yml`,
+`expo-web-release.yml` (new) and `collect-plus-release.yml` (new; pins engine
+release `icd11-engine-v2026.10.25.1`, sha256 `975887076aab…0a3`). Both new
+workflows passed a non-publishing run (40131082739, 40131601066). Signing runs in
+the `android-release` environment: the owner approves each run in GitHub.
 
 ## Ranked next steps
 
-1. **Deploy `9b64ec372`** (CI 0.3.3 pinned): the owner deploys; the APK
-   override comes off staging. Releases: Expo
-   web `npm run vendor:build`, `npm run export:web`, tarball + `.sha256`, tag
-   `expo-web-v<date>[.n]`, `gh release create … --latest=false`, bump
-   `EXPO_WEB_TAG`/`EXPO_WEB_SHA256`. Signing key `private/android/` (owner backs
-   it up; fingerprint in `ANDROID_RELEASE_CERT_SHA256`).
-2. **Owner field testing on 0.3.3**: audio and camera, consent chip, delete
-   draft, sign-in QR / PIN / unlock, errors popup, age assists, colours, clock
-   warning and block.
-3. **Staging setup**: Project Setup → HP0001 → Respondent consent → "Seed from
-   draft", approve after legal review, turn "Require respondent consent" on.
-   Press the machine-translate button, then review the drafts.
-   `flask training-demo setup` if TRN01 is missing.
-4. **Hindi review**: about 200 new keys landed 2026-10-24 in
-   `mobile/digitva-collect/src/strings/hi.json` (plus the ~40 earlier).
-5. `digitva-om65` (P1): remove the screenshot allowance after 2026-10-30.
-6. **Open P1 bugs**: `digitva-fvbc` (web autosave loops on `csrf_failed`),
-   `digitva-owbz` and `digitva-46xk` (revise a submitted interview; verify
-   whether `92da1f8e7` fixed them before work), `digitva-342x` (revoke unused
-   enrolment codes and devices from the Users page).
-7. `digitva-zfsa` (P3): desktop crate served-definition sha pins after the
-   2026-10-24 form changes.
-8. **Speech to text**: in-app on-device STT needs owner approval; spike
-   `digitva-yufk`.
-9. **Public demo deploy** (`digitva-77v5.7`, then `.9`) per the runbook; WHO
-   ICD-11 API terms for anonymous use; proof-of-work timing on a phone untested.
-10. SmartVA `digitva-vv4h` (coalescing not atomic above concurrency 1; rollback
-    `SMARTVA_RS_LIB=""`); digitva-collect `zkgx`, `jish`, `wh4w`; request path
-    CPU-bound, act only if the slow log (`digitva-cpak`) points at intake.
-11. Older: `owqc`, `en2g`, `2s6p`, `hs7e`, `a6q9`, `mubf`, `xp9w`, `8dzk`,
-    `f0ys`, `783d`; Aakanksha's unreproduced re-asked name/age (`88606c5b`).
+1. **Publish and deploy the DORIS parity fixes** (waiting for the owner's go):
+   `gh workflow run expo-web-release.yml -f publish=true -f tag=expo-web-v2026.10.25.1`,
+   pin `EXPO_WEB_TAG`/`EXPO_WEB_SHA256` in `docker-compose.yml`, run
+   `server-images.yml`, then the owner deploys (template: scratchpad
+   `deploy-staging-pull-11.sh`, bump SHA/rollback) and re-uploads APK 0.3.10.
+   Do not push to main while an image build runs.
+2. **Publish Collect Plus** `collect-plus-v0.3.10-plus.1` (prerelease) on the
+   owner's go; install on the SM-E146B, confirm warm-up and the engine check.
+3. **Collect Plus phase B** (`digitva-hs7e`): in Plus, route DorisPanel search,
+   codeinfo and process to the offline engine; native ICD-11 search UI (the picker
+   WebView host is server-served); parity check and sync at final save (server
+   process token); offline case queue. Then phase C profiling (baseline vs
+   `:icd11`), using `scripts/android-profile.sh` and `scripts/android-trace.sh`.
+4. **DORIS parity pass 3** (`digitva-knh9`): demo gets dates/manner/surgery/autopsy,
+   WHO field labels, pregnancy follow-ups hidden until Yes, search 3 chars/500 ms,
+   rule trace behind Details in Expo.
+5. **Standard CI across projects**: proposal card "Standard CI: reusable workflows
+   + S3 via OIDC" (owner chose GitHub Actions; public `ci-templates` repo and the
+   AWS OIDC role need the owner's go).
+6. `digitva-om65` (P1): remove the screenshot allowance after 2026-10-30.
+7. Open P1s: `digitva-fvbc` (web autosave loops on `csrf_failed`), `digitva-owbz`,
+   `digitva-46xk`, `digitva-342x`; mentor view `digitva-oux5` (an early feedback
+   model/migration is recovered in `private/worktree-patches/`).
+8. Hindi review of the ~240 new keys in `mobile/digitva-collect/src/strings/hi.json`.
+9. Older: `digitva-zfsa`, `digitva-yufk` (STT), public demo deploy `digitva-77v5.7`,
+   SmartVA `digitva-vv4h`, `cpak`, `zkgx`, `jish`, `wh4w`.
 
 ## Open owner decisions
 
-- `scripts/loadtest/restore.sh` has an uncommitted change from the autosave
-  session: commit or drop?
-- Consent change history: only the latest decision is sent (the server rejects
-  `supersedes` for unsent consents). Keep, or build a history?
-- Leftover release `expo-web-v2026.10.24.1` (unused) and the old waiting image
-  run 40018081998: delete?
-- Staging draft `84e711b0` (empty, Test Admin): discard? Users page: device
-  sessions and activity counts span the viewed user's projects, not only the
-  viewer's subtree.
-- Enrolment email code lifetime (24 h, single use) and whether PIs may send it.
-- Web consent gaps: a submission with no consent decision is accepted when no
-  covered answer is filled; a refusal while editing a registration is not sent;
-  withdrawal.
-- ICD-11 licence inventory (`docs/kb/icd11-licence-inventory.md`); bulk import
-  `created_via: import` vs audit `project_import`.
+- Collect Plus review findings not yet fixed (low): a readable setup record with a
+  malformed `files` entry fails init stickily (`EngineData.acceptedWho`);
+  `extractOpenSsl` does not fail on an empty copy; the Plus workflow asks for
+  environment approval before its own fast-fail checks.
+- 16.8 GB of unattached Docker volumes on the Mac (37 of 41): list and decide.
+- `scripts/loadtest/restore.sh` uncommitted change; orientation `.pptx` files in
+  `docs/manuscript/` (do not commit the `~$` lock file).
+- KEM001: 24 submissions stuck in `attachment_sync_pending`.
+- Demo host `digitvademo.causeofdeathindia.com` runbook and deploy; safety
+  snapshots `snap-01fa17178686012df`, `snap-0aaaf620a2070b3e7`; unused release
+  `expo-web-v2026.10.24.1`.
+- Consent history (only the latest decision is sent); enrolment code lifetime;
+  web consent gaps; ICD-11 licence inventory (public engine release is the owner's
+  call, 2026-10-25).
 
 ## Decisions already made (do not reopen)
 
-Corrections are submitter-only; respondent consent is required when the project
-turns it on, notice seeded from the draft (en + hi), editable, "pending legal
-review" until an admin approves; Deaths menu hidden for direct-only
-interviewers; Add worker emails the enrolment QR + APK link to data collectors
-only; non-admin enrolment codes are single use within 60 minutes; training
-coder slots are per session (1–100); reviewers may review their own coding;
-expired station configs are refused; every account records its creator; the WHO
-ICD container stays on servers; the intake write path (payload version, PII,
-transitions, audit) is not batched, consistency first; no EC2 upsize until
-measured real load (slow-request log, `digitva-cpak`) calls for it.
+Engine release and Collect Plus APK are public GitHub release assets; WHO file
+downloads only at first setup, on a missing/wrong-size WHO file, or the explicit
+"Update WHO files" button; OpenSSL comes from `io.github.ronickg:openssl:3.3.2-1`
+(libssl only, libcrypto from expo-sqlite); the engine runs in the `:icd11`
+process; Collect Plus keeps our ICD-API 2.6.0 bridge (real WHO search) over the
+third-party prototype. Earlier: corrections are submitter-only; respondent consent
+required when the project turns it on (notice seeded en + hi, "pending legal
+review" until approved); non-admin enrolment codes single use within 60 minutes;
+training coder slots per session; reviewers may review their own coding; expired
+station configs refused; the WHO ICD container stays on servers; the intake write
+path is not batched; no EC2 upsize until measured load calls for it.
 
 ## Caveats
 
-- Quote backticks in `bd create -d "..."` descriptions: the shell runs them.
-- Drop `minerva_test_*` databases after model changes: `create_all` never adds
-  columns, stale ones caused a 252-failure run.
-- `vendor/who-va-2022` `npm ci` fails (lockfile out of sync): symlink
-  `node_modules`.
-- Worktree writers append strings at the end of `en.json`/`hi.json`: expect
-  union merges.
-- Local signed APK build recipe: `docs/current-state/android-release-builds.md`,
-  with `DIGITVA_ANDROID_VERSION_CODE=<major*10000+minor*100+patch>` and
-  `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL`.
-- GitHub release creation and staging writes are owner-run (permissions).
-- After an image rebuild, refresh the shared venv volume `digitva_minerva_venv`
-  (stop app/worker/beat, `docker volume rm`, `up -d`).
-- `resource/smartva-phmrc-dataset/` is local research data, git-ignored.
+- Quote backticks in `bd create -d "..."`; `bd update --notes` REPLACES notes —
+  use `--append-notes`.
+- Worktree removal with `--force` deletes untracked files: check
+  `git status --porcelain` including untracked before removing.
+- Drop `minerva_test_*` databases after model changes.
+- `vendor/who-va-2022` `npm ci` fails (lockfile out of sync): symlink or copy
+  `dist` into worktrees (`vendor/who-va-2022/dist` and
+  `node_modules/@drguptavivek/who-2022-va/dist`).
+- The plus JS bundle reads `APP_VARIANT` at Gradle time; `isPlusVariant` also
+  detects the engine module.
+- A stopped background agent may leave work uncommitted in its worktree: commit it
+  as WIP before starting a successor.

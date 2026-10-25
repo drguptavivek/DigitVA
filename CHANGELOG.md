@@ -3,6 +3,45 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-25
+
+- **Builds only on GitHub Actions** (`a57176256`, `16bf80760`, `775da2c0e`): new
+  `expo-web-release.yml` and `collect-plus-release.yml`; the ICD-11 engine bundle is the
+  public release `icd11-engine-v2026.10.25.1` (`scripts/package-icd11-engine.sh`,
+  `scripts/publish-icd11-engine.sh`). Both workflows passed a non-publishing run.
+- **Collect Plus "WHO files" and engine hardening** (`digitva-hs7e`; `cf44110b2`,
+  `a5c69a71f`): first-setup / missing-file / "Update WHO files" download rule, setup
+  record of real WHO file changes, size check with restore from shipped copies,
+  priority worker in `:icd11`, progress events, bundled libssl
+  (`io.github.ronickg:openssl:3.3.2-1`), atomic writes, Gradle heap via the config plugin.
+- **Collect Plus icon** (`f6c5aa3cf`): the DigitVA icon with a "+" badge, plus build only.
+- **DORIS parity, Expo coding screen** (`digitva-gfx8`; merge of the gfx8 branch,
+  `5afb21ef1`): 422 field errors shown, half-entered interval blocks Process, UCOD
+  titles and WHO notes persisted with the saved result, reports behind Details, empty
+  Part II dropped, sex 9 "Unknown"; station bundles pass the plain envelope again.
+- **DORIS parity, public demo** (`digitva-4m61`; `8e2219a8c`, `1a5744173`,
+  `913089896`): "rejected" shows WHO's reason, compact result card, WHO title as
+  condition text, 503 shown as unavailable, strict selection check, 8 conditions per
+  line, soft warnings, shared result rows.
+- **DORIS engine check** (no code change): a third-party 10,010-case DorisEngine 1.2.1
+  reference suite matched our server's DORIS (`whoicd/icd-api:2.6.0`, engine 1.1.176)
+  on cause, URI, rejection, report and errors for every case. Owner: stay on 1.1.176
+  until WHO ships 1.2.1 in ICD-API.
+
+## 2026-10-24 (late)
+
+- **Collect Plus phase A** (`digitva-hs7e`; `18215a8aa`, `ca3a0e64e`, `85f08b5b4`):
+  `APP_VARIANT=plus` build with the offline ICD-11/DORIS engine (our ICD-API 2.6.0
+  NativeAOT bridge) in a bound `:icd11` service, background warm-up, engine check
+  screen, profileable release, Perfetto trace sections; `scripts/android-profile.sh`,
+  `scripts/android-trace.sh`. On the SM-E146B: ready about 20 s after launch, search
+  35-220 ms, DORIS 7-180 ms, `:icd11` about 530 MB steady.
+- **Phone app 0.3.10 offline gate** (`digitva-5u65`, `2aef46bb3`): no server calls while
+  the phone has no network; one sync on reconnect. Hosted on staging as a local upload.
+- **Coding screen fixes** (web `expo-web-v2026.10.24.10`, deployed at `73561675a`):
+  notes panel renders above the header with a Close button, compact SmartVA and DORIS
+  cards, associated VA code and case definition under the chosen cause.
+
 ## 2026-10-24
 
 - **Death not before birth** (`digitva-08bj`): the year of death `Id10024` cannot be before the year of birth (`Id10021`, `dob_month_year` or `dob_year`; the same year is valid), and the exact death date `Id10023_b` cannot be before a partial birth date (`Id10023_a` already had the check). Definition version `2026081401-7ee547b8e7`; policy in `docs/policy/digitva-who-form-overrides.md`.

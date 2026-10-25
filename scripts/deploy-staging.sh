@@ -54,6 +54,6 @@ REMOTE
 # Pass the program as an argument so child commands cannot consume its source from stdin.
 QUOTED_SCRIPT=$(printf '%s' "$REMOTE_SCRIPT" | python3 -c 'import shlex, sys; print(shlex.quote(sys.stdin.read()))')
 REMOTE_COMMAND="sudo -Hu ubuntu env DEPLOY_SHA=$TAG bash -c $QUOTED_SCRIPT"
-OUTPUT=$(LT_TARGET=i-0b2caee6465bfcac1 AWS_PROFILE=digitva AWS_REGION=ap-south-1 bash "$ROOT/scripts/loadtest/ssm.sh" "$REMOTE_COMMAND")
+OUTPUT=$(LT_TARGET=i-0b2caee6465bfcac1 AWS_PROFILE=digitva AWS_REGION=ap-south-1 bash "$ROOT/scripts/ssm.sh" "$REMOTE_COMMAND")
 printf '%s\n' "$OUTPUT"
 grep -q 'DEPLOY_STAGING_OK ' <<<"$OUTPUT" || { echo "SSM command did not report successful deployment" >&2; exit 1; }

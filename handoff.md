@@ -29,7 +29,8 @@ profile `digitva`, `/data/DigitVA`) runs image `d7f8ac86e`, web
 `.env`; preserve `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`).
 `DORIS_CALL_LOG=1` is still on there (turn off when DORIS debugging ends). The
 owner authorized this session's SSM deploy (`digitva-pjc8`). Future staging deploys:
-`scripts/deploy-staging.sh <full-sha>` after CI passes; rollback image `73561675ad00fe510ab7237925df86f59509f767`.
+`scripts/deploy-staging.sh <full-sha>` after CI passes (shared helper `scripts/ssm.sh`);
+rollback image `73561675ad00fe510ab7237925df86f59509f767`.
 
 CI workflows (main): `server-images.yml`, `android-release.yml`,
 `expo-web-release.yml` (new) and `collect-plus-release.yml` (new; pins engine

@@ -5,6 +5,8 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Shared SSM helper** (`digitva-gxvx`): move to `scripts/ssm.sh` so deployment
+  and load-test watchdog commands use the same helper outside the load-test folder.
 - **Web parity release** (`digitva-pjc8`): publish and pin
   `expo-web-v2026.10.25.1` (CI run `40160961967`, source `3ad5cefdb`), so the
   next server image includes the DORIS parity fixes; archive checksum verified

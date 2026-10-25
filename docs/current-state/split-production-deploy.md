@@ -20,6 +20,8 @@ to `i-0b2caee6465bfcac1` (`digitva` profile, `ap-south-1`), verifies a database
 backup before deployment, preserves the hosted Android APK override, and prints
 the previous image's rollback command. The shared server-side procedure remains
 `scripts/deploy-server.sh`; neither script builds on the server.
+The shared SSM command helper is `scripts/ssm.sh`; load-test scripts use the
+same helper.
 
 ```
 Proxy host (nginx, public TLS) ──HTTPS :8000──► App host (ingress, app, Celery, Redis, WHO ICD-11 API, DORIS demo)

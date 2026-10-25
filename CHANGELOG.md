@@ -5,10 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
-- **Web startup and local navigation** (`digitva-grmg`, `digitva-cklz`): paint
+- **Web startup and local navigation** (`a14f6fa24`; `digitva-grmg`, `digitva-cklz`): paint
   the saved/system theme before React starts and keep navigation/loading status
   visible while deferred screens load. Route the local HMR legacy home links
-  `/vaindex` and `/index` to Flask so Admin's logo returns to the app.
+  `/vaindex` and `/index` to Flask so Admin's logo returns to the app. CI export
+  `40185993778` passed; final archive startup HTML and SHA-256 verified.
 
 - **Web coding recovery and delivery** (`b133babc1`; `digitva-akbt`, `digitva-k2s1`,
   `digitva-55zu`, `digitva-dmcl`, `digitva-26h6`): recover permitted COD fields,

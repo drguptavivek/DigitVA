@@ -49,6 +49,11 @@ APK or Gradle build; release artifacts remain CI-built.
 
 ## Versioned production assets
 
+`public/index.html` paints the saved UI theme (or system theme) before React
+starts, with a static startup status. Web readiness and deferred-route loading
+retain a themed canvas and visible loading status; deferred screens keep the
+navigation shell. Runtime theme changes also update the document background.
+
 The web release workflow runs `scripts/build-expo-web-cache.mjs` after the Expo
 export. It generates `asset-manifest.json`, `asset-worker.js` and
 `cache-register.js`, recording release, source commit, byte sizes and SHA-256

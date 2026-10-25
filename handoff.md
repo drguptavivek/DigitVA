@@ -18,11 +18,19 @@ Preserve unrelated dirty `scripts/loadtest/restore.sh` and orientation files.
    Initial scripts total 3,629,765 bytes versus baseline3,688,839; deterministic
    gzip(level9)856,474 versus871,854 (~1.8% smaller). Seven chunks versus2;
    most WHO code remains eager. No network timing claim: slow/interrupted
-   browser profiling and deeper split investigation remain open. No staging deploy.
-2. `digitva-grmg`: subsequent owner-reported whiteout on death-registration
+   browser profiling remains open. Read-only import/CI artifact diagnosis found
+   eager WHO instrument via AppState.web/formDefinitionCache/formDefinitions and
+   CollectionScreen revisions/drafts; renderer/calendar via whoControls.web from
+   coding/supervision. Metro hoists shared async deps into eager common. Next:
+   planner for one shared async web WHO runtime (~6-9files), no vendor/native
+   changes, then initial-script-set CI measurement. No staging deploy.
+2. Closed `digitva-grmg`: subsequent owner-reported whiteout on death-registration
    navigation/reload fixed locally: themed WebShell/loading status plus
    public/index.html prepaint. Full Jest175/2689, typecheck, Node7 and final audit
-   pass. Chrome html/body/root now opaque theme; final updated CI export pending.
+   pass. Chrome html/body/root now opaque theme. CI40185993778 passed a14f6fa24;
+   final HTML startup/theme and manifest source verified, SHA
+   f26da943c1a5e0e8118f466d49d952eb5ec5b8e6e363b60776651733ae205327.
+   Owner-reported root reload delay resolved; owner confirmed loaded now.
    `digitva-cklz` closed: exact /vaindex,/index routes proxied to Flask, both
    Admin shortcuts and logo verified. Only HMR ingress recreated.
 3. Closed implementation beads digitva-akbt/55zu/dmcl/dmcl.1/26h6: pushed

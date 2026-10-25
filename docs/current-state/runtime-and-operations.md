@@ -14,6 +14,13 @@ This document captures the current Python runtime, container setup, migrations, 
 
 ## Staging deployment baseline
 
+Web releases now run separate WHO package and DigitVA app build jobs in
+`expo-web-release.yml`. The app consumes a checksum- and source-verified WHO
+artifact, and its public asset manifest records that dependency. Both archives
+share one release tag. The server still downloads the complete, SHA-pinned app
+archive through the existing Expo hosting contract. See
+[Expo Client Hosting And Access](expo-client.md#matched-who-and-app-builds).
+
 Checked 2026-10-19: `digitvav3.causeofdeathindia.com` runs application source
 `119384c72`, database head `b8d2f4a6c901`, and the Expo web export built from
 `4527580c2`. The app, Celery worker and beat were rebuilt using the external

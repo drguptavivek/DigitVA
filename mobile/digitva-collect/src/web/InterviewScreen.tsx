@@ -944,7 +944,7 @@ export default function InterviewScreen() {
               section. Answers autosave (and the footer's Save draft saves at
               once), so there is no second Save here. */}
           <View style={styles.row}>
-            <Button kind="secondary" label={t("backToCollection")} onPress={() => guardedNavigate(() => router.back())} />
+            <Button kind="secondary" label={t("backToCollection")} onPress={() => guardedNavigate(() => router.replace(collectionPath as never))} />
           </View>
           {showCaseStrip ? <InterviewCaseStrip prefill={draftPrefill} onHeight={setCaseStripHeight} /> : null}
           {revision ? (

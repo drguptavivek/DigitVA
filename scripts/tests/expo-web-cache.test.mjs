@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash, webcrypto } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import vm from "node:vm";
 
@@ -42,6 +44,70 @@ function fixture(t) {
   writeFileSync(join(dist, path), "public bundle");
   return { dist, path };
 }
+
+function whoMetadata(release, sourceCommit, overrides = {}) {
+  const files = [{ path: "index.js", size: 3, sha256: createHash("sha256").update("abc").digest("hex") }];
+  return {
+    schema: 1,
+    release,
+    package_name: "@drguptavivek/who-2022-va",
+    package_version: "1.2.3",
+    source_commit: sourceCommit,
+    artifact_name: `${release}-who-package.tgz`,
+    artifact_sha256: "b".repeat(64),
+    package_json_sha256: "c".repeat(64),
+    dist_sha256: createHash("sha256").update(JSON.stringify(files)).digest("hex"),
+    files,
+    ...overrides,
+  };
+}
+
+test("publishes a compact WHO component projection when a matched build header is supplied", (t) => {
+  const { dist } = fixture(t);
+  const release = "expo-web-v1";
+  const sourceCommit = "a".repeat(40);
+  const manifest = buildAssetCache(dist, release, sourceCommit, whoMetadata(release, sourceCommit));
+  assert.deepEqual(manifest.components.who, {
+    package_name: "@drguptavivek/who-2022-va",
+    package_version: "1.2.3",
+    source_commit: sourceCommit,
+    artifact_sha256: "b".repeat(64),
+    dist_sha256: whoMetadata(release, sourceCommit).dist_sha256,
+  });
+  assert.equal(Object.hasOwn(manifest.components.who, "files"), false);
+});
+
+test("CLI accepts the optional WHO metadata JSON path", (t) => {
+  const { dist } = fixture(t);
+  const release = "release-cli";
+  const sourceCommit = "a".repeat(40);
+  const metadataPath = join(dist, "who-build.json");
+  writeFileSync(metadataPath, JSON.stringify(whoMetadata(release, sourceCommit)));
+  execFileSync(process.execPath, [
+    fileURLToPath(new URL("../build-expo-web-cache.mjs", import.meta.url)),
+    dist, release, sourceCommit, metadataPath,
+  ], { stdio: "pipe" });
+  const manifest = JSON.parse(readFileSync(join(dist, "asset-manifest.json"), "utf8"));
+  assert.equal(manifest.components.who.package_name, "@drguptavivek/who-2022-va");
+});
+
+test("rejects a WHO header with invalid identity, semver or digest fields", (t) => {
+  const { dist } = fixture(t);
+  const release = "release-1";
+  const sourceCommit = "a".repeat(40);
+  for (const [field, value, pattern] of [
+    ["package_name", "wrong", /package_name/],
+    ["package_version", "1", /package_version/],
+    ["artifact_sha256", "bad", /artifact_sha256/],
+    ["package_json_sha256", "bad", /package_json_sha256/],
+    ["dist_sha256", "bad", /dist_sha256/],
+    ["source_commit", "b".repeat(40), /source commit/],
+    ["release", "other", /release mismatch/],
+  ]) {
+    const metadata = whoMetadata(release, sourceCommit, { [field]: value });
+    assert.throws(() => buildAssetCache(dist, release, sourceCommit, metadata), pattern, field);
+  }
+});
 
 test("deterministic manifest includes only public build assets and generates valid scripts", (t) => {
   const { dist, path } = fixture(t);

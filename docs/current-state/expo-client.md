@@ -47,6 +47,28 @@ overwritten. `make dev-hmr-stop` stops only the two HMR containers and restores
 the ordinary Flask binding on port 8051. This path does not run an Expo export,
 APK or Gradle build; release artifacts remain CI-built.
 
+The owner authorized local Docker production web exports for diagnosis on
+2026-10-25. Run the same cache builder and profiler against that export before
+using it for network measurements; label a dirty working-tree build as local.
+Published releases and APK builds still use GitHub Actions.
+
+## Matched WHO and app builds
+
+The web release workflow has two build jobs. `build-who` compiles the WHO package,
+checks its types and entrypoint boundaries, and uploads a package archive plus
+`who-build.json` and its verified compiled files. `build` downloads that exact
+artifact, checks its source commit, package identity and complete file hashes,
+installs it before locked `npm ci`, and verifies the installed copy again.
+
+The app asset manifest records the WHO package version, source commit, package
+archive SHA-256 and compiled-tree SHA-256 in `components.who`. CI requires this
+metadata and the deferred WHO runtime group. Publish attaches both the WHO
+package archive and the complete app archive under the same release tag.
+The existing complete app archive remains compatible with Docker hosting; the
+WHO archive is a verified build input, not an independently deployable browser
+application. Its browser chunk is still emitted against the app's matched
+React/Metro graph and downloaded separately on demand or in the background.
+
 ## Versioned production assets
 
 `public/index.html` paints the saved UI theme (or system theme) before React

@@ -18,7 +18,8 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  build-who:
+    name: Build WHO package
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
@@ -44,8 +45,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: mobile/digitva-collect/package-lock.json
 
       - name: Set up pnpm 11.9
         shell: bash
@@ -57,18 +56,67 @@ jobs:
       - name: Build the vendored WHO package
         run: |
           pnpm --dir vendor/who-va-2022 install --frozen-lockfile
+          pnpm --dir vendor/who-va-2022 run typecheck
           pnpm --dir vendor/who-va-2022 run build
 
       - name: Check WHO entrypoint boundaries
         run: pnpm --dir vendor/who-va-2022 exec vitest run tests/web-preloaded.test.ts tests/runtime-boundary.test.ts --no-file-parallelism
 
+      - name: Package the matched WHO build
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          node --test scripts/tests/who-package-build.test.mjs
+          node scripts/build-who-package.mjs package vendor/who-va-2022 "$RUNNER_TEMP/who-build" "${INPUT_TAG:-expo-web-dev-${GITHUB_SHA:0:7}}" "$GITHUB_SHA"
+
+      - name: Upload WHO package artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: who-package-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 14
+          path: ${{ runner.temp }}/who-build/
+
+  build:
+    name: Build DigitVA app
+    needs: build-who
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/digitva-collect/package-lock.json
+
+      - name: Download the matched WHO build
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: who-package-${{ github.sha }}
+          path: ${{ runner.temp }}/who-build
+
+      - name: Verify and install the WHO build input
+        run: node scripts/build-who-package.mjs install "$RUNNER_TEMP/who-build" vendor/who-va-2022 "$GITHUB_SHA"
+
       - name: Install mobile dependencies from the lockfile
         working-directory: mobile/digitva-collect
         run: npm ci
 
+      - name: Verify the installed WHO package
+        run: node scripts/build-who-package.mjs verify-installed "$RUNNER_TEMP/who-build" mobile/digitva-collect/node_modules/@drguptavivek/who-2022-va "$GITHUB_SHA"
+
       - name: Run mobile tests
         working-directory: mobile/digitva-collect
         run: npm test -- --runInBand
+
+      - name: Check mobile types
+        working-directory: mobile/digitva-collect
+        run: npm run typecheck
 
       - name: Export the web bundle
         working-directory: mobile/digitva-collect
@@ -80,10 +128,10 @@ jobs:
         run: |
           set -euo pipefail
           node --test scripts/tests/expo-web-cache.test.mjs
-          node scripts/build-expo-web-cache.mjs mobile/digitva-collect/dist "${INPUT_TAG:-expo-web-dev-${GITHUB_SHA:0:7}}" "$GITHUB_SHA"
+          node scripts/build-expo-web-cache.mjs mobile/digitva-collect/dist "${INPUT_TAG:-expo-web-dev-${GITHUB_SHA:0:7}}" "$GITHUB_SHA" "$RUNNER_TEMP/who-build/who-build.json"
           mkdir -p "$RUNNER_TEMP/release-assets"
           node --test scripts/tests/expo-web-profile.test.mjs
-          node scripts/profile-expo-web.mjs mobile/digitva-collect/dist "$RUNNER_TEMP/release-assets/web-bundle-profile.json"
+          node scripts/profile-expo-web.mjs mobile/digitva-collect/dist "$RUNNER_TEMP/release-assets/web-bundle-profile.json" --require-who
 
       - name: Summarize web bundle profile
         if: always()
@@ -155,6 +203,12 @@ jobs:
           name: expo-web-${{ github.sha }}
           path: release-assets
 
+      - name: Download WHO package artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: who-package-${{ github.sha }}
+          path: who-build
+
       - name: Publish the expo web release
         env:
           TAG: ${{ inputs.tag }}
@@ -165,12 +219,18 @@ jobs:
           archive="release-assets/$TAG.tar.gz"
           test -s "$archive"
           test -s "$archive.sha256"
+          who_archive="who-build/$TAG-who-package.tgz"
+          test -s "$who_archive"
+          test -s "$who_archive.sha256"
+          test -s who-build/who-build.json
+          (cd release-assets && sha256sum -c "$TAG.tar.gz.sha256")
+          (cd who-build && sha256sum -c "$TAG-who-package.tgz.sha256")
           sha="$(cut -d' ' -f1 "$archive.sha256")"
           notes="$(printf '%s\n\n%s\n\n%s' \
             "Expo web export of mobile/digitva-collect (served by the server at /app/, including ui-strings), built from ${GITHUB_SHA:0:9}." \
             "SHA-256: $sha  $TAG.tar.gz" \
             "The Docker build's expo_web stage downloads and verifies it from the EXPO_WEB_TAG / EXPO_WEB_SHA256 pins in docker-compose.yml (x-release-pins).")"
-          gh release create "$TAG" "$archive" "$archive.sha256" \
+          gh release create "$TAG" "$archive" "$archive.sha256" "$who_archive" "$who_archive.sha256" who-build/who-build.json \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --latest=false \

@@ -44,6 +44,14 @@ warming; completed verified assets remain reusable. Unknown and slower links
 load interview assets on demand. Caching public assets does not make the browser
 interview offline: server draft saves and submission still require connectivity.
 
+WHO and DigitVA web have separate build outputs released as one matched pair.
+The app build consumes the checksum-verified WHO package built from the same
+source commit, and records its package version and artifact digest in the public
+asset manifest. The complete web archive remains the hosting contract and
+contains the matched deferred WHO chunks; the WHO package artifact is a build
+input, not an independently deployable browser application. Independent WHO
+deployment or a second React runtime is outside this contract.
+
 The native collection app remains the offline path. It uses the existing
 encrypted device store and bearer device sessions (`/api/v1/auth`). A device token is
 accepted on every `/api/v1/` route, same route and body as the browser

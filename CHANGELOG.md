@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Matched WHO and DigitVA builds** (`digitva-k2s1.1`, `digitva-k2s1`,
+  `digitva-bc56`): build WHO as a verified package artifact before the app job,
+  record its version/commit/hashes in the asset manifest, and publish both as one
+  matched release. Preserve the complete web archive hosting contract. Correct
+  Metro's web-control adapter resolution so native WHO code stays out of startup;
+  local Docker export passes the strict gate (about 30% less initial gzip JS).
+  Direct interview links return to their explicit training/collection list after
+  saving. App Jest180/2706, typecheck, Node33 and artifact round trip passed;
+  connectivity acceptance and the final paired CI run remain in progress.
+
 - **WHO preloaded web package entry** (`digitva-k2s1`): add an explicit
   `/web/preloaded` namespace using the canonical instrument and shared renderer.
   Preserve ordinary WHO root/web/native loading and exports. CI40191960858

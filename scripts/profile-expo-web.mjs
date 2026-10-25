@@ -31,6 +31,8 @@ const SAFE_NAME = /^[A-Za-z0-9_.@()-]+$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/;
 const RELEASE = /^[A-Za-z0-9._-]{1,100}$/;
+const WHO_PACKAGE_NAME = "@drguptavivek/who-2022-va";
+const SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
@@ -161,6 +163,50 @@ function readManifest(dist, manifestPath) {
   return manifest;
 }
 
+function validateWhoComponent(manifest, { required, initialPaths, deferred, assetsByPath }) {
+  const component = manifest.components?.who;
+  if (!required) return component ?? null;
+  if (!component || typeof component !== "object" || Array.isArray(component)) {
+    throw new Error("Required WHO component metadata is missing");
+  }
+  const componentKeys = ["package_name", "package_version", "source_commit", "artifact_sha256", "dist_sha256"];
+  if (JSON.stringify(Object.keys(component).sort()) !== JSON.stringify(componentKeys.sort())) {
+    throw new Error("WHO component metadata has an unexpected schema");
+  }
+  if (component.package_name !== WHO_PACKAGE_NAME) throw new Error("WHO component package_name is invalid");
+  if (typeof component.package_version !== "string" || !SEMVER.test(component.package_version)) {
+    throw new Error("WHO component package_version is invalid");
+  }
+  if (component.source_commit !== manifest.source_commit) throw new Error("WHO component source_commit does not match the app manifest");
+  for (const field of ["artifact_sha256", "dist_sha256"]) {
+    if (typeof component[field] !== "string" || !SHA256.test(component[field])) throw new Error(`WHO component ${field} is invalid`);
+  }
+  if (!Array.isArray(manifest.groups?.interviewRuntime) || manifest.groups.interviewRuntime.length === 0) {
+    throw new Error("Required WHO interviewRuntime group is empty or missing");
+  }
+  const groupPaths = new Set();
+  let groupHasCanonicalChunk = false;
+  for (const path of manifest.groups.interviewRuntime) {
+    if (typeof path !== "string" || groupPaths.has(path)) throw new Error("WHO interviewRuntime group contains a duplicate or invalid path");
+    groupPaths.add(path);
+    const asset = assetsByPath.get(path);
+    if (!asset || asset.cacheable !== true || !path.toLowerCase().endsWith(".js")) {
+      throw new Error(`WHO interviewRuntime group contains a non-cacheable asset: ${path}`);
+    }
+    if (initialPaths.has(path)) throw new Error(`WHO interviewRuntime asset must be deferred: ${path}`);
+    const chunk = deferred.find((entry) => entry.path === path);
+    if (chunk?.contains_canonical_instrument_marker) groupHasCanonicalChunk = true;
+  }
+  if (!groupHasCanonicalChunk) throw new Error("WHO interviewRuntime group does not include the canonical deferred instrument chunk");
+  return {
+    package_name: component.package_name,
+    package_version: component.package_version,
+    source_commit: component.source_commit,
+    artifact_sha256: component.artifact_sha256,
+    dist_sha256: component.dist_sha256,
+  };
+}
+
 function measure(dist, relativePath, kind) {
   const local = safeExportPath(dist, relativePath, kind);
   const bytes = readFileSync(local.filePath);
@@ -183,7 +229,7 @@ function totals(entries) {
 }
 
 /** Build and write the deterministic CI bundle profile. */
-export function profileExpoWeb({ dist, outputPath, manifestPath }) {
+export function profileExpoWeb({ dist, outputPath, manifestPath, requireWhoComponent = false }) {
   const exportDirectory = realpathSync(resolve(dist));
   if (!statSync(exportDirectory).isDirectory()) throw new Error("Expo export path is not a directory");
   const manifest = readManifest(exportDirectory, manifestPath ? resolve(manifestPath) : join(exportDirectory, "asset-manifest.json"));
@@ -201,6 +247,14 @@ export function profileExpoWeb({ dist, outputPath, manifestPath }) {
     .map((file) => measure(exportDirectory, file, "deferred"));
   const runtime = deferred.filter((entry) => /\/whoRuntimeModule-[^/]+\.js$/.test(entry.path));
   const initialRuntime = initial.filter((entry) => /\/whoRuntimeModule-[^/]+\.js$/.test(entry.path));
+  const assetsByPath = new Map(manifest.assets.map((asset) => [asset.path, asset]));
+  const whoRequired = requireWhoComponent || /^expo-web-v/.test(manifest.release);
+  const whoComponent = validateWhoComponent(manifest, {
+    required: whoRequired,
+    initialPaths,
+    deferred,
+    assetsByPath,
+  });
   const initialInstrument = initial.filter((entry) => entry.contains_canonical_instrument_marker);
   const deferredInstrument = deferred.filter((entry) => entry.contains_canonical_instrument_marker);
   const initialTotals = totals(initial);
@@ -224,6 +278,7 @@ export function profileExpoWeb({ dist, outputPath, manifestPath }) {
     schema: 1,
     release: manifest.release,
     source_commit: manifest.source_commit,
+    who_component: whoComponent,
     initial: { scripts: initial, ...initialTotals },
     deferred: { chunks: deferred, runtime_chunks: runtime, ...deferredTotals },
     canonical_instrument: {
@@ -254,12 +309,12 @@ function main() {
   const dist = process.argv[2];
   const outputPath = process.argv[3];
   if (!dist || !outputPath) {
-    console.error("Usage: node scripts/profile-expo-web.mjs <expo-dist> <profile-json>");
+    console.error("Usage: node scripts/profile-expo-web.mjs <expo-dist> <profile-json> [--require-who]");
     process.exitCode = 2;
     return;
   }
   try {
-    const report = profileExpoWeb({ dist, outputPath });
+    const report = profileExpoWeb({ dist, outputPath, requireWhoComponent: process.argv[4] === "--require-who" });
     console.log(`Web bundle profile passed: initial ${report.initial.raw_bytes} raw / ${report.initial.gzip_bytes} gzip; deferred ${report.deferred.raw_bytes} raw / ${report.deferred.gzip_bytes} gzip; largest ${report.largest_chunks[0]?.path ?? "none"}`);
   } catch (error) {
     console.error(`Web bundle profile failed: ${error.message}`);

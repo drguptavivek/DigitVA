@@ -723,11 +723,12 @@ describe("leave guard of an open interview", () => {
     await act(async () => tree.unmount());
   });
 
-  it("does not ask on a pristine draft: Back to collection goes straight back", async () => {
+  it("returns a pristine draft to collection without requiring router history", async () => {
     const {tree} = await openEdited(false);
     await act(async () => { backButton(tree).props.onPress(); });
     expect(leaveDialogOpen()).toBe(false);
-    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
+    expect(mockRouter.back).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 
@@ -735,14 +736,27 @@ describe("leave guard of an open interview", () => {
     const {tree, saveDraft} = await openEdited();
     await act(async () => { backButton(tree).props.onPress(); });
     expect(leaveDialogOpen()).toBe(true);
-    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
     await act(async () => { stayOnPage(); });
     expect(leaveDialogOpen()).toBe(false);
-    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
     await act(async () => { backButton(tree).props.onPress(); });
     await act(async () => { leavePage(); });
-    expect(mockRouter.back).toHaveBeenCalledTimes(1);
+    expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
     expect(saveDraft).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("returns a direct training form link to the training interview list", async () => {
+    mockCurrentBootstrap = {
+      ...mockBootstrap,
+      access: { ...mockBootstrap.access, training: { project_id: "P" } },
+    } as typeof mockBootstrap;
+    const {tree} = await openEdited(false);
+    expect(backButton(tree)).toBeDefined();
+    await act(async () => { backButton(tree).props.onPress(); });
+    expect(mockRouter.replace).toHaveBeenCalledWith("/training/interview");
+    expect(mockRouter.back).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
 

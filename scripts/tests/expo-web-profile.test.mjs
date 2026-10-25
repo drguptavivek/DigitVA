@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
@@ -16,7 +18,7 @@ import {
 const hash = (body) => createHash("sha256").update(body).digest("hex");
 const hex = (character) => character.repeat(32);
 
-function fixture(t, { initial = "safe", runtime = true, marker = true } = {}) {
+function fixture(t, { initial = "safe", runtime = true, marker = true, release = "expo-web-test", whoComponent = false, group = true } = {}) {
   const dist = mkdtempSync(join(tmpdir(), "digitva-web-profile-"));
   t.after(() => rmSync(dist, { recursive: true, force: true }));
   mkdirSync(join(dist, "_expo/static/js/web"), { recursive: true });
@@ -37,9 +39,18 @@ function fixture(t, { initial = "safe", runtime = true, marker = true } = {}) {
     const body = readFileSync(join(dist, path));
     return { path: `/app/${path}`, size: body.byteLength, sha256: hash(body), cacheable: true };
   });
-  writeFileSync(join(dist, "asset-manifest.json"), JSON.stringify({
-    schema: 1, release: "expo-web-test", source_commit: "a".repeat(40), assets,
-  }));
+  const manifest = {
+    schema: 1, release, source_commit: "a".repeat(40), assets,
+  };
+  if (group) manifest.groups = { interviewRuntime: runtime ? [`/app/${who}`] : [] };
+  if (whoComponent) manifest.components = { who: {
+    package_name: "@drguptavivek/who-2022-va",
+    package_version: "1.2.3",
+    source_commit: "a".repeat(40),
+    artifact_sha256: "b".repeat(64),
+    dist_sha256: "c".repeat(64),
+  } };
+  writeFileSync(join(dist, "asset-manifest.json"), JSON.stringify(manifest));
   return { dist, entry, common, deferred, who, register };
 }
 
@@ -70,6 +81,70 @@ test("profiles the complete initial set, deferred runtime, hashes, and determini
   assert.deepEqual(JSON.parse(readFileSync(output, "utf8")), report);
   assert.equal(report.initial.raw_bytes < INITIAL_RAW_LIMIT, true);
   assert.equal(report.initial.gzip_bytes < INITIAL_GZIP_LIMIT, true);
+});
+
+test("reports matched WHO metadata and validates its deferred cache group", (t) => {
+  const fixturePaths = fixture(t, { release: "expo-web-v1", whoComponent: true });
+  const report = profileExpoWeb({ dist: fixturePaths.dist, requireWhoComponent: true });
+  assert.deepEqual(report.who_component, {
+    package_name: "@drguptavivek/who-2022-va",
+    package_version: "1.2.3",
+    source_commit: "a".repeat(40),
+    artifact_sha256: "b".repeat(64),
+    dist_sha256: "c".repeat(64),
+  });
+});
+
+test("CLI enables strict WHO validation with --require-who", (t) => {
+  const fixturePaths = fixture(t, { whoComponent: true });
+  const output = join(fixturePaths.dist, "profile.json");
+  execFileSync(process.execPath, [
+    fileURLToPath(new URL("../profile-expo-web.mjs", import.meta.url)),
+    fixturePaths.dist, output, "--require-who",
+  ], { stdio: "pipe" });
+  assert.deepEqual(JSON.parse(readFileSync(output, "utf8")).who_component, {
+    package_name: "@drguptavivek/who-2022-va",
+    package_version: "1.2.3",
+    source_commit: "a".repeat(40),
+    artifact_sha256: "b".repeat(64),
+    dist_sha256: "c".repeat(64),
+  });
+});
+
+test("requires WHO metadata for production releases even without the CLI flag", (t) => {
+  const fixturePaths = fixture(t, { release: "expo-web-v1", group: false });
+  assert.throws(() => profileExpoWeb({ dist: fixturePaths.dist }), /WHO component metadata is missing/);
+});
+
+test("rejects invalid WHO component metadata", (t) => {
+  for (const [field, value, pattern] of [
+    ["package_name", "wrong", /package_name/],
+    ["package_version", "1", /package_version/],
+    ["artifact_sha256", "bad", /artifact_sha256/],
+    ["dist_sha256", "bad", /dist_sha256/],
+    ["source_commit", "b".repeat(40), /source_commit/],
+  ]) {
+    const fixturePaths = fixture(t, { whoComponent: true });
+    const manifestPath = join(fixturePaths.dist, "asset-manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.components.who[field] = value;
+    writeFileSync(manifestPath, JSON.stringify(manifest));
+    assert.throws(() => profileExpoWeb({ dist: fixturePaths.dist, requireWhoComponent: true }), pattern, field);
+  }
+});
+
+test("requires a non-empty untampered WHO interviewRuntime group containing the deferred instrument", (t) => {
+  const empty = fixture(t, { whoComponent: true, group: true });
+  const emptyManifest = JSON.parse(readFileSync(join(empty.dist, "asset-manifest.json"), "utf8"));
+  emptyManifest.groups.interviewRuntime = [];
+  writeFileSync(join(empty.dist, "asset-manifest.json"), JSON.stringify(emptyManifest));
+  assert.throws(() => profileExpoWeb({ dist: empty.dist, requireWhoComponent: true }), /group is empty/);
+
+  const tampered = fixture(t, { whoComponent: true, group: true });
+  const tamperedManifest = JSON.parse(readFileSync(join(tampered.dist, "asset-manifest.json"), "utf8"));
+  tamperedManifest.groups.interviewRuntime = [`/app/${tampered.deferred}`];
+  writeFileSync(join(tampered.dist, "asset-manifest.json"), JSON.stringify(tamperedManifest));
+  assert.throws(() => profileExpoWeb({ dist: tampered.dist, requireWhoComponent: true }), /canonical deferred instrument/);
 });
 
 test("rejects a tampered ordinary manifest asset hash", (t) => {

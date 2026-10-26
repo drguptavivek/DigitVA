@@ -27,6 +27,9 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapMentorInstituteUser,
+    MasMentorInstitute,
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -35,22 +38,16 @@ from app.models import (
     VaUserAccessGrants,
 )
 
-# An explicit allowlist, so a role added later redacts until someone decides
-# otherwise (a deny-list fails open). Membership per
-# docs/policy/access-control-model.md: project_pi and the In-charge (site_pi)
-# see every screen "with personal data"; collaborator_pii exists to see it.
-# The rollout note under "collaborator" narrowed only that role, so admin,
-# data_manager, coder, coding_tester, reviewer and interviewer keep the
-# personal data they saw before the viewer split. Left out: collaborator
-# (redacted by definition), death_reporter (its intake serializers do not
-# redact, so it needs no lift; digitva-t6q) and interview_supervisor, whose identifier access
-# is confined to the intake worklist and case views (docs/policy/web-intake.md,
-# "Privacy rule (item 14)") and never lifts this redaction.
+# Roles that can contribute to PII visibility depending on tier and project mode
+# (docs/policy/access-control-model.md, "The Three-Tier Mental Model & PII Boundary").
+# Tier 3 (Health System Operations: org_unit scope, non-mentoring-institute) sees PII;
+# Tier 1 (Project scope on tree projects) and Tier 2 (Mentoring Institute) are Non-PII.
 _PII_GRANTING_ROLES = frozenset({
     VaAccessRoles.admin,
     VaAccessRoles.project_pi,
     VaAccessRoles.site_pi,
     VaAccessRoles.data_manager,
+    VaAccessRoles.interview_supervisor,
     VaAccessRoles.coder,
     VaAccessRoles.coding_tester,
     VaAccessRoles.reviewer,
@@ -62,18 +59,11 @@ _PII_GRANTING_ROLES = frozenset({
 def should_redact_pii(user, *, _grants=None) -> bool:
     """Return True if ``user`` must not see subject PII or staff identity.
 
-    False (do not redact) when the user holds a live grant in
-    ``_PII_GRANTING_ROLES``. A user with no such grant, or no grants at all,
-    gets True: this helper only governs what a read-only view may display
-    once access has already been granted elsewhere — it is not an access
-    check.
-
-    "Live" is the authz grant relation (``resolve_grants``): an active grant
-    on an active project, and for a pair or unit grant an active pair or
-    unit. Reusing it keeps redaction in step with the resolvers, so a grant
-    that opens no screen (closed project, deactivated unit or pair) cannot
-    switch redaction off on screens reached through another grant.
-    Demo-training virtual grants are ignored: they are derived, not held.
+    False (do not redact) when the user is an admin or holds a live PII-granting
+    grant per ``ResolvedGrants.is_pii_grant`` (Tier 3 In-System unit grants on
+    tree projects, or ``SITES_MODE_PII_ROLES`` on sites-only projects).
+    Tier 1 (project-level roles on tree projects) and Tier 2 (Mentoring Institute
+    members) return True (redacted).
     """
     # Imported here: app.services.authz imports this module at package load.
     from app.services.authz.grants import resolve_grants
@@ -84,7 +74,7 @@ def should_redact_pii(user, *, _grants=None) -> bool:
     if resolved.is_admin:
         return False
     return not any(
-        g.role in _PII_GRANTING_ROLES and not g.virtual for g in resolved.grants
+        resolved.is_pii_grant(g) for g in resolved.grants
     )
 
 
@@ -94,17 +84,12 @@ def pii_visible_user_ids(
     """The subset of *user_ids* for whom ``should_redact_pii`` is False, in one
     query: the people page asks it per person, never per row.
 
-    Same role set (``_PII_GRANTING_ROLES``) and the same liveness as
-    ``authz.grants._load_grants``: an active grant on an active project, and
-    for a unit or pair grant an active unit or pair; a global grant counts
-    only as ``admin``. Demo-training virtual grants are never rows, so they
-    cannot count here either. tests/test_people_roles.py pins the parity.
-
-    With *project_id* only grants that resolve to that project count (the
-    people page asks "in this project"); a global admin still counts, as
-    ``should_redact_pii`` is False for an admin everywhere.
+    Matches ``ResolvedGrants.is_pii_grant`` and the liveness rules of
+    ``authz.grants._load_grants``. With *project_id* only grants that resolve
+    to that project count (plus global admins).
     """
     # Imported here: app.services.authz imports this module at package load.
+    from app.services.authz.grants import SITES_MODE_PII_ROLES, TIER3_UNIT_PII_ROLES
     from app.services.org_grant_service import active_project_condition
 
     ids = sorted(set(user_ids))
@@ -113,7 +98,56 @@ def pii_visible_user_ids(
     grant = VaUserAccessGrants
     site = sa.orm.aliased(VaProjectSites, name="pii_grant_site")
     unit = sa.orm.aliased(MasOrgUnit, name="pii_grant_unit")
+    level = sa.orm.aliased(MasOrgLevel, name="pii_grant_level")
+    tree_unit = sa.orm.aliased(MasOrgUnit, name="pii_tree_unit")
     resolved_project = sa.func.coalesce(grant.project_id, site.project_id, unit.project_id)
+    has_tree_cond = sa.exists(
+        sa.select(1)
+        .select_from(tree_unit)
+        .where(
+            tree_unit.project_id == resolved_project,
+            tree_unit.is_active.is_(True),
+        )
+    )
+    is_mentor_cond = sa.exists(
+        sa.select(1)
+        .select_from(MapMentorInstituteUser)
+        .join(
+            MasMentorInstitute,
+            MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
+        )
+        .where(
+            MapMentorInstituteUser.user_id == grant.user_id,
+            MapMentorInstituteUser.is_active.is_(True),
+            MasMentorInstitute.is_active.is_(True),
+        )
+    )
+    live_scope_cond = sa.or_(
+        sa.and_(grant.scope_type == VaAccessScopeTypes.project, grant.project_id.is_not(None)),
+        sa.and_(grant.scope_type == VaAccessScopeTypes.project_site, site.project_site_id.is_not(None)),
+        sa.and_(
+            grant.scope_type == VaAccessScopeTypes.org_unit,
+            unit.org_unit_id.is_not(None),
+            level.org_level_id.is_not(None),
+        ),
+    )
+    non_mentor_or_dm = sa.or_(~is_mentor_cond, grant.role == VaAccessRoles.data_manager)
+    pii_grant_cond = sa.or_(
+        grant.role.in_(
+            (
+                VaAccessRoles.admin,
+                VaAccessRoles.collaborator_pii,
+                VaAccessRoles.interviewer,
+            )
+        ),
+        sa.and_(~has_tree_cond, non_mentor_or_dm, grant.role.in_(SITES_MODE_PII_ROLES)),
+        sa.and_(
+            has_tree_cond,
+            grant.scope_type == VaAccessScopeTypes.org_unit,
+            non_mentor_or_dm,
+            grant.role.in_(TIER3_UNIT_PII_ROLES),
+        ),
+    )
     return set(db.session.scalars(
         sa.select(grant.user_id)
         .distinct()
@@ -126,10 +160,13 @@ def pii_visible_user_ids(
             unit.org_unit_id == grant.org_unit_id,
             unit.is_active.is_(True),
         ))
+        .outerjoin(level, sa.and_(
+            level.org_level_id == unit.org_level_id,
+            level.is_active.is_(True),
+        ))
         .where(
             grant.user_id.in_(ids),
             grant.grant_status == VaStatuses.active,
-            grant.role.in_(_PII_GRANTING_ROLES),
             sa.or_(
                 sa.and_(
                     grant.scope_type == VaAccessScopeTypes.global_scope,
@@ -139,6 +176,8 @@ def pii_visible_user_ids(
                     resolved_project.is_not(None),
                     resolved_project == project_id if project_id is not None else sa.true(),
                     active_project_condition(resolved_project),
+                    live_scope_cond,
+                    pii_grant_cond,
                 ),
             ),
         )

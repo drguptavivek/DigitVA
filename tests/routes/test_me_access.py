@@ -80,7 +80,8 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         self.assertNotIn("P2", units)
         self.assertNotIn("D2", units)
         self.assertEqual([lv["depth"] for lv in project["levels"]][:2], [1, 2])
-        self.assertEqual(project["levels"][0]["level_code"], "district")
+        self.assertEqual(project["levels"][0]["level_code"], "state")
+        self.assertEqual(project["levels"][1]["level_code"], "district")
         self.assertEqual(set(units["P1"]), {
             "org_unit_id", "unit_code", "unit_name", "level_code", "depth", "parent_code",
             "path", "is_active", "roles", "selectable", "can_code"})

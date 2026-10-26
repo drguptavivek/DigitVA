@@ -437,3 +437,153 @@ class ProjectSetupPanelTests(BaseTestCase):
         locked = self.client.get(url + "&locked=1").get_data(as_text=True)
         self.assertIn(f'<option value="{self.BASE_SITE_ID}"', locked)
         self.assertNotIn('<option value="SO01"', locked)
+
+    # ── Project Users Grid & 2-Dropdown Bulk Apply (digitva-dus.4) ───────────
+
+    def test_setup_page_renders_live_operations_and_users_grid_controls(self):
+        self._login(self.base_admin_id)
+        body = self.client.get(
+            f"/admin/panels/project-setup/{self.ORG_PROJECT}"
+        ).get_data(as_text=True)
+        self.assertIn("Live Operations", body)
+        self.assertIn("One-Time Setup Wizard", body)
+        self.assertIn('id="setup-users-bulk-bar"', body)
+        self.assertIn('id="setup-ug-bulk-op"', body)
+        self.assertIn('id="setup-ug-bulk-scope"', body)
+        self.assertIn('value="coder_non_pii"', body)
+        self.assertIn('value="reviewer_non_pii"', body)
+        self.assertIn('id="org-unit-deactivate-modal"', body)
+        self.assertIn("admin-sidebar-collapsed", body)
+        self.assertIn("Three-Tier PII Boundary", body)
+        self.assertIn("Who can view cases WITHOUT PII (de-identified)?", body)
+
+    def test_users_grid_requires_project_access(self):
+        self._login(self.base_coder_id)
+        res = self.client.get(f"/admin/api/projects/{self.ORG_PROJECT}/users-grid")
+        self.assertIn(res.status_code, (302, 403))
+
+        self._login(self.base_project_pi_id)  # PI of BASE_PROJECT_ID, not ORG_PROJECT
+        res_other = self.client.get(f"/admin/api/projects/{self.ORG_PROJECT}/users-grid")
+        self.assertEqual(res_other.status_code, 403)
+
+    def test_users_grid_and_two_dropdown_bulk_apply_workflow(self):
+        from app.services import organization_service as org
+
+        org.seed_default_organization(self.ORG_PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.ORG_PROJECT)}
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.ORG_PROJECT)}
+
+        dist = org.create_unit(
+            self.ORG_PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="DIST1",
+            unit_name="District 1",
+        )
+        chc = org.create_unit(
+            self.ORG_PROJECT,
+            org_level_id=levels["chc"].org_level_id,
+            parent_org_unit_id=dist.org_unit_id,
+            unit_code="CHC1",
+            unit_name="CHC 1",
+        )
+        phc1 = org.create_unit(
+            self.ORG_PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="PHC1",
+            unit_name="PHC One",
+        )
+        phc2 = org.create_unit(
+            self.ORG_PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="PHC2",
+            unit_name="PHC Two",
+        )
+        phc3 = org.create_unit(
+            self.ORG_PROJECT,
+            org_level_id=levels["phc"].org_level_id,
+            parent_org_unit_id=chc.org_unit_id,
+            unit_code="PHC3",
+            unit_name="PHC Three",
+        )
+        org.create_worker(
+            self.ORG_PROJECT,
+            org_unit_id=phc1.org_unit_id,
+            cadre_id=cadres["MO"].cadre_id,
+            worker_name="Dr Coder One",
+            phone="9876543210",
+            user=self.base_coder_user,
+        )
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        coder_uid = str(self.base_coder_id)
+
+        # 1. Initial users-grid shows the worker in ORG_PROJECT
+        grid_res = self.client.get(f"/admin/api/projects/{self.ORG_PROJECT}/users-grid")
+        self.assertEqual(grid_res.status_code, 200, grid_res.get_json())
+        grid = grid_res.get_json()
+        user_row = next(u for u in grid["users"] if u["user_id"] == coder_uid)
+        self.assertEqual(user_row["primary_worker"]["unit_code"], "PHC1")
+        self.assertEqual(user_row["primary_worker"]["cadre_code"], "MO")
+
+        # 2. Bulk apply: In-System Coder on own home unit (Tier 3 In-System Doctor => coding_pii)
+        apply_own = self.client.post(
+            f"/admin/api/projects/{self.ORG_PROJECT}/users-grid/bulk-apply",
+            json={
+                "user_ids": [coder_uid],
+                "operation": "coder_non_pii",
+                "scope_mode": "own",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(apply_own.status_code, 200, apply_own.get_json())
+        row_own = next(u for u in apply_own.get_json()["users"] if u["user_id"] == coder_uid)
+        self.assertEqual(row_own["pii_status"]["tier"], "coding_pii")
+        coder_grp = next(g for g in row_own["grouped_unit_roles"] if g["role_key"] == "coder_pii")
+        self.assertEqual(coder_grp["scope_kind"], "own")
+        self.assertEqual([x["unit_code"] for x in coder_grp["units"]], ["PHC1"])
+
+        # 3. Bulk apply: In-System Coder on Cross-Tree (all OTHER PHCs: PHC2, PHC3; revokes PHC1; still Tier 3 PII)
+        apply_cross = self.client.post(
+            f"/admin/api/projects/{self.ORG_PROJECT}/users-grid/bulk-apply",
+            json={
+                "user_ids": [coder_uid],
+                "operation": "coder_non_pii",
+                "scope_mode": "cross_level",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(apply_cross.status_code, 200, apply_cross.get_json())
+        row_cross = next(u for u in apply_cross.get_json()["users"] if u["user_id"] == coder_uid)
+        self.assertEqual(row_cross["pii_status"]["tier"], "coding_pii")
+        coder_pii_grp = next(g for g in row_cross["grouped_unit_roles"] if g["role_key"] == "coder_pii")
+        self.assertEqual(coder_pii_grp["scope_kind"], "cross_level")
+        self.assertEqual(sorted(x["unit_code"] for x in coder_pii_grp["units"]), ["PHC2", "PHC3"])
+
+        # 4. Revoke unit coding roles and grant Tier 1 Project-wide Coder => Non-PII (blinded)
+        self.client.post(
+            f"/admin/api/projects/{self.ORG_PROJECT}/users-grid/bulk-apply",
+            json={
+                "user_ids": [coder_uid],
+                "operation": "revoke_coder",
+                "scope_mode": "cross_level",
+            },
+            headers=self._csrf_headers(),
+        )
+        proj_coder = self.client.post(
+            f"/admin/api/projects/{self.ORG_PROJECT}/users-grid/bulk-apply",
+            json={
+                "user_ids": [coder_uid],
+                "operation": "coder_non_pii",
+                "scope_mode": "project",
+            },
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(proj_coder.status_code, 200, proj_coder.get_json())
+        row_proj = next(u for u in proj_coder.get_json()["users"] if u["user_id"] == coder_uid)
+        self.assertEqual(row_proj["pii_status"]["tier"], "non_pii")
+        self.assertEqual(row_proj["project_grants"][0]["role"], "coder")
+        self.assertFalse(row_proj["project_grants"][0]["with_pii"])
+

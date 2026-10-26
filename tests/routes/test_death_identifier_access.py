@@ -641,7 +641,7 @@ class IdentifierAccessTests(IdentifierFixture):
         case = self._submitted_case(self.wally, identifiers={"crs": number, "mccd": "mccd/12"})
         key = str(case.death_id)
         decoy = self._submitted_case(self.wally, identifiers={"crs": _number()})
-        for user in (self.sam, self.dana, self.incharge, self.pip, self.admin, self.pat):
+        for user in (self.sam, self.dana, self.incharge, self.admin, self.pat):
             page = self._listed(user, f"identifier_number={number}")
             self.assertEqual([c["death_id"] for c in page["cases"]], [key], user.email)
             self.assertEqual(page["counts"]["total"], 1, user.email)
@@ -655,7 +655,7 @@ class IdentifierAccessTests(IdentifierFixture):
         self.assertEqual(self._listed(self.sam, f"identifier_number={number}0")["cases"], [])
         self.assertNotIn(str(decoy.death_id), {c["death_id"] for c in self._listed(self.sam, f"identifier_number={number}")["cases"]})
         # Badge-only viewers reach the case (subject present) and get nothing, no error.
-        for user in (self.cody, self.cole, self.carl, self.rex, self.tess):
+        for user in (self.pip, self.cody, self.cole, self.carl, self.rex, self.tess):
             self.assertIn(key, {c["death_id"] for c in self._listed(user, "")["cases"]}, user.email)
             page = self._listed(user, f"identifier_number={number}")
             self.assertEqual((page["cases"], page["counts"]["total"]), ([], 0), user.email)
@@ -913,7 +913,7 @@ class IdentifierAccessTests(IdentifierFixture):
     def test_a_supervising_caller_gets_the_trimmed_row_and_a_field_caller_the_detail(self):
         case = self._submitted_case(self.wally, identifiers={"crs": _number()})
         contact = ("informant", "household_address", "links", "my_draft_id", "prefill", "deceased")
-        for who in (self.sam, self.incharge, self.pip, self.admin):
+        for who in (self.sam, self.incharge, self.dana, self.admin):
             response = self._write(who, case.death_id, crs=_number())
             self.assertEqual(response.status_code, 200, who.email)
             body = response.get_json()["case"]
@@ -923,6 +923,11 @@ class IdentifierAccessTests(IdentifierFixture):
             for key in contact:
                 self.assertNotIn(key, body, (who.email, key))
             self.assertNotIn("phone", str(body))
+        pip_resp = self._write(self.pip, case.death_id, crs=_number())
+        self.assertEqual(pip_resp.status_code, 200)
+        pip_body = pip_resp.get_json()["case"]
+        self.assertTrue(pip_body["identifiers"][0]["present"])
+        self.assertNotIn("value", pip_body["identifiers"][0])
         # An interviewer who interviewed it keeps the interviewer detail.
         self._interviewed_by(case, self.ian)
         own = self._write(self.ian, case.death_id, crs=_number()).get_json()["case"]

@@ -24,6 +24,8 @@ from flask import g, has_request_context, request
 
 from app import db
 from app.models import (
+    MapMentorInstituteUser,
+    MasMentorInstitute,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -52,6 +54,32 @@ _U = VaAccessScopeTypes.org_unit
 # Roles whose gate opens on a project or pair grant only once it reaches a form.
 _NEEDS_FORM_ON_ACTIVE_PAIR = frozenset({VaAccessRoles.coder, VaAccessRoles.coding_tester})
 _NEEDS_FORM = frozenset({VaAccessRoles.reviewer, VaAccessRoles.interviewer})
+
+# Tier 3 roles that grant PII when held at org_unit scope by non-mentor-institute staff
+# (docs/policy/access-control-model.md, "The Three-Tier Mental Model & PII Boundary").
+TIER3_UNIT_PII_ROLES = frozenset({
+    VaAccessRoles.site_pi,               # In-charge
+    VaAccessRoles.data_manager,          # Unit Data Manager (also Exceptional PII)
+    VaAccessRoles.interview_supervisor,  # Interview Supervisor
+    VaAccessRoles.interviewer,           # Interviewer
+    VaAccessRoles.coder,                 # In-System Doctor (Coder)
+    VaAccessRoles.coding_tester,         # In-System Doctor (Coding Tester)
+    VaAccessRoles.reviewer,              # In-System Doctor (Reviewer)
+    VaAccessRoles.collaborator_pii,      # Legacy explicit PII viewer
+})
+
+# Roles that grant PII in a legacy sites-only project (no organization tree).
+SITES_MODE_PII_ROLES = frozenset({
+    VaAccessRoles.project_pi,
+    VaAccessRoles.site_pi,
+    VaAccessRoles.data_manager,
+    VaAccessRoles.interview_supervisor,
+    VaAccessRoles.interviewer,
+    VaAccessRoles.coder,
+    VaAccessRoles.coding_tester,
+    VaAccessRoles.reviewer,
+    VaAccessRoles.collaborator_pii,
+})
 
 # A device bearer credential is a collection/coding credential.  Keeping this
 # projection here means every authz predicate, including the admin bypasses,
@@ -126,6 +154,7 @@ class ResolvedGrants:
     is_admin: bool
     grants: tuple[Grant, ...]
     projects: dict[str, ProjectSettings] = field(default_factory=dict)
+    is_mentor_member: bool = False
 
     # -- selection ---------------------------------------------------------
 
@@ -201,6 +230,34 @@ class ResolvedGrants:
             g.project_id for g in self.dm_grants() if self.has_tree(g.project_id)
         )
 
+    def is_pii_grant(self, grant: Grant) -> bool:
+        """Whether *grant* confers PII access under the Three-Tier Model (digitva-ewa5).
+
+        - Tier 1 (Project scope on an organization-tree project): Non-PII.
+        - Tier 2 (Mentoring Institute member, or project_site scope on an
+          organization-tree project): Non-PII (except an explicit data_manager
+          unit override or legacy collaborator_pii).
+        - Tier 3 (Health-system unit grant on an organization-tree project for a
+          non-mentor-institute user): All PII for In-charge (site_pi), Unit Data
+          Manager (data_manager), Interview Supervisor, Interviewer, and In-System
+          Doctors (coder, reviewer).
+        - Sites-only projects (no organization tree): operational roles keep PII,
+          while project_pi (Tier 1) and plain collaborator remain Non-PII.
+        """
+        if grant.virtual:
+            return False
+        if grant.role in (VaAccessRoles.collaborator_pii, VaAccessRoles.interviewer):
+            return True
+        if self.has_tree(grant.project_id):
+            if grant.scope_type != _U:
+                return False
+            if self.is_mentor_member and grant.role != VaAccessRoles.data_manager:
+                return False
+            return grant.role in TIER3_UNIT_PII_ROLES
+        if self.is_mentor_member and grant.role != VaAccessRoles.data_manager:
+            return False
+        return grant.role in SITES_MODE_PII_ROLES
+
     def digest(self) -> str:
         """Short stable hash of the grants, for cache keys."""
         raw = "|".join(sorted(
@@ -208,7 +265,9 @@ class ResolvedGrants:
             f":{int(g.virtual)}"
             for g in self.grants
         ))
-        return hashlib.sha1(f"{int(self.is_admin)}#{raw}".encode()).hexdigest()[:16]
+        return hashlib.sha1(
+            f"{int(self.is_admin)}:{int(self.is_mentor_member)}#{raw}".encode()
+        ).hexdigest()[:16]
 
 
 # ---------------------------------------------------------------------------
@@ -217,8 +276,7 @@ class ResolvedGrants:
 
 def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant], bool]:
     """``(is_admin, grants, public_demo)``: the user's live grants, and on the
-    same rows whether the account is a public-demo one (False when it has no
-    grant rows, when it could not be demo-training eligible anyway)."""
+    same rows whether the account is a public-demo one."""
     grant = VaUserAccessGrants
     site = sa.orm.aliased(VaProjectSites, name="authz_grant_site")
     unit = sa.orm.aliased(MasOrgUnit, name="authz_grant_unit")
@@ -353,8 +411,12 @@ def _load_projects(project_ids: set[str]) -> dict[str, ProjectSettings]:
 
 
 def _implied_interviewer_grants(
-    user_id: uuid.UUID, grants: list[Grant], projects: dict[str, ProjectSettings]
-) -> list[Grant]:
+    user_id: uuid.UUID,
+    grants: list[Grant],
+    projects: dict[str, ProjectSettings],
+    *,
+    is_mentor_member: bool | None = None,
+) -> tuple[list[Grant], bool]:
     """An interviewer grant for each coder grant that codes (coding scope rule;
     a view-only above-scope coder gets none) on a self-coding project, at
     the same scope: derived here, never written (access-control-model.md,
@@ -370,11 +432,13 @@ def _implied_interviewer_grants(
         and scope.codes(g)
     ]
     if not coders:
-        return []
-    from app.services.mentor_institute_service import member_user_ids
+        return [], bool(is_mentor_member)
+    if is_mentor_member is None:
+        from app.services.mentor_institute_service import member_user_ids
 
-    if user_id in member_user_ids([user_id]):
-        return []
+        is_mentor_member = user_id in member_user_ids([user_id])
+    if is_mentor_member:
+        return [], True
     explicit = {
         (g.scope_type, g.project_id, g.project_site_id, g.org_unit_id)
         for g in grants if g.role == VaAccessRoles.interviewer
@@ -383,15 +447,27 @@ def _implied_interviewer_grants(
         dataclasses.replace(g, role=VaAccessRoles.interviewer, source="self_coding")
         for g in coders
         if (g.scope_type, g.project_id, g.project_site_id, g.org_unit_id) not in explicit
-    ]
+    ], False
 
 
 def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
     is_admin, grants, public_demo = _load_grants(user_id)
     projects = _load_projects({g.project_id for g in grants})
+    is_mentor_member: bool | None = None
+    if any(
+        g.scope_type == _U
+        and g.role in (VaAccessRoles.coder, VaAccessRoles.reviewer, VaAccessRoles.coding_tester)
+        for g in grants
+    ):
+        from app.services.mentor_institute_service import member_user_ids
+
+        is_mentor_member = user_id in member_user_ids([user_id])
+    implied, is_mentor_member = _implied_interviewer_grants(
+        user_id, grants, projects, is_mentor_member=is_mentor_member
+    )
     # Demo coding and reviewing only for people who code or review somewhere
     # (owner 2026-10-03): an interviewer, ASHA or viewer never sees coding.
-    grants.extend(_implied_interviewer_grants(user_id, grants, projects))
+    grants.extend(implied)
     # A public-demo account never gets the demo-training grants: they would
     # widen it past its own project (docs/policy/public-demo.md section 3).
     demo_eligible = not public_demo and (
@@ -405,7 +481,11 @@ def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
             for role in sorted(DEMO_VIRTUAL_ROLES, key=lambda r: r.value)
         )
     return ResolvedGrants(
-        user_id=user_id, is_admin=is_admin, grants=tuple(grants), projects=projects
+        user_id=user_id,
+        is_admin=is_admin,
+        grants=tuple(grants),
+        projects=projects,
+        is_mentor_member=is_mentor_member,
     )
 
 

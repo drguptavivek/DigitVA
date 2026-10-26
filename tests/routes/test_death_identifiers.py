@@ -115,8 +115,8 @@ class IdentifierFixture(BaseTestCase):
                 parent_org_unit_id=parent.org_unit_id if parent else None,
             )
 
-        dst = unit("DST", "district")
-        ch1 = unit("CH1", "chc", dst)
+        cls.dst = unit("DST", "district")
+        ch1 = unit("CH1", "chc", cls.dst)
         ph1, ph2 = unit("PH1", "phc", ch1), unit("PH2", "phc", ch1)
         cls.sca, cls.scb = unit("SCA", "subcentre", ph1), unit("SCB", "subcentre", ph1)
         cls.scc = unit("SCC", "subcentre", ph2)
@@ -154,6 +154,7 @@ class IdentifierFixture(BaseTestCase):
             return person
 
         whole = (VaAccessScopeTypes.project, PROJECT)
+        at_dst = (VaAccessScopeTypes.org_unit, cls.dst)
         at_ph1 = (VaAccessScopeTypes.org_unit, ph1)
         at_sca = (VaAccessScopeTypes.org_unit, cls.sca)
         elsewhere = (VaAccessScopeTypes.project, SITES_PROJECT)
@@ -161,7 +162,7 @@ class IdentifierFixture(BaseTestCase):
         cls.wally = user("wally", (R.interviewer, whole, None))
         cls.rita = user("rita", (R.death_reporter, at_sca, "ANM"))
         cls.sam = user("sam", (R.interview_supervisor, at_ph1, "MO"))
-        cls.dana = user("dana", (R.data_manager, whole, None))
+        cls.dana = user("dana", (R.data_manager, at_dst, None))
         cls.pip = user("pip", (R.project_pi, whole, None))
         cls.incharge = user("incharge", (R.site_pi, at_ph1, "MO"))
         cls.pat = user("pat", (R.collaborator_pii, whole, None))
@@ -557,12 +558,13 @@ class DeathIdentifierTests(IdentifierFixture):
     # -- visibility ------------------------------------------------------------
 
     def test_value_visibility_follows_the_project_role_not_the_pii_redaction(self):
-        seeing = {"admin": self.admin, "project_pi": self.pip, "site_pi": self.incharge, "supervisor": self.sam,
+        seeing = {"admin": self.admin, "site_pi": self.incharge, "supervisor": self.sam,
                   "data_manager": self.dana, "interviewer": self.ian, "death_reporter": self.rita,
                   "collaborator_pii": self.pat}
         for name, user in seeing.items():
             self.assertEqual(ids.identifier_values_visible(user, {PROJECT}), {PROJECT}, name)
-        badge_only = {"coder": self.cody, "coding_tester": self.tess, "reviewer": self.rex, "collaborator": self.cole}
+        badge_only = {"project_pi": self.pip, "coder": self.cody, "coding_tester": self.tess,
+                      "reviewer": self.rex, "collaborator": self.cole}
         for name, user in badge_only.items():
             self.assertEqual(ids.identifier_values_visible(user, {PROJECT}), set(), name)
         # A coder here who holds a PII-lifting grant in another project.
@@ -574,12 +576,12 @@ class DeathIdentifierTests(IdentifierFixture):
         value = _number()
         case = self._submitted(self.ian, self.sca, {"crs": value})
         key = str(case.death_id)
-        for user in (self.ian, self.sam, self.dana, self.pat, self.pip):
+        for user in (self.ian, self.sam, self.dana, self.pat, self.incharge):
             row = self._list_cases(user)[key]
             self.assertEqual(
                 row["identifiers"], [{"code": "crs", "label": "CRS number", "value": value},
                                      {"code": "mccd", "label": "MCCD number", "value": None}], user.email)
-        for user in (self.cody, self.carl, self.cole):
+        for user in (self.pip, self.cody, self.carl, self.cole):
             row = self._list_cases(user)[key]  # reached through the submission
             self.assertEqual(row["identifiers"], [
                 {"code": "crs", "label": "CRS number", "present": True},

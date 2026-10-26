@@ -269,7 +269,7 @@ class OrgUnitRoutingTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         self.assertEqual(outcome.resolution, routing.RESOLUTION_MAPPING_FALLBACK)
 
         # An inactive fallback is no fallback.
-        org.set_unit_active(self.PROJECT, district.org_unit_id, False)
+        org.set_unit_active(self.PROJECT, district.org_unit_id, False, cascade_deactivate_children=True)
         db.session.commit()
         outcome = routing.resolve_submission_org_unit(
             self._context(fallback=district.org_unit_id), {}
@@ -710,6 +710,7 @@ class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
         self.assertEqual(
             [item["field_name"] for item in expected],
             [
+                "org_state_code",
                 "org_district_code",
                 "org_taluka_code",
                 "org_chc_code",
@@ -718,9 +719,11 @@ class OdkFieldPreflightTests(OrgUnitRoutingFixtureMixin, BaseTestCase):
                 "org_village_code",
             ],
         )
-        self.assertEqual(expected[0]["choice_list_name"], "org_district")
-        self.assertTrue(expected[1]["is_optional"])  # taluka
-        self.assertTrue(expected[5]["is_optional"])  # village: often has no code
+        self.assertEqual(expected[0]["choice_list_name"], "org_state")
+        self.assertEqual(expected[1]["choice_list_name"], "org_district")
+        self.assertTrue(expected[0]["is_optional"])  # state
+        self.assertTrue(expected[2]["is_optional"])  # taluka
+        self.assertTrue(expected[6]["is_optional"])  # village: often has no code
 
     def test_check_reports_present_and_missing_fields(self):
         self._tree()

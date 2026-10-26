@@ -219,17 +219,21 @@ def _first_unreadable(user: VaUsers, plan: ExportPlan):
 
 def export_roles(user: VaUsers, project_ids) -> dict[str, str]:
     """``{project_id: role}`` for the projects among *project_ids* where *user*
-    may export registration numbers (decision 9): ``admin`` everywhere
-    (admin is a PII holder in the current code), else the live ASSIGNED
-    ``data_manager``, ``project_pi`` or ``site_pi`` grant there, which is also
-    the role the audit row names. Narrower than ``identifier_values_visible``
-    (no supervisor, interviewer, reporter or ``collaborator_pii``)."""
+    may export registration numbers (decision 9 & Three-Tier PII Model):
+    ``admin`` everywhere, else the live ASSIGNED PII-granting (``is_pii_grant``)
+    ``data_manager``, ``project_pi`` (sites mode) or ``site_pi`` (In-charge)
+    grant there, which is also the role the audit row names."""
     wanted = set(project_ids)
     resolved = resolve_grants(user)
     if resolved.is_admin:
         return {p: "admin" for p in wanted}
     held: dict[str, set[str]] = {}
     for g in resolved.grants:
-        if not g.virtual and g.source == "assigned" and g.project_id in wanted:
+        if (
+            not g.virtual
+            and g.source == "assigned"
+            and g.project_id in wanted
+            and resolved.is_pii_grant(g)
+        ):
             held.setdefault(g.project_id, set()).add(g.role.value)
     return {p: next(r for r in EXPORT_ROLES if r in roles) for p, roles in held.items() if roles & set(EXPORT_ROLES)}

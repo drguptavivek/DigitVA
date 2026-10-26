@@ -718,11 +718,17 @@ class InterviewSupervisorTests(BaseTestCase):
         db.session.commit()
         url = f"/api/v1/intake/supervision/cases/{noted.death_id}"
 
-        self._login(str(self.dana.user_id))  # data_manager: PII allowed
+        self._login(str(self.vera.user_id))  # Tier 3 unit data_manager: PII allowed
         full = self.client.get(url).get_json()["visit_note"]
         self.assertEqual(full, {"date": "2026-10-01", "address": "12 Lane 4", "remarks": "Met the widow", "redacted": False})
 
-        self._login(str(self.sam.user_id))  # interview_supervisor: redacted
+        self._login(str(self.sam.user_id))  # Tier 3 interview_supervisor: PII allowed
+        self.assertEqual(
+            self.client.get(url).get_json()["visit_note"],
+            {"date": "2026-10-01", "address": "12 Lane 4", "remarks": "Met the widow", "redacted": False},
+        )
+
+        self._login(str(self.dana.user_id))  # Tier 1 project data_manager: redacted
         self.assertEqual(
             self.client.get(url).get_json()["visit_note"],
             {"date": "2026-10-01", "address": None, "remarks": None, "redacted": True},

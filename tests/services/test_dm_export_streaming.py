@@ -172,6 +172,11 @@ class DmExportStreamingTests(BaseTestCase):
         )
         db.session.add_all([root, child])
         db.session.flush()
+        db.session.add(VaUserAccessGrants(
+            user_id=USER_ID, role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=root.org_unit_id,
+            grant_status=VaStatuses.active,
+        ))
 
         # (sid, form, payload, org unit, review comments, collector)
         cls.sids = []

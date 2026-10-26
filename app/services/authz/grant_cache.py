@@ -42,6 +42,8 @@ from sqlalchemy import event, inspect
 from sqlalchemy.orm import Session
 
 from app.models import (
+    MapMentorInstituteUser,
+    MasMentorInstitute,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -70,6 +72,7 @@ _GLOBAL_COLUMNS = {
     VaForms: ("form_status", "project_id"),
     MasOrgUnit: None,   # any column: path, parent, level, is_active, project
     MasOrgLevel: None,
+    MasMentorInstitute: ("is_active",),
 }
 
 
@@ -103,6 +106,7 @@ def encode(resolved: ResolvedGrants) -> str:
         "format": _FORMAT,
         "user_id": str(resolved.user_id),
         "is_admin": resolved.is_admin,
+        "is_mentor_member": resolved.is_mentor_member,
         "grants": [
             [g.role.value, g.scope_type.value, g.project_id, g.site_id,
              str(g.project_site_id) if g.project_site_id else None,
@@ -174,6 +178,7 @@ def decode(raw, user_id: uuid.UUID) -> ResolvedGrants:
         )
     return ResolvedGrants(
         user_id=user_id, is_admin=_bool(data["is_admin"]), grants=grants, projects=projects,
+        is_mentor_member=_bool(data.get("is_mentor_member", False)),
     )
 
 
@@ -338,12 +343,12 @@ def _guard_public_demo_grants(session, _flush_context, _instances):
 @event.listens_for(Session, "after_flush")
 def _collect(session, _flush_context):
     for obj in session.new | session.deleted:
-        if isinstance(obj, VaUserAccessGrants):
+        if isinstance(obj, (VaUserAccessGrants, MapMentorInstituteUser)):
             defer_user_bump(session, obj.user_id)
         elif isinstance(obj, tuple(_GLOBAL_COLUMNS)):
             defer_global_bump(session)
     for obj in session.dirty:
-        if isinstance(obj, VaUserAccessGrants):
+        if isinstance(obj, (VaUserAccessGrants, MapMentorInstituteUser)):
             defer_user_bump(session, obj.user_id)
         elif isinstance(obj, VaUsers):
             if _changed(obj, _USER_COLUMNS):

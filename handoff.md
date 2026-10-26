@@ -44,7 +44,10 @@ c3f9a1d7e2b4. Preserve APK0.3.10 override
 DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted. DORIS_CALL_LOG=1 remains on.
 TRN01: single-stage, masked_cod_required=False, NQA=False, standard intake welcome
 and seeded DPDP consent enabled (`docs/policy/training-demo-project.md`); discuss
-before changing.
+before changing. Three-tier Inside vs Outside health-system PII model, 7-level
+default hierarchy (`State / Province` at depth 1), and parent-unit deactivation
+choice are live in policy and backend (`docs/policy/access-control-model.md`,
+`docs/policy/organization-model.md`).
 Use scripts/deploy-staging.sh with the full CI-built server SHA and its printed
 rollback. Previous rollback reference73561675a must be refreshed from live host.
 
@@ -53,7 +56,8 @@ part of the complete matched app archive, lazy-loaded or warmed after eligible
 login. Never deploy the WHO archive as an independent frontend or cache APIs/
 answers/private definitions. Preserve canonical clinical rules and native entrypoints.
 Updates wait for old tabs to close; don't force worker activation mid-interview.
-Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56, digitva-ydgv, digitva-idvp, digitva-eiym.
+Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56, digitva-ydgv, digitva-idvp,
+digitva-eiym, digitva-ewa5.
 Evidence and limits are in `docs/current-state/expo-connectivity-profile.md`;
 history is in CHANGELOG.md.
 

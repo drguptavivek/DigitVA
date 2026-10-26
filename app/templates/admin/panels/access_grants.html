@@ -60,13 +60,16 @@
             <option value="reviewer">Reviewer</option>
             <option value="data_manager">Data Manager</option>
             <option value="interviewer">Interviewer</option>
-            <option value="site_pi">Site PI (site) / In-charge (unit)</option>
-            <option value="collaborator">Viewer</option>
-            <option value="collaborator_pii">Viewer (with PII)</option>
+            <option value="site_pi">In-charge (unit) / Site PI (site)</option>
+            <option value="collaborator">Viewer (Non-PII)</option>
             <option value="interview_supervisor">Interview Supervisor (unit only)</option>
             <option value="death_reporter">Death Reporter (unit only)</option>
             <option value="project_pi" class="ag-admin-only d-none">Project PI</option>
           </select>
+          <div class="form-text small" id="ag-role-pii-note">
+            <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis">Tier 3 PII (Inside Health System)</span> Unit-scoped In-charge, Data Manager, In-System Coder/Reviewer, Interview Supervisor, Interviewer, Death Reporter ·
+            <span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis">Tier 1 &amp; 2 Non-PII</span> Project-level roles &amp; Mentoring Institute roles
+          </div>
         </div>
 
         <div class="col-sm-4">
@@ -314,11 +317,18 @@
     return ROLE_LABEL[g.role] || g.role;
   }
   var ROLE_COLOR = { coder:'primary', reviewer:'success', data_manager:'secondary', site_pi:'warning', collaborator:'info', collaborator_pii:'info', interview_supervisor:'warning', death_reporter:'secondary', project_pi:'danger', admin:'dark' };
+  var ROLE_PII_TAG = {
+    project_pi: 'PII', site_pi: 'PII', data_manager: 'PII', interviewer: 'PII', collaborator_pii: 'PII',
+    interview_supervisor: 'Intake PII', death_reporter: 'Own Reg PII',
+    coder: 'Non-PII', reviewer: 'Non-PII', coding_tester: 'Non-PII', collaborator: 'Non-PII'
+  };
 
   function roleBadge(g) {
     var color = ROLE_COLOR[g.role] || 'secondary';
+    var piiTag = ROLE_PII_TAG[g.role] || '';
     return '<span class="badge text-bg-' + color + ' d-inline-flex align-items-center gap-1">'
       + esc(roleLabel(g))
+      + (piiTag ? ' <span class="badge bg-white text-dark px-1 py-0" style="font-size:0.62rem;">' + esc(piiTag) + '</span>' : '')
       + '<button type="button" class="btn-close btn-close-white ag-revoke-btn" style="font-size:0.5rem;"'
       + ' data-grant-id="' + esc(g.grant_id) + '" aria-label="Revoke"></button>'
       + '</span>';

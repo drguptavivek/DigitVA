@@ -79,7 +79,13 @@
             <td>
               {%- if row.typical_roles -%}
                 {%- for role in row.typical_roles -%}
-                  <a href="{{ roles_help_url }}#role-{{ role }}">{{ 'In-charge' if role == 'site_pi' else role }}</a>{% if not loop.last %}, {% endif %}
+                  <a href="{{ roles_help_url }}#role-{{ role }}">{{ 'In-charge' if role == 'site_pi' else role }}</a>
+                  {%- if role in ('site_pi', 'data_manager', 'interviewer', 'collaborator_pii') %} <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis" style="font-size:.65rem;">PII</span>
+                  {%- elif role == 'interview_supervisor' %} <span class="badge text-bg-warning-subtle border border-warning-subtle text-warning-emphasis" style="font-size:.65rem;">Intake PII</span>
+                  {%- elif role == 'death_reporter' %} <span class="badge text-bg-warning-subtle border border-warning-subtle text-warning-emphasis" style="font-size:.65rem;">Own Reg PII</span>
+                  {%- else %} <span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis" style="font-size:.65rem;">Non-PII</span>
+                  {%- endif -%}
+                  {%- if not loop.last %}, {% endif %}
                 {%- endfor -%}
               {%- else -%}–{%- endif -%}
             </td>
@@ -320,7 +326,7 @@
       <div class="card-body py-2 px-3 small">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
           <div class="fw-semibold text-primary">
-            <i class="fa-solid fa-circle-info me-1"></i>Plain-Language Guide: Roles, Capabilities &amp; Within-Tree vs. Cross-Tree Scope
+            <i class="fa-solid fa-shield-halved me-1"></i>Three-Tier PII Boundary &amp; Role Classification (Inside vs. Outside the Health System)
           </div>
           <div class="d-flex flex-wrap gap-2">
             <a href="/help/user-roles" target="_blank" rel="noopener" class="btn btn-xs btn-outline-primary py-0 px-2 small">
@@ -335,32 +341,30 @@
           </div>
         </div>
         <div class="row g-2">
-          <div class="col-md-4">
-            <div class="border rounded bg-white p-2 h-100">
-              <div class="fw-semibold mb-1"><i class="fa-solid fa-clipboard-user me-1 text-success"></i>Field &amp; Supervision Roles</div>
+          <div class="col-md-6">
+            <div class="border border-danger-subtle rounded bg-white p-2 h-100">
+              <div class="fw-semibold mb-1 text-danger-emphasis">
+                <span class="badge text-bg-danger me-1"><i class="fa-solid fa-eye me-1"></i>Tier 3: Health System Operations (PII)</span>Inside the Health System &mdash; Sees Deceased Name, Address / GPS &amp; Registration Numbers
+              </div>
               <ul class="mb-0 ps-3">
-                <li><strong>Death reporter</strong>: Registers community/facility deaths into the Death Register.</li>
-                <li><strong>Interviewer (Fill VA)</strong>: Conducts VA interviews in the browser or <strong>DigitVA mobile app</strong>.</li>
-                <li><strong>Supervise interviews</strong>: Reviews interview progress, reassigns uninterviewed deaths, and returns incomplete forms across assigned unit(s).</li>
+                <li><strong>In-charge (<code>site_pi</code> at unit scope)</strong>: Unit / facility subtree oversight with full PII.</li>
+                <li><strong>Unit Data Manager (<code>data_manager</code> at unit scope — <code>DPM</code>, <code>DEPI</code>, <code>BPM</code>)</strong>: Full PII + KPI Dashboard, QA &amp; data exports. <em>(Exceptional PII access for external personnel is granted via <code>data_manager</code> at the District / State level.)</em></li>
+                <li><strong>In-System Doctor (<code>coder</code>, <code>reviewer</code> at unit scope)</strong>: Assigns or reviews ICD-10/ICD-11 cause of death inside the health system (within-tree or cross-tree); sees PII across granted units.</li>
+                <li><strong>Interview Supervisor (<code>interview_supervisor</code>)</strong> &amp; <strong>Interviewer (<code>interviewer</code>)</strong>: Full PII on VA forms in their unit subtree.</li>
+                <li><strong>Death Reporter (<code>death_reporter</code>)</strong> <span class="badge text-bg-warning-subtle border text-warning-emphasis">Own Register PII</span>: Sees PII on deaths they personally registered.</li>
               </ul>
             </div>
           </div>
-          <div class="col-md-4">
-            <div class="border rounded bg-white p-2 h-100">
-              <div class="fw-semibold mb-1"><i class="fa-solid fa-stethoscope me-1 text-primary"></i>Coding, Review &amp; Coding Tester</div>
+          <div class="col-md-6">
+            <div class="border border-success-subtle rounded bg-white p-2 h-100">
+              <div class="fw-semibold mb-1 text-success-emphasis">
+                <span class="badge text-bg-success me-1"><i class="fa-solid fa-user-shield me-1"></i>Tier 1 (Project) &amp; Tier 2 (Mentoring Institute) — Non-PII</span>Outside the Health System &mdash; Blinded to Name, Address, GPS &amp; Registration IDs
+              </div>
               <ul class="mb-0 ps-3">
-                <li><strong>Coder (Code VA)</strong>: Assigns ICD-10/ICD-11 cause of death for forms in their assigned unit(s).</li>
-                <li><strong>Reviewer</strong>: Performs QA review and resolves discordant dual-coded VAs.</li>
-                <li><strong>Coding tester</strong>: <em>Practice/calibration sandbox only.</em> Their codes are stored separately, <strong>never</strong> mark a form as coded, and <strong>never</strong> enter production data.</li>
-              </ul>
-            </div>
-          </div>
-          <div class="col-md-4">
-            <div class="border rounded bg-white p-2 h-100">
-              <div class="fw-semibold mb-1"><i class="fa-solid fa-building-user me-1 text-dark"></i>In-Charge &amp; Within vs. Cross-Tree</div>
-              <ul class="mb-0 ps-3">
-                <li><strong>In-charge (<code>site_pi</code>)</strong>: Facility/unit head (e.g. MO In-charge, BMO, CMO) with oversight dashboards for their unit's subtree.</li>
-                <li><strong>Within-tree vs. Cross-tree</strong>: In <em>4. Workers &amp; Scope</em>, each MO or Supervisor can be assigned <strong>Own unit (within-tree)</strong>, <strong>Other units (cross-tree)</strong>, <strong>All units at level</strong>, or <strong>Custom selected units</strong> (e.g. 2 PHCs vs. 10 PHCs).</li>
+                <li><strong>Tier 1 — Project PI (<code>project_pi</code>) &amp; Project Data Manager (<code>data_manager</code> at project scope)</strong>: Multi-district/project governance, KPIs &amp; aggregate COD without individual PII.</li>
+                <li><strong>Tier 2 — Mentoring Institute Lead &amp; Scientists (<code>coder</code>, <code>reviewer</code>, <code>coding_tester</code>, <code>collaborator</code>)</strong>: Medical college / AIIMS / ICMR faculty attached to District units; blinded to PII while coding or reviewing.</li>
+                <li><strong>Coding Tester (<code>coding_tester</code> — Non-PII Sandbox)</strong>: Practice/calibration coding sandbox; never affects production VA status or COD.</li>
+                <li><strong>Viewer (<code>collaborator</code> — Non-PII Redacted)</strong>: Read-only access to aggregate dashboards and de-identified VA records.</li>
               </ul>
             </div>
           </div>
@@ -368,17 +372,24 @@
       </div>
     </div>
 
-    {# Sub-tabs: Permissions by level (question-driven + matrix) first, and Cadre master definitions alongside. #}
+    {# Sub-tabs: Wide Level×Cadre Matrix & Question-driven setup alongside Cadre master list. #}
     <ul class="nav nav-pills nav-sm mb-3 small" role="tablist">
-      <li class="nav-item"><button class="nav-link py-1 active" data-bs-toggle="tab" data-bs-target="#org-sub-cadres" type="button" role="tab">a. Cadres</button></li>
-      <li class="nav-item"><button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#org-sub-perms" type="button" role="tab">b. Who can do what? (Permissions by level)</button></li>
+      <li class="nav-item"><button class="nav-link py-1 active" data-bs-toggle="tab" data-bs-target="#org-sub-perms" type="button" role="tab"><i class="fa-solid fa-table-cells me-1"></i>a. Level &times; Cadre Capability &amp; Role Matrix (Full Width)</button></li>
+      <li class="nav-item"><button class="nav-link py-1" data-bs-toggle="tab" data-bs-target="#org-sub-cadres" type="button" role="tab"><i class="fa-solid fa-id-badge me-1"></i>b. Cadre Master List (Add / Rename Cadres)</button></li>
     </ul>
     <div class="tab-content">
-      <div class="tab-pane fade show active" id="org-sub-cadres" role="tabpanel">
+      <div class="tab-pane fade show active" id="org-sub-perms" role="tabpanel">
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-          <span class="text-muted small">The kinds of health worker in this project. Then configure who can do what in <em>b. Who can do what? (Permissions by level)</em>.</span>
+          <div class="text-muted small">Full-width <strong>Level &times; Cadre</strong> matrix: add the cadres that exist at each hierarchy level, tick their 4 capability flags, and click inline role pills (marked <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis">PII</span> vs. <span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis">Non-PII</span>) to set default unit roles.</div>
+        </div>
+        <div id="org-perm-grid" class="table-responsive mb-3"></div>
+        <div id="org-who-can-do-what" class="mb-2"></div>
+      </div>
+      <div class="tab-pane fade" id="org-sub-cadres" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <span class="text-muted small">The kinds of health worker in this project. Then configure who can do what in <em>a. Level &times; Cadre Capability &amp; Role Matrix</em>.</span>
           <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-primary" type="button" id="org-goto-perms-btn"><i class="fa-solid fa-table-cells me-1"></i>Configure Who Can Do What &rarr;</button>
+            <button class="btn btn-sm btn-outline-primary" type="button" id="org-goto-perms-btn"><i class="fa-solid fa-table-cells me-1"></i>Open Level &times; Cadre Matrix &rarr;</button>
             <button class="btn btn-sm btn-primary" id="org-cadre-add-btn"><i class="fa-solid fa-plus me-1"></i>Add cadre</button>
           </div>
         </div>
@@ -391,11 +402,6 @@
           <div class="mt-2 d-flex gap-2"><button class="btn btn-sm btn-success" id="oc-save-btn">Save</button><button class="btn btn-sm btn-outline-secondary" id="oc-cancel-btn">Cancel</button></div>
         </div></div>
         <div id="org-cadre-table"></div>
-      </div>
-      <div class="tab-pane fade" id="org-sub-perms" role="tabpanel">
-        <div id="org-who-can-do-what" class="mb-3"></div>
-        <div class="text-muted small mb-2">Full-width Level &times; Cadre matrix: add the cadres that exist at each level, then toggle their capabilities and default roles in one click.</div>
-        <div id="org-perm-grid" class="table-responsive"></div>
       </div>
     </div>
   </div>
@@ -769,6 +775,55 @@
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
         <button type="button" class="btn btn-sm btn-success" id="op-save"><i class="fa-solid fa-check me-1"></i>Save parents</button>
+      </div>
+    </div>
+  </div>
+</div>
+{# Parent-unit deactivation choice modal: never silently cascade-deactivate or orphan child units. #}
+<div class="modal fade" id="org-unit-deactivate-modal" tabindex="-1" aria-labelledby="oud-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title" id="oud-title"><i class="fa-solid fa-sitemap me-1 text-warning"></i>Deactivate Parent Unit — Choose Action for Child Units</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body small">
+        <input type="hidden" id="oud-unit-id">
+        <div id="oud-alert" class="alert alert-danger small py-2 d-none" role="alert"></div>
+        <p class="mb-2" id="oud-summary"></p>
+        <div class="border rounded bg-light p-2 mb-3">
+          <div class="fw-semibold mb-1">Active direct child units (<span id="oud-child-count">0</span>):</div>
+          <div id="oud-children-list" class="d-flex flex-wrap gap-1"></div>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-7">
+            <div class="border border-primary-subtle rounded p-3 h-100 bg-primary-subtle bg-opacity-10">
+              <div class="fw-semibold text-primary-emphasis mb-1">
+                <i class="fa-solid fa-arrow-right-arrow-left me-1"></i>Option 1: Move Child Units to Another Parent &amp; Deactivate
+              </div>
+              <p class="text-muted mb-2">Keep all child units (and their subtrees) active by moving them under another eligible active parent unit before deactivating this unit.</p>
+              <label class="form-label small fw-semibold mb-1" for="oud-new-parent">New parent unit for active children:</label>
+              <select id="oud-new-parent" class="form-select form-select-sm mb-2"></select>
+              <button type="button" class="btn btn-sm btn-primary" id="oud-reparent-btn">
+                <i class="fa-solid fa-arrows-turn-to-dots me-1"></i>Move Child Units &amp; Deactivate Parent
+              </button>
+            </div>
+          </div>
+          <div class="col-md-5">
+            <div class="border border-danger-subtle rounded p-3 h-100 bg-danger-subtle bg-opacity-10">
+              <div class="fw-semibold text-danger-emphasis mb-1">
+                <i class="fa-solid fa-power-off me-1"></i>Option 2: Deactivate Entire Subtree
+              </div>
+              <p class="text-muted mb-3">Deactivate this parent unit and all <strong id="oud-descendant-count">0</strong> active descendant unit(s) beneath it.</p>
+              <button type="button" class="btn btn-sm btn-danger" id="oud-cascade-btn">
+                <i class="fa-solid fa-ban me-1"></i>Deactivate Unit &amp; All Child Units
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
       </div>
     </div>
   </div>
@@ -1230,6 +1285,70 @@
   });
   $('org-unplaced-open').addEventListener('click', openPlaceModal);
 
+  function openDeactivateUnitModal(u, preview) {
+    $('oud-unit-id').value = u.org_unit_id;
+    show('oud-alert', false);
+    var children = (preview && preview.active_children) || [];
+    var parents = (preview && preview.eligible_parents) || [];
+    var descCount = (preview && preview.active_descendant_count) || children.length;
+    $('oud-summary').innerHTML = 'Unit <strong>' + esc(u.unit_name) + '</strong> (<code>' + esc(u.unit_code) + '</code>) has <strong>' + children.length + '</strong> active direct child unit(s) (' + descCount + ' total active descendant(s)). Choose whether to move its child units under another parent or deactivate the entire subtree:';
+    $('oud-child-count').textContent = String(children.length);
+    $('oud-descendant-count').textContent = String(descCount);
+    $('oud-children-list').innerHTML = children.map(function (c) {
+      return '<span class="badge text-bg-white border text-body">' + esc(c.level_code) + ': ' + esc(c.unit_name) + ' <code>' + esc(c.unit_code) + '</code></span>';
+    }).join('');
+    var sel = $('oud-new-parent');
+    var reparentBtn = $('oud-reparent-btn');
+    if (parents.length) {
+      sel.disabled = false;
+      reparentBtn.disabled = false;
+      sel.innerHTML = parents.map(function (p) {
+        return '<option value="' + esc(p.org_unit_id) + '">' + esc(p.level_name || p.level_code) + ' · ' + esc(p.unit_name) + ' (' + esc(p.unit_code) + ')</option>';
+      }).join('');
+    } else {
+      sel.disabled = true;
+      reparentBtn.disabled = true;
+      sel.innerHTML = '<option value="">No eligible active parent units available for these child levels</option>';
+    }
+    bootstrap.Modal.getOrCreateInstance($('org-unit-deactivate-modal')).show();
+  }
+
+  $('oud-reparent-btn').addEventListener('click', function () {
+    var uid = val('oud-unit-id'), newParentId = val('oud-new-parent');
+    if (!uid || !newParentId) return;
+    api(base() + '/units/' + encodeURIComponent(uid) + '/toggle', 'POST', {
+      is_active: false,
+      reparent_children_to_org_unit_id: newParentId
+    }).then(function (res) {
+      if (!res.ok) {
+        $('oud-alert').textContent = (res.data && res.data.error) || 'Failed to move child units and deactivate.';
+        show('oud-alert', true);
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance($('org-unit-deactivate-modal')).hide();
+      alertBox('success', 'Child units moved and parent unit deactivated.');
+      loadAll();
+    });
+  });
+
+  $('oud-cascade-btn').addEventListener('click', function () {
+    var uid = val('oud-unit-id');
+    if (!uid) return;
+    api(base() + '/units/' + encodeURIComponent(uid) + '/toggle', 'POST', {
+      is_active: false,
+      cascade_deactivate_children: true
+    }).then(function (res) {
+      if (!res.ok) {
+        $('oud-alert').textContent = (res.data && res.data.error) || 'Failed to deactivate subtree.';
+        show('oud-alert', true);
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance($('org-unit-deactivate-modal')).hide();
+      alertBox('success', 'Unit and all descendant units deactivated.');
+      loadAll();
+    });
+  });
+
   // Row buttons: one delegated listener on the wrapper, which (unlike the
   // tree element) survives Wunderbaum's destroy().
   $('org-unit-tree-wrap').addEventListener('click', function (ev) {
@@ -1244,8 +1363,21 @@
     else if (b.dataset.act === 'worker') openWorkerForm(null, u);
     else if (b.dataset.act === 'toggle') {
       var on = !u.is_active;
-      var go = function () { api(base() + '/units/' + u.org_unit_id + '/toggle', 'POST', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
-      if (on) go(); else askConfirm('Deactivate ' + u.unit_code + ' and everything below it?', go);
+      var go = function () {
+        api(base() + '/units/' + u.org_unit_id + '/toggle', 'POST', { is_active: on }).then(function (res) {
+          if (!res.ok) {
+            if (res.data && res.data.requires_child_action) {
+              openDeactivateUnitModal(u, res.data);
+              return;
+            }
+            fail(res);
+            return;
+          }
+          loadAll();
+        });
+      };
+      var hasActiveChildren = !on && STATE.units.some(function (c) { return c.is_active && c.parent_org_unit_id === u.org_unit_id; });
+      if (on || hasActiveChildren) go(); else askConfirm('Deactivate ' + u.unit_code + '?', go);
     }
   });
   $('org-unit-search').addEventListener('input', applyUnitFilter);
@@ -1440,29 +1572,43 @@
   // Default roles (digitva-vjt): unit-scope roles pre-ticked in the grant forms
   // for a person of this cadre at this level.
   var UNIT_ROLE_LABELS = [
-    ['site_pi', 'In-charge'], ['data_manager', 'Data manager'], ['coder', 'Coder'], ['reviewer', 'Reviewer'],
-    ['coding_tester', 'Coding tester'], ['interviewer', 'Interviewer'], ['interview_supervisor', 'Interview supervisor'],
-    ['death_reporter', 'Death reporter'], ['collaborator', 'Viewer'], ['collaborator_pii', 'Viewer (with PII)']
+    ['site_pi', 'In-charge', 'PII', 'danger'],
+    ['data_manager', 'Data manager', 'PII', 'danger'],
+    ['coder', 'Coder (In-System)', 'PII', 'danger'],
+    ['reviewer', 'Reviewer (In-System)', 'PII', 'danger'],
+    ['coding_tester', 'Coding tester', 'Non-PII', 'success'],
+    ['interviewer', 'Interviewer', 'PII', 'danger'],
+    ['interview_supervisor', 'Interview supervisor', 'PII', 'danger'],
+    ['death_reporter', 'Death reporter', 'Own Reg', 'warning'],
+    ['collaborator', 'Viewer (Non-PII)', 'Non-PII', 'success']
   ];
   var ROLE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
   var CAPABILITY_QUESTIONS = [
-    { key: 'death_reporter', flag: 'can_report_deaths', icon: 'fa-file-circle-plus', badge: 'secondary', title: 'Who can report deaths?', desc: 'Registers community or facility deaths into the Death Register.' },
-    { key: 'interviewer', flag: 'can_fill_va_form', icon: 'fa-clipboard-list', badge: 'success', title: 'Who can conduct VA interviews?', desc: 'Fills VA questionnaires in the browser or DigitVA mobile app.' },
-    { key: 'interview_supervisor', flag: 'can_supervise_interviews', icon: 'fa-user-shield', badge: 'info', title: 'Who can supervise interviews?', desc: 'Monitors field interviews, assigns deaths, and returns incomplete forms.' },
-    { key: 'coder', flag: 'can_code_va_form', icon: 'fa-stethoscope', badge: 'primary', title: 'Who can code VA forms (Cause of Death)?', desc: 'Assigns ICD-10/ICD-11 cause of death (within-tree or cross-tree).' },
-    { key: 'reviewer', flag: null, icon: 'fa-clipboard-check', badge: 'warning', title: 'Who can review coded VAs (QA)?', desc: 'Performs quality review and adjudicates discordant dual-coded VAs.' },
-    { key: 'site_pi', flag: null, icon: 'fa-building-user', badge: 'dark', title: 'Who is Unit / Facility In-charge?', desc: 'Sees VA Dashboard, Area, and People oversight for their unit subtree.' },
-    { key: 'coding_tester', flag: null, icon: 'fa-flask', badge: 'secondary', title: 'Who is a Coding Tester (practice sandbox)?', desc: 'Practices coding in an isolated sandbox; never affects real VA records.' },
-    { key: 'data_manager', flag: null, icon: 'fa-database', badge: 'primary', title: 'Who manages data & KPIs?', desc: 'Accesses Data Manager, KPI Dashboard, and COD reports.' }
+    { key: 'death_reporter', flag: 'can_report_deaths', icon: 'fa-file-circle-plus', badge: 'secondary', piiLabel: 'Own Reg PII', piiClass: 'warning', title: 'Who can report deaths?', desc: 'Registers community or facility deaths into the Death Register.' },
+    { key: 'interviewer', flag: 'can_fill_va_form', icon: 'fa-clipboard-list', badge: 'success', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who can conduct VA interviews?', desc: 'Fills VA questionnaires in the browser or DigitVA mobile app.' },
+    { key: 'interview_supervisor', flag: 'can_supervise_interviews', icon: 'fa-user-shield', badge: 'info', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who can supervise interviews?', desc: 'Monitors field interviews, assigns deaths, and returns incomplete forms.' },
+    { key: 'coder', flag: 'can_code_va_form', icon: 'fa-stethoscope', badge: 'primary', piiLabel: 'Tier 3 PII (In-System)', piiClass: 'danger', title: 'Who can code VA forms (Cause of Death)?', desc: 'In-system doctors assign ICD-10/ICD-11 cause of death with PII across granted units (Mentoring Institute scientists remain Non-PII).' },
+    { key: 'reviewer', flag: null, icon: 'fa-clipboard-check', badge: 'warning', piiLabel: 'Tier 3 PII (In-System)', piiClass: 'danger', title: 'Who can review coded VAs (QA)?', desc: 'In-system doctors perform QA review and adjudicate discordant VAs with PII (Mentoring Institute scientists remain Non-PII).' },
+    { key: 'site_pi', flag: null, icon: 'fa-building-user', badge: 'dark', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who is Unit / Facility In-charge?', desc: 'Sees VA Dashboard, Area, and People oversight for their unit subtree.' },
+    { key: 'coding_tester', flag: null, icon: 'fa-flask', badge: 'secondary', piiLabel: 'Non-PII Sandbox', piiClass: 'success', title: 'Who is a Coding Tester (practice sandbox)?', desc: 'Practices coding in an isolated sandbox; never affects real VA records.' },
+    { key: 'data_manager', flag: null, icon: 'fa-database', badge: 'primary', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who manages data & KPIs?', desc: 'Accesses Data Manager, KPI Dashboard, and COD reports (also used at District/State level for exceptional PII access).' },
+    { key: 'collaborator', flag: null, icon: 'fa-eye-slash', badge: 'secondary', piiLabel: 'Non-PII Redacted', piiClass: 'success', title: 'Who can view cases WITHOUT PII (de-identified)?', desc: 'Read-only access to aggregate dashboards and de-identified VA records.' }
   ];
   function defaultRolesHtml(lc, attrs) {
     var chosen = lc.default_roles || [];
-    var boxes = UNIT_ROLE_LABELS.map(function (r) {
-      var off = ROLE_FLAG[r[0]] && !lc[ROLE_FLAG[r[0]]];
-      return '<label class="d-block mb-0 text-nowrap' + (off ? ' text-muted' : '') + '"><input type="checkbox" class="perm-role me-1"' + attrs + ' value="' + r[0] + '" '
-        + (chosen.indexOf(r[0]) >= 0 ? 'checked' : '') + '>' + esc(r[1]) + (off ? ' <span class="text-muted">(auto-enables capability)</span>' : '') + '</label>';
-    }).join('');
-    return '<details class="d-inline-block"><summary class="small" title="Pre-ticked when this cadre is granted at this level; saved as ordinary grants">Default roles (' + chosen.length + ')</summary>' + boxes + '</details>';
+    return '<div class="d-flex flex-wrap gap-1 align-items-center">' + UNIT_ROLE_LABELS.map(function (r) {
+      var roleKey = r[0], roleName = r[1], piiTag = r[2], piiColor = r[3];
+      var isChecked = chosen.indexOf(roleKey) >= 0;
+      var off = ROLE_FLAG[roleKey] && !lc[ROLE_FLAG[roleKey]];
+      var pillCls = isChecked
+        ? 'bg-primary-subtle border-primary text-primary-emphasis fw-semibold'
+        : 'bg-light border-secondary-subtle text-body-secondary';
+      return '<label class="d-inline-flex align-items-center gap-1 border rounded-pill px-2 py-0 small text-nowrap ' + pillCls + '" style="cursor:pointer; font-size:.76rem;" title="' + (off ? 'Ticking this role automatically enables its capability flag' : 'Pre-ticked when a worker of this cadre is added at this level') + '">'
+        + '<input type="checkbox" class="form-check-input m-0 perm-role"' + attrs + ' value="' + roleKey + '" ' + (isChecked ? 'checked' : '') + '>'
+        + '<span>' + esc(roleName) + '</span>'
+        + '<span class="badge text-bg-' + piiColor + '-subtle border border-' + piiColor + '-subtle text-' + piiColor + '-emphasis px-1 py-0" style="font-size:.62rem;">' + esc(piiTag) + '</span>'
+        + '</label>';
+    }).join('') + '</div>';
   }
   function renderPermGrid() {
     var levels = STATE.levels.filter(function (l) { return l.is_active; }), cadres = STATE.cadres.filter(function (c) { return c.is_active; });
@@ -1485,7 +1631,7 @@
 
     if (qWrap) {
       if (!placements.length) {
-        qWrap.innerHTML = '<div class="alert alert-info small py-2 mb-2">Place cadres at levels in the table below (or click <strong>Populate district defaults</strong> above), then click any cadre pill to answer <em>Who can do what?</em></div>';
+        qWrap.innerHTML = '<div class="alert alert-info small py-2 mb-2">Place cadres at levels in the table above (or click <strong>Populate district defaults</strong>), then click any cadre pill to answer <em>Who can do what?</em></div>';
       } else {
         var qCards = CAPABILITY_QUESTIONS.map(function (q) {
           var pills = placements.map(function (p) {
@@ -1494,7 +1640,6 @@
             var hasFlag = q.flag ? !!p.lc[q.flag] : false;
             var active = hasRole || (q.key === 'interviewer' && hasFlag && roles.indexOf('interviewer') >= 0);
             if (q.flag && !hasRole && hasFlag) {
-              // Capability flag is on, role not in default_roles yet
               active = true;
             }
             var btnClass = active ? ('btn-' + q.badge) : 'btn-outline-secondary';
@@ -1509,17 +1654,20 @@
               + esc(p.level.level_code || p.level.level_name) + ' · <strong>' + esc(p.cadre.cadre_code) + '</strong>'
               + '</button>';
           }).join(' ');
-          return '<div class="col-12 col-md-6 col-xl-3">'
+          return '<div class="col-12 col-md-6 col-xl-4">'
             + '<div class="card h-100 shadow-sm border-0 bg-body-tertiary">'
             + '<div class="card-body p-2 small">'
-            + '<div class="fw-semibold mb-1"><i class="fa-solid ' + q.icon + ' me-1 text-' + q.badge + '"></i>' + esc(q.title) + '</div>'
+            + '<div class="d-flex justify-content-between align-items-start gap-1 mb-1">'
+            + '<div class="fw-semibold"><i class="fa-solid ' + q.icon + ' me-1 text-' + q.badge + '"></i>' + esc(q.title) + '</div>'
+            + '<span class="badge text-bg-' + q.piiClass + '-subtle border border-' + q.piiClass + '-subtle text-' + q.piiClass + '-emphasis text-nowrap">' + esc(q.piiLabel) + '</span>'
+            + '</div>'
             + '<div class="text-muted mb-2" style="font-size:0.78rem;">' + esc(q.desc) + '</div>'
             + '<div class="d-flex flex-wrap gap-1">' + pills + '</div>'
             + '</div></div></div>';
         }).join('');
         qWrap.innerHTML = '<div class="card border-primary-subtle mb-3"><div class="card-body p-3">'
           + '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">'
-          + '<div><h6 class="mb-0"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Quick Question-Driven Setup: Who can do what?</h6>'
+          + '<div><h6 class="mb-0"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Quick Question-Driven Setup: Who can do what? (All 10 Unit-Scoped Roles)</h6>'
           + '<div class="text-muted small">Click any <code>Level · Cadre</code> pill below to toggle that capability and its default role in one click.</div></div>'
           + '</div>'
           + '<div class="row g-2">' + qCards + '</div>'
@@ -1527,30 +1675,59 @@
       }
     }
 
-    var body = levels.map(function (l) {
+    var tableRows = [];
+    levels.forEach(function (l) {
       var here = cadres.filter(function (c) { var lc = lookup[l.org_level_id + '|' + c.cadre_id]; return lc && lc.is_active; });
       var missing = cadres.filter(function (c) { return here.indexOf(c) < 0; });
-      var chips = here.map(function (c) {
-        var lc = lookup[l.org_level_id + '|' + c.cadre_id];
-        var attrs = ' data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '"';
-        return '<div class="d-inline-flex flex-wrap align-items-center gap-2 border rounded bg-white px-2 py-1 me-2 mb-2 shadow-xs">'
-          + '<span class="fw-semibold"><code title="' + esc(c.cadre_name) + '">' + esc(c.cadre_code) + '</code> <span class="text-muted small">(' + esc(c.cadre_name) + ')</span></span>'
-          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '>Fill VA</label>'
-          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '>Code VA</label>'
-          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal" title="May hold an interview supervisor grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '>Supervise interviews</label>'
-          + '<label class="mb-0 badge text-bg-light border text-dark fw-normal" title="May hold a death reporter grant at this level"><input type="checkbox" class="perm-box me-1"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '>Report deaths</label>'
-          + defaultRolesHtml(lc, attrs)
-          + '<button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from this level"><i class="fa-solid fa-xmark"></i></button>'
-          + '</div>';
-      }).join('');
-      var add = missing.length
-        ? '<select class="form-select form-select-sm d-inline-block w-auto perm-add" data-l="' + l.org_level_id + '"><option value="">+ Add cadre…</option>'
-          + missing.map(function (c) { return '<option value="' + c.cadre_id + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>'; }).join('') + '</select>'
+      var addSelect = missing.length
+        ? '<div class="mt-1"><select class="form-select form-select-sm w-auto perm-add" data-l="' + l.org_level_id + '"><option value="">+ Add cadre to ' + esc(l.level_code) + '…</option>'
+          + missing.map(function (c) { return '<option value="' + c.cadre_id + '">' + esc(c.cadre_code) + ' — ' + esc(c.cadre_name) + '</option>'; }).join('') + '</select></div>'
         : '';
-      return '<tr><th class="text-nowrap align-top bg-light" style="width:160px;">' + esc(l.level_name) + '<div class="text-muted fw-normal small"><code>' + esc(l.level_code) + '</code></div></th><td>'
-        + (chips || '<span class="text-muted me-2">No cadres at this level.</span>') + add + '</td></tr>';
-    }).join('');
-    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle mb-0"><tbody>' + body + '</tbody></table>';
+      var levelCellHtml = '<th class="text-nowrap align-top bg-light" rowspan="' + Math.max(here.length, 1) + '" style="width:170px;">'
+        + '<div class="fw-semibold">' + esc(l.level_name) + '</div>'
+        + '<div class="text-muted fw-normal small"><code>' + esc(l.level_code) + '</code> · depth ' + l.depth + '</div>'
+        + addSelect
+        + '</th>';
+
+      if (!here.length) {
+        tableRows.push(
+          '<tr>' + levelCellHtml
+          + '<td colspan="7" class="text-muted small py-2">No cadres placed at this level yet. Choose <em>+ Add cadre…</em> on the left or click <strong>Populate district defaults</strong>.</td></tr>'
+        );
+      } else {
+        here.forEach(function (c, idx) {
+          var lc = lookup[l.org_level_id + '|' + c.cadre_id];
+          var attrs = ' data-l="' + l.org_level_id + '" data-c="' + c.cadre_id + '"';
+          tableRows.push(
+            '<tr>'
+            + (idx === 0 ? levelCellHtml : '')
+            + '<td class="text-nowrap fw-semibold" style="width:180px;"><code>' + esc(c.cadre_code) + '</code> <span class="text-muted fw-normal small">' + esc(c.cadre_name) + '</span></td>'
+            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold a death_reporter grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '></label></td>'
+            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May fill VA forms at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '></label></td>'
+            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold an interview_supervisor grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '></label></td>'
+            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold a coder grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '></label></td>'
+            + '<td>' + defaultRolesHtml(lc, attrs) + '</td>'
+            + '<td class="text-center" style="width:52px;"><button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from ' + esc(l.level_name) + '"><i class="fa-solid fa-xmark"></i></button></td>'
+            + '</tr>'
+          );
+        });
+      }
+    });
+
+    $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle mb-0 w-100">'
+      + '<thead class="table-light">'
+      + '<tr>'
+      + '<th style="width:170px;">Hierarchy Level</th>'
+      + '<th style="width:180px;">Cadre at Level</th>'
+      + '<th class="text-center" style="width:92px;" title="Required for death_reporter grant">Report Deaths<div class="fw-normal text-muted" style="font-size:.68rem;">Own Reg PII</div></th>'
+      + '<th class="text-center" style="width:92px;" title="Allows filling VA form">Fill VA<div class="fw-normal text-muted" style="font-size:.68rem;">Full PII</div></th>'
+      + '<th class="text-center" style="width:92px;" title="Required for interview_supervisor grant">Supervise<div class="fw-normal text-muted" style="font-size:.68rem;">Intake PII</div></th>'
+      + '<th class="text-center" style="width:92px;" title="Required for coder grant">Code VA<div class="fw-normal text-muted" style="font-size:.68rem;">Non-PII</div></th>'
+      + '<th>Default Unit Roles (Click to Toggle — Pre-ticked When Enrolling Workers)</th>'
+      + '<th class="text-center" style="width:52px;"></th>'
+      + '</tr>'
+      + '</thead>'
+      + '<tbody>' + tableRows.join('') + '</tbody></table>';
     // defaults omitted (undefined) keeps the row's current default roles.
     function save(l, c, fill, code, supervise, report, active, defaults) {
       api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, default_roles: defaults, is_active: active })
@@ -2337,12 +2514,13 @@
   if ($('org-presets-apply-top-btn')) {
     $('org-presets-apply-top-btn').addEventListener('click', function () {
       if (!_presetsRows.length) return;
+      var hasDistrict = _presetsRows.some(function (r) { return r.level_code === 'district'; });
       var minDepth = Math.min.apply(null, _presetsRows.map(function (r) { return r.depth || 1; }));
       var hivVal = $('org-presets-bulk-hiv').value;
       var malVal = $('org-presets-bulk-malaria').value;
       var items = [];
       _presetsRows.forEach(function (r) {
-        if ((r.depth || 1) === minDepth) {
+        if (hasDistrict ? (r.level_code === 'district') : ((r.depth || 1) === minDepth)) {
           items.push({
             org_unit_id: r.org_unit_id,
             hiv_aids: hivVal === '__keep__' ? r.hiv_aids : (hivVal || null),
@@ -2359,7 +2537,7 @@
         }
         _presetsRows = (res.data && res.data.units) || [];
         drawPresetsTable();
-        if (msg) { msg.className = 'small mb-2 text-success'; msg.textContent = 'Top-level (District) HIV & Malaria mortality settings saved and inherited across child units.'; }
+        if (msg) { msg.className = 'small mb-2 text-success'; msg.textContent = 'District / Top-level HIV & Malaria mortality settings saved and inherited across child units.'; }
       });
     });
   }
@@ -2410,7 +2588,8 @@
   function drawMentoringInstitutes(data) {
     var instWrap = $('org-mentoring-institutes-wrap');
     var institutes = data.institutes || [];
-    var topUnits = (data.units || []).filter(function (u) { return !u.parent_org_unit_id; });
+    var topUnits = (data.units || []).filter(function (u) { return u.level_code === 'district'; });
+    if (!topUnits.length) topUnits = (data.units || []).filter(function (u) { return !u.parent_org_unit_id; });
     if (!topUnits.length) topUnits = (data.units || []).slice(0, 20);
     if (!institutes.length) {
       instWrap.innerHTML = '<div class="alert alert-secondary small py-2 mb-0">No active mentoring institutes exist yet. '
@@ -2432,15 +2611,15 @@
       return '<tr>'
         + '<td><div class="fw-semibold">' + esc(inst.institute_name) + ' <code>' + esc(inst.institute_code) + '</code></div>'
         + '<div class="text-muted small">' + (inst.scientists || []).length + ' scientist(s)</div></td>'
-        + '<td>' + (unitChecks || '<span class="text-muted small">Add top-level District units in Tab 2 first.</span>') + '</td>'
+        + '<td>' + (unitChecks || '<span class="text-muted small">Add District units in Tab 2 first.</span>') + '</td>'
         + '<td class="text-end text-nowrap">' + saveBtn + '</td>'
         + '</tr>';
     }).join('');
     instWrap.innerHTML = '<div class="card"><div class="card-body p-3">'
-      + '<h6 class="card-title mb-1">1. Mentoring Institutes Attached to Project Districts</h6>'
-      + '<p class="text-muted small mb-2">Tick which District / top-level units each Mentoring Institute supports in this project.</p>'
+      + '<h6 class="card-title mb-1">1. Mentoring Institutes Attached to Project Districts (Tier 2 — Non-PII)</h6>'
+      + '<p class="text-muted small mb-2">Tick which District units each Mentoring Institute supports in this project. Mentoring Institute leads and scientists are outside the health system and remain blinded to PII.</p>'
       + '<div class="table-responsive"><table class="table table-sm align-middle small mb-0">'
-      + '<thead class="table-light"><tr><th>Mentoring Institute</th><th>Supported District / Top-Level Units in ' + esc(PROJECT_ID) + '</th><th></th></tr></thead>'
+      + '<thead class="table-light"><tr><th>Mentoring Institute</th><th>Supported District Units in ' + esc(PROJECT_ID) + '</th><th></th></tr></thead>'
       + '<tbody>' + rows + '</tbody></table></div></div></div>';
 
     instWrap.querySelectorAll('.org-mentor-dist-save').forEach(function (btn) {
@@ -2464,7 +2643,7 @@
     var sciWrap = $('org-mentoring-scientists-wrap');
     var institutes = data.institutes || [];
     var units = data.units || [];
-    var roles = data.mentor_roles || ['coder', 'reviewer', 'coding_tester', 'collaborator_pii', 'collaborator'];
+    var roles = data.mentor_roles || ['coder', 'reviewer', 'coding_tester', 'collaborator'];
     var allScientists = [];
     institutes.forEach(function (inst) {
       (inst.scientists || []).forEach(function (s) {

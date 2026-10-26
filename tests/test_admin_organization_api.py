@@ -472,7 +472,7 @@ class AdminOrganizationApiTests(BaseTestCase):
 
         seeded = self.client.post(self._url("/seed-template"), json={}, headers=headers)
         self.assertEqual(seeded.status_code, 200)
-        self.assertEqual(seeded.get_json()["seeded"]["levels"], 6)
+        self.assertEqual(seeded.get_json()["seeded"]["levels"], 7)
 
         levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
         created = self.client.post(
@@ -504,7 +504,19 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(summary["units"][0]["children"][0]["unit_code"], "C01")
         self.assertEqual(len(summary["level_cadres"]), len(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
 
-        toggled = self.client.post(self._url(f"/units/{district['org_unit_id']}/toggle"), json={"is_active": False}, headers=headers)
+        # Deactivating a parent unit with active children without a choice returns 409 with preview.
+        refused_toggle = self.client.post(
+            self._url(f"/units/{district['org_unit_id']}/toggle"), json={"is_active": False}, headers=headers
+        )
+        self.assertEqual(refused_toggle.status_code, 409)
+        self.assertTrue(refused_toggle.get_json()["requires_child_action"])
+        self.assertEqual([c["unit_code"] for c in refused_toggle.get_json()["active_children"]], ["C01"])
+
+        toggled = self.client.post(
+            self._url(f"/units/{district['org_unit_id']}/toggle"),
+            json={"is_active": False, "cascade_deactivate_children": True},
+            headers=headers,
+        )
         self.assertEqual(toggled.get_json()["changed"], 2)
         self.assertEqual(self.client.get(self._url("/units")).get_json()["units"], [])
         self.assertEqual(len(self.client.get(self._url("/units?include_inactive=1")).get_json()["units"]), 2)
@@ -560,7 +572,8 @@ class AdminOrganizationApiTests(BaseTestCase):
 
     def _seed_one_unit(self, headers):
         self.client.post(self._url("/seed-template"), json={}, headers=headers)
-        level = self.client.get(self._url("/levels")).get_json()["levels"][0]
+        levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
+        level = levels["district"]
         created = self.client.post(
             self._url("/units"),
             json={"org_level_id": level["org_level_id"], "unit_code": "D01", "unit_name": "District One"},
@@ -651,7 +664,7 @@ class AdminOrganizationApiTests(BaseTestCase):
         self._login(str(self.base_admin_id))
         headers = self._csrf_headers()
         org.seed_default_organization(self.PROJECT)
-        level = org.list_levels(self.PROJECT)[0]
+        level = next(lv for lv in org.list_levels(self.PROJECT) if lv.level_code == "district")
         org.create_unit(self.PROJECT, org_level_id=level.org_level_id, unit_code="D01", unit_name="District One")
         db.session.commit()
 
@@ -804,10 +817,10 @@ class AdminOrganizationApiTests(BaseTestCase):
         original_level_cadres = org.list_level_cadres(self.PROJECT)
         cases = (
             ("levels", "level_code,level_name,depth,is_optional,is_active\n"
-             "newlevel,New Level,7,false,true\ninvalid,Invalid Level,8,maybe,true\n",
+             "newlevel,New Level,8,false,true\ninvalid,Invalid Level,9,maybe,true\n",
              "is_optional", "NEWLEVEL"),
             ("levels", "level_code,level_name,depth,is_optional,is_active\n"
-             "newlevel,New Level,7,false,true\ninvalid,Invalid Level,8,false,maybe\n",
+             "newlevel,New Level,8,false,true\ninvalid,Invalid Level,9,false,maybe\n",
              "is_active", "NEWLEVEL"),
             ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,true\nXT,Other,falseish\n",
              "is_active", "LT"),
@@ -858,7 +871,7 @@ class AdminOrganizationApiTests(BaseTestCase):
         )
         db.session.commit()
         uploads = (
-            ("levels", "level_code,level_name,depth,is_active\nnewlevel,New Level,7,false\n"),
+            ("levels", "level_code,level_name,depth,is_active\nnewlevel,New Level,8,false\n"),
             ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,false\n"),
             ("workers", "worker_code,worker_name,unit_code,cadre_code,is_active\n"
              "W90,Worker 90,C90,MO,false\n"),
@@ -879,7 +892,7 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertFalse(cadre.is_active)
         self.assertFalse(worker["is_active"])
         for sheet, content in (
-            ("levels", "level_code,level_name,depth,is_active\nnewlevel,New Level,7,\n"),
+            ("levels", "level_code,level_name,depth,is_active\nnewlevel,New Level,8,\n"),
             ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,\n"),
             ("workers", "worker_code,worker_name,unit_code,cadre_code,is_active\n"
              "W90,Worker 90,C90,MO,\n"),

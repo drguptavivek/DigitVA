@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-26
 ---
 
 # Organization Model Policy
@@ -11,10 +11,11 @@ last_updated: 2026-10-22
 ## Purpose
 
 Health-system deployments organize VA work along the public health hierarchy
-(District > Taluka > CHC > PHC > Sub-centre > Village), not along research
-sites. This policy defines how a project describes that hierarchy, who sits
-where in it, and what the codes mean for ODK forms, coding scope and
-reporting.
+(State / Province > District > Block / Taluka / SDH (optional) > CHC >
+PHC / UPHC (PHC-AAM) > Sub-centre > Village, where a State / Province can
+contain multiple Districts), not along research sites. This policy defines how
+a project describes that hierarchy, who sits where in it, and what the codes
+mean for ODK forms, coding scope and reporting.
 
 - How it is implemented, what the work turned up and what is still open:
   [Health-System Organization Model — Implementation Report](../current-state/health-system-organization-model.md)
@@ -40,14 +41,17 @@ someone's supervisor, or from a field being left blank. A data manager who
 should also code needs a second record saying so.
 
 The "where" used to be a research shape — Project > Site > Form — which suits a
-study with a handful of field sites. A health system is a tree instead:
+study with a handful of field sites. A health system is a tree instead, where a
+State / Province can contain multiple Districts:
 
 ```
-District
- └─ CHC            community health centre
-     └─ PHC        primary health centre
-         └─ Sub-centre
-             └─ Village
+State / Province (optional)
+ └─ District
+     └─ Block / Taluka / SDH (optional)
+         └─ CHC                community health centre
+             └─ PHC / UPHC     primary / urban primary health centre (PHC-AAM)
+                 └─ Sub-centre (SC-AAM)
+                     └─ Village (optional)
 ```
 
 A project now describes its own tree, and a permission record may point at any
@@ -273,12 +277,27 @@ project ever has to carry two coding systems at once, that is when to add one.
 
 - Nothing in the organization model is deleted through the application.
   Deactivation is the only removal.
-- Deactivating a unit deactivates its whole subtree. Reactivating a unit
+- **Deactivating a parent unit with active child units (owner decision
+  2026-10-26, `digitva-ewa5`):** Deactivating (removing) a parent unit that has
+  active child units must **never** silently deactivate its child units or leave
+  them orphaned. Instead, the UI and API require the operator to explicitly
+  choose one of two actions:
+  1. **Move child units to another parent unit (`reparent_children_to_org_unit_id`):**
+     the operator selects a valid active replacement parent unit (at a shallower
+     level than the child units, respecting the project's required/optional
+     level rules), and all direct active child units (and their subtrees) are
+     re-parented and their `path` values rewritten before the parent unit is
+     deactivated.
+  2. **Deactivate the parent unit and all child units (`cascade_deactivate_children = true`):**
+     the operator explicitly confirms deactivating the entire subtree.
+  If a unit has active child units and neither option is specified, the API
+  refuses the deactivation until the operator chooses. Reactivating a unit
   requires an active parent.
 - A level cannot be deactivated, nor its depth changed, while units exist at
   that level.
-- Seeding the template (*Populate district defaults*; levels `district`,
-  `taluka` optional, `chc`, `phc`, `subcentre`, `village` optional, the eleven default
+- Seeding the template (*Populate district defaults*; levels `state` optional,
+  `district`, `taluka` optional (`Block / Taluka / SDH`), `chc`, `phc`
+  (`PHC / UPHC (PHC-AAM)`), `subcentre`, `village` optional, the default
   cadres and their level x cadre grid, see
   [District Reference Model](district-reference-model.md)) is additive: it
   only creates what is missing and never changes an existing level, cadre or
@@ -287,6 +306,35 @@ project ever has to carry two coding systems at once, that is when to add one.
   the unit is deactivated (decision 2026-09-18), so counts over a closed unit
   stay correct. Deactivation removes the unit from routing and from every
   grant's resolved scope; it does not rewrite history.
+
+### Tree integrity & re-parenting safeguards (owner decision 2026-10-26, `digitva-ewa5`)
+
+1. **Optional top levels (`State / Province`) and valid root units:** A unit with
+   `parent_org_unit_id = NULL` is a valid root unit (and **never** marked
+   unplaced) whenever every active level shallower than its level is marked
+   `is_optional = true`. Thus a single-district project where `state` (`depth 1`)
+   is optional and has no State units treats `district` (`depth 2`) units with
+   no parent as placed roots.
+2. **Mentoring institute attachment by `district` level:** Mentoring institutes
+   attach to District units identified by `level_code = 'district'` (falling
+   back to the project's top active level only when a custom tree defines no
+   `district` level), so adding a `State / Province` level above `District`
+   never breaks district mentoring links.
+3. **Cycle & mixed-depth validation on child re-parenting:** When deactivating a
+   parent unit `U` and moving its active children to replacement parent `P`,
+   `P` must be active, belong to the same project, not be `U` or any descendant
+   of `U` (`P.path <@ U.path`), and sit at a shallower level than every active
+   child of `U` without skipping any required intermediate level. All moved
+   child subtrees have their `ltree` `path` rewritten atomically in the same
+   transaction and the `authz` grant cache invalidated.
+4. **Downward level-gap check & required-level flip guard:** Changing a unit's
+   own level validates that no required level is skipped between the unit's new
+   level and any of its existing children. Flipping an existing level from
+   `is_optional = true` to `is_optional = false` is refused if any active unit
+   below it currently skips that level.
+5. **Reactivating a unit under a new active parent:** Updating an inactive unit
+   with both a new active `parent_org_unit_id` and `is_active = true` validates
+   and applies the parent move before reactivating the unit in one step.
 
 ## Import and export
 
@@ -468,17 +516,20 @@ The rule and the shared predicate that implements it live in
   grantable choice, and submitting one as `org_unit_id` is refused by
   `web_intake_service._require_scope`, which validates against the grant-derived
   reachable set and ignores the flag entirely.
-- Roles accepted at unit scope: `collaborator`, `collaborator_pii`, `coder`,
-  `coding_tester`, `reviewer`, `data_manager`, `interviewer`,
-  `interview_supervisor`, and `site_pi` as the **In-charge**. Each unit level
-  has an In-charge (District, Block or PHC in-charge; decision 2026-10-02,
-  see [Access Control Model](access-control-model.md), "In-charge"): `site_pi`
-  held at `org_unit` (shown as "In-charge"), with every data manager power in
-  its subtree, intake supervision and the site PI report for its units
-  (digitva-0wc stage 5; migration `e2b7c4d9a1f3` lifted the `role_scope`
-  CHECK). It is accepted only on a project with an organization tree. The
-  mentor guard forbids it to mentoring institute members. `admin` stays
-  global and `project_pi` stays project-scoped.
+- **Three-tier PII boundary (owner decision 2026-10-26, `digitva-ewa5`):**
+  - **Tier 3 — Inside the health system (`org_unit` staff not in a mentoring institute):** every person placed inside the health-system tree (**In-charge**, unit **Data Manager**, **Interview Supervisor**, **Interviewer**, **Death Reporter**, and in-system doctors holding **Coder** or **Reviewer**) sees **PII** across all units their grants reach, whether **within-tree** (their home unit subtree) or **cross-tree** (other health-system units assigned for coding or supervision). In-system unit leaders are always called **In-charge** (never `Site PI`).
+  - **Tier 1 (Project level) & Tier 2 (Mentoring institutes) — Outside the health system:** `project_pi`, project-level `data_manager`, project-level scientists/viewers, and Mentoring Institution members (`site_pi` as Mentoring Institution PI, plus `coder`, `reviewer`, `coding_tester`, `collaborator`) sit outside the health system and **do not see PII (Non-PII / Blinded)**.
+  - **Exceptional PII access:** when someone from outside the system exceptionally needs PII access, they are made part of the health system (Tier 3) and granted `data_manager` at the District (`org_unit`) level.
+- Roles accepted at unit scope: `collaborator`, `coder`, `coding_tester`,
+  `reviewer`, `data_manager`, `interviewer`, `interview_supervisor`,
+  **In-charge** (`in_charge` for health-system unit leaders; *transition note:
+  stored as `site_pi` at `org_unit` scope prior to enum split*), and `site_pi`
+  (Mentoring Institution PI, when held by a mentoring-institute member on an
+  attached district). Each health-system unit level has an In-charge (District,
+  Block or PHC in-charge; decisions 2026-10-02 and 2026-10-26, see
+  [Access Control Model](access-control-model.md), "In-charge"): every data
+  manager power in its subtree, intake supervision and unit reporting for its
+  units. `admin` stays global and `project_pi` stays project-scoped.
 - A unit grant carries no `project_id` or `project_site_id`. The grant's
   project is the unit's project, and every project filter resolves it that way.
 - One cadre per person per unit (decision 2026-09-18): a grant carries a single
@@ -546,9 +597,11 @@ The rule and the shared predicate that implements it live in
 
 ## Mentoring institutes
 
-A medical college or similar body that gives technical support (reviews PII
-forms, assesses progress, practises coding) sits outside the health-service
-tree. It is **not an org unit**; it belongs to no project's tree.
+A medical college or similar body that gives technical support (assesses
+progress, codes and reviews VA forms blinded) sits **outside the health-service
+tree (Tier 2 — Non-PII)** (owner decision 2026-10-26, `digitva-ewa5`). It is
+**not an org unit**; it belongs to no project's tree, and its members never see
+personal data (PII).
 
 - `mas_mentor_institute`: a standalone, cross-project master (code, name,
   `is_active`). Created, renamed and deactivated by a platform admin only.
@@ -558,9 +611,11 @@ tree. It is **not an org unit**; it belongs to no project's tree.
   and membership rules; it does not expand who may enter the Admin console
   or give institute staff automatic project access.
 - `map_mentor_institute_org_unit`: institute to **district-level unit**
-  (depth-1 level), many to many: one institute may support districts in
-  several projects, one district may have several institutes. Attached and
-  detached by a platform admin only.
+  (`level_code = 'district'`, or the top-level unit when a project has no
+  `district` level), many to many: one State / Province can have multiple
+  Districts, one institute may support districts in several projects, and one
+  district may have several institutes. Attached and detached by a platform
+  admin only.
 - `map_mentor_institute_user`: institute to staff user, many to many, with an
   `is_admin` flag (the institute admin). Staff are added and removed by a
   platform admin or by that institute's admin (below); the flag is set by a
@@ -581,13 +636,13 @@ be all of:
 1. at `org_unit` scope (never `project`, `project_site` or `global`);
 2. on a unit inside the subtree (the district itself included) of a district
    unit attached to one of that person's institutes, in the same project;
-3. one of `coder`, `reviewer`, `coding_tester`, `collaborator_pii`,
-   `collaborator`. Never `interviewer`, `data_manager`,
-   `interview_supervisor`, `site_pi`, `project_pi` or `admin`. Plain
-   `collaborator` (owner, 2026-10-22, `digitva-qfh8`) gives a mentor the
-   area dashboard's counts with no personal data and no staff names
-   (`should_redact_pii`); a mentor who also holds a coder or reviewer grant
-   sees staff names there as on every other screen.
+3. one of `site_pi` (Mentoring Institution PI), `coder`, `reviewer`,
+   `coding_tester`, `collaborator` (owner decision 2026-10-26,
+   `digitva-ewa5`). All mentoring-institute roles are **Non-PII (blinded)**.
+   Never `in_charge`, `interviewer`, `death_reporter`,
+   `interview_supervisor`, `project_pi` or `admin`. In the exceptional case
+   that an external person requires PII access, they are made part of the
+   health system (Tier 3) and granted `data_manager` at the District level.
 
 Otherwise the write is refused with an operator message. The guard runs on
 grant create, on reactivating a grant, and in the project user import.
@@ -912,13 +967,15 @@ account. An empty default-role mapping still creates only a roster worker.
 ## Project-scoped mentoring institutes and bulk VA mortality presets
 
 - **Mentoring institutes (`GET /admin/api/organization/<project_id>/mentoring`, `POST /admin/api/organization/<project_id>/mentoring/grants`):**
-  an administrator or project PI can inspect the project's top-level (District)
-  units, the mentoring institutes linked to them (`map_mentor_institute_org_unit`),
-  and the active institute scientists (`map_mentor_institute_user`), and
-  assign or revoke unit-scoped scientist grants (`coder`, `reviewer`,
-  `coding_tester`, `collaborator_pii`) across units of the mentored district's
-  subtree. Attaching or detaching mentoring institutes on a district remains
-  restricted to administrators (`POST /admin/api/organization/<project_id>/mentoring/districts`).
+  an administrator or project PI can inspect the project's District units
+  (`level_code = 'district'`, sitting under State / Province when a State node
+  is present), the mentoring institutes linked to them
+  (`map_mentor_institute_org_unit`), and the active institute staff
+  (`map_mentor_institute_user`), and assign or revoke unit-scoped mentoring
+  grants (`site_pi`, `coder`, `reviewer`, `coding_tester`, `collaborator` — all
+  Non-PII) across units of the mentored district's subtree. Attaching or
+  detaching mentoring institutes on a district remains restricted to
+  administrators (`POST /admin/api/organization/<project_id>/mentoring/districts`).
 - **Bulk VA mortality presets (`GET/PUT /admin/api/organization/<project_id>/va-presets`):**
   an administrator or project PI can view and bulk-update `map_org_unit_va_presets`
   (`hiv_mortality` for `Id10002` and `malaria_mortality` for `Id10003`: `high`,

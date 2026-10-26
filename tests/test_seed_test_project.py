@@ -97,7 +97,7 @@ class SeedTestProjectTests(BaseTestCase):
         }
         self.assertEqual(
             levels,
-            {"district": True, "taluka": True, "chc": True, "phc": True,
+            {"state": True, "district": True, "taluka": True, "chc": True, "phc": True,
              "subcentre": True, "village": False},
         )
 

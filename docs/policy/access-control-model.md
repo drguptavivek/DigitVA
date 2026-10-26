@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-26
 ---
 
 # Access Control Model
@@ -21,22 +21,78 @@ In other words:
 - RBAC answers: what can this user do?
 - ABAC answers: where can this user do it?
 
+## The Three-Tier Mental Model & PII Boundary (Owner Decision, 2026-10-26, `digitva-ewa5`)
+
+Role allocation and personal-data (PII) visibility follow one fundamental boundary: **whether the person operates *inside* the health system or sits *outside/above* it**.
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│ TIER 1: PROJECT LEVEL (Sitting above all Sites, Districts & Institutes)  │
+│ • Project PI (project_pi)                                                │
+│ • Project Scientist / Viewer (collaborator, coder, reviewer at project)  │
+│ • Project Data Manager (data_manager at project scope)                   │
+│ ──► OUTSIDE THE HEALTH SYSTEM ──► NO PII (Blinded / De-identified)       │
+└────────────────────────────────────┬─────────────────────────────────────┘
+                                     │
+         ┌───────────────────────────┴───────────────────────────┐
+         ▼                                                       ▼
+┌─────────────────────────────────────────┐   ┌────────────────────────────────────────────┐
+│ TIER 2: MENTORING INSTITUTION           │   │ TIER 3: HEALTH SYSTEM                      │
+│ (Attached to District(s) from outside)  │   │ (State/Province → District → Block/Taluka  │
+│ • Site PI (site_pi)                     │   │  → CHC → PHC/UPHC → Sub-centre → Village)  │
+│ • Institute Scientists                  │   │ • In-charge (State/Province, District CS,  │
+│   (coder, reviewer, coding_tester,      │   │   Block/CHC SMO, PHC/UPHC MO)              │
+│    collaborator)                        │   │ • Unit Data Manager (State/Province, DPM,  │
+│ ──► OUTSIDE THE HEALTH SYSTEM           │   │   DEPI, BPM)                               │
+│ ──► NO PII (Blinded)                    │   │ • Interview Supervisor                     │
+│                                         │   │ • Interviewer (CHO, SN, ANM, MPW)          │
+│ *Exception: If an external person needs │   │ • Death Reporter (ASHA, ANM, MPW)          │
+│  PII, they are placed in Tier 3 as a    │   │ • In-System Doctors (MO/SMO coding/review) │
+│  District or State/Province DM.*        │   │ ──► INSIDE THE HEALTH SYSTEM               │
+└─────────────────────────────────────────┘   │ ──► ALL PII (within-tree & cross-tree)     │
+                                              └────────────────────────────────────────────┘
+```
+
+### Governing Rules of the Three-Tier Model
+
+1. **Tier 3 — Inside the Health System = All PII:**
+   - Every role held **inside the health-system hierarchy** (`org_unit` scope by non-mentoring-institute staff) is **PII-enabled** across the units its grants reach:
+     - **In-charge** (`CS` at District, `SMO` at CHC, `MO` at PHC — never called `Site PI` for in-system unit leaders)
+     - **Unit Data Manager** (`DPM`, `DEPI` at District, `BPM` at CHC)
+     - **Interview Supervisor** (supervises field interviews, resolves duplicate/cancel flags)
+     - **Interviewer** (`CHO`, `SN`, `ANM`, `MPW`)
+     - **Death Reporter** (`ASHA`, `ANM`, `MPW` — own registered deaths)
+     - **In-System Doctors (`coder`, `reviewer`)** (`MO`, `SMO` at PHC/CHC/District)
+   - **Within-tree vs. cross-tree does not change PII visibility:** Because an in-system doctor (`MO`, `SMO`) is part of the health system, they see PII on all cases their health-system grants cover, whether coding for their home PHC subtree (**within-tree**) or assigned to code sibling PHCs (**cross-tree**). Likewise, in a **self-coding project** (`self_coding_enabled = true`), clinicians interviewing and coding their own cases are in-system and see PII.
+
+2. **Tier 1 & Tier 2 — Outside the Health System = No PII (Blinded):**
+   - **Tier 1 (Project Level):** `project_pi`, project-level `data_manager`, and project-level scientists/viewers (`collaborator`, `coder`, `reviewer` at `project` scope) sit above multiple sites, districts, and mentoring institutions. They oversee project-wide progress, workflow triage, and aggregate statistics, and **do not see PII**.
+   - **Tier 2 (Mentoring Institution / External Site Level):** Mentoring institutions (medical colleges or technical partner institutions attached to districts) sit outside the health system:
+     - **`site_pi` (Site PI)** is the lead / Principal Investigator role for a **Mentoring Institution** (or external study site), **not** an in-system health-unit leader.
+     - Mentoring institution scientists hold `site_pi`, `coder`, `reviewer`, `coding_tester`, or `collaborator`.
+     - All Tier 2 roles are **Non-PII (blinded)**: they see age, sex, dates, symptoms, narrative, and aggregate counts, but never deceased names, family names, addresses, GPS coordinates, or registration numbers.
+
+3. **Exceptional PII Access for an External Person:**
+   - In the exceptional case where someone from outside the health system (for example, a Mentoring Institution coordinator) genuinely requires PII access, they are **made part of the health system (Tier 3)** and granted a **`data_manager`** role at the **District (`org_unit`)** level.
+   - Separate workaround roles such as `"Coder with PII"` or `collaborator_pii` ("Viewer with PII") are not needed in the role allocation workflow.
+
 ## Roles
 
 DigitVA uses these roles:
 
 - `admin`
-- `project_pi`
-- `site_pi`
-- `data_manager`
-- `collaborator`
-- `collaborator_pii`
-- `coder`
-- `coding_tester`
-- `reviewer`
-- `interviewer`
-- `death_reporter`
-- `interview_supervisor`
+- `project_pi` (Tier 1 — Project level, Non-PII)
+- `site_pi` (Tier 2 — Mentoring Institution / external site lead, Non-PII)
+- `in_charge` (Tier 3 — Health-system unit leader: District CS, CHC SMO, PHC MO, PII; *transition note: currently stored as `site_pi` at `org_unit` scope prior to enum split*)
+- `data_manager` (Tier 1 at `project` scope = Non-PII; Tier 3 at `org_unit` scope = PII)
+- `collaborator` (Tier 1 / Tier 2 read-only viewer, Non-PII)
+- `collaborator_pii` *(legacy viewer-split role; superseded in setup workflows by granting Tier 3 `data_manager` at District/unit level when PII access is required)*
+- `coder` (Tier 2 / external = Non-PII; Tier 3 in-system clinician / self-coding = PII)
+- `coding_tester` (Tier 2 / external = Non-PII; Tier 3 in-system = PII)
+- `reviewer` (Tier 2 / external = Non-PII; Tier 3 in-system clinician = PII)
+- `interviewer` (Tier 3 — Health-system field/facility capture, PII)
+- `death_reporter` (Tier 3 — Health-system death registration, PII on own registrations)
+- `interview_supervisor` (Tier 3 — Health-system field supervision, PII)
 
 Roles are additive and do not inherit from each other.
 
@@ -57,11 +113,11 @@ May manage:
 
 ### `project_pi`
 
-Project-wide oversight within assigned projects.
+Project-wide oversight within assigned projects (**Tier 1 — Outside the health system, Non-PII**; owner decision 2026-10-26, `digitva-ewa5`).
 
 May, in every project:
 
-- view data across all assigned sites in an assigned project
+- view data across all assigned sites in an assigned project (**without personal data / Non-PII**)
 - view reporting for an assigned project
 - perform oversight actions allowed by workflow policy
 - set up the project and grant roles in it (see
@@ -69,9 +125,9 @@ May, in every project:
 
 In an **organizational (unit-tree) project** the `project_pi` additionally:
 
-- sees every screen of the project, with personal data: the data-management
-  dashboard, grid, KPIs and submission view, the coder and reviewer views,
-  the area view, intake supervision and the site PI report
+- sees every screen of the project, **with personal data redacted (Non-PII)**:
+  the data-management dashboard, grid, KPIs and submission view, the coder and
+  reviewer views, the area view, intake supervision and the site PI report
 - may act as `data_manager` and `interview_supervisor` across the whole
   project: triage and not codeable, routing and pinning a submission to a
   unit, sync, screening, upstream-change resolution, the unrouted queue and
@@ -87,29 +143,36 @@ Coding and reviewing still require a `coder` or `reviewer` grant. In a site
 
 ### `site_pi`
 
-Site-specific oversight within assigned project-site scope.
+Lead / Principal Investigator role for a **Mentoring Institution** (attached to
+districts in an organizational project) or an external study site in a classical
+project (**Tier 2 — Outside the health system, Non-PII**; owner decision
+2026-10-26, `digitva-ewa5`).
+
+Never used for in-system health-unit leaders (who hold **In-charge** instead).
 
 May:
 
-- view data for assigned sites within assigned projects
-- view reporting for assigned project-site scope
+- view data and progress for assigned mentoring-institute districts or assigned
+  project-sites (**without personal data / Non-PII**)
+- view reporting for assigned scope
 - perform oversight actions allowed by workflow policy
 
-A user may hold `site_pi` grants for many project-site pairs.
+A user may hold `site_pi` grants for many project-site pairs or mentored
+district subtrees.
 
 ### In-charge (organizational projects)
 
-Decision 2026-10-02. An organizational (unit-tree) project has one
-**In-charge** role, held at every level of the tree: the **District
-in-charge** (CMO or Civil Surgeon) on a district unit, the **Block in-charge**
-(Senior Medical Officer, CHC) on a block unit, and the **PHC in-charge**
-(Medical Officer, PHC) on a PHC unit. It replaces both the "District lead"
-recorded earlier the same day and the display name "field supervisor" for
-`interview_supervisor`. Within their own unit subtree every in-charge:
+Decision 2026-10-02, updated 2026-10-26 (`digitva-ewa5`). An organizational
+(unit-tree) project has one **In-charge** role (**Tier 3 — Inside the health
+system, PII**), held at health-system unit levels: the **District in-charge**
+(CMO or Civil Surgeon) on a district unit, the **Block in-charge** (Senior
+Medical Officer, CHC) on a block unit, and the **PHC in-charge** (Medical
+Officer, PHC) on a PHC unit. In-system unit leaders are always called
+**In-charge** (never `Site PI`). Within their own unit subtree every in-charge:
 
-- sees every screen, with personal data: the data-management dashboard,
-  grid, KPIs and submission view, the coder and reviewer views, the area
-  view, intake supervision and the site PI report
+- sees every screen, **with personal data (PII)**: the data-management
+  dashboard, grid, KPIs and submission view, the coder and reviewer views, the
+  area view, intake supervision and the unit report
 - oversees field work, as `interview_supervisor` does today: views intake
   cases, resolves flags, cancels or reopens a case and marks duplicates (see
   [Web Intake Policy](web-intake.md), "Supervisors")
@@ -121,19 +184,20 @@ recorded earlier the same day and the display name "field supervisor" for
   creates which grants")
 
 Coding and reviewing still require a `coder` or `reviewer` grant. Mentoring
-institute members may never hold the role; cadre validation applies as for
-any unit grant.
+institute members may never hold the In-charge role (they use `site_pi` for
+their Mentoring Institution lead); cadre validation applies as for any unit
+grant.
 
-The In-charge is the `site_pi` role held at `org_unit` scope, shown as
-"In-charge" (decision 2026-10-02). The `role_scope` CHECK allows it
-(migration `e2b7c4d9a1f3`) and the grant validator accepts it on a unit of a
-project with an organization tree only; a cadre is optional and, when
-given, must be defined at the unit's level. Classical projects keep
-`site_pi` at `project_site` unchanged. In an intake supervision audit row
-an In-charge grant ranks with `interview_supervisor` at equal depth.
+*Transition note:* Prior to splitting `in_charge` into its own `VaAccessRoles`
+enum value, In-charge was stored in `va_user_access_grants` as `site_pi` at
+`org_unit` scope (decision 2026-10-02, migration `e2b7c4d9a1f3`). Separating
+`in_charge` (Tier 3 health-system unit leader, PII) from `site_pi` (Tier 2
+Mentoring Institution lead, Non-PII) resolves that overload. In an intake
+supervision audit row an In-charge grant ranks with `interview_supervisor` at
+equal depth.
 
 Implemented in digitva-0wc stage 5: the screens, data-manager actions,
-intake supervision and the site PI report for the in-charge's own units.
+intake supervision and the unit report for the in-charge's own units.
 Single-submission sync only: whole-form sync stays with project and site
 data managers. The grant-creation powers above are implemented in
 digitva-0wc stage 6. A person who holds only an `interview_supervisor`
@@ -142,6 +206,15 @@ grant has only its powers.
 ### `data_manager`
 
 Data-quality and operational triage role within assigned scope.
+
+- **Tier 1 (`project` or `project_site` scope — Outside the health system):**
+  sits above multiple sites/districts and mentoring institutions; **does not
+  see PII (Non-PII)** (owner decision 2026-10-26, `digitva-ewa5`).
+- **Tier 3 (`org_unit` scope — Inside the health system):** District (`DPM`,
+  `DEPI`) or Block (`BPM`) data manager placed inside the health-system tree;
+  **sees PII** within their unit subtree. When an external person from outside
+  the health system exceptionally needs PII access, they are made part of the
+  system and granted `data_manager` at the District (`org_unit`) level.
 
 May:
 
@@ -590,11 +663,15 @@ scope"; decision 2026-10-02, `digitva-7xq`).
 
 **Mentoring institute members.** A person who belongs to a mentoring institute
 (see [Organization Model Policy](organization-model.md), "Mentoring
-institutes") may hold only `org_unit` grants of `coder`, `reviewer`,
-`coding_tester` or `collaborator_pii`, inside the subtree of a district their
-institute is attached to. They may not be given project-, site- or
-global-scope grants, nor `interviewer`, `data_manager` or any other role. The
-guard applies when a grant is written (create, reactivate, import).
+institutes") sits **outside the health system (Tier 2 — Non-PII)** and may hold
+`org_unit` grants of `site_pi` (Mentoring Institution PI), `coder`, `reviewer`,
+`coding_tester`, or `collaborator`, inside the subtree of a district their
+institute is attached to (owner decision 2026-10-26, `digitva-ewa5`). None of
+these mentoring-institute roles expose PII. They may not be given project- or
+global-scope grants, nor `in_charge`, `interviewer`, `death_reporter` or
+`interview_supervisor`. In the exceptional case that someone from outside the
+health system requires PII access, they are made part of the health system
+(Tier 3) and granted `data_manager` at the District (`org_unit`) level.
 
 A unit-scoped grant may also carry a `cadre_id`. It is descriptive, and
 nothing at runtime consults it, but it is validated on write: the cadre must

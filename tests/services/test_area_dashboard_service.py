@@ -878,6 +878,8 @@ class AreaStaffFixture(AreaDashboardFixture):
         cls.collaborator = cls._get_or_make_user("area.collab@test.local", "AreaUser123")
         cls._grant(cls.collaborator, VaAccessRoles.collaborator, VaAccessScopeTypes.org_unit,
                    org_unit_id=cls.district_1.org_unit_id)
+        cls._grant(cls.project_user, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.project,
+                   project_id=cls.TREE)
 
         case_a = cls._case(990101, cls.phc_a1, cls.interviewer, "in_progress", started=True)
         duplicate = cls._case(990102, cls.phc_a1, cls.interviewer, "duplicate", started=True)

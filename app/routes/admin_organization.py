@@ -208,7 +208,12 @@ def admin_org_update_unit(project_id, org_unit_id):
     if err := _guard(project_id):
         return err
     p = _payload()
-    allowed = {k: p[k] for k in _UNIT_FIELDS + ("is_active",) if k in p}
+    allowed = {
+        k: p[k]
+        for k in _UNIT_FIELDS
+        + ("is_active", "reparent_children_to_org_unit_id", "cascade_deactivate_children")
+        if k in p
+    }
     try:
         unit = org.update_unit(project_id, org_unit_id, **allowed)
         serialized = org.serialize_unit(unit, parent_code=unit.parent.unit_code if unit.parent else None)
@@ -244,16 +249,48 @@ def admin_org_place_units(project_id):
 def admin_org_toggle_unit(project_id, org_unit_id):
     if err := _guard(project_id):
         return err
-    raw_active = _payload().get("is_active")
+    p = _payload()
+    raw_active = p.get("is_active")
     if not isinstance(raw_active, bool):
         return _json_error("is_active (true/false) is required.", 400)
     active = raw_active
+    reparent_to = p.get("reparent_children_to_org_unit_id")
+    cascade = bool(p.get("cascade_deactivate_children", False))
+    if not active and not reparent_to and not cascade:
+        try:
+            preview = org.unit_deactivation_preview(project_id, org_unit_id)
+        except org.OrganizationError as exc:
+            return _json_error(str(exc), 400)
+        if preview["requires_child_action"]:
+            return (
+                jsonify(
+                    {
+                        "error": (
+                            f"Unit {preview['unit_code']!r} has {preview['active_children_count']} active child "
+                            "unit(s). Choose whether to move child units under another parent unit or deactivate "
+                            "all child units."
+                        ),
+                        **preview,
+                    }
+                ),
+                409,
+            )
     try:
-        changed = org.set_unit_active(project_id, org_unit_id, active)
+        changed = org.set_unit_active(
+            project_id,
+            org_unit_id,
+            active,
+            reparent_children_to_org_unit_id=reparent_to,
+            cascade_deactivate_children=cascade,
+        )
     except org.OrganizationError as exc:
         db.session.rollback()
         return _json_error(str(exc), 400)
-    _commit_and_log("unit-toggle", project_id, f"unit={org_unit_id} active={active} changed={changed}")
+    _commit_and_log(
+        "unit-toggle",
+        project_id,
+        f"unit={org_unit_id} active={active} changed={changed} reparent_to={reparent_to} cascade={cascade}",
+    )
     return jsonify({"changed": changed, "is_active": active})
 
 
@@ -1160,3 +1197,58 @@ def admin_org_mentoring_districts(project_id):
         return _json_error(str(exc), 400)
     overview = org.project_mentoring_overview(project_id)
     return jsonify({"overview": overview, **overview})
+
+
+# ---------------------------------------------------------------------------
+# Project Users Grid & 2-Dropdown Bulk Apply (digitva-dus.4)
+# ---------------------------------------------------------------------------
+
+
+@admin.get("/api/projects/<project_id>/users-grid")
+@admin.get(f"{_API}/users-grid")
+@role_required("admin", "project_pi")
+def admin_project_users_grid(project_id):
+    if not _current_user_can_manage_project(project_id):
+        return _json_error("You do not have access to that project.", 403)
+    try:
+        data = org.get_project_users_grid(project_id)
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 404)
+    return jsonify(data)
+
+
+@admin.post("/api/projects/<project_id>/users-grid/bulk-apply")
+@admin.post(f"{_API}/users-grid/bulk-apply")
+@role_required("admin", "project_pi")
+def admin_project_users_grid_bulk_apply(project_id):
+    if not _current_user_can_manage_project(project_id):
+        return _json_error("You do not have access to that project.", 403)
+    p = _payload()
+    try:
+        summary, changed_grants = org.bulk_apply_project_users_grid(
+            project_id,
+            p,
+            actor=current_user,
+        )
+        db.session.commit()
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    if changed_grants:
+        user_import.finalize_apply(
+            project_id,
+            actor_user_id=current_user.user_id,
+            actor_role="admin" if current_user.is_admin() else "project_pi",
+            changed_grants=changed_grants,
+            invitations=[],
+            request_ip=request.remote_addr,
+        )
+    log.info(
+        "project users-grid bulk-apply | project=%s | by=%s | summary=%s",
+        project_id,
+        getattr(current_user, "user_id", None),
+        summary,
+    )
+    grid = org.get_project_users_grid(project_id)
+    return jsonify({"summary": summary, "grid": grid, **grid})
+

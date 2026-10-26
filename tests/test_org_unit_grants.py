@@ -172,7 +172,7 @@ class OrgUnitGrantTests(BaseTestCase):
         with self.assertRaises(org.OrganizationError):
             og.validate_org_unit_grant(role=VaAccessRoles.admin, org_unit_id=chc.org_unit_id)
 
-        org.set_unit_active(self.PROJECT, chc.org_unit_id, False)
+        org.set_unit_active(self.PROJECT, chc.org_unit_id, False, cascade_deactivate_children=True)
         db.session.commit()
         with self.assertRaises(org.OrganizationError) as ctx:
             og.validate_org_unit_grant(
@@ -214,7 +214,7 @@ class OrgUnitGrantTests(BaseTestCase):
         grant = self._grant(self.base_coder_user.user_id, VaAccessRoles.coder, chc, cadres["SMO"])
 
         # Deactivating the PHC cascades to the sub-centre below it.
-        org.set_unit_active(self.PROJECT, phc.org_unit_id, False)
+        org.set_unit_active(self.PROJECT, phc.org_unit_id, False, cascade_deactivate_children=True)
         db.session.commit()
         covered = og.scope_unit_ids(self.base_coder_user.user_id, VaAccessRoles.coder)
         self.assertEqual(covered, {chc.org_unit_id})

@@ -3,7 +3,7 @@ title: Case List Views Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-21
+last_updated: 2026-10-26
 ---
 
 # Case List Views Policy
@@ -252,18 +252,20 @@ one per predicate above. A user who reaches a row through several predicates
 gets the widest fields any of them allows. Hidden fields are omitted from the
 payload, not blanked in the client. Cells marked **Q** are open questions.
 
-| Reach | Name | ID, age/sex, dates, unit | Status | Reporter / interviewer / coder |
-| --- | --- | --- | --- | --- |
-| admin | yes | yes | yes | yes |
-| project_pi | **Q** | yes | yes | **Q** |
-| site_pi / in-charge | **Q** | yes | yes | **Q** |
-| data_manager | **Q** | yes | yes | yes |
-| interview_supervisor | yes (supervises cases) | yes | yes | yes |
-| interviewer (unit subtree) | yes | yes | yes | self only |
-| death_reporter (cases it registered) | yes | yes | yes | self only |
-| coder / reviewer | no (masked coding, `field-data-collection.md`) | **Q**; `unit_name` omitted until answered | coding status | **Q** |
-| collaborator | no | **Q** | yes | **Q** |
-| collaborator_pii | yes | yes | yes | **Q** |
+| Reach | Tier (Inside vs Outside Health System) | Name & Registration Numbers | ID, age/sex, dates, unit | Status | Reporter / interviewer / coder |
+| --- | --- | --- | --- | --- | --- |
+| admin | Global | yes | yes | yes | yes |
+| in-charge (`in_charge` / unit leader) | Tier 3 (Inside health system) | **yes (PII)** | yes | yes | yes |
+| unit `data_manager` (`org_unit` scope) | Tier 3 (Inside health system) | **yes (PII)** | yes | yes | yes |
+| `interview_supervisor` | Tier 3 (Inside health system) | **yes (PII)** (supervises cases) | yes | yes | yes |
+| `interviewer` (unit subtree) | Tier 3 (Inside health system) | **yes (PII)** | yes | yes | self only |
+| `death_reporter` (cases it registered) | Tier 3 (Inside health system) | **yes (PII)** | yes | yes | self only |
+| in-system `coder` / `reviewer` (within-tree or cross-tree health unit, or self-coding) | Tier 3 (Inside health system) | **yes (PII)** | yes | coding status | self / unit |
+| `project_pi` | Tier 1 (Outside — Project level) | **no (Non-PII)** | yes | yes | no |
+| project `data_manager` (`project` scope) | Tier 1 (Outside — Project level) | **no (Non-PII)** | yes | yes | no |
+| `site_pi` (Mentoring Institution / external site PI) | Tier 2 (Outside — Mentoring Inst) | **no (Non-PII)** | yes | yes | no |
+| mentoring / external `coder` / `reviewer` / `coding_tester` | Tier 2 (Outside — Mentoring Inst) | **no (masked coding, Non-PII)** | `unit_name` omitted | coding status | no |
+| `collaborator` (Project or Mentoring Inst viewer) | Tier 1 / Tier 2 (Outside) | **no (Non-PII)** | yes | yes | no |
 
 Rules that are decided:
 
@@ -370,20 +372,23 @@ The registration-number row fields and filters are built (stages 2 and 3 backend
 `identifiers` on every row, values per the per-row `can_identifiers` test, `can_edit_identifiers`,
 the has / missing filter and the exact number search. Defaults applied, **owner-pending unless marked decided**:
 
-1. Names (**decided, owner, 2026-10-20**): the deceased name and the
-   reporter, interviewer and coder names are shown to admin, anyone supervising
-   the case (interview_supervisor, data_manager, In-charge, project_pi through
-   `supervised_case_condition`) and a data manager's submissions reach **only
-   when the caller has PII access** (`should_redact_pii` false, decided once
-   per caller as `gps_projects` does). Admin is a PII holder (owner, 2026-10-21: names, staff names, GPS
-   and identifier values are shown) with no scope bypass: it sees only the cases
-   the scope rules give it. Without PII access those fields are omitted (not blanked); the rows
-   the scope allows are still listed. The interviewer and death_reporter on
-   their reach and `collaborator_pii` keep names as before (a field role gets
-   only its own staff part). Omitted for project_pi, site_pi, plain
-   collaborator, coder and reviewer when the row is reached only through the
-   submissions scope. An `interview_supervisor` alone is redacted by
-   definition, so it sees no names unless it also holds a PII role.
+1. Names and PII (**updated by owner decision 2026-10-26, `digitva-ewa5`**; see
+   [Access Control Model](access-control-model.md), "The Three-Tier Mental
+   Model & PII Boundary"):
+   - **Inside the health system (Tier 3 — All PII):** **In-charge**, unit-scoped
+     `data_manager`, `interview_supervisor`, `interviewer`, `death_reporter`
+     (own registrations), and **in-system `coder` / `reviewer`** (whether
+     coding within-tree on their home unit or cross-tree on sibling health
+     units, or in a self-coding project) see PII (deceased name, unit, and
+     registration numbers per role rules) across their granted scope.
+   - **Outside the health system (Tier 1 Project level & Tier 2 Mentoring
+     Institution — All Non-PII):** `project_pi`, project-scoped `data_manager`,
+     `site_pi` (Mentoring Institution PI), mentoring/external `coder`,
+     `reviewer`, `coding_tester`, and `collaborator` **do not see PII** (names,
+     staff identity, GPS and registration number values are omitted). If an
+     external person exceptionally requires PII access, they are placed in
+     Tier 3 and granted `data_manager` at the District (`org_unit`) level.
+   - Admin remains a PII holder (owner, 2026-10-21) with no scope bypass.
 2. Coders and reviewers see `unique_id`, age/sex, dates and status; no name,
    no `org_unit_id`/`unit_name`. Collaborators, PIs and data managers see the unit.
 3. `scheduled`, `not_reachable` and `paused` all map to `interview_pending`;

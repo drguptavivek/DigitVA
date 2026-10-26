@@ -67,45 +67,116 @@
   {% endif %}
 
   <div class="row g-3">
-    {# Section nav #}
+      {# Section nav: Group 1 (Live Operations) at top, Group 2 (One-Time Setup Wizard) below #}
     <div class="col-12 col-md-3 col-xl-2">
       <nav class="nav nav-pills flex-column gap-1 small" id="setup-section-nav">
-        <a class="nav-link py-1 px-2" href="#" data-section="overview">Overview</a>
-        <a class="nav-link py-1 px-2" href="#" data-section="basics">Basics</a>
-        <a class="nav-link py-1 px-2" href="#" data-section="data-collection">Data collection</a>
-        <a class="nav-link py-1 px-2" href="#" data-section="structure">Structure</a>
-        <a class="nav-link py-1 px-2" href="#" data-section="coding">Coding</a>
-        <a class="nav-link py-1 px-2" href="#" data-section="people">People</a>
-        <a class="nav-link py-1 px-2" href="#" data-section="sync">Sync &amp; activity</a>
+        <div class="text-uppercase text-muted fw-bold px-2 pt-1" style="font-size:0.68rem; letter-spacing:0.04em;">
+          <i class="fa-solid fa-bolt me-1 text-warning"></i>Live Operations
+        </div>
+        <a class="nav-link py-1 px-2" href="#" data-section="overview"><i class="fa-solid fa-sliders me-1 opacity-75"></i>Overview &amp; Gates</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="people"><i class="fa-solid fa-users-gear me-1 opacity-75"></i>People &amp; Grants</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="sync"><i class="fa-solid fa-clock-rotate-left me-1 opacity-75"></i>Sync &amp; activity</a>
+        <hr class="my-2">
+        <div class="text-uppercase text-muted fw-bold px-2" style="font-size:0.68rem; letter-spacing:0.04em;">
+          <i class="fa-solid fa-list-check me-1 text-primary"></i>One-Time Setup Wizard
+        </div>
+        <a class="nav-link py-1 px-2" href="#" data-section="basics"><span class="badge rounded-pill text-bg-light border me-1">1</span>Basics</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="structure"><span class="badge rounded-pill text-bg-light border me-1">2</span>Structure &amp; Cadres</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="data-collection"><span class="badge rounded-pill text-bg-light border me-1">3</span>Data collection</a>
+        <a class="nav-link py-1 px-2" href="#" data-section="coding"><span class="badge rounded-pill text-bg-light border me-1">4</span>Coding</a>
       </nav>
     </div>
 
     <div class="col-12 col-md-9 col-xl-10">
 
-      {# Overview #}
+      {# Overview & Live Runtime Gates #}
       <section class="setup-section d-none" data-section="overview">
-        <div class="card mb-3">
-          <div class="card-body">
-            <h6 class="card-title">Quick facts</h6>
-            <dl class="row small mb-0">
-              <dt class="col-sm-4">Structure</dt>
-              <dd class="col-sm-8">{{ 'Organization (unit tree)' if is_org else 'Sites (Project > Site > Form)' }}</dd>
-              <dt class="col-sm-4">Coding intake</dt>
-              <dd class="col-sm-8">{{ 'Pick and choose' if project.coding_intake_mode == 'pick_and_choose' else 'Random form allocation' }}</dd>
-              <dt class="col-sm-4">ICD classification</dt>
-              <dd class="col-sm-8">{{ {'icd10': 'ICD-10', 'icd11': 'ICD-11'}.get(project.icd_classification, project.icd_classification) }}</dd>
-              <dt class="col-sm-4">Web intake</dt>
-              <dd class="col-sm-8">{{ project.web_intake_mode or 'off' }}</dd>
-              {% if is_org %}
-                <dt class="col-sm-4">Active units</dt>
-                <dd class="col-sm-8">{{ unit_count }}</dd>
-              {% else %}
-                <dt class="col-sm-4">Active sites</dt>
-                <dd class="col-sm-8">{{ site_count }}</dd>
-              {% endif %}
-            </dl>
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-lg-5">
+            <div class="card h-100">
+              <div class="card-body">
+                <h6 class="card-title"><i class="fa-solid fa-circle-info me-1 text-primary"></i>Quick facts</h6>
+                <dl class="row small mb-0">
+                  <dt class="col-sm-5">Structure</dt>
+                  <dd class="col-sm-7">{{ 'Organization (unit tree)' if is_org else 'Sites (Project > Site > Form)' }}</dd>
+                  <dt class="col-sm-5">Coding intake</dt>
+                  <dd class="col-sm-7">{{ 'Pick and choose' if project.coding_intake_mode == 'pick_and_choose' else 'Random form allocation' }}</dd>
+                  <dt class="col-sm-5">ICD classification</dt>
+                  <dd class="col-sm-7">{{ {'icd10': 'ICD-10', 'icd11': 'ICD-11'}.get(project.icd_classification, project.icd_classification) }}</dd>
+                  <dt class="col-sm-5">Web intake</dt>
+                  <dd class="col-sm-7" id="setup-fact-web-intake">{{ project.web_intake_mode or 'off' }}</dd>
+                  {% if is_org %}
+                    <dt class="col-sm-5">Active units</dt>
+                    <dd class="col-sm-7">{{ unit_count }}</dd>
+                  {% else %}
+                    <dt class="col-sm-5">Active sites</dt>
+                    <dd class="col-sm-7">{{ site_count }}</dd>
+                  {% endif %}
+                </dl>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-7">
+            <div class="card h-100 border-primary-subtle">
+              <div class="card-body small">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h6 class="card-title mb-0"><i class="fa-solid fa-toggle-on me-1 text-success"></i>Live Runtime Controls (Start / Stop)</h6>
+                  <button type="button" class="btn btn-sm btn-success py-0 px-2" id="setup-rt-save-btn">
+                    <i class="fa-solid fa-check me-1"></i>Save Switches
+                  </button>
+                </div>
+                <div class="row g-2 align-items-end">
+                  <div class="col-sm-6">
+                    <label class="form-label small mb-1" for="setup-rt-project-status">Master Project Status</label>
+                    <select id="setup-rt-project-status" class="form-select form-select-sm">
+                      <option value="active" {% if project.project_status.value == 'active' %}selected{% endif %}>Active (Open for authorized users)</option>
+                      <option value="deactive" {% if project.project_status.value != 'active' %}selected{% endif %}>Inactive (Closed — suspends all non-admin grants)</option>
+                    </select>
+                  </div>
+                  <div class="col-sm-6">
+                    <label class="form-label small mb-1" for="setup-rt-web-intake">Web &amp; Mobile App Capture</label>
+                    <select id="setup-rt-web-intake" class="form-select form-select-sm">
+                      <option value="off" {% if (project.web_intake_mode or 'off') == 'off' %}selected{% endif %}>Off (ODK only / paused)</option>
+                      <option value="direct" {% if project.web_intake_mode == 'direct' %}selected{% endif %}>Direct VA Questionnaire</option>
+                      <option value="death_register" {% if project.web_intake_mode == 'death_register' %}selected{% endif %}>Death Register First &rarr; VA</option>
+                      <option value="both" {% if project.web_intake_mode == 'both' %}selected{% endif %}>Both (Death Register + Direct VA)</option>
+                    </select>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="form-check form-switch mt-1">
+                      <input class="form-check-input" type="checkbox" role="switch" id="setup-rt-nqa" {% if project.nqa_enabled %}checked{% endif %}>
+                      <label class="form-check-label" for="setup-rt-nqa">Narrative QA (AI Assist)</label>
+                    </div>
+                  </div>
+                  <div class="col-sm-6">
+                    <div class="form-check form-switch mt-1">
+                      <input class="form-check-input" type="checkbox" role="switch" id="setup-rt-att-fetch" {% if project.attachment_central_fetch_enabled %}checked{% endif %}>
+                      <label class="form-check-label" for="setup-rt-att-fetch">Live ODK Attachment Fetch</label>
+                    </div>
+                  </div>
+                </div>
+                <div id="setup-rt-msg" class="small mt-2" role="status"></div>
+              </div>
+            </div>
           </div>
         </div>
+
+        {# Inline Site Coding Gates table #}
+        <div class="card mb-3">
+          <div class="card-body small">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <div>
+                <h6 class="card-title mb-0"><i class="fa-solid fa-gauge-high me-1 text-primary"></i>Site Coding Gates (Enable / Pause Coding, Date Windows &amp; Daily Coder Limits)</h6>
+                <div class="text-muted">Control whether coders can assign causes of death on each project site, set active coding date windows, and cap daily forms per coder.{% if is_org %} Per-unit coding gates can further narrow subtrees inside <a href="#" data-jump-section="structure" data-jump-org-tab="units">Units</a>.{% endif %}</div>
+              </div>
+            </div>
+            <div id="setup-site-gates-msg" class="small mb-2" role="status"></div>
+            <div id="setup-site-gates-wrap" class="table-responsive">
+              <div class="text-muted small py-1">Loading site coding gates…</div>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-1">
@@ -126,11 +197,23 @@
       {# Basics: the Projects panel's edit form, locked to this project #}
       <section class="setup-section d-none" data-section="basics">
         {% include "admin/panels/projects.html" %}
+        <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-4">
+          <span class="text-muted small">Step 1 of 4 · Project Basics &amp; Identity</span>
+          <a href="#" class="btn btn-sm btn-primary" data-section="structure">Next: Step 2 · Structure &amp; Cadres <i class="fa-solid fa-arrow-right ms-1"></i></a>
+        </div>
       </section>
 
       <section class="setup-section d-none" data-section="data-collection">
-        <p class="text-muted small">Web intake (off, direct questionnaire, death register first, or
-          both), its form type and languages are project fields: <a href="#" data-section="basics">edit them in Basics</a>.</p>
+        <div class="alert alert-light border small py-2 mb-3">
+          <div class="fw-semibold mb-1"><i class="fa-solid fa-clipboard-check me-1 text-primary"></i>Step 3 · Web &amp; Mobile Data Capture Rules (Registration IDs, Respondent Consent &amp; Optional ODK)</div>
+          <div class="text-muted">Web intake mode (off, direct questionnaire, death register first, or both), its form type and languages are project fields: <a href="#" data-section="basics">edit them in Basics</a> (or toggle Web Intake live in <a href="#" data-section="overview">Overview &amp; Gates</a>).</div>
+        </div>
+        {# Registration numbers (digitva-kzyp): the types the death register collects for this project. #}
+        {% include "admin/panels/identifier_types.html" %}
+        <hr class="my-4">
+        {# Respondent consent (digitva-athy): the DPDP notice, its versions and the require switch. #}
+        {% include "admin/panels/consent_settings.html" %}
+        <hr class="my-4">
         {% include "admin/panels/project_forms.html" %}
         <div class="card mt-3" id="setup-odk-xlsform"><div class="card-body small">
           <h6 class="card-title">ODK form (XLSForm)</h6>
@@ -180,13 +263,12 @@
         })();
         </script>
         <hr class="my-4">
-        {# Registration numbers (digitva-kzyp): the types the death register collects for this project. #}
-        {% include "admin/panels/identifier_types.html" %}
-        <hr class="my-4">
-        {# Respondent consent (digitva-athy): the DPDP notice, its versions and the require switch. #}
-        {% include "admin/panels/consent_settings.html" %}
-        <hr class="my-4">
         {% include "admin/panels/odk_connections.html" %}
+        <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-4">
+          <a href="#" class="btn btn-sm btn-outline-secondary" data-section="structure"><i class="fa-solid fa-arrow-left me-1"></i>Previous: Step 2 · Structure &amp; Cadres</a>
+          <span class="text-muted small">Step 3 of 4 · Data Collection</span>
+          <a href="#" class="btn btn-sm btn-primary" data-section="coding">Next: Step 4 · Coding Rules <i class="fa-solid fa-arrow-right ms-1"></i></a>
+        </div>
       </section>
       {# Structure: each panel is included once per page (their scripts find
          elements by id), so Coding points into these rather than repeating them. #}
@@ -196,6 +278,11 @@
           <hr class="my-4">
         {% endif %}
         {% include "admin/panels/project_sites.html" %}
+        <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-4">
+          <a href="#" class="btn btn-sm btn-outline-secondary" data-section="basics"><i class="fa-solid fa-arrow-left me-1"></i>Previous: Step 1 · Basics</a>
+          <span class="text-muted small">Step 2 of 4 · Facility Structure &amp; Cadres</span>
+          <a href="#" class="btn btn-sm btn-primary" data-section="data-collection">Next: Step 3 · Data Collection <i class="fa-solid fa-arrow-right ms-1"></i></a>
+        </div>
       </section>
       <section class="setup-section d-none" data-section="coding">
         <div class="card mb-3"><div class="card-body small">
@@ -219,54 +306,240 @@
         <div class="card"><div class="card-body small">
           <h6 class="card-title">Project coding gate (per site)</h6>
           <p class="text-muted mb-2">Coding on or off, a coding window and a daily coder limit for each of the
-            project's sites{{ ', the container every unit sits under' if is_org }}. Set it with the
+            project's sites{{ ', the container every unit sits under' if is_org }}. Set it inline in
+            <a href="#" data-section="overview">Overview &amp; Gates</a> or with the
             <i class="fa-solid fa-sliders"></i> button on a site row in Project Sites.</p>
           <a href="#" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-to="panel-project-sites">
             <i class="fa-solid fa-diagram-project me-1"></i>Open Project Sites</a>
         </div></div>
+        <div class="d-flex justify-content-between align-items-center border-top pt-3 mt-4">
+          <a href="#" class="btn btn-sm btn-outline-secondary" data-section="data-collection"><i class="fa-solid fa-arrow-left me-1"></i>Previous: Step 3 · Data Collection</a>
+          <span class="text-muted small">Step 4 of 4 · Coding Rules &amp; Scope</span>
+          <a href="#" class="btn btn-sm btn-success" data-section="people"><i class="fa-solid fa-users-gear me-1"></i>Go to Live People &amp; Grants &rarr;</a>
+        </div>
       </section>
       <section class="setup-section d-none" data-section="people">
-        {% include "admin/panels/access_grants.html" %}
-        <hr class="my-4">
-        {% include "admin/panels/people_roles.html" %}
-        <hr class="my-4">
-        {% include "admin/panels/project_pi.html" %}
-        {% if current_user.is_admin() %}
-        <hr class="my-4">
-        {# Devices (Path B collection app): enrolment QR, enrolled devices, revoke.
-           JSON API in app/routes/admin_devices.py; admin only. #}
-        <div class="card" id="setup-devices">
-          <div class="card-body small">
-            <h6 class="card-title">Devices</h6>
-            <p class="text-muted mb-2">Enrol a phone for the collection app: create a code, then scan
-              the QR in the app. The code is shown once and only here.</p>
-            <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
-              <label class="form-label mb-0">Expires in (minutes)
-                <input type="number" class="form-control form-control-sm" id="device-code-minutes" value="60" min="5" max="10080">
-              </label>
-              <label class="form-label mb-0">Uses
-                <input type="number" class="form-control form-control-sm" id="device-code-uses" value="1" min="1" max="200">
-              </label>
-              <button type="button" class="btn btn-sm btn-primary" id="device-code-create">
-                <i class="fa-solid fa-qrcode me-1"></i>Create enrolment code</button>
+        {# Horizontal Sub-Tabs for People & Grants #}
+        <ul class="nav nav-tabs mb-3 small" id="setup-people-subtabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-semibold" id="setup-ptab-grid-btn" data-bs-toggle="tab" data-bs-target="#setup-people-pane-grid" type="button" role="tab">
+              <i class="fa-solid fa-table-list me-1 text-primary"></i>1. Project Users Grid &amp; Bulk Apply
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="setup-ptab-grants-btn" data-bs-toggle="tab" data-bs-target="#setup-people-pane-grants" type="button" role="tab">
+              <i class="fa-solid fa-key me-1 text-secondary"></i>2. Single Access Grants &amp; Project PIs
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="setup-ptab-audit-btn" data-bs-toggle="tab" data-bs-target="#setup-people-pane-audit" type="button" role="tab">
+              <i class="fa-solid fa-shield-halved me-1 text-secondary"></i>3. Capability Audit Matrix (● / ○)
+            </button>
+          </li>
+          {% if current_user.is_admin() %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="setup-ptab-devices-btn" data-bs-toggle="tab" data-bs-target="#setup-people-pane-devices" type="button" role="tab">
+              <i class="fa-solid fa-mobile-screen-button me-1 text-secondary"></i>4. Mobile App Devices &amp; Stations
+            </button>
+          </li>
+          {% endif %}
+        </ul>
+
+        <div class="tab-content">
+          {# Sub-Tab 1: Project Users Grid & 2-Dropdown Bulk Apply #}
+          <div class="tab-pane fade show active" id="setup-people-pane-grid" role="tabpanel">
+            <div class="card mb-3 border-primary-subtle">
+              <div class="card-body p-3 small">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                  <div>
+                    <h6 class="mb-0"><i class="fa-solid fa-users-viewfinder me-1 text-primary"></i>Project Users Roster, PII Visibility &amp; Multi-Unit Bulk Apply</h6>
+                    <div class="text-muted">One consolidated row per user showing contact details, effective <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis">PII</span> vs. <span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis">Non-PII</span> visibility, project-level roles, and unit-level roles (with smart cross-tree grouping).</div>
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    {% if is_org %}
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-org-tab="workers">
+                      <i class="fa-solid fa-user-plus me-1"></i>Enrol Worker / App QR
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-jump-section="structure" data-jump-org-tab="mentoring">
+                      <i class="fa-solid fa-building-columns me-1"></i>Mentoring Scientists
+                    </button>
+                    {% endif %}
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="setup-ug-refresh-btn" title="Refresh roster">
+                      <i class="fa-solid fa-rotate"></i>
+                    </button>
+                  </div>
+                </div>
+
+                {# KPI Summary Strip #}
+                <div class="d-flex flex-wrap gap-2 mb-3" id="setup-ug-kpis"></div>
+
+                {# Filter & View Switcher Bar #}
+                <div class="row g-2 align-items-center mb-2">
+                  <div class="col-md-4">
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+                      <input type="search" id="setup-ug-search" class="form-control" placeholder="Search name, email, 10-digit mobile, unit or cadre…">
+                    </div>
+                  </div>
+                  <div class="col-md-4">
+                    <select id="setup-ug-filter" class="form-select form-select-sm" aria-label="Filter users by role or PII tier">
+                      <option value="">All users in project</option>
+                      <option value="pii">🔴 Tier 3: Users WITH PII access (Inside Health System)</option>
+                      <option value="non_pii">🟢 Tier 1 &amp; 2: Users with Non-PII (Blinded) access only</option>
+                      <option value="coder_non_pii">🩺 Coders (Tier 1/2 Non-PII — Blinded Name &amp; Reg IDs)</option>
+                      <option value="coder_pii">🩺🔑 Coders (Tier 3 In-System — Sees Name &amp; Reg IDs)</option>
+                      <option value="reviewer">📋 Reviewers (QA / Adjudication)</option>
+                      <option value="in_charge">🏥 In-charge / Project PI</option>
+                      <option value="field">📱 Field Collectors (Interviewer / Supervisor / Death Reporter)</option>
+                      <option value="multi_unit">🔀 Multi-unit / Cross-tree users (&gt;1 unit)</option>
+                      <option value="inactive">⏸ Inactive user accounts</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4 d-flex justify-content-md-end gap-2 align-items-center">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Users view mode">
+                      <button type="button" class="btn btn-outline-primary active" id="setup-ug-view-list">
+                        <i class="fa-solid fa-list me-1"></i>1 Row / User
+                      </button>
+                      {% if is_org %}
+                      <button type="button" class="btn btn-outline-primary" id="setup-ug-view-matrix">
+                        <i class="fa-solid fa-table-cells me-1"></i>User &times; Unit Matrix
+                      </button>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+
+                {# Sticky 2-Dropdown Bulk Apply Bar #}
+                <div class="border rounded p-2 bg-body-tertiary mb-2" id="setup-users-bulk-bar">
+                  <div class="row g-2 align-items-center">
+                    <div class="col-auto">
+                      <span class="badge text-bg-primary" id="setup-ug-sel-badge"><span id="setup-ug-sel-count">0</span> selected</span>
+                    </div>
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small fw-semibold mb-0 text-muted" for="setup-ug-bulk-op" style="font-size:0.7rem;">1. Role or Action (Three-Tier PII Boundary)</label>
+                      <select id="setup-ug-bulk-op" class="form-select form-select-sm">
+                        <option value="">— Choose role or action to apply —</option>
+                        <optgroup label="Coding &amp; QA Roles (Tier 3 In-System = PII · Tier 1/2 = Non-PII)">
+                          <option value="coder_non_pii">+ Grant: Coder (Tier 3 In-System = PII · Tier 1/2 = Non-PII)</option>
+                          <option value="reviewer_non_pii">+ Grant: Reviewer (Tier 3 In-System = PII · Tier 1/2 = Non-PII)</option>
+                          <option value="coding_tester">+ Grant: Coding Tester (Sandbox — Non-PII)</option>
+                        </optgroup>
+                        <optgroup label="Read-Only Viewer Roles">
+                          <option value="viewer_non_pii">+ Grant: Viewer (Non-PII — Redacted)</option>
+                        </optgroup>
+                        <optgroup label="Oversight, Data Management &amp; Field Collection Roles">
+                          <option value="in_charge">+ Grant: In-charge (Tier 3 Unit Subtree — Full PII)</option>
+                          <option value="data_manager">+ Grant: Data Manager (Tier 3 Unit = Full PII · Project = Non-PII)</option>
+                          {% if current_user.is_admin() %}
+                          <option value="project_pi">+ Grant: Project PI (Tier 1 Project-wide — Non-PII)</option>
+                          {% endif %}
+                          <option value="interviewer">+ Grant: Interviewer (Tier 3 — Full PII)</option>
+                          {% if is_org %}
+                          <option value="interview_supervisor">+ Grant: Interview Supervisor (Tier 3 — Full PII)</option>
+                          <option value="death_reporter">+ Grant: Death Reporter (Tier 3 — Own Register PII)</option>
+                          <option value="cadre_defaults">+ Apply Each User's Cadre Default Roles</option>
+                          {% endif %}
+                        </optgroup>
+                        <optgroup label="Revoke Roles / Account Status">
+                          <option value="revoke_coder">&minus; Revoke Coding Roles at Target Scope</option>
+                          <option value="revoke_all">&minus; Revoke ALL Grants in Project</option>
+                          {% if current_user.is_admin() %}
+                          <option value="activate_users">&check; Activate Selected User Accounts</option>
+                          <option value="deactivate_users">&#9208; Deactivate Selected User Accounts</option>
+                          {% endif %}
+                        </optgroup>
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-4" id="setup-ug-scope-col">
+                      <label class="form-label small fw-semibold mb-0 text-muted" for="setup-ug-bulk-scope" style="font-size:0.7rem;">2. Target Unit Scope (Single or Multi-Unit)</label>
+                      <select id="setup-ug-bulk-scope" class="form-select form-select-sm">
+                        {% if is_org %}
+                        <option value="own">🏠 Each user's own home unit</option>
+                        <option value="cross_level">🔀 Cross-tree: All OTHER units at user's level (exclude own)</option>
+                        <option value="all_user_level">🏥 All units at user's level (own + cross-tree)</option>
+                        <option value="custom">☑️ Pick specific unit(s)…</option>
+                        <option value="project">🌐 Project-wide</option>
+                        {% else %}
+                        <option value="project">🌐 Project-wide</option>
+                        {% endif %}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-auto ms-md-auto align-self-end">
+                      <button type="button" class="btn btn-sm btn-primary w-100" id="setup-ug-bulk-apply-btn">
+                        <i class="fa-solid fa-check-double me-1"></i>Apply to Selected
+                      </button>
+                    </div>
+                  </div>
+                  {# Custom unit multi-picker (shown when scope_mode == 'custom') #}
+                  <div id="setup-ug-custom-units-wrap" class="border-top mt-2 pt-2 d-none">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-semibold small">Tick target unit(s) to grant/revoke:</span>
+                      <div class="d-flex gap-1" id="setup-ug-custom-level-btns"></div>
+                    </div>
+                    <div id="setup-ug-custom-units-list" class="d-flex flex-wrap gap-2 p-2 border rounded bg-white" style="max-height:150px; overflow-y:auto;"></div>
+                  </div>
+                </div>
+
+                <div id="setup-ug-msg" class="small mb-2 d-none" role="status"></div>
+                <div id="setup-ug-table-wrap" class="table-responsive">
+                  <div class="text-muted small py-2">Loading project users…</div>
+                </div>
+                <div id="setup-ug-matrix-wrap" class="table-responsive d-none"></div>
+              </div>
             </div>
-            <div id="device-code-result" class="mb-3"></div>
-            <div id="device-list"><div class="text-muted py-1">Loading…</div></div>
-            <h6 class="mt-3">Register an offline station</h6>
-            <p class="text-muted mb-2">For a station that has never been online: paste its enrolment file.
-              The station gets no sign-in secret; its signing key verifies the bundles it sends.</p>
-            <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
-              <label class="form-label mb-0">Name
-                <input type="text" class="form-control form-control-sm" id="station-name" maxlength="64">
-              </label>
-              <button type="button" class="btn btn-sm btn-outline-primary" id="station-register">Register station</button>
-            </div>
-            <textarea class="form-control form-control-sm font-monospace" id="station-file" rows="3"
-              placeholder='{"device_id": "…", "signing_public_key": "…", "app_version": "…"}'></textarea>
-            <div id="station-result" class="mt-1"></div>
           </div>
+
+          {# Sub-Tab 2: Single Access Grants & Project PIs #}
+          <div class="tab-pane fade" id="setup-people-pane-grants" role="tabpanel">
+            {% include "admin/panels/access_grants.html" %}
+            <hr class="my-4">
+            {% include "admin/panels/project_pi.html" %}
+          </div>
+
+          {# Sub-Tab 3: Capability Audit Matrix #}
+          <div class="tab-pane fade" id="setup-people-pane-audit" role="tabpanel">
+            {% include "admin/panels/people_roles.html" %}
+          </div>
+
+          {# Sub-Tab 4: Mobile App Devices & Stations #}
+          {% if current_user.is_admin() %}
+          <div class="tab-pane fade" id="setup-people-pane-devices" role="tabpanel">
+            {# Devices (Path B collection app): enrolment QR, enrolled devices, revoke.
+               JSON API in app/routes/admin_devices.py; admin only. #}
+            <div class="card" id="setup-devices">
+              <div class="card-body small">
+                <h6 class="card-title">Devices</h6>
+                <p class="text-muted mb-2">Enrol a phone for the collection app: create a code, then scan
+                  the QR in the app. The code is shown once and only here.</p>
+                <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+                  <label class="form-label mb-0">Expires in (minutes)
+                    <input type="number" class="form-control form-control-sm" id="device-code-minutes" value="60" min="5" max="10080">
+                  </label>
+                  <label class="form-label mb-0">Uses
+                    <input type="number" class="form-control form-control-sm" id="device-code-uses" value="1" min="1" max="200">
+                  </label>
+                  <button type="button" class="btn btn-sm btn-primary" id="device-code-create">
+                    <i class="fa-solid fa-qrcode me-1"></i>Create enrolment code</button>
+                </div>
+                <div id="device-code-result" class="mb-3"></div>
+                <div id="device-list"><div class="text-muted py-1">Loading…</div></div>
+                <h6 class="mt-3">Register an offline station</h6>
+                <p class="text-muted mb-2">For a station that has never been online: paste its enrolment file.
+                  The station gets no sign-in secret; its signing key verifies the bundles it sends.</p>
+                <div class="d-flex flex-wrap align-items-end gap-2 mb-2">
+                  <label class="form-label mb-0">Name
+                    <input type="text" class="form-control form-control-sm" id="station-name" maxlength="64">
+                  </label>
+                  <button type="button" class="btn btn-sm btn-outline-primary" id="station-register">Register station</button>
+                </div>
+                <textarea class="form-control form-control-sm font-monospace" id="station-file" rows="3"
+                  placeholder='{"device_id": "…", "signing_public_key": "…", "app_version": "…"}'></textarea>
+                <div id="station-result" class="mt-1"></div>
+              </div>
+            </div>
+          </div>
+          {% endif %}
         </div>
-        {% endif %}
       </section>
       {# Sync & activity. Data Sync is app-wide (one run covers every project,
          with a global schedule and maintenance switch), so it is linked, not
@@ -299,15 +572,31 @@
   var root = document.getElementById('panel-project-setup');
   var projectId = root.getAttribute('data-project-id');
 
+  // Auto-collapse outer Admin sidebar when Project Setup opens so wide matrices get full horizontal room.
+  document.body.classList.add('admin-sidebar-collapsed');
+
   function esc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  function csrfHeaders() {
+    return { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' };
+  }
+
   // ── sections ──────────────────────────────────────────────────────────────
 
-  var SECTION_LABELS = {};
+  var SECTION_LABELS = {
+    overview: 'Overview',
+    basics: 'Basics',
+    'data-collection': 'Data collection',
+    structure: 'Structure',
+    coding: 'Coding',
+    people: 'People',
+    sync: 'Sync & activity'
+  };
   root.querySelectorAll('#setup-section-nav [data-section]').forEach(function (a) {
-    SECTION_LABELS[a.getAttribute('data-section')] = a.textContent;
+    var k = a.getAttribute('data-section');
+    if (!SECTION_LABELS[k]) SECTION_LABELS[k] = a.textContent.trim();
   });
 
   function showSection(name) {
@@ -553,6 +842,594 @@
 
     loadDevices();
   }
+
+  // ── Live Runtime Controls (Overview & Gates) ──────────────────────────────
+  var rtSaveBtn = document.getElementById('setup-rt-save-btn');
+  if (rtSaveBtn) {
+    rtSaveBtn.addEventListener('click', function () {
+      var msg = document.getElementById('setup-rt-msg');
+      msg.className = 'small mt-2 text-muted';
+      msg.textContent = 'Saving runtime switches…';
+      var body = {
+        project_status: document.getElementById('setup-rt-project-status').value,
+        web_intake_mode: document.getElementById('setup-rt-web-intake').value,
+        nqa_enabled: document.getElementById('setup-rt-nqa').checked,
+        attachment_central_fetch_enabled: document.getElementById('setup-rt-att-fetch').checked
+      };
+      fetch('/admin/api/projects/' + encodeURIComponent(projectId), {
+        method: 'PUT',
+        headers: csrfHeaders(),
+        body: JSON.stringify(body)
+      })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            msg.className = 'small mt-2 text-danger';
+            msg.textContent = (res.data && res.data.error) || 'Could not save runtime switches.';
+            return;
+          }
+          msg.className = 'small mt-2 text-success';
+          msg.textContent = 'Runtime switches saved.';
+          var factWeb = document.getElementById('setup-fact-web-intake');
+          if (factWeb) factWeb.textContent = body.web_intake_mode;
+        })
+        .catch(function () {
+          msg.className = 'small mt-2 text-danger';
+          msg.textContent = 'Network error saving runtime switches.';
+        });
+    });
+  }
+
+  function renderSiteGatesTable(sites) {
+    var wrap = document.getElementById('setup-site-gates-wrap');
+    if (!wrap) return;
+    if (!sites || !sites.length) {
+      wrap.innerHTML = '<div class="text-muted small py-1">No sites attached to this project yet. Add one in <a href="#" data-jump-section="structure" data-jump-to="panel-project-sites">Structure &rarr; Project Sites</a>.</div>';
+      return;
+    }
+    var rows = sites.map(function (s) {
+      var sid = esc(s.site_id);
+      return '<tr data-site-row="' + sid + '">'
+        + '<td><code>' + sid + '</code> <span class="text-muted">' + esc(s.site_name || '') + '</span></td>'
+        + '<td style="width:130px;"><select class="form-select form-select-sm sg-enabled">'
+        + '<option value="true"' + (s.coding_enabled ? ' selected' : '') + '>Enabled</option>'
+        + '<option value="false"' + (!s.coding_enabled ? ' selected' : '') + '>Paused / Off</option>'
+        + '</select></td>'
+        + '<td style="width:155px;"><input type="date" class="form-control form-control-sm sg-start" value="' + esc(s.coding_start_date || '') + '"></td>'
+        + '<td style="width:155px;"><input type="date" class="form-control form-control-sm sg-end" value="' + esc(s.coding_end_date || '') + '"></td>'
+        + '<td style="width:130px;"><input type="number" min="1" class="form-control form-control-sm sg-limit" value="' + (s.daily_coder_limit != null ? esc(s.daily_coder_limit) : '') + '" placeholder="No cap"></td>'
+        + '<td class="text-end" style="width:100px;"><button type="button" class="btn btn-sm btn-outline-success py-0 px-2 sg-save-btn" data-site-id="' + sid + '"><i class="fa-solid fa-check me-1"></i>Save</button></td>'
+        + '</tr>';
+    }).join('');
+    wrap.innerHTML = '<table class="table table-sm table-bordered align-middle mb-0">'
+      + '<thead class="table-light"><tr><th>Project Site</th><th>Coding Gate</th><th>Start Date</th><th>End Date</th><th>Daily Limit / Coder</th><th></th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table>';
+
+    wrap.querySelectorAll('.sg-save-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var siteId = btn.getAttribute('data-site-id');
+        var tr = wrap.querySelector('tr[data-site-row="' + CSS.escape(siteId) + '"]');
+        var msg = document.getElementById('setup-site-gates-msg');
+        var limRaw = tr.querySelector('.sg-limit').value.trim();
+        var payload = {
+          coding_enabled: tr.querySelector('.sg-enabled').value === 'true',
+          coding_start_date: tr.querySelector('.sg-start').value || null,
+          coding_end_date: tr.querySelector('.sg-end').value || null,
+          daily_coder_limit: limRaw ? parseInt(limRaw, 10) : null
+        };
+        fetch('/admin/api/project-sites/' + encodeURIComponent(projectId) + '/' + encodeURIComponent(siteId) + '/coding-gate', {
+          method: 'PUT',
+          headers: csrfHeaders(),
+          body: JSON.stringify(payload)
+        })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok) {
+              msg.className = 'small mb-2 text-danger';
+              msg.textContent = (res.data && res.data.error) || 'Failed to save coding gate.';
+              return;
+            }
+            msg.className = 'small mb-2 text-success';
+            msg.textContent = 'Saved coding gate for site ' + siteId + '.';
+          })
+          .catch(function () {
+            msg.className = 'small mb-2 text-danger';
+            msg.textContent = 'Network error saving coding gate.';
+          });
+      });
+    });
+  }
+
+  // ── Project Users Grid & 2-Dropdown Bulk Apply (digitva-dus.4) ────────────
+  var _ugData = null;
+  var _ugViewMode = 'list'; // 'list' | 'matrix'
+  var _ugSelected = {};
+  var _ugExpandedUsers = {};
+
+  function ugShowMsg(kind, text) {
+    var box = document.getElementById('setup-ug-msg');
+    if (!box) return;
+    if (!text) { box.classList.add('d-none'); box.textContent = ''; return; }
+    box.className = 'alert alert-' + kind + ' small py-2 mb-2';
+    box.textContent = text;
+  }
+
+  function updateUgSelectionCount() {
+    var count = Object.keys(_ugSelected).filter(function (k) { return _ugSelected[k]; }).length;
+    var el = document.getElementById('setup-ug-sel-count');
+    if (el) el.textContent = String(count);
+  }
+
+  function populateUgScopeOptions(grid) {
+    var sel = document.getElementById('setup-ug-bulk-scope');
+    if (!sel || grid.structure_mode !== 'organization') return;
+    var keep = sel.value || 'own';
+    var levelOpts = (grid.levels || []).map(function (lv) {
+      return '<option value="level:' + esc(lv.org_level_id) + '">🏥 All units at Level: ' + esc(lv.level_name) + ' (' + esc(lv.level_code) + ')</option>';
+    }).join('');
+    sel.innerHTML = '<option value="own">🏠 Each user\'s own home unit</option>'
+      + '<option value="cross_level">🔀 Cross-tree: All OTHER units at user\'s level (exclude own)</option>'
+      + '<option value="all_user_level">🏥 All units at user\'s level (own + cross-tree)</option>'
+      + levelOpts
+      + '<option value="custom">☑️ Pick specific unit(s)…</option>'
+      + '<option value="project">🌐 Project-wide</option>';
+    if (sel.querySelector('option[value="' + CSS.escape(keep) + '"]')) sel.value = keep;
+
+    // Populate custom unit checkboxes
+    var customList = document.getElementById('setup-ug-custom-units-list');
+    var levelBtns = document.getElementById('setup-ug-custom-level-btns');
+    if (customList) {
+      customList.innerHTML = (grid.units || []).map(function (u) {
+        return '<label class="form-check form-check-inline mb-0 small text-nowrap">'
+          + '<input type="checkbox" class="form-check-input ug-custom-unit-cb" value="' + esc(u.org_unit_id) + '" data-level="' + esc(u.org_level_id) + '"> '
+          + '<code>' + esc(u.unit_code) + '</code> <span class="text-muted">' + esc(u.unit_name) + ' (' + esc(u.level_code) + ')</span>'
+          + '</label>';
+      }).join('') || '<span class="text-muted small">No active units in this project yet.</span>';
+    }
+    if (levelBtns) {
+      levelBtns.innerHTML = (grid.levels || []).map(function (lv) {
+        return '<button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small ug-custom-lv-btn" data-level="' + esc(lv.org_level_id) + '">All ' + esc(lv.level_code) + '</button>';
+      }).join('') + ' <button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small" id="ug-custom-clear-btn">Clear</button>';
+      levelBtns.querySelectorAll('.ug-custom-lv-btn').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var lid = b.getAttribute('data-level');
+          customList.querySelectorAll('.ug-custom-unit-cb[data-level="' + CSS.escape(lid) + '"]').forEach(function (cb) { cb.checked = true; });
+        });
+      });
+      var clr = document.getElementById('ug-custom-clear-btn');
+      if (clr) clr.addEventListener('click', function () {
+        customList.querySelectorAll('.ug-custom-unit-cb').forEach(function (cb) { cb.checked = false; });
+      });
+    }
+  }
+
+  function renderUgKpis(counts) {
+    var wrap = document.getElementById('setup-ug-kpis');
+    if (!wrap || !counts) return;
+    wrap.innerHTML = ''
+      + '<span class="badge text-bg-light border text-dark px-2 py-1"><strong>' + (counts.total_users || 0) + '</strong> Total Users</span>'
+      + '<span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis px-2 py-1"><strong>' + (counts.active_users || 0) + '</strong> Active</span>'
+      + '<span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis px-2 py-1"><i class="fa-solid fa-eye me-1"></i><strong>' + (counts.with_pii || 0) + '</strong> With PII</span>'
+      + '<span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis px-2 py-1"><i class="fa-solid fa-user-shield me-1"></i><strong>' + (counts.non_pii_only || 0) + '</strong> Non-PII Blinded</span>'
+      + '<span class="badge text-bg-primary-subtle border border-primary-subtle text-primary-emphasis px-2 py-1"><i class="fa-solid fa-sitemap me-1"></i><strong>' + (counts.multi_unit_users || 0) + '</strong> Multi-Unit / Cross-Tree</span>';
+  }
+
+  function filteredUgUsers() {
+    if (!_ugData || !_ugData.users) return [];
+    var q = (document.getElementById('setup-ug-search').value || '').trim().toLowerCase();
+    var flt = document.getElementById('setup-ug-filter').value || '';
+    return _ugData.users.filter(function (u) {
+      if (flt === 'pii' && ['full_pii', 'coding_pii', 'intake_pii', 'own_register'].indexOf(u.pii_status.tier) < 0) return false;
+      if (flt === 'non_pii' && u.pii_status.tier !== 'non_pii') return false;
+      if (flt === 'coder_non_pii' && !(u.grouped_unit_roles || []).some(function (g) { return g.role_key === 'coder_non_pii'; }) && !(u.project_grants || []).some(function (pg) { return pg.role === 'coder' && !pg.with_pii; })) return false;
+      if (flt === 'coder_pii' && !(u.grouped_unit_roles || []).some(function (g) { return g.role_key === 'coder_pii'; }) && !(u.project_grants || []).some(function (pg) { return pg.role === 'coder' && pg.with_pii; })) return false;
+      if (flt === 'reviewer' && !(u.grouped_unit_roles || []).some(function (g) { return g.role_key.indexOf('reviewer') === 0; }) && !(u.project_grants || []).some(function (pg) { return pg.role === 'reviewer'; })) return false;
+      if (flt === 'in_charge' && !(u.grouped_unit_roles || []).some(function (g) { return g.role_key === 'site_pi'; }) && !(u.project_grants || []).some(function (pg) { return pg.role === 'site_pi' || pg.role === 'project_pi'; })) return false;
+      if (flt === 'field' && !(u.grouped_unit_roles || []).some(function (g) { return ['interviewer', 'interview_supervisor', 'death_reporter'].indexOf(g.role_key) >= 0; })) return false;
+      if (flt === 'multi_unit' && (u.distinct_unit_count || 0) <= 1) return false;
+      if (flt === 'inactive' && u.is_active) return false;
+      if (!q) return true;
+      var hay = [
+        u.name, u.email, u.phone,
+        u.primary_worker ? (u.primary_worker.worker_code + ' ' + u.primary_worker.unit_code + ' ' + u.primary_worker.unit_name + ' ' + u.primary_worker.cadre_code) : ''
+      ].join(' ').toLowerCase();
+      return hay.indexOf(q) >= 0;
+    });
+  }
+
+  function renderPiiStatusBadge(pii) {
+    var map = {
+      full_pii: 'danger',
+      coding_pii: 'danger',
+      intake_pii: 'warning',
+      own_register: 'warning',
+      non_pii: 'success',
+      none: 'secondary'
+    };
+    var cls = map[pii.tier] || 'secondary';
+    var icon = (pii.tier === 'non_pii') ? 'fa-user-shield' : ((pii.tier === 'none') ? 'fa-ban' : 'fa-eye');
+    return '<span class="badge text-bg-' + cls + '-subtle border border-' + cls + '-subtle text-' + cls + '-emphasis" title="' + esc(pii.detail) + '">'
+      + '<i class="fa-solid ' + icon + ' me-1"></i>' + esc(pii.badge)
+      + '</span>';
+  }
+
+  function renderUgListTable() {
+    var wrap = document.getElementById('setup-ug-table-wrap');
+    if (!wrap || !_ugData) return;
+    var users = filteredUgUsers();
+    if (!users.length) {
+      wrap.innerHTML = '<div class="text-muted small py-3 text-center border rounded bg-light-subtle">No users match these filters in project <code>' + esc(projectId) + '</code>.</div>';
+      return;
+    }
+    var allUnits = _ugData.units || [];
+    var rowsHtml = users.map(function (u) {
+      var uid = u.user_id;
+      var pw = u.primary_worker;
+      var checked = _ugSelected[uid] ? 'checked' : '';
+      var isExpanded = !!_ugExpandedUsers[uid];
+
+      var workerLine = pw
+        ? '<div class="text-muted" style="font-size:0.75rem;"><code>' + esc(pw.worker_code) + '</code> · <span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span> at <strong>' + esc(pw.unit_code) + '</strong> (' + esc(pw.unit_name) + ')</div>'
+        : '<div class="text-muted" style="font-size:0.74rem;">No unit worker placement (Account / Grant only)</div>';
+
+      var contactHtml = ''
+        + (u.email
+            ? '<div>' + esc(u.email) + ' ' + (u.email_verified ? '<i class="fa-solid fa-circle-check text-success" title="Email verified"></i>' : '<span class="badge text-bg-warning-subtle border text-warning-emphasis" style="font-size:0.65rem;">Unverified</span>') + '</div>'
+            : '<div><span class="badge text-bg-secondary-subtle border text-secondary-emphasis">Mobile-only</span></div>')
+        + (u.phone ? '<div class="text-muted font-monospace" style="font-size:0.76rem;"><i class="fa-solid fa-phone me-1"></i>' + esc(u.phone) + '</div>' : '');
+
+      var statusBadge = u.is_active
+        ? '<span class="badge text-bg-success">Active</span>'
+        : '<span class="badge text-bg-secondary">Inactive</span>';
+
+      var projRolesHtml = (u.project_grants || []).length
+        ? u.project_grants.map(function (pg) {
+            var piiColor = pg.with_pii ? 'danger' : 'success';
+            return '<span class="badge text-bg-light border text-dark me-1 mb-1">'
+              + esc(pg.label)
+              + (pg.site_id ? ' <code class="ms-1">' + esc(pg.site_id) + '</code>' : ' <span class="text-muted">(Project)</span>')
+              + ' <span class="badge text-bg-' + piiColor + '-subtle border border-' + piiColor + '-subtle text-' + piiColor + '-emphasis ms-1" style="font-size:0.62rem;">' + esc(pg.pii_badge) + '</span>'
+              + '</span>';
+          }).join('')
+        : '<span class="text-muted">—</span>';
+
+      var unitGroups = u.grouped_unit_roles || [];
+      var unitRolesHtml = '';
+      if (!unitGroups.length) {
+        unitRolesHtml = '<span class="text-muted">No unit grants</span>';
+      } else {
+        unitRolesHtml = unitGroups.map(function (grp) {
+          var piiCls = grp.with_pii ? 'danger' : 'success';
+          var scopeBadgeCls = grp.scope_kind === 'own'
+            ? 'text-bg-light border text-dark'
+            : (grp.scope_kind === 'cross_level' || grp.scope_kind === 'all_level'
+                ? 'text-bg-primary-subtle border border-primary-subtle text-primary-emphasis'
+                : 'text-bg-info-subtle border border-info-subtle text-info-emphasis');
+          var previewCodes = grp.units.slice(0, 3).map(function (x) { return x.unit_code; }).join(', ');
+          var extraCount = grp.units.length > 3 ? (' +' + (grp.units.length - 3) + ' more') : '';
+          return '<div class="d-inline-flex align-items-center gap-1 border rounded px-2 py-1 me-1 mb-1 bg-white shadow-xs">'
+            + '<span class="fw-semibold">' + esc(grp.label) + '</span>'
+            + '<span class="badge text-bg-' + piiCls + '-subtle border border-' + piiCls + '-subtle text-' + piiCls + '-emphasis" style="font-size:0.62rem;">' + esc(grp.pii_badge) + '</span>'
+            + '<span class="badge ' + scopeBadgeCls + '" title="' + esc(grp.units.map(function (x) { return x.unit_code + ' (' + x.unit_name + ')'; }).join(', ')) + '">'
+            + esc(grp.scope_summary)
+            + (grp.scope_kind === 'multi' ? ': ' + esc(previewCodes + extraCount) : '')
+            + '</span>'
+            + '</div>';
+        }).join('');
+      }
+      if (_ugData.structure_mode === 'organization' && allUnits.length) {
+        unitRolesHtml += ' <button type="button" class="btn btn-xs btn-link text-decoration-none p-0 ms-1 ug-toggle-drawer" data-uid="' + esc(uid) + '">'
+          + '<i class="fa-solid ' + (isExpanded ? 'fa-chevron-up' : 'fa-chevron-down') + ' me-1"></i>'
+          + (isExpanded ? 'Hide units' : 'View / Edit units (' + (u.distinct_unit_count || 0) + ')')
+          + '</button>';
+      }
+
+      var drawerHtml = '';
+      if (isExpanded && _ugData.structure_mode === 'organization') {
+        var firstRoleKey = unitGroups.length ? unitGroups[0].role_key : 'coder_non_pii';
+        var activeUnitIdsForFirst = {};
+        if (unitGroups.length) {
+          unitGroups[0].units.forEach(function (x) { activeUnitIdsForFirst[x.org_unit_id] = true; });
+        } else if (pw) {
+          activeUnitIdsForFirst[pw.org_unit_id] = true;
+        }
+        var unitCbs = allUnits.map(function (unitObj) {
+          var isHome = pw && pw.org_unit_id === unitObj.org_unit_id;
+          var isTicked = !!activeUnitIdsForFirst[unitObj.org_unit_id];
+          return '<label class="form-check form-check-inline mb-1 small text-nowrap border rounded px-2 py-1 ' + (isTicked ? 'bg-primary-subtle border-primary' : 'bg-white') + '">'
+            + '<input type="checkbox" class="form-check-input ug-drawer-unit-cb" data-uid="' + esc(uid) + '" value="' + esc(unitObj.org_unit_id) + '" ' + (isTicked ? 'checked' : '') + '> '
+            + '<code>' + esc(unitObj.unit_code) + '</code> ' + esc(unitObj.unit_name)
+            + (isHome ? ' <span class="badge text-bg-dark" style="font-size:0.6rem;">Home</span>' : '')
+            + '</label>';
+        }).join('');
+
+        drawerHtml = '<tr class="table-light ug-drawer-row" data-drawer-uid="' + esc(uid) + '">'
+          + '<td></td>'
+          + '<td colspan="6" class="p-2">'
+          + '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">'
+          + '<div class="d-flex align-items-center gap-2 flex-wrap">'
+          + '<span class="fw-semibold small"><i class="fa-solid fa-Sliders me-1 text-primary"></i>Edit Unit Grants for ' + esc(u.name) + ':</span>'
+          + '<select class="form-select form-select-sm w-auto ug-drawer-role-sel" data-uid="' + esc(uid) + '">'
+          + '<option value="coder_non_pii"' + (firstRoleKey === 'coder_non_pii' || firstRoleKey === 'coder_pii' ? ' selected' : '') + '>Coder (Tier 3 In-System = PII · Tier 2 Mentor = Non-PII)</option>'
+          + '<option value="reviewer_non_pii"' + (firstRoleKey === 'reviewer_non_pii' || firstRoleKey === 'reviewer_pii' ? ' selected' : '') + '>Reviewer (Tier 3 In-System = PII · Tier 2 Mentor = Non-PII)</option>'
+          + '<option value="coding_tester"' + (firstRoleKey === 'coding_tester' ? ' selected' : '') + '>Coding Tester (Non-PII Sandbox)</option>'
+          + '<option value="in_charge"' + (firstRoleKey === 'site_pi' ? ' selected' : '') + '>In-charge (Tier 3 Full PII)</option>'
+          + '<option value="data_manager"' + (firstRoleKey === 'data_manager' ? ' selected' : '') + '>Data Manager (Tier 3 Full PII)</option>'
+          + '<option value="interviewer"' + (firstRoleKey === 'interviewer' ? ' selected' : '') + '>Interviewer (Tier 3 Full PII)</option>'
+          + '<option value="interview_supervisor"' + (firstRoleKey === 'interview_supervisor' ? ' selected' : '') + '>Interview Supervisor (Tier 3 Full PII)</option>'
+          + '<option value="death_reporter"' + (firstRoleKey === 'death_reporter' ? ' selected' : '') + '>Death Reporter (Own Register PII)</option>'
+          + '<option value="viewer_non_pii"' + (firstRoleKey === 'collaborator' ? ' selected' : '') + '>Viewer (Non-PII)</option>'
+          + '</select>'
+          + '</div>'
+          + '<div class="d-flex gap-1 flex-wrap">'
+          + (pw ? '<button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small ug-drawer-preset" data-uid="' + esc(uid) + '" data-mode="own">🏠 Own Unit Only</button>' : '')
+          + (pw ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small ug-drawer-preset" data-uid="' + esc(uid) + '" data-mode="cross_level">🔀 Cross-Tree (Other Units at Level)</button>' : '')
+          + (pw ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small ug-drawer-preset" data-uid="' + esc(uid) + '" data-mode="all_user_level">🏥 All Units at Level</button>' : '')
+          + '<button type="button" class="btn btn-xs btn-success py-0 px-2 small ug-drawer-save" data-uid="' + esc(uid) + '"><i class="fa-solid fa-check me-1"></i>Save Unit Scope</button>'
+          + '</div>'
+          + '</div>'
+          + '<div class="d-flex flex-wrap gap-1" style="max-height:130px; overflow-y:auto;">' + unitCbs + '</div>'
+          + '</td></tr>';
+      }
+
+      return '<tr class="' + (u.is_active ? '' : 'opacity-75') + '" data-ug-uid="' + esc(uid) + '">'
+        + '<td style="width:32px;"><input type="checkbox" class="form-check-input setup-ug-row-cb" value="' + esc(uid) + '" ' + checked + ' aria-label="Select ' + esc(u.name) + '"></td>'
+        + '<td><div class="fw-semibold">' + esc(u.name) + '</div>' + workerLine + '</td>'
+        + '<td>' + contactHtml + '</td>'
+        + '<td>' + statusBadge + '</td>'
+        + '<td>' + renderPiiStatusBadge(u.pii_status) + '</td>'
+        + '<td>' + projRolesHtml + '</td>'
+        + '<td>' + unitRolesHtml + '</td>'
+        + '</tr>' + drawerHtml;
+    }).join('');
+
+    var allChecked = users.length > 0 && users.every(function (u) { return !!_ugSelected[u.user_id]; });
+    wrap.innerHTML = '<table class="table table-sm table-bordered table-hover align-middle mb-0">'
+      + '<thead class="table-light">'
+      + '<tr>'
+      + '<th style="width:32px;"><input type="checkbox" class="form-check-input" id="setup-ug-select-all" ' + (allChecked ? 'checked' : '') + ' aria-label="Select all visible users"></th>'
+      + '<th>User, Worker Code &amp; Home Unit</th>'
+      + '<th>Email &amp; 10-Digit Mobile</th>'
+      + '<th>Status</th>'
+      + '<th>Effective PII Visibility</th>'
+      + '<th>Project / Site Roles</th>'
+      + '<th>Unit-Level Roles (Smart Multi-Unit Grouping)</th>'
+      + '</tr>'
+      + '</thead>'
+      + '<tbody>' + rowsHtml + '</tbody></table>';
+
+    updateUgSelectionCount();
+
+    var selAll = document.getElementById('setup-ug-select-all');
+    if (selAll) {
+      selAll.addEventListener('change', function () {
+        users.forEach(function (u) { _ugSelected[u.user_id] = selAll.checked; });
+        renderUgListTable();
+      });
+    }
+    wrap.querySelectorAll('.setup-ug-row-cb').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        _ugSelected[cb.value] = cb.checked;
+        updateUgSelectionCount();
+      });
+    });
+    wrap.querySelectorAll('.ug-toggle-drawer').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var uid = btn.getAttribute('data-uid');
+        _ugExpandedUsers[uid] = !_ugExpandedUsers[uid];
+        renderUgListTable();
+      });
+    });
+    wrap.querySelectorAll('.ug-drawer-preset').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var uid = btn.getAttribute('data-uid');
+        var mode = btn.getAttribute('data-mode');
+        var roleSel = wrap.querySelector('.ug-drawer-role-sel[data-uid="' + CSS.escape(uid) + '"]');
+        var op = roleSel ? roleSel.value : 'coder_non_pii';
+        runBulkApply([uid], op, mode, []);
+      });
+    });
+    wrap.querySelectorAll('.ug-drawer-save').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var uid = btn.getAttribute('data-uid');
+        var roleSel = wrap.querySelector('.ug-drawer-role-sel[data-uid="' + CSS.escape(uid) + '"]');
+        var op = roleSel ? roleSel.value : 'coder_non_pii';
+        var customIds = Array.prototype.map.call(
+          wrap.querySelectorAll('.ug-drawer-unit-cb[data-uid="' + CSS.escape(uid) + '"]:checked'),
+          function (cb) { return cb.value; }
+        );
+        if (!customIds.length) {
+          ugShowMsg('warning', 'Tick at least one unit, or use the Bulk Bar to revoke roles.');
+          return;
+        }
+        runBulkApply([uid], op, 'custom', customIds);
+      });
+    });
+  }
+
+  function renderUgMatrixTable() {
+    var wrap = document.getElementById('setup-ug-matrix-wrap');
+    if (!wrap || !_ugData) return;
+    var users = filteredUgUsers();
+    var units = _ugData.units || [];
+    if (!units.length || !users.length) {
+      wrap.innerHTML = '<div class="text-muted small py-3 text-center border rounded">No users or organization units to display in the User &times; Unit Matrix.</div>';
+      return;
+    }
+    var thUnits = units.map(function (u) {
+      return '<th class="text-center text-nowrap" style="min-width:88px;"><code>' + esc(u.unit_code) + '</code><div class="fw-normal text-muted" style="font-size:0.68rem;">' + esc(u.level_code) + '</div></th>';
+    }).join('');
+
+    var rows = users.map(function (u) {
+      var pw = u.primary_worker;
+      var byUnit = u.unit_roles_by_unit || {};
+      var cells = units.map(function (unitObj) {
+        var rList = byUnit[unitObj.org_unit_id] || [];
+        var isHome = pw && pw.org_unit_id === unitObj.org_unit_id;
+        if (!rList.length) {
+          return '<td class="text-center text-muted' + (isHome ? ' bg-warning-subtle' : '') + '">' + (isHome ? '<span title="Home unit (no active grant)">🏠</span>' : '·') + '</td>';
+        }
+        var hasPii = rList.indexOf('collaborator_pii') >= 0 || rList.indexOf('site_pi') >= 0 || rList.indexOf('data_manager') >= 0 || rList.indexOf('interviewer') >= 0;
+        var shortTags = rList.map(function (r) {
+          if (r === 'coder') return hasPii ? 'Coder(PII)' : 'Coder';
+          if (r === 'reviewer') return hasPii ? 'Rev(PII)' : 'Rev';
+          if (r === 'site_pi') return 'In-charge';
+          if (r === 'collaborator_pii') return (rList.indexOf('coder') >= 0 || rList.indexOf('reviewer') >= 0) ? '' : 'View(PII)';
+          if (r === 'collaborator') return 'View';
+          if (r === 'interview_supervisor') return 'Sup';
+          if (r === 'interviewer') return 'Intv';
+          if (r === 'death_reporter') return 'D.Rep';
+          return r;
+        }).filter(Boolean);
+        return '<td class="text-center' + (isHome ? ' bg-primary-subtle' : ' bg-success-subtle') + '">'
+          + (isHome ? '<span title="Home unit">🏠 </span>' : '')
+          + '<span class="badge ' + (hasPii ? 'text-bg-danger' : 'text-bg-success') + '" style="font-size:0.65rem;">' + esc(shortTags.join(', ')) + '</span>'
+          + '</td>';
+      }).join('');
+      return '<tr>'
+        + '<td class="text-nowrap fw-semibold">' + esc(u.name) + (pw ? ' <span class="badge text-bg-light border">' + esc(pw.cadre_code) + '</span>' : '') + '</td>'
+        + '<td>' + renderPiiStatusBadge(u.pii_status) + '</td>'
+        + cells
+        + '</tr>';
+    }).join('');
+
+    wrap.innerHTML = '<table class="table table-sm table-bordered small align-middle mb-0">'
+      + '<thead class="table-light"><tr><th>User</th><th>PII Tier</th>' + thUnits + '</tr></thead>'
+      + '<tbody>' + rows + '</tbody></table>';
+  }
+
+  function renderUgAll() {
+    if (!_ugData) return;
+    renderUgKpis(_ugData.counts);
+    renderSiteGatesTable(_ugData.sites);
+    if (_ugViewMode === 'matrix') {
+      document.getElementById('setup-ug-table-wrap').classList.add('d-none');
+      document.getElementById('setup-ug-matrix-wrap').classList.remove('d-none');
+      renderUgMatrixTable();
+    } else {
+      document.getElementById('setup-ug-matrix-wrap').classList.add('d-none');
+      document.getElementById('setup-ug-table-wrap').classList.remove('d-none');
+      renderUgListTable();
+    }
+  }
+
+  function loadUsersGrid() {
+    fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/users-grid')
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          ugShowMsg('danger', (res.data && res.data.error) || 'Could not load project users.');
+          return;
+        }
+        _ugData = res.data;
+        populateUgScopeOptions(_ugData);
+        renderUgAll();
+      })
+      .catch(function () {
+        ugShowMsg('danger', 'Network error loading project users.');
+      });
+  }
+
+  function runBulkApply(userIds, operation, scopeMode, customUnitIds) {
+    ugShowMsg('info', 'Applying changes…');
+    fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/users-grid/bulk-apply', {
+      method: 'POST',
+      headers: csrfHeaders(),
+      body: JSON.stringify({
+        user_ids: userIds,
+        operation: operation,
+        scope_mode: scopeMode,
+        custom_unit_ids: customUnitIds || [],
+        sync_scope: true
+      })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          ugShowMsg('danger', (res.data && res.data.error) || 'Bulk operation failed.');
+          return;
+        }
+        _ugData = res.data.grid || res.data;
+        var s = res.data.summary || {};
+        ugShowMsg(
+          'success',
+          'Updated ' + (s.users_processed || userIds.length) + ' user(s): '
+          + (s.grants_created || 0) + ' grant(s) created, '
+          + (s.grants_reactivated || 0) + ' reactivated, '
+          + (s.grants_revoked || 0) + ' revoked'
+          + (s.accounts_updated ? (', ' + s.accounts_updated + ' account(s) updated') : '') + '.'
+        );
+        renderUgAll();
+      })
+      .catch(function () {
+        ugShowMsg('danger', 'Network error applying bulk operation.');
+      });
+  }
+
+  var ugScopeSel = document.getElementById('setup-ug-bulk-scope');
+  if (ugScopeSel) {
+    ugScopeSel.addEventListener('change', function () {
+      var customWrap = document.getElementById('setup-ug-custom-units-wrap');
+      if (customWrap) customWrap.classList.toggle('d-none', ugScopeSel.value !== 'custom');
+    });
+  }
+
+  var ugApplyBtn = document.getElementById('setup-ug-bulk-apply-btn');
+  if (ugApplyBtn) {
+    ugApplyBtn.addEventListener('click', function () {
+      var selectedIds = Object.keys(_ugSelected).filter(function (k) { return _ugSelected[k]; });
+      if (!selectedIds.length) {
+        ugShowMsg('warning', 'Tick at least one user in the table first.');
+        return;
+      }
+      var op = document.getElementById('setup-ug-bulk-op').value;
+      if (!op) {
+        ugShowMsg('warning', 'Choose a role or action in Dropdown 1 first.');
+        return;
+      }
+      var scope = ugScopeSel ? ugScopeSel.value : 'project';
+      var customIds = [];
+      if (scope === 'custom') {
+        customIds = Array.prototype.map.call(
+          document.querySelectorAll('#setup-ug-custom-units-list .ug-custom-unit-cb:checked'),
+          function (cb) { return cb.value; }
+        );
+        if (!customIds.length) {
+          ugShowMsg('warning', 'Tick at least one target unit below the Bulk Apply bar.');
+          return;
+        }
+      }
+      runBulkApply(selectedIds, op, scope, customIds);
+    });
+  }
+
+  var ugSearch = document.getElementById('setup-ug-search');
+  if (ugSearch) ugSearch.addEventListener('input', renderUgAll);
+  var ugFilter = document.getElementById('setup-ug-filter');
+  if (ugFilter) ugFilter.addEventListener('change', renderUgAll);
+  var ugRefresh = document.getElementById('setup-ug-refresh-btn');
+  if (ugRefresh) ugRefresh.addEventListener('click', loadUsersGrid);
+
+  var ugViewList = document.getElementById('setup-ug-view-list');
+  var ugViewMatrix = document.getElementById('setup-ug-view-matrix');
+  if (ugViewList) {
+    ugViewList.addEventListener('click', function () {
+      _ugViewMode = 'list';
+      ugViewList.classList.add('active');
+      if (ugViewMatrix) ugViewMatrix.classList.remove('active');
+      renderUgAll();
+    });
+  }
+  if (ugViewMatrix) {
+    ugViewMatrix.addEventListener('click', function () {
+      _ugViewMode = 'matrix';
+      ugViewMatrix.classList.add('active');
+      if (ugViewList) ugViewList.classList.remove('active');
+      renderUgAll();
+    });
+  }
+
+  loadUsersGrid();
 
   showSection(new URLSearchParams(window.location.search).get('section'));
 }());

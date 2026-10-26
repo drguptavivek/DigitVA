@@ -56,18 +56,22 @@ class CaseExportTests(IdentifierFixture):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # A user who exports for IDV01 and only codes in IDV02: a partial export.
+        # A user who exports for IDV01 (Tier 3 District Data Manager) and only codes in IDV02: a partial export.
         cls.dmx = cls._get_or_make_user("idv.dmx@test.local", "Identifier123")
-        for role, project in ((R.data_manager, PROJECT), (R.coder, SITES_PROJECT)):
-            db.session.add(VaUserAccessGrants(
-                user_id=cls.dmx.user_id, role=role, grant_status=VaStatuses.active, notes="export",
-                scope_type=VaAccessScopeTypes.project, project_id=project))
-        # data_manager in IDV01, collaborator_pii in IDV02: values on screen in both, export in one.
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.dmx.user_id, role=R.data_manager, grant_status=VaStatuses.active, notes="export",
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=cls.dst.org_unit_id))
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.dmx.user_id, role=R.coder, grant_status=VaStatuses.active, notes="export",
+            scope_type=VaAccessScopeTypes.project, project_id=SITES_PROJECT))
+        # District data_manager in IDV01, collaborator_pii in IDV02: values on screen in both, export in one.
         cls.mix = cls._get_or_make_user("idv.dmsup@test.local", "Identifier123")
-        for role, project in ((R.data_manager, PROJECT), (R.collaborator_pii, SITES_PROJECT)):
-            db.session.add(VaUserAccessGrants(
-                user_id=cls.mix.user_id, role=role, grant_status=VaStatuses.active, notes="export",
-                scope_type=VaAccessScopeTypes.project, project_id=project))
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.mix.user_id, role=R.data_manager, grant_status=VaStatuses.active, notes="export",
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=cls.dst.org_unit_id))
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.mix.user_id, role=R.collaborator_pii, grant_status=VaStatuses.active, notes="export",
+            scope_type=VaAccessScopeTypes.project, project_id=SITES_PROJECT))
         # A unit whose name a spreadsheet would run as a formula.
         cls.formula_unit = org.create_unit(
             PROJECT, org_level_id=cls.sca.org_level_id, unit_code="INJ", unit_name="=cmd",
@@ -232,7 +236,8 @@ class CaseExportTests(IdentifierFixture):
         self.assertEqual(three["MCCD number"], "")
 
     def test_admin_exports_numbers_like_everyone_who_sees_values(self):
-        # identifier_values_visible: admin sees values in every project.
+        # identifier_values_visible: admin sees values in every project; Tier 3 in-charge exports numbers,
+        # while Tier 1 project_pi on an organization-tree project exports without identifier numbers.
         response = self._export(self.admin)
         header, rows = self._rows(response)
         self.assertIn("CRS number", header)
@@ -240,8 +245,12 @@ class CaseExportTests(IdentifierFixture):
         by_id = {r["death_id"]: r for r in rows}
         self.assertEqual(by_id[str(self.one.death_id)]["CRS number"], self.crs_one)
         self.assertEqual(by_id[str(self.other.death_id)]["Required number"], self.reqd_number)
-        self._export(self.pip)
-        self.assertEqual({a.actor_role for a in self._audit(self.pip)}, {"project_pi"})
+        self._export(self.incharge)
+        self.assertEqual({a.actor_role for a in self._audit(self.incharge)}, {"site_pi"})
+        pip_resp = self._export(self.pip)
+        pip_header, _ = self._rows(pip_resp)
+        self.assertEqual(pip_header, list(export.COLUMNS))
+        self.assertEqual(self._audit(self.pip), [])
         audit = self._audit(self.admin)
         self.assertEqual({a.project_id for a in audit}, {PROJECT, SITES_PROJECT})
         self.assertEqual({a.actor_role for a in audit}, {"admin"})

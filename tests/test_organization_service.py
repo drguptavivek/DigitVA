@@ -57,9 +57,9 @@ class OrganizationServiceTests(BaseTestCase):
     def test_seed_template_is_idempotent(self):
         first = org.seed_default_organization(self.PROJECT)
         second = org.seed_default_organization(self.PROJECT)
-        self.assertEqual(first, {"levels": 6, "cadres": 11, "level_cadres": 15})
+        self.assertEqual(first, {"levels": 7, "cadres": 11, "level_cadres": 15})
         self.assertEqual(second, {"levels": 0, "cadres": 0, "level_cadres": 0})
-        self.assertEqual([lv.depth for lv in org.list_levels(self.PROJECT)], [1, 2, 3, 4, 5, 6])
+        self.assertEqual([lv.depth for lv in org.list_levels(self.PROJECT)], [1, 2, 3, 4, 5, 6, 7])
         self.assertEqual(self._levels()["phc"].odk_field_name, "org_phc_code")
         grid = {
             (row["level_code"], row["cadre_code"]): (
@@ -105,26 +105,27 @@ class OrganizationServiceTests(BaseTestCase):
     def test_seed_template_without_cadres_adds_levels_only(self):
         self.assertEqual(
             org.seed_default_organization(self.PROJECT, include_cadres=False),
-            {"levels": 6, "cadres": 0, "level_cadres": 0},
+            {"levels": 7, "cadres": 0, "level_cadres": 0},
         )
         self.assertEqual(org.list_level_cadres(self.PROJECT), [])
-        # SDH and village are optional: villages often have no code.
+        # State, Block/Taluka/SDH and Village are optional.
         self.assertEqual(
             {lv.level_code: lv.is_optional for lv in org.list_levels(self.PROJECT)},
-            {"district": False, "taluka": True, "chc": False, "phc": False,
+            {"state": True, "district": False, "taluka": True, "chc": False, "phc": False,
              "subcentre": False, "village": True},
         )
 
     def test_district_reference_model_matches_the_template(self):
         model = org.district_reference_model()
         self.assertEqual([lv["level_code"] for lv in model["levels"]],
-                         ["district", "taluka", "chc", "phc", "subcentre", "village"])
+                         ["state", "district", "taluka", "chc", "phc", "subcentre", "village"])
         rows = {(r["level_code"], r["cadre_code"]): r for r in model["grid"]}
         self.assertEqual(set(rows), set(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
         # A typical-roles key the grid does not have would never be shown.
         self.assertTrue(set(org.DEFAULT_TYPICAL_ROLES) <= set(org.DEFAULT_LEVEL_CADRE_TEMPLATE))
         # The In-charge is site_pi held at the unit (district, block, PHC).
         self.assertEqual(rows[("district", "CS")]["typical_roles"], ["site_pi"])
+        self.assertEqual(rows[("district", "DEPI")]["typical_roles"], ["data_manager"])
         self.assertEqual(rows[("chc", "SMO")]["typical_roles"], ["site_pi", "reviewer"])
         self.assertEqual(rows[("phc", "MO")]["typical_roles"], ["site_pi", "coder"])
         self.assertTrue(rows[("district", "CS")]["can_supervise_interviews"])
@@ -172,7 +173,21 @@ class OrganizationServiceTests(BaseTestCase):
 
     def test_deactivate_cascades_and_reactivate_needs_active_parent(self):
         d, c, p, s = self._seed_tree()
-        self.assertEqual(org.set_unit_active(self.PROJECT, c.org_unit_id, False), 3)
+        # Deactivating a parent unit with active children requires an explicit choice.
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.set_unit_active(self.PROJECT, c.org_unit_id, False)
+        self.assertIn("active child unit", str(ctx.exception))
+        preview = org.unit_deactivation_preview(self.PROJECT, c.org_unit_id)
+        self.assertTrue(preview["requires_child_action"])
+        self.assertEqual([ch["unit_code"] for ch in preview["active_children"]], ["P01"])
+        self.assertEqual(preview["active_descendant_count"], 2)
+
+        self.assertEqual(
+            org.set_unit_active(
+                self.PROJECT, c.org_unit_id, False, cascade_deactivate_children=True
+            ),
+            3,
+        )
         self.assertFalse(db.session.get(MasOrgUnit, s.org_unit_id).is_active)
         with self.assertRaises(org.OrganizationError):
             org.set_unit_active(self.PROJECT, s.org_unit_id, True)
@@ -180,6 +195,45 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(len(org.get_unit_tree(self.PROJECT)), 1)
         self.assertEqual([u["unit_code"] for u in org.list_units(self.PROJECT, include_inactive=True)], ["D01", "C01", "P01", "S01"])
         self.assertCountEqual(org.subtree_unit_ids(d), [d.org_unit_id, c.org_unit_id])
+
+    def test_deactivate_parent_reparents_children_and_rewrites_subtree_paths(self):
+        d, c, p, s = self._seed_tree()
+        lv = self._levels()
+        c2 = org.create_unit(
+            self.PROJECT,
+            org_level_id=lv["chc"].org_level_id,
+            parent_org_unit_id=d.org_unit_id,
+            unit_code="C02",
+            unit_name="CHC Two",
+        )
+        preview = org.unit_deactivation_preview(self.PROJECT, c.org_unit_id)
+        self.assertEqual([ep["unit_code"] for ep in preview["eligible_parents"]], ["C02"])
+        changed = org.set_unit_active(
+            self.PROJECT,
+            c.org_unit_id,
+            False,
+            reparent_children_to_org_unit_id=c2.org_unit_id,
+        )
+        self.assertEqual(changed, 1)
+        self.assertFalse(db.session.get(MasOrgUnit, c.org_unit_id).is_active)
+        p_after = db.session.get(MasOrgUnit, p.org_unit_id)
+        s_after = db.session.get(MasOrgUnit, s.org_unit_id)
+        self.assertTrue(p_after.is_active)
+        self.assertTrue(s_after.is_active)
+        self.assertEqual(p_after.parent_org_unit_id, c2.org_unit_id)
+        self.assertEqual(str(p_after.path), "D01.C02.P01")
+        self.assertEqual(str(s_after.path), "D01.C02.P01.S01")
+
+    def test_tree_integrity_guards_against_level_change_and_optional_to_required_with_skipping_units(self):
+        d, c, p, s = self._seed_tree()
+        lv = self._levels()
+        # C01 hangs directly under D01 (skipping optional taluka). Making taluka required is refused.
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.update_level(self.PROJECT, lv["taluka"].org_level_id, is_optional=False)
+        self.assertIn("while active units skip it", str(ctx.exception))
+        # Changing D01's level to PHC when C01 hangs under it is refused.
+        with self.assertRaises(org.OrganizationError):
+            org.update_unit(self.PROJECT, d.org_unit_id, org_level_id=lv["phc"].org_level_id)
 
     # -- cadres, permissions, workers ----------------------------------------
 

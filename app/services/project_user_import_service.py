@@ -617,8 +617,8 @@ def finalize_apply(
             role=grant["role"],
             scope_type=grant["scope_type"],
             project_id=project_id,
-            org_unit_id=grant["org_unit_id"],
-            cadre_id=grant["cadre_id"],
+            org_unit_id=grant.get("org_unit_id"),
+            cadre_id=grant.get("cadre_id"),
             request_ip=request_ip,
         )
 

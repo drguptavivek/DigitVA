@@ -3,7 +3,7 @@ title: Health-System Organization Model — Implementation Report
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-10-26
 ---
 
 # Health-System Organization Model — Implementation Report
@@ -19,10 +19,12 @@ and those disagree, the policy wins. Planning context:
 
 The next deployment is a public health system, not a research site network.
 Community Health Officers fill WHO-VA-2022 forms and the system's own medical
-officers assign cause of death, within a hierarchy of District > Taluka >
-CHC > PHC > Sub-centre > Village. DigitVA's existing shape — Project > Site >
-Form, with access granted per project or per site — cannot express "the MO at
-this PHC codes this PHC's deaths".
+officers assign cause of death, within a 7-level hierarchy of `State / Province`
+(optional) > `District / District Hospital (DH)` > `Block / Taluka / SDH`
+(optional) > `Community Health Centre (CHC)` > `PHC / UPHC (PHC-AAM)` >
+`SC-AAM / Sub-centre` > `Village` (optional). DigitVA's existing shape —
+Project > Site > Form, with access granted per project or per site — cannot
+express "the MO at this PHC codes this PHC's deaths".
 
 Nothing here replaces that shape. Projects without an organization tree behave
 exactly as they did; the tree is an alternative the project opts into.
@@ -49,8 +51,10 @@ Rules: [Organization Model Policy → Baseline](../policy/organization-model.md#
 [Lifecycle](../policy/organization-model.md#lifecycle).
 
 `mas_org_level` defines a project's levels: a `level_code`, a `depth` (1 = top)
-and an `is_optional` flag. Depth is the only hierarchy rule, so "Taluka
-optional" simply means a CHC may hang directly off a District.
+and an `is_optional` flag. Depth is the only hierarchy rule, so "State / Province
+optional" means a District may sit at the root of the tree or under a State unit,
+and "Block / Taluka optional" means a CHC may hang directly off a District or
+under a Block/Taluka.
 
 `mas_org_unit` holds the nodes, each with a `unit_code` unique within its
 project, contact and location metadata, and a materialized `path` — a
@@ -59,7 +63,14 @@ PostgreSQL `ltree` of unit codes, GiST-indexed. The path is what makes
 rather than a recursive walk, and it is rewritten across the subtree when a
 unit is renamed or moved.
 
-Deactivating a unit cascades to its subtree. Nothing is deleted.
+Deactivating a leaf unit (with no active children) deactivates it immediately.
+Deactivating a parent unit that has active child units never silently cascades
+or orphans children: the API (`set_unit_active`, `unit_deactivation_preview`,
+and `POST /admin/api/organization/<project_id>/units/<org_unit_id>/toggle`)
+requires an explicit choice to either move active direct children (and their
+subtrees) under an eligible active parent unit
+(`reparent_children_to_org_unit_id`) or cascade-deactivate the entire subtree
+(`cascade_deactivate_children = True`). Nothing is deleted.
 
 A unit with no parent below the top active level is *unplaced*: the importer
 may create one from a row with a blank `parent_code` (a facility list with no

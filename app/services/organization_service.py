@@ -24,10 +24,12 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapMentorInstituteUser,
     MapOrgLevelCadre,
     MapOrgUnitCodingGate,
     MapOrgUnitVaPresets,
     MasCadre,
+    MasMentorInstitute,
     MasOrgLevel,
     MasOrgUnit,
     MasOrgUnitWorker,
@@ -65,7 +67,7 @@ __all__ = [
     "list_levels", "create_level", "update_level",
     # units
     "list_units", "list_units_by_codes", "get_unit_tree", "create_unit", "update_unit", "set_unit_active",
-    "place_units", "unplaced_unit_codes", "MAX_PLACEMENTS",
+    "unit_deactivation_preview", "place_units", "unplaced_unit_codes", "MAX_PLACEMENTS",
     "find_unit_by_code", "subtree_unit_ids",
     "get_unit_coding_gate", "set_unit_coding_gate", "clear_unit_coding_gate",
     "serialize_unit_coding_gate",
@@ -91,6 +93,8 @@ __all__ = [
     "resolve_org_unit_export_labels",
     # project structure
     "require_organization_mode", "organization_site_name", "ensure_organization_site",
+    # project users grid and bulk apply
+    "get_project_users_grid", "bulk_apply_project_users_grid",
 ]
 
 # ltree labels accept [A-Za-z0-9_]; codes are stored upper-case.
@@ -103,12 +107,13 @@ LEVEL_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 # labels follow the AAM naming. Village is optional: villages often have no
 # code, and an optional level with no units is left out of the ODK form.
 DEFAULT_LEVEL_TEMPLATE: tuple[tuple[str, str, int, bool], ...] = (
-    ("district", "District / District Hospital (DH)", 1, False),
-    ("taluka", "Sub-divisional Hospital (SDH)", 2, True),
-    ("chc", "Community Health Centre (CHC)", 3, False),
-    ("phc", "PHC-AAM", 4, False),
-    ("subcentre", "SC-AAM / Sub-centre", 5, False),
-    ("village", "Village", 6, True),
+    ("state", "State / Province", 1, True),
+    ("district", "District / District Hospital (DH)", 2, False),
+    ("taluka", "Block / Taluka / Sub-divisional Hospital (SDH)", 3, True),
+    ("chc", "Community Health Centre (CHC)", 4, False),
+    ("phc", "PHC / UPHC (PHC-AAM)", 5, False),
+    ("subcentre", "SC-AAM / Sub-centre", 6, False),
+    ("village", "Village", 7, True),
 )
 DEFAULT_CADRE_TEMPLATE: tuple[tuple[str, str], ...] = (
     ("CS", "Civil Surgeon"),
@@ -155,7 +160,7 @@ DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool, bool
 DEFAULT_TYPICAL_ROLES: dict[tuple[str, str], tuple[str, ...]] = {
     ("district", "CS"): ("site_pi",),
     ("district", "DPM"): ("data_manager",),
-    ("district", "DEPI"): ("collaborator_pii",),
+    ("district", "DEPI"): ("data_manager",),
     ("district", "MO"): ("coder", "reviewer"),
     ("district", "SN"): ("interviewer",),
     ("chc", "SMO"): ("site_pi", "reviewer"),
@@ -562,8 +567,6 @@ def update_level(project_id: str, org_level_id: object, **fields) -> MasOrgLevel
     level = _get_level(project_id, org_level_id)
     if "level_name" in fields:
         level.level_name = _clean_text(fields["level_name"], max_len=128, required=True, what="Level name")
-    if "is_optional" in fields:
-        level.is_optional = bool(fields["is_optional"])
     if "level_code" in fields:
         new_code = normalize_level_code(fields["level_code"])
         if new_code != level.level_code:
@@ -592,17 +595,46 @@ def update_level(project_id: str, org_level_id: object, **fields) -> MasOrgLevel
         if dup is not None:
             raise OrganizationError(f"Depth {new_depth} is already used.")
         level.depth = new_depth
-    if "is_active" in fields:
-        active = bool(fields["is_active"])
-        if not active:
-            active_units = db.session.scalar(
-                sa.select(sa.func.count()).select_from(MasOrgUnit).where(
-                    MasOrgUnit.org_level_id == level.org_level_id, MasOrgUnit.is_active.is_(True)
-                )
+    new_optional = bool(fields["is_optional"]) if "is_optional" in fields else level.is_optional
+    new_active = bool(fields["is_active"]) if "is_active" in fields else level.is_active
+    if "is_active" in fields and not new_active:
+        active_units = db.session.scalar(
+            sa.select(sa.func.count()).select_from(MasOrgUnit).where(
+                MasOrgUnit.org_level_id == level.org_level_id, MasOrgUnit.is_active.is_(True)
             )
-            if active_units:
-                raise OrganizationError("Deactivate or move the units at this level first.")
-        level.is_active = active
+        )
+        if active_units:
+            raise OrganizationError("Deactivate or move the units at this level first.")
+    if new_active and not new_optional and (level.is_optional or not level.is_active):
+        parent_u = _aliased_parent()
+        parent_lv = sa.orm.aliased(MasOrgLevel)
+        skipping_codes = list(
+            db.session.scalars(
+                sa.select(MasOrgUnit.unit_code)
+                .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+                .outerjoin(parent_u, parent_u.org_unit_id == MasOrgUnit.parent_org_unit_id)
+                .outerjoin(parent_lv, parent_lv.org_level_id == parent_u.org_level_id)
+                .where(
+                    MasOrgUnit.project_id == project_id,
+                    MasOrgUnit.is_active.is_(True),
+                    MasOrgLevel.depth > level.depth,
+                    sa.or_(
+                        MasOrgUnit.parent_org_unit_id.is_(None),
+                        parent_lv.depth < level.depth,
+                    ),
+                )
+                .order_by(MasOrgUnit.unit_code)
+                .limit(10)
+            ).all()
+        )
+        if skipping_codes:
+            sample = ", ".join(skipping_codes[:5])
+            raise OrganizationError(
+                f"Cannot mark level {level.level_code!r} as required while active units skip it "
+                f"({sample}). Place those units under a {level.level_code!r} parent first."
+            )
+    level.is_optional = new_optional
+    level.is_active = new_active
     db.session.flush()
     return level
 
@@ -727,7 +759,22 @@ def _aliased_parent():
 
 
 def _top_level_depth(project_id: str) -> int | None:
-    """Depth of the project's top active level, or None with no active level."""
+    """Maximum depth at which a unit without a parent is a valid placed root.
+
+    Equals the shallowest active non-optional level's depth (so optional top
+    levels such as ``state`` above ``district`` do not mark root ``district``
+    units as unplaced), falling back to the shallowest active level's depth
+    when every active level is optional, or ``None`` with no active level.
+    """
+    req_depth = db.session.scalar(
+        sa.select(sa.func.min(MasOrgLevel.depth)).where(
+            MasOrgLevel.project_id == project_id,
+            MasOrgLevel.is_active.is_(True),
+            MasOrgLevel.is_optional.is_(False),
+        )
+    )
+    if req_depth is not None:
+        return req_depth
     return db.session.scalar(
         sa.select(sa.func.min(MasOrgLevel.depth)).where(
             MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True)
@@ -736,11 +783,11 @@ def _top_level_depth(project_id: str) -> int | None:
 
 
 def _is_unplaced(unit: MasOrgUnit, level: MasOrgLevel, top_depth: int | None) -> bool:
-    """A unit with no parent below the top active level: imported, not yet mapped.
+    """A unit with no parent below the top required level: imported, not yet mapped.
 
     Policy: docs/policy/organization-model.md ("Unplaced units").
     """
-    return unit.parent_org_unit_id is None and top_depth is not None and level.depth != top_depth
+    return unit.parent_org_unit_id is None and top_depth is not None and level.depth > top_depth
 
 
 def unplaced_unit_codes(project_id: str, *, include_inactive: bool = False) -> list[str]:
@@ -749,15 +796,27 @@ def unplaced_unit_codes(project_id: str, *, include_inactive: bool = False) -> l
     Their descendants are not included; a descendant's ``path`` starts with
     its unplaced root's code, which is how callers exclude whole subtrees.
     """
+    req_min = (
+        sa.select(sa.func.min(MasOrgLevel.depth))
+        .where(
+            MasOrgLevel.project_id == project_id,
+            MasOrgLevel.is_active.is_(True),
+            MasOrgLevel.is_optional.is_(False),
+        )
+        .scalar_subquery()
+    )
+    all_min = (
+        sa.select(sa.func.min(MasOrgLevel.depth))
+        .where(MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True))
+        .scalar_subquery()
+    )
     stmt = (
         sa.select(MasOrgUnit.unit_code)
         .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
         .where(
             MasOrgUnit.project_id == project_id,
             MasOrgUnit.parent_org_unit_id.is_(None),
-            MasOrgLevel.depth != sa.select(sa.func.min(MasOrgLevel.depth))
-            .where(MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True))
-            .scalar_subquery(),
+            MasOrgLevel.depth > sa.func.coalesce(req_min, all_min),
         )
     )
     if not include_inactive:
@@ -801,9 +860,9 @@ def _validate_parent_for_level(
     levels = list_levels(project_id, include_inactive=False)
     if not levels:
         raise OrganizationError("Define the project's levels before adding units.")
-    top_depth = levels[0].depth
+    max_root_depth = next((lv.depth for lv in levels if not lv.is_optional), levels[0].depth)
     if parent is None:
-        if level.depth != top_depth and not allow_unplaced:
+        if level.depth > max_root_depth and not allow_unplaced:
             raise OrganizationError(
                 f"Units at level {level.level_code!r} need a parent; only the top level "
                 f"({levels[0].level_code!r}) may have none."
@@ -931,7 +990,7 @@ def update_unit(project_id: str, org_unit_id: object, *, allow_unplaced: bool = 
     if level_or_parent_changed:
         _validate_parent_for_level(project_id, level, parent, allow_unplaced=allow_unplaced)
         if level.org_level_id != unit.org_level_id:
-            # Children must still sit below the new level.
+            # Children must still sit below the new level, with no required level skipped in between.
             child_depth = db.session.scalar(
                 sa.select(sa.func.min(MasOrgLevel.depth))
                 .select_from(MasOrgUnit)
@@ -940,6 +999,29 @@ def update_unit(project_id: str, org_unit_id: object, *, allow_unplaced: bool = 
             )
             if child_depth is not None and child_depth <= level.depth:
                 raise OrganizationError("Children of this unit would end up at or above its new level.")
+            child_levels = list(
+                db.session.scalars(
+                    sa.select(MasOrgLevel)
+                    .join(MasOrgUnit, MasOrgUnit.org_level_id == MasOrgLevel.org_level_id)
+                    .where(
+                        MasOrgUnit.parent_org_unit_id == unit.org_unit_id,
+                        MasOrgUnit.is_active.is_(True),
+                    )
+                    .distinct()
+                ).all()
+            )
+            if child_levels:
+                active_levels = list_levels(project_id, include_inactive=False)
+                for ch_lv in child_levels:
+                    skipped_down = [
+                        lv for lv in active_levels if level.depth < lv.depth < ch_lv.depth and not lv.is_optional
+                    ]
+                    if skipped_down:
+                        names = ", ".join(repr(lv.level_code) for lv in skipped_down)
+                        raise OrganizationError(
+                            f"Changing this unit to {level.level_code!r} would skip required level(s) "
+                            f"{names} above its {ch_lv.level_code!r} child units."
+                        )
         unit.org_level_id = level.org_level_id
         unit.parent_org_unit_id = parent.org_unit_id if parent else None
 
@@ -978,7 +1060,13 @@ def update_unit(project_id: str, org_unit_id: object, *, allow_unplaced: bool = 
         unit = db.session.get(MasOrgUnit, unit.org_unit_id)
 
     if "is_active" in fields:
-        set_unit_active(project_id, unit.org_unit_id, bool(fields["is_active"]))
+        set_unit_active(
+            project_id,
+            unit.org_unit_id,
+            bool(fields["is_active"]),
+            reparent_children_to_org_unit_id=fields.get("reparent_children_to_org_unit_id"),
+            cascade_deactivate_children=bool(fields.get("cascade_deactivate_children", False)),
+        )
         unit = db.session.get(MasOrgUnit, unit.org_unit_id)
     return unit
 
@@ -1022,20 +1110,159 @@ def place_units(project_id: str, placements: object) -> list[MasOrgUnit]:
     return moved
 
 
-def set_unit_active(project_id: str, org_unit_id: object, active: bool) -> int:
-    """Deactivate a unit with its whole subtree, or reactivate a single unit.
+def unit_deactivation_preview(project_id: str, org_unit_id: object) -> dict:
+    """Return active child units, total active descendants, and eligible replacement parents for *org_unit_id*."""
+    unit = _get_unit(project_id, org_unit_id)
+    unit_path = str(unit.path)
+    active_children_rows = db.session.execute(
+        sa.select(MasOrgUnit, MasOrgLevel)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .where(
+            MasOrgUnit.project_id == project_id,
+            MasOrgUnit.parent_org_unit_id == unit.org_unit_id,
+            MasOrgUnit.is_active.is_(True),
+        )
+        .order_by(MasOrgUnit.unit_code)
+    ).all()
+    active_descendant_count = (
+        db.session.scalar(
+            sa.select(sa.func.count())
+            .select_from(MasOrgUnit)
+            .where(
+                MasOrgUnit.project_id == project_id,
+                MasOrgUnit.org_unit_id != unit.org_unit_id,
+                sa.text("path <@ CAST(:path AS ltree)"),
+                MasOrgUnit.is_active.is_(True),
+            )
+            .params(path=unit_path)
+        )
+        or 0
+    )
+    active_children = [
+        {
+            "org_unit_id": str(c.org_unit_id),
+            "unit_code": c.unit_code,
+            "unit_name": c.unit_name,
+            "level_code": lv.level_code,
+            "level_name": lv.level_name,
+            "depth": lv.depth,
+        }
+        for c, lv in active_children_rows
+    ]
+    eligible_parents: list[dict] = []
+    if active_children_rows:
+        levels = list_levels(project_id, include_inactive=False)
+        child_depths = {lv.depth for _, lv in active_children_rows}
+        min_child_depth = min(child_depths)
+        max_child_depth = max(child_depths)
+        for cand in list_units(project_id, include_inactive=False):
+            cand_path = str(cand["path"])
+            if cand["org_unit_id"] == str(unit.org_unit_id) or cand_path.startswith(unit_path + "."):
+                continue
+            cand_depth = cand["depth"]
+            if cand_depth >= min_child_depth:
+                continue
+            skipped_req = [
+                lv for lv in levels if cand_depth < lv.depth < max_child_depth and not lv.is_optional
+            ]
+            if skipped_req:
+                continue
+            eligible_parents.append({
+                "org_unit_id": cand["org_unit_id"],
+                "unit_code": cand["unit_code"],
+                "unit_name": cand["unit_name"],
+                "level_code": cand["level_code"],
+                "level_name": cand["level_name"],
+                "depth": cand_depth,
+                "path": cand_path,
+            })
+    return {
+        "org_unit_id": str(unit.org_unit_id),
+        "unit_code": unit.unit_code,
+        "unit_name": unit.unit_name,
+        "requires_child_action": bool(active_children),
+        "active_children_count": len(active_children),
+        "active_descendant_count": int(active_descendant_count),
+        "active_children": active_children,
+        "eligible_parents": eligible_parents,
+    }
 
-    Returns the number of units changed.
+
+def set_unit_active(
+    project_id: str,
+    org_unit_id: object,
+    active: bool,
+    *,
+    reparent_children_to_org_unit_id: object | None = None,
+    cascade_deactivate_children: bool = False,
+) -> int:
+    """Activate a unit, or deactivate a unit after moving or cascading its active children.
+
+    When deactivating a unit that has active child units, the caller must pass
+    either ``reparent_children_to_org_unit_id`` (moving active direct children
+    and their subtrees under an eligible active parent unit) or
+    ``cascade_deactivate_children=True`` (deactivating the entire subtree).
+    Returns the number of units whose ``is_active`` state changed.
     """
     unit = _get_unit(project_id, org_unit_id)
     if active:
-        if unit.parent is not None and not unit.parent.is_active:
+        parent_unit = db.session.get(MasOrgUnit, unit.parent_org_unit_id) if unit.parent_org_unit_id else None
+        if parent_unit is not None and not parent_unit.is_active:
             raise OrganizationError("Reactivate the parent unit first.")
         if unit.is_active:
             return 0
         unit.is_active = True
         db.session.flush()
         return 1
+
+    if reparent_children_to_org_unit_id and cascade_deactivate_children:
+        raise OrganizationError(
+            "Choose either reparent_children_to_org_unit_id or cascade_deactivate_children, not both."
+        )
+
+    unit_path = str(unit.path)
+    active_children = list(
+        db.session.scalars(
+            sa.select(MasOrgUnit)
+            .where(
+                MasOrgUnit.project_id == project_id,
+                MasOrgUnit.parent_org_unit_id == unit.org_unit_id,
+                MasOrgUnit.is_active.is_(True),
+            )
+            .order_by(MasOrgUnit.unit_code)
+        ).all()
+    )
+
+    if active_children:
+        if reparent_children_to_org_unit_id is not None and str(reparent_children_to_org_unit_id).strip():
+            new_parent = _get_unit(project_id, reparent_children_to_org_unit_id)
+            if not new_parent.is_active:
+                raise OrganizationError("Replacement parent unit is inactive.")
+            if new_parent.org_unit_id == unit.org_unit_id or str(new_parent.path).startswith(unit_path + "."):
+                raise OrganizationError(
+                    "Replacement parent cannot be the unit being deactivated or one of its descendants."
+                )
+            for child in active_children:
+                _validate_parent_for_level(project_id, child.level, new_parent)
+            new_parent_path = str(new_parent.path)
+            for child in active_children:
+                old_child_path = str(child.path)
+                new_child_path = f"{new_parent_path}.{child.unit_code}"
+                child.parent_org_unit_id = new_parent.org_unit_id
+                db.session.flush()
+                if new_child_path != old_child_path:
+                    _rewrite_subtree_paths(project_id, old_child_path, new_child_path)
+            unit = _get_unit(project_id, org_unit_id)
+            unit_path = str(unit.path)
+        elif not cascade_deactivate_children:
+            child_codes = ", ".join(c.unit_code for c in active_children[:5])
+            if len(active_children) > 5:
+                child_codes += f", +{len(active_children) - 5} more"
+            raise OrganizationError(
+                f"Unit {unit.unit_code!r} has {len(active_children)} active child unit(s) ({child_codes}). "
+                "Choose a replacement parent unit to move them under, or confirm deactivating all child units."
+            )
+
     # Raw SQL escapes the ORM hooks that bump the grant cache.
     from app.services.authz import invalidate_all
 
@@ -1050,7 +1277,7 @@ def set_unit_active(project_id: str, org_unit_id: object, active: bool) -> int:
               AND is_active = true
             """
         ),
-        {"project_id": project_id, "path": str(unit.path)},
+        {"project_id": project_id, "path": unit_path},
     )
     db.session.expire_all()
     return result.rowcount or 0
@@ -2276,7 +2503,7 @@ def _import_units(project_id, rows, plan, deactivate_missing):
             raise OrganizationError(f"units row {i}: {exc}") from exc
     for i, code, unit_id in deactivate_after_create:
         try:
-            set_unit_active(project_id, unit_id, False)
+            set_unit_active(project_id, unit_id, False, cascade_deactivate_children=True)
         except OrganizationError as exc:
             raise OrganizationError(f"units row {i} ({code}): {exc}") from exc
     if deactivate_after_create and explicitly_active:
@@ -2297,7 +2524,7 @@ def _import_units(project_id, rows, plan, deactivate_missing):
             if code not in seen and u["is_active"]:
                 current = db.session.get(MasOrgUnit, uuid.UUID(u["org_unit_id"]))
                 if current is not None and current.is_active:
-                    set_unit_active(project_id, current.org_unit_id, False)
+                    set_unit_active(project_id, current.org_unit_id, False, cascade_deactivate_children=True)
                     plan.deactivates["units"].append(code)
 
 
@@ -2602,7 +2829,16 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
             MasOrgUnit.org_unit_id.not_in(mine_ids),
         )
     else:
-        top_depth_subq = (
+        req_min = (
+            sa.select(sa.func.min(MasOrgLevel.depth))
+            .where(
+                MasOrgLevel.project_id == project_id,
+                MasOrgLevel.is_active.is_(True),
+                MasOrgLevel.is_optional.is_(False),
+            )
+            .scalar_subquery()
+        )
+        all_min = (
             sa.select(sa.func.min(MasOrgLevel.depth))
             .where(MasOrgLevel.project_id == project_id, MasOrgLevel.is_active.is_(True))
             .scalar_subquery()
@@ -2610,7 +2846,7 @@ def _my_project(user_id: uuid.UUID, project_id: str, project_name: str) -> dict:
         below = _unit_summaries(
             project_id,
             MasOrgUnit.parent_org_unit_id.is_(None),
-            MasOrgLevel.depth == top_depth_subq,
+            MasOrgLevel.depth <= sa.func.coalesce(req_min, all_min),
         )
     people = _people_by_unit([*mine, *(unit["org_unit_id"] for unit in ancestors)])
     ordered = sorted(mine.items(), key=lambda item: str(item[1]["unit"].path))
@@ -3230,7 +3466,13 @@ def project_mentoring_overview(project_id: str) -> dict:
 
     _get_project(project_id)
     units = list_units(project_id, include_inactive=False)
-    districts = [u for u in units if u["depth"] == 1]
+    has_district_level = any(u.get("level_code") == "district" for u in units) or any(
+        lv.level_code == "district" for lv in list_levels(project_id, include_inactive=False)
+    )
+    districts = [
+        u for u in units
+        if (u["level_code"] == "district" if has_district_level else u["depth"] == 1)
+    ]
     district_uuids = [uuid.UUID(d["org_unit_id"]) for d in districts]
 
     inst_objs = db.session.scalars(
@@ -3518,3 +3760,1134 @@ def sync_mentor_scientist_unit_grants(
 
     db.session.flush()
     return changed
+
+
+# ---------------------------------------------------------------------------
+# Project Users Grid & 2-Dropdown Bulk Apply (digitva-dus.4)
+# ---------------------------------------------------------------------------
+
+_DISPLAY_ROLE_META: dict[str, dict[str, object]] = {
+    "project_pi": {
+        "label": "Project PI",
+        "pii_badge": "Tier 1: Non-PII",
+        "pii_tier": "non_pii",
+        "with_pii": False,
+        "order": 1,
+    },
+    "site_pi": {
+        "label": "In-charge",
+        "pii_badge": "Tier 3: PII",
+        "pii_tier": "full_pii",
+        "with_pii": True,
+        "order": 2,
+    },
+    "data_manager": {
+        "label": "Data Manager",
+        "pii_badge": "Tier 3: PII",
+        "pii_tier": "full_pii",
+        "with_pii": True,
+        "order": 3,
+    },
+    "coder_non_pii": {
+        "label": "Coder (Non-PII)",
+        "pii_badge": "Tier 1/2: Non-PII",
+        "pii_tier": "non_pii",
+        "with_pii": False,
+        "order": 4,
+    },
+    "coder_pii": {
+        "label": "Coder (In-System · PII)",
+        "pii_badge": "Tier 3: PII",
+        "pii_tier": "coding_pii",
+        "with_pii": True,
+        "order": 5,
+    },
+    "reviewer_non_pii": {
+        "label": "Reviewer (Non-PII)",
+        "pii_badge": "Tier 1/2: Non-PII",
+        "pii_tier": "non_pii",
+        "with_pii": False,
+        "order": 6,
+    },
+    "reviewer_pii": {
+        "label": "Reviewer (In-System · PII)",
+        "pii_badge": "Tier 3: PII",
+        "pii_tier": "coding_pii",
+        "with_pii": True,
+        "order": 7,
+    },
+    "coding_tester": {
+        "label": "Coding Tester",
+        "pii_badge": "Non-PII",
+        "pii_tier": "non_pii",
+        "with_pii": False,
+        "order": 8,
+    },
+    "interviewer": {
+        "label": "Interviewer",
+        "pii_badge": "Tier 3: PII",
+        "pii_tier": "full_pii",
+        "with_pii": True,
+        "order": 9,
+    },
+    "interview_supervisor": {
+        "label": "Interview Supervisor",
+        "pii_badge": "Tier 3: PII",
+        "pii_tier": "intake_pii",
+        "with_pii": True,
+        "order": 10,
+    },
+    "death_reporter": {
+        "label": "Death Reporter",
+        "pii_badge": "Own Register",
+        "pii_tier": "own_register",
+        "with_pii": True,
+        "order": 11,
+    },
+    "collaborator_pii": {
+        "label": "Viewer (with PII)",
+        "pii_badge": "PII",
+        "pii_tier": "full_pii",
+        "with_pii": True,
+        "order": 12,
+    },
+    "collaborator": {
+        "label": "Viewer (Non-PII)",
+        "pii_badge": "Tier 1/2: Non-PII",
+        "pii_tier": "non_pii",
+        "with_pii": False,
+        "order": 13,
+    },
+}
+
+
+def get_project_users_grid(project_id: str) -> dict:
+    """Return a consolidated 1-row-per-user roster for *project_id* with zero N+1 queries.
+
+    Merges ``VaUsers``, ``MasOrgUnitWorker``, project/site ``VaUserAccessGrants``,
+    and unit-scoped ``VaUserAccessGrants`` (combining ``coder`` + ``collaborator_pii``
+    on the same unit into ``coder_pii`` vs ``coder_non_pii``, and similarly for
+    ``reviewer_pii`` vs ``reviewer_non_pii``).
+    """
+    project = _get_project(project_id)
+    levels = [serialize_level(lv) for lv in list_levels(project_id, include_inactive=False)]
+    units = list_units(project_id, include_inactive=False)
+    cadres = [serialize_cadre(c) for c in list_cadres(project_id, include_inactive=False)]
+    level_cadres = list_level_cadres(project_id)
+
+    units_by_id: dict[str, dict] = {u["org_unit_id"]: u for u in units}
+    units_by_level: dict[str, list[dict]] = {}
+    for u in units:
+        units_by_level.setdefault(u["org_level_id"], []).append(u)
+
+    default_roles_by_pair: dict[tuple[str, str], list[str]] = {
+        (lc["org_level_id"], lc["cadre_id"]): list(lc.get("default_roles") or [])
+        for lc in level_cadres
+        if lc.get("is_active", True)
+    }
+
+    # Project sites
+    ps_rows = db.session.execute(
+        sa.select(VaProjectSites, VaSiteMaster)
+        .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
+        .where(VaProjectSites.project_id == project_id)
+        .order_by(VaProjectSites.site_id)
+    ).all()
+    sites_list = [
+        {
+            "project_site_id": str(ps.project_site_id),
+            "site_id": ps.site_id,
+            "site_name": sm.site_name,
+            "project_site_status": ps.project_site_status.value if hasattr(ps.project_site_status, "value") else str(ps.project_site_status),
+            "coding_enabled": bool(ps.coding_enabled),
+            "coding_start_date": ps.coding_start_date.isoformat() if ps.coding_start_date else None,
+            "coding_end_date": ps.coding_end_date.isoformat() if ps.coding_end_date else None,
+            "daily_coder_limit": ps.daily_coder_limit,
+        }
+        for ps, sm in ps_rows
+    ]
+    ps_by_id = {s["project_site_id"]: s for s in sites_list}
+    ps_uuids = [ps.project_site_id for ps, _ in ps_rows]
+
+    all_unit_rows = db.session.scalars(
+        sa.select(MasOrgUnit).where(MasOrgUnit.project_id == project_id).order_by(MasOrgUnit.path)
+    ).all()
+    all_unit_uuids = [u.org_unit_id for u in all_unit_rows]
+    all_units_by_uuid = {u.org_unit_id: u for u in all_unit_rows}
+
+    # Workers in this project
+    worker_rows = db.session.execute(
+        sa.select(MasOrgUnitWorker, MasOrgUnit, MasOrgLevel, MasCadre)
+        .join(MasOrgUnit, MasOrgUnit.org_unit_id == MasOrgUnitWorker.org_unit_id)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
+        .join(MasCadre, MasCadre.cadre_id == MasOrgUnitWorker.cadre_id)
+        .where(MasOrgUnitWorker.project_id == project_id)
+        .order_by(MasOrgUnitWorker.is_active.desc(), MasOrgUnit.path, MasOrgUnitWorker.worker_code)
+    ).all()
+
+    workers_by_user: dict[uuid.UUID, list[dict]] = {}
+    unlinked_workers: list[dict] = []
+    for w, u, lv, c in worker_rows:
+        w_dict = {
+            "worker_id": str(w.worker_id),
+            "worker_code": w.worker_code,
+            "worker_name": w.worker_name,
+            "phone": w.phone,
+            "org_unit_id": str(u.org_unit_id),
+            "unit_code": u.unit_code,
+            "unit_name": u.unit_name,
+            "org_level_id": str(lv.org_level_id),
+            "level_code": lv.level_code,
+            "level_name": lv.level_name,
+            "cadre_id": str(c.cadre_id),
+            "cadre_code": c.cadre_code,
+            "cadre_name": c.cadre_name,
+            "default_roles": default_roles_by_pair.get((str(lv.org_level_id), str(c.cadre_id)), []),
+            "is_active": bool(w.is_active),
+        }
+        if w.user_id is not None:
+            workers_by_user.setdefault(w.user_id, []).append(w_dict)
+        else:
+            unlinked_workers.append(w_dict)
+
+    # Grants in this project (project, project_site, org_unit)
+    grant_conds = [
+        sa.and_(
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+            VaUserAccessGrants.project_id == project_id,
+        )
+    ]
+    if ps_uuids:
+        grant_conds.append(
+            sa.and_(
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.project_site_id.in_(ps_uuids),
+            )
+        )
+    if all_unit_uuids:
+        grant_conds.append(
+            sa.and_(
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                VaUserAccessGrants.org_unit_id.in_(all_unit_uuids),
+            )
+        )
+
+    grant_rows = db.session.scalars(
+        sa.select(VaUserAccessGrants).where(sa.or_(*grant_conds))
+    ).all()
+
+    grants_by_user: dict[uuid.UUID, list[VaUserAccessGrants]] = {}
+    for g in grant_rows:
+        grants_by_user.setdefault(g.user_id, []).append(g)
+
+    all_user_ids = set(workers_by_user.keys()) | set(grants_by_user.keys())
+    users_by_id: dict[uuid.UUID, VaUsers] = {}
+    mentor_user_ids: set[uuid.UUID] = set()
+    if all_user_ids:
+        for u_obj in db.session.scalars(
+            sa.select(VaUsers).where(VaUsers.user_id.in_(all_user_ids))
+        ).all():
+            users_by_id[u_obj.user_id] = u_obj
+        mentor_user_ids = set(
+            db.session.scalars(
+                sa.select(MapMentorInstituteUser.user_id)
+                .join(
+                    MasMentorInstitute,
+                    MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
+                )
+                .where(
+                    MapMentorInstituteUser.user_id.in_(all_user_ids),
+                    MapMentorInstituteUser.is_active.is_(True),
+                    MasMentorInstitute.is_active.is_(True),
+                )
+            ).all()
+        )
+
+    has_tree = bool(units)
+
+    sorted_users = sorted(
+        users_by_id.values(),
+        key=lambda u: ((u.name or u.email or "").lower(), str(u.user_id)),
+    )
+
+    users_out: list[dict] = []
+    counts = {
+        "total_users": 0,
+        "active_users": 0,
+        "inactive_users": 0,
+        "with_pii": 0,
+        "non_pii_only": 0,
+        "multi_unit_users": 0,
+        "unlinked_workers": len(unlinked_workers),
+    }
+
+    for u_obj in sorted_users:
+        uid = u_obj.user_id
+        uid_str = str(uid)
+        is_mentor = uid in mentor_user_ids
+        u_workers = workers_by_user.get(uid, [])
+        primary_worker = next((w for w in u_workers if w["is_active"]), u_workers[0] if u_workers else None)
+        home_unit_id = primary_worker["org_unit_id"] if primary_worker else None
+        home_level_id = primary_worker["org_level_id"] if primary_worker else None
+
+        u_grants = grants_by_user.get(uid, [])
+        active_grants = [g for g in u_grants if g.grant_status == VaStatuses.active]
+        inactive_grant_count = sum(1 for g in u_grants if g.grant_status != VaStatuses.active)
+
+        # Project & site grants (Tier 1 / Tier 2 on tree projects -> Non-PII)
+        proj_roles_held: set[str] = set()
+        proj_grants_out: list[dict] = []
+        for g in active_grants:
+            if g.scope_type in (VaAccessScopeTypes.project, VaAccessScopeTypes.project_site):
+                r_val = g.role.value if hasattr(g.role, "value") else str(g.role)
+                proj_roles_held.add(r_val)
+                site_info = ps_by_id.get(str(g.project_site_id)) if g.project_site_id else None
+                meta = _DISPLAY_ROLE_META.get(
+                    "coder_non_pii" if r_val == "coder" else ("reviewer_non_pii" if r_val == "reviewer" else r_val),
+                    {"label": ROLE_LABELS.get(g.role, r_val), "pii_badge": "Tier 1: Non-PII", "pii_tier": "non_pii", "with_pii": False},
+                )
+                label = str(meta["label"])
+                pii_badge = str(meta["pii_badge"])
+                with_pii = bool(meta["with_pii"])
+                if has_tree and r_val not in ("collaborator_pii", "admin"):
+                    with_pii = False
+                    if r_val == "site_pi":
+                        label = "Site Lead"
+                        pii_badge = "Tier 2: Non-PII"
+                    elif r_val == "data_manager":
+                        label = "Project Data Manager"
+                        pii_badge = "Tier 1: Non-PII"
+                    elif r_val == "project_pi":
+                        label = "Project PI"
+                        pii_badge = "Tier 1: Non-PII"
+                    else:
+                        pii_badge = "Tier 1: Non-PII"
+                elif not has_tree and r_val in ("project_pi", "site_pi", "data_manager", "interviewer", "coder", "reviewer", "collaborator_pii"):
+                    with_pii = True
+                    pii_badge = "PII"
+                proj_grants_out.append({
+                    "grant_id": str(g.grant_id),
+                    "role": r_val,
+                    "label": label,
+                    "pii_badge": pii_badge,
+                    "with_pii": with_pii,
+                    "scope_type": g.scope_type.value,
+                    "site_id": site_info["site_id"] if site_info else None,
+                    "site_name": site_info["site_name"] if site_info else None,
+                })
+
+        has_project_wide_pii = ("collaborator_pii" in proj_roles_held) or (
+            not has_tree and bool(proj_roles_held & {"project_pi", "site_pi", "data_manager"})
+        )
+
+        # Unit grants grouped by unit first
+        roles_by_unit: dict[str, set[str]] = {}
+        grant_ids_by_unit_role: dict[tuple[str, str], str] = {}
+        for g in active_grants:
+            if g.scope_type == VaAccessScopeTypes.org_unit and g.org_unit_id is not None:
+                u_str = str(g.org_unit_id)
+                if u_str not in units_by_id:
+                    continue
+                r_val = g.role.value if hasattr(g.role, "value") else str(g.role)
+                roles_by_unit.setdefault(u_str, set()).add(r_val)
+                grant_ids_by_unit_role[(u_str, r_val)] = str(g.grant_id)
+
+        # Convert unit -> raw roles into display role -> list of units
+        # Tier 3 (non-mentor-institute unit holders) see PII; Tier 2 (mentor institute) are Non-PII.
+        units_by_display_role: dict[str, list[dict]] = {}
+        raw_unit_roles_all: set[str] = set()
+        for u_str, r_set in roles_by_unit.items():
+            raw_unit_roles_all |= r_set
+            u_info = units_by_id[u_str]
+            unit_has_pii = (not is_mentor) or ("collaborator_pii" in r_set) or has_project_wide_pii
+            consumed_collab_pii = False
+
+            display_keys: list[str] = []
+            if "coder" in r_set:
+                if unit_has_pii:
+                    display_keys.append("coder_pii")
+                    if "collaborator_pii" in r_set:
+                        consumed_collab_pii = True
+                else:
+                    display_keys.append("coder_non_pii")
+            if "reviewer" in r_set:
+                if unit_has_pii:
+                    display_keys.append("reviewer_pii")
+                    if "collaborator_pii" in r_set:
+                        consumed_collab_pii = True
+                else:
+                    display_keys.append("reviewer_non_pii")
+
+            for r_val in sorted(r_set):
+                if r_val in ("coder", "reviewer"):
+                    continue
+                if r_val == "collaborator_pii" and consumed_collab_pii:
+                    continue
+                display_keys.append(r_val)
+
+            for dk in display_keys:
+                units_by_display_role.setdefault(dk, []).append({
+                    "org_unit_id": u_str,
+                    "unit_code": u_info["unit_code"],
+                    "unit_name": u_info["unit_name"],
+                    "org_level_id": u_info["org_level_id"],
+                    "level_code": u_info["level_code"],
+                    "level_name": u_info["level_name"],
+                    "depth": u_info["depth"],
+                    "is_home": u_str == home_unit_id,
+                })
+
+        grouped_unit_roles: list[dict] = []
+        distinct_granted_units = set(roles_by_unit.keys())
+        for dk, dk_units in sorted(
+            units_by_display_role.items(),
+            key=lambda kv: int(_DISPLAY_ROLE_META.get(kv[0], {}).get("order", 99)),
+        ):
+            dk_units.sort(key=lambda x: (not x["is_home"], x["depth"], x["unit_code"]))
+            meta = _DISPLAY_ROLE_META.get(
+                dk,
+                {"label": dk, "pii_badge": "Non-PII", "pii_tier": "non_pii", "with_pii": False},
+            )
+            u_ids_set = {x["org_unit_id"] for x in dk_units}
+            levels_in_group = {x["org_level_id"] for x in dk_units}
+            scope_kind = "multi"
+            scope_summary = f"{len(dk_units)} units"
+
+            if len(dk_units) == 1 and dk_units[0]["is_home"]:
+                scope_kind = "own"
+                scope_summary = f"Own unit ({dk_units[0]['unit_code']})"
+            elif len(levels_in_group) == 1:
+                only_lv = next(iter(levels_in_group))
+                lv_all = {x["org_unit_id"] for x in units_by_level.get(only_lv, [])}
+                lv_name = dk_units[0]["level_name"]
+                if len(lv_all) >= 2 and u_ids_set == lv_all:
+                    scope_kind = "all_level"
+                    scope_summary = f"All {len(dk_units)} {lv_name} units"
+                elif (
+                    home_unit_id
+                    and home_level_id == only_lv
+                    and len(lv_all) >= 2
+                    and u_ids_set == (lv_all - {home_unit_id})
+                ):
+                    scope_kind = "cross_level"
+                    scope_summary = f"Cross-tree: All {len(dk_units)} other {lv_name} units"
+                elif len(dk_units) == 1:
+                    scope_kind = "single"
+                    scope_summary = f"{dk_units[0]['unit_code']} ({dk_units[0]['unit_name']})"
+            elif len(dk_units) == 1:
+                scope_kind = "single"
+                scope_summary = f"{dk_units[0]['unit_code']} ({dk_units[0]['unit_name']})"
+
+            grouped_unit_roles.append({
+                "role_key": dk,
+                "label": str(meta["label"]),
+                "pii_badge": str(meta["pii_badge"]),
+                "pii_tier": str(meta["pii_tier"]),
+                "with_pii": bool(meta["with_pii"]),
+                "units": dk_units,
+                "unit_count": len(dk_units),
+                "scope_kind": scope_kind,
+                "scope_summary": scope_summary,
+            })
+
+        # Compute effective PII status across the project for this user
+        all_roles_held = proj_roles_held | raw_unit_roles_all
+        display_keys_held = set(units_by_display_role.keys())
+        in_system_unit_roles = raw_unit_roles_all if not is_mentor else set()
+        if not all_roles_held:
+            pii_status = {
+                "tier": "none",
+                "badge": "No Active Grants",
+                "detail": "Rostered or inactive grants only; cannot access project cases.",
+            }
+        elif (
+            bool(in_system_unit_roles & {"site_pi", "data_manager", "interviewer"})
+            or ("collaborator_pii" in all_roles_held and not (all_roles_held & {"coder", "reviewer"}))
+            or (not has_tree and bool(proj_roles_held & {"project_pi", "site_pi", "data_manager", "interviewer"}))
+        ):
+            pii_status = {
+                "tier": "full_pii",
+                "badge": "Tier 3: PII (In-System)",
+                "detail": "Inside the health system: sees deceased name, address, GPS & registration numbers in scope.",
+            }
+        elif ("coder_pii" in display_keys_held) or ("reviewer_pii" in display_keys_held) or (
+            ("collaborator_pii" in all_roles_held) and bool(all_roles_held & {"coder", "reviewer"})
+        ):
+            pii_status = {
+                "tier": "coding_pii",
+                "badge": "Tier 3: PII (In-System Doctor)",
+                "detail": "Inside the health system: sees deceased name & registration numbers across coding scope.",
+            }
+        elif "interview_supervisor" in in_system_unit_roles:
+            pii_status = {
+                "tier": "intake_pii",
+                "badge": "Tier 3: PII (Supervisor)",
+                "detail": "Inside the health system: sees deceased & respondent PII across supervised units.",
+            }
+        elif "death_reporter" in all_roles_held and not (
+            all_roles_held - {"death_reporter"}
+        ):
+            pii_status = {
+                "tier": "own_register",
+                "badge": "Own Register PII",
+                "detail": "Sees PII only on deaths registered by this worker.",
+            }
+        else:
+            pii_status = {
+                "tier": "non_pii",
+                "badge": "Tier 2: Non-PII (Mentoring)" if is_mentor else "Tier 1: Non-PII (Blinded)",
+                "detail": "Outside the health system: blinded to deceased name, address, GPS & registration numbers.",
+            }
+
+        is_user_active = u_obj.user_status == VaStatuses.active
+        counts["total_users"] += 1
+        if is_user_active:
+            counts["active_users"] += 1
+        else:
+            counts["inactive_users"] += 1
+        if pii_status["tier"] in ("full_pii", "coding_pii", "intake_pii", "own_register"):
+            counts["with_pii"] += 1
+        elif pii_status["tier"] == "non_pii":
+            counts["non_pii_only"] += 1
+        if len(distinct_granted_units) > 1:
+            counts["multi_unit_users"] += 1
+
+        users_out.append({
+            "row_id": uid_str,
+            "user_id": uid_str,
+            "has_account": True,
+            "name": u_obj.name or (primary_worker["worker_name"] if primary_worker else "") or (u_obj.email or "Unnamed"),
+            "email": u_obj.email,
+            "email_verified": bool(getattr(u_obj, "email_verified", True)),
+            "mobile_only": bool(getattr(u_obj, "is_mobile_only", False)),
+            "phone": u_obj.phone or u_obj.mobile_login or (primary_worker["phone"] if primary_worker else None),
+            "user_status": u_obj.user_status.value if hasattr(u_obj.user_status, "value") else str(u_obj.user_status),
+            "is_active": is_user_active,
+            "primary_worker": primary_worker,
+            "workers": u_workers,
+            "project_grants": proj_grants_out,
+            "grouped_unit_roles": grouped_unit_roles,
+            "unit_roles_by_unit": {k: sorted(v) for k, v in roles_by_unit.items()},
+            "active_grant_count": len(active_grants),
+            "inactive_grant_count": inactive_grant_count,
+            "distinct_unit_count": len(distinct_granted_units),
+            "pii_status": pii_status,
+        })
+
+    return {
+        "project_id": project_id,
+        "structure_mode": project.project_structure_mode,
+        "levels": levels,
+        "units": units,
+        "cadres": cadres,
+        "level_cadres": level_cadres,
+        "sites": sites_list,
+        "users": users_out,
+        "unlinked_workers": unlinked_workers,
+        "counts": counts,
+    }
+
+
+_BULK_ROLE_MAP: dict[str, tuple[list[VaAccessRoles], list[VaAccessRoles]]] = {
+    # operation -> (roles_to_grant, roles_to_revoke_at_target)
+    "coder": ([VaAccessRoles.coder], [VaAccessRoles.collaborator_pii]),
+    "coder_non_pii": ([VaAccessRoles.coder], [VaAccessRoles.collaborator_pii]),
+    "coder_pii": ([VaAccessRoles.coder], [VaAccessRoles.collaborator_pii]),
+    "reviewer": ([VaAccessRoles.reviewer], [VaAccessRoles.collaborator_pii]),
+    "reviewer_non_pii": ([VaAccessRoles.reviewer], [VaAccessRoles.collaborator_pii]),
+    "reviewer_pii": ([VaAccessRoles.reviewer], [VaAccessRoles.collaborator_pii]),
+    "coding_tester": ([VaAccessRoles.coding_tester], []),
+    "viewer_non_pii": ([VaAccessRoles.collaborator], [VaAccessRoles.collaborator_pii]),
+    "collaborator": ([VaAccessRoles.collaborator], [VaAccessRoles.collaborator_pii]),
+    "viewer_pii": ([VaAccessRoles.collaborator_pii], []),
+    "collaborator_pii": ([VaAccessRoles.collaborator_pii], []),
+    "in_charge": ([VaAccessRoles.site_pi], []),
+    "site_pi": ([VaAccessRoles.site_pi], []),
+    "data_manager": ([VaAccessRoles.data_manager], []),
+    "project_pi": ([VaAccessRoles.project_pi], []),
+    "interviewer": ([VaAccessRoles.interviewer], []),
+    "interview_supervisor": ([VaAccessRoles.interview_supervisor], []),
+    "death_reporter": ([VaAccessRoles.death_reporter], []),
+}
+
+
+def bulk_apply_project_users_grid(
+    project_id: str,
+    payload: dict,
+    *,
+    actor: VaUsers,
+) -> tuple[dict, list[tuple[dict, str]]]:
+    """Apply a 2-dropdown bulk role/scope/status operation to selected project users.
+
+    Automatically resolves each user's home cadre (or an active capable cadre at
+    the target unit's level) so the operator never needs a 3rd Cadre dropdown.
+    """
+    from app.services.org_grant_service import (
+        CADRE_FLAG_BY_ROLE,
+        ROLES_ALLOWING_ORG_UNIT,
+        validate_org_unit_grant,
+    )
+
+    project = _get_project(project_id)
+    raw_user_ids = payload.get("user_ids") or []
+    if not isinstance(raw_user_ids, list) or not raw_user_ids:
+        raise OrganizationError("Select at least one user first.")
+    if len(raw_user_ids) > 500:
+        raise OrganizationError("At most 500 users can be updated in one batch.")
+
+    target_user_uuids: list[uuid.UUID] = []
+    for raw_uid in raw_user_ids:
+        uid = _uuid(raw_uid, what="User id")
+        if uid not in target_user_uuids:
+            target_user_uuids.append(uid)
+
+    users_map = {
+        u.user_id: u
+        for u in db.session.scalars(
+            sa.select(VaUsers).where(VaUsers.user_id.in_(target_user_uuids))
+        ).all()
+    }
+    if len(users_map) != len(target_user_uuids):
+        raise OrganizationError("One or more selected users were not found.")
+
+    operation = str(payload.get("operation") or "").strip()
+    scope_mode = str(payload.get("scope_mode") or "own").strip()
+    sync_scope = bool(payload.get("sync_scope", True))
+
+    if not operation:
+        raise OrganizationError("Choose a role or action to apply.")
+
+    changed_grants: list[tuple[dict, str]] = []
+    summary = {
+        "operation": operation,
+        "scope_mode": scope_mode,
+        "users_processed": len(target_user_uuids),
+        "grants_created": 0,
+        "grants_reactivated": 0,
+        "grants_revoked": 0,
+        "accounts_updated": 0,
+    }
+
+    # 1. Account activation / deactivation (Admin only)
+    if operation in ("activate_users", "deactivate_users"):
+        if not actor.is_admin():
+            raise OrganizationError("Only a platform Admin can activate or deactivate user accounts.")
+        desired_status = VaStatuses.active if operation == "activate_users" else VaStatuses.deactive
+        for uid in target_user_uuids:
+            if desired_status == VaStatuses.deactive and uid == actor.user_id:
+                raise OrganizationError("You cannot deactivate your own account.")
+            u_obj = users_map[uid]
+            if u_obj.user_status != desired_status:
+                u_obj.user_status = desired_status
+                summary["accounts_updated"] += 1
+        db.session.flush()
+        return summary, changed_grants
+
+    # Preload project units, level_cadres, workers, and existing grants in bulk
+    active_units = {
+        u.org_unit_id: u
+        for u in db.session.scalars(
+            sa.select(MasOrgUnit).where(
+                MasOrgUnit.project_id == project_id,
+                MasOrgUnit.is_active.is_(True),
+            )
+        ).all()
+    }
+    all_project_unit_ids = list(
+        db.session.scalars(
+            sa.select(MasOrgUnit.org_unit_id).where(MasOrgUnit.project_id == project_id)
+        ).all()
+    )
+    units_by_level_id: dict[uuid.UUID, list[MasOrgUnit]] = {}
+    for u in active_units.values():
+        units_by_level_id.setdefault(u.org_level_id, []).append(u)
+
+    project_sites = list(
+        db.session.scalars(
+            sa.select(VaProjectSites).where(VaProjectSites.project_id == project_id)
+        ).all()
+    )
+    ps_ids = [ps.project_site_id for ps in project_sites]
+
+    # Preload active MapOrgLevelCadre for automatic cadre resolution
+    lc_rows = db.session.execute(
+        sa.select(MapOrgLevelCadre, MasCadre)
+        .join(MasCadre, MasCadre.cadre_id == MapOrgLevelCadre.cadre_id)
+        .join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
+        .where(
+            MasOrgLevel.project_id == project_id,
+            MapOrgLevelCadre.is_active.is_(True),
+            MasCadre.is_active.is_(True),
+        )
+        .order_by(MasCadre.cadre_code)
+    ).all()
+    lc_by_pair: dict[tuple[uuid.UUID, uuid.UUID], MapOrgLevelCadre] = {}
+    lc_by_level: dict[uuid.UUID, list[tuple[MapOrgLevelCadre, MasCadre]]] = {}
+    for lc, cadre in lc_rows:
+        lc_by_pair[(lc.org_level_id, lc.cadre_id)] = lc
+        lc_by_level.setdefault(lc.org_level_id, []).append((lc, cadre))
+
+    # Preload workers for target users
+    worker_rows = db.session.scalars(
+        sa.select(MasOrgUnitWorker)
+        .where(
+            MasOrgUnitWorker.project_id == project_id,
+            MasOrgUnitWorker.user_id.in_(target_user_uuids),
+        )
+        .order_by(MasOrgUnitWorker.is_active.desc(), MasOrgUnitWorker.worker_code)
+    ).all()
+    primary_worker_by_user: dict[uuid.UUID, MasOrgUnitWorker] = {}
+    for w in worker_rows:
+        if w.user_id and w.user_id not in primary_worker_by_user:
+            primary_worker_by_user[w.user_id] = w
+
+    # Preload all existing grants in this project for target users
+    grant_conds = [
+        sa.and_(
+            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+            VaUserAccessGrants.project_id == project_id,
+        )
+    ]
+    if ps_ids:
+        grant_conds.append(
+            sa.and_(
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                VaUserAccessGrants.project_site_id.in_(ps_ids),
+            )
+        )
+    if all_project_unit_ids:
+        grant_conds.append(
+            sa.and_(
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                VaUserAccessGrants.org_unit_id.in_(all_project_unit_ids),
+            )
+        )
+    existing_grant_rows = db.session.scalars(
+        sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id.in_(target_user_uuids),
+            sa.or_(*grant_conds),
+        )
+    ).all()
+
+    proj_grants_map: dict[tuple[uuid.UUID, VaAccessRoles], VaUserAccessGrants] = {}
+    site_grants_map: dict[tuple[uuid.UUID, VaAccessRoles, uuid.UUID], VaUserAccessGrants] = {}
+    unit_grants_map: dict[tuple[uuid.UUID, VaAccessRoles, uuid.UUID], VaUserAccessGrants] = {}
+    all_user_project_grants: dict[uuid.UUID, list[VaUserAccessGrants]] = {}
+
+    for g in existing_grant_rows:
+        all_user_project_grants.setdefault(g.user_id, []).append(g)
+        if g.scope_type == VaAccessScopeTypes.project:
+            proj_grants_map[(g.user_id, g.role)] = g
+        elif g.scope_type == VaAccessScopeTypes.project_site and g.project_site_id:
+            site_grants_map[(g.user_id, g.role, g.project_site_id)] = g
+        elif g.scope_type == VaAccessScopeTypes.org_unit and g.org_unit_id:
+            unit_grants_map[(g.user_id, g.role, g.org_unit_id)] = g
+
+    actor_grants = authz.resolve_grants(actor)
+
+    def _revoke_grant(g: VaUserAccessGrants) -> None:
+        if g.grant_status != VaStatuses.active:
+            return
+        if not authz.can_grant(
+            actor,
+            authz.GrantTarget(
+                role=g.role,
+                scope_type=g.scope_type,
+                project_id=g.project_id,
+                project_site_id=g.project_site_id,
+                org_unit_id=g.org_unit_id,
+            ),
+            _grants=actor_grants,
+        ):
+            raise OrganizationError(f"You are not permitted to revoke {g.role.value!r}.")
+        g.grant_status = VaStatuses.deactive
+        summary["grants_revoked"] += 1
+        changed_grants.append((
+            {
+                "user_id": g.user_id,
+                "grant_id": g.grant_id,
+                "role": g.role.value,
+                "scope_type": g.scope_type.value,
+                "project_id": g.project_id,
+                "project_site_id": g.project_site_id,
+                "org_unit_id": g.org_unit_id,
+                "cadre_id": g.cadre_id,
+            },
+            "grant_revoked",
+        ))
+
+    # 2. Revoke ALL grants in project
+    if operation == "revoke_all":
+        for uid in target_user_uuids:
+            for g in all_user_project_grants.get(uid, []):
+                _revoke_grant(g)
+        db.session.flush()
+        return summary, changed_grants
+
+    # Helper to resolve target unit UUIDs for a given user under scope_mode
+    custom_unit_uuids: list[uuid.UUID] = []
+    if scope_mode == "custom":
+        raw_custom = payload.get("custom_unit_ids") or []
+        if not isinstance(raw_custom, list) or not raw_custom:
+            raise OrganizationError("Pick at least one target unit when using custom unit selection.")
+        for raw_cu in raw_custom:
+            cu_uuid = _uuid(raw_cu, what="Unit id")
+            if cu_uuid not in active_units:
+                raise OrganizationError("Selected unit does not belong to this project or is inactive.")
+            if cu_uuid not in custom_unit_uuids:
+                custom_unit_uuids.append(cu_uuid)
+
+    level_scope_uuid: uuid.UUID | None = None
+    if scope_mode.startswith("level:"):
+        level_scope_uuid = _uuid(scope_mode.split(":", 1)[1], what="Level id")
+        if not units_by_level_id.get(level_scope_uuid):
+            raise OrganizationError("There are no active units at the selected hierarchy level.")
+
+    def _resolve_user_target_units(uid: uuid.UUID) -> list[uuid.UUID]:
+        if scope_mode == "custom":
+            return list(custom_unit_uuids)
+        if level_scope_uuid is not None:
+            return [u.org_unit_id for u in units_by_level_id.get(level_scope_uuid, [])]
+        worker = primary_worker_by_user.get(uid)
+        if worker is None or worker.org_unit_id not in active_units:
+            if len(target_user_uuids) == 1:
+                raise OrganizationError(
+                    f"{users_map[uid].name or users_map[uid].email} has no home unit placement in this project yet. "
+                    "Choose 'All units at Level…', 'Pick specific unit(s)…', or 'Project-wide' in Dropdown 2."
+                )
+            return []
+        home_unit = active_units[worker.org_unit_id]
+        if scope_mode == "own":
+            return [home_unit.org_unit_id]
+        lv_units = [u.org_unit_id for u in units_by_level_id.get(home_unit.org_level_id, [])]
+        if scope_mode == "cross_level":
+            other_units = [u_id for u_id in lv_units if u_id != home_unit.org_unit_id]
+            if not other_units and len(target_user_uuids) == 1:
+                raise OrganizationError(
+                    f"There are no other active units at {home_unit.level.level_name!r} besides {home_unit.unit_code!r}."
+                )
+            return other_units
+        if scope_mode == "all_user_level":
+            return lv_units
+        raise OrganizationError(f"Unsupported scope_mode {scope_mode!r}.")
+
+    def _resolve_cadre_for_unit_grant(
+        uid: uuid.UUID,
+        role: VaAccessRoles,
+        unit: MasOrgUnit,
+    ) -> uuid.UUID | None:
+        worker = primary_worker_by_user.get(uid)
+        home_cadre_id = worker.cadre_id if worker else None
+        if role in CADRE_FLAG_BY_ROLE:
+            flag, permits = CADRE_FLAG_BY_ROLE[role]
+            # 1. Prefer user's own home cadre if it carries the required flag at this unit's level
+            if home_cadre_id and (unit.org_level_id, home_cadre_id) in lc_by_pair:
+                lc = lc_by_pair[(unit.org_level_id, home_cadre_id)]
+                if getattr(lc, flag):
+                    return home_cadre_id
+            # 2. Otherwise pick the first active cadre at this unit's level that carries the flag
+            for lc, cadre in lc_by_level.get(unit.org_level_id, []):
+                if getattr(lc, flag):
+                    return cadre.cadre_id
+            raise OrganizationError(
+                f"To grant {role.value!r} at {unit.unit_code!r} ({unit.level.level_name}), "
+                f"enable '{permits}' for at least one cadre at that level in the Cadres & Role Matrix first."
+            )
+        # Non-flagged unit role: attach home cadre if valid at this level, else None
+        if home_cadre_id and (unit.org_level_id, home_cadre_id) in lc_by_pair:
+            return home_cadre_id
+        return None
+
+    def _ensure_unit_grant(uid: uuid.UUID, role: VaAccessRoles, unit_id: uuid.UUID) -> None:
+        unit = active_units[unit_id]
+        cadre_id = _resolve_cadre_for_unit_grant(uid, role, unit)
+        validate_org_unit_grant(
+            role=role,
+            org_unit_id=unit_id,
+            cadre_id=cadre_id,
+            user_id=uid,
+        )
+        if not authz.can_grant(
+            actor,
+            authz.GrantTarget(
+                role=role,
+                scope_type=VaAccessScopeTypes.org_unit,
+                project_id=None,
+                org_unit_id=unit_id,
+            ),
+            _grants=actor_grants,
+        ):
+            raise OrganizationError(f"You are not permitted to grant {role.value!r} on {unit.unit_code!r}.")
+
+        g = unit_grants_map.get((uid, role, unit_id))
+        if g is None:
+            g = VaUserAccessGrants(
+                user_id=uid,
+                role=role,
+                scope_type=VaAccessScopeTypes.org_unit,
+                project_id=None,
+                org_unit_id=unit_id,
+                cadre_id=cadre_id,
+                grant_status=VaStatuses.active,
+                created_by_user_id=actor.user_id,
+            )
+            db.session.add(g)
+            db.session.flush()
+            unit_grants_map[(uid, role, unit_id)] = g
+            all_user_project_grants.setdefault(uid, []).append(g)
+            summary["grants_created"] += 1
+            changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": unit_id,
+                    "cadre_id": cadre_id,
+                },
+                "grant_created",
+            ))
+        elif g.grant_status != VaStatuses.active or (cadre_id is not None and g.cadre_id != cadre_id):
+            was_active = g.grant_status == VaStatuses.active
+            g.grant_status = VaStatuses.active
+            if cadre_id is not None:
+                g.cadre_id = cadre_id
+            if not was_active:
+                summary["grants_reactivated"] += 1
+            changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": unit_id,
+                    "cadre_id": g.cadre_id,
+                },
+                "grant_updated" if was_active else "grant_reactivated",
+            ))
+
+    def _ensure_project_grant(uid: uuid.UUID, role: VaAccessRoles) -> None:
+        if role == VaAccessRoles.project_pi and not actor.is_admin():
+            raise OrganizationError("Only a platform Admin can grant Project PI.")
+        if role == VaAccessRoles.site_pi:
+            # site_pi cannot use 'project' scope; grant across all project_sites of this project
+            if not project_sites:
+                raise OrganizationError("This project has no sites configured yet.")
+            for ps in project_sites:
+                if not authz.can_grant(
+                    actor,
+                    authz.GrantTarget(
+                        role=role,
+                        scope_type=VaAccessScopeTypes.project_site,
+                        project_site_id=ps.project_site_id,
+                    ),
+                    _grants=actor_grants,
+                ):
+                    raise OrganizationError("You are not permitted to grant Site PI on this site.")
+                g = site_grants_map.get((uid, role, ps.project_site_id))
+                if g is None:
+                    g = VaUserAccessGrants(
+                        user_id=uid,
+                        role=role,
+                        scope_type=VaAccessScopeTypes.project_site,
+                        project_site_id=ps.project_site_id,
+                        grant_status=VaStatuses.active,
+                        created_by_user_id=actor.user_id,
+                    )
+                    db.session.add(g)
+                    db.session.flush()
+                    site_grants_map[(uid, role, ps.project_site_id)] = g
+                    all_user_project_grants.setdefault(uid, []).append(g)
+                    summary["grants_created"] += 1
+                    changed_grants.append((
+                        {
+                            "user_id": uid,
+                            "grant_id": g.grant_id,
+                            "role": role.value,
+                            "scope_type": VaAccessScopeTypes.project_site.value,
+                            "project_site_id": ps.project_site_id,
+                        },
+                        "grant_created",
+                    ))
+                elif g.grant_status != VaStatuses.active:
+                    g.grant_status = VaStatuses.active
+                    summary["grants_reactivated"] += 1
+                    changed_grants.append((
+                        {
+                            "user_id": uid,
+                            "grant_id": g.grant_id,
+                            "role": role.value,
+                            "scope_type": VaAccessScopeTypes.project_site.value,
+                            "project_site_id": ps.project_site_id,
+                        },
+                        "grant_reactivated",
+                    ))
+            return
+
+        if role in (VaAccessRoles.interview_supervisor, VaAccessRoles.death_reporter):
+            raise OrganizationError(f"Role {role.value!r} is unit-scoped and cannot be granted project-wide.")
+
+        if not authz.can_grant(
+            actor,
+            authz.GrantTarget(
+                role=role,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=project_id,
+            ),
+            _grants=actor_grants,
+        ):
+            raise OrganizationError(f"You are not permitted to grant {role.value!r} at project scope.")
+
+        g = proj_grants_map.get((uid, role))
+        if g is None:
+            g = VaUserAccessGrants(
+                user_id=uid,
+                role=role,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=project_id,
+                grant_status=VaStatuses.active,
+                created_by_user_id=actor.user_id,
+            )
+            db.session.add(g)
+            db.session.flush()
+            proj_grants_map[(uid, role)] = g
+            all_user_project_grants.setdefault(uid, []).append(g)
+            summary["grants_created"] += 1
+            changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.project.value,
+                    "project_id": project_id,
+                },
+                "grant_created",
+            ))
+        elif g.grant_status != VaStatuses.active:
+            g.grant_status = VaStatuses.active
+            summary["grants_reactivated"] += 1
+            changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.project.value,
+                    "project_id": project_id,
+                },
+                "grant_reactivated",
+            ))
+
+    # 3. Revoke PII (Downgrade to Non-PII)
+    if operation == "revoke_pii":
+        for uid in target_user_uuids:
+            if scope_mode == "project":
+                g = proj_grants_map.get((uid, VaAccessRoles.collaborator_pii))
+                if g:
+                    _revoke_grant(g)
+                for u_id in all_project_unit_ids:
+                    ug = unit_grants_map.get((uid, VaAccessRoles.collaborator_pii, u_id))
+                    if ug:
+                        _revoke_grant(ug)
+            else:
+                target_units = _resolve_user_target_units(uid)
+                for u_id in target_units:
+                    ug = unit_grants_map.get((uid, VaAccessRoles.collaborator_pii, u_id))
+                    if ug:
+                        _revoke_grant(ug)
+        db.session.flush()
+        return summary, changed_grants
+
+    # 4. Revoke Coding Roles at target scope
+    if operation == "revoke_coder":
+        coding_roles = (VaAccessRoles.coder, VaAccessRoles.reviewer, VaAccessRoles.coding_tester)
+        for uid in target_user_uuids:
+            if scope_mode == "project":
+                for r in coding_roles:
+                    g = proj_grants_map.get((uid, r))
+                    if g:
+                        _revoke_grant(g)
+                    for u_id in all_project_unit_ids:
+                        ug = unit_grants_map.get((uid, r, u_id))
+                        if ug:
+                            _revoke_grant(ug)
+            else:
+                target_units = _resolve_user_target_units(uid)
+                for u_id in target_units:
+                    for r in coding_roles:
+                        ug = unit_grants_map.get((uid, r, u_id))
+                        if ug:
+                            _revoke_grant(ug)
+        db.session.flush()
+        return summary, changed_grants
+
+    # 5. Apply Cadre Default Roles
+    if operation == "cadre_defaults":
+        if project.project_structure_mode != "organization":
+            raise OrganizationError("Cadre default roles apply to organization-mode projects.")
+        for uid in target_user_uuids:
+            worker = primary_worker_by_user.get(uid)
+            if worker is None or worker.org_unit_id not in active_units:
+                if len(target_user_uuids) == 1:
+                    raise OrganizationError("Selected user does not have an active worker placement in this project.")
+                continue
+            home_unit = active_units[worker.org_unit_id]
+            lc = lc_by_pair.get((home_unit.org_level_id, worker.cadre_id))
+            if lc is None or not lc.default_roles:
+                if len(target_user_uuids) == 1:
+                    raise OrganizationError(
+                        f"No default roles are configured for {worker.cadre.cadre_code!r} at {home_unit.level.level_name!r}."
+                    )
+                continue
+            target_units = _resolve_user_target_units(uid) if scope_mode != "project" else [home_unit.org_unit_id]
+            for r_str in lc.default_roles:
+                r_enum = VaAccessRoles(r_str)
+                for u_id in target_units:
+                    _ensure_unit_grant(uid, r_enum, u_id)
+        db.session.flush()
+        return summary, changed_grants
+
+    # 6. Standard Role Grant Operations (including Coder/Reviewer Non-PII vs with PII)
+    if operation not in _BULK_ROLE_MAP:
+        raise OrganizationError(f"Unknown bulk operation {operation!r}.")
+
+    roles_to_grant, roles_to_revoke = _BULK_ROLE_MAP[operation]
+    use_project_scope = (scope_mode == "project") or (operation == "project_pi")
+
+    if not use_project_scope and project.project_structure_mode != "organization":
+        raise OrganizationError(
+            "Unit scopes require an organization-mode project; choose 'Project-wide' scope for sites-mode projects."
+        )
+
+    for uid in target_user_uuids:
+        if use_project_scope:
+            for r in roles_to_grant:
+                _ensure_project_grant(uid, r)
+            for r_rev in roles_to_revoke:
+                g_rev = proj_grants_map.get((uid, r_rev))
+                if g_rev:
+                    _revoke_grant(g_rev)
+        else:
+            target_units = _resolve_user_target_units(uid)
+            target_set = set(target_units)
+            for r in roles_to_grant:
+                if r not in ROLES_ALLOWING_ORG_UNIT:
+                    raise OrganizationError(f"Role {r.value!r} cannot be granted at unit scope.")
+                for u_id in target_units:
+                    _ensure_unit_grant(uid, r, u_id)
+                # When syncing scope (e.g. switching between Own unit, Cross-tree, All units at level, or Custom drawer),
+                # deactivate active unit grants of the primary role outside target_set.
+                if sync_scope and r == roles_to_grant[0]:
+                    for u_id in all_project_unit_ids:
+                        if u_id not in target_set:
+                            ug = unit_grants_map.get((uid, r, u_id))
+                            if ug and ug.grant_status == VaStatuses.active:
+                                _revoke_grant(ug)
+            for r_rev in roles_to_revoke:
+                for u_id in target_units:
+                    ug_rev = unit_grants_map.get((uid, r_rev, u_id))
+                    if ug_rev and ug_rev.grant_status == VaStatuses.active:
+                        _revoke_grant(ug_rev)
+
+    db.session.flush()
+    return summary, changed_grants
+

@@ -3,6 +3,32 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-26
+
+- **Three-tier Inside vs Outside health-system PII boundary, 7-level hierarchy,
+  and parent-unit deactivation choice** (`digitva-ewa5`): codify and enforce the
+  three-tier PII boundary on organization-tree projects across
+  `docs/policy/access-control-model.md`, `docs/policy/district-reference-model.md`,
+  `docs/policy/organization-model.md`, `docs/policy/case-list-views.md`, and
+  `docs/current-state/health-system-organization-model.md` — Tier 1 (Project
+  level: `project_pi`, `data_manager@project`, and project-scoped coding/viewer
+  roles) and Tier 2 (Mentoring Institute lead and scientists) sit outside the
+  health system and are Non-PII (blinded), while Tier 3 (Health-system unit
+  grants at `org_unit` scope for non-mentoring-institute staff, including
+  `In-charge`, unit `data_manager`, `interview_supervisor`, `interviewer`, and
+  in-system doctors) is PII across within-tree and cross-tree scope, with
+  exceptional PII granted via `data_manager` at the attached District unit.
+  Expand `DEFAULT_LEVEL_TEMPLATE` to 7 levels (`state` optional at depth 1 above
+  `district`, `taluka`, `chc`, `phc`, `subcentre`, `village`) with optional-root
+  depth handling across `organization_service`, `mentor_institute_service`, and
+  `/api/v1/organization/<project_id>/units`. Require an explicit operator choice
+  (`reparent_children_to_org_unit_id` with subtree `ltree` path rewrite or
+  `cascade_deactivate_children=True`) when deactivating a unit that has active
+  child units, add level-change and optional-to-required tree-integrity guards,
+  and surface the Three-Tier PII banner, `In-charge` terminology, and deactivation
+  modal in `organization.html`, `project_setup.html`, and `access_grants.html`.
+  Full pytest suite 6,353 passed.
+
 ## 2026-10-25
 
 - **Training interview collection parity and consent panel layout**

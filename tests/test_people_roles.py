@@ -612,8 +612,7 @@ class PiiVisibleUserIdsTests(PeopleRolesBase):
                     # Restricted to CSC001: an admin, or a live PII grant that resolves there.
                     resolved = resolve_grants(user)
                     expected = resolved.is_admin or any(
-                        g.project_id == self.PROJECT and not g.virtual
-                        and g.role in service._PII_GRANTING_ROLES
+                        g.project_id == self.PROJECT and resolved.is_pii_grant(g)
                         for g in resolved.grants
                     )
                     self.assertEqual(user.user_id in in_project, expected)
@@ -663,7 +662,7 @@ class BoundTests(PeopleRolesBase):
         self._team()
         first = self._call(self.base_admin_user, limit=2)
         self.assertEqual({u["unit_code"] for u in first["units"]["units"]}, {"D01", "C01", "P01", "P02"})
-        self.assertEqual([lv["level_code"] for lv in first["units"]["levels"]][:3], ["district", "taluka", "chc"])
+        self.assertEqual([lv["level_code"] for lv in first["units"]["levels"]][:4], ["state", "district", "taluka", "chc"])
         self.assertTrue(first["cadres"])
         later = self._call(self.base_admin_user, limit=2, offset=2)
         self.assertNotIn("units", later)

@@ -28,6 +28,7 @@ from app.models import (
     MasDeathIdentifierType,
     MasOrgUnit,
     VaAccessRoles,
+    VaAccessScopeTypes,
     VaDeathRegister,
     VaStatuses,
     VaUserAccessGrants,
@@ -321,11 +322,9 @@ def set_identifiers(death: VaDeathRegister, writer: VaUsers, values: dict, *, re
 
 def identifier_values_visible(user: VaUsers, project_ids) -> set[str]:
     """The projects among *project_ids* where *user* sees identifier VALUES
-    (decision 14): admin everywhere, otherwise a live ASSIGNED grant in
-    ``IDENTIFIER_VALUE_ROLES`` in that project. Not ``should_redact_pii``: a
-    coder's PII grant elsewhere lifts nothing here, and neither does the
-    interviewer grant a self-coding project implies for a coder
-    (``source == "self_coding"``). One memoised grant read."""
+    (decision 14 & Three-Tier PII Model): admin everywhere, otherwise a live
+    ASSIGNED PII grant (``ResolvedGrants.is_pii_grant``) or ``death_reporter``
+    (own registrations) in that project. One memoised grant read."""
     wanted = set(project_ids)
     if not wanted:
         return set()
@@ -334,7 +333,20 @@ def identifier_values_visible(user: VaUsers, project_ids) -> set[str]:
         return wanted
     return wanted & {
         g.project_id for g in resolved.grants
-        if not g.virtual and g.source == "assigned" and g.role in IDENTIFIER_VALUE_ROLES
+        if not g.virtual and g.source == "assigned"
+        and (
+            (
+                resolved.is_pii_grant(g)
+                and (
+                    g.role in IDENTIFIER_VALUE_ROLES
+                    or (
+                        g.scope_type == VaAccessScopeTypes.org_unit
+                        and g.role in (VaAccessRoles.coder, VaAccessRoles.reviewer)
+                    )
+                )
+            )
+            or g.role == VaAccessRoles.death_reporter
+        )
     }
 
 

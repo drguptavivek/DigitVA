@@ -181,7 +181,9 @@ class GrantCacheTests(AuthzFixtureMixin, BaseTestCase):
         user = self.users["coder_c1"]
         self.assertEqual({g.org_unit_id for g in self._resolve(user).grants if not g.virtual},
                          {self.units["C1"].org_unit_id})
-        org.set_unit_active(TA, self.units["D1"].org_unit_id, False)
+        org.set_unit_active(
+            TA, self.units["D1"].org_unit_id, False, cascade_deactivate_children=True
+        )
         db.session.commit()
         self.assertFalse([g for g in self._resolve(user).grants if not g.virtual])
 

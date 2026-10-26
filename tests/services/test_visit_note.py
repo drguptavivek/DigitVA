@@ -34,6 +34,8 @@ class VisitNoteFixture(AreaDashboardFixture):
         cls.collaborator = cls._get_or_make_user("area.vn.collab@test.local", "AreaUser123")
         cls._grant(cls.collaborator, VaAccessRoles.collaborator, VaAccessScopeTypes.project,
                    project_id=cls.TREE)
+        cls._grant(cls.project_user, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.project,
+                   project_id=cls.TREE)
         db.session.commit()
 
     @classmethod

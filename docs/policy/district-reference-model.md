@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-12
+last_updated: 2026-10-26
 ---
 
 # District Reference Model
@@ -47,21 +47,31 @@ cadre on it is a description and is not consulted again.
 
 ```
 Project
-├── DH    District Hospital               (district, depth 1)
-│   ├── SDH  Sub-divisional Hospital      (taluka, depth 2, optional)
-│   └── CHC  Community Health Centre      (chc, depth 3)
-│       └── PHC-AAM                       (phc, depth 4)
-│           └── SC-AAM                    (subcentre, depth 5)
-│               └── Village               (village, depth 6, optional)
+└── State / Province                        (state, optional when single-district; a State/Province has multiple Districts)
+    ├── DH    District / District Hospital  (district)
+    │   ├── Block / Taluka / SDH            (taluka, optional)
+    │   └── CHC  Community Health Centre    (chc)
+    │       └── PHC / UPHC (PHC-AAM)        (phc)
+    │           └── SC-AAM / Sub-centre     (subcentre)
+    │               └── Village             (village, optional)
+    └── DH    District 2 ...
 
 Mentoring institute (e.g. a medical college): not in this tree at all; a
 standalone entity attached to districts, see "Mentoring institutes" below.
 ```
 
-Level codes are the default template's (`district`, `taluka`, `chc`, `phc`,
-`subcentre`, `village`), so existing projects keep working; only the labels
-reflect the AAM naming. A level may be skipped only when it is optional
-(SDH, Village). Village is optional because villages often have no code.
+A **State / Province** unit sits at the top of the health-system hierarchy and
+can contain multiple **District** units beneath it
+(`State/Province > District > Block/Taluka/SDH (optional) > CHC > PHC/UPHC (PHC-AAM) > SC-AAM > Village`).
+`state` is optional (`is_optional = true`) so a single-district project that
+does not create a State/Province unit continues to work without one, while any
+state/province or multi-district deployment places its Districts under their
+State/Province unit (and grants at the State/Province unit automatically cover
+every District, Block/Taluka, CHC, PHC/UPHC, Sub-centre and Village beneath it).
+
+Level codes are `state`, `district`, `taluka`, `chc`, `phc`, `subcentre`,
+`village`; only the labels reflect the AAM and urban/rural naming (`Block / Taluka / SDH`, `PHC / UPHC (PHC-AAM)`). A level may be skipped only
+when it is optional (State/Province, Block/Taluka/SDH, Village). Village is optional because villages often have no code.
 Where a project records villages, ASHAs sit at their village with the
 `death_reporter` role, so they report from, and are scoped to, their own
 village; a project without village units leaves the level empty, and an
@@ -90,17 +100,21 @@ missing and never changes an existing level, cadre or grid row, so flags an
 administrator set are kept. The page shows this table, with the default roles,
 under *District reference model*.
 
-| Level code | Level label | Depth |
+| Level code | Level label | Notes |
 |---|---|---|
-| `district` | District / District Hospital (DH) | 1 |
-| `taluka` | Sub-divisional Hospital (SDH) | 2, optional |
-| `chc` | Community Health Centre (CHC) | 3 |
-| `phc` | PHC-AAM | 4 |
-| `subcentre` | SC-AAM / Sub-centre | 5 |
-| `village` | Village | 6, optional |
+| `state` | State / Province | Top of the health-system tree; optional when a project covers a single district without a State/Province node; holds multiple Districts |
+| `district` | District / District Hospital (DH) | Attached under `state` (or root when `state` is unused) |
+| `taluka` | Block / Taluka / Sub-divisional Hospital (SDH) | Optional level after District |
+| `chc` | Community Health Centre (CHC) | CHC / Block facility level |
+| `phc` | PHC / UPHC (PHC-AAM) | Primary Health Centre / Urban Primary Health Centre |
+| `subcentre` | SC-AAM / Sub-centre | Sub-centre |
+| `village` | Village | Optional |
 
 | Level code | Cadre | Fill VA | Code VA | Supervise interviews | Report deaths |
 |---|---|---|---|---|---|
+| `state` | SNO State Nodal Officer | – | – | ✓ | – |
+| `state` | SPM State Programme Manager | – | – | – | – |
+| `state` | SEPI State Epidemiologist | – | – | – | – |
 | `district` | CS Civil Surgeon | – | – | ✓ | – |
 | `district` | DPM District Programme Manager | – | – | – | – |
 | `district` | DEPI District Epidemiologist | – | – | – | – |
@@ -160,24 +174,34 @@ by the level_cadres sheet of the organization export and import
 
 The table is the seed. Access still comes only from each person's grants.
 
-| Where | Cadre / person | Default roles | Covers |
-|---|---|---|---|
-| Project | Project PI | `project_pi` | whole project |
-| Project | Project data manager | `data_manager` | whole project |
-| DH | CS (or CMO) | District in-charge (`site_pi` at the unit, shown as In-charge) | whole district, with every data manager power in it plus field supervision and the unit site PI report (see [Access Control Model](access-control-model.md), "In-charge"; built in digitva-0wc stages 5 and 6) |
-| DH | DPM | `data_manager` | whole district: supervising the worklist, data (registering deaths is for `interviewer` and `death_reporter`) |
-| DH | DEPI | `collaborator_pii` | read-only with personal details |
-| DH | MO | `coder`, or `reviewer` | whole district |
-| DH | SN | `interviewer` | facility deaths at the DH |
-| CHC | SMO | Block in-charge (`site_pi` at the unit, shown as In-charge), `reviewer` | the block |
-| CHC | MO | `coder` | the block |
-| CHC | BPM | `data_manager` | the block |
-| CHC | SN | `interviewer` | facility deaths at the CHC |
-| PHC-AAM | MO | PHC in-charge (`site_pi` at the unit, shown as In-charge), `coder` | its SC-AAMs |
-| SC-AAM | CHO | `interviewer` | own SC-AAM: register deaths and interview |
-| SC-AAM | ANM, MPW | `death_reporter` | own SC-AAM: register deaths and correct their details until an interview is completed; interview only with an added `interviewer` grant |
-| Village | ASHA | `death_reporter` | own village: as the ANM and MPW |
-| Mentoring institute | Faculty, residents | `coder`, `reviewer`, `coding_tester`, `collaborator_pii` | only the districts the institute is attached to, through ordinary unit grants at those districts |
+### Three-tier PII boundary (owner decision 2026-10-26, `digitva-ewa5`)
+
+- **Tier 1 — Project level (Project PI, Project Scientist/Viewer, Project Data Manager):** sits above multiple districts/sites and mentoring institutions $\implies$ **Outside the health system (Non-PII / Blinded)**.
+- **Tier 2 — Mentoring institution (Site PI `site_pi`, faculty/scientist `coder`, `reviewer`, `coding_tester`, `collaborator`):** sits outside the health-system tree and attaches to districts $\implies$ **Outside the health system (Non-PII / Blinded)**.
+- **Tier 3 — Health-system tree (`DH` $\to$ `SDH` $\to$ `CHC` $\to$ `PHC-AAM` $\to$ `SC-AAM` $\to$ `Village`):** every person placed inside the health system (**In-charge**, unit **Data Manager**, **Interview Supervisor**, **Interviewer**, **Death Reporter**, and in-system doctors holding **Coder** or **Reviewer**) is **inside the health system $\implies$ All PII**, whether working within their home unit subtree (**within-tree**) or assigned across sibling units (**cross-tree**). In-system unit leaders are always called **In-charge** (never `Site PI`).
+- **Exceptional PII access for an external person:** if someone from outside the system genuinely requires PII access, they are made part of the health system (Tier 3) and granted `data_manager` at the District (`DH`) level.
+
+| Tier | Where | Cadre / person | Default roles | PII Visibility | Covers |
+|---|---|---|---|---|---|
+| Tier 1 (Outside) | Project | Project PI | `project_pi` | **Non-PII** | whole project (above sites & mentoring institutes) |
+| Tier 1 (Outside) | Project | Project scientist / viewer | `collaborator`, `coder`, `reviewer` | **Non-PII** | whole project |
+| Tier 1 (Outside) | Project | Project data manager | `data_manager` (at `project` scope) | **Non-PII** | whole project |
+| Tier 2 (Outside) | Mentoring institute | Institute PI / Nodal Lead | `site_pi` | **Non-PII** | districts the mentoring institute is attached to |
+| Tier 2 (Outside) | Mentoring institute | Faculty, scientists, residents | `coder`, `reviewer`, `coding_tester`, `collaborator` | **Non-PII** | only the districts the institute is attached to, through unit grants at those districts |
+| Tier 3 (Inside) | State / Province | SNO (or State/Province Director) | State/Province **In-charge** (`in_charge`) | **PII** | all districts and units in the state/province |
+| Tier 3 (Inside) | State / Province | SPM, SEPI | `data_manager` (at `org_unit` scope) | **PII** | all districts and units in the state/province |
+| Tier 3 (Inside) | DH | CS (or CMO) | District **In-charge** (`in_charge`, *stored as unit `site_pi` prior to enum split*) | **PII** | whole district, with every data manager power in it plus field supervision and unit reporting |
+| Tier 3 (Inside) | DH | DPM, DEPI | `data_manager` (at `org_unit` scope) | **PII** | whole district: supervising the worklist, data & epidemiology (also used when an external person exceptionally needs PII at district level) |
+| Tier 3 (Inside) | DH | MO | `coder`, or `reviewer` | **PII** (in-system doctor, within-tree or cross-tree) | whole district |
+| Tier 3 (Inside) | DH | SN | `interviewer` | **PII** | facility deaths at the DH |
+| Tier 3 (Inside) | CHC | SMO | Block **In-charge**, `reviewer` | **PII** | the block |
+| Tier 3 (Inside) | CHC | MO | `coder` | **PII** (in-system doctor, within-tree or cross-tree) | the block |
+| Tier 3 (Inside) | CHC | BPM | `data_manager` (at `org_unit` scope) | **PII** | the block |
+| Tier 3 (Inside) | CHC | SN | `interviewer` | **PII** | facility deaths at the CHC |
+| Tier 3 (Inside) | PHC-AAM | MO | PHC **In-charge**, `coder` | **PII** (within-tree & cross-tree) | its SC-AAMs (and any cross-tree PHCs assigned) |
+| Tier 3 (Inside) | SC-AAM | CHO | `interviewer` | **PII** | own SC-AAM: register deaths and interview |
+| Tier 3 (Inside) | SC-AAM | ANM, MPW | `death_reporter` | **PII** | own SC-AAM: register deaths and correct their details until an interview is completed; interview only with an added `interviewer` grant |
+| Tier 3 (Inside) | Village | ASHA | `death_reporter` | **PII** | own village: as the ANM and MPW |
 
 ## Who manages accounts and grants
 
@@ -185,8 +209,8 @@ The table is the seed. Access still comes only from each person's grants.
 |---|---|---|---|
 | Admin | ✓ | every role, every scope | none |
 | Project PI | existing users only | every role except `admin` and `project_pi`, unit grants included; `data_manager` at any level | own project only |
-| In-charge (district, block, PHC) | ✓ | `data_manager` on their own unit and below; the data manager's seven roles anywhere in their area | their own unit and units beneath it |
-| Data manager | ✓ | `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`, `collaborator`, `collaborator_pii` at any level of their subtree, own level included; `data_manager` only strictly below their own level | own subtree only; never In-charge, `interview_supervisor`, `site_pi`, `project_pi` or `admin` |
+| In-charge (district, block, PHC) | ✓ | `data_manager` on their own unit and below; the data manager's roles anywhere in their area | their own unit and units beneath it |
+| Data manager | ✓ | `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`, `collaborator` at any level of their subtree, own level included; `data_manager` only strictly below their own level | own subtree only; never In-charge, `interview_supervisor`, `site_pi`, `project_pi` or `admin` |
 | Everyone else | – | – | – |
 
 Decision 2026-10-02 (see [Access Control Model](access-control-model.md),
@@ -197,10 +221,14 @@ to every grant.
 
 ## Mentoring institutes
 
-A medical college (or similar) that gives technical support sits outside the
-service tree and is not a unit. It is a standalone, cross-project entity (the
-mentoring institute) that an administrator attaches to district units, and
-whose staff receive **ordinary unit grants** at or below those districts. See
+A medical college (or similar) that gives technical support sits **outside the
+health-service tree (Tier 2 — Non-PII)** and is not a unit. It is a standalone,
+cross-project entity (the mentoring institute) that an administrator attaches
+to district units, and whose lead (`site_pi`) and scientists (`coder`,
+`reviewer`, `coding_tester`, `collaborator`) receive unit grants at or below
+those districts without PII visibility. If an external person exceptionally
+requires PII access, they are placed inside the health system (Tier 3) and
+granted `data_manager` at the District level. See
 [Organization Model Policy](organization-model.md), "Mentoring institutes",
 for the entity, the guard and who manages it. Mentor staff are not counted in
 the district's staff headcount; they are listed separately as the district's

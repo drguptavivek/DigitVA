@@ -234,6 +234,32 @@ class MentorInstituteTests(MentorBase):
         with self.assertRaises(REFUSED):
             mentors.create_institute("MC1", "duplicate")
 
+    def test_attach_district_under_state_at_depth_2_and_exceptional_data_manager(self):
+        d1, d2, chc, user = self._setup_one()
+        lv = {level.level_code: level for level in org.list_levels(self.P1)}
+        state = org.create_unit(
+            self.P1, org_level_id=lv["state"].org_level_id, unit_code="ST01", unit_name="State One"
+        )
+        d3 = org.create_unit(
+            self.P1, org_level_id=lv["district"].org_level_id,
+            parent_org_unit_id=state.org_unit_id, unit_code="D03", unit_name="District Three",
+        )
+        db.session.commit()
+        with self.assertRaises(REFUSED) as ctx:
+            mentors.attach_district("MC1", self.P1, "ST01")
+        self.assertIn("district-level", str(ctx.exception))
+        mentors.attach_district("MC1", self.P1, "D03")
+        db.session.commit()
+        self._validate(user, VaAccessRoles.reviewer, d3)
+        # Exceptional PII: data_manager is accepted at the attached District unit (d1 or d3),
+        # but refused at an unattached District (d2) or non-District child unit (chc).
+        self._validate(user, VaAccessRoles.data_manager, d1)
+        self._validate(user, VaAccessRoles.data_manager, d3)
+        with self.assertRaises(REFUSED):
+            self._validate(user, VaAccessRoles.data_manager, d2)
+        with self.assertRaises(REFUSED):
+            self._validate(user, VaAccessRoles.data_manager, chc)
+
     def test_add_member_reports_existing_grants_the_guard_would_refuse(self):
         self._setup_one()
         user = self._get_or_make_user("holder@test.local", "x")

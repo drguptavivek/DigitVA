@@ -166,7 +166,12 @@ def units_payload(
     the whole tree); the caller decides access. Also used by
     ``GET /api/v1/me/access`` (access_summary_service)."""
     levels = org.list_levels(project_id, include_inactive=include_inactive)
-    top_depth = levels[0].depth if levels else None
+    active_levels = [lv for lv in levels if lv.is_active]
+    top_depth = (
+        next((lv.depth for lv in active_levels if not lv.is_optional), active_levels[0].depth)
+        if active_levels
+        else None
+    )
     units = org.list_units(project_id, include_inactive=include_inactive, top_depth=top_depth)
     # An unplaced unit (imported, parent not yet mapped) and its subtree are
     # not offered: a picker cannot cascade to them, and their ancestor codes

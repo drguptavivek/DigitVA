@@ -56,7 +56,7 @@ from __future__ import annotations
 import base64
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
@@ -70,6 +70,7 @@ from app.models import (
     MasDeathIdentifierType,
     MasOrgUnit,
     VaAccessRoles,
+    VaAccessScopeTypes,
     VaAllocations,
     VaDeathRegister,
     VaProjectMaster,
@@ -382,20 +383,47 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
     pi_lenses = _on_submission(sa.or_(*(
         lens_filter(user, lens) for lens in (Lens.DM, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
     )))
+    in_system_coder_grants = replace(
+        grants,
+        grants=tuple(
+            g for g in grants.grants
+            if grants.is_pii_grant(g)
+            and g.scope_type == VaAccessScopeTypes.org_unit
+            and g.role in (VaAccessRoles.coder, VaAccessRoles.reviewer)
+        ),
+    )
+    in_system_coder = (
+        _on_submission(
+            sa.or_(
+                lens_filter(user, Lens.VIEW_CODER, _grants=in_system_coder_grants),
+                lens_filter(user, Lens.VIEW_REVIEWER, _grants=in_system_coder_grants),
+            )
+        )
+        if in_system_coder_grants.grants
+        else sa.false()
+    )
     return _Reach(
         scope=sa.and_(sa.or_(via_field, supervised, via_submission), *training),
         supervised=supervised,
         via_field=via_field,
         # Names: field roles on their reach and collaborator_pii as always;
-        # supervising roles and admin only with personal-data access
-        # (owner, 2026-10-21: admin is a PII holder, with no scope bypass). A coder, reviewer,
-        # plain collaborator, PI or data manager (through the submissions
-        # scope alone) gets none.
-        can_name=sa.or_(via_field, collaborator_pii, sa.and_(pii, sa.or_(admin, supervised))),
-        # Everything but a row reached by coding alone.
-        can_unit=sa.or_(admin, via_field, supervised, other_lenses),
+        # supervising roles, in-system unit doctors, and admin only with
+        # personal-data access (Tier 3 / Admin). Tier 1 (project-scope roles)
+        # and Tier 2 (Mentoring Institute roles) get none.
+        can_name=sa.or_(
+            via_field,
+            collaborator_pii,
+            sa.and_(pii, sa.or_(admin, supervised, in_system_coder)),
+        ),
+        # Everything but a row reached by non-PII coding alone.
+        can_unit=sa.or_(admin, via_field, supervised, other_lenses, in_system_coder),
         can_staff=sa.and_(pii, sa.or_(admin, supervised, dm_lens)),
-        can_identifiers=sa.or_(admin, value_field, supervised, collaborator_pii, pi_lenses),
+        can_identifiers=sa.or_(
+            admin,
+            value_field,
+            collaborator_pii,
+            sa.and_(pii, sa.or_(supervised, pi_lenses, in_system_coder)),
+        ),
         can_edit_identifiers=identifier_edit_condition(user, field_scopes),
     )
 

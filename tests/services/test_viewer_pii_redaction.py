@@ -238,6 +238,113 @@ class ShouldRedactPiiTests(BaseTestCase):
         db.session.commit()
         self.assertFalse(should_redact_pii(user))
 
+    def test_three_tier_pii_boundary_on_organization_tree_project(self):
+        """Three-Tier PII boundary on organization-tree projects (2026-10-26):
+        Tier 1 (Project level) and Tier 2 (Mentoring Institute) are Non-PII;
+        Tier 3 (Health System at org_unit, non-mentoring-institute) is PII;
+        Exceptional PII is granted via data_manager at District org_unit scope."""
+        from app.services import mentor_institute_service as mentors
+        from app.services import organization_service as org
+        from app.services.authz import invalidate_all
+
+        tree_project = "VPRTRE"
+        now = datetime.now(timezone.utc)
+        if db.session.get(VaProjectMaster, tree_project) is None:
+            db.session.add(VaProjectMaster(
+                project_id=tree_project,
+                project_code=tree_project,
+                project_name="Viewer PII Tree Project",
+                project_nickname="ViewerPiiTree",
+                project_status=VaStatuses.active,
+                project_structure_mode="organization",
+                project_registered_at=now,
+                project_updated_at=now,
+            ))
+            db.session.flush()
+        org.seed_default_organization(tree_project)
+        lv = {level.level_code: level for level in org.list_levels(tree_project)}
+        st = org.create_unit(tree_project, org_level_id=lv["state"].org_level_id, unit_code="ST01", unit_name="State 1")
+        dst = org.create_unit(
+            tree_project, org_level_id=lv["district"].org_level_id,
+            parent_org_unit_id=st.org_unit_id, unit_code="DST1", unit_name="District 1",
+        )
+        chc = org.create_unit(
+            tree_project, org_level_id=lv["chc"].org_level_id,
+            parent_org_unit_id=dst.org_unit_id, unit_code="CHC1", unit_name="CHC 1",
+        )
+        mentors.create_institute("VPRMC", "VPR Medical College")
+        mentors.attach_district("VPRMC", tree_project, "DST1")
+        db.session.commit()
+
+        # Tier 1: Project-level roles on an organization-tree project are Non-PII (redacted).
+        for idx, role in enumerate((
+            VaAccessRoles.project_pi,
+            VaAccessRoles.data_manager,
+            VaAccessRoles.coder,
+            VaAccessRoles.reviewer,
+            VaAccessRoles.coding_tester,
+            VaAccessRoles.collaborator,
+        )):
+            u = self._get_or_make_user(f"vpr.tier1.{idx}@test.local", "VprTier123")
+            db.session.add(VaUserAccessGrants(
+                user_id=u.user_id, role=role,
+                scope_type=VaAccessScopeTypes.project, project_id=tree_project,
+                grant_status=VaStatuses.active,
+            ))
+            db.session.commit()
+            invalidate_all()
+            self.assertTrue(should_redact_pii(u), f"Tier 1 {role} must be Non-PII (redacted)")
+
+        # Tier 2: Mentoring Institute scientists at org_unit scope are Non-PII (redacted).
+        for idx, role in enumerate((
+            VaAccessRoles.coder,
+            VaAccessRoles.reviewer,
+            VaAccessRoles.coding_tester,
+            VaAccessRoles.collaborator,
+        )):
+            u = self._get_or_make_user(f"vpr.tier2.{idx}@test.local", "VprTier123")
+            mentors.add_member("VPRMC", u.email)
+            db.session.add(VaUserAccessGrants(
+                user_id=u.user_id, role=role,
+                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=dst.org_unit_id,
+                grant_status=VaStatuses.active,
+            ))
+            db.session.commit()
+            invalidate_all()
+            self.assertTrue(should_redact_pii(u), f"Tier 2 mentor {role} must be Non-PII (redacted)")
+
+        # Tier 3: Health System roles at org_unit scope (including in-system doctors) are PII (unredacted).
+        for idx, role in enumerate((
+            VaAccessRoles.site_pi,
+            VaAccessRoles.data_manager,
+            VaAccessRoles.interview_supervisor,
+            VaAccessRoles.interviewer,
+            VaAccessRoles.coder,
+            VaAccessRoles.reviewer,
+            VaAccessRoles.coding_tester,
+        )):
+            u = self._get_or_make_user(f"vpr.tier3.{idx}@test.local", "VprTier123")
+            db.session.add(VaUserAccessGrants(
+                user_id=u.user_id, role=role,
+                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=chc.org_unit_id,
+                grant_status=VaStatuses.active,
+            ))
+            db.session.commit()
+            invalidate_all()
+            self.assertFalse(should_redact_pii(u), f"Tier 3 in-system {role} must be PII (unredacted)")
+
+        # Exceptional PII: Mentoring Institute member granted data_manager at the attached District unit.
+        exc_user = self._get_or_make_user("vpr.exc.dm@test.local", "VprTier123")
+        mentors.add_member("VPRMC", exc_user.email)
+        db.session.add(VaUserAccessGrants(
+            user_id=exc_user.user_id, role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=dst.org_unit_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        invalidate_all()
+        self.assertFalse(should_redact_pii(exc_user), "Exceptional District data_manager grant unlocks PII")
+
 
 class DmSearchConditionRedactionTests(BaseTestCase):
     """_dm_search_condition: staff-name clauses must disappear, not just the

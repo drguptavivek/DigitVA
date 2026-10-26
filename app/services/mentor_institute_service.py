@@ -84,10 +84,23 @@ def _district_unit(project_id: str, unit_code: object) -> MasOrgUnit:
     unit = find_unit_by_code(project_id, unit_code)
     if unit is None:
         raise OrganizationError(f"Unit {unit_code!r} not found in project {project_id}.")
-    depth = db.session.scalar(
-        sa.select(MasOrgLevel.depth).where(MasOrgLevel.org_level_id == unit.org_level_id)
+    level = db.session.get(MasOrgLevel, unit.org_level_id)
+    has_district_level = (
+        db.session.scalar(
+            sa.select(MasOrgLevel.org_level_id).where(
+                MasOrgLevel.project_id == project_id,
+                MasOrgLevel.level_code == "district",
+                MasOrgLevel.is_active.is_(True),
+            )
+        )
+        is not None
     )
-    if depth != 1:
+    is_district = (
+        (level is not None and level.level_code == "district")
+        if has_district_level
+        else (level is not None and level.depth == 1)
+    )
+    if not is_district:
         raise OrganizationError(
             f"Unit {unit.unit_code!r} is not a district-level unit; mentoring "
             "institutes attach to districts only."
@@ -636,7 +649,14 @@ def check_mentor_grant(user_id, role: VaAccessRoles, unit: MasOrgUnit | None) ->
             "This user is staff of a mentoring institute and may only hold "
             "unit-scope grants inside a district the institute is attached to."
         )
-    if role not in MENTOR_ROLES:
+    if role == VaAccessRoles.data_manager:
+        level = db.session.get(MasOrgLevel, unit.org_level_id)
+        if level is None or level.level_code != "district":
+            raise OrganizationError(
+                f"A mentoring institute member may hold only {_MENTOR_ROLE_NAMES}; "
+                f"not {role.value}."
+            )
+    elif role not in MENTOR_ROLES:
         raise OrganizationError(
             f"A mentoring institute member may hold only {_MENTOR_ROLE_NAMES}; "
             f"not {role.value}."

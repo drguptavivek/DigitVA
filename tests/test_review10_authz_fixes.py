@@ -116,14 +116,15 @@ class PiiRedactionGrantRelationTests(UnitScopeFixture, BaseTestCase):
         user = self._user("sup")
         _grant(user, VaAccessRoles.collaborator,
                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_b.org_unit_id)
-        _grant(user, VaAccessRoles.interview_supervisor,
+        _grant(user, VaAccessRoles.death_reporter,
                scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_a.org_unit_id)
 
         self.assertTrue(authz.can(user, authz.Action.VIEW, "csc-r10-b"))
         self.assertTrue(should_redact_pii(user))
 
-        _grant(user, VaAccessRoles.collaborator_pii,
-               scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_b.org_unit_id)
+        # Tier 3 in-system interview_supervisor at org_unit scope sees PII.
+        _grant(user, VaAccessRoles.interview_supervisor,
+               scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.phc_a.org_unit_id)
         self.assertFalse(should_redact_pii(user))
 
     def test_pii_grant_on_a_deactivated_unit_does_not_lift_redaction(self):
@@ -320,7 +321,8 @@ def test_pii_granting_roles_are_pinned():
 
     assert _PII_GRANTING_ROLES == {
         R.admin, R.project_pi, R.site_pi, R.data_manager, R.coder,
-        R.coding_tester, R.reviewer, R.interviewer, R.collaborator_pii,
+        R.coding_tester, R.reviewer, R.interviewer, R.interview_supervisor,
+        R.collaborator_pii,
     }
     assert R.collaborator not in _PII_GRANTING_ROLES
-    assert R.interview_supervisor not in _PII_GRANTING_ROLES
+    assert R.death_reporter not in _PII_GRANTING_ROLES

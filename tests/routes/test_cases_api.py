@@ -94,8 +94,8 @@ class CaseListTests(BaseTestCase):
                 parent_org_unit_id=parent.org_unit_id if parent else None,
             )
 
-        dst = unit("DST", "district")
-        cls.ch1 = unit("CH1", "chc", dst)
+        cls.dst = unit("DST", "district")
+        cls.ch1 = unit("CH1", "chc", cls.dst)
         cls.ph1, cls.ph2 = unit("PH1", "phc", cls.ch1), unit("PH2", "phc", cls.ch1)
         cls.sca, cls.scb = unit("SCA", "subcentre", cls.ph1), unit("SCB", "subcentre", cls.ph1)
         cls.scc = unit("SCC", "subcentre", cls.ph2)
@@ -120,13 +120,14 @@ class CaseListTests(BaseTestCase):
             return person
 
         whole = (VaAccessScopeTypes.project, PROJECT)
+        at_dst = (VaAccessScopeTypes.org_unit, cls.dst)
         at_ph1 = (VaAccessScopeTypes.org_unit, cls.ph1)
         cls.ian = user("ian", (R.interviewer, at_ph1))
         cls.rita = user("rita", (R.death_reporter, at_ph1))
         cls.sam = user("sam", (R.interview_supervisor, at_ph1))
         cls.wally = user("wally", (R.interviewer, whole))
         cls.cody = user("cody", (R.coder, whole))
-        cls.dana = user("dana", (R.data_manager, whole))
+        cls.dana = user("dana", (R.data_manager, at_dst))
         cls.pat = user("pat", (R.collaborator_pii, whole))
         cls.cole = user("cole", (R.collaborator, whole))
         cls.sue = user("sue", (R.interview_supervisor, at_ph1), (R.coder, whole))  # supervisor with PII access
@@ -311,16 +312,21 @@ class CaseListTests(BaseTestCase):
         self.assertEqual(self._ids(self.dana)[str(self.f.death_id)]["coder_name"], self.cody.name)
 
     def test_supervising_roles_and_admin_see_names_as_pii_holders(self):
-        # Owner, 2026-10-21: admin is a PII holder (names shown), with no scope bypass.
+        # Owner, 2026-10-26: Tier 3 unit roles (interview_supervisor, unit data_manager)
+        # and admin are PII holders; Tier 1 project_pi on an organization-tree project is Non-PII.
         a, e, f = (str(c.death_id) for c in (self.a, self.e, self.f))
-        for who, case in ((self.sue, a), (self.pip, a), (self.dana, f), (self.admin, e)):
+        for who, case in ((self.sue, a), (self.sam, a), (self.dana, f), (self.admin, e)):
             row = self._ids(who).get(case)
             self.assertIsNotNone(row, who.email)
             self.assertIn("deceased_name", row, who.email)
         self.assertIn("coder_name", self._ids(self.dana)[f])
         self.assertIn("reporter_name", self._ids(self.sue)[a])
+        pip_row = self._ids(self.pip).get(a)
+        self.assertIsNotNone(pip_row)
+        for field in ("deceased_name", *STAFF_FIELDS):
+            self.assertNotIn(field, pip_row)
         with _redacted():
-            for who, case in ((self.sue, a), (self.pip, a), (self.dana, f), (self.admin, e)):
+            for who, case in ((self.sue, a), (self.sam, a), (self.dana, f), (self.admin, e)):
                 row = self._ids(who).get(case)
                 self.assertIsNotNone(row, who.email)  # still in scope
                 self.assertIn("unique_id", row)
@@ -331,10 +337,16 @@ class CaseListTests(BaseTestCase):
             self.assertEqual(self._ids(self.pat)[e]["deceased_name"], "Esha Echo")
 
     def test_interview_supervisor_alone_sees_no_names(self):
-        row = self._ids(self.sam).get(str(self.a.death_id))
-        self.assertIsNotNone(row)
+        # Under the Three-Tier PII boundary (2026-10-26), Tier 3 interview_supervisor@org_unit
+        # sees PII names, while Tier 1 project_pi@project sees no PII names.
+        sam_row = self._ids(self.sam).get(str(self.a.death_id))
+        self.assertIsNotNone(sam_row)
+        self.assertEqual(sam_row["deceased_name"], "Asha Alpha")
+        self.assertEqual(sam_row["reporter_name"], self.ian.name)
+        pip_row = self._ids(self.pip).get(str(self.a.death_id))
+        self.assertIsNotNone(pip_row)
         for field in ("deceased_name", *STAFF_FIELDS):
-            self.assertNotIn(field, row)
+            self.assertNotIn(field, pip_row)
 
     def test_location_follows_decision_six(self):
         a, b = str(self.a.death_id), str(self.b.death_id)

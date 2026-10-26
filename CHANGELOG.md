@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-26
 
+- **Collect Plus pure offline coding** (`digitva-zjqq`): entirely offline mode
+  for the Plus variant — install without a server, record interviews, and code
+  them via the on-device DORIS engine. Local device identity minted at first
+  run and an offline coder/facility profile (including the SmartVA
+  HIV/malaria inputs) captured in Settings; coding saves to a new encrypted
+  `offline_coding` table with device/profile provenance. Nothing syncs while
+  unenrolled and no masking applies (collector and coder are the same person);
+  enrolled sync with org-match routing is `digitva-tb0j`, and the server does
+  not re-run DORIS on offline results. Mobile jest 185 suites / 2,760 tests
+  and `make check-web` pass (screens are platform-split after the new routes
+  briefly broke the web export via expo-sqlite).
+
 - **Three-Tier PII boundary hardening and security audit remediation**
   (`digitva-2yo5`, `digitva-0v8f`, `digitva-9qoq`): enforce strict Tier 1 and
   Tier 2 Non-PII redaction in `ResolvedGrants.is_pii_grant` and

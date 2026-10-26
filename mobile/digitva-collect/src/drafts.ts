@@ -371,6 +371,31 @@ export async function migrate(db: Db): Promise<void> {
   // fetched again from the authoritative project list; retaining them could
   // expose a contact under the wrong project after a multi-project upgrade.
   await db.runAsync("DELETE FROM cases WHERE project_id IS NULL", []);
+  // Offline coding (Collect Plus phase 1): the certificate and the on-device
+  // DORIS results for one interview, kept until a future sync phase. The
+  // device and coder-profile references let that sync attribute records
+  // without ever holding the profile itself. client_draft_id's UNIQUE
+  // constraint indexes the case lookup the coding screen list does.
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS offline_coding (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_draft_id TEXT NOT NULL UNIQUE,
+      certificate TEXT NOT NULL,
+      result TEXT,
+      codedit_result TEXT,
+      process_token TEXT NOT NULL,
+      certificate_digest TEXT,
+      result_digest TEXT,
+      ucod_code TEXT,
+      ucod_uri TEXT,
+      status TEXT NOT NULL CHECK (status IN ('draft','coded','rejected')),
+      coder_profile_updated_at TEXT,
+      device_uuid TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS ix_offline_coding_draft ON offline_coding(client_draft_id);
+  `);
 }
 
 /**
@@ -815,4 +840,109 @@ export async function purgeProjectData(db: Db, projectId: string, accountId?: st
   }
   await db.runAsync("DELETE FROM meta WHERE key LIKE ?", [`project:${projectId}:%`]);
   await db.runAsync("DELETE FROM cases WHERE project_id = ?", [projectId]);
+}
+
+/**
+ * Offline coding (Collect Plus phase 1): the certificate and the on-device
+ * DORIS results for one interview, stored per interviewer beside its draft.
+ * Rows never sync in this phase; the draft keeps syncing as the interview.
+ */
+export type OfflineCodingStatus = "draft" | "coded" | "rejected";
+
+/** One row of the offline_coding table; the JSON columns hold the saved DORIS bundle verbatim. */
+export interface OfflineCodingRow {
+  client_draft_id: string;
+  certificate: string;
+  result: string | null;
+  codedit_result: string | null;
+  process_token: string;
+  certificate_digest: string | null;
+  result_digest: string | null;
+  ucod_code: string | null;
+  ucod_uri: string | null;
+  status: OfflineCodingStatus;
+  coder_profile_updated_at: string | null;
+  device_uuid: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A completed-but-unsent interview as the offline coding list shows it: metadata only, never answers. */
+export interface OfflineCodingCaseRow {
+  client_draft_id: string;
+  org_unit_id: string | null;
+  completed_at: string | null;
+  updated_at: string;
+  offline_status: OfflineCodingStatus | null;
+}
+
+/** Insert or replace the coding for one interview, keeping the original created_at. */
+export async function saveOfflineCoding(db: Db, row: OfflineCodingRow): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO offline_coding
+       (client_draft_id, certificate, result, codedit_result, process_token, certificate_digest,
+        result_digest, ucod_code, ucod_uri, status, coder_profile_updated_at, device_uuid, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(client_draft_id) DO UPDATE SET
+       certificate = excluded.certificate, result = excluded.result,
+       codedit_result = excluded.codedit_result, process_token = excluded.process_token,
+       certificate_digest = excluded.certificate_digest, result_digest = excluded.result_digest,
+       ucod_code = excluded.ucod_code, ucod_uri = excluded.ucod_uri, status = excluded.status,
+       coder_profile_updated_at = excluded.coder_profile_updated_at, device_uuid = excluded.device_uuid,
+       updated_at = excluded.updated_at`,
+    [
+      row.client_draft_id, row.certificate, row.result, row.codedit_result, row.process_token,
+      row.certificate_digest, row.result_digest, row.ucod_code, row.ucod_uri, row.status,
+      row.coder_profile_updated_at, row.device_uuid, row.created_at, row.updated_at,
+    ],
+  );
+}
+
+/** Completed interviews the server has not taken (no upload refusal, no server copy), with any coding status. */
+export async function listOfflineCodingCases(db: Db): Promise<OfflineCodingCaseRow[]> {
+  return db.getAllAsync<OfflineCodingCaseRow>(
+    `SELECT d.id AS client_draft_id, d.org_unit_id,
+            json_extract(d.envelope, '$.completedAt') AS completed_at, d.updated_at,
+            oc.status AS offline_status
+     FROM drafts d LEFT JOIN offline_coding oc ON oc.client_draft_id = d.id
+     WHERE d.completed = 1 AND d.upload_issue IS NULL AND d.server_draft_id IS NULL
+     ORDER BY d.updated_at DESC`,
+    [],
+  );
+}
+
+/** The stored coding for one interview, or null when it was never coded on this device. */
+export async function getOfflineCoding(db: Db, clientDraftId: string): Promise<OfflineCodingRow | null> {
+  return db.getFirstAsync<OfflineCodingRow>(
+    `SELECT client_draft_id, certificate, result, codedit_result, process_token, certificate_digest,
+            result_digest, ucod_code, ucod_uri, status, coder_profile_updated_at, device_uuid, created_at, updated_at
+     FROM offline_coding WHERE client_draft_id = ?`,
+    [clientDraftId],
+  );
+}
+
+/** Delete the coding for one interview. The draft itself is untouched. */
+export async function deleteOfflineCoding(db: Db, clientDraftId: string): Promise<void> {
+  await db.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [clientDraftId]);
+}
+
+/** The completed-but-unsent interview a coder opens, with its envelope for the certificate seed. */
+export interface OfflineCodingCase {
+  client_draft_id: string;
+  org_unit_id: string | null;
+  envelope: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+/** Metadata plus the answers the interviewer collected; nothing else leaves the store. */
+export async function getOfflineCodingCase(db: Db, clientDraftId: string): Promise<OfflineCodingCase | null> {
+  return db.getFirstAsync<OfflineCodingCase>(
+    `SELECT d.id AS client_draft_id, d.org_unit_id, d.envelope,
+            json_extract(d.envelope, '$.startedAt') AS started_at,
+            json_extract(d.envelope, '$.completedAt') AS completed_at
+     FROM drafts d
+     WHERE d.id = ? AND d.completed = 1 AND d.upload_issue IS NULL AND d.server_draft_id IS NULL`,
+    [clientDraftId],
+  );
 }

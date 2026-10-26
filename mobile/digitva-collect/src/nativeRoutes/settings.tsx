@@ -214,6 +214,8 @@ export default function NativeSettings() {
         <Section title="Collect Plus (experimental)">
           <Button kind="secondary" label="Coding queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/coding", params: { userId: shell.userId } })} />
           <Button kind="secondary" label="Review queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/reviewing", params: { userId: shell.userId } })} />
+          <Button kind="secondary" label="Offline coding" onPress={() => router.push({ pathname: "/offline-coding", params: { userId: shell.userId } })} />
+          <Button kind="secondary" label="Offline profile" onPress={() => router.push("/offline-profile")} />
           <Button kind="secondary" label="Offline engine check" onPress={() => router.push("/engine-check")} />
           <Button kind="secondary" label="Update WHO files" onPress={() => router.push("/engine-check?update=1")} />
         </Section>

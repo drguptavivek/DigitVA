@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-10-26
 ---
 
 # Expo Client Hosting And Access
@@ -656,6 +656,36 @@ published (policy: [field data collection](../policy/field-data-collection.md)).
   fails and every init skips the WHO fetches.
 - Local `npm run android:plus:*` scripts remain in `package.json` but are not run
   under the owner rule; the Expo web bundle comes from `expo-web-release.yml`.
+
+### Pure offline mode (digitva-zjqq, 2026-10-26)
+
+Plus-only, on-device only until QR enrolment (`digitva-tb0j` is the enrolled
+sync). No masking offline: the same user collects and codes, data never leaves
+the device while unenrolled.
+
+- **Device identity** (`src/offlineIdentity.ts`): UUID v4 minted once per
+  install, SecureStore (`offline_device_identity`), single-flight, regenerated
+  when the stored JSON is corrupted; gated so web and the plain build never
+  create one. Enrolment later binds it to the server device row.
+- **Offline profile** (`src/offlineProfile.ts`, Settings > Collect Plus >
+  "Offline profile"): coder name, age, sex, designation, facility/org, country,
+  state, and the SmartVA HIV/malaria mortality levels; name and country are
+  required; SecureStore `offline_profile`.
+- **Offline coding** (Settings > Collect Plus > "Offline coding";
+  `src/nativeRoutes/offlineCoding.native.tsx`): lists completed-unsent
+  interviews (metadata only, no PII in the list), opens a case with the
+  unmasked `DorisPanel` driven by the offline engine
+  (`src/workspace/offlineDoris.ts`), and saves to the per-interviewer store's
+  `offline_coding` table (certificate, engine results, local digests,
+  `process_token` `local-<uuid>`, `device_uuid` +
+  `coder_profile_updated_at` provenance). Engine error payloads never surface
+  or log (status `unavailable`). Screens are platform-split (`​.native`/`.web`
+  twins) so the web export never pulls expo-sqlite.
+- Limits, accepted: subtree-scoped term search answers the flat MMS list (the
+  engine search cannot filter subtrees); local digests are integrity markers,
+  not WHO canonical digests; the certificate seed from the interview is
+  minimum-viable (sex, death/birth dates, estimated age) with provenance
+  badges.
 
 ### Profiling
 

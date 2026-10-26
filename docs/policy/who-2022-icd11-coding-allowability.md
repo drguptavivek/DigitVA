@@ -42,6 +42,14 @@ Selectability is independent of COD bucket mappings (owner decision
 decision 2026-09-24), then widened to every real category (rule 4 below,
 owner 2026-09-27); the annex no longer limits it.
 
+**Why ICD-11 is wider than ICD-10** (owner decision 2026-10-26,
+`digitva-7pl2`): ICD-11 coding goes through DORIS, which applies WHO's
+selection rules and may return any real cause, so refusing what DORIS selects
+would block correct results. ICD-10 projects have no DORIS and keep the
+annex-only list, which is their only check that a final is a WHO VA cause
+code ([WHO 2022 ICD-10 Coding Allowability](who-2022-icd10-coding-allowability.md),
+"Why ICD-10 stays annex-only").
+
 Scope: this policy decides which category may be the final underlying cause.
 It does not apply to certificate conditions (checked against WHO terminology
 only), and it does not decide how a postcoordinated expression is built; the

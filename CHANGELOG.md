@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **ICD-10 annex-only vs ICD-11 widened, recorded as a decision**
+  (`digitva-7pl2`): ICD-10 projects have no DORIS, so the WHO annex list stays
+  their check that a final is a WHO VA cause code; ICD-11 is wider because
+  DORIS may return any real cause. Age tables are DigitVA decisions (WHO
+  publishes sex lists only); ICD-10 keeps refusing age conflicts. Docs only.
+
 - **ICD-11 allowability follows WHO** (`digitva-kmm2`, `digitva-443q`,
   `digitva-oh7j`, `digitva-xmpx`): chapter 22 injury-nature codes are no
   longer a final COD and `KD3B.Z` is selectable again (migration

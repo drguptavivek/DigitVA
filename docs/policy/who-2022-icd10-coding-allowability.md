@@ -3,7 +3,7 @@ title: WHO 2022 ICD-10 Coding Allowability Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-29
+last_updated: 2026-10-27
 ---
 
 # WHO 2022 ICD-10 Coding Allowability Policy
@@ -16,6 +16,27 @@ verbal autopsy ICD coding.
 This policy controls ICD coding search and selection only. COD bucket grouping,
 road-traffic versus other-transport bucket mapping, and ambiguous bucket
 resolution are out of scope for this step.
+
+## Why ICD-10 stays annex-only
+
+ICD-10 allowability is limited to the WHO 2022 VA annex ranges (2,401 of
+12,771 rows), while ICD-11 allows almost every category (owner 2026-09-27,
+see [WHO 2022 ICD-11 Coding Allowability](who-2022-icd11-coding-allowability.md)).
+The difference is deliberate (owner decision 2026-10-26, `digitva-7pl2`):
+
+- ICD-11 coding goes through DORIS, which applies WHO's selection rules and
+  may return any real cause; refusing a category DORIS selects would block a
+  correct result. ICD-10 projects have no DORIS: the coder picks the final
+  cause directly, so the annex list is the only check that the code is a
+  WHO VA cause-of-death code.
+- Keeping ICD-10 to the annex keeps every saved ICD-10 final inside a WHO VA
+  cause, so VA cause mapping quality does not depend on fallbacks.
+
+Sex and age restrictions are DigitVA decisions on both sides. WHO publishes
+sex-specific category lists; DigitVA's age groups have no WHO table. ICD-10
+keeps refusing both sex and age conflicts; the ICD-11 warn-on-age rule
+(owner 2026-10-26, `digitva-oh7j`) applies to ICD-11 only, because it rests
+on DORIS treating age as a plausibility warning.
 
 ## Baseline Source
 

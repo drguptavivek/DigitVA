@@ -192,6 +192,9 @@ a finding, not a rule.
   and may return any cause.
   Selectability carries no promise of a VA cause bucket (owner decision 5b,
   2026-09-24, in `docs/policy/icd10-to-icd11-transition.md`).
+- **ICD-10 differs on purpose.** ICD-10 projects stay annex-only (2,401
+  of 12,771 rows): they have no DORIS, so the annex list is their only check
+  that a final is a WHO VA cause code (owner 2026-10-26, `digitva-7pl2`).
 - **Source.** RG 2.17 to 2.19; `docs/policy/who-2022-icd11-coding-allowability.md`.
 
 ### 11. Stillbirth
@@ -269,6 +272,7 @@ a finding, not a rule.
 | Chapters 24, 26, V, X not selectable | W (24, X), D (26, V) | Chapter 24 and X are WHO-excluded; 26 and V are not diseases or are optional. |
 | Chapter 25 only `RA01`-`RA03` | D | Owner 2026-09-29; WHO uses ch. 25 only by special instruction. |
 | `KD3B`, `KD3B.Z` refused | D | Owner decision 18, 2026-09-25: force fresh or macerated VA cause. |
+| ICD-11 wider than ICD-10 (annex-only) | D | DORIS may return any real cause; ICD-10 has no DORIS, so the annex list stays its check (owner 2026-10-26, `digitva-7pl2`). |
 | Chapter 22 and ill-defined selectable as final cause | D | Owner 2026-09-27: DORIS may reach any real cause; on the certificate they are WHO-normal. |
 | Sex and age tables per category | D on W | WHO lists sex only; age tables are owner decisions 2026-09-24, 2026-09-29. Sex blocks, age warns (owner 2026-10-26, `digitva-oh7j`). |
 | DORIS Part I exempt from the local check | D | Owner 2026-10-05: WHO's DORIS check suffices. |

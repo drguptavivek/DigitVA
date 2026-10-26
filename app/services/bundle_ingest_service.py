@@ -115,8 +115,9 @@ CORRECTION_MAX_BYTES = 16 * 1024
 FUTURE_SKEW = timedelta(days=1)
 #: Stored ingests per device per hour (spec 5.1; the uploader's own limit is the route's).
 DEVICE_HOURLY_LIMIT = 10
-#: Longest ``missing_seq`` list a report carries.
+#: Longest ``missing_seq`` list a report carries, and largest forward jump a station's ``bundle_seq`` may make.
 MISSING_SEQ_MAX = 100
+MAX_BUNDLE_SEQ_GAP = 10_000
 
 #: Processing order (spec 5.3). ``attachment_chunk`` is reserved, not built.
 RECORD_ORDER = (
@@ -332,7 +333,7 @@ def _parse_manifest(raw: bytes) -> dict:
         raise _bad_manifest("The manifest has missing or unknown keys.")
     checks = (
         _uuid(manifest["bundle_id"], v4=True) is not None,
-        type(manifest["bundle_seq"]) is int and manifest["bundle_seq"] >= 1,
+        type(manifest["bundle_seq"]) is int and 1 <= manifest["bundle_seq"] <= 2_147_483_647,
         _uuid(manifest["device_id"]) is not None,
         isinstance(manifest["signing_key_id"], str) and _HEX16_RE.fullmatch(manifest["signing_key_id"]),
         _sorted_unique_text(manifest["project_ids"]) and len(manifest["project_ids"]) >= 1,
@@ -509,6 +510,13 @@ def _verify(container: _Container, received_at: datetime) -> _Verified:
     if container.created_at > config.expires_at:
         raise BundleRefusal("The station configuration had expired when this bundle was made; import a "
                             "renewed station configuration and export again.", "station_config_expired")
+    existing_max_seq = db.session.scalar(
+        sa.select(sa.func.max(VaBundleIngest.bundle_seq)).where(
+            VaBundleIngest.device_id == device.device_id
+        )
+    ) or 0
+    if manifest["bundle_seq"] > existing_max_seq + MAX_BUNDLE_SEQ_GAP:
+        raise _bad_manifest("bundle_seq exceeds the allowed sequence gap for this station.")
     return _Verified(
         container=container, device=device, config=config, custodian=custodian,
         project_id=device.project_id, received_at=received_at,
@@ -1527,14 +1535,24 @@ def apply_pending_coding(limit: int = PENDING_BATCH) -> dict:
 
 def _missing_seq(device_id: uuid.UUID, current: int) -> list[int]:
     """``bundle_seq`` gaps of this station below the newest seen, at most
-    ``MISSING_SEQ_MAX``: one indexed anti-join over the series."""
-    newest = max(current, db.session.scalar(
-        sa.select(sa.func.max(VaBundleIngest.bundle_seq)).where(VaBundleIngest.device_id == device_id)) or 0)
-    rows = db.session.execute(sa.text(
-        "SELECT s FROM generate_series(1, :newest) AS s WHERE s <> :current AND NOT EXISTS ("
-        " SELECT 1 FROM va_bundle_ingests b WHERE b.device_id = :device AND b.bundle_seq = s)"
-        " ORDER BY s LIMIT :cap"), {"newest": newest, "current": current, "device": device_id,
-                                     "cap": MISSING_SEQ_MAX}).scalars()
+    ``MISSING_SEQ_MAX``: one indexed anti-join over a bounded series."""
+    max_seq, seen_count = db.session.execute(
+        sa.select(
+            sa.func.coalesce(sa.func.max(VaBundleIngest.bundle_seq), 0),
+            sa.func.count(VaBundleIngest.bundle_id),
+        ).where(VaBundleIngest.device_id == device_id)
+    ).one()
+    newest = min(max(current, int(max_seq)), int(seen_count) + MISSING_SEQ_MAX + 1)
+    if newest <= 1:
+        return []
+    rows = db.session.execute(
+        sa.text(
+            "SELECT s FROM generate_series(1, :newest) AS s WHERE s <> :current AND NOT EXISTS ("
+            " SELECT 1 FROM va_bundle_ingests b WHERE b.device_id = :device AND b.bundle_seq = s)"
+            " ORDER BY s LIMIT :cap"
+        ),
+        {"newest": newest, "current": current, "device": device_id, "cap": MISSING_SEQ_MAX},
+    ).scalars()
     return list(rows)
 
 

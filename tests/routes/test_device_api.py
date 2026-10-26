@@ -969,7 +969,7 @@ class DeviceApiTests(BaseTestCase):
             f"{INTAKE}/deaths/{other.death_id}",
             json={"deceased_name": "Cookie DM Update"}, headers=self._csrf_headers())
         self.assertEqual(cookie_update.status_code, 200, cookie_update.get_json())
-        self.assertEqual(cookie_update.get_json()["case"]["deceased"]["name"], "Cookie DM Update")
+        self.assertEqual(cookie_update.get_json()["case"]["deceased_name"], "Cookie DM Update")
 
     # ── submissions ────────────────────────────────────────────────────────
 

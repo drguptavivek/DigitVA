@@ -41,8 +41,8 @@ Role allocation and personal-data (PII) visibility follow one fundamental bounda
 │ (Attached to District(s) from outside)  │   │ (State/Province → District → Block/Taluka  │
 │ • Site PI (site_pi)                     │   │  → CHC → PHC/UPHC → Sub-centre → Village)  │
 │ • Institute Scientists                  │   │ • In-charge (State/Province, District CS,  │
-│   (coder, reviewer, coding_tester,      │   │   Block/CHC SMO, PHC/UPHC MO)              │
-│    collaborator)                        │   │ • Unit Data Manager (State/Province, DPM,  │
+│   (coder, reviewer, collaborator)       │   │   Block/CHC SMO, PHC/UPHC MO)              │
+│                                         │   │ • Unit Data Manager (State/Province, DPM,  │
 │ ──► OUTSIDE THE HEALTH SYSTEM           │   │   DEPI, BPM)                               │
 │ ──► NO PII (Blinded)                    │   │ • Interview Supervisor                     │
 │                                         │   │ • Interviewer (CHO, SN, ANM, MPW)          │
@@ -68,8 +68,8 @@ Role allocation and personal-data (PII) visibility follow one fundamental bounda
 2. **Tier 1 & Tier 2 — Outside the Health System = No PII (Blinded):**
    - **Tier 1 (Project Level):** `project_pi`, project-level `data_manager`, and project-level scientists/viewers (`collaborator`, `coder`, `reviewer` at `project` scope) sit above multiple sites, districts, and mentoring institutions. They oversee project-wide progress, workflow triage, and aggregate statistics, and **do not see PII**.
    - **Tier 2 (Mentoring Institution / External Site Level):** Mentoring institutions (medical colleges or technical partner institutions attached to districts) sit outside the health system:
-     - **`site_pi` (Site PI)** is the lead / Principal Investigator role for a **Mentoring Institution** (or external study site), **not** an in-system health-unit leader.
-     - Mentoring institution scientists hold `site_pi`, `coder`, `reviewer`, `coding_tester`, or `collaborator`.
+     - **`site_pi` (Site PI)** is the lead / Principal Investigator role for a **Mentoring Institution** (or external study site), **not** an in-system health-unit leader. A Mentoring Institution `site_pi` grant at a District unit does **not** expand via `ResolvedGrants.oversees` into Tier 3 `data_manager` or `interview_supervisor` powers.
+     - Mentoring institution scientists hold `site_pi`, `coder`, `reviewer`, or `collaborator`.
      - All Tier 2 roles are **Non-PII (blinded)**: they see age, sex, dates, symptoms, narrative, and aggregate counts, but never deceased names, family names, addresses, GPS coordinates, or registration numbers.
 
 3. **Exceptional PII Access for an External Person:**

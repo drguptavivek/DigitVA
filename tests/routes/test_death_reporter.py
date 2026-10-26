@@ -82,8 +82,9 @@ class DeathReporterTests(BaseTestCase):
         cls.levels = levels
         cls.cadres = {c.cadre_code: c for c in org.list_cadres(PROJECT)}
 
-        # Registers (and, for the completion test, interviews) anywhere: a project grant.
-        cls.interviewer = cls._user("interviewer", (R.interviewer, None))
+        # Registers (and, for the completion test, interviews) anywhere in the district
+        # (plus project scope for the treeless fallback test).
+        cls.interviewer = cls._user("interviewer", (R.interviewer, dst), (R.interviewer, None))
         cls.reporter = cls._user("reporter", (R.death_reporter, cls.sca))
         cls.reporter_ph1 = cls._user("reporter.ph1", (R.death_reporter, cls.ph1))
         # Reports at SCA, interviews at SCB only.

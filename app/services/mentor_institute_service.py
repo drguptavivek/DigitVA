@@ -57,7 +57,6 @@ MENTOR_ROLES = frozenset(
         VaAccessRoles.coder,
         VaAccessRoles.reviewer,
         VaAccessRoles.coding_tester,
-        VaAccessRoles.collaborator_pii,
         VaAccessRoles.collaborator,
     }
 )

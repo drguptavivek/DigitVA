@@ -371,7 +371,25 @@ def _reach(user: VaUsers, *, assigned_only: bool = False) -> _Reach:
     other_lenses = _on_submission(sa.or_(*(
         lens_filter(user, lens) for lens in (Lens.DM, Lens.VIEWER, Lens.SITE_PI_PAIR, Lens.PROJECT_PI_SITE)
     )))
-    collaborator_pii = _on_submission(lens_filter(user, Lens.VIEWER, roles={VaAccessRoles.collaborator_pii}))
+    pii_viewer_grants = replace(
+        grants,
+        grants=tuple(
+            g for g in grants.grants
+            if grants.is_pii_grant(g) and g.role == VaAccessRoles.collaborator_pii
+        ),
+    )
+    collaborator_pii = (
+        _on_submission(
+            lens_filter(
+                user,
+                Lens.VIEWER,
+                roles={VaAccessRoles.collaborator_pii},
+                _grants=pii_viewer_grants,
+            )
+        )
+        if pii_viewer_grants.grants
+        else sa.false()
+    )
     # Registration-number values (decision 14): ASSIGNED field reach (the
     # interviewer grant a self-coding coder is implied confers none),
     # supervision, the PII lenses (data manager / In-charge / project PI) and

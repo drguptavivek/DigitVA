@@ -34,8 +34,8 @@ class VisitNoteFixture(AreaDashboardFixture):
         cls.collaborator = cls._get_or_make_user("area.vn.collab@test.local", "AreaUser123")
         cls._grant(cls.collaborator, VaAccessRoles.collaborator, VaAccessScopeTypes.project,
                    project_id=cls.TREE)
-        cls._grant(cls.project_user, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.project,
-                   project_id=cls.TREE)
+        cls._grant(cls.project_user, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.org_unit,
+                   org_unit_id=cls.district_1.org_unit_id)
         db.session.commit()
 
     @classmethod
@@ -181,8 +181,8 @@ class VisitNoteHeaderRenderTests(VisitNoteFixture):
 
     def test_pii_viewer_sees_address_then_plain_collaborator_does_not(self):
         pii = self._get_or_make_user("area.vn.collabpii@test.local", "AreaUser123")
-        self._grant(pii, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.project,
-                    project_id=self.TREE)
+        self._grant(pii, VaAccessRoles.collaborator_pii, VaAccessScopeTypes.org_unit,
+                    org_unit_id=self.district_1.org_unit_id)
         db.session.commit()
         body = self._open(pii).get_data(as_text=True)
         self.assertEqual(self.client.get("/coding/area/uuid:area-pa1").status_code, 200)

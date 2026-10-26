@@ -165,7 +165,7 @@ class IdentifierFixture(BaseTestCase):
         cls.dana = user("dana", (R.data_manager, at_dst, None))
         cls.pip = user("pip", (R.project_pi, whole, None))
         cls.incharge = user("incharge", (R.site_pi, at_ph1, "MO"))
-        cls.pat = user("pat", (R.collaborator_pii, whole, None))
+        cls.pat = user("pat", (R.collaborator_pii, at_dst, None))
         cls.cole = user("cole", (R.collaborator, whole, None))
         cls.cody = user("cody", (R.coder, whole, None))
         cls.tess = user("tess", (R.coding_tester, whole, None))
@@ -239,7 +239,9 @@ class IdentifierFixture(BaseTestCase):
         sid = f"uuid:idv-{uuid.uuid4()}"
         now = datetime.now(UTC)
         db.session.add(VaSubmissions(
-            va_sid=sid, va_form_id=f"{PROJECT}{SITE}01", va_submission_date=now, va_odk_updatedat=now,
+            va_sid=sid, va_form_id=f"{PROJECT}{SITE}01",
+            org_unit_id=unit.org_unit_id, org_unit_resolution="form_field",
+            va_submission_date=now, va_odk_updatedat=now,
             va_data_collector="idv", va_odk_reviewstate="reviewed", va_instance_name=sid, va_uniqueid_real=sid,
             va_uniqueid_masked=sid, va_consent="yes", va_narration_language="English", va_deceased_age=50,
             va_deceased_gender="male", va_summary=[], va_catcount={}, va_category_list=[],
@@ -302,6 +304,8 @@ class DeathIdentifierTests(IdentifierFixture):
         value = "12345678"
         response = self._patch(self.sam, case["death_id"], {"identifiers": {"crs": value}})
         self.assertEqual(response.status_code, 200, response.get_json())
+        for key in ("prefill", "informant_name", "informant_phone", "household_address"):
+            self.assertNotIn(key, response.get_json()["case"])
         row = self._audit(case["death_id"])[-1]
         grant = db.session.scalar(sa.select(VaUserAccessGrants).filter_by(
             user_id=self.sam.user_id, role=R.interview_supervisor))

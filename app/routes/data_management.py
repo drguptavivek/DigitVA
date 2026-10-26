@@ -1011,11 +1011,49 @@ def _dm_can_edit_user_email(target_user: VaUsers) -> bool:
     return created_by == str(current_user.user_id)
 
 
+def _dm_can_manage_user_profile(target_user: VaUsers) -> bool:
+    """A DM may mutate job_title or vacode_language only for an account holding
+    an active grant the DM may manage (or an account created by the DM, or an
+    unassigned non-mentor account when the caller is a wide writer); an admin
+    may update any account."""
+    if current_user.is_admin():
+        return True
+    if target_user.is_admin():
+        return False
+    other = target_user.other or {}
+    if other.get("created_by_user_id") == str(current_user.user_id):
+        return True
+    if db.session.scalar(
+        sa.select(
+            sa.exists().where(
+                VaUsers.user_id == target_user.user_id,
+                _managed_user_condition(),
+            )
+        )
+    ):
+        return True
+    if not _is_wide_writer():
+        return False
+    has_any_active_grant = bool(
+        db.session.scalar(
+            sa.select(
+                sa.exists().where(
+                    VaUserAccessGrants.user_id == target_user.user_id,
+                    VaUserAccessGrants.grant_status == VaStatuses.active,
+                )
+            )
+        )
+    )
+    if has_any_active_grant:
+        return False
+    return target_user.user_id not in mentors.member_user_ids([target_user.user_id])
+
+
 @data_management.put("/api/users/<uuid:target_user_id>")
 @role_required("data_manager", "admin")
 def manage_update_user(target_user_id):
     """Update user email, job title and/or languages (email is creator-scoped
-    for DMs; job title is public, so anyone who may open the person sets it)."""
+    for DMs; job title and languages require a manageable grant or admin)."""
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user or not _dm_may_see_user(target_user_id):
         return _json_error("User not found.", 404)
@@ -1028,6 +1066,12 @@ def manage_update_user(target_user_id):
 
     if not (email_requested or languages_requested or job_title_requested):
         return _json_error("Provide email/email_confirm, job_title and/or languages.", 400)
+
+    if (job_title_requested or languages_requested) and not _dm_can_manage_user_profile(target_user):
+        return _json_error(
+            "You may update profile details only for users you manage.",
+            403,
+        )
 
     changed_email = False
     changed_languages = False
@@ -1102,7 +1146,11 @@ def manage_update_user(target_user_id):
         except Exception:
             pass
 
-    return jsonify({"user": _serialize_user(target_user)})
+    user_json = _serialize_user(target_user)
+    if not _is_wide_writer():
+        for key in ("phone", "landing_page", "is_admin"):
+            user_json.pop(key, None)
+    return jsonify({"user": user_json})
 
 
 @data_management.get("/api/access-grants")

@@ -2587,7 +2587,7 @@
 
   function drawMentoringInstitutes(data) {
     var instWrap = $('org-mentoring-institutes-wrap');
-    var institutes = data.institutes || [];
+    var institutes = data.all_institutes || data.institutes || [];
     var topUnits = (data.units || []).filter(function (u) { return u.level_code === 'district'; });
     if (!topUnits.length) topUnits = (data.units || []).filter(function (u) { return !u.parent_org_unit_id; });
     if (!topUnits.length) topUnits = (data.units || []).slice(0, 20);

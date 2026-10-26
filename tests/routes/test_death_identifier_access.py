@@ -933,10 +933,11 @@ class IdentifierAccessTests(IdentifierFixture):
         own = self._write(self.ian, case.death_id, crs=_number()).get_json()["case"]
         self.assertIn("informant", own)
         self.assertIn("links", own)
-        # PATCH keeps its previous full detail for a supervisor (only the PUT is trimmed).
+        # PATCH also returns the trimmed supervisor row when the caller lacks interviewer reach.
         patched = self._patch(self.sam, self._register(self.wally, unit=self.sca)["case"]["death_id"],
                               {"identifiers": {"crs": _number()}}).get_json()["case"]
-        self.assertIn("deceased", patched)
+        self.assertIn("deceased_name", patched)
+        self.assertNotIn("deceased", patched)
         self.assertIn("identifiers", patched)
 
     # -- 6: the number search reads every type ---------------------------------

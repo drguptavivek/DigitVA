@@ -15,6 +15,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -144,6 +145,14 @@ class PiiRedactionGrantRelationTests(UnitScopeFixture, BaseTestCase):
         self.assertEqual(grant.grant_status, VaStatuses.active)
 
     def test_pii_grant_on_a_deactivated_pair_does_not_lift_redaction(self):
+        # Sites-only mode: project_site collaborator_pii confers PII while the
+        # pair is active, and stops lifting redaction when the pair is deactivated.
+        db.session.execute(
+            sa.update(MasOrgLevel)
+            .where(MasOrgLevel.project_id == self.PROJECT)
+            .values(is_active=False)
+        )
+        db.session.commit()
         pair = db.session.scalar(sa.select(VaProjectSites).where(
             VaProjectSites.project_id == self.PROJECT, VaProjectSites.site_id == self.SITE,
         ))

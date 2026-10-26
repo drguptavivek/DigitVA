@@ -59,7 +59,6 @@ REPORT_MAX_BYTES = 256 * 1024
 BODY_MAX_BYTES = 16 * 1024
 #: One attachment's raw body (``put_attachment``): ``MAX_BYTES``, 50 MB per file.
 ATTACHMENT_MAX_BYTES = attachments_svc.MAX_BYTES
-_UNCAPPED = frozenset({"save_draft", "submit_draft"})
 
 #: The register form's fields.
 _REGISTER_FIELDS = intake_svc.REGISTER_FIELDS
@@ -67,9 +66,7 @@ _REGISTER_FIELDS = intake_svc.REGISTER_FIELDS
 
 def _body_limit():
     endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
-    if endpoint in _UNCAPPED:
-        return None
-    if endpoint in ("submit_interview", "sync_draft", "revise_submission"):
+    if endpoint in ("submit_interview", "sync_draft", "revise_submission", "save_draft", "submit_draft"):
         limit = SUBMISSION_MAX_BYTES
     elif endpoint == "report_outstanding":
         limit = REPORT_MAX_BYTES
@@ -344,11 +341,11 @@ def _case_body(death, unit_name, my_draft_id, other_draft_started_at=None, my_su
     # Registration numbers: values for a viewer who may see them, else a badge.
     body["identifiers"] = identifiers_svc.identifier_payloads(current_user, [death])[death.death_id]
     body["can_edit_identifiers"] = intake_svc.can_edit_identifiers(current_user, [death])[death.death_id]
-    if _reporter_view(death):
-        # A death_reporter registers and corrects; the interview, the contact
-        # attempts and the visit are not theirs, so no prefill, no link to a
-        # route that answers 403, and nothing about other interviewers' drafts
-        # (digitva-t6q).
+    if not intake_svc.interviewer_reaches(current_user, death):
+        # A death_reporter (or supervisor without interviewer reach) registers
+        # and corrects; the interview, contact attempts and visit are not
+        # theirs, so no prefill, no link to a route that answers 403, and
+        # nothing about other interviewers' drafts (digitva-t6q).
         for key in ("other_draft_active", "other_draft_started_at"):
             body.pop(key, None)
         body["links"] = {"update": url_for(".update_death", death_id=death.death_id)}
@@ -632,9 +629,7 @@ def update_death(death_id):
     consent_svc.apply_registration_consent(
         current_user, death, p.get("consent"), fields=changes, channel=_consent_channel())
     db.session.commit()
-    # ponytail: the full detail (incl. informant contact) is kept for a
-    # supervisor, as before; trimming it here is a separate change.
-    return _case_reply(death, warnings=warnings)
+    return _identifier_reply(death, warnings)
 
 
 @bp.put("/cases/<death_id>/identifiers")
@@ -878,6 +873,7 @@ def get_attachment(draft_id, client_attachment_id):
     show a file the device no longer holds). The draft may be any status of the
     caller's; the response is never cached. 404 for another interviewer's
     draft or an unknown file."""
+    training_scope.resolve("interview")
     try:
         cid = uuid.UUID(client_attachment_id)
     except ValueError:
@@ -1204,7 +1200,11 @@ def prefill_policy(project_id):
     """The offline prefill the server applies in the project, for an app that
     builds a draft before it can reach the server. One of the caller's
     projects only (403 ``project_forbidden``)."""
-    require_project(project_id)
+    training_scope.resolve("interview")
+    if not training_scope.keeps_project(project_id):
+        return error("This project is not available in this area.", "project_forbidden", 403)
+    if training_scope.current() != training_scope.ONLY:
+        require_project(project_id)
     return jsonify(intake_svc.prefill_policy(current_user, project_id))
 
 

@@ -105,7 +105,7 @@ class MentorInstituteTests(MentorBase):
     def test_member_refused_at_unattached_district(self):
         _, d2, _, user = self._setup_one()
         with self.assertRaises(REFUSED) as ctx:
-            self._validate(user, VaAccessRoles.collaborator_pii, d2)
+            self._validate(user, VaAccessRoles.collaborator, d2)
         self.assertIn("attached", str(ctx.exception))
 
     def test_member_refused_in_another_project_with_same_codes(self):
@@ -113,7 +113,7 @@ class MentorInstituteTests(MentorBase):
         other_d1, _, _ = self._tree(self.P2)
         user = self._get_or_make_user("mentor.one@test.local", "x")
         with self.assertRaises(REFUSED):
-            self._validate(user, VaAccessRoles.collaborator_pii, other_d1)
+            self._validate(user, VaAccessRoles.collaborator, other_d1)
 
     def test_member_refused_interviewer_data_manager_and_site_pi(self):
         d1, _, chc, user = self._setup_one()
@@ -121,6 +121,7 @@ class MentorInstituteTests(MentorBase):
             VaAccessRoles.interviewer,
             VaAccessRoles.data_manager,
             VaAccessRoles.interview_supervisor,
+            VaAccessRoles.collaborator_pii,
         ):
             with self.subTest(role=role):
                 with self.assertRaises(REFUSED) as ctx:
@@ -128,6 +129,8 @@ class MentorInstituteTests(MentorBase):
                 self.assertIn("may hold only", str(ctx.exception))
         with self.assertRaises(REFUSED):
             self._validate(user, VaAccessRoles.site_pi, d1)
+        with self.assertRaises(REFUSED):
+            self._validate(user, VaAccessRoles.collaborator_pii, d1)
 
     def test_member_refused_project_and_other_non_unit_scopes(self):
         _, _, _, user = self._setup_one()
@@ -145,7 +148,6 @@ class MentorInstituteTests(MentorBase):
         for role in (
             VaAccessRoles.reviewer,
             VaAccessRoles.coding_tester,
-            VaAccessRoles.collaborator_pii,
             VaAccessRoles.collaborator,
         ):
             for unit in (d1, chc):

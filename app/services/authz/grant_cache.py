@@ -176,9 +176,11 @@ def decode(raw, user_id: uuid.UUID) -> ResolvedGrants:
             web_intake_mode=_text(intake_mode, optional=False),
             scope_level_code=_text(level_code),
         )
+    raw_mentor = data.get("is_mentor_member")
+    is_mentor_member = None if raw_mentor is None else _bool(raw_mentor)
     return ResolvedGrants(
         user_id=user_id, is_admin=_bool(data["is_admin"]), grants=grants, projects=projects,
-        is_mentor_member=_bool(data.get("is_mentor_member", False)),
+        is_mentor_member=is_mentor_member,
     )
 
 

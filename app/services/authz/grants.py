@@ -154,7 +154,20 @@ class ResolvedGrants:
     is_admin: bool
     grants: tuple[Grant, ...]
     projects: dict[str, ProjectSettings] = field(default_factory=dict)
-    is_mentor_member: bool = False
+    is_mentor_member: bool | None = None
+
+    def _mentor_member(self) -> bool:
+        """Whether *user_id* is an active mentoring-institute member, loaded
+        once on demand when not already populated during resolution."""
+        if self.is_mentor_member is None:
+            from app.services.mentor_institute_service import member_user_ids
+
+            object.__setattr__(
+                self,
+                "is_mentor_member",
+                self.user_id in member_user_ids([self.user_id]),
+            )
+        return bool(self.is_mentor_member)
 
     # -- selection ---------------------------------------------------------
 
@@ -210,7 +223,7 @@ class ResolvedGrants:
         """site_pi at a unit (the In-charge) or project_pi on a tree project:
         the grants that count as data_manager and interview_supervisor."""
         if grant.role == VaAccessRoles.site_pi:
-            return grant.scope_type == _U
+            return grant.scope_type == _U and not self._mentor_member()
         if grant.role == VaAccessRoles.project_pi:
             return self.has_tree(grant.project_id)
         return False
@@ -236,7 +249,7 @@ class ResolvedGrants:
         - Tier 1 (Project scope on an organization-tree project): Non-PII.
         - Tier 2 (Mentoring Institute member, or project_site scope on an
           organization-tree project): Non-PII (except an explicit data_manager
-          unit override or legacy collaborator_pii).
+          unit override).
         - Tier 3 (Health-system unit grant on an organization-tree project for a
           non-mentor-institute user): All PII for In-charge (site_pi), Unit Data
           Manager (data_manager), Interview Supervisor, Interviewer, and In-System
@@ -246,16 +259,12 @@ class ResolvedGrants:
         """
         if grant.virtual:
             return False
-        if grant.role in (VaAccessRoles.collaborator_pii, VaAccessRoles.interviewer):
-            return True
         if self.has_tree(grant.project_id):
-            if grant.scope_type != _U:
+            if grant.scope_type != _U or grant.role not in TIER3_UNIT_PII_ROLES:
                 return False
-            if self.is_mentor_member and grant.role != VaAccessRoles.data_manager:
+            if grant.role != VaAccessRoles.data_manager and self._mentor_member():
                 return False
-            return grant.role in TIER3_UNIT_PII_ROLES
-        if self.is_mentor_member and grant.role != VaAccessRoles.data_manager:
-            return False
+            return True
         return grant.role in SITES_MODE_PII_ROLES
 
     def digest(self) -> str:
@@ -265,8 +274,9 @@ class ResolvedGrants:
             f":{int(g.virtual)}"
             for g in self.grants
         ))
+        mentor_tag = "" if self.is_mentor_member is None else str(int(self.is_mentor_member))
         return hashlib.sha1(
-            f"{int(self.is_admin)}:{int(self.is_mentor_member)}#{raw}".encode()
+            f"{int(self.is_admin)}:{mentor_tag}#{raw}".encode()
         ).hexdigest()[:16]
 
 
@@ -414,9 +424,7 @@ def _implied_interviewer_grants(
     user_id: uuid.UUID,
     grants: list[Grant],
     projects: dict[str, ProjectSettings],
-    *,
-    is_mentor_member: bool | None = None,
-) -> tuple[list[Grant], bool]:
+) -> tuple[list[Grant], bool | None]:
     """An interviewer grant for each coder grant that codes (coding scope rule;
     a view-only above-scope coder gets none) on a self-coding project, at
     the same scope: derived here, never written (access-control-model.md,
@@ -432,12 +440,10 @@ def _implied_interviewer_grants(
         and scope.codes(g)
     ]
     if not coders:
-        return [], bool(is_mentor_member)
-    if is_mentor_member is None:
-        from app.services.mentor_institute_service import member_user_ids
+        return [], None
+    from app.services.mentor_institute_service import member_user_ids
 
-        is_mentor_member = user_id in member_user_ids([user_id])
-    if is_mentor_member:
+    if user_id in member_user_ids([user_id]):
         return [], True
     explicit = {
         (g.scope_type, g.project_id, g.project_site_id, g.org_unit_id)
@@ -453,18 +459,7 @@ def _implied_interviewer_grants(
 def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
     is_admin, grants, public_demo = _load_grants(user_id)
     projects = _load_projects({g.project_id for g in grants})
-    is_mentor_member: bool | None = None
-    if any(
-        g.scope_type == _U
-        and g.role in (VaAccessRoles.coder, VaAccessRoles.reviewer, VaAccessRoles.coding_tester)
-        for g in grants
-    ):
-        from app.services.mentor_institute_service import member_user_ids
-
-        is_mentor_member = user_id in member_user_ids([user_id])
-    implied, is_mentor_member = _implied_interviewer_grants(
-        user_id, grants, projects, is_mentor_member=is_mentor_member
-    )
+    implied, is_mentor_member = _implied_interviewer_grants(user_id, grants, projects)
     # Demo coding and reviewing only for people who code or review somewhere
     # (owner 2026-10-03): an interviewer, ASHA or viewer never sees coding.
     grants.extend(implied)

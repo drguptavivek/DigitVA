@@ -328,6 +328,9 @@ def send_back(va_sid):
     reviewer working on or eligible for it, in their scope: 404 unknown, 403
     otherwise; 409 ``not_web_submission`` / ``wrong_state``; 422
     ``invalid_reason``."""
+    training_scope.resolve("coding", "review")
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     try:
         reply = send_back_for_revision(current_user, va_sid, reason_code=parse_body().get("reason_code"))
         db.session.commit()
@@ -354,6 +357,9 @@ def _smartva_authorization(va_sid):
 @role_required("coder", "coding_tester", "reviewer", "data_manager", "admin")
 def smartva_status(va_sid):
     """Return only the current SmartVA state and whether this caller may run it."""
+    training_scope.resolve("coding", "review")
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     authorized = _smartva_authorization(va_sid)
     if not isinstance(authorized, str):
         return authorized
@@ -380,6 +386,9 @@ def run_smartva(va_sid):
     # A coding-level grant, not VIEW: a viewer-only grant or a coder outside
     # the case's scope may look at it but not start a run. The first action
     # that passes names the requester's role in the audit rows.
+    training_scope.resolve("coding", "review")
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     authorized = _smartva_authorization(va_sid)
     if not isinstance(authorized, str):
         return authorized
@@ -514,9 +523,12 @@ def initial(va_sid):
     ``processing``); 413 ``too_large``; 422 ``invalid_doris``; 503
     ``who_unavailable`` / ``who_not_configured``; 422 also for an
     ``other_conditions`` item over 4000 characters."""
+    training_scope.resolve("coding")
     body = _json_object()
     if body is None:
         return api_error("A JSON object is required.", "invalid_request", 400)
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     try:
         fields = {
             "immediate_cod": _text(body, "immediate_cod"),
@@ -551,9 +563,12 @@ def finalize(va_sid):
     every blocking message in ``messages`` (an invalid COD, Narrative QA or
     Social Autopsy not done); 422 ``invalid_request`` for a ``remark`` or
     ``other_conditions`` over 4000 characters; 413 ``too_large`` over 1.2 MB."""
+    training_scope.resolve("coding")
     body = _json_object()
     if body is None:
         return api_error("A JSON object is required.", "invalid_request", 400)
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     try:
         conclusive_cod = _text(body, "conclusive_cod")
         fields = {
@@ -606,9 +621,12 @@ def not_codeable(va_sid):
     400 ``invalid_request``; 403 ``forbidden`` / ``no_allocation``; 404
     ``not_found``; 409 ``wrong_state``; 413 ``too_large`` over 1.2 MB; 422
     ``invalid_request`` for an ``other`` over 4000 characters."""
+    training_scope.resolve("coding")
     body = _json_object()
     if body is None:
         return api_error("A JSON object is required.", "invalid_request", 400)
+    if not training_scope.sid_allowed(va_sid):
+        return _crossing_error()
     try:
         reason = _text(body, "reason")
         other = _text(body, "other")

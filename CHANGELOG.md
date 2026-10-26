@@ -5,6 +5,27 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-26
 
+- **Three-Tier PII boundary hardening and security audit remediation**
+  (`digitva-2yo5`, `digitva-0v8f`, `digitva-9qoq`): enforce strict Tier 1 and
+  Tier 2 Non-PII redaction in `ResolvedGrants.is_pii_grant` and
+  `pii_visible_user_ids` (removing the `collaborator_pii`/`interviewer` early
+  short-circuit on organization-tree projects), remove `collaborator_pii` from
+  `MENTOR_ROLES` and `project_mentoring_overview`, and prevent Mentoring
+  Institute `site_pi` unit grants from expanding via `ResolvedGrants.oversees`
+  into Tier 3 `data_manager`/`interview_supervisor` powers. Remediate the
+  `run-1` security audit findings: reject incapable worker `home_cadre_id`
+  substitutions and enforce active-user, active-pair, and mentor-grant guards
+  in `bulk_apply_project_users_grid`; cap offline station `bundle_seq` gaps
+  against `MAX_BUNDLE_SEQ_GAP` (`10000`) before `generate_series`; scope
+  `project_mentoring_overview` scientist PII to project-linked institutes;
+  enforce `SUBMISSION_MAX_BYTES` and `check_device_answers` on `save_draft` and
+  `submit_draft`; enforce `training_scope` isolation across intake attachment,
+  prefill-policy, coding, and DORIS clinical routes; return trimmed
+  `_identifier_reply` on `PATCH /api/v1/intake/deaths/<death_id>` and gate
+  `case_prefill` on `interviewer_reaches`; and require manageable-user scope and
+  unit-writer contact redaction in `PUT /data-management/api/users/<id>`. Full
+  pytest suite 6,356 passed.
+
 - **Three-tier Inside vs Outside health-system PII boundary, 7-level hierarchy,
   and parent-unit deactivation choice** (`digitva-ewa5`): codify and enforce the
   three-tier PII boundary on organization-tree projects across

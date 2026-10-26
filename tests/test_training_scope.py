@@ -240,9 +240,17 @@ class CodingScopeTests(TrainingScopeBase):
         for path, query, target in (
             ("recode", "", sid), ("recode", "?training=1", REAL_SID),
             ("submissions/{}/code-now", "", sid), ("submissions/{}/code-now", "?training=1", REAL_SID),
+            ("initial", "", sid), ("initial", "?training=1", REAL_SID),
+            ("finalize", "", sid), ("finalize", "?training=1", REAL_SID),
+            ("not-codeable", "", sid), ("not-codeable", "?training=1", REAL_SID),
+            ("submissions/{}/send-back", "", sid), ("submissions/{}/send-back", "?training=1", REAL_SID),
+            ("submissions/{}/smartva", "", sid), ("submissions/{}/smartva", "?training=1", REAL_SID),
         ):
             response = self.post(f"/api/v1/coding/{path.format(target) if '{}' in path else path + '/' + target}{query}")
             self.assertEqual((response.status_code, response.get_json()["code"]), (409, "not_available"), path)
+        for query, target in (("", sid), ("?training=1", REAL_SID)):
+            get_sv = self.get(f"/api/v1/coding/submissions/{target}/smartva{query}")
+            self.assertEqual((get_sv.status_code, get_sv.get_json()["code"]), (409, "not_available"))
         # Inside its own scope the same call is not refused for the scope.
         inside = self.post(f"/api/v1/coding/recode/{sid}?training=1")
         self.assertNotEqual(inside.get_json().get("code"), "not_available")
@@ -491,6 +499,14 @@ class InterviewScopeTests(TrainingScopeBase):
         self.assertTrue(consent_cfg.get_json()["consent_required"])
         self.assertEqual(
             self.get("/api/v1/intake/consent-config?project_id=TRN01").status_code,
+            403,
+        )
+        self.assertEqual(
+            self.get("/api/v1/intake/projects/TRN01/prefill-policy?training=1").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.get("/api/v1/intake/projects/TRN01/prefill-policy").status_code,
             403,
         )
 

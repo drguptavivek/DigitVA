@@ -13,7 +13,7 @@ from flask_login import current_user
 from app import db, limiter
 from app.decorators.role_required import role_required
 from app.models import VaAllocation, VaAllocations, VaStatuses, VaSubmissions
-from app.services import public_demo_service
+from app.services import public_demo_service, training_scope
 from app.services.authz import Action, can
 from app.services.coding_service import get_project_for_submission
 from app.services.doris_certificate import DorisCertificateError, expected_expression_uri
@@ -85,6 +85,11 @@ def _error(code: str, message: str, status_code: int, fields: list[dict] | None 
 def _clinical_context(va_sid: str, role: str) -> ClinicalDorisContext:
     if role not in {"coder", "reviewer"}:
         raise ClinicalDorisAccessError("INVALID_ROLE", "Role must be coder or reviewer.", 422)
+    training_scope.resolve("review" if role == "reviewer" else "coding")
+    if not training_scope.sid_allowed(va_sid):
+        raise ClinicalDorisAccessError(
+            "NOT_AVAILABLE", "This case is not available in this area.", 409
+        )
     submission = db.session.get(VaSubmissions, va_sid)
     if submission is None:
         raise ClinicalDorisAccessError("NOT_FOUND", "Submission not found.", 404)
@@ -106,6 +111,7 @@ def _clinical_context(va_sid: str, role: str) -> ClinicalDorisContext:
             VaAllocations.va_allocated_to == current_user.user_id,
             VaAllocations.va_allocation_for == allocation_for,
             VaAllocations.va_allocation_status == VaStatuses.active,
+            VaAllocations.va_allocation_training == training_scope.on_training_side(),
         )
     )
     if allocation_id is None:
@@ -146,6 +152,7 @@ def _active_role(va_sid: str) -> str:
                 VaAllocations.va_sid == va_sid,
                 VaAllocations.va_allocated_to == current_user.user_id,
                 VaAllocations.va_allocation_status == VaStatuses.active,
+                VaAllocations.va_allocation_training == training_scope.on_training_side(),
             )
         )
     )
@@ -159,6 +166,9 @@ def _active_role(va_sid: str) -> str:
 
 
 def _require_terminology_context(va_sid: str):
+    training_scope.resolve("coding", "review")
+    if not training_scope.sid_allowed(va_sid):
+        return None, _error("NOT_AVAILABLE", "This case is not available in this area.", 409)
     try:
         return _clinical_context(va_sid, _active_role(va_sid)), None
     except ClinicalDorisAccessError as exc:

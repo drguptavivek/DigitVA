@@ -1245,6 +1245,19 @@ class BundleIngestApiTests(BaseTestCase):
         db.session.refresh(draft)
         self.assertEqual(draft.answers_sha256, newer["answers_sha256"])
 
+    def test_bundle_seq_gap_ceiling_and_bounded_missing_seq(self):
+        first = self._post(self._bundle([self._registration()], bundle_seq=1))
+        self.assertEqual(first.status_code, 201)
+        too_far = self._post(
+            self._bundle([self._registration()], bundle_seq=service.MAX_BUNDLE_SEQ_GAP + 2)
+        )
+        self.assertEqual(too_far.status_code, 422, too_far.get_json())
+        self.assertEqual(too_far.get_json()["code"], "manifest_invalid")
+        # _missing_seq caps generate_series even when max_seq is far ahead of seen_count.
+        missing = service._missing_seq(self.station.device_id, 500_000)
+        self.assertEqual(len(missing), service.MISSING_SEQ_MAX)
+        self.assertEqual(missing[0], 2)
+
     # ── conformance vectors (digitva-gb8w.6; scenario table in tests/bundle_vectors.py) ──
 
     def _vector_kit(self, scenario):

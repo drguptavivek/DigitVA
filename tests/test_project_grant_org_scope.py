@@ -189,9 +189,14 @@ class ProjectGrantOrgScopeTests(CodingScopeFixtureMixin, BaseTestCase):
     def test_a_view_only_project_reviewer_keeps_attachment_access(self):
         # Attachments follow VIEW, the wider right (digitva-0wc stage 2,
         # F7/F12): a reviewer who may not review above the scope level still
-        # views the submission, attachments included (when holding PII access).
+        # views the submission, attachments included (when holding Tier 3 PII access).
         self._wide_grant("project", VaAccessRoles.reviewer)
-        self._wide_grant("project", VaAccessRoles.collaborator_pii)
+        db.session.add(VaUserAccessGrants(
+            user_id=self.user.user_id, role=VaAccessRoles.collaborator_pii,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=self.district.org_unit_id,
+            grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
         self.assertTrue(can_access_submission_attachment(
             self.user, va_form_id=self.FORM_ID, va_sid="csc-routed"))
         self._configure("view_only")

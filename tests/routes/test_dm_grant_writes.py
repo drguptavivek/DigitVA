@@ -305,6 +305,35 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         ).get_json()["users"]
         self.assertEqual([u["email"] for u in found], [self.users["reviewer_sp1"].email])
 
+    def test_manage_update_user_requires_managed_grant_and_redacts_unit_writer_response(self):
+        inside = self.users["reviewer_c1"]
+        inside.phone = "9876500001"
+        db.session.flush()
+        # A unit writer (dm_c1) may update job_title on a user holding a grant it manages,
+        # and the response redacts phone, landing_page, and is_admin.
+        self._as("dm_c1")
+        updated = self.client.put(
+            f"/data-management/api/users/{inside.user_id}",
+            json={"job_title": "Medical Officer"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(updated.status_code, 200, updated.get_json())
+        user_payload = updated.get_json()["user"]
+        self.assertEqual(user_payload["job_title"], "Medical Officer")
+        for key in ("phone", "landing_page", "is_admin"):
+            self.assertNotIn(key, user_payload)
+        # A wide writer on another project (dm_sp) may see the user in search,
+        # but cannot mutate job_title or languages of a user holding no grant it manages.
+        self._as("dm_sp")
+        refused = self.client.put(
+            f"/data-management/api/users/{inside.user_id}",
+            json={"job_title": "Hijacked Title"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(refused.status_code, 403, refused.get_json())
+        db.session.refresh(inside)
+        self.assertEqual(inside.job_title, "Medical Officer")
+
     # -- pickers ---------------------------------------------------------
 
     def test_scope_pickers_follow_the_writer_grants(self):

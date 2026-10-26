@@ -57,7 +57,7 @@ login. Never deploy the WHO archive as an independent frontend or cache APIs/
 answers/private definitions. Preserve canonical clinical rules and native entrypoints.
 Updates wait for old tabs to close; don't force worker activation mid-interview.
 Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56, digitva-ydgv, digitva-idvp,
-digitva-eiym, digitva-ewa5.
+digitva-eiym, digitva-ewa5, digitva-2yo5, digitva-0v8f, digitva-9qoq.
 Evidence and limits are in `docs/current-state/expo-connectivity-profile.md`;
 history is in CHANGELOG.md.
 

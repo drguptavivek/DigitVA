@@ -1542,16 +1542,39 @@ class AdminOrganizationApiTests(BaseTestCase):
             institute_name="AIIMS Mentoring Institute",
             is_active=True,
         )
-        db.session.add_all([sci_user, inst])
+        unattached_user = VaUsers(
+            name="Dr Unattached Scientist",
+            email="dr.unattached.sci@example.org",
+            phone="9998887776",
+            user_status=VaStatuses.active,
+            permission={},
+            landing_page="coder",
+            pw_reset_t_and_c=False,
+            email_verified=True,
+            vacode_language=["en"],
+        )
+        unattached_user.set_password("UnusedPassword123!")
+        unattached_inst = MasMentorInstitute(
+            institute_code="UNATTACHMNT",
+            institute_name="Unattached Mentoring Institute",
+            is_active=True,
+        )
+        db.session.add_all([sci_user, inst, unattached_user, unattached_inst])
         db.session.flush()
-        db.session.add(
+        db.session.add_all([
             MapMentorInstituteUser(
                 institute_id=inst.institute_id,
                 user_id=sci_user.user_id,
                 is_admin=False,
                 is_active=True,
-            )
-        )
+            ),
+            MapMentorInstituteUser(
+                institute_id=unattached_inst.institute_id,
+                user_id=unattached_user.user_id,
+                is_admin=False,
+                is_active=True,
+            ),
+        ])
         db.session.commit()
 
         attach_res = self.client.post(
@@ -1567,6 +1590,14 @@ class AdminOrganizationApiTests(BaseTestCase):
                 for link in overview["attached_links"]
             )
         )
+        # Only attached institutes appear in `institutes` / `scientists`; unattached
+        # institutes appear only in `all_institutes` without staff PII.
+        self.assertEqual([i["institute_code"] for i in overview["institutes"]], ["AIIMSMNT"])
+        self.assertNotIn("dr.unattached.sci@example.org", str(overview))
+        self.assertNotIn("9998887776", str(overview))
+        all_codes = {i["institute_code"]: i for i in overview["all_institutes"]}
+        self.assertIn("UNATTACHMNT", all_codes)
+        self.assertNotIn("scientists", all_codes["UNATTACHMNT"])
 
         grant_res = self.client.post(
             self._url("/mentoring/grants"),
@@ -1594,3 +1625,88 @@ class AdminOrganizationApiTests(BaseTestCase):
                 for link in detach_res.get_json()["attached_links"]
             )
         )
+
+    def test_bulk_grid_enforces_home_cadre_capability_active_user_and_mentor_guards(self):
+        import uuid
+
+        from app.models import MasOrgUnitWorker
+
+        self._login(str(self.base_admin_id))
+        admin_user = db.session.get(VaUsers, uuid.UUID(str(self.base_admin_id)))
+        db.session.get(VaProjectMaster, self.PROJECT).project_structure_mode = "organization"
+        org.seed_default_organization(self.PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT)}
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
+        dist = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["district"].org_level_id,
+            unit_code="GRDD1",
+            unit_name="Grid District 1",
+        )
+        chc = org.create_unit(
+            self.PROJECT,
+            org_level_id=levels["chc"].org_level_id,
+            parent_org_unit_id=dist.org_unit_id,
+            unit_code="GRDC1",
+            unit_name="Grid CHC 1",
+        )
+        # Worker placed with cadre ANM (which cannot code VA forms at CHC).
+        anm_worker = self._get_or_make_user("grid.anm.worker@test.local", "GridWorker123")
+        db.session.add(MasOrgUnitWorker(
+            project_id=self.PROJECT,
+            org_unit_id=chc.org_unit_id,
+            cadre_id=cadres["ANM"].cadre_id,
+            user_id=anm_worker.user_id,
+            worker_code="ANM001",
+            worker_name="ANM Worker",
+            is_active=True,
+        ))
+        # Deactivated worker.
+        deactive_worker = self._get_or_make_user("grid.deactive.worker@test.local", "GridWorker123")
+        deactive_worker.user_status = VaStatuses.deactive
+        db.session.commit()
+
+        # 1. Home cadre lacks can_code_va_form at CHC -> refused instead of substituting SMO/MO.
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.bulk_apply_project_users_grid(
+                self.PROJECT,
+                {
+                    "user_ids": [str(anm_worker.user_id)],
+                    "operation": "coder",
+                    "scope_mode": "own",
+                },
+                actor=admin_user,
+            )
+        self.assertIn("ANM", str(ctx.exception))
+
+        # 2. Deactivated user -> refused.
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.bulk_apply_project_users_grid(
+                self.PROJECT,
+                {
+                    "user_ids": [str(deactive_worker.user_id)],
+                    "operation": "collaborator",
+                    "scope_mode": "project",
+                },
+                actor=admin_user,
+            )
+        self.assertIn("inactive", str(ctx.exception))
+
+        # 3. Mentoring Institute member -> refused for project-scope grants in bulk grid.
+        from app.services import mentor_institute_service as mentors
+
+        mentors.create_institute("GRDMC", "Grid Medical College")
+        mentor_user = self._get_or_make_user("grid.mentor.sci@test.local", "GridWorker123")
+        mentors.add_member("GRDMC", mentor_user.email)
+        db.session.commit()
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.bulk_apply_project_users_grid(
+                self.PROJECT,
+                {
+                    "user_ids": [str(mentor_user.user_id)],
+                    "operation": "reviewer",
+                    "scope_mode": "project",
+                },
+                actor=admin_user,
+            )
+        self.assertIn("mentoring institute", str(ctx.exception))

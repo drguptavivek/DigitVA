@@ -58,9 +58,10 @@ def current() -> str | None:
     return request.environ.get(_KEY, EXCLUDE) if has_request_context() else None
 
 
-def resolve(area: str) -> str:
-    """Read ``?training=`` of the request, authorize it for *area* (a key of
-    ``training_demo_service.AREA_ROLES``), set it and return it.
+def resolve(area: str, *more_areas: str) -> str:
+    """Read ``?training=`` of the request, authorize it for *area* (or any of
+    *more_areas*, keys of ``training_demo_service.AREA_ROLES``), set it and
+    return it.
 
     400 ``invalid_request`` for a value other than 0/1; 403 ``forbidden`` for
     ``training=1`` without the matching active participation (or with training
@@ -73,10 +74,11 @@ def resolve(area: str) -> str:
         return use(EXCLUDE)
     if raw not in _TRUE:
         _refuse("training must be 0 or 1.", "invalid_request", 400)
+    areas = (area, *more_areas)
     if (
         not training_project_id()
         or not current_user.is_authenticated
-        or not training.may_use_area(current_user.user_id, area)
+        or not any(training.may_use_area(current_user.user_id, a) for a in areas)
     ):
         _refuse("You are not a participant of an active training session for this area.", "forbidden", 403)
     return use(ONLY)

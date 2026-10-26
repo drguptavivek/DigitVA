@@ -2068,6 +2068,7 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
             raise WebIntakeError(f"Invalid section name {name!r}.")
         if not isinstance(answers, dict):
             raise WebIntakeError(f"Section {name!r} must be an object of answers.")
+        check_device_answers(answers)
         if name != DEVICE_SECTION:
             browser_keys.update(answers)
         row = existing.get(name)
@@ -2493,6 +2494,7 @@ def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, in
         raise WebIntakeError("This draft has already been submitted.", 409)
     if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
         raise WebIntakeError("completion.data is required.")
+    check_device_answers(completion["data"])
     # Web and device submits both pass here (public-demo.md section 8).
     public_demo_service.check_new_submission(user, draft.project_id)
     outcome = _interview_outcome(completion["data"], completion)
@@ -3304,8 +3306,8 @@ DEVICE_ANSWERS_MAX_DEPTH = 6
 
 
 def check_device_answers(data: dict) -> None:
-    """Refuse (422) answers nested deeper than DEVICE_ANSWERS_MAX_DEPTH. The
-    size cap is on the upload's ``answers_json`` text, checked by the route."""
+    """Refuse (422) answers nested deeper than DEVICE_ANSWERS_MAX_DEPTH or (413)
+    whose serialized JSON exceeds DEVICE_ANSWERS_MAX_BYTES."""
     stack = [(data, 1)]
     while stack:
         value, depth = stack.pop()
@@ -3313,6 +3315,8 @@ def check_device_answers(data: dict) -> None:
             raise WebIntakeError("answers_json is nested too deeply.", 422)
         children = value.values() if isinstance(value, dict) else value
         stack.extend((child, depth + 1) for child in children if isinstance(child, (dict, list)))
+    if len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8", "surrogatepass")) > DEVICE_ANSWERS_MAX_BYTES:
+        raise WebIntakeError("answers_json is too large.", 413, "payload_too_large")
 
 
 def check_definition_identity(meta: dict) -> None:
@@ -3500,6 +3504,7 @@ def resubmit_browser_draft(user: VaUsers, draft: VaWebIntakeDraft, *, completion
     if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
         raise WebIntakeError("completion.data is required.")
     data = completion["data"]
+    check_device_answers(data)
     # A browser draft has no device hash; the correction needs one to tell
     # answers apart, taken over the data in a fixed form.
     sha = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8", "surrogatepass")).hexdigest()
@@ -3872,6 +3877,8 @@ def case_prefill(user: VaUsers, death: VaDeathRegister, my_draft_id: uuid.UUID |
     or the case is open (another interviewer's draft does not matter).
     Otherwise None (a closed case): the identifiers are not theirs to read.
     """
+    if not interviewer_reaches(user, death):
+        return None
     if my_draft_id is None and death.status in _SUPERSEDED_CASE_STATES:
         return None
     return _prefill_from_death(death, user, death.org_unit_id)

@@ -128,7 +128,7 @@ class CaseListTests(BaseTestCase):
         cls.wally = user("wally", (R.interviewer, whole))
         cls.cody = user("cody", (R.coder, whole))
         cls.dana = user("dana", (R.data_manager, at_dst))
-        cls.pat = user("pat", (R.collaborator_pii, whole))
+        cls.pat = user("pat", (R.collaborator_pii, at_dst))
         cls.cole = user("cole", (R.collaborator, whole))
         cls.sue = user("sue", (R.interview_supervisor, at_ph1), (R.coder, whole))  # supervisor with PII access
         cls.pip = user("pip", (R.project_pi, whole))
@@ -149,7 +149,10 @@ class CaseListTests(BaseTestCase):
             case = register(registrar, where, **fields)
             sid = f"uuid:cl-{uuid.uuid4()}"
             db.session.add(VaSubmissions(
-                va_sid=sid, va_form_id=f"{PROJECT}{SITE}01", va_submission_date=now, va_odk_updatedat=now,
+                va_sid=sid, va_form_id=f"{PROJECT}{SITE}01",
+                org_unit_id=where.org_unit_id if where else None,
+                org_unit_resolution="form_field" if where else None,
+                va_submission_date=now, va_odk_updatedat=now,
                 va_data_collector="cl", va_odk_reviewstate="reviewed", va_instance_name=sid,
                 va_uniqueid_real=sid, va_uniqueid_masked=sid, va_consent="yes", va_narration_language="English",
                 va_deceased_age=50, va_deceased_gender="male", va_summary=[], va_catcount={}, va_category_list=[],

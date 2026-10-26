@@ -73,6 +73,10 @@ def should_redact_pii(user, *, _grants=None) -> bool:
     resolved = _grants if _grants is not None else resolve_grants(user)
     if resolved.is_admin:
         return False
+    if getattr(user, "is_public_demo", False) and any(
+        not g.virtual and g.role in _PII_GRANTING_ROLES for g in resolved.grants
+    ):
+        return False
     return not any(
         resolved.is_pii_grant(g) for g in resolved.grants
     )
@@ -133,13 +137,6 @@ def pii_visible_user_ids(
     )
     non_mentor_or_dm = sa.or_(~is_mentor_cond, grant.role == VaAccessRoles.data_manager)
     pii_grant_cond = sa.or_(
-        grant.role.in_(
-            (
-                VaAccessRoles.admin,
-                VaAccessRoles.collaborator_pii,
-                VaAccessRoles.interviewer,
-            )
-        ),
         sa.and_(~has_tree_cond, non_mentor_or_dm, grant.role.in_(SITES_MODE_PII_ROLES)),
         sa.and_(
             has_tree_cond,

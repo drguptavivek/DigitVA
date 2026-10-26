@@ -3513,8 +3513,7 @@ def project_mentoring_overview(project_id: str) -> dict:
 
     scientists = []
     scientists_by_inst: dict[uuid.UUID, list[dict]] = {}
-    all_inst_uuids = [inst.institute_id for inst in inst_objs]
-    if all_inst_uuids:
+    if attached_inst_ids:
         staff_rows = db.session.execute(
             sa.select(VaUsers, MapMentorInstituteUser, MasMentorInstitute)
             .join(MapMentorInstituteUser, MapMentorInstituteUser.user_id == VaUsers.user_id)
@@ -3523,7 +3522,7 @@ def project_mentoring_overview(project_id: str) -> dict:
                 MasMentorInstitute.institute_id == MapMentorInstituteUser.institute_id,
             )
             .where(
-                MapMentorInstituteUser.institute_id.in_(all_inst_uuids),
+                MapMentorInstituteUser.institute_id.in_(attached_inst_ids),
                 MapMentorInstituteUser.is_active.is_(True),
                 VaUsers.user_status == VaStatuses.active,
             )
@@ -3572,10 +3571,20 @@ def project_mentoring_overview(project_id: str) -> dict:
                 "grants_by_role": grants_by_role,
             }
             scientists_by_inst.setdefault(inst.institute_id, []).append(sci_entry)
-            if inst.institute_id in attached_inst_ids:
-                scientists.append(sci_entry)
+            scientists.append(sci_entry)
 
     all_institutes = [
+        {
+            "institute_id": str(inst.institute_id),
+            "mentor_institute_id": str(inst.institute_id),
+            "institute_code": inst.institute_code,
+            "institute_name": inst.institute_name,
+            "is_active": inst.is_active,
+            "project_district_unit_ids": districts_by_inst.get(inst.institute_id, []),
+        }
+        for inst in inst_objs
+    ]
+    institutes = [
         {
             "institute_id": str(inst.institute_id),
             "mentor_institute_id": str(inst.institute_id),
@@ -3586,16 +3595,17 @@ def project_mentoring_overview(project_id: str) -> dict:
             "scientists": scientists_by_inst.get(inst.institute_id, []),
         }
         for inst in inst_objs
+        if inst.institute_id in attached_inst_ids
     ]
 
     return {
         "units": units,
         "districts": districts,
         "all_institutes": all_institutes,
-        "institutes": all_institutes,
+        "institutes": institutes,
         "attached_links": links,
         "scientists": scientists,
-        "mentor_roles": ["coder", "reviewer", "coding_tester", "collaborator_pii", "collaborator"],
+        "mentor_roles": ["coder", "reviewer", "coding_tester", "collaborator"],
     }
 
 
@@ -4049,7 +4059,7 @@ def get_project_users_grid(project_id: str) -> dict:
                 label = str(meta["label"])
                 pii_badge = str(meta["pii_badge"])
                 with_pii = bool(meta["with_pii"])
-                if has_tree and r_val not in ("collaborator_pii", "admin"):
+                if has_tree and r_val != "admin":
                     with_pii = False
                     if r_val == "site_pi":
                         label = "Site Lead"
@@ -4062,9 +4072,12 @@ def get_project_users_grid(project_id: str) -> dict:
                         pii_badge = "Tier 1: Non-PII"
                     else:
                         pii_badge = "Tier 1: Non-PII"
-                elif not has_tree and r_val in ("project_pi", "site_pi", "data_manager", "interviewer", "coder", "reviewer", "collaborator_pii"):
+                elif not has_tree and not is_mentor and r_val in ("project_pi", "site_pi", "data_manager", "interviewer", "coder", "reviewer", "collaborator_pii"):
                     with_pii = True
                     pii_badge = "PII"
+                elif is_mentor:
+                    with_pii = False
+                    pii_badge = "Tier 2: Non-PII"
                 proj_grants_out.append({
                     "grant_id": str(g.grant_id),
                     "role": r_val,
@@ -4076,8 +4089,10 @@ def get_project_users_grid(project_id: str) -> dict:
                     "site_name": site_info["site_name"] if site_info else None,
                 })
 
-        has_project_wide_pii = ("collaborator_pii" in proj_roles_held) or (
-            not has_tree and bool(proj_roles_held & {"project_pi", "site_pi", "data_manager"})
+        has_project_wide_pii = (
+            not has_tree
+            and not is_mentor
+            and bool(proj_roles_held & {"project_pi", "site_pi", "data_manager", "interviewer", "collaborator_pii"})
         )
 
         # Unit grants grouped by unit first
@@ -4099,7 +4114,7 @@ def get_project_users_grid(project_id: str) -> dict:
         for u_str, r_set in roles_by_unit.items():
             raw_unit_roles_all |= r_set
             u_info = units_by_id[u_str]
-            unit_has_pii = (not is_mentor) or ("collaborator_pii" in r_set) or has_project_wide_pii
+            unit_has_pii = (not is_mentor) or ("data_manager" in r_set) or has_project_wide_pii
             consumed_collab_pii = False
 
             display_keys: list[str] = []
@@ -4193,7 +4208,7 @@ def get_project_users_grid(project_id: str) -> dict:
         # Compute effective PII status across the project for this user
         all_roles_held = proj_roles_held | raw_unit_roles_all
         display_keys_held = set(units_by_display_role.keys())
-        in_system_unit_roles = raw_unit_roles_all if not is_mentor else set()
+        in_system_unit_roles = raw_unit_roles_all if not is_mentor else (raw_unit_roles_all & {"data_manager"})
         if not all_roles_held:
             pii_status = {
                 "tier": "none",
@@ -4201,9 +4216,8 @@ def get_project_users_grid(project_id: str) -> dict:
                 "detail": "Rostered or inactive grants only; cannot access project cases.",
             }
         elif (
-            bool(in_system_unit_roles & {"site_pi", "data_manager", "interviewer"})
-            or ("collaborator_pii" in all_roles_held and not (all_roles_held & {"coder", "reviewer"}))
-            or (not has_tree and bool(proj_roles_held & {"project_pi", "site_pi", "data_manager", "interviewer"}))
+            bool(in_system_unit_roles & {"site_pi", "data_manager", "interviewer", "collaborator_pii"})
+            or (not has_tree and not is_mentor and bool(proj_roles_held & {"project_pi", "site_pi", "data_manager", "interviewer", "collaborator_pii"}))
         ):
             pii_status = {
                 "tier": "full_pii",
@@ -4211,7 +4225,7 @@ def get_project_users_grid(project_id: str) -> dict:
                 "detail": "Inside the health system: sees deceased name, address, GPS & registration numbers in scope.",
             }
         elif ("coder_pii" in display_keys_held) or ("reviewer_pii" in display_keys_held) or (
-            ("collaborator_pii" in all_roles_held) and bool(all_roles_held & {"coder", "reviewer"})
+            not has_tree and not is_mentor and bool(proj_roles_held & {"coder", "reviewer"})
         ):
             pii_status = {
                 "tier": "coding_pii",
@@ -4580,11 +4594,22 @@ def bulk_apply_project_users_grid(
         home_cadre_id = worker.cadre_id if worker else None
         if role in CADRE_FLAG_BY_ROLE:
             flag, permits = CADRE_FLAG_BY_ROLE[role]
-            # 1. Prefer user's own home cadre if it carries the required flag at this unit's level
-            if home_cadre_id and (unit.org_level_id, home_cadre_id) in lc_by_pair:
-                lc = lc_by_pair[(unit.org_level_id, home_cadre_id)]
-                if getattr(lc, flag):
-                    return home_cadre_id
+            # 1. If the user has a worker home cadre, it must carry the required flag at this unit's level
+            if home_cadre_id is not None:
+                lc = lc_by_pair.get((unit.org_level_id, home_cadre_id))
+                if lc is None:
+                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
+                    raise OrganizationError(
+                        f"Cadre {cadre_code!r} is not defined at level "
+                        f"{unit.level.level_code!r}; add it in the level permissions grid first."
+                    )
+                if not getattr(lc, flag):
+                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
+                    raise OrganizationError(
+                        f"Cadre {cadre_code!r} may not {permits} at level "
+                        f"{unit.level.level_code!r}."
+                    )
+                return home_cadre_id
             # 2. Otherwise pick the first active cadre at this unit's level that carries the flag
             for lc, cadre in lc_by_level.get(unit.org_level_id, []):
                 if getattr(lc, flag):
@@ -4599,6 +4624,8 @@ def bulk_apply_project_users_grid(
         return None
 
     def _ensure_unit_grant(uid: uuid.UUID, role: VaAccessRoles, unit_id: uuid.UUID) -> None:
+        if users_map[uid].user_status != VaStatuses.active:
+            raise OrganizationError("DigitVA user is inactive.")
         unit = active_units[unit_id]
         cadre_id = _resolve_cadre_for_unit_grant(uid, role, unit)
         validate_org_unit_grant(
@@ -4667,13 +4694,21 @@ def bulk_apply_project_users_grid(
             ))
 
     def _ensure_project_grant(uid: uuid.UUID, role: VaAccessRoles) -> None:
+        from app.services.mentor_institute_service import check_mentor_grant
+
+        if users_map[uid].user_status != VaStatuses.active:
+            raise OrganizationError("DigitVA user is inactive.")
+        check_mentor_grant(uid, role, None)
         if role == VaAccessRoles.project_pi and not actor.is_admin():
             raise OrganizationError("Only a platform Admin can grant Project PI.")
         if role == VaAccessRoles.site_pi:
-            # site_pi cannot use 'project' scope; grant across all project_sites of this project
-            if not project_sites:
+            # site_pi cannot use 'project' scope; grant across all active project_sites of this project
+            active_project_sites = [
+                ps for ps in project_sites if ps.project_site_status == VaStatuses.active
+            ]
+            if not active_project_sites:
                 raise OrganizationError("This project has no sites configured yet.")
-            for ps in project_sites:
+            for ps in active_project_sites:
                 if not authz.can_grant(
                     actor,
                     authz.GrantTarget(
@@ -4819,6 +4854,10 @@ def bulk_apply_project_users_grid(
                             _revoke_grant(ug)
         db.session.flush()
         return summary, changed_grants
+
+    for uid in target_user_uuids:
+        if users_map[uid].user_status != VaStatuses.active:
+            raise OrganizationError("DigitVA user is inactive.")
 
     # 5. Apply Cadre Default Roles
     if operation == "cadre_defaults":

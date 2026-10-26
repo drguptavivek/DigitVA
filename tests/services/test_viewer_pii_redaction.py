@@ -52,9 +52,10 @@ from app.services.data_management_service import (
     dm_submissions_export_csv,
     dm_submissions_page,
 )
+from app.services.authz import resolve_grants
 from app.services.submission_analytics_mv import COD_SNAPSHOT_MV_NAME
 from app.services.submission_payload_version_service import ensure_active_payload_version
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import pii_visible_user_ids, should_redact_pii
 from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
 from tests.base import BaseTestCase
 
@@ -276,7 +277,9 @@ class ShouldRedactPiiTests(BaseTestCase):
         mentors.attach_district("VPRMC", tree_project, "DST1")
         db.session.commit()
 
-        # Tier 1: Project-level roles on an organization-tree project are Non-PII (redacted).
+        # Tier 1: Project-level roles on an organization-tree project are Non-PII (redacted),
+        # even if collaborator_pii or interviewer is stored at project scope.
+        tier1_users = []
         for idx, role in enumerate((
             VaAccessRoles.project_pi,
             VaAccessRoles.data_manager,
@@ -284,6 +287,8 @@ class ShouldRedactPiiTests(BaseTestCase):
             VaAccessRoles.reviewer,
             VaAccessRoles.coding_tester,
             VaAccessRoles.collaborator,
+            VaAccessRoles.collaborator_pii,
+            VaAccessRoles.interviewer,
         )):
             u = self._get_or_make_user(f"vpr.tier1.{idx}@test.local", "VprTier123")
             db.session.add(VaUserAccessGrants(
@@ -294,13 +299,18 @@ class ShouldRedactPiiTests(BaseTestCase):
             db.session.commit()
             invalidate_all()
             self.assertTrue(should_redact_pii(u), f"Tier 1 {role} must be Non-PII (redacted)")
+            tier1_users.append(u.user_id)
+        self.assertEqual(pii_visible_user_ids(tier1_users), set())
 
-        # Tier 2: Mentoring Institute scientists at org_unit scope are Non-PII (redacted).
+        # Tier 2: Mentoring Institute scientists at org_unit scope are Non-PII (redacted),
+        # and never receive Tier 3 In-charge expansion even if a site_pi/collaborator_pii row exists.
+        tier2_users = []
         for idx, role in enumerate((
             VaAccessRoles.coder,
             VaAccessRoles.reviewer,
-            VaAccessRoles.coding_tester,
             VaAccessRoles.collaborator,
+            VaAccessRoles.collaborator_pii,
+            VaAccessRoles.site_pi,
         )):
             u = self._get_or_make_user(f"vpr.tier2.{idx}@test.local", "VprTier123")
             mentors.add_member("VPRMC", u.email)
@@ -312,8 +322,13 @@ class ShouldRedactPiiTests(BaseTestCase):
             db.session.commit()
             invalidate_all()
             self.assertTrue(should_redact_pii(u), f"Tier 2 mentor {role} must be Non-PII (redacted)")
+            rg = resolve_grants(u)
+            self.assertFalse(any(rg.oversees(g) for g in rg.grants))
+            tier2_users.append(u.user_id)
+        self.assertEqual(pii_visible_user_ids(tier2_users), set())
 
         # Tier 3: Health System roles at org_unit scope (including in-system doctors) are PII (unredacted).
+        tier3_users = []
         for idx, role in enumerate((
             VaAccessRoles.site_pi,
             VaAccessRoles.data_manager,
@@ -332,6 +347,8 @@ class ShouldRedactPiiTests(BaseTestCase):
             db.session.commit()
             invalidate_all()
             self.assertFalse(should_redact_pii(u), f"Tier 3 in-system {role} must be PII (unredacted)")
+            tier3_users.append(u.user_id)
+        self.assertEqual(pii_visible_user_ids(tier3_users), set(tier3_users))
 
         # Exceptional PII: Mentoring Institute member granted data_manager at the attached District unit.
         exc_user = self._get_or_make_user("vpr.exc.dm@test.local", "VprTier123")
@@ -344,6 +361,7 @@ class ShouldRedactPiiTests(BaseTestCase):
         db.session.commit()
         invalidate_all()
         self.assertFalse(should_redact_pii(exc_user), "Exceptional District data_manager grant unlocks PII")
+        self.assertEqual(pii_visible_user_ids([exc_user.user_id]), {exc_user.user_id})
 
 
 class DmSearchConditionRedactionTests(BaseTestCase):

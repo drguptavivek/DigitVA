@@ -27,7 +27,10 @@ from app.services.icd11_mms_service import (
     search_icd11_mms,
     validate_icd11_mms_coding_value_for_submission,
 )
-from app.services.icd_coding_policy import coding_context_for_submission
+from app.services.icd_coding_policy import (
+    AgeRestrictionConfirmationRequired,
+    coding_context_for_submission,
+)
 from app.services.icd_coding_value import (
     extract_icd11_code_expression,
     get_icd_classification_for_submission,
@@ -161,7 +164,14 @@ def who_icd_api_proxy(va_sid: str, resource: str):
 @bp.post("/selection-check/<va_sid>")
 @role_required("coder", "coding_tester", "reviewer", "admin")
 def icd11_selection_check(va_sid: str):
-    """Validate a WHO ECT selection before the assessment field is filled."""
+    """Validate a WHO ECT selection before the assessment field is filled.
+
+    A sex conflict refuses (422); an age conflict alone is allowed with a
+    ``warnings`` entry ``{code: "AGE_RESTRICTED", icd_code,
+    age_group_selectable, restriction_note}`` so the screen can ask for the
+    confirmation the final save requires (``digitva-oh7j``). ``warnings`` is
+    always present.
+    """
 
     err = _require_coding_or_reviewing_access(va_sid)
     if err:
@@ -182,8 +192,18 @@ def icd11_selection_check(va_sid: str):
     canonical_code = extract_icd11_code_expression(value)
     if not canonical_code or len(title) > 512 or len(value) > 1024:
         return api_error("Select a valid ICD-11 code.", status_code=400)
+    warnings = []
     try:
-        validate_icd11_mms_coding_value_for_submission(va_sid, value)
+        try:
+            validate_icd11_mms_coding_value_for_submission(va_sid, value)
+        except AgeRestrictionConfirmationRequired as exc:
+            restriction = exc.details()
+            warnings.append({
+                "code": "AGE_RESTRICTED",
+                "icd_code": restriction["code"],
+                "age_group_selectable": restriction["age_group_selectable"],
+                "restriction_note": restriction["restriction_note"],
+            })
         provenance = build_icd11_provenance(va_sid, value)
     except LookupError:
         return api_error("Submission not found.", status_code=404)
@@ -198,6 +218,7 @@ def icd11_selection_check(va_sid: str):
             "selectedText": provenance["selected_text"],
             "value": f"{canonical_code} {provenance['selected_text']}".strip(),
             "provenance": provenance,
+            "warnings": warnings,
         }
     )
 

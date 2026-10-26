@@ -55,8 +55,12 @@ from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
+from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
+    InvalidCausingConditionFlag,
     build_icd11_provenance_for_values,
+    check_causing_condition_unknown,
+    record_final_cod_flags,
     validate_coding_value_for_submission,
 )
 from app.services.odk_review_service import sync_not_codeable_review_state
@@ -233,7 +237,8 @@ class CoderCodingError(Exception):
     ``fields`` names the Step 1 field (``immediate_cod`` or
     ``antecedent_cod``) each ``invalid_cod`` message belongs to.
     ``processing`` carries the reprocessed DORIS result of a changed
-    certificate.
+    certificate. ``details`` are extra response keys
+    (``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` carries ``age_restriction``).
     """
 
     def __init__(
@@ -245,6 +250,7 @@ class CoderCodingError(Exception):
         processing: dict | None = None,
         messages: list[str] | None = None,
         fields: list[str] | None = None,
+        details: dict | None = None,
     ):
         self.message = message
         self.status_code = status_code
@@ -252,6 +258,7 @@ class CoderCodingError(Exception):
         self.processing = processing
         self.messages = messages or [message]
         self.fields = fields or []
+        self.details = details or {}
         super().__init__(message)
 
 
@@ -413,6 +420,7 @@ def submit_coder_initial_cod(
     doris_input_error: str | None = None,
     actiontype: str | None = None,
     payload_data: dict | None = None,
+    age_restriction_confirmed: bool = False,
 ) -> CoderInitialResult:
     """Save the coder's masked Step 1 and move the case to coder_step1_saved.
 
@@ -427,7 +435,11 @@ def submit_coder_initial_cod(
     authz or no allocation, 409 ``not_masked`` / ``wrong_state`` /
     ``no_payload``, 400 ``invalid_request`` / ``invalid_cod`` (every message
     in ``messages``, each with its ``fields``) / ``invalid_other_conditions``,
-    the DORIS codes of ``verify_doris_submission``.
+    the DORIS codes of ``verify_doris_submission``. In masked DORIS (the
+    only ICD-11 mode) an underlying cause that fails only its age restriction
+    is a 422 ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` unless
+    ``age_restriction_confirmed``; the confirmation is then recorded in the
+    ``antecedent`` provenance, as the final records it (``digitva-oh7j``).
     """
     actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     if db.session.get(VaSubmissions, va_sid) is None:
@@ -457,6 +469,7 @@ def submit_coder_initial_cod(
             doris_result_digest=doris_result_digest,
             doris_client_revision=doris_client_revision,
             doris_input_error=doris_input_error,
+            age_restriction_confirmed=age_restriction_confirmed,
         )
     else:
         step1_fields = _masked_simple_step1_fields(
@@ -526,13 +539,15 @@ def _masked_doris_step1_fields(
     user, va_sid, project, allocation, underlying_cod, *,
     certificate, doris_result, codedit_result,
     doris_process_token, doris_result_digest, doris_client_revision,
-    doris_input_error,
+    doris_input_error, age_restriction_confirmed,
 ) -> dict:
     """Verified Step 1 columns for a masked DORIS coder save.
 
     The immediate COD is the first condition on Part I line 1 of the verified
     certificate; the underlying (``va_antecedent_cod``) is the coder's own
     confirmed cause (owner decision 1). A missing cause or line is a 400.
+    An age-only conflict of that cause needs ``age_restriction_confirmed``
+    and is then recorded in its provenance.
     """
     who_image_digest = _who_image_digest()
     underlying_cod = (underlying_cod or "").strip()
@@ -566,8 +581,20 @@ def _masked_doris_step1_fields(
             400,
             code="invalid_request",
         )
+    age_restriction = None
     try:
-        validate_coding_value_for_submission(va_sid, underlying_cod)
+        try:
+            validate_coding_value_for_submission(va_sid, underlying_cod)
+        except AgeRestrictionConfirmationRequired as exc:
+            # Age warns, sex blocks, as for the final (digitva-oh7j).
+            if not age_restriction_confirmed:
+                raise CoderCodingError(
+                    str(exc),
+                    422,
+                    code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+                    details={"age_restriction": exc.details()},
+                ) from exc
+            age_restriction = exc.details()
         # The immediate cause was checked against WHO when the certificate
         # was processed; only the coder's own pick needs catalogue provenance.
         provenance = build_icd11_provenance_for_values(
@@ -575,6 +602,14 @@ def _masked_doris_step1_fields(
         )
     except (LookupError, ValueError) as exc:
         raise CoderCodingError(str(exc), 400, code="invalid_cod") from exc
+    provenance = record_final_cod_flags(
+        provenance,
+        age_restriction=age_restriction,
+        causing_condition_unknown=False,
+        confirmed_by=user.user_id,
+        doris_result=verified["doris"],
+        field="antecedent",
+    )
     return {
         "va_immediate_cod": immediate_cod,
         "va_antecedent_cod": underlying_cod,
@@ -690,6 +725,8 @@ def submit_coder_final_cod(
     cod_chosen_rank=None,
     doris_input_error: str | None = None,
     actiontype: str | None = None,
+    age_restriction_confirmed: bool = False,
+    causing_condition_unknown: bool = False,
 ) -> CoderFinalResult:
     """Save the coder's final COD (Step 2, or the one step of an unmasked project).
 
@@ -706,6 +743,12 @@ def submit_coder_final_cod(
     ("Save Step 1 first."), and 422
     ``final_blocked`` carrying every blocking message (invalid or missing COD,
     no active payload, Narrative QA or Social Autopsy not done).
+    An ICD-11 conclusive COD that fails only its age restriction is a 422
+    ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` (raised before the other gates
+    are reported) unless ``age_restriction_confirmed``; the confirmation is
+    then recorded in the conclusive provenance. ``causing_condition_unknown``
+    is recorded there too; on a value that is not one ICD-11 stem it is a 422
+    ``INVALID_CAUSING_CONDITION_FLAG``.
     """
     actiontype = derive_actiontype(va_sid) if actiontype is None else actiontype
     # Authorize before the row lock: a refused caller never waits on it.
@@ -735,8 +778,23 @@ def submit_coder_final_cod(
     if active_payload_version is None:
         blocking_messages.append("This submission has no active payload version.")
     conclusive_cod = (conclusive_cod or "").strip()
+    age_restriction = None
     try:
+        if causing_condition_unknown:
+            check_causing_condition_unknown(conclusive_cod)
         validate_coding_value_for_submission(va_sid, conclusive_cod)
+    except InvalidCausingConditionFlag as exc:
+        raise CoderCodingError(str(exc), 422, code="INVALID_CAUSING_CONDITION_FLAG") from exc
+    except AgeRestrictionConfirmationRequired as exc:
+        # Age warns, sex blocks (digitva-oh7j): asked before the other gates.
+        if not age_restriction_confirmed:
+            raise CoderCodingError(
+                str(exc),
+                422,
+                code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+                details={"age_restriction": exc.details()},
+            ) from exc
+        age_restriction = exc.details()
     except (LookupError, ValueError) as exc:
         blocking_messages.append(str(exc))
 
@@ -844,6 +902,13 @@ def submit_coder_final_cod(
             masked_initial.va_antecedent_cod if masked_initial else None,
             smartva_icd11_alternatives(smartva),
         )
+    final_icd11_provenance = record_final_cod_flags(
+        final_icd11_provenance,
+        age_restriction=age_restriction,
+        causing_condition_unknown=causing_condition_unknown,
+        confirmed_by=user.user_id,
+        doris_result=verified_doris or (masked_initial.doris_result if masked_initial else None),
+    )
     existing_active_finals = db.session.scalars(
         sa.select(VaFinalAssessments).where(
             VaFinalAssessments.va_sid == va_sid,

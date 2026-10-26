@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-10-27
 ---
 
 # DORIS COD Workflow
@@ -384,6 +384,73 @@ saves the final certificate, processor outputs and independently validated
 human UCOD in the same transaction as the existing workflow and audit changes.
 WHO processor failure is advisory when codeinfo verification still works;
 codeinfo failure blocks final ICD-11 provenance validation.
+
+## ICD-11 provenance: primary stem, age confirmation, causing condition
+
+Every saved ICD-11 COD pick carries server-built provenance in its row's
+`icd11_provenance`, keyed by field: `conclusive` for a final, `immediate`
+for a final's immediate cause, `antecedent` for a Step 1 underlying cause
+(`app/services/icd11_mms_service.py`, `build_icd11_provenance`). Keys:
+
+- `code`, `title`, `selected_text`, `release`, `linearization_uri`,
+  `foundation_uri`, `codeinfo_uri`: the expression and its WHO URIs.
+- `primary_stem` (`digitva-443q`): the stem allowability and the VA cause
+  use. WHO's causing condition (`hasCausingCondition[0]` in codeinfo) when
+  WHO reports one, so `FB80.B/2F9Z` is `2F9Z`; otherwise the first stem
+  (docs/policy/icd11-code-selection-principles.md, principle 13).
+- `age_restriction_confirmation` (`digitva-oh7j`): `{confirmed_by,
+  confirmed_at, code, age_group_selectable, restriction_note,
+  doris_warning}`, present only when the coder or reviewer confirmed an age
+  conflict. `doris_warning` is DORIS's plausibility warning when it names
+  this code, else null.
+- `causing_condition_unknown: true` (`digitva-xmpx`, finals only): WHO's
+  causing condition was not known, so the stem stands alone.
+
+**Sex blocks, age warns** (docs/policy/who-2022-icd11-coding-allowability.md,
+"Sex and age"). The validator refuses a sex conflict as before and raises
+`AgeRestrictionConfirmationRequired` (`app/services/icd_coding_policy.py`)
+for an age-only conflict. The coder's and reviewer's final underlying COD
+and, in masked DORIS, their Step 1 underlying cause (`antecedent_cod`,
+owner 2026-10-27) are then refused `422` with
+`{"error", "code": "AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+"age_restriction": {"code", "age_group_selectable", "restriction_note"}}`
+unless the request sends `age_restriction_confirmed: true` (a JSON boolean;
+anything else is `400 invalid_request`; the web form posts `true`). The
+confirmed save records `age_restriction_confirmation` on that field. Paths:
+`POST /api/v1/coding/initial|finalize/<sid>` (`app/routes/api/coding.py`),
+`POST /api/v1/reviewing/initial|finalize/<sid>`
+(`app/routes/api/reviewing.py`), the web Step 1 and Step 2 forms
+(`app/routes/va_form.py`); services `submit_coder_initial_cod` /
+`submit_coder_final_cod` (`app/services/coder_cod_service.py`) and
+`submit_reviewer_initial_cod` / `submit_reviewer_final_cod`
+(`app/services/reviewer_coding_service.py`). Certificate lines (Part I
+line 1, the masked simple and final immediate causes) are not confirmable:
+an age conflict there is refused as before. Masked simple is ICD-10 only
+(ICD-11 means DORIS), so its Step 1 never meets the confirmation. A station
+bundle cannot confirm: its final keeps the rejection `final_blocked`
+(`_apply_coding`, `app/services/bundle_ingest_service.py`). The selection
+check returns the age conflict as a `warnings` entry
+`{code: "AGE_RESTRICTED", ...}`, and search marks age-restricted codes
+(`age_restricted`, `restriction_note`) instead of hiding them.
+
+`causing_condition_unknown: true` on a final is accepted only for one
+ICD-11 stem without `/` (`&` extensions allowed); otherwise `422
+INVALID_CAUSING_CONDITION_FLAG`.
+
+**Readers use the primary stem.** The COD snapshot and detail MVs bucket
+an ICD-11 final by `icd11_provenance -> 'conclusive' ->> 'primary_stem'`,
+else its first stem (`icd11_primary_stem_sql`,
+`app/services/submission_analytics_mv.py`; migration `c5e8a2f4b7d1`
+rebuilt both views). The snapshot exposes `coder_final_icd11_stem`,
+`reviewer_final_icd11_stem` and `authoritative_icd11_stem`, and the COD
+snapshot export's `*_icd11_stem_uri` columns are those stems' URIs. In
+Python, `icd11_primary_stem_of(value, provenance_item)`
+(`app/services/icd_coding_value.py`) does the same for the training report
+(`app/services/training_cause_groups.py`,
+`app/services/training_report_service.py`). The VA definition lookup
+(`find_va_definition_for_icd`, `app/services/va_cause_definition_service.py`)
+uses a saved value's `primary_stem`; for a bare `/` cluster it asks WHO
+codeinfo once (cached), and any other value never calls WHO.
 
 ## Public training service
 

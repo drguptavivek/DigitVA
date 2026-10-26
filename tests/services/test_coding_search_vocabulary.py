@@ -499,12 +499,31 @@ class Icd11SearchVocabularyTest(CodingSearchVocabularyTestCase):
             )
             .values(age_group_selectable="child")
         )
-        # Adult death: the child-only target is filtered out for the SID...
+        # Adult death: the child-only target is offered marked, not hidden
+        # (digitva-oh7j; sex still hides, below)...
         with_adult_sid = search_icd11_mms("MI", va_sid=self.SID_FEMALE)
-        self.assertEqual(_vocabulary_flags_only(with_adult_sid), [])
+        self.assertEqual(_vocabulary_flags_only(with_adult_sid), ["BA41"])
+        self.assertTrue(
+            all(row["age_restricted"] for row in with_adult_sid if row["icd_code"] == "BA41")
+        )
 
-        # ...and without a submission in play the target is injected.
-        self.assertEqual(_vocabulary_flags_only(search_icd11_mms("MI")), ["BA41"])
+        # ...and without a submission in play the target is injected unmarked.
+        unfiltered = search_icd11_mms("MI")
+        self.assertEqual(_vocabulary_flags_only(unfiltered), ["BA41"])
+        self.assertFalse(any(row["age_restricted"] for row in unfiltered))
+
+        # A male-only target is hidden from the female death.
+        db.session.execute(
+            sa.update(MasIcd11Mms)
+            .where(
+                MasIcd11Mms.release == DEFAULT_ICD11_RELEASE,
+                MasIcd11Mms.code == "BA41",
+            )
+            .values(sex_selectable="male")
+        )
+        self.assertEqual(
+            _vocabulary_flags_only(search_icd11_mms("MI", va_sid=self.SID_FEMALE)), []
+        )
 
     def test_multi_code_term_lists_lower_sort_order_first(self):
         # digitva-3t2: TB -> 1B10.1 (not bacteriologically confirmed) before

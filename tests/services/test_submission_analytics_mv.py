@@ -1454,6 +1454,12 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
             "uuid:mv-cls-icd11-through-block": "1G41.0 Test code under the block",
             "uuid:mv-cls-icd11-unmapped": "2Z99 Not in any row",
             "uuid:mv-cls-icd10-only-icd11-row": "A39.3-Chronic meningococcaemia",
+            # digitva-443q: the recorded primary stem (WHO's causing
+            # condition) wins over the first stem, 1G41.0 (FAR).
+            "uuid:mv-cls-icd11-primary-stem": "1G41.0/1G40 Manifestation first",
+        }
+        provenance = {
+            "uuid:mv-cls-icd11-primary-stem": {"conclusive": {"code": "1G41.0/1G40", "primary_stem": "1G40"}},
         }
         for sid, cod in cases.items():
             self._add_submission(sid, {"Id10476": "classification test"}, workflow_state="coder_finalized")
@@ -1462,6 +1468,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                     va_sid=sid,
                     va_finassess_by=self.base_coder_user.user_id,
                     va_conclusive_cod=cod,
+                    icd11_provenance=provenance.get(sid),
                     va_finassess_status=VaStatuses.active,
                 )
             )
@@ -1482,7 +1489,9 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                         reviewer_final_who_bucket_provenance,
                         authoritative_who_bucket,
                         authoritative_who_bucket_provenance,
-                        smartva_cause1_who_bucket_provenance
+                        smartva_cause1_who_bucket_provenance,
+                        coder_final_icd11_stem,
+                        authoritative_icd11_stem
                     FROM {COD_SNAPSHOT_MV_NAME}
                     WHERE va_sid = ANY(:sids)
                     """
@@ -1505,8 +1514,10 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         for sid in (
             "uuid:mv-cls-icd11-exact",
             "uuid:mv-cls-icd11-child",
+            # No recorded primary stem: the first stem, 1G40.0, as before.
             "uuid:mv-cls-icd11-postcoord",
             "uuid:mv-cls-icd11-grandchild",
+            "uuid:mv-cls-icd11-primary-stem",
         ):
             with self.subTest(sid=sid):
                 self.assertEqual(rows[sid]["coder_final_who_bucket_section"], "Classification section")
@@ -1514,6 +1525,27 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 self.assertEqual(rows[sid]["coder_final_who_bucket_provenance"], "icd11_native")
                 self.assertEqual(rows[sid]["authoritative_who_bucket"], "Sepsis via ICD-11")
                 self.assertEqual(rows[sid]["authoritative_who_bucket_provenance"], "icd11_native")
+
+        # The stem the export's ICD-11 URI follows is the bucketed one.
+        self.assertEqual(
+            {sid: (rows[sid]["coder_final_icd11_stem"], rows[sid]["authoritative_icd11_stem"])
+             for sid in ("uuid:mv-cls-icd11-primary-stem", "uuid:mv-cls-icd11-postcoord", "uuid:mv-cls-icd10")},
+            {"uuid:mv-cls-icd11-primary-stem": ("1G40", "1G40"),
+             "uuid:mv-cls-icd11-postcoord": ("1G40.0", "1G40.0"),
+             "uuid:mv-cls-icd10": (None, None)},
+        )
+
+        # The COD detail MV feeds the bucket report the same stem.
+        final_icd11 = dict(
+            db.session.execute(
+                sa.text(f"SELECT va_sid, final_icd11 FROM {COD_MV_NAME} WHERE va_sid = ANY(:sids)"),
+                {"sids": ["uuid:mv-cls-icd11-primary-stem", "uuid:mv-cls-icd11-postcoord"]},
+            ).all()
+        )
+        self.assertEqual(
+            final_icd11,
+            {"uuid:mv-cls-icd11-primary-stem": "1G40", "uuid:mv-cls-icd11-postcoord": "1G40.0"},
+        )
 
         through_block = rows["uuid:mv-cls-icd11-through-block"]
         self.assertEqual(through_block["coder_final_who_bucket"], "Far ancestor via ICD-11")

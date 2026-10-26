@@ -24,8 +24,13 @@ from sqlalchemy.orm import aliased
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd11Mms
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
-from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
-from app.services.icd_coding_value import ICD_CLASSIFICATIONS, extract_icd_code
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, icd11_primary_stem
+from app.services.icd_coding_value import (
+    ICD_CLASSIFICATIONS,
+    extract_icd11_code_expression,
+    extract_icd_code,
+    icd11_primary_stem_of,
+)
 from app.utils.rich_text import sanitize_rich_text
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -265,7 +270,36 @@ def _icd_candidates(code: str, classification: str) -> list[str]:
     return [c.upper() for c in ancestors] or [code]
 
 
-def find_va_definition_for_icd(value: str | None, classification: str | None = None) -> dict | None:
+def _icd11_lookup_stem(value: str | None, provenance_item: dict | None) -> str | None:
+    """The primary stem of an ICD-11 value for the definition lookup.
+
+    A saved value's recorded ``primary_stem`` first (no WHO call). Otherwise
+    only a ``/`` cluster, whose causing condition may not be its first stem,
+    asks WHO ``codeinfo`` (one cached call, ``get_icd11_codeinfo``); a stem
+    or ``&`` cluster, or WHO unavailable, keeps the first stem.
+    """
+    if provenance_item is not None:
+        return icd11_primary_stem_of(value, provenance_item)
+    first = extract_icd_code(value, "icd11")
+    expression = extract_icd11_code_expression(value)
+    if first is None or expression is None or "/" not in expression:
+        return first
+    from app.services.who_icd_api import WhoIcdApiUnavailable, get_icd11_codeinfo
+
+    try:
+        codeinfo = get_icd11_codeinfo(expression, release=DEFAULT_ICD11_RELEASE)
+    except WhoIcdApiUnavailable:
+        return first
+    if not isinstance(codeinfo, dict) or codeinfo.get("code") != expression:
+        return first
+    return icd11_primary_stem(codeinfo, first)
+
+
+def find_va_definition_for_icd(
+    value: str | None,
+    classification: str | None = None,
+    provenance_item: dict | None = None,
+) -> dict | None:
     """Active VA cause definition for an ICD code, or None.
 
     ``value`` may be a bare code or a stored coding value ("A04.0-Other
@@ -273,7 +307,9 @@ def find_va_definition_for_icd(value: str | None, classification: str | None = N
     and ICD-11 code shapes do not overlap). The code, then its ancestors, is
     looked up in the classification's scheme in VA_DEFINITION_SCHEMES; a
     bucket node ``vas_01_02`` is VA cause ``VAs-01.02``. Nodes that are not
-    ``vas_*`` causes have no definition.
+    ``vas_*`` causes have no definition. An ICD-11 value is looked up by its
+    primary stem (``_icd11_lookup_stem``): ``provenance_item`` is a saved
+    value's ``icd11_provenance`` entry, when the caller has it.
     """
     classifications = [classification] if classification else list(ICD_CLASSIFICATIONS)
     for cls in classifications:
@@ -282,6 +318,8 @@ def find_va_definition_for_icd(value: str | None, classification: str | None = N
             break
     else:
         return None
+    if cls == "icd11":
+        code = _icd11_lookup_stem(value, provenance_item)
 
     candidates = _icd_candidates(code, cls)
     va_code_expr = sa.literal("VAs-") + sa.func.replace(sa.func.substr(MasCodBucketNode.node_code, 5), "_", ".")

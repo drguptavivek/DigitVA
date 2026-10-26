@@ -276,6 +276,34 @@ class ReviewingApiPhase3bTests(BaseTestCase):
             400, "invalid_cod",
         )
 
+    def test_final_icd11_confirmation_flags_are_typed_and_age_refusal_carries_its_restriction(self):
+        """digitva-oh7j / digitva-xmpx request fields on the reviewer final."""
+        from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
+
+        self._mode(masked=False)
+        sid = self._case(WORKFLOW_REVIEWER_CODING_IN_PROGRESS)
+        self._allocate(self.reviewer, sid, state=None)
+        self._as(self.reviewer)
+        body = {"conclusive_cod": "R99", "immediate_cod": "R99"}
+        for name in ("age_restriction_confirmed", "causing_condition_unknown"):
+            for value in ("true", 1, None):
+                self._flat(
+                    self._post(f"{_API}/finalize/{sid}", json={**body, name: value}),
+                    400, "invalid_request",
+                )
+        restriction = AgeRestrictionConfirmationRequired("KB2C", "neonate_infant", "Perinatal")
+        with patch(_VALIDATE, side_effect=restriction), patch(_PROVENANCE, return_value={}):
+            refused = self._flat(self._post(f"{_API}/finalize/{sid}", json=body), 422,
+                                 "AGE_RESTRICTION_CONFIRMATION_REQUIRED")
+            self.assertEqual(
+                refused["age_restriction"],
+                {"code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": "Perinatal"},
+            )
+        self._flat(
+            self._post(f"{_API}/finalize/{sid}", json={**body, "causing_condition_unknown": True}),
+            422, "INVALID_CAUSING_CONDITION_FLAG",
+        )
+
     def test_a_final_without_the_required_social_autopsy_is_final_blocked(self):
         self._mode(masked=False, social=True)
         sid = self._case(WORKFLOW_REVIEWER_CODING_IN_PROGRESS)

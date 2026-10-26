@@ -10,6 +10,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasIcd11Mms,
     MasIcd1020192,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -43,6 +44,7 @@ from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
     start_recode_episode,
 )
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -58,6 +60,28 @@ _CERT = {"ICDVersion": "ICD11", "Part1": [{"Conditions": [{"Text": "TB", "Code":
 _DORIS = {"status": "completed", "result": {"code": "1B10.Z"}}
 _CODEDIT = {"status": "completed", "result": {"issueIds": ""}}
 _ODK_OK = SimpleNamespace(success=True, review_state="hasIssues", error_message=None)
+_KB2C_WARNING = "Plausibility between the age and UCOD (KB2C) should be checked."
+
+
+def _icd11_row(code, *, sex="both", age="all", note=None):
+    return MasIcd11Mms(
+        release=DEFAULT_ICD11_RELEASE,
+        linearization_uri=f"http://id.who.int/icd/release/11/mms/xl43-{code}",
+        code=code, title=f"Test {code}", class_kind="category",
+        is_coding_selectable=True, sex_selectable=sex, age_group_selectable=age,
+        restriction_note=note, source_version="test",
+    )
+
+
+def _who_codeinfo(expression, release):
+    """WHO codeinfo stub matching ``_icd11_row`` URIs; no causing condition."""
+    stem = expression.split("&")[0].split("/")[0]
+    return {
+        "@id": f"http://id.who.int/icd/release/11/{release}/mms/codeinfo/{expression}",
+        "code": expression,
+        "stemCode": stem,
+        "stemId": f"http://id.who.int/icd/release/11/{release}/mms/xl43-{stem}",
+    }
 
 
 class TestCoderCodService(BaseTestCase):
@@ -549,3 +573,107 @@ class TestCoderCodService(BaseTestCase):
         self.assertTrue(review.is_tester)
         self.assertEqual(review.va_creview_status, VaStatuses.deactive)
         self.assertEqual(self._state(sid), WORKFLOW_READY_FOR_CODING)
+
+    # -- ICD-11 final confirmations (digitva-oh7j, digitva-xmpx) ----------
+
+    def _icd11_step2(self):
+        """Masked DORIS Step 2 with catalogue rows for a man of 60."""
+        self._mode(masked=True, doris=True)
+        db.session.add_all([
+            _icd11_row("KB2C", age="neonate_infant", note="Perinatal: neonate or infant"),
+            _icd11_row("JA00", sex="female"),
+            _icd11_row("1B10.Z"),
+        ])
+        db.session.flush()
+        codeinfo = mock.patch("app.services.who_icd_api.get_icd11_codeinfo", side_effect=_who_codeinfo)
+        codeinfo.start()
+        self.addCleanup(codeinfo.stop)
+
+    def _step1_case(self):
+        self._icd11_step2()
+        sid = self._case(state=WORKFLOW_CODER_STEP1_SAVED)
+        db.session.add(VaInitialAssessments(
+            va_sid=sid, va_iniassess_by=self.coder.user_id, va_immediate_cod="1B10.Z TB",
+            va_antecedent_cod="1B10.Z TB", va_iniassess_status=VaStatuses.active,
+            doris_result={"status": "completed", "result": {"code": "KB2C", "warning": _KB2C_WARNING}},
+        ))
+        db.session.commit()
+        return sid
+
+    def _final11(self, sid, cod, **kwargs):
+        return submit_coder_final_cod(self.coder, sid, conclusive_cod=cod, actiontype="", **kwargs)
+
+    def test_age_conflict_needs_confirmation_then_is_recorded(self):
+        sid = self._step1_case()
+        error = self._refused(
+            lambda: self._final11(sid, "KB2C Test"), 422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED")
+        self.assertEqual(error.details, {"age_restriction": {
+            "code": "KB2C", "age_group_selectable": "neonate_infant",
+            "restriction_note": "Perinatal: neonate or infant"}})
+        self.assertEqual(db.session.scalars(sa.select(VaFinalAssessments).where(
+            VaFinalAssessments.va_sid == sid)).all(), [])
+
+        final = self._final11(sid, "KB2C Test", age_restriction_confirmed=True).assessment
+        confirmation = final.icd11_provenance["conclusive"]["age_restriction_confirmation"]
+        self.assertEqual(confirmation["confirmed_by"], str(self.coder.user_id))
+        self.assertEqual(confirmation["code"], "KB2C")
+        self.assertEqual(confirmation["age_group_selectable"], "neonate_infant")
+        self.assertEqual(confirmation["restriction_note"], "Perinatal: neonate or infant")
+        self.assertEqual(confirmation["doris_warning"], _KB2C_WARNING)
+        self.assertEqual(final.icd11_provenance["conclusive"]["primary_stem"], "KB2C")
+        self.assertEqual(self._state(sid), WORKFLOW_CODER_FINALIZED)
+
+    def test_sex_conflict_is_refused_even_when_confirmed(self):
+        sid = self._step1_case()
+        error = self._refused(
+            lambda: self._final11(sid, "JA00 Test", age_restriction_confirmed=True),
+            422, "final_blocked")
+        self.assertEqual(error.messages, ["JA00 is not selectable for this submission."])
+
+    def test_unrestricted_code_records_no_confirmation(self):
+        sid = self._step1_case()
+        final = self._final11(sid, "1B10.Z TB", age_restriction_confirmed=True).assessment
+        self.assertNotIn("age_restriction_confirmation", final.icd11_provenance["conclusive"])
+        self.assertNotIn("causing_condition_unknown", final.icd11_provenance["conclusive"])
+
+    def test_causing_condition_unknown_is_recorded_on_a_single_stem_only(self):
+        sid = self._step1_case()
+        self._refused(
+            lambda: self._final11(sid, "1B10.Z/KB2C Test", causing_condition_unknown=True),
+            422, "INVALID_CAUSING_CONDITION_FLAG")
+        final = self._final11(sid, "1B10.Z TB", causing_condition_unknown=True).assessment
+        self.assertIs(final.icd11_provenance["conclusive"]["causing_condition_unknown"], True)
+
+    # -- ICD-11 Step 1 underlying cause (digitva-oh7j, owner 2026-10-27) ----
+
+    @mock.patch("app.services.reviewer_coding_service.verify_process_submission")
+    def test_masked_doris_step1_age_conflict_needs_confirmation_then_is_recorded(self, verify):
+        self._icd11_step2()
+        self.app.config["DORIS_WHO_IMAGE_DIGEST"] = "sha256:pinned"
+        doris = {"status": "completed", "result": {"code": "KB2C", "warning": _KB2C_WARNING}}
+        verify.return_value = {"certificate": _CERT, "doris": doris, "codedit": _CODEDIT}
+        sid = self._case()
+
+        def step1(cod, **kwargs):
+            return submit_coder_initial_cod(
+                self.coder, sid, antecedent_cod=cod, doris_certificate=_CERT,
+                doris_result=doris, codedit_result=_CODEDIT, doris_process_token="t",
+                doris_result_digest="d", actiontype="", **kwargs)
+
+        error = self._refused(lambda: step1("KB2C Test"), 422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED")
+        self.assertEqual(error.details, {"age_restriction": {
+            "code": "KB2C", "age_group_selectable": "neonate_infant",
+            "restriction_note": "Perinatal: neonate or infant"}})
+        self.assertEqual(self._state(sid), WORKFLOW_CODING_IN_PROGRESS)
+        # Sex still blocks, confirmed or not.
+        self._refused(lambda: step1("JA00 Test", age_restriction_confirmed=True), 400, "invalid_cod")
+
+        row = step1("KB2C Test", age_restriction_confirmed=True).assessment
+        item = row.icd11_provenance["antecedent"]
+        self.assertEqual(item["age_restriction_confirmation"]["confirmed_by"], str(self.coder.user_id))
+        self.assertEqual(item["age_restriction_confirmation"]["code"], "KB2C")
+        self.assertEqual(item["age_restriction_confirmation"]["doris_warning"], _KB2C_WARNING)
+        self.assertEqual(self._state(sid), WORKFLOW_CODER_STEP1_SAVED)
+        # An unrestricted pick records nothing.
+        row = step1("1B10.Z TB", age_restriction_confirmed=True).assessment
+        self.assertNotIn("age_restriction_confirmation", row.icd11_provenance["antecedent"])

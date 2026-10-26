@@ -215,7 +215,8 @@ required axes are satisfied. This follows WHO's DORIS web tool; no owner
 decision records it, and WHO's Reference Guide (2.7.2.1, 2.21.4) allows the
 stem alone when the aetiology is unknown. Owner decision 2026-10-26:
 follow WHO with an explicit "causing condition not known" choice
-(`digitva-xmpx`, not yet implemented). Each axis offers a search limited to its
+(`digitva-xmpx`); the choice is recorded as
+`causing_condition_unknown` in the final's provenance. Each axis offers a search limited to its
 subtree; the last section, "Other postcoordination?", searches the
 extension chapter and only accepts a code that WHO `codeinfo` resolves
 together with the stem. The UI assembles X extension codes with `&`

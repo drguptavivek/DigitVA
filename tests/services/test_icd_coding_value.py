@@ -6,6 +6,7 @@ Run (inside Docker):
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import patch
+from urllib.parse import quote
 
 import sqlalchemy as sa
 
@@ -22,15 +23,20 @@ from app.models import (
     VaSubmissions,
 )
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
+from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
     ICD_CLASSIFICATIONS,
     PROJECT_ICD_CLASSIFICATIONS,
+    InvalidCausingConditionFlag,
     build_icd11_provenance_for_values,
+    check_causing_condition_unknown,
     classification_of_value,
     extract_icd11_code_expression,
     extract_icd_code,
     get_icd_classification_for_submission,
     has_icd11_cluster_marker,
+    icd11_primary_stem_of,
+    record_final_cod_flags,
     validate_coding_value_for_submission,
 )
 from tests.base import BaseTestCase
@@ -583,4 +589,202 @@ class TestValidateCodingValueThreeCharacterTransport(TestGetIcdClassificationFor
                 self.SID, "V89.2 Person injured in unspecified traffic accident"
             ),
             "icd10",
+        )
+
+
+def _row_uri(code: str) -> str:
+    return f"http://id.who.int/icd/release/11/mms/test-{code}"
+
+
+def _codeinfo(causing=None):
+    """A WHO codeinfo stub for any expression; ``causing`` is hasCausingCondition."""
+
+    def codeinfo(expression, release):
+        stem = extract_icd_code(expression, "icd11")
+        payload = {
+            "@id": f"http://id.who.int/icd/release/11/{release}/mms/codeinfo/"
+            f"{quote(expression, safe='')}",
+            "code": expression,
+            "stemCode": stem,
+            "stemId": f"http://id.who.int/icd/release/11/{release}/mms/test-{stem}",
+        }
+        if causing is not None:
+            payload["hasCausingCondition"] = causing
+        return payload
+
+    return codeinfo
+
+
+class TestIcd11FinalCodPolicy(TestGetIcdClassificationForSubmission):
+    """Primary stem (digitva-443q), sex blocks / age warns (digitva-oh7j) and
+    causing condition not known (digitva-xmpx). The submission is a female
+    adult; each test sets the project to ICD-11 (the inherited ones need
+    the default)."""
+
+    def setUp(self):
+        super().setUp()
+        for code, sex, age, note in (
+            ("KB2C", "both", "neonate_infant", "Perinatal: neonate or infant"),
+            ("2F9Z", "both", "all", None),
+            ("FB80.B", "male", "all", None),
+            ("MB23", "male", "all", None),
+            ("1G40.0", "both", "all", None),
+        ):
+            db.session.merge(
+                MasIcd11Mms(
+                    release=DEFAULT_ICD11_RELEASE,
+                    linearization_uri=_row_uri(code),
+                    code=code,
+                    title=f"Test {code}",
+                    class_kind="category",
+                    is_coding_selectable=True,
+                    sex_selectable=sex,
+                    age_group_selectable=age,
+                    restriction_note=note,
+                    source_version="test",
+                )
+            )
+        db.session.flush()
+
+    def test_age_conflict_raises_the_confirmation_error_a_value_error(self):
+        self._set_project("icd11")
+        with self.assertRaises(AgeRestrictionConfirmationRequired) as caught:
+            validate_coding_value_for_submission(self.SID, "KB2C Test")
+        # Callers that do not opt in keep today's refusal and message.
+        self.assertIsInstance(caught.exception, ValueError)
+        self.assertEqual(str(caught.exception), "KB2C is not selectable for this submission.")
+        self.assertEqual(
+            caught.exception.details(),
+            {
+                "code": "KB2C",
+                "age_group_selectable": "neonate_infant",
+                "restriction_note": "Perinatal: neonate or infant",
+            },
+        )
+
+    def test_sex_conflict_is_a_plain_refusal(self):
+        self._set_project("icd11")
+        self.assertEqual(validate_coding_value_for_submission(self.SID, "2F9Z Test"), "icd11")
+        with self.assertRaisesRegex(ValueError, "MB23 is not selectable") as caught:
+            validate_coding_value_for_submission(self.SID, "MB23 Test")
+        self.assertNotIsInstance(caught.exception, AgeRestrictionConfirmationRequired)
+
+    def test_policy_checks_the_who_causing_condition_of_a_slash_cluster(self):
+        self._set_project("icd11")
+        # FB80.B is male only; the female death is coded to its cause 2F9Z.
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo", side_effect=_codeinfo(["2F9Z"])
+        ):
+            validate_coding_value_for_submission(self.SID, "FB80.B/2F9Z Test")
+            provenance = build_icd11_provenance_for_values(
+                self.SID, {"conclusive": "FB80.B/2F9Z Test"}
+            )
+        self.assertEqual(provenance["conclusive"]["code"], "FB80.B/2F9Z")
+        self.assertEqual(provenance["conclusive"]["primary_stem"], "2F9Z")
+        # Without a causing condition the first stem still decides.
+        with patch("app.services.who_icd_api.get_icd11_codeinfo", side_effect=_codeinfo()):
+            with self.assertRaisesRegex(ValueError, "FB80.B is not selectable"):
+                validate_coding_value_for_submission(self.SID, "FB80.B/2F9Z Test")
+
+    def test_plain_code_and_extension_keep_the_first_stem(self):
+        self._set_project("icd11")
+        with patch(
+            "app.services.who_icd_api.get_icd11_codeinfo", side_effect=_codeinfo()
+        ) as codeinfo:
+            validate_coding_value_for_submission(self.SID, "1G40.0&XN8Q Test")
+            provenance = build_icd11_provenance_for_values(
+                self.SID, {"conclusive": "1G40.0&XN8Q Test", "immediate": "2F9Z Test"}
+            )
+        self.assertEqual(provenance["conclusive"]["primary_stem"], "1G40.0")
+        self.assertEqual(provenance["immediate"]["primary_stem"], "2F9Z")
+        # Validation calls codeinfo for the cluster only; provenance once per value.
+        self.assertEqual(codeinfo.call_count, 3)
+
+    def test_causing_condition_unknown_needs_one_icd11_stem(self):
+        for value in ("2F9Z Test", "1G40.0&XN8Q Test"):
+            with self.subTest(value=value):
+                self.assertIsNone(check_causing_condition_unknown(value))
+        for value in ("FB80.B/2F9Z Test", "I24 Other acute ischaemic heart diseases", "", None):
+            with self.subTest(value=value), self.assertRaises(InvalidCausingConditionFlag):
+                check_causing_condition_unknown(value)
+
+    def test_record_final_cod_flags_writes_the_named_field_only(self):
+        """A masked Step 1 records its confirmation on ``antecedent``."""
+        provenance = record_final_cod_flags(
+            {"antecedent": {"code": "KB2C"}},
+            age_restriction={"code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": None},
+            causing_condition_unknown=False,
+            confirmed_by="user-1",
+            doris_result=None,
+            field="antecedent",
+        )
+        self.assertEqual(set(provenance), {"antecedent"})
+        self.assertEqual(provenance["antecedent"]["age_restriction_confirmation"]["code"], "KB2C")
+        self.assertNotIn("causing_condition_unknown", provenance["antecedent"])
+
+    def test_icd11_primary_stem_of_prefers_the_recorded_stem(self):
+        """digitva-443q; the Python twin of ``icd11_primary_stem_sql``."""
+        cases = (
+            ("FB80.B/2F9Z Test", {"primary_stem": "2F9Z"}, "2F9Z"),
+            ("FB80.B/2F9Z Test", {"primary_stem": "2f9z"}, "2F9Z"),
+            ("FB80.B/2F9Z Test", None, "FB80.B"),
+            ("FB80.B/2F9Z Test", {"code": "FB80.B/2F9Z"}, "FB80.B"),
+            ("FB80.B/2F9Z Test", {"primary_stem": "not a code"}, "FB80.B"),
+            ("FB80.B/2F9Z Test", {"primary_stem": 7}, "FB80.B"),
+            ("1G40 Sepsis", {"primary_stem": "1G40"}, "1G40"),
+            ("I24 Other acute ischaemic heart diseases", None, None),
+            ("", None, None),
+            (None, None, None),
+        )
+        for value, item, expected in cases:
+            with self.subTest(value=value, item=item):
+                self.assertEqual(icd11_primary_stem_of(value, item), expected)
+
+    def test_record_final_cod_flags_keeps_a_doris_warning_for_this_code_only(self):
+        restriction = {
+            "code": "KB2C",
+            "age_group_selectable": "neonate_infant",
+            "restriction_note": "Perinatal: neonate or infant",
+        }
+        warning = "Plausibility between the age and UCOD (KB2C) should be checked."
+        for doris, expected in (
+            ({"status": "completed", "result": {"code": "KB2C", "warning": warning}}, warning),
+            ({"status": "completed", "result": {"code": "1B10", "warning": "UCOD (1B10)"}}, None),
+            (None, None),
+        ):
+            with self.subTest(expected=expected):
+                provenance = record_final_cod_flags(
+                    {"conclusive": {"code": "KB2C"}},
+                    age_restriction=restriction,
+                    causing_condition_unknown=True,
+                    confirmed_by="user-1",
+                    doris_result=doris,
+                )
+                item = provenance["conclusive"]
+                self.assertIs(item["causing_condition_unknown"], True)
+                confirmation = item["age_restriction_confirmation"]
+                self.assertEqual(confirmation["confirmed_by"], "user-1")
+                self.assertEqual(confirmation["code"], "KB2C")
+                self.assertEqual(confirmation["age_group_selectable"], "neonate_infant")
+                self.assertEqual(confirmation["doris_warning"], expected)
+                self.assertTrue(confirmation["confirmed_at"].endswith("+00:00"))
+        # No flags: the item is untouched; ICD-10 (no provenance) stays None.
+        self.assertEqual(
+            record_final_cod_flags(
+                {"conclusive": {"code": "2F9Z"}},
+                age_restriction=None,
+                causing_condition_unknown=False,
+                confirmed_by="user-1",
+                doris_result=None,
+            ),
+            {"conclusive": {"code": "2F9Z"}},
+        )
+        self.assertIsNone(
+            record_final_cod_flags(
+                None,
+                age_restriction=None,
+                causing_condition_unknown=False,
+                confirmed_by="user-1",
+                doris_result=None,
+            )
         )

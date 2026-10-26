@@ -302,16 +302,34 @@ class TestCodingSearchDemoApi(BaseTestCase):
                 is_active=True,
             )
         )
+        db.session.add(
+            MasIcd11Mms(
+                release="2026-01",
+                linearization_uri="lin:GA00",
+                code="GA00",
+                title="Female zebra condition",
+                class_kind="category",
+                sort_order=3,
+                is_coding_selectable=True,
+                sex_selectable="female",
+                age_group_selectable="all",
+                source_version="ICD-11-MMS-2026-01",
+                is_active=True,
+            )
+        )
         db.session.commit()
 
         response = self.client.get(
             f"{self.URL}?classification=icd11&q=zebra&age_group=child&sex=male&explain=1"
         )
 
+        # ICD-11: an age restriction marks the code, a sex restriction hides it
+        # (owner decision 2026-10-26, digitva-oh7j).
         body = response.get_json()
-        self.assertEqual(body["results"], [])
-        self.assertEqual(body["excluded"]["examples"][0]["code"], "KA00")
-        self.assertEqual(body["excluded"]["examples"][0]["reason"], "neonate only")
+        self.assertEqual([row["icd_code"] for row in body["results"]], ["KA00"])
+        self.assertTrue(body["results"][0]["age_restricted"])
+        self.assertEqual(body["excluded"]["examples"][0]["code"], "GA00")
+        self.assertIn("female", body["excluded"]["examples"][0]["reason"])
 
     def test_without_explain_the_response_is_still_a_bare_list(self):
         self._login(self.base_coder_id)

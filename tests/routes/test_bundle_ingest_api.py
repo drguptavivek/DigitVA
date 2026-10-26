@@ -887,6 +887,25 @@ class BundleIngestApiTests(BaseTestCase):
         self.assertEqual((audit.changes["record_type"], audit.changes["acting_role"]), ("coding_result", "coder"))
         self.assertEqual(audit.actor_user_id, self.coder.user_id)
 
+    def test_an_age_conflict_from_a_station_is_still_final_blocked(self):
+        """A station cannot confirm an ICD-11 age conflict (digitva-oh7j): it
+        keeps the rejection code the final save gave before age warned."""
+        from app.services import coder_cod_service
+        from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
+
+        self._project_mode("unmasked_simple")
+        interview, draft = self._interviewed_case()
+        self._ready(draft.va_sid)
+        coding = self._station_coding(interview, "icd10")
+        with mock.patch.object(
+            coder_cod_service, "validate_coding_value_for_submission",
+            side_effect=AgeRestrictionConfirmationRequired("KB2C", "neonate_infant", None),
+        ):
+            records = self._by_id(self._post(self._bundle([coding], bundle_seq=2)))
+        self.assertEqual(
+            (records[coding["client_id"]]["outcome"], records[coding["client_id"]]["code"]),
+            ("rejected", "final_blocked"), records)
+
     def test_coding_needs_an_active_station_and_the_coded_version(self):
         from app.models import VaBundlePendingCoding
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { AppState as NativeAppState, Text, View } from "react-native";
 
 import { ApiError } from "../../api";
+import { ConfirmDialog } from "../../ConfirmDialog";
 import { t as tr } from "../../i18n";
 import { errorText } from "../../ui";
 import type { JsonRequester, WorkspaceApi } from "../api";
@@ -26,7 +27,7 @@ type CertificateState = {
   certificate: JsonObject;
   revision: number;
   processing: DorisProcessReply | null;
-  selectedCause: { code: string; title: string; uri: string } | null;
+  selectedCause: PickerChoice | null;
   error: string;
   notice: string;
   busy: boolean;
@@ -194,6 +195,11 @@ function processCertificate(certificate: JsonObject): JsonObject {
   return result;
 }
 
+/** Optional final-save flags: the picker's causing-condition-unknown choice and the coder's age-restriction confirmation. */
+function finalFlags(cause: PickerChoice, ageConfirmed: boolean): JsonObject {
+  return { ...(cause.causingConditionUnknown ? { causing_condition_unknown: true } : {}), ...(ageConfirmed ? { age_restriction_confirmed: true } : {}) };
+}
+
 function makeSaveError(error: unknown): string {
   if (!(error instanceof ApiError) || !error.payload) return errorText(error);
   const body = error.payload;
@@ -212,6 +218,14 @@ function makeSaveError(error: unknown): string {
 }
 
 /** Allocation-scoped editor; only whitelisted COD fields survive a web reload. Processing proof stays in memory. */
+// The policy's age-group values, in words for the confirmation dialog.
+const AGE_GROUP_KEYS = { neonate: "ageGroup_neonate", infant: "ageGroup_infant", neonate_infant: "ageGroup_neonate_infant", child: "ageGroup_child", adult: "ageGroup_adult" } as const;
+type AgeGroupKey = (typeof AGE_GROUP_KEYS)[keyof typeof AGE_GROUP_KEYS];
+function ageGroupLabel(group: string, tr: (key: AgeGroupKey) => string): string {
+  const key = (AGE_GROUP_KEYS as Record<string, AgeGroupKey | undefined>)[group];
+  return key ? tr(key) : group || "certain age groups";
+}
+
 export function DorisPanel({
   workspace,
   identity,
@@ -232,6 +246,8 @@ export function DorisPanel({
   const [notCodeableReason, setNotCodeableReason] = useState("");
   const [notCodeableOther, setNotCodeableOther] = useState("");
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
+  // Set when the server asks the coder to confirm an age-restricted final code; `masked` picks the save path to resend.
+  const [ageConfirm, setAgeConfirm] = useState<{ code: string; group: string; note: string; masked: boolean } | null>(null);
   const { mode: colorMode, colors } = useTheme();
   const state = sameOwner(stored.owner, owner) ? stored : initialState(owner, workspace);
   const stateRef = useRef(state);
@@ -412,7 +428,7 @@ export function DorisPanel({
     }
   };
 
-  const save = async () => {
+  const save = async (ageConfirmed = false) => {
     const requestId = ++generation.current;
     const sentRevision = revision;
     const processing = state.processing;
@@ -433,6 +449,7 @@ export function DorisPanel({
       if (isInitial) {
         await api.saveInitial(identity.vaSid, {
           antecedent_cod: state.selectedCause.code,
+          ...(ageConfirmed ? { age_restriction_confirmed: true } : {}),
           ...dorisFields,
         }, identity.mode === "reviewing" ? "reviewing" : "coding");
         if (!currentRequest(requestId, sentRevision)) return;
@@ -440,7 +457,7 @@ export function DorisPanel({
         clearCodDraft(draftContext(workspace, identity));
         await onSaved();
       } else {
-        const body: JsonObject = { conclusive_cod: state.selectedCause.code, remark: state.remark };
+        const body: JsonObject = { conclusive_cod: state.selectedCause.code, remark: state.remark, ...finalFlags(state.selectedCause, ageConfirmed) };
         Object.assign(body, dorisFields);
         await api.saveFinal(identity.vaSid, body, identity.mode === "reviewing" ? "reviewing" : "coding");
         if (!currentRequest(requestId, sentRevision)) return;
@@ -454,6 +471,7 @@ export function DorisPanel({
         clearAllocation();
         return;
       }
+      if (askAgeConfirmation(saveError, state.selectedCause.code, false)) return;
       if (saveError instanceof ApiError && saveError.status === 409 && saveError.code === "DORIS_CERTIFICATE_CHANGED" && saveError.payload?.processing) {
         try {
           const fresh = parseDorisProcess(saveError.payload.processing);
@@ -494,7 +512,7 @@ export function DorisPanel({
     update((current) => ({ ...current, remark: value, busy: false }));
   };
 
-  const chooseFinalCause = (choice: { code: string; title: string; uri: string } | null) => {
+  const chooseFinalCause = (choice: PickerChoice | null) => {
     generation.current += 1;
     update((current) => ({ ...current, selectedCause: choice, busy: false, error: "", notice: choice ? "Final underlying cause selected independently from the DORIS result." : "" }));
   };
@@ -546,6 +564,26 @@ export function DorisPanel({
     }
     if (currentRequest(requestId, sentRevision)) update((current) => ({ ...current, error: "WHO ICD-11 did not confirm that code. Search for the cause instead." }));
   };
+
+  // The server refuses an age-restricted Step 1 or final code until the coder confirms it; a sex mismatch has no such code and stays an error.
+  const askAgeConfirmation = (saveError: unknown, code: string, masked: boolean): boolean => {
+    if (!(saveError instanceof ApiError) || saveError.status !== 422 || saveError.code !== "AGE_RESTRICTION_CONFIRMATION_REQUIRED") return false;
+    // The ICD details are nested under age_restriction; the top-level code is the error code.
+    const body = isRecord(saveError.payload?.age_restriction) ? saveError.payload.age_restriction : {};
+    update((current) => ({ ...current, busy: false }));
+    setAgeConfirm({ code: typeof body.code === "string" && body.code ? body.code : code, group: typeof body.age_group_selectable === "string" ? body.age_group_selectable : "", note: typeof body.restriction_note === "string" ? body.restriction_note : "", masked });
+    return true;
+  };
+
+  const ageDialog = ageConfirm ? (
+    <ConfirmDialog
+      title={tr("ageRestrictionTitle")}
+      message={[tr("ageRestrictionMessage", { code: ageConfirm.code, group: ageGroupLabel(ageConfirm.group, tr) }), ageConfirm.note].filter(Boolean).join("\n\n")}
+      confirmLabel={tr("ageRestrictionConfirm")}
+      onCancel={() => setAgeConfirm(null)}
+      onConfirm={() => { const { masked } = ageConfirm; setAgeConfirm(null); void (masked ? saveMaskedFinal(true) : save(true)); }}
+    />
+  ) : null;
 
   const loseAllocation = () => { setPickerTarget(null); clearAllocation(); };
 
@@ -603,6 +641,7 @@ export function DorisPanel({
         <Separator testID="doris-actions-separator" />
         {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
         {picker(ownFinal?.conclusive_cod ?? "")}
+        {ageDialog}
         {detailSheet}
         <FieldHint testID="icd11-citation">{tr("icd11Citation")}</FieldHint>
       </Card>
@@ -617,13 +656,13 @@ export function DorisPanel({
   const processing = state.processing;
   const ownFinal = identity.mode === "reviewing" ? workspace.assessments.reviewer_final : workspace.assessments.final;
 
-  async function saveMaskedFinal() {
+  async function saveMaskedFinal(ageConfirmed = false) {
     const requestId = ++generation.current;
     const sentRevision = revision;
     if (!state.selectedCause) return;
     update((current) => ({ ...current, busy: true, error: "" }));
     try {
-      await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code, remark: state.remark }, identity.mode === "reviewing" ? "reviewing" : "coding");
+      await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code, remark: state.remark, ...finalFlags(state.selectedCause, ageConfirmed) }, identity.mode === "reviewing" ? "reviewing" : "coding");
       if (!currentRequest(requestId, sentRevision)) return;
       forgetDraft(owner);
       clearCaseBrowserDraft(draftContext(workspace, identity));
@@ -632,6 +671,8 @@ export function DorisPanel({
       if (!currentRequest(requestId, sentRevision)) return;
       if (saveError instanceof ApiError && saveError.status === 403) {
         clearAllocation();
+      } else if (askAgeConfirmation(saveError, state.selectedCause.code, true)) {
+        return;
       } else {
         const message = makeSaveError(saveError);
         if (saveError instanceof ApiError && (saveError.status === 422 || saveError.code === "final_blocked")) {
@@ -676,6 +717,7 @@ export function DorisPanel({
       <Button label="Reset DORIS from interview" variant="secondary" disabled={state.busy} onPress={resetCertificate} />
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
       <Button label={isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />
+      {ageDialog}
       <Separator testID="doris-actions-separator" />
       {identity.mode === "coding" ? <NotCodeableAction reason={notCodeableReason} other={notCodeableOther} busy={state.busy} onReason={setNotCodeableReason} onOther={setNotCodeableOther} onSubmit={() => void reportNotCodeable()} /> : null}
       {picker(isInitial ? codeFromResult(processingResult(processing, "doris")) : ownFinal?.conclusive_cod ?? "")}

@@ -1225,7 +1225,14 @@ def _apply_coding(actor: VaUsers, va_sid: str, record: dict, project: VaProjectM
             fields.update(immediate_cod=final.get("immediate_cod"), other_conditions=final.get("other_conditions"))
         else:
             fields.update(_station_doris_fields(actor, va_sid, final))
-        coder_cod.submit_coder_final_cod(actor, va_sid, **fields)
+        try:
+            coder_cod.submit_coder_final_cod(actor, va_sid, **fields)
+        except coder_cod.CoderCodingError as exc:
+            # A station cannot confirm an ICD-11 age conflict: refuse it
+            # final_blocked, as before age warned (station contract, digitva-oh7j).
+            if exc.code != "AGE_RESTRICTION_CONFIRMATION_REQUIRED":
+                raise
+            raise coder_cod.CoderCodingError(exc.message, 422, code="final_blocked") from exc
     except Exception:
         db.session.rollback()
         try:

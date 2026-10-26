@@ -268,6 +268,56 @@ window.confirmDialog = (function () {
   };
 })();
 
+// An age-only ICD-11 restriction refuses the COD save with a 422 JSON body
+// {code: "AGE_RESTRICTION_CONFIRMATION_REQUIRED", age_restriction: {code, age_group_selectable,
+// restriction_note}}. htmx does not swap 4xx, so ask here and resubmit the same form once with
+// age_restriction_confirmed=true and the button that was pressed (some saves need its value);
+// both hidden fields go after that request, so a later code is asked about again.
+document.addEventListener("submit", function (event) {
+  if (event.target && event.target.tagName === "FORM") event.target._digitvaSubmitter = event.submitter || null;
+}, true);
+// Shared by fetch callers: returns false unless the response is the age-restriction 422; otherwise
+// asks the user, then calls retry() on "Save anyway" or onCancel() on cancel, and returns true.
+window.digitvaAgeRetry = function (status, data, retry, onCancel) {
+  if (status !== 422 || !data || data.code !== "AGE_RESTRICTION_CONFIRMATION_REQUIRED") return false;
+  var info = data.age_restriction || {};
+  var message = (info.code || "This code") + " is usually used only for " +
+    ({neonate: "neonates (under 28 days)", infant: "infants (28 days to under 1 year)", neonate_infant: "neonates and infants (under 1 year)", child: "children (1 to under 12 years)", adult: "adults (12 years and over)"}[info.age_group_selectable] || info.age_group_selectable || "certain age groups") + ". Save it anyway?" +
+    (info.restriction_note ? "\n\n" + info.restriction_note : "");
+  window.confirmDialog(message, { title: "Age restriction", okLabel: "Save anyway" }).then(function (ok) {
+    if (ok) retry(); else if (onCancel) onCancel();
+  });
+  return true;
+};
+document.addEventListener("htmx:responseError", function (event) {
+  var xhr = event.detail && event.detail.xhr;
+  var form = event.detail && event.detail.elt;
+  if (!xhr || xhr.status !== 422 || !form || form.tagName !== "FORM") return;
+  var body;
+  try { body = JSON.parse(xhr.responseText); } catch (e) { return; }
+  var submitter = form._digitvaSubmitter;
+  window.digitvaAgeRetry(xhr.status, body, function () {
+    if (!window.htmx) return;
+    var added = [];
+    function hidden(name, value) {
+      var input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      input.setAttribute("data-digitva-age-retry", "");
+      form.appendChild(input);
+      added.push(input);
+    }
+    hidden("age_restriction_confirmed", "true");
+    if (submitter && submitter.name) hidden(submitter.name, submitter.value || "");
+    form.addEventListener("htmx:afterRequest", function cleanup() {
+      form.removeEventListener("htmx:afterRequest", cleanup);
+      added.forEach(function (input) { input.remove(); });
+    });
+    window.htmx.trigger(form, "submit");
+  });
+});
+
 function initImageViewer() {
   const image = document.getElementById("zoomableImage");
   const brightnessSlider = document.getElementById("brightnessSlider");

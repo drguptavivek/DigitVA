@@ -32,9 +32,11 @@ def _error(
     *,
     code: str,
     processing: dict | None = None,
+    **extra,
 ):
-    """``{error, code}`` (plus ``processing`` on a changed DORIS certificate)."""
-    payload = {"error": message, "code": code}
+    """``{error, code}`` (plus ``processing`` on a changed DORIS certificate,
+    and any ``extra`` keys such as ``age_restriction``)."""
+    payload = {"error": message, "code": code, **extra}
     if processing is not None:
         payload["processing"] = processing
     return jsonify(payload), status_code
@@ -47,6 +49,7 @@ def _refusal(exc: ReviewerCodingError):
         exc.status_code,
         code=exc.code or "invalid_request",
         processing=exc.processing,
+        **exc.details,
     )
 
 
@@ -229,6 +232,10 @@ def finalize(va_sid):
     for name in ("conclusive_cod", "remark", "immediate_cod", "other_conditions"):
         if body.get(name) is not None and not isinstance(body[name], str):
             return _error(f"{name} must be text.", 400, code="invalid_request")
+    # Optional ICD-11 confirmations (digitva-oh7j, digitva-xmpx); absent is False.
+    for name in ("age_restriction_confirmed", "causing_condition_unknown"):
+        if not isinstance(body.get(name, False), bool):
+            return _error(f"{name} must be true or false.", 400, code="invalid_request")
     conclusive_cod = (body.get("conclusive_cod") or "").strip()
     remark = (body.get("remark") or "").strip() or None
     immediate_cod = (body.get("immediate_cod") or "").strip() or None
@@ -249,6 +256,8 @@ def finalize(va_sid):
             doris_process_token=body.get("doris_process_token"),
             doris_result_digest=body.get("doris_result_digest"),
             doris_client_revision=body.get("doris_client_revision", 0),
+            age_restriction_confirmed=body.get("age_restriction_confirmed", False),
+            causing_condition_unknown=body.get("causing_condition_unknown", False),
         )
     except ReviewerCodingError as exc:
         return _refusal(exc)
@@ -272,6 +281,10 @@ def finalize(va_sid):
 @bp.post("/initial/<va_sid>")
 @role_required("reviewer")
 def initial(va_sid):
+    """Save the reviewer's masked Step 1. The optional boolean
+    ``age_restriction_confirmed`` confirms an ICD-11 underlying cause that
+    fails only its age restriction; without it that is a 422
+    ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` carrying ``age_restriction``."""
     project = get_project_for_submission(va_sid)
     masked_doris = project is not None and project_mode(project) == "masked_doris"
     # Masked DORIS Step 1 carries the certificate and its envelopes.
@@ -285,6 +298,9 @@ def initial(va_sid):
     for name in ("immediate_cod", "antecedent_cod", "other_conditions"):
         if body.get(name) is not None and not isinstance(body[name], str):
             return _error(f"{name} must be text.", 400, code="invalid_request")
+    # Optional ICD-11 confirmation of the underlying cause (digitva-oh7j).
+    if not isinstance(body.get("age_restriction_confirmed", False), bool):
+        return _error("age_restriction_confirmed must be true or false.", 400, code="invalid_request")
     immediate_cod = (body.get("immediate_cod") or "").strip()
     antecedent_cod = (body.get("antecedent_cod") or "").strip()
     other_conditions = (body.get("other_conditions") or "").strip() or None
@@ -306,6 +322,7 @@ def initial(va_sid):
             doris_process_token=body.get("doris_process_token"),
             doris_result_digest=body.get("doris_result_digest"),
             doris_client_revision=body.get("doris_client_revision", 0),
+            age_restriction_confirmed=body.get("age_restriction_confirmed", False),
         )
     except ReviewerCodingError as exc:
         return _refusal(exc)

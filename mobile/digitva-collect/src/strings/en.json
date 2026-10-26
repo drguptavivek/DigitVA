@@ -1593,5 +1593,13 @@
   "offlineProfileSaved": "Saved {time}",
   "offlineProfileNeedName": "Enter a name.",
   "offlineProfileNeedCountry": "Enter a country.",
-  "offlineProfileNeedAge": "Enter a whole number for age, or leave it blank."
+  "offlineProfileNeedAge": "Enter a whole number for age, or leave it blank.",
+  "ageRestrictionTitle": "Age restriction",
+  "ageRestrictionMessage": "{code} is usually used only for {group}. WHO's DORIS treats this as a plausibility warning. Save it anyway?",
+  "ageRestrictionConfirm": "Save anyway",
+  "ageGroup_neonate": "neonates (under 28 days)",
+  "ageGroup_infant": "infants (28 days to under 1 year)",
+  "ageGroup_neonate_infant": "neonates and infants (under 1 year)",
+  "ageGroup_child": "children (1 to under 12 years)",
+  "ageGroup_adult": "adults (12 years and over)"
 }

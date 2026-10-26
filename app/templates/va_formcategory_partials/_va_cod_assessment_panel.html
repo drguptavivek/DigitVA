@@ -127,13 +127,19 @@
       {% endif %}
       if (!body.conclusive_cod{% if project_mode == 'unmasked_simple' %} || !body.immediate_cod{% endif %}) { error.textContent = 'Complete all required cause-of-death fields.'; return; }
       button.disabled = true; error.textContent = '';
+      var unknownField = form.querySelector('input[name="causing_condition_unknown"]');
+      if (unknownField && unknownField.value === 'true') body.causing_condition_unknown = true;
+      function send() {
       fetch(form.dataset.finalizeUrl, {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':form.dataset.csrf},body:JSON.stringify(body)})
         .then(function(response){return response.json().catch(function(){return {};}).then(function(data){return {ok:response.ok,status:response.status,data:data};});})
         .then(function(result){
+          if (window.digitvaAgeRetry(result.status, result.data, function(){ body.age_restriction_confirmed = true; send(); }, function(){ button.disabled = false; })) return;
           if (result.status === 409 && result.data.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
           if (!result.ok) throw new Error(result.data.error || 'Reviewer final assessment could not be saved.');
           window.location.href = form.dataset.dashboardUrl;
         }).catch(function(failure){button.disabled=button.dataset.dorisNeedsConfirmation === 'true';error.textContent=failure.message;});
+      }
+      send();
     });
   }());
   </script>
@@ -173,13 +179,17 @@
       } catch (_error) { error.textContent = 'Process the certificate before saving.'; return; }
       ['doris_process_token','doris_result_digest'].forEach(function (name) { body[name] = form.querySelector('[name="' + name + '"]').value; });
       button.disabled = true; error.textContent = '';
+      function send() {
       fetch(form.dataset.initialUrl, {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRFToken':form.dataset.csrf},body:JSON.stringify(body)})
         .then(function(response){return response.json().catch(function(){return {};}).then(function(data){return {ok:response.ok,status:response.status,data:data};});})
         .then(function(result){
+          if (window.digitvaAgeRetry(result.status, result.data, function(){ body.age_restriction_confirmed = true; send(); }, function(){ button.disabled = false; })) return;
           if (result.status === 409 && result.data.code === 'DORIS_CERTIFICATE_CHANGED' && result.data.processing) { var editor = form.querySelector('[data-doris-editor]'); if (editor && editor._installFreshDorisResults) editor._installFreshDorisResults(result.data.processing); button.dataset.dorisNeedsConfirmation = 'true'; throw new Error(result.data.error || 'The DORIS form changed. Review the fresh results and reconfirm.'); }
           if (!result.ok) throw new Error(result.data.error || 'Reviewer Step 1 could not be saved.');
           window.location.href = {{ url_for('reviewing.resume', section='vacodassessment')|tojson }};
         }).catch(function(failure){button.disabled=button.dataset.dorisNeedsConfirmation === 'true';error.textContent=failure.message;});
+      }
+      send();
     });
   }());
   </script>
@@ -493,6 +503,9 @@
           }
         }
         submitButton.disabled = true;
+        var unknownField = finalForm.querySelector('input[name="causing_condition_unknown"]');
+        if (unknownField && unknownField.value === 'true') body.causing_condition_unknown = true;
+        function send() {
         fetch(finalForm.dataset.finalizeUrl, {
           method: 'POST',
           headers: {
@@ -503,10 +516,11 @@
         })
           .then(function (response) {
             return response.json().then(function (data) {
-              return { ok: response.ok, data: data };
+              return { ok: response.ok, status: response.status, data: data };
             });
           })
           .then(function (result) {
+            if (window.digitvaAgeRetry(result.status, result.data, function () { body.age_restriction_confirmed = true; send(); }, function () { submitButton.disabled = false; })) return;
             if (!result.ok) {
               throw new Error(result.data.error || 'Reviewer final COD could not be saved.');
             }
@@ -519,6 +533,8 @@
               window.showAppToast(err.message, 'warning', { timeoutMs: 5000 });
             }
           });
+        }
+        send();
       });
     }());
   </script>

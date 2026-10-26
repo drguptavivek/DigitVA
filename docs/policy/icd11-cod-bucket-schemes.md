@@ -3,7 +3,7 @@ title: ICD-11 COD Bucket Schemes
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-27
 ---
 
 # ICD-11 COD Bucket Schemes
@@ -67,7 +67,11 @@ project lookup.
   chain. ICD-11 codes are not prefix-ordered the way ICD-10 codes are, so no
   string truncation.
 - A post-coordinated ICD-11 value (`1G40&XN...`, `1G40/...`) is bucketed by its
-  first stem; extension codes are ignored.
+  primary stem: the causing condition when WHO codeinfo reports
+  `hasCausingCondition` for the expression (`FB80.B/2F9Z` buckets as `2F9Z`),
+  otherwise the first stem; extension codes are ignored (owner 2026-10-26,
+  `digitva-443q`). A saved value records its primary stem in
+  `icd11_provenance`; a value saved before then falls back to the first stem.
 - **Selectability is separate from bucketing (owner, 2026-09-21).** What a
   coder may select is governed only by the classification's own policy:
   the ICD-10 policy (ICD-10 browser) for ICD-10 codes, the ICD-11 policy

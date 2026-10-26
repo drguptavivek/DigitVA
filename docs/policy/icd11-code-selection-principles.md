@@ -3,7 +3,7 @@ title: ICD-11 Code Selection Principles
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-27
 ---
 
 # ICD-11 Code Selection Principles
@@ -99,8 +99,7 @@ a finding, not a rule.
   WHO's required flag, modelled on WHO's DORIS web tool.
   **Owner decision 2026-10-26 (`digitva-xmpx`): follow WHO.** The picker will
   offer an explicit "causing condition not known" choice on a required axis,
-  which completes the stem alone; until that ships, the stem cannot be used
-  alone.
+  which completes the stem alone and is recorded with the final.
 - **Basis.** WHO: (W) RG 2.10 (table): the causing condition is "mandatory"
   for primary tabulation when known. RG 2.7.2.1: a "code also" category must
   be clustered with its aetiology. Optional detail is marked as additional
@@ -142,11 +141,13 @@ a finding, not a rule.
 - **Basis.** (W) RG 2.18.4 (Step M4), RG 2.19.3.24 (chapter 22 is not used
   as the underlying cause), RG 2.19.5.
   On the certificate a chapter 22 injury is reported as WHO intends
-  (principle 0), and DORIS applies Step M4. For the final underlying cause,
-  chapter 22 is not on the never-selectable list (D, owner 2026-09-27,
-  rule 4 of the allowability policy). The ICD-10 side keeps the
-  injury-nature `S`/`T` codes unselectable as final causes, per
-  `docs/policy/who-2022-icd10-coding-allowability.md`.
+  (principle 0), and DORIS applies Step M4. As the final underlying cause,
+  chapter 22 is **not selectable** (owner 2026-10-26, `digitva-kmm2`),
+  matching WHO and the ICD-10 rule on `S`/`T` codes. Until 2026-10-26 the
+  widening of 2026-09-27 had left it selectable; every chapter 22 category
+  mapped to the catch-all `vas_12_99` and lost the transport, fall or
+  drowning distinction. With no known mechanism the coder uses an
+  unspecified external cause such as `PB6Z`, as DORIS itself assigns.
 - **Source.** RG 2.18.4, 2.19.3.24, 2.19.5.
 
 ### 8. Ill-defined causes
@@ -195,8 +196,10 @@ a finding, not a rule.
 
 ### 11. Stillbirth
 
-- **Rule.** Fetal death uses `KD3B.1` (intrapartum, fresh) or `KD3B.0`
-  (antepartum, macerated). `KD3B` and `KD3B.Z` are not selectable.
+- **Rule.** Fetal death uses `KD3B.1` (intrapartum, fresh), `KD3B.0`
+  (antepartum, macerated) or, when the timing is not known, `KD3B.Z`
+  (owner 2026-10-26, `digitva-kmm2`). The parent `KD3B` is not selectable.
+  `KD3B.Z` maps to the Macerated VA cause, as ICD-10 `P95` does.
 - **Basis.** WHO: (W) RG 2.21.8.4: `KD3B.Z` is the code when a fetal death has
   no stated cause. RG 2.19.3.24: `KD3B` is not used if another fetal cause is
   known. RG 2.25.4.3: antepartum goes with maceration; intrapartum goes with
@@ -211,9 +214,10 @@ a finding, not a rule.
 
 ### 12. Sex and age
 
-- **Rule.** For the final underlying cause, a sex conflict refuses the
-  code; an age conflict warns and is allowed on recorded confirmation (owner
-  2026-10-26, `digitva-oh7j`; until implemented, both refuse). A DORIS
+- **Rule.** For the final underlying cause (and the Step 1 underlying-cause
+  pick in masked projects), a sex conflict refuses the code; an age conflict
+  warns and is allowed on recorded confirmation (owner 2026-10-26 and
+  2026-10-27, `digitva-oh7j`). A DORIS
   Part I immediate-cause line is left to DORIS.
 - **Basis.** WHO: (W) RG 2.21.7 and the annex lists RG 3.14.11 (female) and
   3.14.12 (male): check consistency of sex and diagnosis. RG 2.18.4 also says
@@ -228,11 +232,17 @@ a finding, not a rule.
 - **Source.** RG 2.18.4, 2.21.7, 3.14.11, 3.14.12;
   `docs/policy/who-2022-icd11-coding-allowability.md` ("Sex and age").
 
-### 13. One expression, validated whole; first stem drives policy and VA cause
+### 13. One expression, validated whole; the primary stem drives policy and VA cause
 
 - **Rule.** A combined expression is validated as a whole against WHO. The
-  allowability check and the VA cause use the first stem. Extensions and later
-  stems never change the VA cause.
+  allowability check and the VA cause use the primary stem: the causing
+  condition when WHO's codeinfo reports one for the expression
+  (`hasCausingCondition`), otherwise the first stem. Extensions never change
+  the VA cause (owner 2026-10-26, `digitva-443q`).
+- **Why.** WHO's picker form puts the manifestation first (`FB80.B/2F9Z`);
+  codeinfo returns `hasCausingCondition: ["2F9Z"]` for it, and DORIS selects
+  `2F9Z` (a neoplasm) as the underlying cause. Mapping by the first stem gave
+  `FB80.B`'s `vas_98` instead of the neoplasm cause.
 - **Basis.** Whole validation: WHO RG 2.10.1 says tools should embed the
   instructions; how DigitVA checks is (D). First stem: (W) principle 3 for
   ordering, and (V) RG 3.14.14 codes a death to one cause label. Choosing the

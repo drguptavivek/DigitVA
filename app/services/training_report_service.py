@@ -36,7 +36,12 @@ from app.models import (
 )
 from app.models.mas_training import CASES_PER_SLOT
 from app.services import training_demo_service as sessions
-from app.services.icd_coding_value import classification_of_value, extract_icd_code
+from app.services.icd_coding_value import (
+    classification_of_value,
+    extract_icd11_code_expression,
+    extract_icd_code,
+    icd11_primary_stem_of,
+)
 from app.services.organization_service import _spreadsheet_safe
 from app.services.training_cause_groups import va_cause_of, va_cause_title
 from app.services.training_demo_service import TrainingDemoError
@@ -122,14 +127,20 @@ def sessions_for_viewer(viewer) -> list[dict]:
 # The report
 # ---------------------------------------------------------------------------
 
-def _cause_view(value):
-    """``(code, title)`` of a stored ``"<CODE> <title>"`` value."""
+def _cause_view(value, provenance_item=None):
+    """``(code, title)`` of a stored ``"<CODE> <title>"`` value. An ICD-11
+    value shows its primary stem (``icd11_primary_stem_of``), the stem its VA
+    cause group comes from; the title follows the whole code expression."""
     classification = classification_of_value(value)
-    code = extract_icd_code(value, classification) if classification else None
-    if code is None:
+    if classification is None:
         return None, None
-    title = (value or "").strip()[len(code):].strip()
-    return code, title or None
+    text = (value or "").strip()
+    if classification == "icd10":
+        code = extract_icd_code(text, "icd10")
+        return code, text[len(code):].strip() or None
+    code = icd11_primary_stem_of(text, provenance_item)
+    lead = extract_icd11_code_expression(text) or extract_icd_code(text, "icd11")
+    return code, text[len(lead):].strip() or None
 
 
 def _staff_counts(session_row) -> dict:
@@ -181,8 +192,8 @@ def training_session_report(session_ref, viewer) -> dict:
     case_rows = db.session.execute(
         sa.select(
             MapTrainingCase.case_number, MapTrainingCase.coder_slot, MapTrainingCase.source_final_cod,
-            VaFinalAssessments.va_conclusive_cod, VaFinalAssessments.va_finassess_createdat,
-            VaSubmissionWorkflow.workflow_state, VaSubmissionWorkflow.workflow_updated_at,
+            VaFinalAssessments.va_conclusive_cod, VaFinalAssessments.icd11_provenance,
+            VaFinalAssessments.va_finassess_createdat, VaSubmissionWorkflow.workflow_state, VaSubmissionWorkflow.workflow_updated_at,
         )
         .outerjoin(
             VaFinalAssessments,
@@ -200,7 +211,9 @@ def training_session_report(session_ref, viewer) -> dict:
     coder_of = {p.coder_slot: u for p, u in participants if p.role == "coder"}
     slots: dict = {}
     cases = []
-    for number, slot, source_cod, trainee_cod, final_at, state, state_at in case_rows:
+    for number, slot, source_cod, trainee_cod, provenance, final_at, state, state_at in case_rows:
+        # The trainee's recorded primary stem; the reference text has none.
+        trainee_item = provenance.get("conclusive") if isinstance(provenance, dict) else None
         stat = slots.setdefault(slot, {
             "total": 0, "coded": 0, "in_progress": 0, "last": None, "compared": 0, "matched": 0,
             "unmappable": 0,
@@ -216,7 +229,7 @@ def training_session_report(session_ref, viewer) -> dict:
                 stat["in_progress"] += 1
             continue
         stat["coded"] += 1
-        trainee_group, reference_group = va_cause_of(trainee_cod), va_cause_of(source_cod)
+        trainee_group, reference_group = va_cause_of(trainee_cod, trainee_item), va_cause_of(source_cod)
         if trainee_group is None or reference_group is None:
             match = "unmappable"
             stat["unmappable"] += 1
@@ -224,7 +237,7 @@ def training_session_report(session_ref, viewer) -> dict:
             match = "yes" if trainee_group == reference_group else "no"
             stat["compared"] += 1
             stat["matched"] += match == "yes"
-        code, title = _cause_view(trainee_cod)
+        code, title = _cause_view(trainee_cod, trainee_item)
         coder = coder_of.get(slot)
         cases.append({
             "case_number": number, "coder_slot": slot,

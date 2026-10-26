@@ -350,6 +350,72 @@ class CodingCodApiTests(BaseTestCase):
             VaAllocations.va_sid == sid, VaAllocations.va_allocated_to == self.base_coder_user.user_id))
         self.assertEqual(allocation.va_allocation_status, VaStatuses.active)
 
+    def test_finalize_icd11_confirmation_flags_are_typed_and_passed_on(self):
+        """digitva-oh7j / digitva-xmpx request fields on the coder final."""
+        from app.services.coder_cod_service import CoderCodingError
+
+        sid = self._case()
+        for name in ("age_restriction_confirmed", "causing_condition_unknown"):
+            for value in ("true", 1, None):
+                response = self._post("finalize", sid, {"conclusive_cod": _COD, name: value})
+                self.assertEqual(
+                    (response.status_code, response.get_json()["code"]), (400, "invalid_request"),
+                    (name, value))
+        refusal = CoderCodingError(
+            "KB2C is not selectable for this submission.", 422,
+            code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+            details={"age_restriction": {
+                "code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": None}},
+        )
+        with mock.patch("app.routes.api.coding.submit_coder_final_cod", side_effect=refusal) as save:
+            response = self._post("finalize", sid, {
+                "conclusive_cod": _COD, "age_restriction_confirmed": False,
+                "causing_condition_unknown": True})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json(), {
+            "error": "KB2C is not selectable for this submission.",
+            "code": "AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+            "age_restriction": {
+                "code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": None},
+        })
+        self.assertIs(save.call_args.kwargs["age_restriction_confirmed"], False)
+        self.assertIs(save.call_args.kwargs["causing_condition_unknown"], True)
+        # Absent flags default to False: existing clients are unchanged.
+        response = self._post("finalize", sid, {"conclusive_cod": _COD, "immediate_cod": _COD})
+        self.assertEqual(response.status_code, 200, response.get_json())
+
+    def test_initial_age_confirmation_flag_is_typed_and_passed_on(self):
+        """digitva-oh7j (owner 2026-10-27) on the coder's Step 1."""
+        from app.services.coder_cod_service import CoderCodingError
+
+        self._mode(masked=True)
+        sid = self._case()
+        for value in ("true", 1, None):
+            response = self._post("initial", sid, {
+                "immediate_cod": _COD, "antecedent_cod": _COD, "age_restriction_confirmed": value})
+            self.assertEqual(
+                (response.status_code, response.get_json()["code"]), (400, "invalid_request"), value)
+        refusal = CoderCodingError(
+            "KB2C is not selectable for this submission.", 422,
+            code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+            details={"age_restriction": {
+                "code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": None}},
+        )
+        with mock.patch("app.routes.api.coding.submit_coder_initial_cod", side_effect=refusal) as save:
+            response = self._post("initial", sid, {
+                "antecedent_cod": "KB2C Test", "age_restriction_confirmed": True})
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.get_json(), {
+            "error": "KB2C is not selectable for this submission.",
+            "code": "AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+            "age_restriction": {
+                "code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": None},
+        })
+        self.assertIs(save.call_args.kwargs["age_restriction_confirmed"], True)
+        # Absent, the flag is False: existing clients are unchanged.
+        response = self._post("initial", sid, {"immediate_cod": _COD, "antecedent_cod": _COD})
+        self.assertEqual(response.status_code, 200, response.get_json())
+
     def test_masked_final_without_step1_is_a_409(self):
         self._mode(masked=True)
         sid = self._case()

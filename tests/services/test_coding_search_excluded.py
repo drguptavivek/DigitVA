@@ -95,13 +95,43 @@ class CodingSearchExcludedTests(BaseTestCase):
         )
 
     def test_infant_female_excludes_neonate_only_and_male_only_adult(self):
-        for results, excluded in (self._icd10("infant", "female"), self._icd11("infant", "female")):
-            codes = {r["icd_code"].removeprefix("Y") for r in results}
-            self.assertEqual(codes, {"KX11", "KX12", "KX13"})  # subject present
-            self.assertEqual(excluded["count"], 2)
-            reasons = {e["code"].removeprefix("Y"): e["reason"] for e in excluded["examples"]}
-            self.assertEqual(reasons, {"KX10": "neonate only", "KX14": "adult only, male only"})
-            self.assertFalse(codes & set(reasons))  # excluded never selectable
+        results, excluded = self._icd10("infant", "female")
+        codes = {r["icd_code"].removeprefix("Y") for r in results}
+        self.assertEqual(codes, {"KX11", "KX12", "KX13"})  # subject present
+        self.assertEqual(excluded["count"], 2)
+        reasons = {e["code"].removeprefix("Y"): e["reason"] for e in excluded["examples"]}
+        self.assertEqual(reasons, {"KX10": "neonate only", "KX14": "adult only, male only"})
+        self.assertFalse(codes & set(reasons))  # excluded never selectable
+
+    def test_icd11_marks_age_restricted_and_hides_only_sex_restricted(self):
+        """digitva-oh7j: an ICD-11 age conflict is offered marked; sex still hides."""
+        db.session.execute(
+            sa.update(MasIcd11Mms)
+            .where(MasIcd11Mms.release == RELEASE, MasIcd11Mms.code == "KX10")
+            .values(restriction_note="Perinatal chapter")
+        )
+        results, excluded = self._icd11("infant", "female")
+        marks = {r["icd_code"]: (r["age_restricted"], r["restriction_note"]) for r in results}
+        self.assertEqual(
+            marks,
+            {
+                "KX10": (True, "Perinatal chapter"),
+                "KX11": (False, None),
+                "KX12": (False, None),
+                "KX13": (False, None),
+            },
+        )
+        # KX14 is male only: hidden and reported, for its sex alone.
+        self.assertEqual(excluded["count"], 1)
+        self.assertEqual(
+            {e["code"]: e["reason"] for e in excluded["examples"]}, {"KX14": "male only"}
+        )
+        self.assertNotIn("KX14", marks)
+
+    def test_icd11_without_policy_marks_nothing(self):
+        results = search_icd11_mms(TOKEN, release=RELEASE)
+        self.assertEqual(len(results), len(ROWS))  # subject present
+        self.assertFalse(any(r["age_restricted"] for r in results))
 
     def test_sex_restricted_code_reason(self):
         results, excluded = self._icd10("neonate", "male")

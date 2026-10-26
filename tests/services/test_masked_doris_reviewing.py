@@ -490,6 +490,49 @@ class TestMaskedDorisReviewing(BaseTestCase):
         # The coder's records never change.
         self.assertEqual(self._coder_rows(sid), before)
 
+    @patch("app.services.reviewer_final_assessment_service.build_icd11_provenance_for_values")
+    @patch("app.services.reviewer_coding_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
+    def test_step1_post_age_conflict_needs_confirmation_then_is_recorded(
+        self, verify, validate, provenance
+    ):
+        """digitva-oh7j, owner 2026-10-27: the reviewer's Step 1 underlying cause."""
+        from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
+
+        sid = self._start_review()
+        warning = f"Plausibility between the age and UCOD ({_HIV.split()[0]}) should be checked."
+        doris = {"status": "completed", "result": {"code": _HIV.split()[0], "warning": warning}}
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": doris, "codedit": _CODEDIT}
+        validate.side_effect = AgeRestrictionConfirmationRequired(_HIV.split()[0], "adult", "Adults")
+        provenance.return_value = {"antecedent": {"code": _HIV.split()[0]}}
+        rows = db.select(VaReviewerInitialAssessments).where(VaReviewerInitialAssessments.va_sid == sid)
+
+        for value in ("true", 1):
+            response = self._post_initial(sid, age_restriction_confirmed=value)
+            self.assertEqual(response.status_code, 400, value)
+            self.assertEqual(response.get_json()["code"], "invalid_request")
+        response = self._post_initial(sid)
+        self.assertEqual(response.status_code, 422, response.get_data(as_text=True))
+        self.assertEqual(response.get_json(), {
+            "error": f"{_HIV.split()[0]} is not selectable for this submission.",
+            "code": "AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+            "age_restriction": {
+                "code": _HIV.split()[0], "age_group_selectable": "adult", "restriction_note": "Adults"},
+        })
+        self.assertIsNone(db.session.scalar(rows))
+
+        response = self._post_initial(sid, age_restriction_confirmed=True)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        confirmation = db.session.scalar(rows).icd11_provenance["antecedent"]["age_restriction_confirmation"]
+        self.assertEqual(confirmation["confirmed_by"], str(self.reviewer.user_id))
+        self.assertEqual(confirmation["code"], _HIV.split()[0])
+        self.assertEqual(confirmation["doris_warning"], warning)
+
+        # A sex conflict (a plain ValueError) is refused even when confirmed.
+        validate.side_effect = ValueError("JA00 is not selectable for this submission.")
+        response = self._post_initial(sid, age_restriction_confirmed=True)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_cod"))
+
     @patch("app.services.reviewer_coding_service.validate_coding_value_for_submission")
     @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_without_part1_line1_is_400(self, verify, _validate):
@@ -649,6 +692,50 @@ class TestMaskedDorisReviewing(BaseTestCase):
                 db.select(VaReviewerFinalAssessments).where(VaReviewerFinalAssessments.va_sid == sid)
             )
         )
+
+    def test_step2_age_conflict_needs_confirmation_and_sex_conflict_refuses(self):
+        """digitva-oh7j on the reviewer's final, with the real validator."""
+        from app.models import MasIcd11Mms
+        from tests.services.test_coder_cod_service import _icd11_row, _who_codeinfo
+
+        warning = "Plausibility between the age and UCOD (KB2C) should be checked."
+        db.session.add_all([
+            _icd11_row("KB2C", age="neonate_infant", note="Perinatal"),
+            _icd11_row("JA00", sex="female"),
+        ])
+        sid = self._start_review()
+        step1 = self._reviewer_step1(sid, underlying="KB2C Test")
+        step1.doris_result = {"status": "completed", "result": {"code": "KB2C", "warning": warning}}
+        db.session.commit()
+        # The sex refusal is for the policy, not a missing row.
+        self.assertIsNotNone(db.session.scalar(db.select(MasIcd11Mms).where(MasIcd11Mms.code == "JA00")))
+
+        def finalize(cod, **kwargs):
+            with self.assertRaises(ReviewerCodingError) as raised:
+                submit_reviewer_final_cod(self.reviewer, sid, conclusive_cod=cod, **kwargs)
+            return raised.exception
+
+        with patch("app.services.who_icd_api.get_icd11_codeinfo", side_effect=_who_codeinfo):
+            sex = finalize("JA00 Test", age_restriction_confirmed=True)
+            age = finalize("KB2C Test")
+            flag = finalize("KB2C/JA00 Test", causing_condition_unknown=True)
+            final = submit_reviewer_final_cod(
+                self.reviewer, sid, conclusive_cod="KB2C Test",
+                age_restriction_confirmed=True, causing_condition_unknown=True,
+            )
+
+        self.assertEqual((sex.status_code, sex.code), (400, "invalid_cod"))
+        self.assertEqual((age.status_code, age.code), (422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED"))
+        self.assertEqual(
+            age.details,
+            {"age_restriction": {
+                "code": "KB2C", "age_group_selectable": "neonate_infant", "restriction_note": "Perinatal"}},
+        )
+        self.assertEqual((flag.status_code, flag.code), (422, "INVALID_CAUSING_CONDITION_FLAG"))
+        item = final.icd11_provenance["conclusive"]
+        self.assertIs(item["causing_condition_unknown"], True)
+        self.assertEqual(item["age_restriction_confirmation"]["confirmed_by"], str(self.reviewer.user_id))
+        self.assertEqual(item["age_restriction_confirmation"]["doris_warning"], warning)
 
     def test_step2_requires_reviewer_step1(self):
         sid = self._start_review()

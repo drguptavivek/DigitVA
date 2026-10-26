@@ -171,11 +171,59 @@ class TestIcd11WhoApiProxy(BaseTestCase):
                     "foundation_uri": None,
                     "codeinfo_uri": "http://id.who.int/icd/release/11/2026-01/mms/codeinfo/1G40.0%26XN8Q",
                 },
+                "warnings": [],
             },
         )
         validate.assert_called_once_with(
             self.SID, "1g40.0&xn8q Example title"
         )
+
+    def _selection_check(self, validate_side_effect):
+        previous_csrf = self.app.config["WTF_CSRF_ENABLED"]
+        self.app.config["WTF_CSRF_ENABLED"] = False
+        try:
+            with self._patch_access(), patch(
+                "app.routes.api.icd11.validate_icd11_mms_coding_value_for_submission",
+                side_effect=validate_side_effect,
+            ), patch(
+                "app.routes.api.icd11.build_icd11_provenance",
+                return_value={"code": "KB2C", "title": "Test KB2C", "selected_text": "Test"},
+            ) as provenance:
+                response = self.client.post(
+                    f"/api/v1/icd11/selection-check/{self.SID}",
+                    json={"code": "KB2C", "selectedText": "Test"},
+                )
+        finally:
+            self.app.config["WTF_CSRF_ENABLED"] = previous_csrf
+        return response, provenance
+
+    def test_selection_check_warns_on_an_age_conflict_instead_of_refusing(self):
+        from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
+
+        response, provenance = self._selection_check(
+            AgeRestrictionConfirmationRequired("KB2C", "neonate_infant", "Perinatal")
+        )
+
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(
+            response.get_json()["warnings"],
+            [{
+                "code": "AGE_RESTRICTED",
+                "icd_code": "KB2C",
+                "age_group_selectable": "neonate_infant",
+                "restriction_note": "Perinatal",
+            }],
+        )
+        provenance.assert_called_once()
+
+    def test_selection_check_still_refuses_a_sex_conflict(self):
+        response, provenance = self._selection_check(
+            ValueError("JA00 is not selectable for this submission.")
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("not selectable", response.get_json()["error"])
+        provenance.assert_not_called()
 
     def test_selection_check_keeps_normal_csrf_protection(self):
         with patch(

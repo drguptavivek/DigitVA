@@ -21,7 +21,11 @@ import csv
 from functools import lru_cache
 from pathlib import Path
 
-from app.services.icd_coding_value import classification_of_value, extract_icd_code
+from app.services.icd_coding_value import (
+    classification_of_value,
+    extract_icd_code,
+    icd11_primary_stem_of,
+)
 from app.services.va_code_mapping_public_service import icd10_in_range, parse_icd10_ranges
 
 _RESOURCE = Path(__file__).resolve().parents[2] / "resource"
@@ -71,11 +75,14 @@ def _icd11_cause(code: str) -> str | None:
     return None
 
 
-def va_cause_of(value: str | None) -> str | None:
+def va_cause_of(value: str | None, provenance_item: dict | None = None) -> str | None:
     """The WHO 2022 VA cause code (``VAs-..``) of a stored coding value, or
-    None when the value is empty, malformed, outside the annex or ambiguous."""
+    None when the value is empty, malformed, outside the annex or ambiguous.
+    An ICD-11 value maps by its primary stem (``icd11_primary_stem_of``:
+    ``provenance_item["primary_stem"]``, else the first stem)."""
     classification = classification_of_value(value)
     if classification is None:
         return None
-    code = extract_icd_code(value, classification)
-    return _icd10_cause(code) if classification == "icd10" else _icd11_cause(code)
+    if classification == "icd10":
+        return _icd10_cause(extract_icd_code(value, "icd10"))
+    return _icd11_cause(icd11_primary_stem_of(value, provenance_item))

@@ -38,13 +38,11 @@ digest; verify the runtime DLL version rather than trusting the Compose comment.
 5. WHO ICD-11 call 2026-10-29: deck https://claude.ai/artifact/Y6g1epS6LgVieFQg8mtJcL
    (private; share before the call). Ask WHO for written licence 2.3/2.4
    confirmation; record it in `docs/policy/icd11-local-api-runtime.md`.
-   ICD-11 allowability follow-ups (owner agreed 2026-10-26): `digitva-kmm2`
-   (P1 migration: chapter 22 not a final COD, KD3B.Z allowed; staging count
-   first), `digitva-443q` (cluster mapped by WHO-selected stem),
-   `digitva-oh7j` (sex blocks, age warns), `digitva-xmpx` (causing condition
-   not known), `digitva-7pl2` (docs).
-   Expo session: stray space at `WorkspaceLayout.web.tsx:416` (Notes tab)
-   logs "Unexpected text node" on every render; delete the space.
+   Deck reflects the 2026-10-27 allowability changes.
+   ICD-11 allowability shipped in code (not yet on staging; deploy freeze):
+   before deploying migrations b8d4f2a6c1e9 and c5e8a2f4b7d1 run `digitva-77ti`
+   (read-only count of saved finals on chapter 22 or KD3B*). Remaining docs
+   item `digitva-7pl2` (ICD-10 annex-only vs ICD-11 widened, as a decision).
 
 ## Runtime and release caveats
 

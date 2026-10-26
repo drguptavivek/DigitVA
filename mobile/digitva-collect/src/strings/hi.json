@@ -1593,5 +1593,13 @@
   "offlineProfileSaved": "{time} पर सहेजा गया",
   "offlineProfileNeedName": "नाम भरें।",
   "offlineProfileNeedCountry": "देश भरें।",
-  "offlineProfileNeedAge": "उम्र में पूरी संख्या भरें, या खाली छोड़ दें।"
+  "offlineProfileNeedAge": "उम्र में पूरी संख्या भरें, या खाली छोड़ दें।",
+  "ageRestrictionTitle": "आयु प्रतिबंध",
+  "ageRestrictionMessage": "{code} आमतौर पर केवल {group} के लिए उपयोग होता है। WHO का DORIS इसे संभाव्यता चेतावनी मानता है। फिर भी सहेजें?",
+  "ageRestrictionConfirm": "फिर भी सहेजें",
+  "ageGroup_neonate": "नवजात (28 दिन से कम)",
+  "ageGroup_infant": "शिशु (28 दिन से 1 वर्ष से कम)",
+  "ageGroup_neonate_infant": "नवजात और शिशु (1 वर्ष से कम)",
+  "ageGroup_child": "बच्चे (1 से 12 वर्ष से कम)",
+  "ageGroup_adult": "वयस्क (12 वर्ष और अधिक)"
 }

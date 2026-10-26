@@ -12,6 +12,7 @@ docs/policy/va-form-project-configuration.md ("5. ICD classification").
 from __future__ import annotations
 
 import re
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 
@@ -184,3 +185,78 @@ def build_icd11_provenance_for_values(
         if item is not None:
             provenance[field] = item
     return provenance or None
+
+
+class InvalidCausingConditionFlag(ValueError):
+    """``causing_condition_unknown`` sent with a value that is not one ICD-11 stem."""
+
+
+def check_causing_condition_unknown(value: str | None) -> None:
+    """Refuse ``causing_condition_unknown`` unless ``value`` is one ICD-11 stem.
+
+    The flag says WHO's causing condition was not known, so it belongs on a
+    stem alone: no ``/`` (``&`` extensions are fine). An ICD-10 value has
+    nowhere to record it. Raises ``InvalidCausingConditionFlag``
+    (``digitva-xmpx``).
+    """
+    expression = extract_icd11_code_expression(value)
+    if classification_of_value(value) != "icd11" or not expression or "/" in expression:
+        raise InvalidCausingConditionFlag(
+            "Causing condition not known applies to a single ICD-11 stem code only."
+        )
+
+
+def record_final_cod_flags(
+    provenance: dict | None,
+    *,
+    age_restriction: dict | None,
+    causing_condition_unknown: bool,
+    confirmed_by,
+    doris_result: dict | None,
+    field: str = "conclusive",
+) -> dict | None:
+    """Add a COD pick's confirmation flags to its ``field`` provenance item.
+
+    ``field`` is ``conclusive`` for a final and ``antecedent`` for a masked
+    Step 1 underlying cause. ``age_restriction`` is the ``details()`` of the
+    ``AgeRestrictionConfirmationRequired`` the coder confirmed, or None.
+    ``doris_result`` is the case's processed DORIS envelope
+    (``{"status", "result": {"warning", ...}}``) or None; its plausibility
+    warning is kept only when it names this code. Both flags only exist for
+    ICD-11 values, so an ICD-10 save (``provenance`` None) is returned as is.
+    """
+    item = (provenance or {}).get(field)
+    if item is None:
+        return provenance
+    if causing_condition_unknown:
+        item["causing_condition_unknown"] = True
+    if age_restriction is not None:
+        warning = ((doris_result or {}).get("result") or {}).get("warning")
+        if not (isinstance(warning, str) and age_restriction["code"] in warning):
+            warning = None
+        item["age_restriction_confirmation"] = {
+            "confirmed_by": str(confirmed_by),
+            "confirmed_at": datetime.now(UTC).isoformat(),
+            "code": age_restriction["code"],
+            "age_group_selectable": age_restriction["age_group_selectable"],
+            "restriction_note": age_restriction["restriction_note"],
+            "doris_warning": warning,
+        }
+    return provenance
+
+
+def icd11_primary_stem_of(value: str | None, provenance_item: dict | None = None) -> str | None:
+    """The ICD-11 stem a saved value buckets by (``digitva-443q``), or None.
+
+    ``provenance_item`` is the value's own ``icd11_provenance`` entry (for a
+    final, ``icd11_provenance["conclusive"]``). Its recorded ``primary_stem``
+    (WHO's causing condition) wins when it has the stem shape; otherwise the
+    first stem of ``value``, as for rows saved before ``primary_stem``
+    existed. The Python twin of ``icd11_primary_stem_sql`` in
+    ``submission_analytics_mv``; reads only what it is given, never WHO.
+    """
+    if isinstance(provenance_item, dict) and isinstance(provenance_item.get("primary_stem"), str):
+        stem = extract_icd_code(provenance_item["primary_stem"], "icd11")
+        if stem:
+            return stem
+    return extract_icd_code(value, "icd11")

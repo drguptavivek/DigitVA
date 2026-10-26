@@ -43,6 +43,19 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertIn("body[name] = JSON.parse", reviewer)
         self.assertIn("DORIS_CERTIFICATE_CHANGED", reviewer)
 
+    def test_reviewer_icd11_saves_retry_on_age_restriction(self):
+        reviewer = self._read(
+            "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html"
+        )
+        self.assertEqual(reviewer.count("window.digitvaAgeRetry("), 3)
+        self.assertEqual(reviewer.count("body.age_restriction_confirmed = true"), 3)
+        self.assertEqual(reviewer.count("body.causing_condition_unknown = true"), 2)
+        base = self._read("app/static/js/base.js")
+        self.assertIn("window.digitvaAgeRetry = function", base)
+        self.assertIn("AGE_RESTRICTION_CONFIRMATION_REQUIRED", base)
+        clinical = self._read("app/static/js/doris_clinical.js")
+        self.assertIn("setUnknownCause(choice.causing_condition_unknown === true)", clinical)
+
     def test_reviewer_read_only_reference_uses_mode_correct_coder_row(self):
         reviewer = self._read(
             "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html"

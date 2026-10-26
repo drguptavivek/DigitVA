@@ -21,7 +21,7 @@
  * Native: React Native WebView postMessage out, and the app calls
  * window.__digitvaEmbedReceive(message) in.
  */
-import { createIcd11Picker } from './digitva_icd11_picker.js?v=4';
+import { createIcd11Picker } from './digitva_icd11_picker.js?v=5';
 
 var native = typeof window.ReactNativeWebView === 'object' && window.ReactNativeWebView;
 var root = document.getElementById('doris-embed');

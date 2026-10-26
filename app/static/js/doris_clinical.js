@@ -1,4 +1,4 @@
-import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=4';
+import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=5';
 import { mount as mountInterval } from './doris_interval.js?v=4';
 import * as Rules from './doris_rules.js?v=4';
 import * as Fields from './doris_fields.js?v=2';
@@ -115,12 +115,20 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
     function hideContinue() { var form = document.getElementById(editor.dataset.formId); var button = form && form.querySelector('[data-doris-continue]'); if (button) button.hidden = true; }
     // The floating VA definition for a picked ICD-11 cause (va_definition_panel.js; absent on pages without it).
     function showDefinition(code, fieldLabel) {
-      var stem = String(code || '').split(/[&/]/)[0];
+      var stem = String(code || '').split('/').map(function (part) { return part.split('&')[0]; }).join('/');
       if (window.DigitVADefinitionPanel && stem) window.DigitVADefinitionPanel.lookup(stem, fieldLabel, 'icd11');
+    }
+    // The picker's "causing condition not known" choice travels with the final as a form field.
+    function setUnknownCause(flag) {
+      var target = finalInput(editor); var form = target && target.form; if (!form) return;
+      var field = form.querySelector('input[name="causing_condition_unknown"]');
+      if (!field) { field = document.createElement('input'); field.type = 'hidden'; field.name = 'causing_condition_unknown'; form.appendChild(field); }
+      field.value = flag ? 'true' : 'false';
     }
     function selectFinal(choice) {
       showDefinition(choice.code, 'Final underlying cause');
       var target = finalInput(editor); if (target) target.value = choice.code + ' ' + (choice.title || '');
+      setUnknownCause(choice.causing_condition_unknown === true);
       query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + choice.code + ' — ' + (choice.title || '');
       query(editor, '[data-doris-final-results]').replaceChildren();
       query(editor, '[data-doris-final-search]').focus();
@@ -139,6 +147,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
     }
     function clearFinal() {
       var input = finalInput(editor); if (input) input.value = '';
+      setUnknownCause(false);
       query(editor, '[data-doris-final-choice]').textContent = '';
       query(editor, '[data-doris-final-results]').replaceChildren();
       editor.querySelectorAll('[data-doris-related-window]').forEach(function (windowNode) { windowNode.remove(); });
@@ -421,6 +430,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
       var restoredFinal = text(restored.final_choice);
       if (restoredFinal) {
         var target = finalInput(editor); if (target) target.value = restoredFinal;
+        setUnknownCause(false);
         query(editor, '[data-doris-final-choice]').textContent = 'Confirmed final UCOD: ' + restoredFinal;
         if (save) { save.disabled = false; delete save.dataset.dorisNeedsConfirmation; }
       }
@@ -432,6 +442,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
       var savedFinal = text(restored.final_choice);
       if (savedFinal) {
         var savedTarget = finalInput(editor); if (savedTarget) savedTarget.value = savedFinal;
+        setUnknownCause(false);
         query(editor, '[data-doris-final-choice]').textContent = 'Saved underlying cause: ' + savedFinal;
       }
       status('Step 1 is saved. Continue to Step 2, or edit the certificate and process it again to change it.');

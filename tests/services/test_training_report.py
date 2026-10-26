@@ -63,6 +63,17 @@ class CauseGroupTests(unittest.TestCase):
         self.assertEqual(va_cause_of(DIABETES), "VAs-03.03")
         self.assertEqual(va_cause_of("CA40.0Z unknown extension"), "VAs-01.02")
 
+    def test_icd11_cluster_maps_by_its_recorded_primary_stem(self):
+        """digitva-443q: WHO's causing condition, not the first stem."""
+        cluster = "5A11/CA40.0 Diabetes with pneumonia"
+        self.assertEqual(va_cause_of(cluster), "VAs-03.03")  # no provenance: the first stem
+        self.assertEqual(va_cause_of(cluster, {"primary_stem": "CA40.0"}), "VAs-01.02")
+        # A malformed recorded stem falls back to the first stem.
+        self.assertEqual(va_cause_of(cluster, {"primary_stem": "not a code"}), "VAs-03.03")
+        self.assertEqual(va_cause_of(cluster, {"code": "5A11/CA40.0"}), "VAs-03.03")
+        # ICD-10 values never read provenance.
+        self.assertEqual(va_cause_of("J18.9", {"primary_stem": "5A11"}), "VAs-01.02")
+
     def test_empty_and_malformed_values(self):
         for value in (None, "", "   ", "not a code", "J1"):
             self.assertIsNone(va_cause_of(value))
@@ -80,9 +91,10 @@ class ReportTestBase(TrainingDemoTestBase):
         svc.add_participant(code, user.email, role, self.admin)
         return user
 
-    def _code(self, number, text, user, session="S001"):
+    def _code(self, number, text, user, session="S001", provenance=None):
         sid = f"trn-{session}-{number}"
-        db.session.add(VaFinalAssessments(va_sid=sid, va_finassess_by=user.user_id, va_conclusive_cod=text))
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=user.user_id, va_conclusive_cod=text, icd11_provenance=provenance))
         db.session.flush()
 
     def _key(self, number, text):
@@ -133,6 +145,19 @@ class ReportTests(ReportTestBase):
         self.assertEqual((by_case[2]["match"], by_case[2]["trainee_group"]), ("no", "VAs-03.03"))
         self.assertEqual(by_case[3]["match"], "unmappable")
         self.assertEqual(by_case[3]["coder_name"], a.name)
+
+    def test_a_cluster_is_compared_and_shown_by_its_primary_stem(self):
+        a = self._add("coder.ps", "coder")
+        self._key(1, "J18.9")
+        self._code(1, "5A11/CA40.0 Diabetes with pneumonia", a,
+                   provenance={"conclusive": {"code": "5A11/CA40.0", "primary_stem": "CA40.0"}})
+        db.session.flush()
+        case = next(c for c in reports.training_session_report("S001", self.admin)["cases"]
+                    if c["case_number"] == 1)
+        self.assertEqual(
+            (case["match"], case["trainee_code"], case["trainee_group"], case["trainee_title"]),
+            ("yes", "CA40.0", "VAs-01.02", "Diabetes with pneumonia"),
+        )
 
     def test_nothing_coded_and_no_participants(self):
         report = reports.training_session_report("S001", self.admin)

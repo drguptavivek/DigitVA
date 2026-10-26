@@ -355,6 +355,33 @@ class TestMaskedDorisCoding(BaseTestCase):
             db.session.scalar(db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid))
         )
 
+    @patch("app.services.coder_cod_service.build_icd11_provenance_for_values")
+    @patch("app.services.coder_cod_service.validate_coding_value_for_submission")
+    @patch("app.services.reviewer_coding_service.verify_process_submission")
+    def test_step1_post_age_conflict_asks_then_records_the_confirmation(
+        self, verify, validate, provenance
+    ):
+        """digitva-oh7j (owner 2026-10-27) on the web Step 1 form."""
+        from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
+
+        sid = self._start_coder()
+        self._login(self.base_coder_id)
+        verify.return_value = {"certificate": _CERTIFICATE, "doris": _DORIS, "codedit": _CODEDIT}
+        validate.side_effect = AgeRestrictionConfirmationRequired("KB2C", "neonate_infant", "Perinatal")
+        provenance.return_value = {"antecedent": {"code": "KB2C"}}
+        rows = db.select(VaInitialAssessments).where(VaInitialAssessments.va_sid == sid)
+
+        response = self._post_step1(sid, va_antecedent_cod="KB2C Test")
+        self.assertEqual(response.status_code, 422, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["code"], "AGE_RESTRICTION_CONFIRMATION_REQUIRED")
+        self.assertEqual(response.get_json()["age_restriction"]["code"], "KB2C")
+        self.assertIsNone(db.session.scalar(rows))
+
+        response = self._post_step1(sid, va_antecedent_cod="KB2C Test", age_restriction_confirmed="true")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        confirmation = db.session.scalar(rows).icd11_provenance["antecedent"]["age_restriction_confirmation"]
+        self.assertEqual((confirmation["code"], confirmation["confirmed_by"]), ("KB2C", str(self.base_coder_id)))
+
     @patch("app.services.reviewer_coding_service.verify_process_submission")
     def test_step1_post_without_underlying_cause_is_400(self, verify):
         sid = self._start_coder()

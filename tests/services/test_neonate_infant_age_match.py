@@ -99,9 +99,12 @@ class NeonateInfantRealRowTests(BaseTestCase):
         db.session.flush()
 
     def _hits(self, age_group, sex):
+        # ICD-11 offers an age-restricted code marked, not hidden
+        # (digitva-oh7j): the rule shows in which rows stay unmarked.
         icd11 = {
             r["icd_code"]
             for r in search_icd11_mms("Zqneoinf", release=RELEASE, age_group=age_group, sex=sex)
+            if not r["age_restricted"]
         }
         icd10 = {
             r["icd_code"][1:]

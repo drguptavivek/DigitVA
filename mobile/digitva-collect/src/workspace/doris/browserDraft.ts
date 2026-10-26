@@ -5,7 +5,7 @@ import { browserSessionStore } from "../viewState";
 
 export const DORIS_DRAFT_KEY = "digitva:doris:draft:v1";
 export type DraftContext = { fingerprint: string; vaSid: string; mode: string; payloadVersion: string; projectMode: string };
-type Selection = { code: string; title: string; uri: string };
+type Selection = { code: string; title: string; uri: string; causingConditionUnknown?: boolean };
 type CodDraft = { step: string; certificate: JsonObject; selectedCause: Selection | null; remark: string };
 type Draft = { schemaVersion: 1; context: DraftContext; cod?: CodDraft; pendingNote?: string };
 const MAX_BYTES = 200_000;
@@ -79,7 +79,7 @@ function read(context: DraftContext | undefined): Draft | undefined {
       if (!record(value.cod) || !boundedText(value.cod.step, 20) || !boundedText(value.cod.remark, 20_000) || !record(value.cod.certificate)) throw new Error("Invalid COD draft");
       const selected = value.cod.selectedCause;
       if (selected !== null && (!record(selected) || !boundedText(selected.code, 2000) || !boundedText(selected.title, 10_000) || !boundedText(selected.uri, 2000))) throw new Error("Invalid selected cause");
-      result.cod = { step: value.cod.step, remark: value.cod.remark, certificate: codCertificate(value.cod.certificate as JsonObject), selectedCause: selected === null ? null : { code: selected.code as string, title: selected.title as string, uri: selected.uri as string } };
+      result.cod = { step: value.cod.step, remark: value.cod.remark, certificate: codCertificate(value.cod.certificate as JsonObject), selectedCause: selected === null ? null : { code: selected.code as string, title: selected.title as string, uri: selected.uri as string, ...(selected.causingConditionUnknown === true ? { causingConditionUnknown: true } : {}) } };
     }
     return result;
   } catch {
@@ -118,7 +118,7 @@ export function saveCodDraft(context: DraftContext | undefined, cod: CodDraft): 
   try {
     write({ ...(read(context) ?? { schemaVersion: 1, context }), cod: {
       step: cod.step, remark: cod.remark, certificate: codCertificate(cod.certificate),
-      selectedCause: selected ? { code: selected.code, title: selected.title, uri: selected.uri } : null,
+      selectedCause: selected ? { code: selected.code, title: selected.title, uri: selected.uri, ...(selected.causingConditionUnknown ? { causingConditionUnknown: true } : {}) } : null,
     } });
   } catch { /* Invalid or oversize drafts are not stored. */ }
 }

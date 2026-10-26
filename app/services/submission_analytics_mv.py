@@ -299,19 +299,26 @@ def build_submission_cod_detail_mv_sql(
     """Return the CREATE MATERIALIZED VIEW statement for the COD detail MV.
 
     ``final_icd`` is the ICD-10 code of the final COD. ``include_icd11=True``
-    adds ``final_icd11``, the ICD-11 stem (first stem of a post-coordinated
-    value), which the COD bucket report reads. At most one of the two is set:
+    adds ``final_icd11``, the ICD-11 stem the COD bucket report reads: the
+    final's recorded primary stem, else the first stem of a post-coordinated
+    value (``icd11_primary_stem_sql``). At most one of the two is set:
     the code shapes do not overlap. The default False keeps the SQL that
-    migration ``e95dc3d7c4f2`` replays; migration ``e7b2c9d4a1f3`` holds a
+    migration ``e95dc3d7c4f2`` replays; migration ``c5e8a2f4b7d1`` holds a
     frozen copy of the True output.
     """
-    icd11_column = ""
+    icd11_column = provenance = rf_provenance = f_provenance = ""
     if include_icd11:
-        icd11_column = f"""    substring(
-        upper(COALESCE(reviewer_final.va_conclusive_cod, coder_final.va_conclusive_cod))
-        from '{_ICD11_SQL_RE}'
-    ) AS final_icd11,
+        final_icd11 = icd11_primary_stem_sql(
+            "COALESCE(reviewer_final.va_conclusive_cod, coder_final.va_conclusive_cod)",
+            "CASE WHEN reviewer_final.va_conclusive_cod IS NOT NULL"
+            " THEN reviewer_final.icd11_provenance ELSE coder_final.icd11_provenance END",
+        )
+        icd11_column = f"""    {final_icd11} AS final_icd11,
 """
+        # The frozen default SQL predates icd11_provenance.
+        provenance = ", icd11_provenance"
+        rf_provenance = ", rf.icd11_provenance"
+        f_provenance = ", f.icd11_provenance"
     return f"""
 CREATE MATERIALIZED VIEW {view_name} AS
 SELECT
@@ -342,10 +349,10 @@ LEFT JOIN (
 ) AS init_assess ON init_assess.va_sid = s.va_sid
 LEFT JOIN (
     SELECT DISTINCT ON (va_sid)
-        va_sid, va_conclusive_cod
+        va_sid, va_conclusive_cod{provenance}
     FROM (
         SELECT
-            rf.va_sid, rf.va_conclusive_cod, rf.va_rfinassess_createdat,
+            rf.va_sid, rf.va_conclusive_cod, rf.va_rfinassess_createdat{rf_provenance},
             0 AS priority
         FROM va_final_cod_authority a
         JOIN va_reviewer_final_assessments rf
@@ -353,7 +360,7 @@ LEFT JOIN (
         WHERE a.authoritative_reviewer_final_assessment_id IS NOT NULL
         UNION ALL
         SELECT
-            rf.va_sid, rf.va_conclusive_cod, rf.va_rfinassess_createdat,
+            rf.va_sid, rf.va_conclusive_cod, rf.va_rfinassess_createdat{rf_provenance},
             1 AS priority
         FROM va_reviewer_final_assessments rf
         WHERE rf.va_rfinassess_status = 'active'
@@ -362,10 +369,10 @@ LEFT JOIN (
 ) AS reviewer_final ON reviewer_final.va_sid = s.va_sid
 LEFT JOIN (
     SELECT DISTINCT ON (va_sid)
-        va_sid, va_conclusive_cod
+        va_sid, va_conclusive_cod{provenance}
     FROM (
         SELECT
-            f.va_sid, f.va_conclusive_cod, f.va_finassess_createdat,
+            f.va_sid, f.va_conclusive_cod, f.va_finassess_createdat{f_provenance},
             0 AS priority
         FROM va_final_cod_authority a
         JOIN va_final_assessments f
@@ -373,7 +380,7 @@ LEFT JOIN (
         WHERE a.authoritative_final_assessment_id IS NOT NULL
         UNION ALL
         SELECT
-            f.va_sid, f.va_conclusive_cod, f.va_finassess_createdat,
+            f.va_sid, f.va_conclusive_cod, f.va_finassess_createdat{f_provenance},
             1 AS priority
         FROM va_final_assessments f
         WHERE f.va_finassess_status = 'active'
@@ -404,6 +411,20 @@ WITH DATA
 # MV 4: COD snapshot — active export/reporting snapshot
 # ---------------------------------------------------------------------------
 
+def icd11_primary_stem_sql(value_sql: str, provenance_sql: str) -> str:
+    """SQL for the ICD-11 stem a final COD buckets by (``digitva-443q``).
+
+    The ``primary_stem`` its save recorded in the ``conclusive`` provenance
+    item, else the first stem of the stored value (rows saved before
+    ``primary_stem`` existed). Both are matched against the stem shape; a
+    malformed provenance value falls back to the first stem.
+    """
+    return (
+        f"COALESCE(substring(upper(({provenance_sql}) -> 'conclusive' ->> 'primary_stem') "
+        f"from '{_ICD11_SQL_RE}'), substring(upper({value_sql}) from '{_ICD11_SQL_RE}'))"
+    )
+
+
 def _who_2026_bucket_sql() -> tuple[str, str, str]:
     """Return (CTEs, SELECT columns, joins) bucketing CODs in WHO_2022_VA_2026.
 
@@ -412,16 +433,20 @@ def _who_2026_bucket_sql() -> tuple[str, str, str]:
     ICD-10 values use the ``icd10`` rows with the legacy reporting aliases, as
     before; ICD-11 values use the ``icd11`` rows, exact code first, then the
     nearest ancestor on the catalogue's parent chain. A post-coordinated
-    ICD-11 value (``1G40&XN...``, ``1G40/...``) is bucketed by its first stem.
+    ICD-11 value (``1G40&XN...``, ``1G40/...``) is bucketed by its primary
+    stem: the ``primary_stem`` its save recorded in
+    ``icd11_provenance -> 'conclusive'`` (WHO's causing condition,
+    ``digitva-443q``), else, for a value saved before then, its first stem.
     SmartVA ICDs are ICD-10. Every bucket gets a ``*_who_bucket_provenance``
     column: ``icd10``, ``icd11_native``, ``unmapped``, or NULL when there is
     no value (docs/policy/icd11-cod-bucket-schemes.md).
     """
-    auth_cod = """CASE
-            WHEN ar.va_sid IS NOT NULL THEN ar.va_conclusive_cod
-            WHEN ac.va_sid IS NOT NULL THEN ac.va_conclusive_cod
-            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.va_conclusive_cod
-            WHEN cf.va_finassess_id IS NOT NULL THEN cf.va_conclusive_cod
+    def authoritative(column: str) -> str:
+        return f"""CASE
+            WHEN ar.va_sid IS NOT NULL THEN ar.{column}
+            WHEN ac.va_sid IS NOT NULL THEN ac.{column}
+            WHEN rf.va_rfinassess_id IS NOT NULL THEN rf.{column}
+            WHEN cf.va_finassess_id IS NOT NULL THEN cf.{column}
             ELSE NULL
         END"""
     ctes = f"""bucket_rows AS (
@@ -519,6 +544,11 @@ icd11_buckets AS (
         ELSE 'unmapped'
     END AS {prefix}_who_bucket_provenance"""
 
+    human = (
+        ("coder", "coder_final", "cf.va_conclusive_cod", "cf.icd11_provenance"),
+        ("reviewer", "reviewer_final", "rf.va_conclusive_cod", "rf.icd11_provenance"),
+        ("auth", "authoritative", "auth_cod.cod_text", "auth_cod.provenance"),
+    )
     select_columns = ",\n".join([
         columns("coder_final", "coder_bucket", "cf.va_conclusive_cod", icd11=True),
         columns("reviewer_final", "reviewer_bucket", "rf.va_conclusive_cod", icd11=True),
@@ -527,21 +557,24 @@ icd11_buckets AS (
             columns(f"smartva_cause{n}", f"smartva{n}_bucket", f"ls.va_smartva_cause{n}icd", icd11=False)
             for n in (1, 2, 3)
         ),
+        # The stem each human COD buckets by, so the export's ICD-11 URI
+        # follows the same stem (digitva-443q).
+        *(
+            f"    {icd11_primary_stem_sql(value_sql, provenance_sql)} AS {prefix}_icd11_stem"
+            for _name, prefix, value_sql, provenance_sql in human
+        ),
     ])
 
     joins = [
         f"""CROSS JOIN LATERAL (
-    SELECT {auth_cod} AS cod_text
+    SELECT
+        {authoritative("va_conclusive_cod")} AS cod_text,
+        {authoritative("icd11_provenance")} AS provenance
 ) auth_cod"""
     ]
-    human = (
-        ("coder", "cf.va_conclusive_cod"),
-        ("reviewer", "rf.va_conclusive_cod"),
-        ("auth", "auth_cod.cod_text"),
-    )
-    for name, value_sql in human:
+    for name, _prefix, value_sql, provenance_sql in human:
         icd10 = f"substring({value_sql} from '{_ICD10_SQL_RE}')"
-        icd11 = f"substring(upper({value_sql}) from '{_ICD11_SQL_RE}')"
+        icd11 = icd11_primary_stem_sql(value_sql, provenance_sql)
         joins.append(f"""LEFT JOIN legacy_reporting_alias {name}_icd_alias
     ON {name}_icd_alias.legacy_code = {icd10}
 LEFT JOIN icd10_buckets {name}_bucket
@@ -565,12 +598,14 @@ def build_submission_cod_snapshot_mv_sql(
     """Return the CREATE MATERIALIZED VIEW statement for the COD snapshot MV.
 
     ``icd11_buckets=True`` buckets in ``WHO_2022_VA_2026``, ICD-11 values
-    included, and adds the ``*_who_bucket_provenance`` columns (see
-    ``_who_2026_bucket_sql``). The default False returns the frozen
+    included, and adds the ``*_who_bucket_provenance`` columns and the
+    ``coder_final_icd11_stem`` / ``reviewer_final_icd11_stem`` /
+    ``authoritative_icd11_stem`` primary stems (see ``_who_2026_bucket_sql``).
+    The default False returns the frozen
     ``WHO_2022_VA`` ICD-10-only SQL that the historical snapshot migrations
     replay; ``mas_icd11_mms`` and ``icd_classification`` do not exist when
     they run. ``ensure_submission_cod_snapshot_mv`` passes True; migration
-    ``b7e2d4f6a8c1`` holds a frozen copy of the True output. The True SQL also
+    ``c5e8a2f4b7d1`` holds a frozen copy of the True output. The True SQL also
     decodes the payload once per row (``jsonb_to_record``): each ``->>`` on the
     TOASTed jsonb would otherwise detoast the whole document again, 34 times.
     """
@@ -601,6 +636,9 @@ def build_submission_cod_snapshot_mv_sql(
             "CASE WHEN jsonb_typeof(ap.payload_data) = 'object' THEN ap.payload_data END"
             f") AS pf({pf_columns}) ON true"
         )
+    # The bucket join reads each final's recorded primary stem; the frozen
+    # SQL predates icd11_provenance and must not select it.
+    provenance_column = ",\n        {}icd11_provenance" if icd11_buckets else ""
     if icd11_buckets:
         recursive = " RECURSIVE"
         bucket_ctes, bucket_columns, bucket_joins = _who_2026_bucket_sql()
@@ -729,7 +767,7 @@ latest_coder_final AS (
         va_conclusive_cod,
         va_finassess_remark,
         va_finassess_createdat,
-        va_finassess_updatedat
+        va_finassess_updatedat{provenance_column.format("")}
     FROM va_final_assessments
     WHERE va_finassess_status = 'active'
     ORDER BY va_sid, va_finassess_createdat DESC, va_finassess_id DESC
@@ -743,7 +781,7 @@ latest_reviewer_final AS (
         va_conclusive_cod,
         va_rfinassess_remark,
         va_rfinassess_createdat,
-        va_rfinassess_updatedat
+        va_rfinassess_updatedat{provenance_column.format("")}
     FROM va_reviewer_final_assessments
     WHERE va_rfinassess_status = 'active'
     ORDER BY va_sid, va_rfinassess_createdat DESC, va_rfinassess_id DESC
@@ -757,7 +795,7 @@ authoritative_coder AS (
         f.va_conclusive_cod,
         f.va_finassess_remark,
         f.va_finassess_createdat,
-        f.va_finassess_updatedat
+        f.va_finassess_updatedat{provenance_column.format("f.")}
     FROM va_final_cod_authority a
     JOIN va_final_assessments f
         ON f.va_finassess_id = a.authoritative_final_assessment_id
@@ -771,7 +809,7 @@ authoritative_reviewer AS (
         rf.va_conclusive_cod,
         rf.va_rfinassess_remark,
         rf.va_rfinassess_createdat,
-        rf.va_rfinassess_updatedat
+        rf.va_rfinassess_updatedat{provenance_column.format("rf.")}
     FROM va_final_cod_authority a
     JOIN va_reviewer_final_assessments rf
         ON rf.va_rfinassess_id = a.authoritative_reviewer_final_assessment_id

@@ -3,6 +3,25 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-10-27
+
+- **ICD-11 allowability follows WHO** (`digitva-kmm2`, `digitva-443q`,
+  `digitva-oh7j`, `digitva-xmpx`): chapter 22 injury-nature codes are no
+  longer a final COD and `KD3B.Z` is selectable again (migration
+  `b8d4f2a6c1e9`, which also drops the "Draft: " note prefix). A `/`
+  cluster's allowability, VA cause, training report and definition use the
+  causing condition WHO codeinfo names (`FB80.B/2F9Z` counts as `2F9Z`);
+  migration `c5e8a2f4b7d1` rebuilds the COD snapshot and detail views so
+  reports follow it. Sex conflicts still refuse; age conflicts at the final
+  and the masked DORIS Step 1 ask for confirmation, recorded in
+  `icd11_provenance` with DORIS's plausibility warning. The picker offers
+  "Causing condition not known" on a required causing-condition axis.
+  Station rejections stay `final_blocked`. Also: the reviewer page's own
+  saves, the DORIS editor flag and definition lookup, and two React Native
+  Web warnings (Notes tab text node, `textDecoration`). Full suite 6,392
+  passed (one old test updated to the new rule); mobile jest 2,767; code and
+  security reviews; checked on dev with a 3-year-old training case.
+
 ## 2026-10-26
 
 - **ICD-11 allowability decisions recorded** (`digitva-oh7j`, `digitva-xmpx`;

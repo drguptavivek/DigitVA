@@ -2,7 +2,7 @@
 // cause with the shared ICD-11 picker. No certificate and no Process; the
 // Step 1 DORIS run is shown read-only through renderSummary. The server
 // derives which choice was used, so nothing here reports provenance.
-import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=4';
+import { createIcd11Picker, attachAutoSearch } from './digitva_icd11_picker.js?v=5';
 import { renderSummary } from './doris_result_summary.js?v=6';
 
 (function () {
@@ -42,9 +42,23 @@ import { renderSummary } from './doris_result_summary.js?v=6';
           });
       }
     };
-    function confirm(value) {
+    // The picker's "causing condition not known" choice travels with the final as a form field.
+    function setUnknownCause(flag) {
+      var form = target.form;
+      if (!form) return;
+      var field = form.querySelector('input[name="causing_condition_unknown"]');
+      if (!field) {
+        field = document.createElement('input');
+        field.type = 'hidden';
+        field.name = 'causing_condition_unknown';
+        form.appendChild(field);
+      }
+      field.value = flag ? 'true' : 'false';
+    }
+    function confirm(value, unknownCause) {
+      setUnknownCause(unknownCause === true);
       // The floating VA definition for the confirmed cause (va_definition_panel.js; absent on pages without it).
-      var code = text(value).split(/\s+/)[0].split(/[&/]/)[0];
+      var code = text(value).split(/\s+/)[0].split('/').map(function (stem) { return stem.split('&')[0]; }).join('/');
       if (window.DigitVADefinitionPanel && code) window.DigitVADefinitionPanel.lookup(code, 'Final underlying cause', 'icd11');
       target.value = value;
       message.textContent = 'Confirmed final UCOD: ' + value;
@@ -54,7 +68,7 @@ import { renderSummary } from './doris_result_summary.js?v=6';
     var picker = createIcd11Picker({
       mount: host,
       transport: transport,
-      onSelect: function (choice) { confirm(choice.code + ' ' + (choice.title || '')); }
+      onSelect: function (choice) { confirm(choice.code + ' ' + (choice.title || ''), choice.causing_condition_unknown); }
     });
 
     // The same search as the DORIS editor's final box: WHO terms, or codeinfo for a code, then the shared rows.

@@ -19,6 +19,32 @@ NEONATE_INFANT_GROUPS = ("neonate", "infant")
 _DAYS_PER_YEAR = Decimal("365.25")
 
 
+class AgeRestrictionConfirmationRequired(ValueError):
+    """An ICD-11 code fails only its age restriction for this submission.
+
+    Sex conflicts block; age conflicts warn (owner 2026-10-26,
+    ``digitva-oh7j``). A ``ValueError`` so every caller that does not opt in
+    (immediate-cause lines, masked simple Step 1, which is ICD-10 only, and
+    station bundles) keeps refusing the code with today's message; the final
+    underlying COD saves, the masked DORIS Step 1 underlying cause (owner
+    2026-10-27) and the selection check catch it to ask for, or record, the
+    coder's confirmation.
+    """
+
+    def __init__(self, code: str, age_group_selectable: str | None, restriction_note: str | None):
+        self.code = code
+        self.age_group_selectable = age_group_selectable
+        self.restriction_note = restriction_note
+        super().__init__(f"{code} is not selectable for this submission.")
+
+    def details(self) -> dict:
+        return {
+            "code": self.code,
+            "age_group_selectable": self.age_group_selectable,
+            "restriction_note": self.restriction_note,
+        }
+
+
 def coding_age_group_for_submission(submission: VaSubmissions | None) -> str | None:
     """Return neonate/infant/child/adult (WHO 2022 boundaries), or None if age is unknown."""
     if submission is None:
@@ -92,6 +118,17 @@ def coding_policy_clause(model, *, age_group: str | None, sex: str | None):
     return clause
 
 
+def policy_ok_columns(model, *, age_group: str | None, sex: str | None):
+    """``(age_ok, sex_ok)`` boolean expressions for ``model``'s policy columns.
+
+    A falsy ``age_group``/``sex`` is always ok, as in ``coding_policy_clause``.
+    Lets one query tell an age conflict from a sex conflict.
+    """
+    age_ok = _age_clause(model, age_group) if age_group else sa.true()
+    sex_ok = _sex_clause(model, sex) if sex else sa.true()
+    return age_ok, sex_ok
+
+
 # Wording for the "why is this code not offered" explanation (digitva-e5j).
 _AGE_RESTRICTION_LABELS = {
     "neonate": "neonate only",
@@ -142,8 +179,7 @@ def policy_excluded_matches(
     """
     if not (age_group or sex):
         return None
-    age_ok = _age_clause(model, age_group) if age_group else sa.true()
-    sex_ok = _sex_clause(model, sex) if sex else sa.true()
+    age_ok, sex_ok = policy_ok_columns(model, age_group=age_group, sex=sex)
     rows = db.session.execute(
         sa.select(
             model.code,

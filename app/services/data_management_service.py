@@ -1813,16 +1813,17 @@ def dm_submissions_export_csv(user, **filters) -> str:
     return handle.getvalue()
 
 
-#: Snapshot ICD columns that can hold an ICD-11 value -> the URI column exported beside each.
+#: Snapshot primary-stem columns (the stem each final buckets by,
+#: digitva-443q) -> the URI column exported beside each.
 COD_SNAPSHOT_ICD11_URI_COLUMNS = {
-    "coder_final_icd": "coder_final_icd11_stem_uri",
-    "reviewer_final_icd": "reviewer_final_icd11_stem_uri",
-    "authoritative_icd": "authoritative_icd11_stem_uri",
+    "coder_final_icd11_stem": "coder_final_icd11_stem_uri",
+    "reviewer_final_icd11_stem": "reviewer_final_icd11_stem_uri",
+    "authoritative_icd11_stem": "authoritative_icd11_stem_uri",
 }
 
 
 def _icd11_stem_uris(values) -> dict[str, str]:
-    """Release-pinned linearization URI per ICD-11 code found in ``values``; one query."""
+    """Release-pinned linearization URI per ICD-11 stem in ``values``; one query."""
     from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, _versioned_icd11_uri
 
     codes = {extract_icd_code(value, "icd11") for value in values}
@@ -1959,6 +1960,7 @@ def dm_coded_cod_snapshot_export_csv(
         *SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
         "active_coder_assigned_name",
         "active_reviewer_assigned_name",
+        *COD_SNAPSHOT_ICD11_URI_COLUMNS,
     ]
     snapshot = sa.table(
         COD_SNAPSHOT_MV_NAME,
@@ -2044,7 +2046,10 @@ def dm_coded_cod_snapshot_export_csv(
     ]
 
     query = (
-        sa.select(*(getattr(snapshot.c, header) for header in headers))
+        sa.select(
+            *(getattr(snapshot.c, header) for header in headers),
+            *(getattr(snapshot.c, source) for source in COD_SNAPSHOT_ICD11_URI_COLUMNS),
+        )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
@@ -2061,7 +2066,8 @@ def dm_coded_cod_snapshot_export_csv(
     rows = db.session.execute(query).mappings().all()
     redact_pii = should_redact_pii(user)
 
-    # Licence 1.2.2: an exported ICD-11 code travels with its linearization URI.
+    # Licence 1.2.2: an exported ICD-11 code travels with its linearization
+    # URI, the URI of the primary stem the final buckets by (digitva-443q).
     uri_headers = list(COD_SNAPSHOT_ICD11_URI_COLUMNS.values())
     uri_by_code = _icd11_stem_uris(
         {row.get(source) for row in rows for source in COD_SNAPSHOT_ICD11_URI_COLUMNS}

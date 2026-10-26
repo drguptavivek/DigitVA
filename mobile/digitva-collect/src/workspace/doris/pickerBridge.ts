@@ -41,6 +41,8 @@ export interface PickerChoice {
   code: string;
   title: string;
   uri: string;
+  /** The coder chose a stem whose required causing-condition axis is unknown (sent as causing_condition_unknown on the final save). */
+  causingConditionUnknown?: boolean;
 }
 
 export interface PickerFailure {
@@ -164,7 +166,7 @@ export function createPickerBridge(options: PickerBridgeOptions) {
       const choice = plain(source.choice);
       const entry = choice && typeof choice.code === "string" && typeof choice.uri === "string" ? verified.get(`${choice.code}\n${choice.uri}`) : undefined;
       // Anything the server did not verify, or verified for an older certificate, is ignored.
-      if (entry && entry.revision === options.revision()) options.onSelect(entry.choice);
+      if (entry && entry.revision === options.revision()) options.onSelect(choice?.causing_condition_unknown === true ? { ...entry.choice, causingConditionUnknown: true } : entry.choice);
     } else if (source.t === "uncoded" && (options.allowUncoded?.() ?? true) && typeof source.text === "string") {
       const value = source.text.trim();
       if (value && value.length <= MAX_TEXT) options.onUncoded(value);

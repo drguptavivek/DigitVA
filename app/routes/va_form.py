@@ -134,14 +134,25 @@ _DORIS_CONFLICT_CODES = {
 }
 
 
+_ICD11_CONFIRMATION_CODES = (
+    "AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+    "INVALID_CAUSING_CONDITION_FLAG",
+)
+_FORM_TRUE = ("true", "1", "on")
+
+
 def _coder_error_response(exc: CoderCodingError):
     """The web's JSON refusal for a ``CoderCodingError``.
 
     A DORIS conflict keeps its ``schema_version`` body (the editor reads
-    ``processing`` from it); every other refusal is ``{error}``.
+    ``processing`` from it); an ICD-11 confirmation refusal is ``{error,
+    code}`` plus its ``details`` (``age_restriction``) so the screen can ask;
+    every other refusal is ``{error}``.
     """
     if exc.code in _DORIS_CONFLICT_CODES:
         return _doris_conflict(exc.code, exc.message, exc.processing)
+    if exc.code in _ICD11_CONFIRMATION_CODES:
+        return jsonify(error=exc.message, code=exc.code, **exc.details), exc.status_code
     return jsonify(error=exc.message), exc.status_code
 
 
@@ -782,6 +793,9 @@ def renderpartial(va_sid, va_partial):
                     "other_conditions": form.va_other_conditions.data,
                     "payload_data": va_payload_data,
                 }
+            save_kwargs["age_restriction_confirmed"] = (
+                request.form.get("age_restriction_confirmed", "").lower() in _FORM_TRUE
+            )
             try:
                 saved = submit_coder_initial_cod(
                     current_user, va_sid, actiontype=va_actiontype, **save_kwargs
@@ -1064,6 +1078,12 @@ def renderpartial(va_sid, va_partial):
                     cod_chosen_code=request.form.get("cod_chosen_code"),
                     cod_chosen_rank=request.form.get("cod_chosen_rank"),
                     actiontype=va_actiontype,
+                    age_restriction_confirmed=(
+                        request.form.get("age_restriction_confirmed", "").lower() in _FORM_TRUE
+                    ),
+                    causing_condition_unknown=(
+                        request.form.get("causing_condition_unknown", "").lower() in _FORM_TRUE
+                    ),
                     **doris_kwargs,
                 )
             except CoderCodingError as exc:

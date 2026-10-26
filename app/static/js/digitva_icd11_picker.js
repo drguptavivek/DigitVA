@@ -508,6 +508,7 @@ export function createIcd11Picker(options) {
         values = [option];
       }
       state.selected[axis.id] = values;
+      if (axis.id === CAUSING_AXIS) state.causing_unknown = false;
       renderPostcoordination({axis: axis.id, code: option.code});
     }
     function complete() {
@@ -533,9 +534,17 @@ export function createIcd11Picker(options) {
       if (state.other_selected) chosen.push(state.other_selected);
       chosen.filter(function (item) { return /^X/i.test(item.code); }).forEach(append);
       chosen.filter(function (item) { return !/^X/i.test(item.code); }).forEach(append);
-      return {code: code, uri: uri, title: titles.join('; '), selected_text: titles.join('; ')};
+      var built = {code: code, uri: uri, title: titles.join('; '), selected_text: titles.join('; ')};
+      if (causingUnknown()) built.causing_condition_unknown = true;
+      return built;
     }
-    function requiredSatisfied() { return state.axes.every(function (axis) { return !axis.required || selectedFor(axis).length > 0; }); }
+    // "Causing condition not known" stands in for a missing required
+    // hasCausingCondition axis only (principle 12); other axes are unchanged.
+    var CAUSING_AXIS = 'hasCausingCondition';
+    function causingUnknown() {
+      return state.causing_unknown && state.axes.some(function (axis) { return axis.id === CAUSING_AXIS && axis.required && selectedFor(axis).length === 0; });
+    }
+    function requiredSatisfied() { return state.axes.every(function (axis) { return !axis.required || selectedFor(axis).length > 0 || (axis.id === CAUSING_AXIS && state.causing_unknown); }); }
     function appendOptionList(axis, optionsList, parent) {
       // Selected values that are not root options (preselected composite
       // parts, deeper children) still need a visible, pressable chip.
@@ -683,6 +692,18 @@ export function createIcd11Picker(options) {
           : ((axis.allow_multiple_values === 'AllowAlways' || (!axis.allow_multiple_values && axis.allow_multiple)) ? '(choose one or more)' : '(choose one)'));
         heading.appendChild(multipleHint);
         section.appendChild(heading);
+        if (axis.id === CAUSING_AXIS && axis.required) {
+          var unknown = button('Causing condition not known', 'btn btn-sm btn-outline-secondary mb-2');
+          unknown.setAttribute('data-doris-causing-unknown', '');
+          unknown.setAttribute('aria-pressed', state.causing_unknown ? 'true' : 'false');
+          unknown.classList.toggle('active', state.causing_unknown);
+          unknown.addEventListener('click', function () {
+            state.causing_unknown = !state.causing_unknown;
+            if (state.causing_unknown) state.selected[axis.id] = [];
+            renderPostcoordination({axis: axis.id, code: ''});
+          });
+          section.appendChild(unknown);
+        }
         var optionsHost = document.createElement('div');
         optionsHost.setAttribute('data-doris-axis-options', axis.id);
         appendOptionList(axis, axis.options, optionsHost);
@@ -851,7 +872,7 @@ export function createIcd11Picker(options) {
       preserveInputFocus = Boolean(preserveFocus);
       originEl = preserveFocus ? null : (trigger || container);
       if (item && item.mode === 'hierarchy') { openHierarchy(item.item, trigger); return; }
-      state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false, other_postcoordination: null, other_selected: null};
+      state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false, other_postcoordination: null, other_selected: null, causing_unknown: false};
       header('Build expression', '');
       transport.post('postcoordination', {schema_version: 1, code: item.code}).then(function (data) {
         if (stale(id)) return;
@@ -965,6 +986,12 @@ export function createIcd11Picker(options) {
       header.appendChild(title);
       var meta = document.createElement('div'); meta.className = 'doris-search-meta';
       if (item.matching_text && item.matching_text !== item.title) { var match = document.createElement('span'); match.className = 'doris-search-match'; match.textContent = 'Matched: ' + item.matching_text; meta.appendChild(match); }
+      if (item.age_restricted) {
+        var ageTag = document.createElement('span'); ageTag.className = 'badge text-bg-warning doris-age-tag'; ageTag.textContent = 'age-restricted';
+        var ageNote = item.restriction_note || 'Usually used only for certain age groups.';
+        ageTag.title = ageNote; ageTag.setAttribute('aria-label', 'Age-restricted: ' + ageNote); ageTag.setAttribute('role', 'img');
+        meta.appendChild(ageTag);
+      }
       var complete = isCompleteExpression(item.code);
       var buildIcon = addContextIcons(meta, item, function (chapter, selected) {
         openRelated(container, chapter, selected, function (term) {

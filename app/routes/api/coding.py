@@ -439,6 +439,7 @@ def _coder_refusal(exc: CoderCodingError):
         extra["messages"] = exc.messages
     if exc.processing is not None:
         extra["processing"] = exc.processing
+    extra.update(exc.details)
     return api_error(exc.message, exc.code, exc.status_code, **extra)
 
 
@@ -479,6 +480,14 @@ def _text(body: dict, name: str) -> str | None:
     return value.strip()
 
 
+def _flag(body: dict, name: str) -> bool:
+    """The JSON boolean *name*, False when absent; ValueError when not a boolean."""
+    value = body.get(name, False)
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be true or false.")
+    return value
+
+
 def _doris_fields(body: dict) -> dict:
     """The DORIS envelopes of a body: objects, tokens as text (ValueError otherwise)."""
     for name in ("doris_certificate", "doris_result", "codedit_result"):
@@ -514,10 +523,14 @@ def initial(va_sid):
     ``other_conditions`` (a list from the age group's choices, or one text
     joined by ``|``) and, for masked DORIS, ``doris_certificate``,
     ``doris_result``, ``codedit_result``, ``doris_process_token``,
-    ``doris_result_digest``, ``doris_client_revision``. 200 ``{va_sid,
+    ``doris_result_digest``, ``doris_client_revision``, and the optional
+    boolean ``age_restriction_confirmed`` (ICD-11). 200 ``{va_sid,
     initial_assessment_id, workflow_state}``. Errors ``{error, code}``: 400
     ``invalid_request`` / ``invalid_cod`` (``messages``) /
-    ``invalid_other_conditions``; 403 ``forbidden`` / ``no_allocation``; 404
+    ``invalid_other_conditions``; 422 ``AGE_RESTRICTION_CONFIRMATION_REQUIRED``
+    with ``age_restriction`` ``{code, age_group_selectable,
+    restriction_note}`` for an unconfirmed age conflict of the underlying
+    cause; 403 ``forbidden`` / ``no_allocation``; 404
     ``not_found``; 409 ``not_masked`` / ``wrong_state`` / ``no_payload`` and
     the DORIS conflicts (``DORIS_CERTIFICATE_CHANGED`` carries
     ``processing``); 413 ``too_large``; 422 ``invalid_doris``; 503
@@ -534,6 +547,7 @@ def initial(va_sid):
             "immediate_cod": _text(body, "immediate_cod"),
             "antecedent_cod": _text(body, "antecedent_cod"),
             "other_conditions": _other_conditions_list(body),
+            "age_restriction_confirmed": _flag(body, "age_restriction_confirmed"),
             **_doris_fields(body),
         }
     except ValueError as exc:
@@ -558,11 +572,16 @@ def finalize(va_sid):
     ``remark``, ``immediate_cod`` and ``other_conditions`` (unmasked simple
     projects), the DORIS fields of ``initial`` (unmasked DORIS), and the
     search telemetry ``cod_search_id``, ``cod_chosen_code``,
-    ``cod_chosen_rank``. 200 ``{va_sid, final_assessment_id,
-    workflow_state}``. Errors as ``initial``, and 422 ``final_blocked`` with
-    every blocking message in ``messages`` (an invalid COD, Narrative QA or
-    Social Autopsy not done); 422 ``invalid_request`` for a ``remark`` or
-    ``other_conditions`` over 4000 characters; 413 ``too_large`` over 1.2 MB."""
+    ``cod_chosen_rank``, and the optional booleans
+    ``age_restriction_confirmed`` and ``causing_condition_unknown`` (ICD-11).
+    200 ``{va_sid, final_assessment_id, workflow_state}``. Errors as
+    ``initial``, and 422 ``final_blocked`` with every blocking message in
+    ``messages`` (an invalid COD, Narrative QA or Social Autopsy not done);
+    422 ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` with ``age_restriction``
+    ``{code, age_group_selectable, restriction_note}`` for an unconfirmed age
+    conflict; 422 ``INVALID_CAUSING_CONDITION_FLAG``; 422 ``invalid_request``
+    for a ``remark`` or ``other_conditions`` over 4000 characters; 413
+    ``too_large`` over 1.2 MB."""
     training_scope.resolve("coding")
     body = _json_object()
     if body is None:
@@ -575,6 +594,8 @@ def finalize(va_sid):
             "remark": _text(body, "remark"),
             "immediate_cod": _text(body, "immediate_cod"),
             "other_conditions": _text(body, "other_conditions"),
+            "age_restriction_confirmed": _flag(body, "age_restriction_confirmed"),
+            "causing_condition_unknown": _flag(body, "causing_condition_unknown"),
             **_doris_fields(body),
         }
         cod_search_id = _text(body, "cod_search_id")

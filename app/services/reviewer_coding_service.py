@@ -45,8 +45,12 @@ from app.services.doris_process_proof import (
 from app.services.doris_processing import process_certificate
 from app.services.duplicate_exclusion import DUPLICATE_MESSAGE, is_confirmed_duplicate
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
+from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
+    InvalidCausingConditionFlag,
     build_icd11_provenance_for_values,
+    check_causing_condition_unknown,
+    record_final_cod_flags,
     validate_coding_value_for_submission,
 )
 from app.services.odk_retirement_service import RETIRED_MESSAGE, is_submission_retired
@@ -81,7 +85,11 @@ class ReviewerCodingResult:
 
 
 class ReviewerCodingError(Exception):
-    """Raised when reviewer coding cannot proceed."""
+    """Raised when reviewer coding cannot proceed.
+
+    ``details`` are extra response keys
+    (``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` carries ``age_restriction``).
+    """
 
     def __init__(
         self,
@@ -90,11 +98,13 @@ class ReviewerCodingError(Exception):
         *,
         code: str | None = None,
         processing: dict | None = None,
+        details: dict | None = None,
     ):
         self.message = message
         self.status_code = status_code
         self.code = code
         self.processing = processing
+        self.details = details or {}
         super().__init__(message)
 
 
@@ -467,7 +477,18 @@ def submit_reviewer_final_cod(
     doris_process_token: str | None = None,
     doris_result_digest: str | None = None,
     doris_client_revision: int = 0,
+    age_restriction_confirmed: bool = False,
+    causing_condition_unknown: bool = False,
 ) -> VaReviewerFinalAssessments:
+    """Save the reviewer's final COD.
+
+    An ICD-11 conclusive COD that fails only its age restriction is refused
+    422 ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` unless
+    ``age_restriction_confirmed``; the confirmation, and
+    ``causing_condition_unknown`` (422 ``INVALID_CAUSING_CONDITION_FLAG``
+    unless the value is one ICD-11 stem), are recorded in the conclusive
+    provenance (``digitva-oh7j``, ``digitva-xmpx``).
+    """
     from app.services.coding_service import get_project_for_submission
 
     # Reviewer final replacement is a single-writer operation per
@@ -488,8 +509,23 @@ def submit_reviewer_final_cod(
             "Reviewer final COD can only be submitted from reviewer_coding_in_progress.",
             code="wrong_state",
         )
+    age_restriction = None
     try:
+        if causing_condition_unknown:
+            check_causing_condition_unknown(conclusive_cod)
         validate_coding_value_for_submission(va_sid, conclusive_cod)
+    except InvalidCausingConditionFlag as exc:
+        raise ReviewerCodingError(str(exc), 422, code="INVALID_CAUSING_CONDITION_FLAG") from exc
+    except AgeRestrictionConfirmationRequired as exc:
+        # Age warns, sex blocks (digitva-oh7j).
+        if not age_restriction_confirmed:
+            raise ReviewerCodingError(
+                str(exc),
+                422,
+                code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+                details={"age_restriction": exc.details()},
+            ) from exc
+        age_restriction = exc.details()
     except (LookupError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
 
@@ -597,6 +633,15 @@ def submit_reviewer_final_cod(
         )
     except (LookupError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+    final_provenance = record_final_cod_flags(
+        final_provenance,
+        age_restriction=age_restriction,
+        causing_condition_unknown=causing_condition_unknown,
+        confirmed_by=user.user_id,
+        doris_result=verified_doris or (
+            reviewer_initial.doris_result if mode == "masked_doris" and reviewer_initial else None
+        ),
+    )
 
     if _reviewer_social_autopsy_required(va_sid, submission):
         social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
@@ -721,6 +766,7 @@ def submit_reviewer_initial_cod(
     doris_process_token: str | None = None,
     doris_result_digest: str | None = None,
     doris_client_revision: int = 0,
+    age_restriction_confirmed: bool = False,
 ) -> VaReviewerInitialAssessments:
     """Save the reviewer's masked Step 1.
 
@@ -729,7 +775,12 @@ def submit_reviewer_initial_cod(
     proof is verified (or the certificate reprocessed, see
     ``verify_doris_submission``), the immediate cause is Part I line 1 and
     the antecedent is the reviewer's confirmed underlying cause. A missing
-    line or cause is a 400. The coder's records are never touched.
+    line or cause is a 400. The coder's records are never touched. An
+    ICD-11 underlying cause (``antecedent_cod``) that fails only its age
+    restriction is a 422 ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` unless
+    ``age_restriction_confirmed``; the confirmation is then recorded in the
+    ``antecedent`` provenance (``digitva-oh7j``). That is masked DORIS only:
+    ICD-11 projects are DORIS projects, so masked simple never meets it.
     """
     from app.services.coding_service import get_project_for_submission
 
@@ -768,6 +819,7 @@ def submit_reviewer_initial_cod(
         )
 
     doris_fields = {}
+    age_restriction = None
     provenance_fields = ("immediate", "antecedent")
     if mode == "masked_doris":
         if not antecedent_cod:
@@ -799,6 +851,16 @@ def submit_reviewer_initial_cod(
             )
         try:
             validate_coding_value_for_submission(va_sid, antecedent_cod)
+        except AgeRestrictionConfirmationRequired as exc:
+            # Age warns, sex blocks, as for the final (digitva-oh7j).
+            if not age_restriction_confirmed:
+                raise ReviewerCodingError(
+                    str(exc),
+                    422,
+                    code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
+                    details={"age_restriction": exc.details()},
+                ) from exc
+            age_restriction = exc.details()
         except (LookupError, ValueError) as exc:
             raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
         # The immediate cause was checked against WHO when the certificate
@@ -846,6 +908,15 @@ def submit_reviewer_initial_cod(
         )
     except (LookupError, ValueError) as exc:
         raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+    # Pending row: the in-place provenance edit is what gets inserted.
+    record_final_cod_flags(
+        reviewer_initial.icd11_provenance,
+        age_restriction=age_restriction,
+        causing_condition_unknown=False,
+        confirmed_by=user.user_id,
+        doris_result=doris_fields.get("doris_result"),
+        field="antecedent",
+    )
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,

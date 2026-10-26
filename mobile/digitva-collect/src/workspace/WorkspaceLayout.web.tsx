@@ -413,7 +413,7 @@ export function WorkspaceLayout({
     <BodyOverlay>
     {notes ? <>
       <Pressable nativeID="digitva-notes-trigger" accessibilityRole="button" accessibilityLabel="Open Notes" onPress={() => setNotesOpen(true)} style={[webStyles.notesTab, !wide && webStyles.notesTabMobile, (notesOpen || (phone && categoriesOpen)) && webStyles.notesTabOpen]}>
-        <FaIcon name="fa-paperclip" color={w.onBar} /> <Text style={webStyles.notesTabText}>Notes</Text>
+        <FaIcon name="fa-paperclip" color={w.onBar} /><Text style={webStyles.notesTabText}>Notes</Text>
       </Pressable>
       <View nativeID="digitva-notes-panel" {...((wide ? { role: "complementary", "aria-label": "Notes panel" } : { role: "dialog", "aria-modal": true, "aria-label": "Notes panel" }) as any)} style={[webStyles.notesPanel, !wide && webStyles.notesPanelMobile, notesOpen ? webStyles.notesPanelOpen : webStyles.notesPanelClosed]}>
         <View style={webStyles.notesHeader}><Text style={webStyles.notesTitle}><FaIcon name="fa-sticky-note" color={w.onBar} /> Notes / Observations</Text><Pressable nativeID="digitva-notes-close" accessibilityRole="button" accessibilityLabel="Close Notes" onPress={() => setNotesOpen(false)}><FaIcon name="fa-times" color={w.onBar} /></Pressable></View>
@@ -563,5 +563,5 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   noteFormId: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12, padding: 12, borderBottomWidth: 1, borderBottomColor: w.border },
   notesBody: { padding: 12, flex: 1 },
   icdBrowserCard: { borderTopWidth: 1, borderTopColor: w.border, padding: 12 },
-  icdBrowserLink: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: w.blue, borderRadius: 4, color: w.blue, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: ROBOTO, fontSize: 14, fontWeight: "700", textDecoration: "none", boxSizing: "border-box" } as any,
+  icdBrowserLink: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: w.blue, borderRadius: 4, color: w.blue, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: ROBOTO, fontSize: 14, fontWeight: "700", textDecorationLine: "none", boxSizing: "border-box" } as any,
 });

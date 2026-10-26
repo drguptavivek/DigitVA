@@ -64,3 +64,43 @@ assert.equal(footer.querySelector('.doris-selection-code').textContent, 'FB32.2Z
 assert.ok(footer.querySelector('.doris-selection-title').textContent.startsWith('Ischaemic'));
 p2.close();
 console.log('icd11_picker ok');
+
+// "Causing condition not known" completes a required hasCausingCondition axis as the stem alone and flags the selection;
+// any other required axis keeps requiring a choice. Age-restricted results carry a labelled tag.
+{
+  const axisFor = (id) => ({stem: {code: 'FB80.B', title: 'Stem', uri: 'u'}, axes: [{id, label: 'Causing condition', required: true, instruction: 'code also', options: [{code: 'XS9', title: 'Opt', uri: 'x'}]}]});
+  const run = async (id) => {
+    const chosen = [];
+    const root = document.createElement('div');
+    root.innerHTML = '<input><div data-doris-search-status></div><div data-doris-search-results></div><div data-doris-details-panel hidden></div><div data-doris-guided-panel></div>';
+    document.body.appendChild(root);
+    const pk = createIcd11Picker({mount: document.body, transport: {post: (path) => Promise.resolve(path === 'postcoordination' ? axisFor(id) : {item: {code: 'FB80.B', uri: 'u'}})}, onSelect(choice) { chosen.push(choice); }});
+    pk.openPostcoordination(root, {code: 'FB80.B', title: 'Stem', uri: 'u'}, null, true);
+    await new Promise((r) => setTimeout(r, 0));
+    return {root, chosen};
+  };
+  const known = await run('hasCausingCondition');
+  const use = () => known.root.querySelector('[data-doris-use-expression]');
+  assert.equal(use().disabled, true);
+  known.root.querySelector('[data-doris-causing-unknown]').click();
+  assert.equal(use().disabled, false);
+  assert.equal(known.root.querySelector('[data-doris-causing-unknown]').getAttribute('aria-pressed'), 'true');
+  use().click();
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(known.chosen[0].code, 'FB80.B');
+  assert.equal(known.chosen[0].causing_condition_unknown, true);
+  const other = await run('hasSeverity');
+  assert.equal(other.root.querySelector('[data-doris-causing-unknown]'), null);
+  assert.equal(other.root.querySelector('[data-doris-use-expression]').disabled, true);
+
+  const tagHost = document.createElement('div');
+  tagHost.innerHTML = '<input><div data-doris-search-status></div><div data-doris-search-results></div>';
+  document.body.appendChild(tagHost);
+  const tagPicker = createIcd11Picker({mount: document.body, transport: {post: () => Promise.resolve({})}, onSelect() {}});
+  tagPicker.renderResults(tagHost, [{code: 'A1', title: 'Old', uri: 'u', age_restricted: true, restriction_note: 'Adults only'}, {code: 'A2', title: 'Any', uri: 'u'}],
+    {input: tagHost.querySelector('input'), statusEl: tagHost.querySelector('[data-doris-search-status]'), resultList: tagHost.querySelector('[data-doris-search-results]'), onRequery() {}});
+  const tags = tagHost.querySelectorAll('.doris-age-tag');
+  assert.equal(tags.length, 1);
+  assert.match(tags[0].getAttribute('aria-label'), /Adults only/);
+}
+console.log('causing-unknown and age tag checks passed');

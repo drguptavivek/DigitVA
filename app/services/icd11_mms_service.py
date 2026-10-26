@@ -23,9 +23,11 @@ import sqlalchemy.orm as so
 from app import db
 from app.models import MasIcd11Mms
 from app.services.icd_coding_policy import (
+    AgeRestrictionConfirmationRequired,
     coding_context_for_submission,
     coding_policy_clause,
     policy_excluded_matches,
+    policy_ok_columns,
 )
 from app.services.icd_coding_value import (
     extract_icd11_code_expression,
@@ -1007,10 +1009,15 @@ def validate_icd11_mms_coding_value_for_submission(
 ) -> None:
     """Reject a COD value that is not a selectable ICD-11 code for this death.
 
-    Mirrors ``validate_icd10_2019_2_coding_value_for_submission``: the code
-    must be an active category of ``release`` that the coding policy allows
-    for the submission's age and sex. Raises ``ValueError`` when it is not,
-    ``LookupError`` when the submission does not exist.
+    Mirrors ``validate_icd10_2019_2_coding_value_for_submission``: the
+    primary stem (``icd11_primary_stem``) must be an active category of
+    ``release`` that the coding policy allows for the submission's age and
+    sex. Raises ``ValueError`` when it is not, ``LookupError`` when the
+    submission does not exist. A code that fails only its age restriction
+    raises ``AgeRestrictionConfirmationRequired`` (a ``ValueError``), which
+    the final underlying COD saves, the masked DORIS Step 1 underlying cause
+    and the selection check accept on the coder's confirmation
+    (``digitva-oh7j``).
     """
     code = extract_icd_code(value, "icd11")
     expression = extract_icd11_code_expression(value)
@@ -1041,24 +1048,50 @@ def validate_icd11_mms_coding_value_for_submission(
             raise ValueError("The ICD-11 code expression is not valid.")
         if stem_code is None and not isinstance(stem_id, str):
             raise ValueError("The ICD-11 code expression is not valid.")
+        code = icd11_primary_stem(codeinfo, code)
 
     context = coding_context_for_submission(va_sid)
     if context is None:
         raise LookupError(f"Submission not found: {va_sid}")
 
-    is_allowed = db.session.scalar(
-        sa.select(
-            sa.exists().where(
-                MasIcd11Mms.release == release,
-                MasIcd11Mms.code == code,
-                MasIcd11Mms.is_active.is_(True),
-                MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
-                coding_policy_clause(MasIcd11Mms, age_group=context["age_group"], sex=context["sex"]),
-            )
-        )
+    age_ok, sex_ok = policy_ok_columns(
+        MasIcd11Mms, age_group=context["age_group"], sex=context["sex"]
     )
-    if not is_allowed:
+    row = db.session.execute(
+        sa.select(
+            age_ok.label("age_ok"),
+            sex_ok.label("sex_ok"),
+            MasIcd11Mms.age_group_selectable,
+            MasIcd11Mms.restriction_note,
+        ).where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.code == code,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
+            MasIcd11Mms.is_coding_selectable.is_(True),
+        )
+    ).first()
+    if row is None or not row.sex_ok:
         raise ValueError(f"{code} is not selectable for this submission.")
+    if not row.age_ok:
+        raise AgeRestrictionConfirmationRequired(
+            code, row.age_group_selectable, row.restriction_note
+        )
+
+
+def icd11_primary_stem(codeinfo: dict | None, first_stem: str) -> str:
+    """The stem that drives allowability and the VA cause (principle 13).
+
+    WHO's causing condition (``hasCausingCondition[0]``) when codeinfo
+    reports one, so ``FB80.B/2F9Z`` is ``2F9Z``; otherwise ``first_stem``.
+    Takes a codeinfo dict the caller already fetched: never calls WHO.
+    """
+    causing = (codeinfo or {}).get("hasCausingCondition")
+    if isinstance(causing, list) and causing and isinstance(causing[0], str):
+        stem = extract_icd_code(causing[0], "icd11")
+        if stem:
+            return stem
+    return first_stem
 
 
 def _versioned_icd11_uri(uri: str | None, release: str) -> str | None:
@@ -1096,6 +1129,8 @@ def build_icd11_provenance(
     both are checked before returning metadata. The caller's text is retained
     separately as ``selected_text`` because ECT can return an index-term label
     such as ``Diabetic nephropathy`` for a row whose canonical title is broader.
+    ``primary_stem`` records the stem the VA cause buckets by
+    (``icd11_primary_stem``, ``digitva-443q``).
     """
     code = extract_icd_code(value, "icd11")
     expression = extract_icd11_code_expression(value)
@@ -1144,6 +1179,29 @@ def build_icd11_provenance(
         "linearization_uri": expected_stem_id,
         "foundation_uri": _versioned_icd11_uri(row.foundation_uri, release),
         "codeinfo_uri": codeinfo_uri,
+        "primary_stem": icd11_primary_stem(codeinfo, code),
+    }
+
+
+def _policy_filter_and_age_ok(filters: list, apply_policy: bool, *, age_group, sex):
+    """Append the search's policy filter to ``filters``; return an ``age_ok`` column.
+
+    Sex conflicts are hidden; age conflicts are returned and marked
+    (``digitva-oh7j``), so the age rule moves from the filter to the column.
+    """
+    if not apply_policy:
+        return sa.true().label("age_ok")
+    filters.append(coding_policy_clause(MasIcd11Mms, age_group=None, sex=sex))
+    age_ok, _ = policy_ok_columns(MasIcd11Mms, age_group=age_group, sex=None)
+    return age_ok.label("age_ok")
+
+
+def _age_marks(row: MasIcd11Mms, age_ok: bool) -> dict:
+    """``age_restricted`` and its ``restriction_note`` for one search item."""
+    restricted = not age_ok
+    return {
+        "age_restricted": restricted,
+        "restriction_note": row.restriction_note if restricted else None,
     }
 
 
@@ -1164,6 +1222,9 @@ def search_icd11_mms(
     authoritative). Without a ``va_sid``, passing ``age_group`` and/or ``sex``
     explicitly applies the same policy filter without a submission to fake
     (used by the coding-search help demo); omitting both searches unfiltered.
+    The policy hides sex-restricted codes; an age-restricted code is returned
+    with ``age_restricted: true`` and its ``restriction_note`` (every item
+    carries both keys; ``digitva-oh7j``).
     Matches from the admin-managed search vocabulary (``mas_icd_search_terms``)
     are prepended and flagged; expansion goes through the same filters, so it
     never bypasses coding policy (docs/policy/icd-coding-search-vocabulary.md).
@@ -1199,11 +1260,10 @@ def search_icd11_mms(
         MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
         match_clause,
     ]
-    if apply_policy:
-        filters.append(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=sex))
+    age_ok = _policy_filter_and_age_ok(filters, apply_policy, age_group=age_group, sex=sex)
 
-    rows = db.session.scalars(
-        sa.select(MasIcd11Mms)
+    rows = db.session.execute(
+        sa.select(MasIcd11Mms, age_ok)
         .where(*filters)
         .order_by(rank_expr, MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
         .limit(min(limit, _CODING_MAX_RESULTS))
@@ -1219,8 +1279,9 @@ def search_icd11_mms(
             "tier": result_tier(
                 code=row.code, title=row.title, normalized_query=normalized_query
             ),
+            **_age_marks(row, row_age_ok),
         }
-        for row in rows
+        for row, row_age_ok in rows
     ]
     # digitva-wqc: re-rank the already-fetched rows so a focused tier
     # (word-boundary/qualifier-stripped match, computed above) lists
@@ -1277,7 +1338,9 @@ def excluded_icd11_mms_matches(
     """Policy-excluded lexical matches for ``query`` (digitva-e5j), or None.
 
     Only asked when the selectable results do not fill a page; the rows are
-    reported, never offered. See ``policy_excluded_matches``.
+    reported, never offered. See ``policy_excluded_matches``. Only sex hides
+    an ICD-11 code: age-restricted ones are returned marked
+    (``digitva-oh7j``), so ``age_group`` is not applied here.
     """
     normalized_query = _normalize_query(query)
     if len(normalized_query) < _CODING_MIN_QUERY_LEN or selectable_count >= _CODING_MAX_RESULTS:
@@ -1296,7 +1359,7 @@ def excluded_icd11_mms_matches(
             match_clause,
         ),
         (rank_expr, MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri),
-        age_group=age_group,
+        age_group=None,
         sex=sex,
     )
 
@@ -1324,16 +1387,16 @@ def _resolve_vocabulary_links_icd11(
         MasIcd11Mms.is_active.is_(True),
         MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
     ]
-    if apply_policy:
-        filters.append(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=sex))
+    age_ok = _policy_filter_and_age_ok(filters, apply_policy, age_group=age_group, sex=sex)
     rows_by_code = {
-        row.code: row for row in db.session.scalars(sa.select(MasIcd11Mms).where(*filters))
+        row.code: (row, row_age_ok)
+        for row, row_age_ok in db.session.execute(sa.select(MasIcd11Mms, age_ok).where(*filters))
     }
     results = []
     for link in links:
-        row = rows_by_code.get(link["icd_code"])
-        if row is None:
+        if link["icd_code"] not in rows_by_code:
             continue
+        row, row_age_ok = rows_by_code[link["icd_code"]]
         result = {
             "icd_code": row.code,
             "icd_to_display": (
@@ -1344,6 +1407,7 @@ def _resolve_vocabulary_links_icd11(
             "class_kind": row.class_kind,
             "vocabulary": True,
             "tier": RESULT_TIER_FOCUSED,
+            **_age_marks(row, row_age_ok),
         }
         if fuzzy:
             result["fuzzy"] = True
@@ -1372,10 +1436,9 @@ def _fuzzy_title_icd11_hits(
         MasIcd11Mms.class_kind.in_(tuple(POLICY_EDITABLE_CLASS_KINDS)),
         sa.literal(normalized_query).op("<%")(lower_title),
     ]
-    if apply_policy:
-        filters.append(coding_policy_clause(MasIcd11Mms, age_group=age_group, sex=sex))
-    rows = db.session.scalars(
-        sa.select(MasIcd11Mms)
+    age_ok = _policy_filter_and_age_ok(filters, apply_policy, age_group=age_group, sex=sex)
+    rows = db.session.execute(
+        sa.select(MasIcd11Mms, age_ok)
         .where(*filters)
         .order_by(similarity.desc())
         .limit(_CODING_MAX_RESULTS)
@@ -1389,6 +1452,7 @@ def _fuzzy_title_icd11_hits(
             "class_kind": row.class_kind,
             "tier": RESULT_TIER_EXPANDED,
             "fuzzy": True,
+            **_age_marks(row, row_age_ok),
         }
-        for row in rows
+        for row, row_age_ok in rows
     ]

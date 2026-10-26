@@ -221,6 +221,31 @@ class FindVaDefinitionForIcdTests(BaseTestCase):
         self.assertEqual(self._va("1A00"), "VAs-01.04")
         self.assertEqual(self._va("1A00.1 - child", "icd11"), "VAs-01.04")
 
+    def test_icd11_cluster_is_looked_up_by_its_primary_stem(self):
+        """digitva-443q: a saved value's recorded stem; a bare ``/`` cluster
+        asks WHO codeinfo once; anything else never calls WHO."""
+        from unittest import mock
+
+        cluster = "ZZ99/1A00.1 Cluster"
+        with mock.patch("app.services.who_icd_api.get_icd11_codeinfo") as codeinfo:
+            found = svc.find_va_definition_for_icd(cluster, "icd11", {"primary_stem": "1A00.1"})
+            self.assertEqual((found["icd_code"], found["va_code"]), ("1A00.1", "VAs-01.04"))
+            self.assertEqual(self._va("1A00.1&XN1 Extension"), "VAs-01.04")
+            codeinfo.assert_not_called()
+
+            codeinfo.return_value = {"code": "ZZ99/1A00.1", "hasCausingCondition": ["1A00.1"]}
+            self.assertEqual(self._va(cluster), "VAs-01.04")
+            codeinfo.assert_called_once_with("ZZ99/1A00.1", release=svc.DEFAULT_ICD11_RELEASE)
+
+            # No causing condition, a mismatched answer or WHO down: the first stem.
+            from app.services.who_icd_api import WhoIcdApiUnavailable
+
+            for answer in ({"code": "ZZ99/1A00.1"}, {"code": "other", "hasCausingCondition": ["1A00.1"]}):
+                codeinfo.return_value = answer
+                self.assertIsNone(self._va(cluster))
+            codeinfo.side_effect = WhoIcdApiUnavailable("down")
+            self.assertIsNone(self._va(cluster))
+
     def test_no_definition(self):
         self.assertIsNone(self._va("Z99"))  # mapped, but not to a vas_* cause
         self.assertIsNone(self._va("B99"))  # mapped only in the other scheme

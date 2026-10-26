@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
 status: approved
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-27
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
@@ -68,7 +68,10 @@ every active category it does not list (chapter X included) to not selectable
 with no sex, age or note. Items carry no `policy_status`, so an import leaves
 each row's status unchanged and a regenerated draft never clears a `reviewed`
 mark. A restricted row's `restriction_note` records where its restriction came
-from (`Draft: ...`).
+from. The signed-off JSON writes it as `Draft: ...`; migration
+`b8d4f2a6c1e9` (2026-10-26, `digitva-kmm2`) strips that prefix in the
+database, and also applies the chapter 22 and `KD3B.Z` changes. The JSON is
+left as signed off because migration `a7c3e9f1b5d2` reads it to downgrade.
 
 ## Selectable categories
 
@@ -95,6 +98,13 @@ from (`Draft: ...`).
    (`KD3B.0` antepartum); the vocabulary term "stillbirth" offers `KD3B.1`
    first. ICD-10 `P95` is unaffected: WHO gives one code for both timings and
    ICD-10 cannot distinguish them, so DigitVA does not invent a split there.
+   **Changed 2026-10-26 (owner, `digitva-kmm2`):** `KD3B.Z` is selectable
+   again, for a stillbirth whose timing the interview cannot establish (WHO
+   RG 2.21.8.4); it maps to Macerated, as `P95` does. `KD3B` stays excluded.
+   **Chapter 22** (injury nature) is not selectable as the final underlying
+   cause (owner 2026-10-26, `digitva-kmm2`): WHO never uses it as the
+   underlying cause (RG 2.19.3.24), the ICD-10 policy already excludes
+   `S`/`T`, and certificate lines still accept it.
 4. **Everything else is selectable too** (owner decision 2026-09-27,
    `digitva-ddv.6`). ICD-11 coding goes through DORIS, whose result, and the
    coder's own pick, may be any real cause of death, so a category no annex
@@ -144,8 +154,9 @@ matching codes it hid and why (for example "P95 (neonate only)"); those codes
 stay unselectable.
 
 **Sex conflicts block; age conflicts warn** (owner decision 2026-10-26,
-`digitva-oh7j`; not yet implemented). For the coder's and reviewer's final
-underlying COD:
+`digitva-oh7j`). For the coder's and reviewer's final underlying COD, and
+for their Step 1 underlying COD pick in masked projects (owner 2026-10-27:
+otherwise a masked case never reaches the confirmation):
 
 - A `sex_selectable` mismatch refuses the code, as today.
 - An `age_group_selectable` mismatch no longer refuses it. The coder sees
@@ -160,8 +171,7 @@ but no age table; DORIS treats both as plausibility warnings, not rejections
 returned with a warning only). Our age groups are DigitVA decisions, and a
 condition of perinatal origin can be a valid cause of death after infancy,
 so a hard age block can refuse a correct DORIS result. A sex conflict is a
-recording error, not a clinical edge case. Until implemented, both conflicts
-still refuse the code.
+recording error, not a clinical edge case.
 
 For a selectable category, the first rule that applies wins:
 

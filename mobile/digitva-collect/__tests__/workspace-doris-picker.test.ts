@@ -110,6 +110,17 @@ describe("picker transport bridge", () => {
     expect(JSON.stringify(replies)).not.toContain("token");
   });
 
+  it("passes the causing-condition-unknown flag through only for a verified selection", async () => {
+    const { send, handlers } = setup();
+    await send({ t: "select", choice: { code: "CA40", uri: "https://who.int/CA40", causing_condition_unknown: true } });
+    expect(handlers.onSelect).not.toHaveBeenCalled();
+    await send({ t: "req", id: 1, path: "selection-check", body: { code: "CA40", uri: "https://who.int/CA40" } });
+    await send({ t: "select", choice: { code: "CA40", uri: "https://who.int/CA40", causing_condition_unknown: true } });
+    expect(handlers.onSelect).toHaveBeenLastCalledWith({ code: "CA40", title: "Pneumonia", uri: "https://who.int/CA40", causingConditionUnknown: true });
+    await send({ t: "select", choice: { code: "CA40", uri: "https://who.int/CA40", causing_condition_unknown: "yes" } });
+    expect(handlers.onSelect).toHaveBeenLastCalledWith({ code: "CA40", title: "Pneumonia", uri: "https://who.int/CA40" });
+  });
+
   it("selects only after selection-check verified the code and uri, for the same revision", async () => {
     const { handlers, send, bump } = setup();
     await send({ t: "select", choice: { code: "CA40", uri: "https://who.int/CA40" } });

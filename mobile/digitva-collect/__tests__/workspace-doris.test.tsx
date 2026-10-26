@@ -1156,6 +1156,106 @@ describe("final COD remark (digitva-p9j0)", () => {
     await act(async () => tree.unmount());
   });
 
+  describe("age restriction confirmation and causing-condition-unknown", () => {
+    const ageError = () => new ApiError(422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED", undefined, undefined, { error: "Age restriction", code: "AGE_RESTRICTION_CONFIRMATION_REQUIRED", age_restriction: { code: "Y55", age_group_selectable: "adults", restriction_note: "Not for children." } });
+    const confirmButton = (tree: ReactTestRenderer, label: string) => tree.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label)[0];
+    const reachSave = async (tree: ReactTestRenderer) => {
+      await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+      await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+      await pickViaPicker("Y55");
+    };
+
+    it("asks on 422, resends with age_restriction_confirmed on confirm, and leaves the form on cancel", async () => {
+      const saveFinal = jest.fn().mockRejectedValueOnce(ageError()).mockRejectedValueOnce(ageError()).mockResolvedValueOnce({ va_sid: "sid-1", final_assessment_id: "final-1" });
+      const api = apiFor({ saveFinal });
+      const { tree, onDone } = renderPanel(makeWorkspace({ step: "final" }), api);
+      await reachSave(tree);
+      await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+      const dialog = JSON.stringify(tree.toJSON());
+      expect(dialog).toContain("Y55 is usually used only for adults.");
+      expect(dialog).toContain("Not for children.");
+      await act(async () => confirmButton(tree, "Cancel").props.onPress());
+      expect(saveFinal).toHaveBeenCalledTimes(1);
+      expect(onDone).not.toHaveBeenCalled();
+      expect(byLabel(tree, "Save final COD").props.disabled).toBe(false);
+      await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+      await act(async () => { confirmButton(tree, "Save anyway").props.onPress(); await flushAll(); });
+      expect(saveFinal).toHaveBeenCalledTimes(3);
+      expect(saveFinal.mock.calls[0][1]).not.toHaveProperty("age_restriction_confirmed");
+      expect(saveFinal.mock.calls[2][1]).toMatchObject({ conclusive_cod: "Y55", age_restriction_confirmed: true });
+      expect(onDone).toHaveBeenCalledTimes(1);
+      await act(async () => tree.unmount());
+    });
+
+    it("keeps the existing error for a sex refusal", async () => {
+      const saveFinal = jest.fn().mockRejectedValue(new ApiError(422, "final_blocked", undefined, undefined, { messages: ["Y55 is not valid for this sex."] }));
+      const { tree } = renderPanel(makeWorkspace({ step: "final" }), apiFor({ saveFinal }));
+      await reachSave(tree);
+      await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+      expect(JSON.stringify(tree.toJSON())).toContain("Y55 is not valid for this sex.");
+      expect(confirmButton(tree, "Save anyway")).toBeUndefined();
+      await act(async () => tree.unmount());
+    });
+
+    const reachStep1Save = async (tree: ReactTestRenderer) => {
+      await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+      await act(async () => byLabel(tree, "Confirm Step 1 underlying cause open search").props.onPress());
+      await pickViaPicker("Y55");
+    };
+
+    it("Step 1: asks on 422, leaves the form on cancel, resends with age_restriction_confirmed on confirm", async () => {
+      const saveInitial = jest.fn().mockRejectedValueOnce(ageError()).mockRejectedValueOnce(ageError()).mockResolvedValueOnce({ va_sid: "sid-1", initial_assessment_id: "initial-1" });
+      const { tree } = renderPanel(makeWorkspace(), apiFor({ saveInitial }));
+      await reachStep1Save(tree);
+      await act(async () => { byLabel(tree, "Save Step 1").props.onPress(); await flushAll(); });
+      expect(JSON.stringify(tree.toJSON())).toContain("Not for children.");
+      await act(async () => confirmButton(tree, "Cancel").props.onPress());
+      expect(saveInitial).toHaveBeenCalledTimes(1);
+      expect(byLabel(tree, "Save Step 1").props.disabled).toBe(false);
+      await act(async () => { byLabel(tree, "Save Step 1").props.onPress(); await flushAll(); });
+      await act(async () => { confirmButton(tree, "Save anyway").props.onPress(); await flushAll(); });
+      expect(saveInitial).toHaveBeenCalledTimes(3);
+      expect(saveInitial.mock.calls[0][1]).not.toHaveProperty("age_restriction_confirmed");
+      expect(saveInitial.mock.calls[2][1]).toMatchObject({ antecedent_cod: "Y55", age_restriction_confirmed: true });
+      expect(saveInitial.mock.calls[2][1]).not.toHaveProperty("causing_condition_unknown");
+      await act(async () => tree.unmount());
+    });
+
+    it("Step 1: a sex refusal stays an error with no confirm dialog", async () => {
+      const saveInitial = jest.fn().mockRejectedValue(new ApiError(422, "final_blocked", undefined, undefined, { messages: ["Y55 is not valid for this sex."] }));
+      const { tree } = renderPanel(makeWorkspace(), apiFor({ saveInitial }));
+      await reachStep1Save(tree);
+      await act(async () => { byLabel(tree, "Save Step 1").props.onPress(); await flushAll(); });
+      expect(JSON.stringify(tree.toJSON())).toContain("Y55 is not valid for this sex.");
+      expect(confirmButton(tree, "Save anyway")).toBeUndefined();
+      await act(async () => tree.unmount());
+    });
+
+    it("tolerates a 422 without the age_restriction object", async () => {
+      const saveFinal = jest.fn().mockRejectedValueOnce(new ApiError(422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED", undefined, undefined, { error: "x" }));
+      const { tree } = renderPanel(makeWorkspace({ step: "final" }), apiFor({ saveFinal }));
+      await reachSave(tree);
+      await act(async () => { byLabel(tree, "Save final COD").props.onPress(); await flushAll(); });
+      expect(JSON.stringify(tree.toJSON())).toContain("Y55 is usually used only for certain age groups.");
+      expect(confirmButton(tree, "Save anyway")).toBeDefined();
+      await act(async () => tree.unmount());
+    });
+
+    it("masked final save: confirms and sends causing_condition_unknown from the picker", async () => {
+      const saveFinal = jest.fn().mockRejectedValueOnce(ageError()).mockResolvedValueOnce({ va_sid: "sid-1", final_assessment_id: "final-1" });
+      const { tree } = renderPanel(makeWorkspace({ step: "final", masked: true }), apiFor({ saveFinal }));
+      await act(async () => byLabel(tree, "Choose and confirm the final underlying cause open search").props.onPress());
+      const reply = jest.fn();
+      await act(async () => { mockFrame.props.onMessage({ t: "req", id: 2, path: "selection-check", body: { schema_version: 1, code: "Y55", uri: "https://who.int/Y55" } }, reply); await flushAll(); });
+      await act(async () => { mockFrame.props.onMessage({ t: "select", choice: { code: "Y55", uri: "https://who.int/Y55", causing_condition_unknown: true } }, reply); await flushAll(); });
+      await act(async () => { byLabel(tree, "Save final cause").props.onPress(); await flushAll(); });
+      expect(saveFinal.mock.calls[0][1]).toMatchObject({ conclusive_cod: "Y55", causing_condition_unknown: true });
+      await act(async () => { confirmButton(tree, "Save anyway").props.onPress(); await flushAll(); });
+      expect(saveFinal.mock.calls[1][1]).toMatchObject({ causing_condition_unknown: true, age_restriction_confirmed: true });
+      await act(async () => tree.unmount());
+    });
+  });
+
   it("prefills the saved final remark, masked and certificate", async () => {
     for (const masked of [false, true]) {
       const { tree } = renderPanel(withSavedRemark(makeWorkspace({ step: "final", masked }), "earlier remark"), apiFor());

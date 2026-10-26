@@ -38,9 +38,11 @@ digest; verify the runtime DLL version rather than trusting the Compose comment.
 5. WHO ICD-11 call 2026-10-29: deck https://claude.ai/artifact/Y6g1epS6LgVieFQg8mtJcL
    (private; share before the call). Ask WHO for written licence 2.3/2.4
    confirmation; record it in `docs/policy/icd11-local-api-runtime.md`.
-   Owner review: `docs/policy/icd11-code-selection-principles.md` principle 4
-   notes WHO RG 2.7.2.1 allows a required-axis stem alone when the aetiology
-   is unknown; the picker does not offer that path.
+   ICD-11 allowability follow-ups (owner agreed 2026-10-26): `digitva-kmm2`
+   (P1 migration: chapter 22 not a final COD, KD3B.Z allowed; staging count
+   first), `digitva-443q` (cluster mapped by WHO-selected stem),
+   `digitva-oh7j` (sex blocks, age warns), `digitva-xmpx` (causing condition
+   not known), `digitva-7pl2` (docs).
    Expo session: stray space at `WorkspaceLayout.web.tsx:416` (Notes tab)
    logs "Unexpected text node" on every render; delete the space.
 

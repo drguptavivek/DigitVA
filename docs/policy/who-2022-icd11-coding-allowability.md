@@ -3,7 +3,7 @@ title: WHO 2022 ICD-11 Coding Allowability Policy
 doc_type: policy
 status: approved
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-10-26
 ---
 
 # WHO 2022 ICD-11 Coding Allowability Policy
@@ -39,7 +39,15 @@ ICD-11 category is `is_coding_selectable = NULL`, so ICD-11 coding is impossible
 
 Selectability is independent of COD bucket mappings (owner decision
 2026-09-21). Like the ICD-10 policy, it is drafted from WHO's annex (owner
-decision 2026-09-24).
+decision 2026-09-24), then widened to every real category (rule 4 below,
+owner 2026-09-27); the annex no longer limits it.
+
+Scope: this policy decides which category may be the final underlying cause.
+It does not apply to certificate conditions (checked against WHO terminology
+only), and it does not decide how a postcoordinated expression is built; the
+picker's handling of WHO-required axes is a separate decision (owner
+2026-10-26: follow WHO, `digitva-xmpx`). See
+[ICD-11 Code Selection Principles](icd11-code-selection-principles.md).
 
 ## Artifact
 
@@ -134,6 +142,26 @@ selection check. When the age/sex rule leaves the local search empty or short,
 the coding screen (when nothing is left) and the help demo say which
 matching codes it hid and why (for example "P95 (neonate only)"); those codes
 stay unselectable.
+
+**Sex conflicts block; age conflicts warn** (owner decision 2026-10-26,
+`digitva-oh7j`; not yet implemented). For the coder's and reviewer's final
+underlying COD:
+
+- A `sex_selectable` mismatch refuses the code, as today.
+- An `age_group_selectable` mismatch no longer refuses it. The coder sees
+  the restriction (and WHO's plausibility warning when DORIS gave one) and
+  must confirm; the confirmation is recorded with the final.
+- Search keeps hiding sex-restricted codes and shows age-restricted ones
+  marked rather than hidden.
+
+Basis: WHO publishes sex-specific lists (Reference Guide 3.14.11, 3.14.12)
+but no age table; DORIS treats both as plausibility warnings, not rejections
+(verified 2026-10-26: age 3 years with `KB2C`, and `2C76.Z` for a male, both
+returned with a warning only). Our age groups are DigitVA decisions, and a
+condition of perinatal origin can be a valid cause of death after infancy,
+so a hard age block can refuse a correct DORIS result. A sex conflict is a
+recording error, not a clinical edge case. Until implemented, both conflicts
+still refuse the code.
 
 For a selectable category, the first rule that applies wins:
 

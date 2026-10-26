@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-26
 
+- **ICD-11 allowability decisions recorded** (`digitva-oh7j`, `digitva-xmpx`;
+  follow-ups `digitva-kmm2`, `digitva-443q`, `digitva-7pl2`): the selection
+  principles separate allowability, VA cause mapping and expression building,
+  each with its basis. Owner decisions, not yet implemented: sex conflicts
+  block and age conflicts warn for the final COD (DORIS only warns on both;
+  WHO has no age table), and a required-axis stem may stand alone when the
+  causing condition is not known (WHO RG 2.7.2.1). Review found chapter 22
+  accepted as a final COD and `KD3B.Z` refused, against WHO; dev holds no
+  such finals. Docs and beads only.
+
 - **ICD-11 axes load when WHO lists an uncoded window root** (`digitva-cth7`):
   `_axes` now skips scale roots with no code and no children (WHO "window"
   entities such as FB80.B's "Neoplasms of the musculoskeletal system") instead

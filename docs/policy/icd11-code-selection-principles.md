@@ -15,6 +15,20 @@ for the final underlying cause of death (COD). Each rule is grounded in WHO ICD-
 broader than WHO, the rule says so and gives the DigitVA decision. Software
 implements this policy; it is not the source of it.
 
+## Three separate decisions
+
+Coding behaviour comes from three independent decisions. None implies another.
+
+| Decision | Answers | Basis | Where recorded |
+| --- | --- | --- | --- |
+| Allowability | Which category may be the final underlying cause | WHO 2022 VA annex ranges (owner 2026-09-24), owner additions (decision 5a), widened to every real category (owner 2026-09-27), minus exclusions (principles 9, 11) | `docs/policy/who-2022-icd11-coding-allowability.md` |
+| VA cause mapping | Which WHO 2022 VA cause a code counts toward | WHO 2022 VA annex ranges plus owner decisions; first stem of an expression | `docs/policy/icd11-cod-bucket-schemes.md` |
+| Expression building | How a stem and its axes become one code | WHO MMS metadata for the pinned release; picker modelled on WHO's DORIS web tool | `docs/kb/doris-certificate-ui-contract.md` |
+
+Allowability started from the VA mapping (the annex) but no longer depends
+on it: selectability is independent of the mapping (owner 2026-09-21), and a
+selectable code with no VA cause reports as unmapped.
+
 ## Basis key
 
 - **(W)** WHO ICD-11 rule. Cited as a section of the ICD-11 Reference Guide
@@ -74,10 +88,19 @@ a finding, not a rule.
 
 ### 4. Required postcoordination
 
-- **Rule.** A category whose WHO postcoordination axis is required, for
-  example `FB80.B` pathological fracture with `hasCausingCondition`, is not
-  chosen alone. It is completed with the required axis. Optional axes may be
-  left empty.
+- **Current behaviour.** A category whose WHO postcoordination axis is
+  required, for example `FB80.B` pathological fracture with
+  `hasCausingCondition`, is not offered alone in the picker. It is completed
+  with the required axis. Optional axes may be left empty.
+- **Decision status.** Until 2026-10-26 no owner decision recorded this
+  strictness. It is neither an allowability rule (`FB80.B` is selectable)
+  nor a mapping rule (`FB80.B` alone and `FB80.B` with its causing condition
+  map to the same VA cause, by first stem). It came from how the picker reads
+  WHO's required flag, modelled on WHO's DORIS web tool.
+  **Owner decision 2026-10-26 (`digitva-xmpx`): follow WHO.** The picker will
+  offer an explicit "causing condition not known" choice on a required axis,
+  which completes the stem alone; until that ships, the stem cannot be used
+  alone.
 - **Basis.** WHO: (W) RG 2.10 (table): the causing condition is "mandatory"
   for primary tabulation when known. RG 2.7.2.1: a "code also" category must
   be clustered with its aetiology. Optional detail is marked as additional
@@ -88,8 +111,9 @@ a finding, not a rule.
   indicator for such stems; DigitVA's picker follows the same behaviour:
   mandatory axes first, the stem added only when every required axis is
   satisfied (DORIS UI contract; WHO web trace 2026-09-26).
-  Note for review: RG 2.7.2.1 and RG 2.21.4 describe reporting the code
-  alone when the aetiology is unknown. The picker does not offer that path.
+  WHO is softer than the current behaviour: RG 2.7.2.1 and RG 2.21.4
+  describe reporting the code alone when the aetiology is unknown, which is
+  common in verbal autopsy. The picker does not offer that path.
 - **Source.** RG 2.7.2.1, 2.10, 2.21.4; MMS release 2026-01 (axis flag);
   `docs/kb/doris-web-behavior-and-api-trace.md`;
   `docs/kb/doris-certificate-ui-contract.md`.
@@ -160,8 +184,11 @@ a finding, not a rule.
 
 - **Rule.** Any other real category may be chosen, whether or not a VA
   cause maps to it.
-- **Basis.** (D) owner decision 2026-09-27 (`digitva-ddv.6`): DORIS applies
-  WHO's own selection rules (W, RG 2.17 to 2.19) and may return any cause.
+- **Basis.** (V) The policy was first drafted from WHO's 2022 VA annex ICD-11
+  ranges (owner 2026-09-24), with owner additions (decision 5a).
+  (D) owner decision 2026-09-27 (`digitva-ddv.6`) widened it to every real
+  category: DORIS applies WHO's own selection rules (W, RG 2.17 to 2.19)
+  and may return any cause.
   Selectability carries no promise of a VA cause bucket (owner decision 5b,
   2026-09-24, in `docs/policy/icd10-to-icd11-transition.md`).
 - **Source.** RG 2.17 to 2.19; `docs/policy/who-2022-icd11-coding-allowability.md`.
@@ -184,8 +211,10 @@ a finding, not a rule.
 
 ### 12. Sex and age
 
-- **Rule.** A category limited by sex or age is refused when the deceased
-  does not fit. A DORIS Part I immediate-cause line is left to DORIS.
+- **Rule.** For the final underlying cause, a sex conflict refuses the
+  code; an age conflict warns and is allowed on recorded confirmation (owner
+  2026-10-26, `digitva-oh7j`; until implemented, both refuse). A DORIS
+  Part I immediate-cause line is left to DORIS.
 - **Basis.** WHO: (W) RG 2.21.7 and the annex lists RG 3.14.11 (female) and
   3.14.12 (male): check consistency of sex and diagnosis. RG 2.18.4 also says
   to check for age-range limits. WHO lists sex only; a WHO age table was not
@@ -193,7 +222,9 @@ a finding, not a rule.
   DigitVA: (D) the category-level sex and age tables (chapter 18 female adult,
   chapter 19 neonate or infant, genital blocks, tetanus `1C15`) were set by the
   owner on 2026-09-24 and 2026-09-29. Part I exemption: (D) owner 2026-10-05,
-  because DORIS runs WHO's own check.
+  because DORIS runs WHO's own check. Warn-on-age: (D) owner 2026-10-26,
+  because WHO has no age table and DORIS itself only warns on age and sex
+  plausibility; sex stays a hard block as a recording error.
 - **Source.** RG 2.18.4, 2.21.7, 3.14.11, 3.14.12;
   `docs/policy/who-2022-icd11-coding-allowability.md` ("Sex and age").
 
@@ -223,13 +254,13 @@ a finding, not a rule.
 
 | Point | Basis | Rationale |
 | --- | --- | --- |
-| Required axis must be filled | W (MMS flag, DORIS web tool) | Follows WHO's required flag and WHO's DORIS tool; RG 2.7.2.1 alone-when-unknown path not offered (for review). |
+| Required axis must be filled (picker) | W (owner 2026-10-26) | Follow WHO: the stem may stand alone when the causing condition is not known (RG 2.7.2.1, 2.21.4); picker change pending (`digitva-xmpx`). |
 | Allowability applies to final cause only | D | Certificate conditions are checked against WHO terminology only (DORIS contracts). |
 | Chapters 24, 26, V, X not selectable | W (24, X), D (26, V) | Chapter 24 and X are WHO-excluded; 26 and V are not diseases or are optional. |
 | Chapter 25 only `RA01`-`RA03` | D | Owner 2026-09-29; WHO uses ch. 25 only by special instruction. |
 | `KD3B`, `KD3B.Z` refused | D | Owner decision 18, 2026-09-25: force fresh or macerated VA cause. |
 | Chapter 22 and ill-defined selectable as final cause | D | Owner 2026-09-27: DORIS may reach any real cause; on the certificate they are WHO-normal. |
-| Sex and age tables per category | D on W | WHO lists sex only; age tables are owner decisions 2026-09-24, 2026-09-29. |
+| Sex and age tables per category | D on W | WHO lists sex only; age tables are owner decisions 2026-09-24, 2026-09-29. Sex blocks, age warns (owner 2026-10-26, `digitva-oh7j`). |
 | DORIS Part I exempt from the local check | D | Owner 2026-10-05: WHO's DORIS check suffices. |
 | First stem is the VA cause | D | Aetiology-first ordering is WHO's; the VA use is ours. |
 

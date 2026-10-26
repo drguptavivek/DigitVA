@@ -3,7 +3,7 @@ title: DORIS Certificate UI and API Contract for DigitVA
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-10-26
 ---
 
 # DORIS Certificate UI and API Contract for DigitVA
@@ -211,7 +211,11 @@ outside chapter X, otherwise `null`. The `related` response may carry
 composite such as `JB64.4/BD54`; its `uri` is empty and the client must
 re-validate it by code.
 The UI shows mandatory axes first and may add a stem alone only when all
-required axes are satisfied. Each axis offers a search limited to its
+required axes are satisfied. This follows WHO's DORIS web tool; no owner
+decision records it, and WHO's Reference Guide (2.7.2.1, 2.21.4) allows the
+stem alone when the aetiology is unknown. Owner decision 2026-10-26:
+follow WHO with an explicit "causing condition not known" choice
+(`digitva-xmpx`, not yet implemented). Each axis offers a search limited to its
 subtree; the last section, "Other postcoordination?", searches the
 extension chapter and only accepts a code that WHO `codeinfo` resolves
 together with the stem. The UI assembles X extension codes with `&`

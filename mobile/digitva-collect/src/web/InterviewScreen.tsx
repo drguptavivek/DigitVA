@@ -167,6 +167,22 @@ export function definitionErrorText(error: unknown): string | undefined {
 
 export { refusalFieldsText };
 
+const SUMMARY_ANSWER_KEYS = [
+  "Id10017",
+  "Id10018",
+  "Id10019",
+  "Id10021",
+  "Id10023",
+  "ageInYears",
+  "ageInYears2",
+  "age_adult",
+  "age_child_years",
+  "dob_known",
+  "dob_type",
+  "dob_month_year",
+  "dob_year",
+] as const;
+
 /** Keep the server's actionable stale-draft explanation visible to the interviewer. */
 export function interviewErrorText(error: unknown, instrument?: InstrumentDefinition, language = "en"): string {
   const definitionText = definitionErrorText(error);
@@ -555,7 +571,10 @@ export default function InterviewScreen() {
     if (!isCurrent()) return;
     setFormOptions(options);
     setWelcomePending(shouldShowWelcome);
-    setLiveAnswers(((nextDraft.envelope?.data as Record<string, unknown>) ?? {}));
+    setLiveAnswers({
+      ...(initialData as Record<string, unknown>),
+      ...((nextDraft.envelope?.data as Record<string, unknown>) ?? {}),
+    });
     setSaveInfo({
       savedSections: initialSavedCount,
       updatedAt: hasStartedSection ? nextDraft.draft.updated_at : undefined,
@@ -984,6 +1003,41 @@ export default function InterviewScreen() {
     () => whoRuntime ? interviewUiTranslations(whoRuntime.core) : undefined,
     [whoRuntime],
   );
+  const updateLiveAnswers = useCallback((data: Record<string, unknown> | undefined) => {
+    if (!data || typeof data !== "object") return;
+    setLiveAnswers((prev) => {
+      for (const key of SUMMARY_ANSWER_KEYS) {
+        if (prev[key] !== data[key]) {
+          const next: Record<string, unknown> = {};
+          for (const k of SUMMARY_ANSWER_KEYS) {
+            if (data[k] !== undefined) next[k] = data[k];
+          }
+          return next;
+        }
+      }
+      return prev;
+    });
+  }, []);
+  const handleFormChange = useCallback((data: SubmissionData) => {
+    if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
+    setNeedsNewSnapshot(false);
+    dirtyRef.current = true;
+    changedDataRef.current = data;
+    updateLiveAnswers(data as Record<string, unknown>);
+    if (!(store instanceof RevisionMemoryStore) && loadedBootstrap) {
+      writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
+    }
+  }, [loadedBootstrap, store, updateLiveAnswers]);
+  const handleDraftSaved = useCallback((saved?: { data?: SubmissionData }) => {
+    if (!(store instanceof ServerDraftStore)) return;
+    saveFailedRef.current = false;
+    if (saved?.data === changedDataRef.current) dirtyRef.current = false;
+    updateLiveAnswers(saved?.data as Record<string, unknown> | undefined);
+  }, [store, updateLiveAnswers]);
+  const handleDraftError = useCallback((error: unknown) => {
+    saveFailedRef.current = true;
+    setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
+  }, [revision]);
 
   return (
     <WebShell
@@ -1143,35 +1197,9 @@ export default function InterviewScreen() {
               draftStore={store}
               autoSaveDraftOnChange
               onDraftController={setController}
-              onReady={(session) => {
-                const snap = session?.getSnapshot?.();
-                if (snap?.data && typeof snap.data === "object" && Object.keys(snap.data).length > 0) {
-                  setLiveAnswers(snap.data as Record<string, unknown>);
-                }
-              }}
-              onChange={(data) => {
-                if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
-                setNeedsNewSnapshot(false);
-                dirtyRef.current = true;
-                changedDataRef.current = data;
-                if (data && typeof data === "object") {
-                  setLiveAnswers(data as Record<string, unknown>);
-                }
-                if (!(store instanceof RevisionMemoryStore) && loadedBootstrap)
-                  writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
-              }}
-              onDraftSaved={(saved) => {
-                if (!(store instanceof ServerDraftStore)) return;
-                saveFailedRef.current = false;
-                if (saved?.data === changedDataRef.current) dirtyRef.current = false;
-                if (saved?.data && typeof saved.data === "object") {
-                  setLiveAnswers(saved.data as Record<string, unknown>);
-                }
-              }}
-              onDraftError={(error) => {
-                saveFailedRef.current = true;
-                setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
-              }}
+              onChange={handleFormChange}
+              onDraftSaved={handleDraftSaved}
+              onDraftError={handleDraftError}
               onComplete={complete}
               {...(serverProblems ? { serverProblems } : {})}
               lockedQuestionNames={lockedQuestionNames}

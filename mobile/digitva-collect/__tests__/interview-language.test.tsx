@@ -1035,4 +1035,21 @@ describe("respondent consent before the interview", () => {
     expect(submitDraft).toHaveBeenCalledWith("/api/v1/intake/drafts", "draft-1", { valid: true, issues: [], data: { Id10013: "yes", interview_outcome: "completed" } }, mockBootstrap.csrf, "revision-1");
     await act(async () => tree.unmount());
   });
+
+  it("keeps WhoVaForm callback props referentially stable across live answer updates", async () => {
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<InterviewScreen />); });
+    const formBefore = tree.root.findByType(WhoVaForm);
+    expect(formBefore.props.onReady).toBeUndefined();
+    const { onChange, onDraftSaved, onDraftError } = formBefore.props;
+    await act(async () => {
+      onChange({ Id10017: "Ramesh", Id10019: "male", Id10023: "2026-01-15", ageInYears: 62 });
+    });
+    const formAfter = tree.root.findByType(WhoVaForm);
+    expect(formAfter.props.onChange).toBe(onChange);
+    expect(formAfter.props.onDraftSaved).toBe(onDraftSaved);
+    expect(formAfter.props.onDraftError).toBe(onDraftError);
+    expect(JSON.stringify(tree.toJSON())).toContain("Ramesh · DOD: 2026-01-15 · Age: 62 yr · Sex: Male");
+    await act(async () => tree.unmount());
+  });
 });

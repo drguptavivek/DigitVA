@@ -219,13 +219,15 @@ test("on /interview the root header renders no bar; the screen's own bar is in n
   mockPathname = "/collection";
   mount();
   expect(host.querySelector<HTMLElement>("header")!.style.position).toBe("sticky");
-  mockPathname = "/interview";
-  mount();
-  expect(host.querySelector("header")).toBeNull();
-  act(() => { root.render(<><AppHeader /><AppHeaderBar sticky={false} /></>); });
-  expect(host.querySelectorAll("header")).toHaveLength(1);
-  expect(host.querySelector<HTMLElement>("header")!.style.position).toBe("static");
-  expect(host.querySelector("button[aria-label='Account menu, Test Admin']")).not.toBeNull();
+  for (const path of ["/interview", "/training/interview/form"]) {
+    mockPathname = path;
+    mount();
+    expect(host.querySelector("header")).toBeNull();
+    act(() => { root.render(<><AppHeader /><AppHeaderBar sticky={false} /></>); });
+    expect(host.querySelectorAll("header")).toHaveLength(1);
+    expect(host.querySelector<HTMLElement>("header")!.style.position).toBe("static");
+    expect(host.querySelector("button[aria-label='Account menu, Test Admin']")).not.toBeNull();
+  }
 });
 
 test("HeaderHelpSlot follows the bar when it moves into the interview's scroller", () => {

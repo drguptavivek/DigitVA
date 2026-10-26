@@ -30,7 +30,7 @@ const SIDEBAR_BREAKPOINT = 900;
 const NO_SIDEBAR_ROUTES = ["/form", "/worklist"];
 // Routes whose screen renders the header bar itself (AppHeaderBar, inside its scroller) so it scrolls away with the
 // page; the interview pins only its case strip.
-const SCROLLING_HEADER_ROUTES = ["/interview"];
+const SCROLLING_HEADER_ROUTES = ["/interview", "/training/interview/form"];
 const BAR_HEIGHT = 56;
 const BOTTOM_BAR = `calc(${BAR_HEIGHT}px + env(safe-area-inset-bottom))`;
 const h = React.createElement;

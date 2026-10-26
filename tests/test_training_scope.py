@@ -667,6 +667,8 @@ class MeAndStartTests(TrainingDemoTestBase):
                          ("TRN01", ["interview", "coding"], True))
         # The training project sits in `training.project`, never in the normal project list or roles.
         self.assertEqual(training["project"]["project_id"], "TRN01")
+        self.assertEqual(len(training["project"]["actions"]["interview"][0]["org_units"]), 1)
+        self.assertEqual(len(training["project"]["actions"]["register_death"][0]["org_units"]), 1)
         self.assertNotIn("TRN01", [p["project_id"] for p in access["projects"]])
         self.assertEqual(access["roles"], [])  # a trainee holds no real role
 

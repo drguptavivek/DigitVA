@@ -10,7 +10,7 @@ export interface SubmittedRevisionSummary extends DraftSummary {
 }
 
 /** Return only the server's bounded, newest-first submitted metadata list. */
-export async function getSubmittedRevisions(csrf: ClientCsrf, training = false): Promise<SubmittedRevisionSummary[]> {
+export async function getSubmittedRevisions(csrf: ClientCsrf, training = Boolean(csrf.training)): Promise<SubmittedRevisionSummary[]> {
   const result = await requestClientJson<{ drafts: SubmittedRevisionSummary[] }>(
     `${INTAKE_DRAFTS}?status=submitted${training ? "&training=1" : ""}`,
     { csrf },

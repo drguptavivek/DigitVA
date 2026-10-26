@@ -1,5 +1,6 @@
 import type { AccessProject, ClientBootstrap } from "../src/api";
-import { getCases, getDrafts, getRegisteredDeaths, intakeContextFromAccess, parseAccessSummary, requestClientJson } from "../src/api";
+import { getCases, getDrafts, getIntakeContext, getRegisteredDeaths, intakeContextFromAccess, parseAccessSummary, requestClientJson } from "../src/api";
+import { getSubmittedRevisions as getSubmittedRevisionsList } from "../src/client/revisionList";
 import { getSubmittedRevisions } from "../src/client/revisions";
 import { activeTab, navEntries } from "../src/web/navTabs";
 import { takeTrainingRedirect, trainingBootstrap, trainingRequester } from "../src/training";
@@ -106,6 +107,12 @@ describe("the training scope is asked for by the Training screens only", () => {
     expect(lastUrl()).toContain("&training=1");
     await getSubmittedRevisions(csrf).catch(() => undefined);
     expect(lastUrl()).not.toContain("training");
+    await getSubmittedRevisionsList({ ...csrf, training: true }).catch(() => undefined);
+    expect(lastUrl()).toContain("&training=1");
+    await getSubmittedRevisionsList(csrf).catch(() => undefined);
+    expect(lastUrl()).not.toContain("training");
+    await getDrafts("/api/v1/intake/drafts", { ...csrf, training: true });
+    expect(lastUrl()).toBe("/api/v1/intake/drafts?training=1");
   });
 
   test("trainingRequester appends the scope to a path with or without a query", async () => {
@@ -125,11 +132,15 @@ describe("the training scope is asked for by the Training screens only", () => {
 describe("the two project sets never mix", () => {
   const a = access(["interview", "coding"]);
 
-  test("the normal context has no training project; the training one has only it", () => {
+  test("the normal context has no training project; the training one has only it", async () => {
     expect(intakeContextFromAccess(a, "interview").map((entry) => entry.project_id)).toEqual(["REAL01"]);
     expect(intakeContextFromAccess(a, "interview", "training").map((entry) => entry.project_id)).toEqual(["TRN01"]);
     expect(intakeContextFromAccess(a, "interview", "all").map((entry) => entry.project_id)).toEqual(["REAL01", "TRN01"]);
     expect(intakeContextFromAccess({ ...a, training: null }, "interview", "training")).toEqual([]);
+    mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify(a), { status: 200, headers: { "content-type": "application/json" } }));
+    expect((await getIntakeContext({ ...csrf, training: true })).context.map((entry) => entry.project_id)).toEqual(["TRN01"]);
+    mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify(a), { status: 200, headers: { "content-type": "application/json" } }));
+    expect((await getIntakeContext(csrf)).context.map((entry) => entry.project_id)).toEqual(["REAL01"]);
   });
 
   test("the training bootstrap holds only the training project, its roles and the training scope", () => {

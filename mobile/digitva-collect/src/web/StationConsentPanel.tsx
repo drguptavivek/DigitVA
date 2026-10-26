@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import type { ClientCsrf } from "../api";
 import {
@@ -8,27 +8,169 @@ import {
   type ProjectConsentConfig,
 } from "../consent";
 import { t } from "../i18n";
+import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: "English",
+  hi: "हिन्दी",
+};
+
+/** Left-aligned checkbox card row for consent purposes and witness presence. */
+function ConsentCheckboxRow({
+  label,
+  checked,
+  badge,
+  required,
+  testID,
+  onPress,
+}: {
+  label: string;
+  checked: boolean;
+  badge?: string;
+  required?: boolean;
+  testID?: string;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={badge ? `${label} (${badge})` : label}
+      testID={testID}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: spacing.sm,
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+        borderRadius: radius.md,
+        borderWidth: 1,
+        borderColor: checked ? colors.accent : colors.borderStrong,
+        backgroundColor: checked ? colors.accentSoft : colors.surface,
+        opacity: pressed ? 0.88 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 20,
+          height: 20,
+          marginTop: 2,
+          borderRadius: radius.sm,
+          borderWidth: 1,
+          borderColor: checked ? colors.accent : colors.borderStrong,
+          backgroundColor: checked ? colors.accent : colors.surface,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: fontSize.caption,
+            lineHeight: 14,
+            fontWeight: "700",
+            color: checked ? colors.onAccent : "transparent",
+            fontFamily: controls.fontFamily,
+          }}
+        >
+          ✓
+        </Text>
+      </View>
+      <Text
+        style={{
+          flex: 1,
+          minWidth: 0,
+          ...typography.body,
+          fontWeight: checked ? "600" : "400",
+          color: colors.text,
+          fontFamily: controls.fontFamily,
+          textAlign: "left",
+        }}
+      >
+        {label}
+      </Text>
+      {badge ? (
+        <View
+          style={{
+            paddingHorizontal: spacing.xs,
+            paddingVertical: 2,
+            borderRadius: radius.full,
+            borderWidth: 1,
+            borderColor: required ? colors.accent : colors.border,
+            backgroundColor: required ? colors.accentSoft : colors.surfaceMuted,
+          }}
+        >
+          <Text
+            style={{
+              ...typography.caption,
+              fontWeight: "600",
+              color: required ? colors.accent : colors.textMuted,
+              fontFamily: controls.fontFamily,
+            }}
+          >
+            {badge}
+          </Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 /** The notice text and one toggle per purpose (sorted by code), shared by both consent panels. */
-function NoticeAndPurposes({ notice, granted, onToggle }: {
+function NoticeAndPurposes({ notice, granted, onToggle, onSetAll }: {
   notice: ConsentNoticeVersion;
   granted: Record<string, boolean>;
   onToggle: (code: string) => void;
+  onSetAll?: (next: Record<string, boolean>) => void;
 }) {
   const styles = useUiStyles();
+  const { colors } = useTheme();
+  const sortedPurposes = [...notice.purposes].sort((a, b) => a.code.localeCompare(b.code));
+  const allSelected = sortedPurposes.length > 0 && sortedPurposes.every((p) => Boolean(granted[p.code]));
+  const paragraphs = notice.text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
   return (
     <>
-      <Text style={styles.text}>{notice.text}</Text>
-      {[...notice.purposes].sort((a, b) => a.code.localeCompare(b.code)).map((purpose) => (
-        <Button
-          key={purpose.code}
-          size="sm"
-          kind={granted[purpose.code] ? "primary" : "secondary"}
-          label={`${granted[purpose.code] ? "[x] " : "[ ] "}${purpose.label} (${t(purpose.required ? "stationConsentRequired" : "stationConsentOptional")})`}
-          onPress={() => onToggle(purpose.code)}
-        />
-      ))}
+      <View
+        testID="consent-notice-box"
+        style={{
+          backgroundColor: colors.surfaceMuted,
+          borderColor: colors.border,
+          borderWidth: 1,
+          borderRadius: radius.md,
+          padding: spacing.md,
+          gap: spacing.xs,
+        }}
+      >
+        {(paragraphs.length > 0 ? paragraphs : [notice.text]).map((paragraph, index) => (
+          <Text key={index} style={styles.text}>{paragraph}</Text>
+        ))}
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: spacing.xs }}>
+        <Text style={styles.fieldLabel}>{t("consentPurposesHeading")}</Text>
+        {onSetAll && sortedPurposes.length > 1 ? (
+          <Button
+            size="sm"
+            kind="secondary"
+            label={allSelected ? t("consentClearAll") : t("consentSelectAll")}
+            onPress={() => onSetAll(Object.fromEntries(sortedPurposes.map((p) => [p.code, !allSelected])))}
+          />
+        ) : null}
+      </View>
+      <View style={{ gap: spacing.xs }}>
+        {sortedPurposes.map((purpose) => (
+          <ConsentCheckboxRow
+            key={purpose.code}
+            testID={`consent-purpose-${purpose.code}`}
+            label={purpose.label}
+            checked={Boolean(granted[purpose.code])}
+            required={purpose.required}
+            badge={t(purpose.required ? "stationConsentRequired" : "stationConsentOptional")}
+            onPress={() => onToggle(purpose.code)}
+          />
+        ))}
+      </View>
     </>
   );
 }
@@ -95,6 +237,7 @@ export function StationConsentPanel({ projectId, csrf, onChange }: {
         notice={notice}
         granted={granted}
         onToggle={(code) => setGranted((previous) => ({ ...previous, [code]: !previous[code] }))}
+        onSetAll={setGranted}
       />
     </View>
   );
@@ -119,6 +262,7 @@ export function RespondentConsentPanel({ config, language, clientDraftId, busy, 
   onDecision: (envelope: ConsentRecordEnvelope) => void;
 }) {
   const styles = useUiStyles();
+  const { colors } = useTheme();
   const languages = [...new Set((config?.notice_versions ?? []).filter(verifyNoticeTextSha256).map((v) => v.language))].sort();
   const [chosenLanguage, setChosenLanguage] = useState(language);
   const notice = selectActiveNoticeVersion(config, chosenLanguage);
@@ -165,7 +309,8 @@ export function RespondentConsentPanel({ config, language, clientDraftId, busy, 
               key={code}
               size="sm"
               kind={code === notice.language ? "primary" : "secondary"}
-              label={code}
+              label={LANGUAGE_LABELS[code] ?? code.toUpperCase()}
+              accessibilityLabel={code}
               onPress={() => { setChosenLanguage(code); setGranted({}); }}
             />
           ))}
@@ -175,6 +320,7 @@ export function RespondentConsentPanel({ config, language, clientDraftId, busy, 
         notice={notice}
         granted={granted}
         onToggle={(code) => setGranted((previous) => ({ ...previous, [code]: !previous[code] }))}
+        onSetAll={setGranted}
       />
       {allowedModes.length > 1 ? (
         <>
@@ -193,14 +339,14 @@ export function RespondentConsentPanel({ config, language, clientDraftId, busy, 
         </>
       ) : null}
       {notice.witness_allowed ? (
-        <Button
-          size="sm"
-          kind={witness ? "primary" : "secondary"}
-          label={`${witness ? "[x] " : "[ ] "}${t("consentWitnessPresent")}`}
+        <ConsentCheckboxRow
+          testID="consent-witness-checkbox"
+          label={t("consentWitnessPresent")}
+          checked={witness}
           onPress={() => setWitness((previous) => !previous)}
         />
       ) : null}
-      <View style={styles.row}>
+      <View style={[styles.row, { borderTopWidth: 1, borderColor: colors.border, paddingTop: spacing.sm }]}>
         <Button
           label={t("consentAgree")}
           disabled={busy || !allRequiredPurposesGranted(notice, granted)}

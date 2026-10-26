@@ -24,7 +24,11 @@ const config = {
 } as unknown as ProjectConsentConfig;
 
 function button(tree: ReturnType<typeof create>, label: string) {
-  return tree.root.findAll((node) => (node.type as unknown) === "mock-button" && String(node.props.label).includes(label))[0];
+  return tree.root.findAll((node) => (node.type as unknown) === "mock-button" && (String(node.props.label).includes(label) || node.props.accessibilityLabel === label))[0];
+}
+
+function checkbox(tree: ReturnType<typeof create>, label: string) {
+  return tree.root.findAll((node) => node.props.accessibilityRole === "checkbox" && String(node.props.accessibilityLabel).includes(label))[0];
 }
 
 it("shows the notice in the chosen language and records agreement only with every required purpose", async () => {
@@ -33,7 +37,7 @@ it("shows the notice in the chosen language and records agreement only with ever
   await act(async () => { tree = create(<RespondentConsentPanel config={config} language="hi" clientDraftId={null} onDecision={onDecision} />); });
   expect(JSON.stringify(tree.toJSON())).toContain("हिंदी सूचना");
   expect(button(tree, "consentAgree").props.disabled).toBe(true);
-  await act(async () => button(tree, "Record").props.onPress());
+  await act(async () => checkbox(tree, "Record").props.onPress());
   await act(async () => button(tree, "consentModeTap").props.onPress());
   await act(async () => button(tree, "consentAgree").props.onPress());
   expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({
@@ -42,8 +46,13 @@ it("shows the notice in the chosen language and records agreement only with ever
     purposes: [{ code: "messages", granted: false }, { code: "record", granted: true }],
   }));
   // Another language starts its own choices.
-  await act(async () => tree.root.findAll((node) => (node.type as unknown) === "mock-button" && node.props.label === "en")[0].props.onPress());
+  await act(async () => button(tree, "en").props.onPress());
   expect(JSON.stringify(tree.toJSON())).toContain("English notice");
+  expect(button(tree, "consentAgree").props.disabled).toBe(true);
+  // Select all toggles all purposes on, Clear all toggles them off.
+  await act(async () => button(tree, "consentSelectAll").props.onPress());
+  expect(button(tree, "consentAgree").props.disabled).toBe(false);
+  await act(async () => button(tree, "consentClearAll").props.onPress());
   expect(button(tree, "consentAgree").props.disabled).toBe(true);
 });
 
@@ -51,7 +60,7 @@ it("records a refusal with every purpose refused", async () => {
   const onDecision = jest.fn();
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<RespondentConsentPanel config={config} language="en" clientDraftId="d-1" onDecision={onDecision} />); });
-  await act(async () => button(tree, "Messages").props.onPress());
+  await act(async () => checkbox(tree, "Messages").props.onPress());
   await act(async () => button(tree, "consentRefuse").props.onPress());
   expect(onDecision).toHaveBeenCalledWith(expect.objectContaining({
     client_draft_id: "d-1", decision: "refused", mode: "spoken",

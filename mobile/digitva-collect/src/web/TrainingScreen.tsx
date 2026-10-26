@@ -9,6 +9,7 @@ import { startTraining, TRAINING_REPORTING_ROUTE, TRAINING_ROUTES } from "../tra
 import { spacing } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
+import { CollectionPanel } from "./CollectionScreen";
 import { DeathsListPanel } from "./DeathsList";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { TrainingScope } from "../AppState";
@@ -100,7 +101,8 @@ function TrainingInterview() {
   const { bootstrap } = useAppState();
   const { me, error } = useTrainingMe();
   const roles = new Set((me?.participations ?? []).map((part) => part.role));
-  const registers = roles.has("death_reporter") || roles.has("interviewer");
+  const interviews = roles.has("interviewer") || bootstrap?.capabilities?.intake === true;
+  const registers = roles.has("death_reporter") || interviews;
   const supervises = roles.has("interview_supervisor");
   return (
     <WebShell title={t("trainingInterview")}>
@@ -109,11 +111,15 @@ function TrainingInterview() {
         <>
           {supervises ? <SupervisionPanel /> : null}
           <Text style={styles.headline}>{t("trainingWorkList")}</Text>
-          <DeathsListPanel
-            headerAction={registers ? (
-              <Button size="sm" label={t("trainingReportDeath")} onPress={() => router.push(TRAINING_REPORTING_ROUTE as never)} />
-            ) : undefined}
-          />
+          {interviews ? (
+            <CollectionPanel training />
+          ) : (
+            <DeathsListPanel
+              headerAction={registers ? (
+                <Button size="sm" label={t("trainingReportDeath")} onPress={() => router.push(TRAINING_REPORTING_ROUTE as never)} />
+              ) : undefined}
+            />
+          )}
         </>
       ) : null}
     </WebShell>

@@ -28,6 +28,7 @@ jest.mock("../src/web/common", () => {
   };
 });
 jest.mock("../src/web/roleHome", () => ({ openServerPage: jest.fn() }));
+jest.mock("../src/web/CollectionScreen", () => ({ CollectionPanel: ({ training }: { training?: boolean }) => require("react").createElement("collection-panel", { training }) }));
 jest.mock("../src/web/DeathsList", () => ({ DeathsListPanel: ({ headerAction }: { headerAction?: React.ReactNode }) => require("react").createElement("deaths-list", null, headerAction) }));
 jest.mock("../src/web/SupervisionPanel", () => ({ SupervisionPanel: () => require("react").createElement("supervision-panel") }));
 jest.mock("../src/web/LazyInterviewScreen", () => ({ DeathRegistrationScreen: () => require("react").createElement("registration") }));
@@ -130,11 +131,14 @@ describe("Training interview area", () => {
     await act(async () => { renderer.unmount(); });
   });
 
-  test("an interviewer without the supervisor role gets no supervision panel", async () => {
+  test("an interviewer without the supervisor role gets the full collection panel (direct interview, my interviews, reported deaths) and no supervision panel", async () => {
     mockGetMe.mockResolvedValue(me([part("interviewer")], false, ["interview"]));
     const renderer = await render(<TrainingInterviewScreen />);
     expect(renderer.root.findAllByType("supervision-panel" as never)).toHaveLength(0);
-    expect(renderer.root.findAllByType("deaths-list" as never)).toHaveLength(1);
+    const panels = renderer.root.findAllByType("collection-panel" as never);
+    expect(panels).toHaveLength(1);
+    expect(panels[0].props.training).toBe(true);
+    expect(renderer.root.findAllByType("deaths-list" as never)).toHaveLength(0);
     await act(async () => { renderer.unmount(); });
   });
 

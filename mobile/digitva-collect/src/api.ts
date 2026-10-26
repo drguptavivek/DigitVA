@@ -1040,7 +1040,7 @@ export async function fetchClientBootstrap(options: { background?: boolean } = {
 export async function getIntakeContext(
   csrf: ClientCsrf,
   action: "interview" | "register_death" = "interview",
-  scope: IntakeScope = "normal",
+  scope: IntakeScope = csrf.training ? "training" : "normal",
 ): Promise<IntakeBootstrap> {
   const access = await getAccessSummary(csrf);
   const contexts = intakeContextFromAccess(access, action, scope);
@@ -1152,7 +1152,7 @@ export function setCaseVisit(
 export function getDrafts(
   link: string,
   csrf: ClientCsrf,
-  training = false,
+  training = Boolean(csrf.training),
 ): Promise<{ drafts: DraftSummary[] }> {
   return requestClientJson(training ? `${link}?training=1` : link, { csrf });
 }

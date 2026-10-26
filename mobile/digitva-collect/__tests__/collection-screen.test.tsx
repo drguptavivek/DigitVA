@@ -58,7 +58,7 @@ jest.mock("../src/ui", () => ({
 }));
 jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: ReactNode }) => <>{children}</>, browserErrorText: () => "error" }));
 
-import CollectionScreen from "../src/web/CollectionScreen";
+import CollectionScreen, { CollectionPanel } from "../src/web/CollectionScreen";
 import { EMPTY_ADVANCED, matchesAdvanced } from "../src/web/caseFilters";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
 import { getSubmittedRevisions } from "../src/client/revisionList";
@@ -817,6 +817,44 @@ describe("CollectionScreen tabs and filters", () => {
     expect(matchesAdvanced(row, { ...EMPTY_ADVANCED, dodFrom: "garbage" })).toBe(true);
     expect(matchesAdvanced(row, { ...EMPTY_ADVANCED, reportedFrom: "2026-10-06", reportedTo: "2026-10-06" })).toBe(true);
     expect(matchesAdvanced({ ...row, date_of_death: null }, { ...EMPTY_ADVANCED, dodFrom: "2026-01-01" })).toBe(false);
+  });
+
+  it("uses training routes for report death, direct interview, and resume when rendered in training mode", async () => {
+    mockGetIntakeContext.mockResolvedValue({
+      context: [{ project_id: "TRN01", site_id: "O005", web_intake_mode: "both", org_units: [{ org_unit_id: "u-1", unit_name: "Session 1", level_name: "District" }] }],
+    });
+    mockGetDrafts.mockResolvedValue({
+      drafts: [{ draft_id: "td-1", project_id: "TRN01", site_id: "O005", unique_id: "DH01-000001", current_section: "one" }],
+    });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<CollectionPanel training />);
+    });
+    await settle();
+    expect(mockGetIntakeContext).toHaveBeenCalledWith(expect.objectContaining({ training: true }));
+
+    const reportBtn = tree.root.findAll((n) => n.props["data-label"] === "trainingReportDeath")[0];
+    expect(reportBtn).toBeDefined();
+    await act(async () => reportBtn.props.onClick());
+    expect(mockRouterPush).toHaveBeenCalledWith("/training/reporting");
+
+    const directBtn = tree.root.findAll((n) => n.props["data-label"] === "directVaInterview")[0];
+    expect(directBtn).toBeDefined();
+    await act(async () => directBtn.props.onClick());
+    const startDirectBtn = tree.root.findAll((n) => n.props["data-label"] === "startInterview")[0];
+    await act(async () => startDirectBtn.props.onClick());
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/training/interview/form",
+      params: { projectId: "TRN01", siteId: "O005", orgUnitId: "u-1" },
+    });
+
+    const resumeBtn = tree.root.findAll((n) => n.props["data-label"] === "resumeInterview")[0];
+    await act(async () => resumeBtn.props.onClick());
+    expect(mockRouterPush).toHaveBeenCalledWith({
+      pathname: "/training/interview/form",
+      params: { draftId: "td-1" },
+    });
+    await act(async () => tree.unmount());
   });
 });
 

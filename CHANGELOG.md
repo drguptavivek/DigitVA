@@ -5,6 +5,21 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-25
 
+- **Training interview collection parity and consent panel layout**
+  (`digitva-eiym`): reuse `CollectionPanel` on `/training/interview` when the
+  participant holds the `interviewer` role so training matches real project
+  collection (`Report a death`, `Direct VA interview`, refresh control, and
+  `My interviews (N)` | `Reported deaths (M)` tabs routing to
+  `/training/reporting` and `/training/interview/form`), scope
+  `getIntakeContext`, `getDrafts`, and `getSubmittedRevisions` automatically
+  when `csrf.training` is set, and deduplicate `org_units` in
+  `interviewer_context` when a participant holds both `interviewer` and
+  `death_reporter` on the same unit. Redesign `RespondentConsentPanel` and
+  `StationConsentPanel` with a bordered notice box, readable language buttons
+  (`English`, `हिन्दी`), `Select all` / `Clear all`, and left-aligned
+  `ConsentCheckboxRow` items with required/optional pills. Jest 180/2713,
+  `make check-web`, and training pytest 111 passed.
+
 - **Interview welcome card, live case summary strip, and TRN01 DPDP consent**
   (`digitva-ydgv`, `digitva-idvp`): render the project welcome note (`Before
   you begin` / `intake_note` when `intake_screen` is enabled) before mounting

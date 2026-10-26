@@ -10,6 +10,7 @@ import { createWorkspaceApi } from "../workspace/api";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { t } from "../i18n";
 import { controls, spacing, typography, useTheme } from "../theme";
+import { TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_REPORTING_ROUTE } from "../training";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -72,7 +73,7 @@ type AuthoritativeRefreshResult = {
   revision: number;
 };
 
-export default function CollectionScreen() {
+export function CollectionPanel({ training: trainingProp = false }: { training?: boolean } = {}) {
   const router = useRouter();
   const params = useLocalSearchParams<{
     superseded?: string;
@@ -89,6 +90,12 @@ export default function CollectionScreen() {
   const [dismissedSubmit, setDismissedSubmit] = useState("");
   const appState = useAppState() as ReturnType<typeof useAppState> & BrowserNotificationRefresh;
   const { bootstrap, notificationGeneration, acknowledgeAuthoritativeRefresh } = appState;
+  const isTraining = trainingProp || bootstrap?.scope === "training" || Boolean(bootstrap?.csrf?.training);
+  const hasIntakeAccess = Boolean(bootstrap?.capabilities?.intake || isTraining);
+  const reportDeathPath = isTraining ? TRAINING_REPORTING_ROUTE : "/death-registration";
+  const reportDeathLabel = isTraining ? t("trainingReportDeath") : t("recordDeath");
+  const interviewFormPath = isTraining ? TRAINING_INTERVIEW_FORM_ROUTE : "/interview";
+  const workspacePath = isTraining ? TRAINING_CODING_CASE_ROUTE : "/workspace";
   const styles = useUiStyles();
   const c = useCollectionStyles();
   const card = useCaseCardStyles();
@@ -96,7 +103,7 @@ export default function CollectionScreen() {
     () => bootstrap ? createWorkspaceApi(createWebWorkspaceTransport(bootstrap.csrf)) : undefined,
     [bootstrap?.csrf, bootstrap?.user.user_id],
   );
-  const canCode = bootstrap?.access.roles.some((role) => role === "coder" || role === "coding_tester") === true;
+  const canCode = bootstrap?.access?.roles?.some((role) => role === "coder" || role === "coding_tester") === true;
   const deaths = useDeathCases(bootstrap);
   const [intake, setIntake] = useState<IntakeBootstrap>();
   const [drafts, setDrafts] = useState<DraftSummary[]>([]);
@@ -138,8 +145,9 @@ export default function CollectionScreen() {
 
   const loadIntake = useCallback(async () => {
     if (!bootstrap) throw new Error("authentication_required");
-    return getIntakeContext(bootstrap.csrf);
-  }, [bootstrap]);
+    const csrf = isTraining && !bootstrap.csrf?.training ? { ...bootstrap.csrf, training: true as const } : bootstrap.csrf;
+    return getIntakeContext(csrf);
+  }, [bootstrap, isTraining]);
 
   const refreshDeaths = deaths.refresh;
   const refresh = useCallback(async () => {
@@ -317,8 +325,7 @@ export default function CollectionScreen() {
   };
 
   return (
-    <WebShell title={t("reportedDeaths")}>
-      <ContextualHelpBanner screen="collection" />
+    <>
       {params.saved === "1" ? (
         <Text style={styles.text} accessibilityRole="alert">{t("registrationSaved")}</Text>
       ) : null}
@@ -350,13 +357,13 @@ export default function CollectionScreen() {
             <CodeNowButton
               api={workspaceApi}
               vaSid={params.readyVaSid.trim()}
-              onOpen={(vaSid) => router.push({ pathname: "/workspace", params: { vaSid, mode: "coding" } })}
-              onAccessLost={() => { void appState.reload(); router.replace("/workspace"); }}
+              onOpen={(vaSid) => router.push({ pathname: workspacePath as never, params: { vaSid, mode: "coding", ...(isTraining ? { training: "1" } : {}) } })}
+              onAccessLost={() => { void appState.reload(); router.replace(workspacePath as never); }}
             />
           ) : null}
         </View>
       ) : null}
-      {!bootstrap?.capabilities.intake ? (
+      {!hasIntakeAccess ? (
         <Text style={styles.error}>{t("noCollectionAccess")}</Text>
       ) : (
         <>
@@ -364,7 +371,7 @@ export default function CollectionScreen() {
             <View style={c.toolbarRow}>
               <View style={c.toolbarActions}>
                 {intake?.context.some((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both") ? (
-                  <Button label={t("recordDeath")} onPress={() => router.push("/death-registration")} />
+                  <Button label={reportDeathLabel} onPress={() => router.push(reportDeathPath as never)} />
                 ) : null}
                 {directTargets.length > 0 ? (
                   <Button kind="secondary" label={t("directVaInterview")} expanded={directOpen} onPress={() => setDirectOpen((open) => !open)} />
@@ -382,7 +389,7 @@ export default function CollectionScreen() {
             {directOpen && directTargets.length > 0 ? (
               <DirectInterviewPanel
                 targets={directTargets}
-                onStart={(target) => router.push({ pathname: "/interview", params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
+                onStart={(target) => router.push({ pathname: interviewFormPath as never, params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
               />
             ) : null}
           </View>
@@ -461,13 +468,13 @@ export default function CollectionScreen() {
                     extra={extra}
                     badges={[row.kind === "draft" ? { label: t("draftInProgress"), tone: "accent" } : { label: t("filterSubmitted") }]}
                     actions={row.kind === "draft" ? (
-                      <Button size="sm" style={card.actionButton} label={t("resumeInterview")} onPress={() => router.push({ pathname: "/interview", params: { draftId: row.draft_id } })} />
+                      <Button size="sm" style={card.actionButton} label={t("resumeInterview")} onPress={() => router.push({ pathname: interviewFormPath as never, params: { draftId: row.draft_id } })} />
                     ) : (
                       <Button
                         size="sm"
                         style={card.actionButton}
                         label={t("reviseInterview")}
-                        onPress={() => router.push({ pathname: "/interview", params: {
+                        onPress={() => router.push({ pathname: interviewFormPath as never, params: {
                           revisionDraftId: row.draft_id,
                           revisionProjectId: row.project_id,
                           revisionSiteId: row.site_id,
@@ -483,6 +490,15 @@ export default function CollectionScreen() {
           {tab === "deaths" ? <DeathsList list={deaths} /> : null}
         </>
       )}
+    </>
+  );
+}
+
+export default function CollectionScreen() {
+  return (
+    <WebShell title={t("reportedDeaths")}>
+      <ContextualHelpBanner screen="collection" />
+      <CollectionPanel />
     </WebShell>
   );
 }

@@ -401,9 +401,12 @@ def interviewer_context(
                 if (grant.project_id, site_id) in whole_tree:
                     continue
                 entry = pairs.setdefault((grant.project_id, site_id), {"org_units": []})
+                unit_id_str = str(unit.org_unit_id)
+                if any(u["org_unit_id"] == unit_id_str for u in entry["org_units"]):
+                    continue
                 entry["org_units"].append(
                     {
-                        "org_unit_id": str(unit.org_unit_id),
+                        "org_unit_id": unit_id_str,
                         "unit_code": unit.unit_code,
                         "unit_name": unit.unit_name,
                         "path": str(unit.path),

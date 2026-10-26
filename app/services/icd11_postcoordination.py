@@ -180,7 +180,14 @@ def _axes(entity: dict) -> tuple[list[dict], bool]:
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{0,63}", axis_id):
             raise WhoIcdApiUnavailable("WHO postcoordination axis was invalid")
         label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", axis_id).capitalize()
-        options = [_option(uri, block_uri=uri) for uri in roots[:_MAX_OPTIONS]]
+        # A root can be an uncoded leaf, e.g. a "window" entity such as
+        # FB80.B's "Neoplasms of the musculoskeletal system": nothing to pick.
+        options = [
+            option for option in (
+                _option(uri, block_uri=uri, skip_uncoded_leaf=True)
+                for uri in roots[:_MAX_OPTIONS]
+            ) if option is not None
+        ]
         instruction = (
             "code also" if axis_id == "hasCausingCondition" and required_value in (True, "true")
             else "use additional code" if required_value in (True, "true")

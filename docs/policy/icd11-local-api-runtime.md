@@ -3,7 +3,7 @@ title: Local WHO ICD-11 API Runtime
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-26
 ---
 
 # Local WHO ICD-11 API Runtime
@@ -70,3 +70,28 @@ WHO ICD-11 is licensed CC BY-ND 3.0 IGO (bead `digitva-zde8`). What the code doe
   a WHO agreement: `docs/kb/icd11-licence-inventory.md`.
 - The engine must keep `saveAnalytics=false` (`docker-compose.yml`) and never
   phone home from Android or the station.
+
+## WHO correspondence on offline use
+
+On 2026-10-21 the owner asked the WHO ICD team (icd@who.int) to confirm four
+points for the offline desktop (in-process .NET host) and Android (NativeAOT)
+engines: (1) permission under licence 2.3 to incorporate the ICD-API 2.6.0 /
+DORIS 1.2.0 assemblies and data, (2) that NativeAOT compilation of the
+unmodified assemblies is not a modification under 2.4, (3) any WHO-preferred
+Android or offline method, (4) an attribution format for offline use.
+
+WHO replied (Carine, ICD team) recommending that DigitVA use the components
+that fit its architecture and call the ICD-11, DORIS and CodEdit API
+endpoints directly, with no need to reproduce the desktop tools, and offered
+a technical call with WHO colleagues. The reply does not answer points 1-4,
+so it is not a written licence confirmation.
+
+Until WHO confirms 1 and 2 in writing:
+
+- Servers use the official `whoicd/icd-api` container. This is settled
+  (owner 2026-10-26), not a stopgap: it is what WHO recommends.
+- The offline engines (desktop host, Collect Plus `.so` bundle) stay
+  experimental, and the engine bundle is not published as a public release
+  asset.
+- After the call, ask WHO for one written line covering points 1 and 2 and
+  record it here.

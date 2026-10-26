@@ -35,6 +35,15 @@ digest; verify the runtime DLL version rather than trusting the Compose comment.
    `digitva-ve8n`: Expo login idea, discussion only. TanStack Router discussed:
    keep Expo Router this release; web-only shell migration needs its own plan.
 
+5. WHO ICD-11 call 2026-10-29: deck https://claude.ai/artifact/Y6g1epS6LgVieFQg8mtJcL
+   (private; share before the call). Ask WHO for written licence 2.3/2.4
+   confirmation; record it in `docs/policy/icd11-local-api-runtime.md`.
+   Owner review: `docs/policy/icd11-code-selection-principles.md` principle 4
+   notes WHO RG 2.7.2.1 allows a required-axis stem alone when the aetiology
+   is unknown; the picker does not offer that path.
+   Expo session: stray space at `WorkspaceLayout.web.tsx:416` (Notes tab)
+   logs "Unexpected text node" on every render; delete the space.
+
 ## Runtime and release caveats
 
 Staging digitvav3 (i-0b2caee6465bfcac1, ap-south-1, profile digitva, /data/DigitVA)

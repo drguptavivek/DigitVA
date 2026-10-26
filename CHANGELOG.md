@@ -5,6 +5,21 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-26
 
+- **ICD-11 axes load when WHO lists an uncoded window root** (`digitva-cth7`):
+  `_axes` now skips scale roots with no code and no children (WHO "window"
+  entities such as FB80.B's "Neoplasms of the musculoskeletal system") instead
+  of failing the whole axis panel with "WHO ICD-11 guidance is unavailable";
+  they stay in the axis search scope. New
+  `docs/policy/icd11-code-selection-principles.md` grounds the code, axis,
+  extension, first-stem and allowability rules in the WHO ICD-11 Reference
+  Guide and marks each DigitVA narrowing with its owner decision. The
+  `/app/` reload allowlist gains Collect Plus's `offline-coding` and
+  `offline-profile` routes (full suite had failed on them after `e59273d7e`).
+  `docs/policy/icd11-local-api-runtime.md`
+  `docs/policy/icd11-local-api-runtime.md` records WHO's reply on offline use
+  (not written permission; servers stay on the official image). Full suite:
+  6,356 passed, 1 failed (the allowlist, fixed and rerun: 3 passed).
+
 - **Collect Plus pure offline coding** (`digitva-zjqq`): entirely offline mode
   for the Plus variant — install without a server, record interviews, and code
   them via the on-device DORIS engine. Local device identity minted at first

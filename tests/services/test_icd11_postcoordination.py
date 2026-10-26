@@ -155,6 +155,31 @@ def test_search_availability_does_not_infer_from_leaf_or_expression():
     assert postcoordination_availability("2") == (False, None)
 
 
+WINDOW = "http://id.who.int/icd/release/11/2026-01/mms/500"
+
+
+def test_uncoded_leaf_axis_root_is_skipped_not_fatal():
+    # WHO lists window entities (no code, no children) among scale roots.
+    entities = _entities()
+    entities[ROOT]["postcoordinationScale"][0]["scaleEntity"] = [WINDOW, LEFT]
+    entities[WINDOW] = {
+        "code": "", "classKind": "window",
+        "title": {"@value": "Neoplasms of the musculoskeletal system"},
+        "parent": [], "child": [],
+    }
+    with (
+        patch(
+            "app.services.icd11_postcoordination.get_icd11_codeinfo",
+            return_value={"code": "1B12.2", "stemId": ROOT},
+        ),
+        patch("app.services.icd11_postcoordination._entity", side_effect=entities.__getitem__),
+    ):
+        result = postcoordination("1B12.2")
+    axis = result["axes"][0]
+    assert [option["uri"] for option in axis["options"]] == [LEFT]
+    assert axis["subtree_uris"] == [WINDOW, LEFT]
+
+
 def test_too_many_axis_roots_are_explicitly_truncated():
     entities = _entities()
     entities[ROOT]["postcoordinationScale"][0]["scaleEntity"] = [LEFT] * 13

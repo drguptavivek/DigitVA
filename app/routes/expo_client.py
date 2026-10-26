@@ -33,6 +33,8 @@ _SPA_ROUTE_ROOTS = frozenset(
         "login",
         "mentoring",
         "new-death",
+        "offline-coding",
+        "offline-profile",
         "organization",
         "pin-setup",
         "register",

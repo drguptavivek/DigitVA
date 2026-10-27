@@ -9,6 +9,9 @@ import { canUseBiometricAuthentication } from "expo-secure-store";
 import { Linking, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
+import type { Db } from "../drafts";
+import { isUnlocked, openInterviewerDb } from "../interviewerDb";
+import { DataActions } from "../standalone/DataActions";
 import { APP_VERSION } from "../appVersion";
 import { isPlusVariant } from "../appVariant";
 import { IDLE_LOCK_MS } from "../autoLock";
@@ -69,6 +72,13 @@ export default function NativeSettings() {
   }, [accounts, optionsVersion]);
   const biometricAvailable = canUseBiometricAuthentication();
   const account = accounts.find((item) => item.user_id === shell.userId);
+  // Encrypted backup of unsent work for an enrolled account (Plus); the standalone home has its own actions.
+  const [backupDb, setBackupDb] = useState<Db>();
+  const backupUserId = isPlusVariant() && account && !account.standalone && isUnlocked(account.user_id) ? account.user_id : undefined;
+  useEffect(() => {
+    setBackupDb(undefined);
+    if (backupUserId) void openInterviewerDb(backupUserId).then(setBackupDb).catch(() => undefined);
+  }, [backupUserId]);
   async function requestBiometric(userId: string) {
     setBusy(true);
     setError("");
@@ -210,6 +220,12 @@ export default function NativeSettings() {
         <Text style={styles.text}>{sync.work === undefined ? t("syncUnsentUnknown") : t("syncUnsentScoped", { count: sync.work.unsent })}</Text>
         <Button label={t("sendNow")} loading={sync.busy} disabled={sync.busy || !shell.userId} onPress={() => void shell.sendNow()} />
       </Section>
+      {backupDb && backupUserId ? (
+        <Section title={t("settingsBackup")}>
+          <Text style={styles.muted}>{t("dataBackupUnsentNote")}</Text>
+          <DataActions db={backupDb} userId={backupUserId} exportAllowed={false} onChanged={() => undefined} />
+        </Section>
+      ) : null}
       {isPlusVariant() ? (
         <Section title="Collect Plus (experimental)">
           <Button kind="secondary" label="Coding queue" disabled={!shell.userId} onPress={() => router.push({ pathname: "/coding", params: { userId: shell.userId } })} />

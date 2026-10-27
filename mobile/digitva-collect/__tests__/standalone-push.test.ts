@@ -197,6 +197,7 @@ describe("adoption offer", () => {
 
   it("sends the org code only when it matches the server's pattern", () => {
     expect(orgCodeClaim(" PHC-01 ")).toBe("PHC-01");
+    expect(orgCodeClaim("DIST_07")).toBe("DIST_07"); // any tree level, not only a facility unit
     expect(orgCodeClaim("PHC Rampur")).toBeNull();
     expect(orgCodeClaim("")).toBeNull();
     expect(orgCodeClaim(undefined)).toBeNull();

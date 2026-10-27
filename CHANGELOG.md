@@ -5,6 +5,31 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **Staging-safe release** (`digitva-weiq`, `digitva-g67f`):
+  - The AI questions migration `a9e4c7f2b3d6` no longer needs a superuser.
+    Without the privileges it creates the tables, skips the reader role and
+    function, and the feature answers 503 `not_configured` until a superuser
+    runs `deploy/sql/ai_reader_setup.sql`. Staging's `digitva_app` is not a
+    superuser, so the old form would have kept `boot.sh` retrying the upgrade
+    and the app down.
+  - Maintenance page on the ingress (`deploy/maintenance/`): shown
+    automatically on 502/503/504 while the app restarts, and switched on by
+    `scripts/deploy-server.sh` for the pull and migrations. API paths get
+    JSON 503 `maintenance` with `Retry-After`, which phones treat as transient.
+  - Upgrade audit against staging (commit `d7f8ac86`, APK 0.3.10): no data
+    loss path. Owner accepted that project-scope grants on tree projects see
+    masked PII under the three-tier rule.
+- **Owner answers to the Collect Plus defaults** (`digitva-5bzf` notes):
+  profile org code may name any level (`.13`, server already routed it);
+  enrolled Plus phones get an encrypted backup of unsent work, no CSV
+  (`.14`); sign-in QR needs an interviewer or death-reporter grant again
+  (`.15`, reverses S8).
+- **Public pages** (`digitva-gyfj`, draft pending legal review): `/privacy`
+  with a Consent section, `/contact` (Contact us), `/data-requests` (Consent
+  and data requests), linked from every footer; organisation details from
+  `PUBLIC_*` config. Policy `docs/policy/public-privacy-and-data-requests.md`.
+- `AGENTS.md`: staging deploy rules and the web-bundle boundary.
+
 - **KPI refresh: every KPI computed live from workflow events**
   (`digitva-0hul`, `digitva-r5s0`):
   - **Policy:** `docs/policy/kpis.md` rewritten as 18 core panels out of 35

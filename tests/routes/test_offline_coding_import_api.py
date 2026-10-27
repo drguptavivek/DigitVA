@@ -277,6 +277,20 @@ class StandalonePushTests(BaseTestCase):
             self.assertIsNone(submission.org_unit_id)
             self.assertFalse(self._draft(draft_id).meta["standalone"]["orgCodeMatched"])
 
+    def test_an_org_code_of_any_level_routes_to_that_unit(self):
+        # self.unit is the tree's top level; a child below it makes it non-leaf.
+        ward_level = org.create_level(PROJECT, level_code="ward", level_name="Ward", depth=2)
+        ward = org.create_unit(PROJECT, org_level_id=ward_level.org_level_id, unit_code="SAWARD01",
+                               unit_name="Standalone ward", parent_org_unit_id=self.unit.org_unit_id)
+        client_uuid, headers = self._device(self.interviewer)
+        for code, unit in (("sawArd01", ward), (UNIT_CODE, self.unit)):
+            response, draft_id = self._push(headers, client_uuid, coding=False, org_code=code)
+            self.assertEqual(response.status_code, 201, response.get_json())
+            submission = db.session.get(VaSubmissions, response.get_json()["va_sid"])
+            self.assertEqual((submission.org_unit_id, submission.org_unit_resolution),
+                             (unit.org_unit_id, "form_field"))
+            self.assertTrue(self._draft(draft_id).meta["standalone"]["orgCodeMatched"])
+
     def test_a_training_project_push_keeps_the_intake_training_rule(self):
         client_uuid, headers = self._device(self.coder)
         with mock.patch.dict(self.app.config, DIGITVA_TRAINING_PROJECT_ID=PROJECT):

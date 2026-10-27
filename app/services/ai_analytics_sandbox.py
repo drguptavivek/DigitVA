@@ -173,7 +173,9 @@ class SandboxError(Exception):
     """A run that did not return rows.
 
     ``code`` is ``invalid_sql`` (text or parser check), ``timeout``,
-    ``result_too_large`` (over ``AI_OUTPUT_MAX_BYTES``) or ``db_error``; ``message`` is safe to show the user. ``model_message`` is
+    ``result_too_large`` (over ``AI_OUTPUT_MAX_BYTES``), ``not_configured`` (the reader role or
+    ``digitva_ai_run`` was never set up, see ``deploy/sql/ai_reader_setup.sql``) or ``db_error``;
+    ``message`` is safe to show the user. ``model_message`` is
     what the model may see on its retry: the SQLSTATE and the primary message
     with every quoted value replaced by ``<value>``, so no data value from the
     database reaches the provider.
@@ -398,6 +400,33 @@ def _sandbox_connection():
         yield conn
 
 
+_reader_ready = False  # only a positive answer is cached; a later setup is picked up
+
+
+def _require_reader(conn) -> None:
+    """Raise ``SandboxError("not_configured")`` unless the reader role and
+    ``digitva_ai_run`` exist. The migration skips both when the app database
+    user lacks the privileges to create them; one catalog lookup, cached once
+    true for the process."""
+    global _reader_ready
+    if _reader_ready:
+        return
+    try:
+        ready = conn.execute(sa.text(
+            "SELECT to_regprocedure('digitva_ai_run(text, integer)') IS NOT NULL"
+            " AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :role)"
+        ), {"role": READER_ROLE}).scalar_one()
+    except sa.exc.DBAPIError as exc:
+        raise _sandbox_error(exc) from None
+    if not ready:
+        raise SandboxError(
+            "not_configured",
+            "AI questions are not set up on this server: the database reader role is missing. "
+            "Ask the administrator to run deploy/sql/ai_reader_setup.sql.",
+        )
+    _reader_ready = True
+
+
 @contextmanager
 def _cube_transaction(conn, builds):
     """Open a transaction on *conn* holding a temp table per (name, SELECT)
@@ -449,6 +478,7 @@ def run_query(sql, user, *, statement_timeout_ms: int = STATEMENT_TIMEOUT_MS,
     sql, names = _validate(sql)
     builds = tables.build_selects(user, names)
     with _sandbox_connection() as conn:
+        _require_reader(conn)
         return _run(conn, builds, sql, int(statement_timeout_ms), int(output_max_bytes))
 
 
@@ -482,10 +512,12 @@ def explain_query(sql, user) -> None:
     sql, names = _validate(sql)
     builds = tables.build_selects(user, names)
     try:
-        with _sandbox_connection() as conn, _cube_transaction(conn, builds):
-            _become_reader(conn, builds, STATEMENT_TIMEOUT_MS)
-            # The driver formats the statement: a literal % (modulo, LIKE) must be %%.
-            conn.exec_driver_sql("EXPLAIN " + sql.replace("%", "%%"))
+        with _sandbox_connection() as conn:
+            _require_reader(conn)
+            with _cube_transaction(conn, builds):
+                _become_reader(conn, builds, STATEMENT_TIMEOUT_MS)
+                # The driver formats the statement: a literal % (modulo, LIKE) must be %%.
+                conn.exec_driver_sql("EXPLAIN " + sql.replace("%", "%%"))
     except sa.exc.DBAPIError as exc:
         raise _sandbox_error(exc) from None
 

@@ -1,0 +1,42 @@
+{% extends "va_frontpages/va_base.html" %}
+{% block title %}DigitVA | Consent and data requests{% endblock %}
+{% block content %}
+  <div class="container mt-5 pt-5 mb-5" style="max-width: 800px;">
+    <h1 class="h2">Consent and data requests</h1>
+    <p>This page applies to the DigitVA web portal and the DigitVA Collect and Collect Plus Android apps. DigitVA accounts are created and managed by programme administrators, so there is no self-service sign-up; consent changes and deletion are requested by writing to us.</p>
+
+    <h2 class="h4">Withdraw or change your consent</h2>
+    <p>If you gave information about a death in your family and want it withdrawn, erased or left out of reports and research, write to us and quote the case number you were given. Information already shared for research in de-identified form cannot be taken back because it no longer identifies you.</p>
+
+
+    <h2 class="h4">Request deletion of your account and data</h2>
+    <ol>
+      <li>
+        {% if org.email %}Email <a href="mailto:{{ org.email }}?subject=DigitVA%20account%20deletion%20request">{{ org.email }}</a> from the address registered on your account, or ask your project administrator to send the request for you.
+        {% else %}Ask your project administrator to send the request to the programme team.{% endif %}
+      </li>
+      <li>Say that you want your account and associated data deleted, and give your name and the email address or mobile number you sign in with. Do not include your password.</li>
+      <li>We confirm the request with you before acting on it. We tell you when it is done.</li>
+    </ol>
+
+    <h2 class="h4">What is deleted</h2>
+    <ul>
+      <li>Your DigitVA account and sign-in credentials.</li>
+      <li>Your app device sessions, so the apps on your phones are signed out and cleared.</li>
+      <li>Your profile: name, email address and mobile number.</li>
+      <li>Unsent interviews held in encrypted form on a phone are removed when the server confirms receipt, or when your device is revoked.</li>
+    </ul>
+
+    <h2 class="h4">What is kept, and why</h2>
+    <ul>
+      <li>Verbal autopsy records about deceased persons, which are held for the programme under the respondent's consent. They are not personal data about your account. Where programme rules allow, they are separated from your account.</li>
+      <li>Audit records of actions taken in the system, which the programme needs to show that data were handled correctly.</li>
+      <li>Backups, until they expire in the normal backup cycle.</li>
+    </ul>
+    <p>These are kept for the period the programme requires and applicable law allows. Contact us for the period that applies to you.</p>
+
+    <h2 class="h4">Contact</h2>
+    {% include "va_frontpages/_public_contact_lines.html" %}
+    <p>See also the <a href="{{ url_for('public_pages.privacy') }}">privacy policy</a>.</p>
+  </div>
+{% endblock %}

@@ -87,3 +87,4 @@ desktop/target/
 # Expo web export copy served by the app (build output)
 app/static/expo-client/
 .env.demo
+deploy/maintenance/on

@@ -192,6 +192,9 @@ services:
       - ./deploy/doris-public-nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./deploy/ingress-common.conf:/etc/nginx/digitva/ingress-common.conf:ro
       - ./deploy/ingress-routes.conf:/etc/nginx/digitva/ingress-routes.conf:ro
+      # maintenance page; the deploy script creates/removes the flag file "on"
+      # in this host dir (read by nginx per request, no restart).
+      - ./deploy/maintenance:/etc/nginx/digitva/maintenance:ro
     depends_on:
       minerva_app_service:
         condition: service_healthy

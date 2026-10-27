@@ -222,7 +222,7 @@ describe("encrypted backup", () => {
     const db = await seeded(USER_A);
     expect(passphraseValid("x".repeat(MIN_PASSPHRASE_LENGTH - 1))).toBe(false);
     await expect(backupAndShare(db, USER_A, "short")).rejects.toMatchObject({ code: "passphrase_short" });
-    await expect(backupAndShare(db, "42", PASS)).rejects.toMatchObject({ code: "standalone_only" });
+    await expect(backupAndShare(db, "42", "short")).rejects.toMatchObject({ code: "passphrase_short" });
     expect(mockShared).toHaveLength(0);
   });
 
@@ -297,9 +297,62 @@ describe("encrypted backup", () => {
     expect(JSON.stringify(await target.getAllAsync("SELECT envelope FROM drafts", []))).toContain("local");
   });
 
-  it("refuses to restore onto an enrolled account", async () => {
+  it("refuses a standalone backup on an enrolled account", async () => {
+    const uri = await backupFile(await seeded(USER_A));
     const target = cipherDb();
     await migrate(target);
-    await expect(restoreBackup(target, "42", "file:///x", PASS)).rejects.toMatchObject({ code: "standalone_only" });
+    await expect(restoreBackup(target, "42", uri, PASS)).rejects.toMatchObject({ code: "wrong_account" });
+    expect(await target.getAllAsync("SELECT id FROM drafts", [])).toEqual([]);
+  });
+
+  describe("enrolled account, unsent work only", () => {
+    async function enrolledBackup(db: Db, userId = "42"): Promise<string> {
+      let bytes: Buffer | undefined;
+      mockOnShare = (b) => { bytes = b; };
+      await backupAndShare(db, userId, PASS, new Date("2026-10-20T00:00:00Z"));
+      mockOnShare = undefined;
+      const picked = path.join(mockDir, `picked-${userId}.dvbak`);
+      fs.writeFileSync(picked, bytes!);
+      return `file://${picked}`;
+    }
+    async function enrolledStore(): Promise<Db> {
+      const db = await seeded(USER_A);
+      await db.runAsync("INSERT INTO cases (death_id, project_id, position, row) VALUES ('c', '42', 0, '{}')", []);
+      await db.runAsync("INSERT INTO meta (key, value) VALUES ('secret-token', 'zzz')", []);
+      return db;
+    }
+
+    it("backs up only drafts, attachments, coding and consent, never cases or meta", async () => {
+      const db = await enrolledStore();
+      await enrolledBackup(db);
+      expect(mockShared).toHaveLength(1);
+      const target = cipherDb();
+      await migrate(target);
+      await initConsentTables(target);
+      const result = await restoreBackup(target, "42", `file://${path.join(mockDir, "picked-42.dvbak")}`, PASS);
+      expect(result.restored).toBeGreaterThan(0); // subject present before asserting absence
+      expect(await target.getAllAsync("SELECT id FROM drafts ORDER BY id", [])).toEqual([{ id: "d1" }, { id: "server-1" }]);
+      expect(await target.getAllAsync("SELECT project_id FROM drafts WHERE id = 'server-1'", [])).toEqual([{ project_id: "42" }]); // not re-pointed
+      expect(await target.getAllAsync("SELECT key FROM meta WHERE key = 'secret-token'", [])).toEqual([]);
+      expect(await target.getAllAsync("SELECT death_id FROM cases", [])).toEqual([]);
+      expect(await target.getFirstAsync("SELECT value FROM meta WHERE key = ?", [LAST_BACKUP_META_KEY])).toBeNull();
+    });
+
+    it("refuses a backup made by another account and changes nothing", async () => {
+      const uri = await enrolledBackup(await enrolledStore(), "42");
+      const target = cipherDb();
+      await migrate(target);
+      await expect(restoreBackup(target, "43", uri, PASS)).rejects.toMatchObject({ code: "wrong_account" });
+      expect(await target.getAllAsync("SELECT id FROM drafts", [])).toEqual([]);
+    });
+
+    it("keeps drafts already on the phone and never overwrites them", async () => {
+      const uri = await enrolledBackup(await enrolledStore());
+      const target = cipherDb();
+      await migrate(target);
+      await insertDraft(target, "42", "d1", { Id10019: "local" }, "2026-09-01T00:00:00Z");
+      expect(await restoreBackup(target, "42", uri, PASS)).toEqual({ restored: 1, skipped: 1 });
+      expect(JSON.stringify(await target.getAllAsync("SELECT envelope FROM drafts WHERE id = 'd1'", []))).toContain("local");
+    });
   });
 });

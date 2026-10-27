@@ -3,7 +3,7 @@ title: Split Production Deploy Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-10-27
 ---
 
 # Split Production Deploy Runbook
@@ -270,6 +270,28 @@ $DC ps
 $DC logs -f --since 5m minerva_app_service     # until gunicorn reports "Booting worker"
 ```
 
+### Maintenance page
+
+While a deploy runs, users see a "site under maintenance" page, not errors.
+The ingress (`deploy/ingress-routes.conf`, shared by `doris-public-nginx.conf`
+and `doris-public-nginx-tls.conf`) serves `deploy/maintenance/maintenance.html`
+(English and Hindi) with status 503, `Retry-After: 120` and `Cache-Control:
+no-store`. Paths under `/api/` get JSON instead, so the mobile app sees a
+transient error, keeps its data and retries:
+`{"error":{"code":"maintenance","message":"..."}}`.
+
+- Automatic: whenever the app upstream gives nginx a 502, 503 or 504 (container
+  restart during `make prod-pull`), nginx answers with the page.
+- Switch: `scripts/deploy-server.sh` creates `deploy/maintenance/on` before
+  step 5 and removes it once migrations are at head. nginx tests the file per
+  request, so the ingress is not restarted. `/nginx-health` stays 200.
+- Failure: the flag is removed only if `minerva_app` is healthy; otherwise it
+  stays and the script prints the command. Clear it by hand with
+  `rm deploy/maintenance/on` (in the checkout) once the app is healthy; turn it
+  on by hand with `touch deploy/maintenance/on`.
+- The first deploy that ships this recreates `digitva_ingress` to pick up the
+  new mount. `ingress-demo.conf` (the demo stack) is not covered.
+
 ## 5. Post-checks
 
 ```bash
@@ -341,6 +363,11 @@ allowed branch (`main`) and tag (`server-v*`) before the first run.
   script; optional `DIGITVA_IMAGE_REGISTRY`, default `ghcr.io/drguptavivek`).
   The repo pins no sha.
 
+- AI questions need a one-time superuser step when the app database user is
+  not a superuser (migration `a9e4c7f2b3d6` warns and skips it, so the deploy
+  still boots): `psql -v app_user=<app user> -d <app database> -f deploy/sql/ai_reader_setup.sql`.
+  Until it runs the feature answers "not configured" (503). See
+  [AI Analytics Questions Policy](../policy/ai-analytics-questions.md#database-privileges-digitva-weiq).
 - One deploy at a time; nobody runs `docker compose` on the app host with a
   different file set during a deploy (a bare `docker compose up` would start
   the dev override).

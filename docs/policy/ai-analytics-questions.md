@@ -227,6 +227,20 @@ provider's default model (implementation, 2026-10-27: one shared
 project id is hard-coded or committed. While the feature is off, saved
 queries still run.
 
+## Database privileges (digitva-weiq)
+
+The reader role `digitva_ai_reader` and the function `digitva_ai_run` need
+more than a normal app user holds: CREATE ROLE or an existing role the user is
+a member of, and on PostgreSQL 15+ `SET ... WITH GRANT OPTION` on
+`temp_file_limit` (a superuser-only parameter). Migration `a9e4c7f2b3d6` checks
+this (superuser, or the role exists, the user is a member, holds the grant
+option, and the role may create in the schema). If not, it skips the role and
+function, prints a warning and still creates the tables, so a non-superuser
+deploy (staging) boots. A superuser then runs
+`psql -v app_user=<app user> -d <app database> -f deploy/sql/ai_reader_setup.sql`
+once (idempotent). Until then every AI question, saved-query rerun and report
+answers "not configured" (503), never a 500.
+
 ## Phase 2 (owner: good to have, 2026-10-27)
 
 - **Built-in reports.** These are fixed SQL queries over `ai_cube`, run with

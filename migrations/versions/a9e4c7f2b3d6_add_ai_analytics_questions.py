@@ -22,6 +22,12 @@ the function with that clause, and the grant option for
 ``GRANT SET ON PARAMETER temp_file_limit TO digitva_ai_reader``, which the
 function needs at call time (it applies its SET clauses as its owner).
 
+Without those privileges (a non-superuser app user, as on staging) the upgrade
+skips the role and the function, prints a warning and still creates the two
+tables: a superuser then runs ``deploy/sql/ai_reader_setup.sql``, and until
+then the app answers "not configured" (503) to AI questions.
+``_can_set_up_reader`` is the exact check.
+
 Downgrade drops the function and the tables but keeps the role and its
 parameter grant: both are cluster-wide, and another database on the same
 cluster (a test database, a parallel worker) may still use them. To remove
@@ -92,8 +98,36 @@ GRANT EXECUTE ON FUNCTION digitva_ai_run(text, integer) TO digitva_ai_reader;
 """
 
 
+def _can_set_up_reader(conn) -> bool:
+    """True when READER_SETUP_SQL would succeed for the migrating user.
+
+    A superuser can. Otherwise the role must already exist (CREATE ROLE is
+    not attempted without proof of CREATEROLE), current_user must be a member
+    of it (ALTER FUNCTION OWNER TO), hold SET ... WITH GRANT OPTION on
+    temp_file_limit (the function's SET clause and the GRANT to the reader;
+    PostgreSQL 15+ only), and the reader must hold CREATE on the schema the
+    function lands in. When in doubt, False.
+    """
+    if conn.execute(sa.text("SELECT rolsuper FROM pg_roles WHERE rolname = current_user")).scalar_one():
+        return True
+    if int(conn.execute(sa.text("SHOW server_version_num")).scalar_one()) < 150000:
+        return False
+    return bool(conn.execute(sa.text(
+        "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'digitva_ai_reader')"
+        " AND pg_has_role(current_user, 'digitva_ai_reader', 'MEMBER')"
+        " AND has_parameter_privilege(current_user, 'temp_file_limit', 'SET WITH GRANT OPTION')"
+        " AND has_schema_privilege('digitva_ai_reader', current_schema(), 'CREATE')"
+    )).scalar_one())
+
+
 def upgrade() -> None:
-    op.execute(READER_SETUP_SQL)
+    if _can_set_up_reader(op.get_bind()):
+        op.execute(READER_SETUP_SQL)
+    else:
+        print(
+            "WARNING: AI analytics reader not set up: run deploy/sql/ai_reader_setup.sql "
+            "as a superuser (the migrating database user lacks the privileges)."
+        )
 
     op.create_table(
         "va_ai_saved_queries",

@@ -402,7 +402,7 @@ def ask(user, question, *, provider=None, previous_sql=None, earlier_questions=(
         row.error_code = exc.code
         db.session.commit()
         # A rewrite would not make these smaller or faster: no retry.
-        if exc.code in ("timeout", "result_too_large"):
+        if exc.code in ("timeout", "result_too_large", "not_configured"):
             raise AiQuestionsError(exc.code, exc.message) from None
         retry_payload = {**payload, "failed_sql": plan["sql"], "database_error": exc.model_message}
 

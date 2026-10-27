@@ -7,8 +7,7 @@ Owner focus: DigitVA web app, training, Android (Collect) and Collect Plus
 standalone. Product branding is DigitVA. Use Docker for commands. HMR:
 localhost:8051. Preserve unrelated `scripts/loadtest/restore.sh` and the
 orientation files under `docs/manuscript/`.
-Large change set of 2026-10-27 is uncommitted until the owner gives the go
-(see CHANGELOG.md). Owner's DORIS target stays 1.1.176 pending an official
+Owner's DORIS target stays 1.1.176 pending an official
 WHO image; preserve the immutable WHO image digest and verify the runtime DLL
 version, not the Compose comment. Owner accepts about 1.5 s slower cold direct
 interview; do not implement the startup-overlap optimization.
@@ -16,9 +15,12 @@ Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
 
 ## Ranked next steps
 
-1. **Owner answers pending:** the 11 S0 defaults (`digitva-5bzf`), the case-list
-   "Pending Coding" wording (6 states), and the S5a readings (forced review
-   skips the recode window; an unknown bundle hash is refused).
+1. **Staging deploy of main** on the owner's go: `scripts/deploy-staging.sh
+   <sha>` once the server image for that sha is built. Then a superuser runs
+   `deploy/sql/ai_reader_setup.sql` (`digitva-weiq`) to enable AI questions.
+   Fill the `PUBLIC_*` values and get legal review of the public pages
+   (`digitva-gyfj`, `digitva-athy`). Audit and preflight: CHANGELOG
+   2026-10-27 "Staging-safe release".
 2. Collect Plus next: `digitva-5bzf.11` (bundled translations) and `.12`
    (pin definition version); related `digitva-tb0j`. S5b landed but is
    tested only against a mocked network: check one adoption push against
@@ -62,7 +64,6 @@ Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
 
 ## Open owner decisions
 
-- The 11 S0 defaults of `digitva-5bzf.1` are not confirmed by the owner.
 - Case-list "Pending Coding" wording.
 - S5a interpretations (`digitva-5bzf.6`): forced review skips the recode
   window; an unknown bundle hash is refused.

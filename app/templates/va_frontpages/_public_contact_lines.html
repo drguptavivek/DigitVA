@@ -1,0 +1,10 @@
+{# Contact block shared by the three public pages; sections with no configured value are omitted. #}
+<ul class="list-unstyled">
+  <li><strong>Operated by:</strong> {{ org.name }}</li>
+  {% if org.email %}<li><strong>Email:</strong> <a href="mailto:{{ org.email }}">{{ org.email }}</a></li>{% endif %}
+  {% if org.grievance_officer %}<li><strong>Grievance officer:</strong> {{ org.grievance_officer }}</li>{% endif %}
+  {% if org.address %}<li><strong>Postal address:</strong> {{ org.address }}</li>{% endif %}
+</ul>
+{% if not org.email %}
+  <p>Write to your project administrator, who will pass the request on to the programme team.</p>
+{% endif %}

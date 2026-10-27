@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -737,12 +737,12 @@ null). At most one token per user is pending (partial unique index); a new
 issue voids it.
 
 **Eligible** (checked at issue and again at redeem): active account, at least
-one active `interviewer`, `death_reporter` or `coder` grant that reaches an active
-project (`interviewer_context` / `register_death_context`, or a coder grant that
-opens its gate; the lowest such project id is the enrolment project), and no
-other active grant of any role or global scope in any project. A self-coding
-grant is the interviewer grant a coder grant implies, so a coder grant alone
-qualifies (owner default 2026-10-27, `digitva-5bzf.10`). Admin, project PI,
+one active `interviewer` or `death_reporter` grant that reaches an active
+project (`interviewer_context` / `register_death_context`; the lowest such
+project id is the enrolment project), and no other active grant of any role or
+global scope in any project. A coder grant or self-coding grant alone does not
+qualify (owner 2026-10-27, `digitva-5bzf.15`, reversing `digitva-5bzf.10`);
+a coder grant beside a collector grant is tolerated. Admin, project PI,
 site PI, data manager, In-charge, coding tester, reviewer, collaborator,
 interview supervisor, or any of them held alongside, stay refused. Otherwise 400 `not_eligible` at issue.
 
@@ -797,7 +797,7 @@ debug-build paste box) accepts this QR beside the enrolment QR
 server host, and on confirm calls `redeemSignInQr` (`src/auth.ts`), which stores
 the device and session as enrolment plus password sign-in do and then opens
 `/unlock`, which sends a new account to PIN setup. Every 400/404 shows one
-message that names the likely causes (expired after 6 hours, already scanned, replaced by a newer QR, or made for another server; the server's answer stays indistinguishable on purpose), a 429 says to wait a minute; a coder-only account (Plus build, unlocked) lands on the pending-workspace screen with "Coding queue" and "Offline coding" buttons instead of the interviewer worklist; the token is never logged or
+message that names the likely causes (expired after 6 hours, already scanned, replaced by a newer QR, or made for another server; the server's answer stays indistinguishable on purpose), a 429 says to wait a minute; a coder-only device session (Plus build, unlocked; not reachable by sign-in QR since `digitva-5bzf.15`, which needs a collector grant) lands on the pending-workspace screen with "Coding queue" and "Offline coding" buttons instead of the interviewer worklist; the token is never logged or
 stored. PIN entry and setup are six boxes; fingerprint and phone screen lock
 unlock options and their first-run offer: [policy section 9](../policy/mobile-sign-in.md).
 

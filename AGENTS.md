@@ -61,6 +61,9 @@ The main session plans, decides, reviews results and commits. It delegates:
 - Expo app or `vendor/who-va-2022` changes: `make check-web` builds the web
   export (Jest mocks native-only modules and cannot see a broken web bundle).
   The local pre-commit hook (`.beads/hooks/pre-commit`) runs it for such commits.
+- Expo screens that use native-only modules (SQLite, SQLCipher, the engine)
+  reach `app/` routes only through `src/nativeRouteScreens` (`.base` /
+  `.native`); `__tests__/web-bundle-boundary.test.ts` guards it.
 
 ## Engineering rules
 
@@ -131,6 +134,17 @@ Work is not complete until `git push` succeeds.
 4. `git pull --rebase && git push`, then `git status` must show up to date
    with origin. If push fails, resolve and retry.
 5. Hand off: changed files, validation performed, what is next.
+
+## Staging and production
+
+Staging has real user accounts and phones on older APKs. Deploy only with
+`scripts/deploy-staging.sh <sha>` (verified DB backup, maintenance page while
+the app restarts, migrations at head), and only on the owner's go. Before a
+deploy, audit the diff since the deployed commit for old-APK compatibility
+(error codes, response shapes, session refusal) and for anything that could
+drop unsent work. Read-only checks over SSM: `LT_TARGET=<id> AWS_PROFILE=digitva
+AWS_REGION=ap-south-1 scripts/ssm.sh '...'`; run git there as
+`sudo -Hu ubuntu git` (the checkout belongs to ubuntu).
 
 ## Dev environment
 

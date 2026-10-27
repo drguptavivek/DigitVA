@@ -188,6 +188,21 @@ class AiAnalyticsValidatorTests(BaseTestCase):
         self.assertIn(f"least(max_bytes, {sandbox.AI_OUTPUT_MAX_BYTES})", module.READER_SETUP_SQL)
         self.assertIn(f"ERRCODE = '{sandbox.OUTPUT_TOO_LARGE_SQLSTATE}'", module.READER_SETUP_SQL)
 
+    def test_setup_script_holds_the_same_reader_setup(self):
+        script = pathlib.Path("deploy/sql/ai_reader_setup.sql").read_text()
+        statements = "\n".join(
+            line for line in script.splitlines() if not line.startswith(("--", "\\set"))
+        )
+        grant = (
+            "DO $$\nBEGIN\n    EXECUTE format('GRANT digitva_ai_reader TO %I', current_user);\n"
+            "EXCEPTION WHEN duplicate_object OR unique_violation THEN NULL;\nEND $$;\n"
+        )
+        self.assertIn(grant, sandbox.READER_SETUP_SQL)
+        expected = sandbox.READER_SETUP_SQL.replace(
+            grant, "SELECT format('GRANT digitva_ai_reader TO %I', :'app_user') \\gexec\n"
+        )
+        self.assertEqual(statements.split(), expected.split())
+
 
 class AiAnalyticsSandboxTests(AiAnalyticsFixtures, BaseTestCase):
     @classmethod
@@ -393,3 +408,16 @@ class AiAnalyticsSandboxTests(AiAnalyticsFixtures, BaseTestCase):
         for item in [*catalog.BUILT_IN_REPORTS, *catalog.load_catalog()]:
             with self.subTest(item["key"]):
                 self._run(item["sql"], self.dm_user)
+
+
+class AiAnalyticsNotConfiguredTests(AiAnalyticsFixtures, BaseTestCase):
+    def test_missing_function_is_not_configured_not_a_db_error(self):
+        db.session.execute(sa.text("DROP FUNCTION digitva_ai_run(text, integer)"))
+        try:
+            with mock.patch.object(sandbox, "_reader_ready", False), sandbox_on_session_connection():
+                with self.assertRaises(sandbox.SandboxError) as caught:
+                    sandbox.run_query("SELECT * FROM ai_cube", self.base_admin_user)
+        finally:
+            db.session.rollback()
+        self.assertEqual(caught.exception.code, "not_configured")
+        self.assertIn("ai_reader_setup.sql", caught.exception.message)

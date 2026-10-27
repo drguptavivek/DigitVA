@@ -21,7 +21,7 @@ export interface OfflineProfile {
   facility_name: string;
   country: string;
   state: string;
-  /** Optional org code naming the facility unit (owner default, Path C); a claim validated by the server on push. */
+  /** Optional org code naming a unit at any level of the project tree (owner decision 2026-10-27, Path C); a claim validated by the server on push. */
   org_code?: string;
   /** SmartVA HIV adjustment input. */
   hiv_mortality: "none" | "low" | "high" | null;

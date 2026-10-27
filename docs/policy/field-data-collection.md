@@ -651,9 +651,10 @@ Path A and Path B are unchanged for every enrolled, non-standalone use.
   shows how many interviews and coding results will be sent; adoption is never
   silent, because whoever redeems first would otherwise inherit the data.
   The offline profile carries an **optional org code**, a single code at one
-  organisation level of the project tree (which level: open point 2). The
-  app stamps it into the interview as the matching `org_<level>_code` answer
-  so the server's normal routing applies. The code is a claim, validated
+  organisation level of the project tree: **any level** (district, block,
+  facility unit, ...; owner decision 2026-10-27). On push the server routes the
+  case to the unit that code names, at whatever level it sits (a unit code is
+  unique in its project, so the code alone fixes the level). The code is a claim, validated
   against the project tree like any payload; free text such as the facility
   name never routes. A record whose code is absent, unknown or does not
   match goes to the project's **unrouted queue** for a data manager to
@@ -676,10 +677,18 @@ Path A and Path B are unchanged for every enrolled, non-standalone use.
 
 #### Export and backup (owner decision 2026-10-27, `digitva-5bzf`)
 
-These two acts are allowed on a standalone account. On an enrolled,
-non-standalone account they are off (so "the device is not an archive" stays
-true for Path B) unless a later decision lets a project enable them (open
-point 4). Neither is automatic, neither goes to a cloud service by the app,
+Both acts are allowed on a standalone account. Enrolled phones: encrypted
+backup of unsent work, no CSV export (owner decision 2026-10-27,
+`digitva-5bzf.14`), so "the device is not an archive" stays true for Path B.
+The enrolled backup holds only the signed-in account's unsent drafts, their
+attachments, offline coding and consent records, never acknowledged records,
+downloaded cases or queues. It is offered in Settings on Collect Plus builds,
+uses the same passphrase rule and share-sheet saving, and restores only into
+the same account, only adding rows (an existing id is kept). The app keeps no
+record of acknowledged drafts, so a draft acknowledged since the backup can
+return; the server's idempotent upload on `client_draft_id` answers
+`kept`/`superseded` and the sync deletes it. Whether a project may enable CSV
+export for enrolled accounts stays open (open point 4). Neither is automatic, neither goes to a cloud service by the app,
 and each is recorded in the on-device log as a kind and a count, never content.
 
 **Export of your own records.** The user exports their own records as **CSV
@@ -732,7 +741,7 @@ attachments, coding results, consent records, profile).
 #### Path C open points
 
 1. Number of days for the standalone age warning and the backup reminder.
-2. Which organisation level the profile's optional org code names.
+2. ~~Which organisation level the profile's optional org code names.~~ Decided 2026-10-27: any level.
 3. Whether a standalone user may keep acknowledged records instead of the
    Path B purge.
 4. Whether a project may enable export and backup for enrolled accounts.

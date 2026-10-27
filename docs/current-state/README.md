@@ -50,6 +50,8 @@ Read these documents in this order:
 
 The public demo (flag `PUBLIC_DEMO_ENABLED`, off by default): accounts, sign-up, confinement and limits are in [Authentication, Login and Onboarding](authentication-and-onboarding.md#25-public-demo-account-only-with-public_demo_enabled) (policy: [public-demo.md](../policy/public-demo.md)).
 
+Public pages (no sign-in, GET only, `app/routes/public_pages.py`): `/privacy`, `/contact`, `/data-requests`, linked from the footer of every page. Organisation details come from `PUBLIC_ORG_NAME`, `PUBLIC_CONTACT_EMAIL`, `PUBLIC_GRIEVANCE_OFFICER`, `PUBLIC_POSTAL_ADDRESS` (unset: neutral wording). Policy: [public-privacy-and-data-requests.md](../policy/public-privacy-and-data-requests.md).
+
 The public demo's report page, own-response downloads and public dashboard are in [Public Demo Reports, Downloads And Dashboard](public-demo.md).
 
 The public demo's deployment (separate compose project `docker-compose.demo.yml`, own Redis and database, shared ICD container, demo ingress, backups) is in [Public Demo Deployment Runbook](public-demo-deployment.md).

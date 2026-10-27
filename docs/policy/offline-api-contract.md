@@ -1042,7 +1042,7 @@ all. The body is the 3.6 upload plus:
   | --- | --- |
   | `client_device_uuid` | the install UUID sent at enrolment (S3). It must be the bearer session's own device (`device_for_client_uuid`), else 403 `device_mismatch` |
   | `profile_snapshot` | `{name, designation, facility, country}`, each text up to 200 characters or null; stored as provenance |
-  | `org_code` | a unit code of the project (the facility unit), or null |
+  | `org_code` | a unit code of the project at any level of its tree (district, block, facility unit, ...), or null |
   | `consent` | the standalone consent record below, or null; never sent beside the 5.3 `consent` key (400 `invalid_request`) |
 
 - `offline_coding` (only with `standalone`; alone it is 422
@@ -1153,14 +1153,14 @@ and the server never trusts the UUID for access.
    "Imported offline final".
 4. **Who may push coding.** An account holding a `coder` grant that codes on
    the project (in a self-coding project, that grant is the self-coding
-   grant; the sign-in QR is allowed for these grants,
+   grant; these users sign in on the web, not with a sign-in QR,
    [Sign-in by Mobile Number](mobile-sign-in.md) section 8). From an account
    without one, the interview is accepted and the coding is refused
    `coding_grant_required`; the case enters the normal coding queue.
 
 **Routing.** `standalone.org_code` names a live unit of the project that the
 pushing interviewer may name: the interview starts in that unit and routes
-there (`form_field`). An unmatched code, or none, starts the interview without
+there (`form_field`), at whatever level the code names; a non-leaf unit is a valid routing target and nothing is pushed down to a unit beneath it. An unmatched code, or none, starts the interview without
 a unit (the one exception to "a unit must always be named" in a project with
 a tree) and the existing rule applies: the form mapping fallback, else the
 project's unrouted queue ([Organization Model](organization-model.md)). The

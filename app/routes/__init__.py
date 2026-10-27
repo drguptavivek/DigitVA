@@ -7,6 +7,7 @@ from app.routes.va_form import va_form
 from app.routes.admin import admin
 from app.routes.data_management import data_management
 from app.routes.health import health
+from app.routes.public_pages import public_pages
 from app.routes.profile import profile
 from app.routes.api import api_v1
 from app.routes.help import help_bp
@@ -29,6 +30,7 @@ from app.routes import ai_questions  # noqa: F401
 
 def register_blueprints(app):
     app.register_blueprint(health)
+    app.register_blueprint(public_pages)
     app.register_blueprint(va_main)
     app.register_blueprint(va_auth, url_prefix="/vaauth")
     app.register_blueprint(profile, url_prefix="/profile")

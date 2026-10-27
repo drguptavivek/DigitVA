@@ -129,6 +129,68 @@ class AiQuestionsMigrationTest(unittest.TestCase):
         finally:
             _drop_database()
 
+    def test_upgrade_without_privileges_skips_the_reader_and_keeps_the_tables(self):
+        """A non-superuser app user (staging): no error, tables yes, function no."""
+        from app import db
+        from tests.base import create_app_without_celery_takeover
+
+        plain = "ai_mig_plain"
+        _drop_database()
+        _admin_execute(f"DROP ROLE IF EXISTS {plain}")
+        _admin_execute(f'CREATE DATABASE "{MIGRATION_DB_NAME}"')
+        try:
+            app = create_app_without_celery_takeover(AiQuestionsMigrationConfig)
+            with app.app_context():
+                alembic_upgrade(revision="c5e8a2f4b7d1")
+                db.session.remove()
+                db.engine.dispose()
+            owner = sa.engine.make_url(AiQuestionsMigrationConfig.SQLALCHEMY_DATABASE_URI).username
+            _admin_execute(f"CREATE ROLE {plain} LOGIN PASSWORD 'plain'")
+            engine = sa.create_engine(
+                _server_url(MIGRATION_DB_NAME), isolation_level="AUTOCOMMIT"
+            )
+            with engine.connect() as conn:
+                # REASSIGN OWNED refuses the owner's system-required objects.
+                conn.execute(sa.text(f"GRANT CREATE ON SCHEMA public TO {plain}"))
+                conn.execute(sa.text(
+                    "DO $$ DECLARE r record; BEGIN FOR r IN SELECT c.relname, c.relkind FROM pg_class c"
+                    " JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'"
+                    " AND c.relkind IN ('r','m','v') AND c.relowner = (SELECT oid FROM pg_roles"
+                    f" WHERE rolname = '{owner}') LOOP EXECUTE format('ALTER %s %I OWNER TO {plain}',"
+                    " CASE r.relkind WHEN 'm' THEN 'MATERIALIZED VIEW'"
+                    " WHEN 'v' THEN 'VIEW' ELSE 'TABLE' END, r.relname); END LOOP; END $$"
+                ))
+            engine.dispose()
+
+            class PlainConfig(TestConfig):
+                SQLALCHEMY_DATABASE_URI = (
+                    _server_url(MIGRATION_DB_NAME).set(username=plain, password="plain")
+                    .render_as_string(hide_password=False)
+                )
+
+            app = create_app_without_celery_takeover(PlainConfig)
+            with app.app_context():
+                self.assertFalse(db.session.execute(sa.text(
+                    "SELECT rolsuper FROM pg_roles WHERE rolname = current_user")).scalar_one())
+                alembic_upgrade(revision=REVISION)
+                db.session.remove()
+                names = sa.inspect(db.engine).get_table_names()
+                for table in TABLES:
+                    self.assertIn(table, names)
+                with db.engine.connect() as conn:
+                    self.assertIsNone(conn.execute(sa.text(
+                        "SELECT to_regprocedure('digitva_ai_run(text, integer)')"
+                    )).scalar_one())
+                db.session.remove()
+                alembic_downgrade(revision="-1")
+                for table in TABLES:
+                    self.assertNotIn(table, sa.inspect(db.engine).get_table_names())
+                db.session.remove()
+                db.engine.dispose()
+        finally:
+            _drop_database()
+            _admin_execute(f"DROP ROLE IF EXISTS {plain}")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -90,6 +90,9 @@ PUBLIC_ENDPOINTS = {
     "va_auth.va_signup": "Public-demo self sign-up (public-demo.md); 404 unless "
                          "PUBLIC_DEMO_ENABLED; CAPTCHA, per-IP limits, account cap.",
     "va_main.va_index": "Public landing page; renders no user data.",
+    "public_pages.privacy": "Public privacy policy; renders no user data.",
+    "public_pages.contact": "Contact us; renders configured org details only.",
+    "public_pages.data_requests": "Consent and data requests instructions; no form, no user data.",
     "va_main.who_va_document": "Published WHO VA reference PDFs from a fixed registry.",
     "training_demo.public_page": "Public explainer of the Training & demo project; "
                                  "static text, lists no users or cases.",

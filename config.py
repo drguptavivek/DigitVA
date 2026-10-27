@@ -396,6 +396,12 @@ class Config:
     # deployment: with it off the sign-up routes answer 404, a username never
     # resolves at sign-in and `flask public-demo` refuses. The limits are the
     # policy's section 8 defaults.
+    # Public privacy policy, contact us, consent and data requests pages (docs/policy/public-privacy-and-data-requests.md).
+    # Unset renders neutral wording; never a placeholder.
+    PUBLIC_ORG_NAME = os.environ.get("PUBLIC_ORG_NAME", "").strip()
+    PUBLIC_CONTACT_EMAIL = os.environ.get("PUBLIC_CONTACT_EMAIL", "").strip()
+    PUBLIC_GRIEVANCE_OFFICER = os.environ.get("PUBLIC_GRIEVANCE_OFFICER", "").strip()
+    PUBLIC_POSTAL_ADDRESS = os.environ.get("PUBLIC_POSTAL_ADDRESS", "").strip()
     PUBLIC_DEMO_ENABLED = os.environ.get("PUBLIC_DEMO_ENABLED", "false").lower() in (
         "true", "1", "yes",
     )

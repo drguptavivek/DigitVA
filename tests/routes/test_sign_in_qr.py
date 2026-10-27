@@ -156,19 +156,31 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         self._add_grant("interviewer_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
         self.assertEqual(self._issue("admin", "interviewer_p1").get_json()["code"], "not_eligible")
 
-    def test_coder_grant_alone_gets_and_redeems_a_sign_in_qr(self):
-        # Owner default 2026-10-27 (digitva-5bzf.10): a coder grant is enough.
-        token = self._token("admin", "coder_p1")
+    def test_coder_grant_alone_is_refused_at_issue_and_redeem(self):
+        # Owner 2026-10-27 (digitva-5bzf.15): a coder grant alone is not enough.
+        self.assertEqual(self._issue("admin", "coder_p1").get_json()["code"], "not_eligible")
+        token = self._token("admin", "interviewer_p1")
+        user = self.users["interviewer_p1"]
+        db.session.execute(sa.update(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == user.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.interviewer,
+        ).values(grant_status=VaStatuses.deactive))
+        self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZTA01")
+        self.assertEqual(self._redeem(token).status_code, 404)
+        self.assertEqual(len(self._events("sign_in_qr_refused")), 1)
+
+    def test_interviewer_with_a_coder_grant_still_gets_and_redeems_a_sign_in_qr(self):
+        self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZTA01")
+        token = self._token("admin", "interviewer_p1")
         res = self._redeem(token)
         self.assertEqual(res.status_code, 201, res.get_json())
-        self.assertEqual(res.get_json()["project"]["project_id"], "AZTA01")
         self.assertEqual(self._redeem(token).status_code, 404)  # used
-        self.assertEqual(len(self._events("sign_in_qr_redeemed")), 1)
 
-    def test_coder_with_a_privileged_grant_is_refused_at_issue_and_redeem(self):
-        token = self._token("admin", "coder_p1")
-        self._add_grant("coder_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
-        self.assertEqual(self._issue("admin", "coder_p1").get_json()["code"], "not_eligible")
+    def test_interviewer_coder_with_a_privileged_grant_is_refused_at_issue_and_redeem(self):
+        self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZTA01")
+        token = self._token("admin", "interviewer_p1")
+        self._add_grant("interviewer_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
+        self.assertEqual(self._issue("admin", "interviewer_p1").get_json()["code"], "not_eligible")
         self.assertEqual(self._redeem(token).status_code, 404)
 
     def test_inactive_account_is_not_eligible(self):

@@ -1,6 +1,7 @@
 /**
- * Export, backup and restore actions on the standalone home. Rendered only for a standalone account
- * (dataActionsAllowed); an enrolled account never sees them. The policy warning is shown before every action.
+ * Export, backup and restore actions. The standalone home renders all three (dataActionsAllowed). An enrolled
+ * account's Settings renders backup and restore only (`exportAllowed` off): CSV/JSON export is standalone-only.
+ * The policy warning is shown before every action.
  */
 import * as DocumentPicker from "expo-document-picker";
 import { useEffect, useState } from "react";
@@ -16,7 +17,7 @@ import { sweepExportLeftovers } from "./shareFile";
 
 type Panel = "export" | "backup" | "restore" | null;
 
-export function DataActions({ db, userId, onChanged }: { db: Db; userId: string; onChanged: () => void }) {
+export function DataActions({ db, userId, onChanged, exportAllowed = true }: { db: Db; userId: string; onChanged: () => void; exportAllowed?: boolean }) {
   const styles = useUiStyles();
   const [panel, setPanel] = useState<Panel>(null);
   const [omit, setOmit] = useState(true);
@@ -37,7 +38,7 @@ export function DataActions({ db, userId, onChanged }: { db: Db; userId: string;
       setMessage(await work());
     } catch (caught) {
       if (caught instanceof BackupError) {
-        setMessage(caught.code === "passphrase_short" ? t("dataPassphraseShort") : caught.code === "unsupported_backup" ? t("dataRestoreUnsupported") : t("dataRestoreBad"));
+        setMessage(caught.code === "passphrase_short" ? t("dataPassphraseShort") : caught.code === "unsupported_backup" ? t("dataRestoreUnsupported") : caught.code === "wrong_account" ? t("dataRestoreWrongAccount") : t("dataRestoreBad"));
       } else {
         setMessage(errorText(caught));
       }
@@ -86,7 +87,7 @@ export function DataActions({ db, userId, onChanged }: { db: Db; userId: string;
 
   return (
     <View style={[styles.card, { gap: 8 }]}>
-      <Button kind="secondary" label={t("dataExport")} onPress={() => open("export")} />
+      {exportAllowed ? <Button kind="secondary" label={t("dataExport")} onPress={() => open("export")} /> : null}
       <Button kind="secondary" label={t("dataBackup")} onPress={() => open("backup")} />
       <Button kind="secondary" label={t("dataRestore")} onPress={() => open("restore")} />
       {panel ? <Text style={styles.muted}>{t("dataWarning")}</Text> : null}

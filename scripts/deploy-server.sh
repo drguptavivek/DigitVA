@@ -9,7 +9,9 @@
 # the registry; verified DB dump; checkout the sha (compose/config and the
 # bind-mounted code must match the image); pin DIGITVA_IMAGE_TAG in .env;
 # make prod-pull; wait healthy; migrations at head; disk report; prune old
-# images keeping this tag and the previous one.
+# images keeping this tag and the previous one. The ingress shows the
+# maintenance page from just before the pull until migrations are at head
+# (flag file below, docs/current-state/split-production-deploy.md).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -28,6 +30,14 @@ DC="$DC -f docker-compose.images.yml"
 PREV_TAG="$(sed -n 's/^DIGITVA_IMAGE_TAG=//p' .env | tail -n1)"
 PREV_COMMIT="$(git rev-parse HEAD)"
 trap 'echo "FAILED. Previous: tag ${PREV_TAG:-none}, commit $PREV_COMMIT. Roll back: make prod-rollback TAG=${PREV_TAG:-<sha>}" >&2' ERR
+
+# Maintenance page flag, read per request by the ingress. EXIT, not ERR: the
+# explicit `exit 1` checks below do not fire ERR. On failure the page is lifted
+# only if the app is healthy; a broken app keeps showing it, not raw errors.
+MAINT_FLAG="$PWD/deploy/maintenance/on"
+trap '[ $? -eq 0 ] || [ ! -e "$MAINT_FLAG" ] || {
+  if [ "$(docker inspect -f "{{.State.Health.Status}}" minerva_app 2>/dev/null)" = healthy ]; then rm -f "$MAINT_FLAG"
+  else echo "App not healthy: maintenance page left ON. Remove with: rm $MAINT_FLAG" >&2; fi; }' EXIT
 
 echo "== 1. image $IMAGE:$TAG in the registry"
 docker manifest inspect "$IMAGE:$TAG" >/dev/null \
@@ -56,7 +66,8 @@ else
   { [ -z "$(tail -c1 .env)" ] || echo; echo "DIGITVA_IMAGE_TAG=$TAG"; } >> .env
 fi
 
-echo "== 5. pull and start (no build)"
+echo "== 5. maintenance page on, pull and start (no build)"
+touch "$MAINT_FLAG"
 make prod-pull
 
 echo "== 6. wait for the app to be healthy"
@@ -70,6 +81,8 @@ echo "== 7. migrations at head"
 heads="$($DC exec -T minerva_app_service flask db heads 2>/dev/null | awk '{print $1}' | sort)"
 current="$($DC exec -T minerva_app_service flask db current 2>/dev/null | awk '{print $1}' | sort)"
 [ -n "$heads" ] && [ "$heads" = "$current" ] || { echo "db current ($current) != heads ($heads)" >&2; exit 1; }
+rm -f "$MAINT_FLAG"
+echo "maintenance page off"
 
 echo "== 8. disk"
 df -h / /var/lib/docker 2>/dev/null || df -h /

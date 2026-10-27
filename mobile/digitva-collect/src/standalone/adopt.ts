@@ -21,7 +21,7 @@ import { isCodingStale, isUploadable, offlineCodingBody, sentAnswers, uploadQueu
 const ADOPTION_KEY = "standalone:adoption";
 const NOTICES_KEY = "standalone:coding_notices";
 const MAX_NOTICES = 50;
-/** The server's org_code pattern (offline_coding_import_service._ORG_CODE): anything else is sent as null. */
+/** The server's org_code pattern, a unit code at any tree level (offline_coding_import_service._ORG_CODE): anything else is sent as null. */
 const ORG_CODE = /^[A-Za-z0-9_-]{1,64}$/;
 const SNAPSHOT_MAX = 200;
 

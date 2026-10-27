@@ -1,0 +1,78 @@
+{% extends "va_frontpages/va_base.html" %}
+{% block title %}DigitVA | Privacy policy{% endblock %}
+{% block content %}
+  <div class="container mt-5 pt-5 mb-5" style="max-width: 800px;">
+    <h1 class="h2">Privacy policy</h1>
+    <p class="text-muted">DigitVA web portal and the DigitVA Collect and Collect Plus Android apps (com.causeofdeathindia.digitvacollect).</p>
+
+    <h2 class="h4">Who we are</h2>
+    <p>The apps and portal are operated by {{ org.name }} for verbal autopsy field work: collecting, reviewing and coding information about deaths to find causes of death.</p>
+    {% include "va_frontpages/_public_contact_lines.html" %}
+
+    <h2 class="h4">Who uses the apps</h2>
+    <p>Field interviewers, coders, reviewers and programme staff, whose accounts are created by administrators. Interviewers use the apps to record interviews with relatives or other informants about a person who has died. The informants take part with their consent.</p>
+
+    <h2 class="h4">What we collect</h2>
+    <ul>
+      <li><strong>About app users:</strong> name, email address or mobile number, role and project access, sign-in activity, device name and app version for each signed-in device. PINs are stored on the phone and protected by the phone's secure storage; the server keeps only a hash of sign-in codes.</li>
+      <li><strong>About informants:</strong> name, phone number, address and relationship to the person who died.</li>
+      <li><strong>About the deceased person:</strong> age, sex, date and place of death, the illness and events before death, and, if the informant chooses to give them, identity numbers such as Aadhaar (only the last three digits are kept) or ABHA.</li>
+      <li><strong>Recordings and photographs</strong> that the interviewer captures: an audio recording of the informant's account, and photographs of written narratives and documents.</li>
+    </ul>
+    <p>The apps do not collect your location, contacts, messages or advertising identifier.</p>
+
+    <h2 class="h4">Why we use it</h2>
+    <ul>
+      <li>To record verbal autopsy interviews and to assign causes of death by trained coders and reviewers.</li>
+      <li>To produce cause-of-death statistics for health programmes.</li>
+      <li>To sign users in, control who can see what, and keep an audit record.</li>
+      <li>Optionally, with the informant's agreement, to share de-identified answers for research. Names, phone numbers, exact addresses, identity numbers and exact date of death are never included.</li>
+      <li>Where the informant agrees, the spoken account is turned into text and checked automatically on computers controlled by the programme operator in India; it is not sent to an outside AI company.</li>
+    </ul>
+
+    <h2 class="h4" id="consent">Consent</h2>
+    <p><strong>Why we ask.</strong> A verbal autopsy interview asks a family member or carer (the informant) about a death in the family. It records the informant's own name, phone number and address, and health details about the person who died. Under India's Digital Personal Data Protection Act, 2023 we may use this information only for purposes the informant has been told about and has agreed to, so no identifying detail is recorded before the informant agrees.</p>
+    <p><strong>What the informant is told.</strong> Before the interview the interviewer reads or shows a consent notice in a language the informant understands. It lists each purpose separately and says whether it is required for taking part or optional:</p>
+    <ul>
+      <li>Required: recording the death and completing the interview; deciding the cause of death (the doctors and coders who do this do not see the informant's name, phone, address or identity numbers); counts and summaries for government and statistical reports that name no one; and, if a phone number is given, contacting the informant to complete or clarify answers.</li>
+      <li>Optional: reminder or thank-you messages; sharing de-identified answers for research; and computer help to check and translate the spoken account on systems controlled by the programme in India. The informant can say no to any optional purpose and still take part.</li>
+    </ul>
+    <p><strong>How consent is given and recorded.</strong> Consent is voluntary. The informant agrees by speaking, by tapping on the interviewer's device, or by signing, and a witness may be noted as present. We keep a record of the decision, each purpose chosen, how consent was given, the time, and the exact notice text and language shown, so it can be checked later. The notice text is never changed after it has been used.</p>
+    <p><strong>If the informant says no.</strong> The interview does not go ahead and no names, contact details or answers are recorded. For fairness statistics the programme may note only the broad age group and sex of the person who died, with nothing that identifies anyone.</p>
+    <p><strong>Changing your mind.</strong> Consent can be withdrawn or changed at any time; see <a href="{{ url_for('public_pages.data_requests') }}">consent and data requests</a>. After withdrawal we stop using the information for the purposes withdrawn. De-identified data already shared for research cannot be taken back, because it no longer identifies anyone.</p>
+
+    <h2 class="h4">Device permissions</h2>
+    <ul>
+      <li><strong>Camera:</strong> to scan the enrolment QR code, and to photograph narratives and documents.</li>
+      <li><strong>Microphone:</strong> to record the informant's account of the death.</li>
+      <li><strong>Fingerprint or face unlock (optional):</strong> to unlock the app instead of typing the PIN. The biometric stays with your phone's operating system and is never sent to us.</li>
+      <li><strong>Network:</strong> to send interviews to the DigitVA server.</li>
+    </ul>
+
+    <h2 class="h4">Sharing</h2>
+    <p>We do not sell personal data, show advertising, or track users across other apps or websites. Records are visible only to people whose role and project give them access. Programme staff may ask aggregate questions of the data; these use counts only, no individual records, and the question text is sent to an external AI service, so staff are told not to type personal details into it. De-identified data may be shared for research only where the informant agreed.</p>
+
+    <h2 class="h4">Storage and security</h2>
+    <ul>
+      <li>Traffic between the apps and the server uses HTTPS.</li>
+      <li>Interviews on the phone are held in an encrypted database, one store per interviewer, locked by a PIN. Repeated wrong PINs wipe only that store.</li>
+      <li>Once the server confirms an interview and its attachments have arrived, the copy on the phone is deleted. A phone that is revoked, for example if lost, is wiped when it next connects.</li>
+      <li>Personal fields on the server are encrypted at rest, and Android backup of app data is turned off.</li>
+    </ul>
+
+    <h2 class="h4">How long we keep it</h2>
+    <p>Verbal autopsy records are kept for the period the programme requires and applicable law allows, after which they are deleted or de-identified. Audit records are kept for the programme's audit period. Backups expire in the normal backup cycle. Contact us for the period that applies to you.</p>
+
+    <h2 class="h4">Your rights and deletion</h2>
+    <p>You can ask to see, correct or erase the details we hold about you, withdraw your agreement, or ask that your answers be left out of reports and research. Data already shared for research in de-identified form cannot be taken back. To delete an app account and its data, see <a href="{{ url_for('public_pages.data_requests') }}">consent and data requests</a>. You can complain to {% if org.grievance_officer %}the grievance officer named above{% else %}us{% endif %} and then to the Data Protection Board of India.</p>
+
+    <h2 class="h4">Children</h2>
+    <p>The apps are for adult staff. Information about children who have died is collected from adult informants.</p>
+
+    <h2 class="h4">Changes</h2>
+    <p>We update this page when our practices change. The version on this page is the current one.</p>
+
+    <h2 class="h4">Contact</h2>
+    <p>See the <a href="{{ url_for('public_pages.contact') }}">contact page</a>.</p>
+  </div>
+{% endblock %}

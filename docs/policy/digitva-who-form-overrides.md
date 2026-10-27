@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -86,6 +86,201 @@ The desktop station (`desktop/crates/digitva-db`) still prefills `Id10057` and `
 
 Generated project XLSForms derive this narrative override from the composed web definition. Export retains required multiline text and clears the obsolete audio hint in every exported language. This applies to newly generated workbooks; existing ODK Central deployments need the updated form published. Web-only intake workflow and host-supplied identifiers still have their documented ODK equivalents rather than identical screen behavior.
 
+### Equity extension: residence area type `residence_type` (owner decisions 2026-10-27)
+
+WHO's `Id10055` records the place of usual residence as free text. Nothing in
+the instrument says whether that place is rural or urban, and equity
+reporting needs it. DigitVA adds it in a new project-enabled extension layer,
+**`equity`**, placed right after `Id10055`. Other equity questions are added
+to the same layer later. A project switches the layer on in its form options
+like any other extension; it is off unless enabled.
+
+- **Layer:** `equity` joins the `enabled_extensions` names.
+
+- **Name and type:** `residence_type`, `select_one RESIDENCE_TYPE`, optional.
+- **Question:** "Was the place where the deceased usually lived rural, urban
+  or an urban slum?" Hindi: "मृतक जहाँ सामान्यतः रहते थे, वह स्थान ग्रामीण था,
+  शहरी था या शहरी झुग्गी बस्ती?"
+- **Choices:**
+  - `rural`: Rural (village) / ग्रामीण (गाँव)
+  - `urban`: Urban (town or city) / शहरी (कस्बा या शहर)
+  - `urban_slum`: Urban slum or informal settlement / शहरी झुग्गी बस्ती
+  - `dk`: Don't know / पता नहीं
+- **Relevance:** the equity layer's own gate (see "Equity extension:
+  placement and gate"). It is never required, so older drafts and revisions
+  stay valid.
+- **The answer is the household's own.** It is not the facility's.
+  - The org unit's `area_type` (`docs/policy/organization-model.md`) is
+    separate: the area a facility serves.
+  - Reports prefer `residence_type` and fall back to the unit's area type
+    only where the answer is blank or `dk`, labelled as such.
+- **ODK projects:** DigitVA's own form gets the field. Projects that keep
+  their own ODK XLSForm add the same name, list and choice values so their
+  submissions report alike. A submission without it reads as not captured.
+- **Earlier interviews** have no answer. Reports show them as not captured,
+  never as a guess.
+
+### Equity extension: equity questions for any country (owner decisions 2026-10-27)
+
+The equity layer serves projects in any country.
+- **Fixed codes:** question names and answer codes are the same everywhere,
+  so data pools and compares across projects.
+- **Configurable text:** wording that names a national programme or category
+  is a project-level label override.
+- **Country choice sets:** a question whose categories differ by country
+  draws them from a country choice set chosen by the project's country.
+- **The usual equity rules apply to every question:** optional, about the
+  deceased only, with "Don't know" and "Prefer not to say" (shown as
+  `dk` / `ref`), and no free text. The interviewer guide says to ask
+  neutrally and never infer from name, surname or appearance. Reports are
+  aggregate only, with cells under 5 shown as `<5`.
+
+**Questions, after the residence questions:**
+
+1. **`residence_type`:** rural, urban, urban slum or informal settlement,
+   `dk`. The international term "informal settlement" sits beside "urban
+   slum" in the label.
+2. **`social_group`** (`select_one`): the population group used for equity
+   statistics in that country.
+   - **Country choice sets:**
+     - India (NFHS categories): `sc` Scheduled Caste, `st` Scheduled Tribe
+       (including PVTG), `obc` Other Backward Class, `general` none of these.
+     - Default for other countries: `indigenous`, `ethnic_minority`,
+       `majority`.
+   - A project may define its own national set (for example from its census
+     ethnicity list) in Project Setup. `dk` and `ref` are always added.
+   - A project can switch the question off.
+   - It does not replace WHO `Id10053` (ethnicity, free text), which stays
+     as WHO has it.
+3. **`vulnerable_group`** (`select_multiple`): did any of these apply to the
+   deceased? The categories follow the UN "leave no one behind" groups:
+   - `disability`: a person with a disability (physical, sensory,
+     intellectual or psychosocial). One item, not the six-question
+     Washington Group set.
+   - `homeless`: homeless or destitute;
+   - `migrant`: migrant worker, seasonal or from another region;
+   - `displaced`: internally displaced person, refugee, asylum seeker or
+     stateless;
+   - `poverty_programme`: enrolled in the national poverty or food-security
+     programme. The label names the programme per project: India "AAY or
+     priority household ration card"; Mexico "Programa Bienestar"; and so on;
+   - `elderly_alone`: older person living alone;
+   - `female_head`: widow or woman heading the household alone;
+   - `child_no_care`: child without parental care;
+   - `gender_minority`: transgender or gender-diverse person;
+   - `custody`: in prison or custody at the time of death;
+   - `none`, `dk`, `ref`: each exclusive, so it cannot be ticked with others.
+4. **`health_coverage`** (`select_multiple`, DHS-aligned): what health
+   insurance did the deceased have? The codes follow the DHS Program
+   health-insurance types (DHS indicators `AH_HINS_*`), so coverage among
+   the deceased can be set against DHS population figures:
+   - `social_security`: social security health insurance;
+   - `government_scheme`: a tax-funded public scheme. The label names it per
+     project: India "Ayushman Bharat PM-JAY or a state scheme", Mexico
+     "IMSS-Bienestar". DHS folds these into "other" or a country-specific
+     row; DigitVA keeps them separate because they matter most for equity;
+   - `community_mutual`: mutual health organisation or community-based
+     insurance (Tanzania iCHF);
+   - `employer`: other employer-based insurance;
+   - `private`: privately purchased commercial insurance;
+   - `other`;
+   - `none`, `dk`, `ref`: each exclusive.
+5. **`religion`:** not included. It is very sensitive. A project that needs
+   it asks for a policy change first.
+
+Education (`Id10063`), marital status (`Id10059`) and occupation are
+already in the WHO instrument and international. They feed equity reports
+as they are.
+
+**DHS Program alignment for comparison** (owner 2026-10-27). Reports group
+answers into DHS's standard background characteristics, so VA deaths can be
+compared with the population DHS describes for the same country and region:
+
+- **Residence:** DHS urban/rural. `urban` and `urban_slum` count as urban,
+  `rural` as rural. The slum split stays available inside "urban".
+- **Education:** DHS levels. `Id10063` maps to no education, primary,
+  secondary and higher.
+- **Sex, age group and region** use the same bands as before.
+- **Health insurance:** the DHS types above.
+- **Wealth quintile:** not captured. DHS computes it from a household asset
+  module, which the VA interview does not have. Wealth questions are
+  answered "not captured", and `poverty_programme` is the closest proxy.
+  Adding an asset module would be a separate decision.
+- **Disability:** a single item, as above. DHS-8 uses the six-question
+  Washington Group short set, and asking that about someone who has died, by
+  proxy, is not validated. Comparisons with DHS disability figures are
+  therefore indicative only.
+
+**Using DHS figures:** an equity report can compare the share of deaths in
+a group (rural, women, no insurance) with DHS's population share for that
+country and region. A large gap points to under-reporting, or to excess
+deaths, in that group. DHS figures come from the DHS Program API at report
+time or from a cached copy. They are public, aggregate and need no consent.
+
+### Equity extension: placement and gate (owner decision 2026-10-27)
+
+**Placement.** The questions sit in WHO's additional demographic block of
+"Information on the deceased" (`info_on_deceased`), each beside its nearest
+WHO question:
+
+- `social_group` after `Id10053` (ethnicity);
+- `residence_type` after `Id10055` (place of usual residence);
+- `vulnerable_group`, then `health_coverage`, after `Id10066` (occupation)
+  and before `Id10061`/`Id10062` (parents' names).
+
+The refusal profile is not here. It sits in the consent and outcome path,
+after `Id10013` = no, beside the refusal visit note.
+
+**Gate.**
+- WHO asks this block only when `Id10051` ("Is there a need to collect
+  additional demographic data?") is yes. The equity questions do not follow
+  that gate. They are asked whenever the project has the `equity` layer on
+  and consent was given, so enabling the layer always collects them.
+- WHO's own questions keep their `Id10051` relevance unchanged.
+- This supersedes "same relevance as `Id10055`" in the residence section
+  above.
+
+**Age and sex filters,** using WHO's `isNeonatal`, `isChild`, `isAdult` and
+sex `Id10019`:
+- `child_no_care`: neonates and children only;
+- `female_head`: adult females only;
+- `elderly_alone`: adults only;
+- `custody` and `gender_minority`: children and adults.
+
+If the form engine cannot filter single choices within a `select_multiple`,
+each filtered choice becomes its own small yes/no question with that
+relevance, under the same codes.
+
+### Equity extension: refusal profile (owner decision 2026-10-27)
+
+When consent is refused (`Id10013` = no, interview outcome
+`consent_refused`), the equity layer records two fields only, so refusals
+can be compared with completed interviews. Refusal bias is an equity
+question in its own right: refusals that cluster in one group skew that
+group's cause-of-death picture.
+
+- **`refusal_age_group`** (`select_one`), using the analytics age bands so
+  refusals and interviews line up in every report: `neonate` (under 28
+  days), `child` (28 days to 14 years), `15_49y`, `50_64y`, `65_plus`,
+  `unknown`.
+- **`refusal_sex`** (`select_one`): `male`, `female`, `unknown`.
+- **Where the values come from:**
+  - For a registered death, both are prefilled from the death register
+    (`deceased_sex`, age), and the interviewer only confirms.
+  - Otherwise the interviewer records what is already known, or asks only
+    these two things if the family is willing.
+  - "Unknown" is always allowed. Nothing is required.
+- **Nothing else is recorded:** no name, identifier, illness question or free
+  text. The refusal visit note (`visit_address`, `visit_date`,
+  `visit_remarks`) keeps its existing rules.
+- **Basis:** the respondent has refused consent, so this rests on minimal,
+  non-identifying statistical recording of the deceased, not on the
+  respondent's consent. It is flagged for the project's legal review
+  (`digitva-athy`) and should be named in the study protocol.
+- **Reporting:** aggregate only, with cells under 5 shown as `<5`. The
+  analytics count table gains refusal age group and sex, so refusal-rate
+  questions by gender, age and district become answerable.
+
 ## Interviewer assists (presentation only; owner decisions 2026-10-23, added 2026-10-24)
 
 The form engine (`vendor/who-va-2022/src/ui/assists.ts`, wired in
@@ -121,6 +316,7 @@ review before production.
 | Intake instructions | Configured welcome card | `intake_screen` | Replaces ND01 `begin_screen`, introduction, instructions and confirmation trigger; does not reproduce these as survey questions. |
 | Geography and collection identity | Organization/death-register supplied geography and identifiers | Core and geography host context | Replaces ND01 hardcoded choice lists and ID calculation with project configuration/server context. See project configuration policy. |
 | Consent mode | `consent_mode` following WHO `Id10013` | Always-on core | Keeps WHO yes/no consent; records mode separately instead of ND01’s `telephonic_consent` answer value. |
+| Equity | `residence_type` (rural, urban, urban slum, don't know) following WHO `Id10055` | `equity` | DigitVA addition (owner 2026-10-27) for equity reporting; WHO base and ND01 have no rural/urban question. Further equity questions join this layer. |
 | Interview outcome and refusal visit note | `interview_outcome`, `visit_address`, `visit_date`, `visit_remarks` | Always-on core | Web workflow additions, not WHO or inspected ND01 questions. |
 | ABHA identifiers | `abha_number`, `abha_address` | `abha` | DigitVA web extension, not inspected ND01 additions. |
 

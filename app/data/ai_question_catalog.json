@@ -1,0 +1,2139 @@
+{
+  "source": "hand-written catalog (digitva-qwvt), operational questions added 2026-10-27; comparative, staff and coder questions 2026-10-27",
+  "questions": [
+    {
+      "key": "total_cases",
+      "question": "How many cases are there in total?",
+      "description": "All submissions in your scope.",
+      "keywords": [
+        "total",
+        "cases",
+        "count"
+      ],
+      "sql": "SELECT sum(n) AS cases FROM ai_cube",
+      "chart": {
+        "type": "table",
+        "x_column": null,
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "cases_by_project",
+      "question": "How many cases does each project have?",
+      "description": "Submissions per project.",
+      "keywords": [
+        "project",
+        "cases"
+      ],
+      "sql": "SELECT project_id, sum(n) AS cases FROM ai_cube GROUP BY project_id ORDER BY cases DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "project_id",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "project_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coded_share_by_site",
+      "question": "What share of cases is coded at each site, against all sites?",
+      "description": "Cases with a final cause as a percentage of all cases, per site, with the all-sites share and rank.",
+      "keywords": [
+        "coded",
+        "progress",
+        "completeness",
+        "site",
+        "percent",
+        "lagging"
+      ],
+      "sql": "WITH s AS (SELECT site_id, sum(n) FILTER (WHERE true) AS base, sum(n) FILTER (WHERE authoritative_source IS NOT NULL) AS hits FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(hits, 0) AS coded, round(100.0 * hits / NULLIF(base, 0), 1) AS coded_pct, round(100.0 * sum(hits) OVER () / NULLIF(sum(base) OVER (), 0), 1) AS all_sites_pct, rank() OVER (ORDER BY hits::numeric / NULLIF(base, 0) DESC NULLS LAST) AS rank FROM s ORDER BY coded_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "coded_pct"
+        ],
+        "value_column": "coded_pct",
+        "x_dimension": "site_id",
+        "reference_column": "all_sites_pct"
+      }
+    },
+    {
+      "key": "pending_coding_by_site",
+      "question": "How many cases are waiting for coding at each site?",
+      "description": "Cases ready for coding or being coded, per site.",
+      "keywords": [
+        "pending",
+        "backlog",
+        "coding",
+        "site"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE workflow_state = 'ready_for_coding') AS ready, sum(n) FILTER (WHERE workflow_state = 'coding_in_progress') AS in_progress FROM ai_cube GROUP BY site_id ORDER BY ready DESC NULLS LAST",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "ready",
+          "in_progress"
+        ],
+        "value_column": null,
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "not_codeable_by_site",
+      "question": "How many cases were marked not codeable at each site?",
+      "description": "Cases not codeable by the coder or the data manager, per site.",
+      "keywords": [
+        "not codeable",
+        "flagged",
+        "site"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE workflow_state = 'not_codeable_by_coder') AS by_coder, sum(n) FILTER (WHERE workflow_state = 'not_codeable_by_data_manager') AS by_data_manager FROM ai_cube GROUP BY site_id ORDER BY site_id",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "by_coder",
+          "by_data_manager"
+        ],
+        "value_column": null,
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "final_cause_source",
+      "question": "Who gave the final cause: coder or reviewer?",
+      "description": "Coded cases by the source of the final cause.",
+      "keywords": [
+        "reviewer",
+        "coder",
+        "final cause",
+        "source"
+      ],
+      "sql": "SELECT authoritative_source, sum(n) AS cases FROM ai_cube WHERE authoritative_source IS NOT NULL GROUP BY authoritative_source ORDER BY cases DESC",
+      "chart": {
+        "type": "doughnut",
+        "x_column": "authoritative_source",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "authoritative_source",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "monthly_cases_last_12",
+      "question": "How many cases came in each month over the last year?",
+      "description": "Submissions per month for the last 12 months.",
+      "keywords": [
+        "monthly",
+        "trend",
+        "intake",
+        "year"
+      ],
+      "sql": "SELECT submission_month, sum(n) AS cases FROM ai_cube WHERE submission_month >= date_trunc('month', CURRENT_DATE) - interval '11 months' GROUP BY submission_month ORDER BY submission_month",
+      "chart": {
+        "type": "line",
+        "x_column": "submission_month",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "submission_month",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "monthly_cases_by_site",
+      "question": "Monthly cases by site",
+      "description": "Submissions per month for the five largest sites.",
+      "keywords": [
+        "monthly",
+        "trend",
+        "site"
+      ],
+      "sql": "WITH top_sites AS (SELECT site_id FROM ai_cube GROUP BY site_id ORDER BY sum(n) DESC LIMIT 5) SELECT submission_month, site_id, sum(n) AS cases FROM ai_cube WHERE site_id IN (SELECT site_id FROM top_sites) AND submission_month IS NOT NULL GROUP BY submission_month, site_id ORDER BY submission_month, site_id",
+      "chart": {
+        "type": "table",
+        "x_column": null,
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "cases_by_year",
+      "question": "How many cases were submitted each year?",
+      "description": "Submissions per calendar year.",
+      "keywords": [
+        "year",
+        "annual",
+        "trend"
+      ],
+      "sql": "SELECT extract(year FROM submission_month)::int AS year, sum(n) AS cases FROM ai_cube WHERE submission_month IS NOT NULL GROUP BY 1 ORDER BY 1",
+      "chart": {
+        "type": "bar",
+        "x_column": "year",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "deaths_by_age_band",
+      "question": "How many deaths are there in each age band?",
+      "description": "Cases per analytics age band.",
+      "keywords": [
+        "age",
+        "age band",
+        "deaths"
+      ],
+      "sql": "SELECT analytics_age_band, sum(n) AS deaths FROM ai_cube GROUP BY analytics_age_band ORDER BY deaths DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "deaths_by_sex",
+      "question": "How many deaths are male and female?",
+      "description": "Cases by sex of the deceased.",
+      "keywords": [
+        "sex",
+        "gender",
+        "male",
+        "female"
+      ],
+      "sql": "SELECT lower(sex) AS sex, sum(n) AS deaths FROM ai_cube GROUP BY lower(sex) ORDER BY deaths DESC",
+      "chart": {
+        "type": "doughnut",
+        "x_column": "sex",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "top_causes",
+      "question": "What are the top 10 final causes of death?",
+      "description": "Most frequent WHO 2026 VA causes of the final cause.",
+      "keywords": [
+        "top",
+        "causes",
+        "cause of death",
+        "final"
+      ],
+      "sql": "SELECT authoritative_who_bucket, sum(n) AS deaths FROM ai_cube WHERE authoritative_who_bucket IS NOT NULL GROUP BY authoritative_who_bucket ORDER BY deaths DESC LIMIT 10",
+      "chart": {
+        "type": "horizontal_bar",
+        "x_column": "authoritative_who_bucket",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "authoritative_who_bucket",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "top_causes_neonates",
+      "question": "What are the top causes of neonatal deaths?",
+      "description": "Top 10 final causes among neonates.",
+      "keywords": [
+        "neonatal",
+        "newborn",
+        "causes"
+      ],
+      "sql": "SELECT authoritative_who_bucket, sum(n) AS deaths FROM ai_cube WHERE analytics_age_band = 'neonate' AND authoritative_who_bucket IS NOT NULL GROUP BY authoritative_who_bucket ORDER BY deaths DESC LIMIT 10",
+      "chart": {
+        "type": "horizontal_bar",
+        "x_column": "authoritative_who_bucket",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "authoritative_who_bucket",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "top_causes_children",
+      "question": "What are the top causes of child deaths?",
+      "description": "Top 10 final causes among children.",
+      "keywords": [
+        "child",
+        "children",
+        "causes"
+      ],
+      "sql": "SELECT authoritative_who_bucket, sum(n) AS deaths FROM ai_cube WHERE analytics_age_band = 'child' AND authoritative_who_bucket IS NOT NULL GROUP BY authoritative_who_bucket ORDER BY deaths DESC LIMIT 10",
+      "chart": {
+        "type": "horizontal_bar",
+        "x_column": "authoritative_who_bucket",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "authoritative_who_bucket",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "cause_sections_by_sex",
+      "question": "Cause sections by sex",
+      "description": "Deaths per WHO 2026 VA cause section, male and female.",
+      "keywords": [
+        "cause section",
+        "sex",
+        "chapter"
+      ],
+      "sql": "SELECT authoritative_who_bucket_section, sum(n) FILTER (WHERE lower(sex) = 'male') AS male, sum(n) FILTER (WHERE lower(sex) = 'female') AS female FROM ai_cube WHERE authoritative_who_bucket_section IS NOT NULL GROUP BY authoritative_who_bucket_section ORDER BY authoritative_who_bucket_section",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "authoritative_who_bucket_section",
+        "series_columns": [
+          "male",
+          "female"
+        ],
+        "value_column": null,
+        "x_dimension": "authoritative_who_bucket_section",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "external_causes_by_age",
+      "question": "How many deaths from external causes in each age band?",
+      "description": "Deaths in the external causes section per age band.",
+      "keywords": [
+        "external",
+        "injury",
+        "accident",
+        "age"
+      ],
+      "sql": "SELECT analytics_age_band, sum(n) AS deaths FROM ai_cube WHERE authoritative_who_bucket_section = 'External causes of death' GROUP BY analytics_age_band ORDER BY deaths DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "unknown_cause_share_by_site",
+      "question": "What share of coded deaths has an unknown cause at each site, against all sites?",
+      "description": "Coded deaths in the cause-unknown section as a percentage of coded deaths per site, with the all-sites share.",
+      "keywords": [
+        "unknown",
+        "ill-defined",
+        "site",
+        "percent"
+      ],
+      "sql": "WITH s AS (SELECT site_id, sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL) AS base, sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Cause of death unknown') AS hits FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(hits, 0) AS unknown, round(100.0 * hits / NULLIF(base, 0), 1) AS unknown_pct, round(100.0 * sum(hits) OVER () / NULLIF(sum(base) OVER (), 0), 1) AS all_sites_pct, rank() OVER (ORDER BY hits::numeric / NULLIF(base, 0) DESC NULLS LAST) AS rank FROM s ORDER BY unknown_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "unknown_pct"
+        ],
+        "value_column": "unknown_pct",
+        "x_dimension": "site_id",
+        "reference_column": "all_sites_pct"
+      }
+    },
+    {
+      "key": "smartva_agreement_overall",
+      "question": "How often does SmartVA agree with the final cause?",
+      "description": "Coded cases with a SmartVA cause where the SmartVA top cause matches the final cause.",
+      "keywords": [
+        "smartva",
+        "agreement",
+        "concordance"
+      ],
+      "sql": "SELECT sum(n) FILTER (WHERE smartva_cause1_who_bucket IS NOT NULL AND authoritative_who_bucket IS NOT NULL) AS compared, sum(n) FILTER (WHERE smartva_cause1_who_bucket = authoritative_who_bucket) AS agree, round(100.0 * sum(n) FILTER (WHERE smartva_cause1_who_bucket = authoritative_who_bucket) / NULLIF(sum(n) FILTER (WHERE smartva_cause1_who_bucket IS NOT NULL AND authoritative_who_bucket IS NOT NULL), 0), 1) AS agree_pct FROM ai_cube",
+      "chart": {
+        "type": "table",
+        "x_column": null,
+        "series_columns": [
+          "compared",
+          "agree",
+          "agree_pct"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "nqa_average_by_site",
+      "question": "What is the average narrative quality score at each site, against all sites?",
+      "description": "Mean narrative quality score per site, with the all-sites mean and rank.",
+      "keywords": [
+        "narrative",
+        "quality",
+        "score",
+        "average",
+        "site"
+      ],
+      "sql": "WITH s AS (SELECT site_id, sum(nqa_score_sum) AS score, sum(nqa_scored_n) AS scored FROM ai_cube GROUP BY site_id) SELECT site_id, scored, round(score::numeric / NULLIF(scored, 0), 2) AS avg_score, round(sum(score) OVER ()::numeric / NULLIF(sum(scored) OVER (), 0), 2) AS all_sites_avg, rank() OVER (ORDER BY score::numeric / NULLIF(scored, 0) DESC NULLS LAST) AS rank FROM s WHERE scored > 0 ORDER BY avg_score DESC",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "avg_score"
+        ],
+        "value_column": "avg_score",
+        "x_dimension": "site_id",
+        "reference_column": "all_sites_avg"
+      }
+    },
+    {
+      "key": "nqa_rating_by_site",
+      "question": "Narrative quality ratings by site",
+      "description": "Cases rated Good, Fair and Poor, per site.",
+      "keywords": [
+        "narrative",
+        "quality",
+        "rating",
+        "site"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE nqa_rating = 'Good') AS good, sum(n) FILTER (WHERE nqa_rating = 'Fair') AS fair, sum(n) FILTER (WHERE nqa_rating = 'Poor') AS poor FROM ai_cube GROUP BY site_id ORDER BY site_id",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "good",
+          "fair",
+          "poor"
+        ],
+        "value_column": null,
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "workflow_state_by_site",
+      "question": "What is the workflow state of cases at each site?",
+      "description": "Cases per site split by workflow state.",
+      "keywords": [
+        "workflow",
+        "state",
+        "site",
+        "pipeline"
+      ],
+      "sql": "SELECT site_id, workflow_state, sum(n) AS cases FROM ai_cube GROUP BY site_id, workflow_state ORDER BY site_id, cases DESC",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "attachment_sync_pending_by_site",
+      "question": "Which sites have cases waiting for attachments to sync?",
+      "description": "Cases held in attachment sync pending, by site.",
+      "keywords": [
+        "attachment",
+        "sync",
+        "pending",
+        "backlog"
+      ],
+      "sql": "SELECT site_id, sum(n) AS waiting FROM ai_cube WHERE workflow_state = 'attachment_sync_pending' GROUP BY site_id ORDER BY waiting DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "waiting"
+        ],
+        "value_column": "waiting",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "consent_refused_by_site",
+      "question": "Which sites have the most consent refusals, against all sites?",
+      "description": "Consent-refused cases and their share of all cases per site, with the all-sites rate.",
+      "keywords": [
+        "consent",
+        "refused",
+        "refusal",
+        "site"
+      ],
+      "sql": "WITH s AS (SELECT site_id, sum(n) FILTER (WHERE true) AS base, sum(n) FILTER (WHERE workflow_state = 'consent_refused') AS hits FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(hits, 0) AS refused, round(100.0 * hits / NULLIF(base, 0), 1) AS refused_pct, round(100.0 * sum(hits) OVER () / NULLIF(sum(base) OVER (), 0), 1) AS all_sites_pct, rank() OVER (ORDER BY hits::numeric / NULLIF(base, 0) DESC NULLS LAST) AS rank FROM s ORDER BY refused_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "refused_pct"
+        ],
+        "value_column": "refused_pct",
+        "x_dimension": "site_id",
+        "reference_column": "all_sites_pct"
+      }
+    },
+    {
+      "key": "consent_refused_by_month",
+      "question": "Is consent refusal rising or falling month by month?",
+      "description": "Consent-refused cases per submission month.",
+      "keywords": [
+        "consent",
+        "refused",
+        "trend",
+        "month"
+      ],
+      "sql": "SELECT submission_month, sum(n) FILTER (WHERE workflow_state = 'consent_refused') AS refused, sum(n) AS cases FROM ai_cube GROUP BY submission_month ORDER BY submission_month",
+      "chart": {
+        "type": "line",
+        "x_column": "submission_month",
+        "series_columns": [
+          "refused",
+          "cases"
+        ],
+        "value_column": "refused",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "not_codeable_by_who",
+      "question": "How many cases were marked not codeable by data managers and by coders?",
+      "description": "Not-codeable cases by who decided, per site.",
+      "keywords": [
+        "not codeable",
+        "data manager",
+        "coder",
+        "rejected"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE workflow_state = 'not_codeable_by_data_manager') AS by_data_manager, sum(n) FILTER (WHERE workflow_state = 'not_codeable_by_coder') AS by_coder FROM ai_cube GROUP BY site_id HAVING sum(n) FILTER (WHERE workflow_state IN ('not_codeable_by_data_manager', 'not_codeable_by_coder')) > 0 ORDER BY site_id",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "by_data_manager",
+          "by_coder"
+        ],
+        "value_column": "by_coder",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "intake_this_month_vs_last",
+      "question": "How does this month's intake compare with last month at each site?",
+      "description": "Cases submitted this calendar month (so far) and last month by site, with the change and percent change.",
+      "keywords": [
+        "intake",
+        "this month",
+        "last month",
+        "comparison",
+        "change"
+      ],
+      "sql": "WITH m AS (SELECT site_id, sum(n) FILTER (WHERE submission_month = date_trunc('month', CURRENT_DATE)::date) AS this_month, sum(n) FILTER (WHERE submission_month = (date_trunc('month', CURRENT_DATE)::date - interval '1 month')::date) AS last_month FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(this_month, 0) AS this_month, coalesce(last_month, 0) AS last_month, coalesce(this_month, 0) - coalesce(last_month, 0) AS change, round(100.0 * (coalesce(this_month, 0) - last_month) / NULLIF(last_month, 0), 1) AS change_pct FROM m ORDER BY change",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "this_month"
+        ],
+        "value_column": "this_month",
+        "x_dimension": "site_id",
+        "reference_column": "last_month"
+      }
+    },
+    {
+      "key": "sites_silent_this_month",
+      "question": "Which sites have sent no cases this month?",
+      "description": "Sites with earlier cases but none submitted in the current month.",
+      "keywords": [
+        "silent",
+        "no cases",
+        "inactive",
+        "site",
+        "this month"
+      ],
+      "sql": "SELECT site_id, sum(n) AS cases_ever, max(submission_month) AS last_month_with_cases FROM ai_cube GROUP BY site_id HAVING coalesce(sum(n) FILTER (WHERE submission_month = date_trunc('month', CURRENT_DATE)), 0) = 0 ORDER BY last_month_with_cases",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "cases_ever"
+        ],
+        "value_column": "cases_ever",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "missing_sex_or_age_by_site",
+      "question": "Which sites have cases with sex or age band missing?",
+      "description": "Data quality: cases with sex or age band unknown or blank, by site.",
+      "keywords": [
+        "missing",
+        "sex",
+        "age",
+        "data quality",
+        "completeness"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE sex IS NULL OR lower(sex) IN ('unknown', 'undetermined', '')) AS sex_missing, sum(n) FILTER (WHERE analytics_age_band IS NULL OR analytics_age_band = 'unknown') AS age_missing, sum(n) AS cases FROM ai_cube GROUP BY site_id ORDER BY sex_missing DESC NULLS LAST",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "sex_missing",
+          "age_missing"
+        ],
+        "value_column": "sex_missing",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "poor_narratives_by_site",
+      "question": "Which sites have the most poor or ungradable narratives?",
+      "description": "Share of NQA-rated cases rated Poor or Cannot Grade, by site.",
+      "keywords": [
+        "narrative",
+        "quality",
+        "nqa",
+        "poor",
+        "cannot grade"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE nqa_rating IN ('Poor', 'Cannot Grade')) AS poor_or_ungradable, round(100.0 * sum(n) FILTER (WHERE nqa_rating IN ('Poor', 'Cannot Grade')) / NULLIF(sum(n) FILTER (WHERE nqa_rating IS NOT NULL), 0), 1) AS poor_pct FROM ai_cube GROUP BY site_id ORDER BY poor_pct DESC NULLS LAST",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "poor_pct"
+        ],
+        "value_column": "poor_pct",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "awaiting_review_by_site",
+      "question": "How many coded cases are waiting for a reviewer at each site?",
+      "description": "Cases in reviewer-eligible state, by site.",
+      "keywords": [
+        "review",
+        "reviewer",
+        "waiting",
+        "backlog"
+      ],
+      "sql": "SELECT site_id, sum(n) AS awaiting_review FROM ai_cube WHERE workflow_state = 'reviewer_eligible' GROUP BY site_id ORDER BY awaiting_review DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "awaiting_review"
+        ],
+        "value_column": "awaiting_review",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "intake_by_project_month",
+      "question": "How many cases did each project receive per month?",
+      "description": "Monthly intake by project.",
+      "keywords": [
+        "intake",
+        "project",
+        "month",
+        "trend"
+      ],
+      "sql": "SELECT submission_month, project_id, sum(n) AS cases FROM ai_cube GROUP BY submission_month, project_id ORDER BY submission_month, project_id",
+      "chart": {
+        "type": "line",
+        "x_column": "submission_month",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "project_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coding_backlog_by_intake_month",
+      "question": "How old is the coding backlog by the month cases came in?",
+      "description": "Cases still ready for coding, by submission month: older months are the oldest waiting cases.",
+      "keywords": [
+        "backlog",
+        "ready for coding",
+        "oldest",
+        "age of queue"
+      ],
+      "sql": "SELECT submission_month, sum(n) AS ready_for_coding FROM ai_cube WHERE workflow_state = 'ready_for_coding' GROUP BY submission_month ORDER BY submission_month",
+      "chart": {
+        "type": "bar",
+        "x_column": "submission_month",
+        "series_columns": [
+          "ready_for_coding"
+        ],
+        "value_column": "ready_for_coding",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coding_queue_by_age_band",
+      "question": "Which age groups are waiting in the coding queue?",
+      "description": "Ready-for-coding cases by age band.",
+      "keywords": [
+        "queue",
+        "ready for coding",
+        "age band",
+        "neonate",
+        "child"
+      ],
+      "sql": "SELECT analytics_age_band, sum(n) AS ready_for_coding FROM ai_cube WHERE workflow_state = 'ready_for_coding' GROUP BY analytics_age_band ORDER BY ready_for_coding DESC",
+      "chart": {
+        "type": "doughnut",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "ready_for_coding"
+        ],
+        "value_column": "ready_for_coding",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coding_queue_narrative_quality",
+      "question": "How good are the narratives of cases waiting to be coded?",
+      "description": "NQA rating mix of the ready-for-coding queue.",
+      "keywords": [
+        "queue",
+        "narrative",
+        "nqa",
+        "quality",
+        "ready for coding"
+      ],
+      "sql": "SELECT coalesce(nqa_rating, 'Not rated') AS nqa_rating, sum(n) AS cases FROM ai_cube WHERE workflow_state = 'ready_for_coding' GROUP BY coalesce(nqa_rating, 'Not rated') ORDER BY cases DESC",
+      "chart": {
+        "type": "doughnut",
+        "x_column": "nqa_rating",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "nqa_rating",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coded_per_month",
+      "question": "How many cases were finalised each month, coder versus reviewer?",
+      "description": "Finalised cases by submission month and who holds the final cause.",
+      "keywords": [
+        "coded",
+        "finalised",
+        "throughput",
+        "month"
+      ],
+      "sql": "SELECT submission_month, sum(n) FILTER (WHERE authoritative_source = 'coder') AS coder_final, sum(n) FILTER (WHERE authoritative_source = 'reviewer') AS reviewer_final FROM ai_cube GROUP BY submission_month ORDER BY submission_month",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "submission_month",
+        "series_columns": [
+          "coder_final",
+          "reviewer_final"
+        ],
+        "value_column": "coder_final",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "unknown_cause_by_month",
+      "question": "Is the share of unknown causes improving over time?",
+      "description": "Percent of finalised causes in the 'Cause of death unknown' section, per month.",
+      "keywords": [
+        "unknown",
+        "ill-defined",
+        "trend",
+        "coding quality"
+      ],
+      "sql": "SELECT submission_month, round(100.0 * sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Cause of death unknown') / NULLIF(sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL), 0), 1) AS unknown_pct FROM ai_cube GROUP BY submission_month ORDER BY submission_month",
+      "chart": {
+        "type": "line",
+        "x_column": "submission_month",
+        "series_columns": [
+          "unknown_pct"
+        ],
+        "value_column": "unknown_pct",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "unknown_cause_by_age_band",
+      "question": "In which age groups are causes most often unknown?",
+      "description": "Percent of finalised causes that are unknown, by age band.",
+      "keywords": [
+        "unknown",
+        "ill-defined",
+        "age band"
+      ],
+      "sql": "SELECT analytics_age_band, round(100.0 * sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Cause of death unknown') / NULLIF(sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL), 0), 1) AS unknown_pct FROM ai_cube GROUP BY analytics_age_band ORDER BY unknown_pct DESC NULLS LAST",
+      "chart": {
+        "type": "bar",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "unknown_pct"
+        ],
+        "value_column": "unknown_pct",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "top_icd_this_month",
+      "question": "What are the most coded ICD codes this month?",
+      "description": "Top 15 final ICD codes for cases submitted this month.",
+      "keywords": [
+        "icd",
+        "codes",
+        "this month",
+        "top"
+      ],
+      "sql": "SELECT authoritative_icd, sum(n) AS cases FROM ai_cube WHERE authoritative_icd IS NOT NULL AND submission_month = date_trunc('month', CURRENT_DATE) GROUP BY authoritative_icd ORDER BY cases DESC LIMIT 15",
+      "chart": {
+        "type": "horizontal_bar",
+        "x_column": "authoritative_icd",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "authoritative_icd",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "smartva_disagreements",
+      "question": "Where does SmartVA most often disagree with the final cause?",
+      "description": "Top 15 SmartVA-cause versus final-cause pairs that differ.",
+      "keywords": [
+        "smartva",
+        "disagree",
+        "mismatch",
+        "agreement"
+      ],
+      "sql": "SELECT smartva_cause1_who_bucket AS smartva_cause, authoritative_who_bucket AS final_cause, sum(n) AS cases FROM ai_cube WHERE smartva_cause1_who_bucket IS NOT NULL AND authoritative_who_bucket IS NOT NULL AND smartva_cause1_who_bucket <> authoritative_who_bucket GROUP BY smartva_cause1_who_bucket, authoritative_who_bucket ORDER BY cases DESC LIMIT 15",
+      "chart": {
+        "type": "table",
+        "x_column": null,
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "reviewer_share_by_site",
+      "question": "At which sites does the reviewer hold the final cause most often?",
+      "description": "Share of finalised cases where the reviewer's cause is authoritative, by site.",
+      "keywords": [
+        "reviewer",
+        "coder",
+        "authoritative",
+        "final"
+      ],
+      "sql": "SELECT site_id, round(100.0 * sum(n) FILTER (WHERE authoritative_source = 'reviewer') / NULLIF(sum(n) FILTER (WHERE authoritative_source IS NOT NULL), 0), 1) AS reviewer_pct FROM ai_cube GROUP BY site_id ORDER BY reviewer_pct DESC NULLS LAST",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "reviewer_pct"
+        ],
+        "value_column": "reviewer_pct",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "top5_causes_per_age_band",
+      "question": "What are the top five causes of death in each age group?",
+      "description": "Five leading WHO VA causes within each age band.",
+      "keywords": [
+        "leading causes",
+        "top five",
+        "age band",
+        "mortality"
+      ],
+      "sql": "WITH ranked AS (SELECT analytics_age_band, authoritative_who_bucket, sum(n) AS cases, rank() OVER (PARTITION BY analytics_age_band ORDER BY sum(n) DESC) AS rnk FROM ai_cube WHERE authoritative_who_bucket IS NOT NULL GROUP BY analytics_age_band, authoritative_who_bucket) SELECT analytics_age_band, authoritative_who_bucket, cases FROM ranked WHERE rnk <= 5 ORDER BY analytics_age_band, cases DESC",
+      "chart": {
+        "type": "table",
+        "x_column": null,
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "maternal_deaths",
+      "question": "How many maternal deaths are there, and from which causes?",
+      "description": "Deaths in the pregnancy, childbirth and puerperium section, by cause.",
+      "keywords": [
+        "maternal",
+        "pregnancy",
+        "childbirth",
+        "obstetric"
+      ],
+      "sql": "SELECT authoritative_who_bucket, sum(n) AS deaths FROM ai_cube WHERE authoritative_who_bucket_section = 'Pregnancy-, childbirth and puerperium-related disorders' GROUP BY authoritative_who_bucket ORDER BY deaths DESC",
+      "chart": {
+        "type": "horizontal_bar",
+        "x_column": "authoritative_who_bucket",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "authoritative_who_bucket",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "maternal_deaths_by_site",
+      "question": "Which sites report maternal deaths?",
+      "description": "Maternal deaths by site.",
+      "keywords": [
+        "maternal",
+        "site",
+        "pregnancy"
+      ],
+      "sql": "SELECT site_id, sum(n) AS maternal_deaths FROM ai_cube WHERE authoritative_who_bucket_section = 'Pregnancy-, childbirth and puerperium-related disorders' GROUP BY site_id ORDER BY maternal_deaths DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "maternal_deaths"
+        ],
+        "value_column": "maternal_deaths",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "neonatal_share_of_child_deaths",
+      "question": "What share of deaths under 15 are neonatal?",
+      "description": "Neonate deaths as a share of neonate plus child deaths, by site.",
+      "keywords": [
+        "neonatal",
+        "child",
+        "under 15",
+        "share"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE analytics_age_band = 'neonate') AS neonatal, sum(n) FILTER (WHERE analytics_age_band = 'child') AS child, round(100.0 * sum(n) FILTER (WHERE analytics_age_band = 'neonate') / NULLIF(sum(n) FILTER (WHERE analytics_age_band IN ('neonate', 'child')), 0), 1) AS neonatal_pct FROM ai_cube GROUP BY site_id ORDER BY neonatal_pct DESC NULLS LAST",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "neonatal_pct"
+        ],
+        "value_column": "neonatal_pct",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "stillbirths_by_site",
+      "question": "How many stillbirths are recorded at each site?",
+      "description": "Cases in the stillbirths section, by site.",
+      "keywords": [
+        "stillbirth",
+        "perinatal",
+        "site"
+      ],
+      "sql": "SELECT site_id, sum(n) AS stillbirths FROM ai_cube WHERE authoritative_who_bucket_section = 'Stillbirths' GROUP BY site_id ORDER BY stillbirths DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "stillbirths"
+        ],
+        "value_column": "stillbirths",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "injury_deaths_by_sex_age",
+      "question": "Who dies of injuries, by sex and age?",
+      "description": "External-cause deaths by age band and sex.",
+      "keywords": [
+        "injury",
+        "external causes",
+        "accident",
+        "suicide",
+        "sex",
+        "age"
+      ],
+      "sql": "SELECT analytics_age_band, sum(n) FILTER (WHERE lower(sex) = 'male') AS male, sum(n) FILTER (WHERE lower(sex) = 'female') AS female FROM ai_cube WHERE authoritative_who_bucket_section = 'External causes of death' GROUP BY analytics_age_band ORDER BY analytics_age_band",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "male",
+          "female"
+        ],
+        "value_column": "male",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "ncd_share_adults",
+      "question": "What share of adult deaths are from non-communicable diseases?",
+      "description": "Adults (15+): circulatory, neoplasms, NCD, respiratory, renal, endocrine and digestive sections as a share of known causes.",
+      "keywords": [
+        "ncd",
+        "non-communicable",
+        "adult",
+        "chronic"
+      ],
+      "sql": "SELECT analytics_age_band, round(100.0 * sum(n) FILTER (WHERE authoritative_who_bucket_section IN ('Diseases of the circulatory system', 'Neoplasms', 'Non-communicable diseases', 'Respiratory disorders', 'Renal disorders', 'Nutritional and endocrine disorders', 'Gastrointestinal disorders')) / NULLIF(sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL AND authoritative_who_bucket_section <> 'Cause of death unknown'), 0), 1) AS ncd_pct FROM ai_cube WHERE analytics_age_band IN ('15_49y', '50_64y', '65_plus') GROUP BY analytics_age_band ORDER BY analytics_age_band",
+      "chart": {
+        "type": "bar",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "ncd_pct"
+        ],
+        "value_column": "ncd_pct",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "infectious_trend_by_quarter",
+      "question": "Are infectious disease deaths changing quarter by quarter?",
+      "description": "Infectious and parasitic deaths and their share, per quarter.",
+      "keywords": [
+        "infectious",
+        "parasitic",
+        "trend",
+        "quarter"
+      ],
+      "sql": "SELECT date_trunc('quarter', submission_month) AS quarter, sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Infectious and parasitic diseases') AS infectious, round(100.0 * sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Infectious and parasitic diseases') / NULLIF(sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL), 0), 1) AS infectious_pct FROM ai_cube GROUP BY date_trunc('quarter', submission_month) ORDER BY quarter",
+      "chart": {
+        "type": "line",
+        "x_column": "quarter",
+        "series_columns": [
+          "infectious_pct"
+        ],
+        "value_column": "infectious_pct",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "sex_ratio_by_age_band",
+      "question": "How many male deaths are there per 100 female deaths in each age group?",
+      "description": "Male-to-female death ratio by age band.",
+      "keywords": [
+        "sex ratio",
+        "male",
+        "female",
+        "age band"
+      ],
+      "sql": "SELECT analytics_age_band, sum(n) FILTER (WHERE lower(sex) = 'male') AS male, sum(n) FILTER (WHERE lower(sex) = 'female') AS female, round(100.0 * sum(n) FILTER (WHERE lower(sex) = 'male') / NULLIF(sum(n) FILTER (WHERE lower(sex) = 'female'), 0), 0) AS males_per_100_females FROM ai_cube GROUP BY analytics_age_band ORDER BY analytics_age_band",
+      "chart": {
+        "type": "bar",
+        "x_column": "analytics_age_band",
+        "series_columns": [
+          "males_per_100_females"
+        ],
+        "value_column": "males_per_100_females",
+        "x_dimension": "analytics_age_band",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "final_cause_completeness_by_project",
+      "question": "What share of cases in each project has a final cause?",
+      "description": "Programme completeness: percent of cases with a finalised cause, by project.",
+      "keywords": [
+        "completeness",
+        "final cause",
+        "coverage",
+        "project"
+      ],
+      "sql": "SELECT project_id, sum(n) AS cases, round(100.0 * sum(n) FILTER (WHERE authoritative_source IS NOT NULL) / NULLIF(sum(n), 0), 1) AS with_final_pct FROM ai_cube GROUP BY project_id ORDER BY project_id",
+      "chart": {
+        "type": "bar",
+        "x_column": "project_id",
+        "series_columns": [
+          "with_final_pct"
+        ],
+        "value_column": "with_final_pct",
+        "x_dimension": "project_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "year_on_year_by_month",
+      "question": "How does each month compare with the same month last year?",
+      "description": "Cases per calendar month, this year against last year.",
+      "keywords": [
+        "year on year",
+        "seasonal",
+        "month",
+        "comparison"
+      ],
+      "sql": "SELECT extract(month FROM submission_month) AS month_no, sum(n) FILTER (WHERE extract(year FROM submission_month) = extract(year FROM CURRENT_DATE)) AS this_year, sum(n) FILTER (WHERE extract(year FROM submission_month) = extract(year FROM CURRENT_DATE) - 1) AS last_year FROM ai_cube GROUP BY extract(month FROM submission_month) ORDER BY month_no",
+      "chart": {
+        "type": "line",
+        "x_column": "month_no",
+        "series_columns": [
+          "this_year",
+          "last_year"
+        ],
+        "value_column": "this_year",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "intake_vs_3_month_average",
+      "question": "Which sites sent fewer cases this month than their 3-month average?",
+      "description": "Cases this month (so far) against each site's average of the previous three months, with the percent change.",
+      "keywords": [
+        "intake",
+        "under-reporting",
+        "average",
+        "3 months",
+        "site",
+        "drop"
+      ],
+      "sql": "WITH m AS (SELECT site_id, sum(n) FILTER (WHERE submission_month = date_trunc('month', CURRENT_DATE)::date) AS this_month, round(sum(n) FILTER (WHERE submission_month >= (date_trunc('month', CURRENT_DATE)::date - interval '3 months')::date AND submission_month < date_trunc('month', CURRENT_DATE)::date) / 3.0, 1) AS avg_last_3_months FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(this_month, 0) AS this_month, avg_last_3_months, round(100.0 * (coalesce(this_month, 0) - avg_last_3_months) / NULLIF(avg_last_3_months, 0), 1) AS change_pct FROM m WHERE avg_last_3_months > 0 ORDER BY change_pct",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "this_month"
+        ],
+        "value_column": "this_month",
+        "x_dimension": "site_id",
+        "reference_column": "avg_last_3_months"
+      }
+    },
+    {
+      "key": "subcentres_vs_3_month_average",
+      "question": "Which sub-centres sent fewer cases this month than their 3-month average?",
+      "description": "Cases this month at each level-5 unit (sub-centre in the state projects) against its average of the previous three months.",
+      "keywords": [
+        "sub-centre",
+        "intake",
+        "under-reporting",
+        "average",
+        "unit"
+      ],
+      "sql": "WITH m AS (SELECT project_id, org_l1_name, org_l5_name, sum(n) FILTER (WHERE submission_month = date_trunc('month', CURRENT_DATE)::date) AS this_month, round(sum(n) FILTER (WHERE submission_month >= (date_trunc('month', CURRENT_DATE)::date - interval '3 months')::date AND submission_month < date_trunc('month', CURRENT_DATE)::date) / 3.0, 1) AS avg_last_3_months FROM ai_cube WHERE org_l5_name IS NOT NULL GROUP BY project_id, org_l1_name, org_l5_name) SELECT org_l5_name, org_l1_name, project_id, coalesce(this_month, 0) AS this_month, avg_last_3_months, round(100.0 * (coalesce(this_month, 0) - avg_last_3_months) / NULLIF(avg_last_3_months, 0), 1) AS change_pct FROM m WHERE avg_last_3_months > 0 ORDER BY change_pct",
+      "chart": {
+        "type": "comparison",
+        "x_column": "org_l5_name",
+        "series_columns": [
+          "this_month"
+        ],
+        "value_column": "this_month",
+        "x_dimension": "org_l5_name",
+        "reference_column": "avg_last_3_months"
+      }
+    },
+    {
+      "key": "subcentres_silent",
+      "question": "Which sub-centres have sent no cases this month or last month?",
+      "description": "Level-5 units (sub-centres) that sent cases before but none since the start of last month, with their last case month.",
+      "keywords": [
+        "sub-centre",
+        "silent",
+        "no cases",
+        "30 days",
+        "unit"
+      ],
+      "sql": "SELECT org_l5_name, org_l1_name, project_id, max(submission_month) AS last_case_month, sum(n) AS cases_ever FROM ai_cube WHERE org_l5_name IS NOT NULL GROUP BY project_id, org_l1_name, org_l5_name HAVING max(submission_month) < (date_trunc('month', CURRENT_DATE)::date - interval '1 month')::date ORDER BY last_case_month",
+      "chart": {
+        "type": "table",
+        "x_column": "org_l5_name",
+        "series_columns": [
+          "cases_ever"
+        ],
+        "value_column": "cases_ever",
+        "x_dimension": "org_l5_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "telephonic_share_by_site",
+      "question": "What share of interviews is telephonic, by site?",
+      "description": "Telephonic consents as a percentage of consented interviews per site, with the all-sites share.",
+      "keywords": [
+        "telephonic",
+        "phone",
+        "in person",
+        "consent mode",
+        "site"
+      ],
+      "sql": "WITH s AS (SELECT site_id, sum(n) FILTER (WHERE consent_mode IN ('yes', 'telephonic_consent')) AS base, sum(n) FILTER (WHERE consent_mode = 'telephonic_consent') AS hits FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(hits, 0) AS telephonic, round(100.0 * hits / NULLIF(base, 0), 1) AS telephonic_pct, round(100.0 * sum(hits) OVER () / NULLIF(sum(base) OVER (), 0), 1) AS all_sites_pct, rank() OVER (ORDER BY hits::numeric / NULLIF(base, 0) DESC NULLS LAST) AS rank FROM s ORDER BY telephonic_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "telephonic_pct"
+        ],
+        "value_column": "telephonic_pct",
+        "x_dimension": "site_id",
+        "reference_column": "all_sites_pct"
+      }
+    },
+    {
+      "key": "dm_not_codeable_reasons",
+      "question": "Why did data managers mark cases not codeable, by site?",
+      "description": "Cases marked not codeable by a data manager, by site and recorded reason.",
+      "keywords": [
+        "not codeable",
+        "data manager",
+        "reason",
+        "why",
+        "site"
+      ],
+      "sql": "SELECT site_id, dm_not_codeable_reason, sum(n) AS cases FROM ai_cube WHERE dm_not_codeable_reason IS NOT NULL GROUP BY site_id, dm_not_codeable_reason ORDER BY cases DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "odk_sync_issues_by_site",
+      "question": "Which sites have the most ODK sync problems?",
+      "description": "Cases with an ODK sync issue by site and issue code. Cases retired from ODK are excluded from every AI table.",
+      "keywords": [
+        "odk",
+        "sync",
+        "problem",
+        "issue",
+        "site"
+      ],
+      "sql": "SELECT site_id, odk_sync_issue_code, sum(n) AS cases FROM ai_cube WHERE odk_sync_issue_code IS NOT NULL GROUP BY site_id, odk_sync_issue_code ORDER BY cases DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "nqa_trend_by_site",
+      "question": "Where is narrative quality falling month on month?",
+      "description": "Mean narrative quality score per site and month over the last six months, with the change from the previous month.",
+      "keywords": [
+        "narrative",
+        "quality",
+        "trend",
+        "falling",
+        "month on month",
+        "site"
+      ],
+      "sql": "WITH m AS (SELECT site_id, submission_month, round(sum(nqa_score_sum)::numeric / NULLIF(sum(nqa_scored_n), 0), 2) AS avg_score FROM ai_cube WHERE submission_month >= (date_trunc('month', CURRENT_DATE)::date - interval '6 months')::date GROUP BY site_id, submission_month) SELECT site_id, submission_month, avg_score, avg_score - lag(avg_score) OVER (PARTITION BY site_id ORDER BY submission_month) AS change FROM m ORDER BY site_id, submission_month",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "avg_score"
+        ],
+        "value_column": "avg_score",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "intake_same_month_last_year",
+      "question": "How does this month compare with the same month last year at each site?",
+      "description": "Cases this month (so far) against the same calendar month last year, per site, with the percent change.",
+      "keywords": [
+        "same month last year",
+        "year on year",
+        "intake",
+        "site"
+      ],
+      "sql": "WITH m AS (SELECT site_id, sum(n) FILTER (WHERE submission_month = date_trunc('month', CURRENT_DATE)::date) AS this_month, sum(n) FILTER (WHERE submission_month = (date_trunc('month', CURRENT_DATE)::date - interval '1 year')::date) AS same_month_last_year FROM ai_cube GROUP BY site_id) SELECT site_id, coalesce(this_month, 0) AS this_month, coalesce(same_month_last_year, 0) AS same_month_last_year, round(100.0 * (coalesce(this_month, 0) - same_month_last_year) / NULLIF(same_month_last_year, 0), 1) AS change_pct FROM m ORDER BY change_pct NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "this_month"
+        ],
+        "value_column": "this_month",
+        "x_dimension": "site_id",
+        "reference_column": "same_month_last_year"
+      }
+    },
+    {
+      "key": "backlog_by_language",
+      "question": "In which narration languages is coding held back?",
+      "description": "Cases waiting for or in coding per narration language, and their share of that language's cases.",
+      "keywords": [
+        "backlog",
+        "language",
+        "narration",
+        "waiting",
+        "coding"
+      ],
+      "sql": "SELECT narration_language, sum(n) FILTER (WHERE workflow_state IN ('ready_for_coding', 'coding_in_progress')) AS backlog, sum(n) AS cases, round(100.0 * sum(n) FILTER (WHERE workflow_state IN ('ready_for_coding', 'coding_in_progress')) / NULLIF(sum(n), 0), 1) AS backlog_pct FROM ai_cube GROUP BY narration_language ORDER BY backlog DESC NULLS LAST",
+      "chart": {
+        "type": "bar",
+        "x_column": "narration_language",
+        "series_columns": [
+          "backlog"
+        ],
+        "value_column": "backlog",
+        "x_dimension": "narration_language",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "backlog_vs_coders_by_language",
+      "question": "How does the backlog in each language compare with the coders who code in it?",
+      "description": "Coding backlog per narration language against coders with that coding language, and those signed in within 30 days. A coder granted at two places counts once per place.",
+      "keywords": [
+        "backlog",
+        "language",
+        "coders",
+        "capacity",
+        "staffing"
+      ],
+      "sql": "WITH b AS (SELECT narration_language AS lang, sum(n) AS backlog FROM ai_cube WHERE workflow_state IN ('ready_for_coding', 'coding_in_progress') GROUP BY narration_language), c AS (SELECT coding_language AS lang, sum(staff) AS coders, sum(signed_in_30d) AS active_coders FROM ai_staff WHERE role = 'coder' AND coding_language IS NOT NULL GROUP BY coding_language) SELECT b.lang AS narration_language, b.backlog, coalesce(c.coders, 0) AS coders, coalesce(c.active_coders, 0) AS coders_signed_in_30d, round(b.backlog::numeric / NULLIF(c.active_coders, 0), 1) AS backlog_per_active_coder FROM b LEFT JOIN c ON c.lang = b.lang ORDER BY b.backlog DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "narration_language",
+        "series_columns": [
+          "backlog",
+          "coders_signed_in_30d"
+        ],
+        "value_column": null,
+        "x_dimension": "narration_language",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "backlog_sites_without_coder",
+      "question": "Which sites have a coding backlog but no active coder?",
+      "description": "Coding backlog per site against coders granted for that site and those signed in within 30 days. Project-wide and unit coders are not counted here.",
+      "keywords": [
+        "backlog",
+        "no coder",
+        "staffing",
+        "site",
+        "gap"
+      ],
+      "sql": "WITH b AS (SELECT project_id, site_id, sum(n) AS backlog FROM ai_cube WHERE workflow_state IN ('ready_for_coding', 'coding_in_progress') GROUP BY project_id, site_id), c AS (SELECT project_id, site_id, sum(staff) AS coders, sum(signed_in_30d) AS active FROM ai_staff WHERE role = 'coder' AND coding_language IS NULL AND site_id IS NOT NULL GROUP BY project_id, site_id) SELECT b.site_id, b.project_id, b.backlog, coalesce(c.coders, 0) AS site_coders, coalesce(c.active, 0) AS site_coders_signed_in_30d FROM b LEFT JOIN c ON c.project_id = b.project_id AND c.site_id = b.site_id ORDER BY coalesce(c.active, 0), b.backlog DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "backlog",
+          "site_coders_signed_in_30d"
+        ],
+        "value_column": null,
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "finalised_this_week_vs_last",
+      "question": "How many cases were finalised this week compared with last week?",
+      "description": "Final causes saved this ISO week (so far) and last week, by site.",
+      "keywords": [
+        "finalised",
+        "this week",
+        "last week",
+        "throughput",
+        "site"
+      ],
+      "sql": "SELECT site_id, sum(n) FILTER (WHERE final_saved_week = date_trunc('week', CURRENT_DATE)::date) AS this_week, sum(n) FILTER (WHERE final_saved_week = (date_trunc('week', CURRENT_DATE) - interval '1 week')::date) AS last_week FROM ai_cube WHERE final_saved_week >= (date_trunc('week', CURRENT_DATE) - interval '1 week')::date GROUP BY site_id ORDER BY this_week DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "site_id",
+        "series_columns": [
+          "this_week"
+        ],
+        "value_column": "this_week",
+        "x_dimension": "site_id",
+        "reference_column": "last_week"
+      }
+    },
+    {
+      "key": "finals_by_week",
+      "question": "How many final causes were saved each week over the last 12 weeks?",
+      "description": "Final causes saved per ISO week, with the change from the week before.",
+      "keywords": [
+        "finalised",
+        "weekly",
+        "trend",
+        "throughput"
+      ],
+      "sql": "WITH w AS (SELECT final_saved_week, sum(n) AS finals FROM ai_cube WHERE final_saved_week >= (CURRENT_DATE - interval '12 weeks')::date GROUP BY final_saved_week) SELECT final_saved_week, finals, finals - lag(finals) OVER (ORDER BY final_saved_week) AS change FROM w ORDER BY final_saved_week",
+      "chart": {
+        "type": "line",
+        "x_column": "final_saved_week",
+        "series_columns": [
+          "finals"
+        ],
+        "value_column": "finals",
+        "x_dimension": "final_saved_week",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "reviewer_queue_vs_reviewers",
+      "question": "What is the reviewer queue per site against the reviewers available?",
+      "description": "Cases eligible for or in review per site against reviewers granted for that site. Project-wide and unit reviewers are not counted here.",
+      "keywords": [
+        "reviewer",
+        "queue",
+        "staffing",
+        "site"
+      ],
+      "sql": "WITH b AS (SELECT project_id, site_id, sum(n) AS queue FROM ai_cube WHERE workflow_state IN ('reviewer_eligible', 'reviewer_coding_in_progress') GROUP BY project_id, site_id), r AS (SELECT project_id, site_id, sum(staff) AS reviewers, sum(signed_in_30d) AS active FROM ai_staff WHERE role = 'reviewer' AND coding_language IS NULL AND site_id IS NOT NULL GROUP BY project_id, site_id) SELECT b.site_id, b.project_id, b.queue, coalesce(r.reviewers, 0) AS site_reviewers, coalesce(r.active, 0) AS site_reviewers_signed_in_30d FROM b LEFT JOIN r ON r.project_id = b.project_id AND r.site_id = b.site_id ORDER BY b.queue DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "site_id",
+        "series_columns": [
+          "queue",
+          "site_reviewers"
+        ],
+        "value_column": null,
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coder_speed",
+      "question": "Which coders finalise fastest? Minutes from allocation to final, against peers",
+      "description": "Per coder over the last three months: finals, average elapsed minutes from allocation to final save and share under 3 minutes, against the project median share. Elapsed time, not time on screen.",
+      "keywords": [
+        "coder",
+        "speed",
+        "fast",
+        "minutes",
+        "time",
+        "allocation",
+        "too little time"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(finals) AS finals, round(sum(alloc_to_final_min_sum)::numeric / NULLIF(sum(timed_finals), 0), 1) AS avg_minutes, round(100.0 * sum(finals_under_3_min) / NULLIF(sum(timed_finals), 0), 1) AS under_3_min_pct FROM ai_coder WHERE month >= (date_trunc('month', CURRENT_DATE)::date - interval '3 months')::date GROUP BY coder_number, coder_name, project_id HAVING sum(timed_finals) >= 5), p AS (SELECT project_id, percentile_cont(0.5) WITHIN GROUP (ORDER BY under_3_min_pct) AS median_pct FROM c GROUP BY project_id) SELECT c.coder_name, c.project_id, c.finals, c.avg_minutes, c.under_3_min_pct, round(p.median_pct::numeric, 1) AS peer_median_pct FROM c JOIN p ON p.project_id = c.project_id ORDER BY c.under_3_min_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "under_3_min_pct"
+        ],
+        "value_column": "under_3_min_pct",
+        "x_dimension": null,
+        "reference_column": "peer_median_pct"
+      }
+    },
+    {
+      "key": "coder_finals_vs_median",
+      "question": "Which coders finalised the most cases last month, against the project median?",
+      "description": "Finals per coder in the last full month against the median coder of the same project.",
+      "keywords": [
+        "coder",
+        "throughput",
+        "finals",
+        "productivity",
+        "median"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(finals) AS finals FROM ai_coder WHERE month = (date_trunc('month', CURRENT_DATE)::date - interval '1 month')::date GROUP BY coder_number, coder_name, project_id HAVING sum(finals) > 0), p AS (SELECT project_id, percentile_cont(0.5) WITHIN GROUP (ORDER BY finals) AS median_finals FROM c GROUP BY project_id) SELECT c.coder_name, c.project_id, c.finals, round(p.median_finals::numeric, 1) AS project_median, rank() OVER (PARTITION BY c.project_id ORDER BY c.finals DESC) AS rank FROM c JOIN p ON p.project_id = c.project_id ORDER BY c.finals DESC",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "finals"
+        ],
+        "value_column": "finals",
+        "x_dimension": null,
+        "reference_column": "project_median"
+      }
+    },
+    {
+      "key": "coder_unknown_share",
+      "question": "Which coders give an unknown cause most often, against peers?",
+      "description": "Share of each coder's finals in the cause-unknown section, against the project average of coders.",
+      "keywords": [
+        "coder",
+        "unknown",
+        "ill-defined",
+        "quality"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(finals) AS finals, round(100.0 * sum(unknown_cause) / NULLIF(sum(finals), 0), 1) AS unknown_pct FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(finals) >= 10) SELECT c.*, round(avg(unknown_pct) OVER (PARTITION BY project_id), 1) AS peer_average FROM c ORDER BY unknown_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "unknown_pct"
+        ],
+        "value_column": "unknown_pct",
+        "x_dimension": null,
+        "reference_column": "peer_average"
+      }
+    },
+    {
+      "key": "coder_smartva_disagreement",
+      "question": "Which coders disagree most with SmartVA, against peers?",
+      "description": "Share of each coder's finals whose WHO cause differs from SmartVA's top cause, where SmartVA gave one, against the project average.",
+      "keywords": [
+        "coder",
+        "smartva",
+        "disagree",
+        "agreement"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(smartva_compared) AS compared, round(100.0 - 100.0 * sum(smartva_match) / NULLIF(sum(smartva_compared), 0), 1) AS disagree_pct FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(smartva_compared) >= 10) SELECT c.*, round(avg(disagree_pct) OVER (PARTITION BY project_id), 1) AS peer_average FROM c ORDER BY disagree_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "disagree_pct"
+        ],
+        "value_column": "disagree_pct",
+        "x_dimension": null,
+        "reference_column": "peer_average"
+      }
+    },
+    {
+      "key": "coder_reviewer_changes",
+      "question": "Whose finals are most often changed by a reviewer?",
+      "description": "Per coder: finals a reviewer also coded and the share where the reviewer's code differs, against the project average.",
+      "keywords": [
+        "coder",
+        "reviewer",
+        "changed",
+        "overturned",
+        "quality"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(reviewer_finals) AS reviewed, round(100.0 * sum(reviewer_changed) / NULLIF(sum(reviewer_finals), 0), 1) AS changed_pct FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(reviewer_finals) > 0) SELECT c.*, round(avg(changed_pct) OVER (PARTITION BY project_id), 1) AS peer_average FROM c ORDER BY changed_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "changed_pct"
+        ],
+        "value_column": "changed_pct",
+        "x_dimension": null,
+        "reference_column": "peer_average"
+      }
+    },
+    {
+      "key": "coder_not_codeable",
+      "question": "Which coders mark the most cases not codeable?",
+      "description": "Per coder: cases marked not codeable and their share of the coder's finals plus marks, against the project average.",
+      "keywords": [
+        "coder",
+        "not codeable",
+        "quality"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(not_codeable) AS not_codeable, round(100.0 * sum(not_codeable) / NULLIF(sum(finals) + sum(not_codeable), 0), 1) AS not_codeable_pct FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(finals) + sum(not_codeable) >= 10) SELECT c.*, round(avg(not_codeable_pct) OVER (PARTITION BY project_id), 1) AS peer_average FROM c ORDER BY not_codeable_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "not_codeable_pct"
+        ],
+        "value_column": "not_codeable_pct",
+        "x_dimension": null,
+        "reference_column": "peer_average"
+      }
+    },
+    {
+      "key": "coder_smartva_copying",
+      "question": "Which coders appear to copy SmartVA?",
+      "description": "Per coder: share of finals matching SmartVA's top WHO cause, the same share when SmartVA's likelihood is low ('Somewhat Likely' or 'Possible'), exact ICD-10 matches and finals under 3 minutes, against the project average of the low-likelihood share. High agreement when SmartVA is unsure, with fast finals, is the strongest signal.",
+      "keywords": [
+        "coder",
+        "smartva",
+        "copy",
+        "copying",
+        "agreement",
+        "likelihood"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(finals) AS finals, round(100.0 * sum(smartva_match) / NULLIF(sum(smartva_compared), 0), 1) AS match_pct, round(100.0 * sum(smartva_match_low_likelihood) / NULLIF(sum(smartva_low_likelihood), 0), 1) AS match_when_unlikely_pct, round(100.0 * sum(exact_icd_match) / NULLIF(sum(smartva_compared), 0), 1) AS exact_icd_pct, round(100.0 * sum(finals_under_3_min) / NULLIF(sum(timed_finals), 0), 1) AS under_3_min_pct FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(smartva_compared) >= 10) SELECT c.*, round(avg(match_when_unlikely_pct) OVER (PARTITION BY project_id), 1) AS peer_average FROM c ORDER BY match_when_unlikely_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "match_pct",
+          "match_when_unlikely_pct"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": "peer_average"
+      }
+    },
+    {
+      "key": "coder_doris_flags",
+      "question": "Which coders get the most DORIS flags?",
+      "description": "Per coder in ICD-11 DORIS projects: finals checked by DORIS, rejections, warnings, age/sex confirmations, causing-condition-unknown uses and finals that differ from DORIS's underlying cause.",
+      "keywords": [
+        "coder",
+        "doris",
+        "rejection",
+        "warning",
+        "age",
+        "sex",
+        "plausibility",
+        "override",
+        "icd-11"
+      ],
+      "sql": "SELECT coder_name, project_id, sum(doris_checked) AS checked, sum(doris_rejections) AS rejections, sum(doris_warnings) AS warnings, sum(age_sex_confirmations) AS age_sex_confirmations, sum(causing_condition_unknown) AS causing_condition_unknown, sum(doris_overridden) AS overrides FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(doris_checked) > 0 ORDER BY sum(doris_rejections) + sum(doris_warnings) DESC",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "coder_name",
+        "series_columns": [
+          "rejections",
+          "warnings",
+          "age_sex_confirmations",
+          "overrides"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coder_neonatal_unknown",
+      "question": "Which coders give an unknown cause most often in neonatal deaths?",
+      "description": "Share of each coder's neonatal finals in the cause-unknown section, against the project average.",
+      "keywords": [
+        "coder",
+        "neonatal",
+        "newborn",
+        "unknown"
+      ],
+      "sql": "WITH c AS (SELECT coder_number, coder_name, project_id, sum(neonate_finals) AS neonatal_finals, round(100.0 * sum(neonate_unknown_cause) / NULLIF(sum(neonate_finals), 0), 1) AS unknown_pct FROM ai_coder GROUP BY coder_number, coder_name, project_id HAVING sum(neonate_finals) >= 5) SELECT c.*, round(avg(unknown_pct) OVER (PARTITION BY project_id), 1) AS peer_average FROM c ORDER BY unknown_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "coder_name",
+        "series_columns": [
+          "unknown_pct"
+        ],
+        "value_column": "unknown_pct",
+        "x_dimension": null,
+        "reference_column": "peer_average"
+      }
+    },
+    {
+      "key": "never_signed_in_by_role",
+      "question": "How many users were granted a role but have never signed in?",
+      "description": "Active users per role and the number and share who have never signed in.",
+      "keywords": [
+        "users",
+        "never signed in",
+        "onboarding",
+        "role",
+        "activation"
+      ],
+      "sql": "SELECT role, sum(staff) AS staff, sum(never_signed_in) AS never_signed_in, round(100.0 * sum(never_signed_in) / NULLIF(sum(staff), 0), 1) AS never_pct FROM ai_staff WHERE coding_language IS NULL GROUP BY role ORDER BY never_signed_in DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "role",
+        "series_columns": [
+          "staff",
+          "never_signed_in"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "dormant_grants_by_site",
+      "question": "Which sites have dormant grants for 30 days?",
+      "description": "Users granted over 30 days ago who have not signed in for 30 days, per project, site and role.",
+      "keywords": [
+        "dormant",
+        "inactive",
+        "grants",
+        "30 days",
+        "site"
+      ],
+      "sql": "SELECT project_id, site_id, role, sum(staff) AS staff, sum(dormant_30d) AS dormant_30d FROM ai_staff WHERE coding_language IS NULL GROUP BY project_id, site_id, role HAVING sum(dormant_30d) > 0 ORDER BY dormant_30d DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "dormant_30d"
+        ],
+        "value_column": "dormant_30d",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "unverified_email_by_role",
+      "question": "How many users have an unverified email, by role?",
+      "description": "Active users per role whose email is not verified.",
+      "keywords": [
+        "email",
+        "unverified",
+        "users",
+        "role"
+      ],
+      "sql": "SELECT role, sum(staff) AS staff, sum(unverified_email) AS unverified_email FROM ai_staff WHERE coding_language IS NULL GROUP BY role ORDER BY unverified_email DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "role",
+        "series_columns": [
+          "unverified_email"
+        ],
+        "value_column": "unverified_email",
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "new_grants_activation",
+      "question": "Are newly granted users signing in?",
+      "description": "Users granted in the last 30 days per role, against those signed in within 7 days and those never signed in.",
+      "keywords": [
+        "onboarding",
+        "new",
+        "grants",
+        "activation",
+        "signed in"
+      ],
+      "sql": "SELECT role, sum(granted_30d) AS granted_30d, sum(signed_in_7d) AS signed_in_7d, sum(never_signed_in) AS never_signed_in FROM ai_staff WHERE coding_language IS NULL GROUP BY role HAVING sum(granted_30d) > 0 ORDER BY granted_30d DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "role",
+        "series_columns": [
+          "granted_30d",
+          "signed_in_7d",
+          "never_signed_in"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "units_coder_no_interviewer",
+      "question": "Which units have a coder but no interviewer, or an interviewer but no coder?",
+      "description": "Org units holding unit grants, with coders and interviewers granted at that unit, where one of the two is missing.",
+      "keywords": [
+        "unit",
+        "sub-centre",
+        "no interviewer",
+        "no coder",
+        "staffing",
+        "gap"
+      ],
+      "sql": "SELECT project_id, coalesce(org_l7_name, org_l6_name, org_l5_name, org_l4_name, org_l3_name, org_l2_name, org_l1_name) AS unit_name, coalesce(sum(staff) FILTER (WHERE role = 'coder'), 0) AS coders, coalesce(sum(staff) FILTER (WHERE role = 'interviewer'), 0) AS interviewers FROM ai_staff WHERE coding_language IS NULL AND org_l1_name IS NOT NULL GROUP BY 1, 2 HAVING coalesce(sum(staff) FILTER (WHERE role = 'coder'), 0) = 0 OR coalesce(sum(staff) FILTER (WHERE role = 'interviewer'), 0) = 0 ORDER BY 1, 2",
+      "chart": {
+        "type": "table",
+        "x_column": "unit_name",
+        "series_columns": [
+          "coders",
+          "interviewers"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "subcentres_without_interviewer",
+      "question": "Which sub-centres have cases but no interviewer?",
+      "description": "Level-5 units (sub-centres) with cases, with no interviewer granted at that unit.",
+      "keywords": [
+        "sub-centre",
+        "no interviewer",
+        "staffing",
+        "gap",
+        "unit"
+      ],
+      "sql": "WITH u AS (SELECT project_id, org_l1_name, org_l5_name, sum(n) AS cases FROM ai_cube WHERE org_l5_name IS NOT NULL GROUP BY project_id, org_l1_name, org_l5_name), i AS (SELECT project_id, org_l1_name, org_l5_name, sum(staff) AS interviewers FROM ai_staff WHERE role = 'interviewer' AND coding_language IS NULL AND org_l5_name IS NOT NULL GROUP BY project_id, org_l1_name, org_l5_name) SELECT u.org_l5_name, u.org_l1_name, u.project_id, u.cases FROM u LEFT JOIN i ON i.project_id = u.project_id AND i.org_l1_name IS NOT DISTINCT FROM u.org_l1_name AND i.org_l5_name = u.org_l5_name WHERE i.interviewers IS NULL ORDER BY u.cases DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "org_l5_name",
+        "series_columns": [
+          "cases"
+        ],
+        "value_column": "cases",
+        "x_dimension": "org_l5_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "districts_workforce_coverage",
+      "question": "Which districts with cases have no coder or no interviewer?",
+      "description": "Level-1 units (districts) with cases against coders and interviewers granted inside that district. Project and site grants are not counted here.",
+      "keywords": [
+        "district",
+        "workforce",
+        "coverage",
+        "coders",
+        "interviewers",
+        "staffing"
+      ],
+      "sql": "WITH d AS (SELECT project_id, org_l1_name, sum(n) AS cases FROM ai_cube WHERE org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name), s AS (SELECT project_id, org_l1_name, sum(staff) FILTER (WHERE role = 'coder') AS coders, sum(staff) FILTER (WHERE role = 'interviewer') AS interviewers FROM ai_staff WHERE coding_language IS NULL AND org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name) SELECT d.org_l1_name, d.project_id, d.cases, coalesce(s.coders, 0) AS coders, coalesce(s.interviewers, 0) AS interviewers FROM d LEFT JOIN s ON s.project_id = d.project_id AND s.org_l1_name = d.org_l1_name ORDER BY coalesce(s.coders, 0) + coalesce(s.interviewers, 0), d.cases DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "coders",
+          "interviewers"
+        ],
+        "value_column": null,
+        "x_dimension": "org_l1_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "training_by_district",
+      "question": "Which districts have staff who have not started training?",
+      "description": "Users granted in each district, those added to a training session and those who started one. DigitVA does not record training completion.",
+      "keywords": [
+        "training",
+        "onboarding",
+        "district",
+        "staff"
+      ],
+      "sql": "SELECT org_l1_name, project_id, sum(staff) AS staff, sum(in_training) AS in_training, sum(training_started) AS training_started FROM ai_staff WHERE coding_language IS NULL AND org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name ORDER BY sum(staff) - sum(training_started) DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "staff",
+          "training_started"
+        ],
+        "value_column": null,
+        "x_dimension": "org_l1_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "coders_without_language",
+      "question": "Which coders lack a coding language?",
+      "description": "Coders with no coding language set, per project and site.",
+      "keywords": [
+        "coder",
+        "language",
+        "missing",
+        "setup"
+      ],
+      "sql": "SELECT project_id, site_id, sum(staff) AS coders, sum(no_coding_language) AS no_coding_language FROM ai_staff WHERE role = 'coder' AND coding_language IS NULL GROUP BY project_id, site_id ORDER BY no_coding_language DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "no_coding_language"
+        ],
+        "value_column": "no_coding_language",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "top_causes_by_district",
+      "question": "What are the top causes by district, against the state?",
+      "description": "The five most frequent WHO causes in each level-1 unit (district), with the district share and the project (state) share of the same cause.",
+      "keywords": [
+        "district",
+        "top causes",
+        "state",
+        "comparison"
+      ],
+      "sql": "WITH d AS (SELECT project_id, org_l1_name, authoritative_who_bucket, sum(n) AS deaths FROM ai_cube WHERE org_l1_name IS NOT NULL AND authoritative_who_bucket IS NOT NULL GROUP BY project_id, org_l1_name, authoritative_who_bucket), r AS (SELECT project_id, org_l1_name, authoritative_who_bucket, deaths, round(100.0 * deaths / NULLIF(sum(deaths) OVER (PARTITION BY project_id, org_l1_name), 0), 1) AS district_pct, round(100.0 * sum(deaths) OVER (PARTITION BY project_id, authoritative_who_bucket) / NULLIF(sum(deaths) OVER (PARTITION BY project_id), 0), 1) AS state_pct, row_number() OVER (PARTITION BY project_id, org_l1_name ORDER BY deaths DESC) AS position FROM d) SELECT org_l1_name, authoritative_who_bucket, deaths, district_pct, state_pct, project_id FROM r WHERE position <= 5 ORDER BY project_id, org_l1_name, deaths DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "deaths"
+        ],
+        "value_column": "deaths",
+        "x_dimension": "org_l1_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "maternal_deaths_by_district_month",
+      "question": "How many maternal deaths were there by district and month?",
+      "description": "Deaths in the pregnancy, childbirth and puerperium section per level-1 unit (district) and submission month.",
+      "keywords": [
+        "maternal",
+        "district",
+        "month",
+        "pregnancy"
+      ],
+      "sql": "SELECT org_l1_name, submission_month, sum(n) AS maternal_deaths FROM ai_cube WHERE authoritative_who_bucket_section = 'Pregnancy-, childbirth and puerperium-related disorders' GROUP BY org_l1_name, submission_month ORDER BY org_l1_name, submission_month",
+      "chart": {
+        "type": "table",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "maternal_deaths"
+        ],
+        "value_column": "maternal_deaths",
+        "x_dimension": "org_l1_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "neonatal_child_by_district",
+      "question": "Are neonatal and child deaths by district above or below the state rate?",
+      "description": "Neonatal and child deaths as a share of all deaths per level-1 unit (district), against the project (state) share.",
+      "keywords": [
+        "neonatal",
+        "child",
+        "district",
+        "state",
+        "rate"
+      ],
+      "sql": "WITH d AS (SELECT project_id, org_l1_name, sum(n) AS deaths, sum(n) FILTER (WHERE analytics_age_band = 'neonate') AS neonatal, sum(n) FILTER (WHERE analytics_age_band = 'child') AS child FROM ai_cube WHERE org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name) SELECT org_l1_name, project_id, deaths, round(100.0 * neonatal / NULLIF(deaths, 0), 1) AS neonatal_pct, round(100.0 * child / NULLIF(deaths, 0), 1) AS child_pct, round(100.0 * sum(neonatal) OVER (PARTITION BY project_id) / NULLIF(sum(deaths) OVER (PARTITION BY project_id), 0), 1) AS state_neonatal_pct, round(100.0 * sum(child) OVER (PARTITION BY project_id) / NULLIF(sum(deaths) OVER (PARTITION BY project_id), 0), 1) AS state_child_pct FROM d ORDER BY neonatal_pct NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "neonatal_pct"
+        ],
+        "value_column": "neonatal_pct",
+        "x_dimension": "org_l1_name",
+        "reference_column": "state_neonatal_pct"
+      }
+    },
+    {
+      "key": "injury_suicide_by_district",
+      "question": "Injury and suicide deaths by district, sex and age",
+      "description": "External-cause and intentional self-harm deaths per level-1 unit (district), by sex and among 15 to 49 year olds.",
+      "keywords": [
+        "injury",
+        "suicide",
+        "self-harm",
+        "district",
+        "sex",
+        "age"
+      ],
+      "sql": "SELECT org_l1_name, sum(n) AS injury_deaths, sum(n) FILTER (WHERE authoritative_who_bucket = 'Intentional self-harm') AS self_harm, sum(n) FILTER (WHERE lower(sex) = 'male') AS male, sum(n) FILTER (WHERE lower(sex) = 'female') AS female, sum(n) FILTER (WHERE analytics_age_band = '15_49y') AS age_15_49 FROM ai_cube WHERE authoritative_who_bucket_section = 'External causes of death' GROUP BY org_l1_name ORDER BY injury_deaths DESC",
+      "chart": {
+        "type": "stacked_bar",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "male",
+          "female"
+        ],
+        "value_column": null,
+        "x_dimension": "org_l1_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "unknown_share_by_district",
+      "question": "Which districts have the highest unknown-cause share?",
+      "description": "Coded deaths in the cause-unknown section as a share of coded deaths per level-1 unit (district), against the project share.",
+      "keywords": [
+        "district",
+        "unknown",
+        "ill-defined",
+        "state"
+      ],
+      "sql": "WITH d AS (SELECT project_id, org_l1_name, sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL) AS coded, sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Cause of death unknown') AS unknown FROM ai_cube WHERE org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name) SELECT org_l1_name, project_id, coded, round(100.0 * unknown / NULLIF(coded, 0), 1) AS unknown_pct, round(100.0 * sum(unknown) OVER (PARTITION BY project_id) / NULLIF(sum(coded) OVER (PARTITION BY project_id), 0), 1) AS state_pct FROM d ORDER BY unknown_pct DESC NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "unknown_pct"
+        ],
+        "value_column": "unknown_pct",
+        "x_dimension": "org_l1_name",
+        "reference_column": "state_pct"
+      }
+    },
+    {
+      "key": "cases_per_district",
+      "question": "How many VA cases does each district have, and which have none recently?",
+      "description": "Cases, coded cases and the last case month per level-1 unit (district). Districts that never sent a case do not appear.",
+      "keywords": [
+        "district",
+        "coverage",
+        "cases",
+        "no data"
+      ],
+      "sql": "SELECT org_l1_name, project_id, sum(n) AS cases, sum(n) FILTER (WHERE authoritative_source IS NOT NULL) AS coded, max(submission_month) AS last_case_month FROM ai_cube GROUP BY project_id, org_l1_name ORDER BY cases DESC",
+      "chart": {
+        "type": "bar",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "cases",
+          "coded"
+        ],
+        "value_column": null,
+        "x_dimension": "org_l1_name",
+        "reference_column": null
+      }
+    },
+    {
+      "key": "underreporting_subcentres",
+      "question": "Which sub-centres report fewer deaths than comparable units?",
+      "description": "Deaths per level-5 unit (sub-centre) in the last three months against the median sub-centre of the same district and against its own previous three months.",
+      "keywords": [
+        "under-reporting",
+        "sub-centre",
+        "median",
+        "peers",
+        "district"
+      ],
+      "sql": "WITH u AS (SELECT project_id, org_l1_name, org_l5_name, coalesce(sum(n) FILTER (WHERE submission_month >= (date_trunc('month', CURRENT_DATE)::date - interval '3 months')::date), 0) AS last_3_months, coalesce(sum(n) FILTER (WHERE submission_month >= (date_trunc('month', CURRENT_DATE)::date - interval '6 months')::date AND submission_month < (date_trunc('month', CURRENT_DATE)::date - interval '3 months')::date), 0) AS prior_3_months FROM ai_cube WHERE org_l5_name IS NOT NULL GROUP BY project_id, org_l1_name, org_l5_name), p AS (SELECT project_id, org_l1_name, percentile_cont(0.5) WITHIN GROUP (ORDER BY last_3_months) AS district_median FROM u GROUP BY project_id, org_l1_name) SELECT u.org_l5_name, u.org_l1_name, u.project_id, u.last_3_months, u.prior_3_months, round(p.district_median::numeric, 1) AS district_median FROM u JOIN p ON p.project_id = u.project_id AND p.org_l1_name IS NOT DISTINCT FROM u.org_l1_name ORDER BY u.last_3_months - p.district_median",
+      "chart": {
+        "type": "comparison",
+        "x_column": "org_l5_name",
+        "series_columns": [
+          "last_3_months",
+          "prior_3_months"
+        ],
+        "value_column": null,
+        "x_dimension": "org_l5_name",
+        "reference_column": "district_median"
+      }
+    },
+    {
+      "key": "underreporting_groups_by_district",
+      "question": "Which districts report few neonatal, female or maternal deaths compared with the state?",
+      "description": "Neonatal, female and maternal deaths as shares of all deaths per level-1 unit (district), against the project (state) shares.",
+      "keywords": [
+        "under-reporting",
+        "neonatal",
+        "female",
+        "maternal",
+        "district",
+        "state"
+      ],
+      "sql": "WITH d AS (SELECT project_id, org_l1_name, sum(n) AS deaths, sum(n) FILTER (WHERE analytics_age_band = 'neonate') AS neonatal, sum(n) FILTER (WHERE lower(sex) = 'female') AS female, sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Pregnancy-, childbirth and puerperium-related disorders') AS maternal FROM ai_cube WHERE org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name) SELECT org_l1_name, project_id, deaths, round(100.0 * female / NULLIF(deaths, 0), 1) AS female_pct, round(100.0 * sum(female) OVER (PARTITION BY project_id) / NULLIF(sum(deaths) OVER (PARTITION BY project_id), 0), 1) AS state_female_pct, round(100.0 * neonatal / NULLIF(deaths, 0), 1) AS neonatal_pct, round(100.0 * maternal / NULLIF(deaths, 0), 1) AS maternal_pct FROM d ORDER BY female_pct NULLS FIRST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "female_pct"
+        ],
+        "value_column": "female_pct",
+        "x_dimension": "org_l1_name",
+        "reference_column": "state_female_pct"
+      }
+    },
+    {
+      "key": "smartva_agreement_by_district",
+      "question": "How often does SmartVA agree with the physician by district?",
+      "description": "Share of coded deaths where SmartVA's top WHO cause equals the final cause, per level-1 unit (district), against the project share.",
+      "keywords": [
+        "smartva",
+        "agreement",
+        "physician",
+        "district"
+      ],
+      "sql": "WITH d AS (SELECT project_id, org_l1_name, sum(n) FILTER (WHERE smartva_cause1_who_bucket IS NOT NULL AND authoritative_who_bucket IS NOT NULL) AS compared, sum(n) FILTER (WHERE smartva_cause1_who_bucket = authoritative_who_bucket) AS agree FROM ai_cube WHERE org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name) SELECT org_l1_name, project_id, compared, round(100.0 * agree / NULLIF(compared, 0), 1) AS agreement_pct, round(100.0 * sum(agree) OVER (PARTITION BY project_id) / NULLIF(sum(compared) OVER (PARTITION BY project_id), 0), 1) AS state_pct FROM d ORDER BY agreement_pct NULLS LAST",
+      "chart": {
+        "type": "comparison",
+        "x_column": "org_l1_name",
+        "series_columns": [
+          "agreement_pct"
+        ],
+        "value_column": "agreement_pct",
+        "x_dimension": "org_l1_name",
+        "reference_column": "state_pct"
+      }
+    },
+    {
+      "key": "infectious_by_calendar_month",
+      "question": "Is there a seasonal pattern in infectious deaths?",
+      "description": "Infectious and parasitic disease deaths per calendar month, this year and last year.",
+      "keywords": [
+        "seasonal",
+        "infectious",
+        "month",
+        "year on year"
+      ],
+      "sql": "SELECT extract(month FROM submission_month)::int AS month_no, sum(n) FILTER (WHERE extract(year FROM submission_month) = extract(year FROM CURRENT_DATE)) AS this_year, sum(n) FILTER (WHERE extract(year FROM submission_month) = extract(year FROM CURRENT_DATE) - 1) AS last_year FROM ai_cube WHERE authoritative_who_bucket_section = 'Infectious and parasitic diseases' GROUP BY 1 ORDER BY month_no",
+      "chart": {
+        "type": "line",
+        "x_column": "month_no",
+        "series_columns": [
+          "this_year",
+          "last_year"
+        ],
+        "value_column": null,
+        "x_dimension": null,
+        "reference_column": null
+      }
+    },
+    {
+      "key": "cause_mix_site_vs_project",
+      "question": "How does each site's cause mix compare with the project mix?",
+      "description": "Share of coded deaths per WHO cause section at each site against the same share for all sites.",
+      "keywords": [
+        "cause mix",
+        "site",
+        "project",
+        "section",
+        "comparison"
+      ],
+      "sql": "WITH s AS (SELECT site_id, authoritative_who_bucket_section AS section, sum(n) AS deaths FROM ai_cube WHERE authoritative_who_bucket_section IS NOT NULL GROUP BY site_id, authoritative_who_bucket_section) SELECT site_id, section, deaths, round(100.0 * deaths / NULLIF(sum(deaths) OVER (PARTITION BY site_id), 0), 1) AS site_pct, round(100.0 * sum(deaths) OVER (PARTITION BY section) / NULLIF(sum(deaths) OVER (), 0), 1) AS all_sites_pct FROM s ORDER BY site_id, deaths DESC",
+      "chart": {
+        "type": "table",
+        "x_column": "site_id",
+        "series_columns": [
+          "site_pct"
+        ],
+        "value_column": "site_pct",
+        "x_dimension": "site_id",
+        "reference_column": null
+      }
+    }
+  ]
+}

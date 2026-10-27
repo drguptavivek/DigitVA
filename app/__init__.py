@@ -445,6 +445,10 @@ def create_app(config_class=None, register_routes=True):
     init_icd11_commands(app)
     from app.commands.va_definitions import init_app as init_va_definition_commands
     init_va_definition_commands(app)
+    from app.commands.ai_search import init_app as init_ai_search_commands
+    init_ai_search_commands(app)
+    from app.commands.ai_catalog import init_app as init_ai_catalog_commands
+    init_ai_catalog_commands(app)
     from app.commands.organization import init_app as init_org_commands
     init_org_commands(app)
     from app.commands.mentor_institute import init_app as init_mentor_commands

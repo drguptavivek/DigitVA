@@ -23,6 +23,8 @@ from app.routes import admin_va_definitions  # noqa: F401
 from app.routes import admin_coding_search_telemetry  # noqa: F401
 from app.routes import admin_devices  # noqa: F401
 from app.routes import admin_xlsform  # noqa: F401
+# Extends the `data_management` blueprint in place, the same way.
+from app.routes import ai_questions  # noqa: F401
 
 
 def register_blueprints(app):

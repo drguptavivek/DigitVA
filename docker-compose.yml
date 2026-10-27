@@ -123,6 +123,9 @@ services:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@minerva_redis_service:6379/0
       - ICD11_API_BASE_URL=http://icd_api_service
+      - TYPESENSE_HOST=minerva_typesense_service
+      - TYPESENSE_PORT=8108
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-}
     secrets:
       - pii_kem_private_key
       - bundle_server_signing_key
@@ -302,6 +305,27 @@ services:
       timeout: 5s
       retries: 5
 
+  # Typo-tolerant suggestions (app/services/ai_search_service.py). Internal
+  # network only, no host port. Index holds help text, VA definitions and
+  # catalog titles, never submission data; the app falls back to an
+  # in-process search when this is down. Empty TYPESENSE_API_KEY = it exits.
+  minerva_typesense_service:
+    image: typesense/typesense:30.2
+    container_name: minerva_typesense
+    command: --data-dir /data --enable-cors=false
+    environment:
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-}
+    volumes:
+      - typesense_data:/data
+    restart: on-failure:5
+    mem_limit: 192m
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8108 && printf \"GET /health HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q \"\\\"ok\\\":true\" <&3'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   minerva_db_service:
     image: postgres:17
     container_name: minerva_db
@@ -368,3 +392,4 @@ volumes:
   pgdata_minerva:
   icd11_runtime:
   minerva_venv:
+  typesense_data:

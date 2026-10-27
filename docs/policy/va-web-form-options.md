@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-10-06
+last_updated: 2026-10-27
 ---
 
 # VA Web Form Options Contract
@@ -40,7 +40,7 @@ questionnaire differ only by tier-2 options.
 | `instrument` | `InstrumentDefinition` (property) | **Yes** — selected by the default form type's `instrument_code` (2026-09-19) | The host must pass this once a second *standard instrument* is bundled. Built offline; never compiled at request time. |
 | `instrument_code` | string, served per form type | **Yes** (2026-09-19) | The standard instrument a form type layers on, read from `mas_form_types.base_instrument_code`; `null` when nothing is bundled for that form type, which the page renders as an error. |
 | `formTypeCode` | string, inside the instrument | Emitted by the builder | The mapping key for the instrument's own identity. Not the instrument selector — `instrument_code` is. |
-| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `medical_records`, `abha`, `doris_support_whova_2022`. Decides which sections exist. |
+| `enabled_extensions` | string[] | **Yes** — served, derived from project settings (2026-09-19) | `digitva_core`, `social_autopsy`, `intake_screen`, `geography`, `narration_language`, `death_summary`, `medical_records`, `abha`, `equity`, `doris_support_whova_2022`. Decides which sections exist. |
 
 **DigitVA form types are layers, not instruments.** `WHO_2022_VA_SOCIAL` and
 any future `WHO_2022_VA_*` are layers on the one standard WHO 2022 VA
@@ -179,7 +179,9 @@ Notes on the shape:
   `abha_number` field display config; `intake_screen` when the resolved
   welcome note is non-empty; `death_summary` from
   `web_intake_death_summary_enabled`; `medical_records` from
-  `web_intake_medical_records_enabled`.
+  `web_intake_medical_records_enabled`; `equity` from
+  `web_intake_equity_enabled` (owner 2026-10-27; `residence_type` and later
+  equity questions, `docs/policy/digitva-who-form-overrides.md`).
 - `intake_note` is the text the `intake_screen` extension renders, or `null`
   when the project turned the welcome screen off.
 - `available_locales` is the intersection of what the project allows and the

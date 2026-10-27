@@ -3,7 +3,7 @@ title: VA Form Project Configuration Policy (extensions, languages, geography)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # VA Form Project Configuration Policy
@@ -385,6 +385,7 @@ Hindi text, 96 names beyond the WHO reference:
 | `social_autopsy` | `socialautopsy` group: `socioeconomic` (`sa01` to `sa06_a`), `reachinghealthcare` (`sa07` to `sa12`), `eventchronology` (`sa13` to `sa19` with `sa_tu*` time units) |
 | `death_summary` | `death_summary` "Death Certificate (Images)": `ds_available`, `ds_count`, `ds_im1` to `ds_im5` |
 | `medical_records` | `md_records`: `md_available`, `md_count`, `md_im1` to `md_im30` |
+| `equity` | not in ND01: DigitVA addition (owner 2026-10-27), `residence_type` after `Id10055`; project switch `web_intake_equity_enabled` |
 
 These are the structural reference for those layers when they are built
 (decisions E7 and E8: overlay from a deployed form, never invented). The

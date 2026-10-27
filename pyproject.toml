@@ -45,6 +45,9 @@ dependencies = [
     "pyotp>=2.10.0",
     "segno>=1.6.6",
     "google-re2>=1.1.20251105",
+    "google-genai>=2.33.0",
+    "pglast>=8.7",
+    "anthropic>=2.3.0",
 ]
 
 [project.optional-dependencies]

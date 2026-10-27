@@ -1,0 +1,323 @@
+{% extends 'va_frontpages/va_base.html' %}
+
+{% block title %}DigitVA | AI Questions{% endblock %}
+
+{% block content %}
+<div id="ai-workspace"
+     hx-headers='{"X-CSRFToken": {{ csrf_token()|tojson }}}'
+     data-csrf="{{ csrf_token() }}"
+     data-page-path="{{ url_for('data_management.ai_questions_page') }}"
+     data-run-saved-url="{{ url_for('data_management.ai_questions_run_saved', saved_id=0) }}"
+     data-run-catalog-url="{{ url_for('data_management.ai_questions_run_catalog', key='__key__') }}"
+     data-breakdown-url="{{ url_for('data_management.ai_questions_breakdown') }}"
+     data-search-url="{{ url_for('help.suggestions') }}">
+  <div class="content-section mb-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+      <div>
+        <h4 class="content-section-title mb-0">
+          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+          AI Questions
+        </h4>
+        <div class="text-muted small mt-2">
+          Ask a question about the aggregate counts in your scope. Answers are drawn from counts only, never from individual submissions.
+        </div>
+      </div>
+      <a href="{{ url_for('data_management.dashboard') }}" class="btn btn-outline-primary">
+        <i class="fas fa-arrow-left me-1" aria-hidden="true"></i> Back to Data Management
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div id="ai-result" class="mb-3" aria-live="polite"></div>
+      <div class="content-section mb-3">
+        <h5 class="h6 mb-2"><i class="fa-solid fa-clock-rotate-left me-1" aria-hidden="true"></i> This conversation</h5>
+        <ol id="ai-history" class="small mb-0 ps-3"></ol>
+        <div id="ai-history-empty" class="small text-muted">Questions and reports you run appear here until you leave the page.</div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="content-section mb-3">
+        <label for="ai-search" class="form-label fw-semibold mb-1">
+          <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i> Search questions and help
+        </label>
+        <input type="search" id="ai-search" class="form-control form-control-sm" autocomplete="off"
+               maxlength="100" placeholder="e.g. causes by age" aria-describedby="ai-search-help" aria-controls="ai-search-results">
+        <div id="ai-search-help" class="form-text">Saved queries and catalog questions run here; help and definitions open their page.</div>
+        <ul id="ai-search-results" class="list-unstyled small mt-2 mb-0" aria-live="polite"></ul>
+      </div>
+
+      <div class="content-section mb-3">
+        <h5 class="h6 mb-2"><i class="fa-solid fa-chart-simple me-1" aria-hidden="true"></i> Built-in reports</h5>
+        <div class="d-flex flex-column gap-1">
+          {% for report in built_in_reports %}
+            <button type="button" class="btn btn-sm btn-outline-secondary text-start"
+                    hx-post="{{ url_for('data_management.ai_questions_run_builtin', key=report.key) }}"
+                    hx-target="#ai-result" hx-swap="innerHTML">{{ report.title }}</button>
+          {% endfor %}
+        </div>
+        <div class="form-text">No AI call; they do not use your weekly questions.</div>
+      </div>
+
+      {% if catalog_questions %}
+        <div class="content-section mb-3">
+          <h5 class="h6 mb-2"><i class="fa-solid fa-list-check me-1" aria-hidden="true"></i> Common questions</h5>
+          <div class="d-flex flex-column gap-1" style="max-height: 320px; overflow-y: auto;">
+            {% for entry in catalog_questions %}
+              <button type="button" class="btn btn-sm btn-link text-start p-0"
+                      hx-post="{{ url_for('data_management.ai_questions_run_catalog', key=entry.key) }}"
+                      hx-target="#ai-result" hx-swap="innerHTML">{{ entry.question }}</button>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="content-section mb-3" id="ai-saved">
+        {% include 'va_frontpages/ai_questions_partials/_saved_list.html' %}
+      </div>
+    </div>
+  </div>
+
+  {% if initial_run %}
+    <div hx-post="{% if initial_run.kind == 'saved' %}{{ url_for('data_management.ai_questions_run_saved', saved_id=initial_run.id) }}{% else %}{{ url_for('data_management.ai_questions_run_catalog', key=initial_run.key) }}{% endif %}"
+         hx-trigger="load" hx-target="#ai-result" hx-swap="innerHTML" data-ai-initial-run></div>
+  {% endif %}
+
+  <div class="ai-command-bar border-top bg-body shadow-sm p-3 mt-3" style="position: sticky; bottom: 0; z-index: 1020;">
+    {% if not enabled %}
+      <div class="alert alert-secondary mb-0">AI questions are turned off. Built-in reports and saved queries still run.</div>
+    {% elif not providers %}
+      <div class="alert alert-secondary mb-0">No AI service is configured on this server. Built-in reports and saved queries still run.</div>
+    {% else %}
+      <form id="ai-ask-form"
+            hx-post="{{ url_for('data_management.ai_questions_ask') }}"
+            hx-target="#ai-result"
+            hx-swap="innerHTML"
+            hx-indicator="#ai-ask-spinner">
+        <div class="small text-warning-emphasis mb-1" id="ai-question-warning">
+          <i class="fa-solid fa-triangle-exclamation me-1" aria-hidden="true"></i>{{ question_warning }}
+        </div>
+        <div id="ai-follow-ups" class="d-flex flex-wrap gap-1 mb-1"></div>
+        <div class="d-flex gap-2 align-items-end flex-wrap">
+          <div class="flex-grow-1" style="min-width: 240px;">
+            <label for="ai-question" class="visually-hidden">Question</label>
+            <textarea id="ai-question" name="question" class="form-control" rows="1"
+                      maxlength="{{ max_question_length }}" required aria-describedby="ai-question-warning"
+                      placeholder="Ask a question, e.g. Top 10 causes of death by age band"></textarea>
+          </div>
+          <div>
+            <label for="ai-provider" class="form-label small mb-0">AI service</label>
+            <select id="ai-provider" name="provider" class="form-select form-select-sm">
+              {% for name, label in providers %}<option value="{{ name }}">{{ label }}</option>{% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="fa-solid fa-paper-plane me-1" aria-hidden="true"></i> Ask
+          </button>
+          <button type="button" class="btn btn-outline-secondary" id="ai-new-question">New question</button>
+        </div>
+        <div id="ai-followup-state">
+          <input type="hidden" name="turn" value="1">
+        </div>
+        <div class="d-flex gap-2 align-items-center mt-1">
+          <span id="ai-ask-spinner" class="htmx-indicator text-muted small" role="status">
+            <i class="fa-solid fa-spinner fa-spin me-1" aria-hidden="true"></i> Working...
+          </span>
+          {% if quota_left is not none %}
+            <span class="text-muted small ms-auto">{{ quota_left }} AI questions left this week</span>
+          {% endif %}
+        </div>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="ai-drawer" aria-labelledby="ai-drawer-title">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="ai-drawer-title">Breakdown</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body" id="ai-drawer-body" aria-live="polite"></div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='vendor/chartjs/chart.umd.min.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+<script>
+(function () {
+  var root = document.getElementById("ai-workspace");
+  var csrf = root.dataset.csrf;
+
+  // The page was opened from a ?saved= / ?catalog= link: it runs once, and a
+  // refresh must not run it again.
+  if (document.querySelector("[data-ai-initial-run]")) {
+    history.replaceState(null, "", root.dataset.pagePath);
+  }
+
+  // Error partials come back with 4xx/5xx; show them instead of dropping them.
+  document.body.addEventListener("htmx:beforeSwap", function (evt) {
+    if (evt.detail.xhr.status >= 400 && evt.detail.target.closest("#ai-result, #ai-saved, #ai-drawer-body")) {
+      evt.detail.shouldSwap = true;
+      evt.detail.isError = false;
+    }
+  });
+
+  function openDrawer(column, value) {
+    document.getElementById("ai-drawer-title").textContent = "Breakdown: " + value;
+    document.getElementById("ai-drawer-body").textContent = "Loading...";
+    htmx.ajax("POST", root.dataset.breakdownUrl, {
+      target: "#ai-drawer-body", swap: "innerHTML",
+      values: {column: column, value: value}, headers: {"X-CSRFToken": csrf}
+    });
+    bootstrap.Offcanvas.getOrCreateInstance(document.getElementById("ai-drawer")).show();
+  }
+
+  function drillOf(resultEl) {
+    var el = resultEl && resultEl.querySelector("script[data-ai-drill]");
+    return el ? JSON.parse(el.textContent) : null;
+  }
+
+  function addHistory(resultEl) {
+    var title = resultEl.dataset.aiTitle;
+    if (!title) { return; }
+    var item = document.createElement("li");
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "btn btn-link btn-sm p-0 text-start";
+    button.textContent = title + (resultEl.dataset.aiQuestion ? " (" + resultEl.dataset.aiQuestion + ")" : "");
+    if (resultEl.dataset.aiQuestion && resultEl.dataset.aiSource === "ai") {
+      button.addEventListener("click", function () { fillQuestion(resultEl.dataset.aiQuestion, false); });
+    } else {
+      button.disabled = true;
+    }
+    item.appendChild(button);
+    document.getElementById("ai-history").appendChild(item);
+    document.getElementById("ai-history-empty").hidden = true;
+  }
+
+  function showFollowUps(resultEl) {
+    var box = document.getElementById("ai-follow-ups");
+    if (!box) { return; }
+    box.textContent = "";
+    document.getElementById("ai-result").querySelectorAll("template[data-ai-follow-up]").forEach(function (tpl) {
+      var chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "btn btn-sm btn-outline-info rounded-pill";
+      chip.textContent = tpl.dataset.aiFollowUp;
+      chip.addEventListener("click", function () { fillQuestion(tpl.dataset.aiFollowUp, true); });
+      box.appendChild(chip);
+    });
+  }
+
+  function fillQuestion(text, submit) {
+    var box = document.getElementById("ai-question");
+    if (!box) { return; }
+    box.value = text;
+    box.focus();
+    if (submit) { document.getElementById("ai-ask-form").requestSubmit(); }
+  }
+
+  // Draw each chart the result partial carries as JSON data; a click on a
+  // segment opens the breakdown drawer.
+  document.body.addEventListener("htmx:afterSettle", function (evt) {
+    document.querySelectorAll("script[data-ai-chart]").forEach(function (el) {
+      if (el.dataset.drawn) { return; }
+      el.dataset.drawn = "1";
+      var canvas = document.getElementById(el.dataset.aiChart);
+      if (!canvas || !window.Chart) { return; }
+      var config = JSON.parse(el.textContent);
+      var drill = drillOf(el.closest("[data-ai-result]"));
+      if (drill) {
+        config.options.onClick = function (_e, elements) {
+          if (elements.length) { openDrawer(drill.column, drill.values[elements[0].index]); }
+        };
+      }
+      new Chart(canvas, config);
+    });
+    var resultEl = evt.detail.target.id === "ai-result" ? evt.detail.target.querySelector("[data-ai-result]") : null;
+    if (resultEl && !resultEl.dataset.recorded) {
+      resultEl.dataset.recorded = "1";
+      addHistory(resultEl);
+      showFollowUps(resultEl);
+    }
+  });
+
+  document.body.addEventListener("click", function (evt) {
+    var button = evt.target.closest("[data-ai-drill-value]");
+    if (!button) { return; }
+    var drill = drillOf(button.closest("[data-ai-result]"));
+    if (drill) { openDrawer(drill.column, button.dataset.aiDrillValue); }
+  });
+
+  var reset = document.getElementById("ai-new-question");
+  if (reset) {
+    reset.addEventListener("click", function () {
+      document.getElementById("ai-followup-state").innerHTML = '<input type="hidden" name="turn" value="1">';
+      document.getElementById("ai-question").value = "";
+      document.getElementById("ai-result").innerHTML = "";
+      document.getElementById("ai-follow-ups").textContent = "";
+    });
+  }
+
+  // Suggestions from /help/search. Saved and catalog results run in place;
+  // help and definition results are links to their own page.
+  var search = document.getElementById("ai-search");
+  var results = document.getElementById("ai-search-results");
+  var timer = null;
+  var KIND = {help: "Help", va_definition: "Definition", catalog: "Question", saved_query: "Saved"};
+
+  function runUrl(href) {
+    var url = new URL(href, window.location.origin);
+    if (url.origin !== window.location.origin || url.pathname !== root.dataset.pagePath) { return null; }
+    var saved = url.searchParams.get("saved");
+    if (saved && /^\d+$/.test(saved)) { return root.dataset.runSavedUrl.replace("/0/run", "/" + saved + "/run"); }
+    var key = url.searchParams.get("catalog");
+    if (key) { return root.dataset.runCatalogUrl.replace("__key__", encodeURIComponent(key)); }
+    return null;
+  }
+
+  function showResults(items) {
+    results.textContent = "";
+    items.forEach(function (item) {
+      if (typeof item.url !== "string" || item.url.charAt(0) !== "/" || item.url.charAt(1) === "/") { return; }
+      var li = document.createElement("li");
+      li.className = "mb-1";
+      var badge = document.createElement("span");
+      badge.className = "badge text-bg-light me-1";
+      badge.textContent = KIND[item.kind] || item.kind;
+      var run = runUrl(item.url);
+      var link;
+      if (run) {
+        link = document.createElement("button");
+        link.type = "button";
+        link.className = "btn btn-link btn-sm p-0 text-start";
+        link.addEventListener("click", function () {
+          htmx.ajax("POST", run, {target: "#ai-result", swap: "innerHTML", headers: {"X-CSRFToken": csrf}});
+        });
+      } else {
+        link = document.createElement("a");
+        link.href = item.url;
+      }
+      link.textContent = item.title;
+      li.appendChild(badge);
+      li.appendChild(link);
+      results.appendChild(li);
+    });
+  }
+
+  if (search) {
+    search.addEventListener("input", function () {
+      clearTimeout(timer);
+      var q = search.value.trim();
+      if (q.length < 2) { results.textContent = ""; return; }
+      timer = setTimeout(function () {
+        fetch(root.dataset.searchUrl + "?q=" + encodeURIComponent(q), {credentials: "same-origin"})
+          .then(function (r) { return r.ok ? r.json() : {results: []}; })
+          .then(function (data) { showResults(data.results || []); })
+          .catch(function () { results.textContent = ""; });
+      }, 250);
+    });
+  }
+})();
+</script>
+{% endblock %}

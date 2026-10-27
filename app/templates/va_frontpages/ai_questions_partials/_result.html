@@ -1,0 +1,97 @@
+<div class="content-section" data-ai-result data-ai-title="{{ title }}" data-ai-question="{{ question or '' }}" data-ai-source="{{ source or '' }}">
+  <h5 class="mb-1">{{ title }}</h5>
+  {% if source in ('builtin', 'catalog') %}<div class="small text-muted mb-1">{{ 'Built-in report' if source == 'builtin' else 'Catalog question' }}: no AI call.</div>{% endif %}
+  {% if question %}<div class="text-muted small mb-3">{{ question }}</div>{% endif %}
+  {% if not_captured %}<div class="alert alert-warning py-2 small">{{ not_captured }}</div>{% endif %}
+
+  {% if view.kpis %}
+    <div class="row g-2 mb-3">
+      {% for kpi in view.kpis %}
+        <div class="col-6 col-md-3">
+          <div class="border rounded p-2 h-100">
+            <div class="small text-muted text-truncate" title="{{ kpi.label }}">{{ kpi.label }}</div>
+            <div class="fs-5 fw-semibold">{{ '{:,}'.format(kpi.value) if kpi.value is integer else '{:,.2f}'.format(kpi.value) }}</div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if view.chart %}
+    <div class="mb-3" style="position: relative; height: 360px;">
+      <canvas id="ai-chart-canvas"></canvas>
+    </div>
+    <script type="application/json" data-ai-chart="ai-chart-canvas">{{ view.chart|tojson }}</script>
+    {% if view.drill %}
+      <script type="application/json" data-ai-drill>{{ view.drill|tojson }}</script>
+      <div class="small text-muted mb-2">Click a bar or segment, or a row's Breakdown button, to see that category by sex, age band and workflow state.</div>
+    {% endif %}
+  {% endif %}
+
+  {% if truncated %}
+    <div class="alert alert-info py-2 small">Only the first 500 rows are shown.</div>
+  {% endif %}
+
+  {% if view.table.rows %}
+    <div class="table-responsive" style="max-height: 420px;">
+      <table class="table table-sm table-striped">
+        <thead><tr>{% for col in view.table.columns %}<th scope="col">{{ col }}</th>{% endfor %}{% if view.drill %}<th scope="col"><span class="visually-hidden">Breakdown</span></th>{% endif %}</tr></thead>
+        <tbody>
+          {% for row in view.table.rows %}
+            <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}{% if view.drill %}<td><button type="button" class="btn btn-sm btn-outline-secondary py-0" data-ai-drill-value="{{ view.drill['values'][loop.index0] }}" aria-label="Breakdown of {{ view.drill['values'][loop.index0] }}">Breakdown</button></td>{% endif %}</tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="text-muted">No rows.</div>
+  {% endif %}
+
+  <details class="mt-2">
+    <summary class="small text-muted">SQL</summary>
+    <pre class="small bg-light p-2 mb-0"><code>{{ sql }}</code></pre>
+  </details>
+
+  {% if audit_id %}
+    <form class="row g-2 align-items-end mt-3"
+          hx-post="{{ url_for('data_management.ai_questions_save') }}"
+          hx-target="#ai-saved"
+          hx-swap="innerHTML">
+      <input type="hidden" name="audit_id" value="{{ audit_id }}">
+      <input type="hidden" name="chart" value='{{ chart|tojson }}'>
+      <div class="col-md-5">
+        <label class="form-label small mb-1">Save as</label>
+        <input type="text" name="title" class="form-control form-control-sm" maxlength="160" value="{{ title }}" required>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label small mb-1">Description (optional)</label>
+        <input type="text" name="description" class="form-control form-control-sm" maxlength="500">
+      </div>
+      <div class="col-md-2">
+        <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+          <i class="fa-solid fa-floppy-disk me-1"></i> Save
+        </button>
+      </div>
+    </form>
+  {% endif %}
+
+  {% if saved %}
+    <div class="small text-muted mt-2">Saved query, run {{ saved.run_count }} times.</div>
+  {% endif %}
+</div>
+
+{% for q in follow_ups %}<template data-ai-follow-up="{{ q }}"></template>{% endfor %}
+
+{% if next_turn %}
+  <div id="ai-followup-state" hx-swap-oob="true">
+    {% if next_turn <= max_turns %}
+      <input type="hidden" name="turn" value="{{ next_turn }}">
+      <input type="hidden" name="previous_sql" value="{{ sql }}">
+      {% for q in earlier_questions %}<input type="hidden" name="earlier_question" value="{{ q }}">{% endfor %}
+      <div class="small text-muted mt-2">Follow-up {{ next_turn - 1 }} of {{ max_turns - 1 }}: ask about this result, or start a new question.</div>
+    {% else %}
+      <input type="hidden" name="turn" value="1">
+      <div class="small text-muted mt-2">This conversation has reached {{ max_turns }} questions; the next question starts a new one.</div>
+    {% endif %}
+  </div>
+{% endif %}

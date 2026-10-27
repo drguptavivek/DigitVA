@@ -47,6 +47,9 @@ def register_error_handlers(app):
         )
         if request.path.startswith(("/api/", "/admin/api/", "/data-management/api/")):
             return jsonify({"error": message, "code": "rate_limited"}), 429
+        if request.headers.get("HX-Request") == "true":
+            # An htmx partial: a redirect would swap a whole page into the target.
+            return f'<div class="alert alert-warning mb-0" role="alert">{message}</div>', 429
 
         flash(message, "warning")
         return redirect(request.referrer or url_for("coding.dashboard"))

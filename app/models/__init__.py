@@ -18,6 +18,7 @@ from app.models.auth_station import (
     AuthStationRosterMember,
 )
 from app.models.cod_search_telemetry import CodSearchTelemetry
+from app.models.va_ai_analytics import VaAiQueryAuditLog, VaAiSavedQuery
 from app.models.map_death_identifier import (
     MapDeathIdentifier,
     MapIdentifierAudit,
@@ -226,6 +227,8 @@ __all__ = [
     "MasIcd11Mms",
     "MasIcdSearchTerms",
     "CodSearchTelemetry",
+    "VaAiQueryAuditLog",
+    "VaAiSavedQuery",
     "MasVaCauseDefinition",
     "MapIcd10LegacyReportingAlias",
     "MapProjectOdk",

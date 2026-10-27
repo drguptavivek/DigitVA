@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -90,6 +90,81 @@ if any] and then to the Data Protection Board of India.
 **Your choice.** Please say yes or no to each numbered item, and tell us how
 you gave your agreement (spoken, tapped on the device, or signed).
 
+## Proposed addition: automated processing of the narrative (`digitva-sxg9`, owner 2026-10-27)
+
+**Status:** adopted into the default seed by the owner on 2026-10-27, as item 7
+and purpose `narrative_automated_processing`. Like the rest of the notice it
+still needs legal and language review. Policy:
+`docs/policy/narrative-ai-processing.md`.
+
+Under DPDP section 5, a notice must name each purpose. The narrative
+pipeline (PII detection and de-identification, a quality check, translation
+and symptom suggestions) is a purpose in its own right, so it gets its own
+numbered item. It is optional unless the project decides otherwise. A
+project could argue it is part of item 4 (deciding the cause of death), but
+a separate item is clearer and lets a respondent refuse it.
+
+**English, notice item 7:**
+
+> 7. **Computer help to check and translate the story you tell (optional)
+> [project decides whether this is required or optional].** Your account of
+> the illness and death may be checked by computer programs that run on
+> systems controlled by [ORGANISATION] in India. These programs:
+> - remove names, places and phone or identity numbers from a copy of your
+>   account;
+> - check whether the account has enough detail;
+> - translate it into English;
+> - point out symptoms the doctors may want to look at.
+>
+> The programs do not decide the cause of death; doctors do. Your account is
+> not sent to any outside company. Your original words are kept as you gave
+> them. You can refuse this and still take part.
+
+**Seed form (plain text, same style as the seed above):**
+
+```text
+7. Computer help to check and translate your account (optional). Programs on systems controlled by [ORGANISATION] in India may remove names, places and numbers from a copy of your account, check whether it has enough detail, translate it into English, and point out symptoms for the doctors. They do not decide the cause of death, and your account is not sent to any outside company.
+```
+
+**Hindi seed** (a working translation, which needs language review like the
+rest):
+
+```text
+7. आपके विवरण की जाँच और अनुवाद में कंप्यूटर की मदद (वैकल्पिक)। भारत में [ORGANISATION] द्वारा नियंत्रित प्रणालियों पर चलने वाले प्रोग्राम आपके विवरण की एक प्रति से नाम, स्थान और नंबर हटा सकते हैं, जाँच सकते हैं कि उसमें पर्याप्त जानकारी है या नहीं, उसका अंग्रेज़ी में अनुवाद कर सकते हैं, और डॉक्टरों के लिए लक्षण बता सकते हैं। ये मृत्यु का कारण तय नहीं करते, और आपका विवरण किसी बाहरी कंपनी को नहीं भेजा जाता।
+```
+
+**Seed purpose row:**
+
+| Code | Required | English label |
+| --- | --- | --- |
+| `narrative_automated_processing` | no (project decides) | Computer programs on [ORGANISATION]'s systems in India may de-identify, check, translate and suggest symptoms from my account, without deciding the cause of death |
+
+**How the pipeline honours it:**
+- A narrative is leased to the workstation only if its project has narrative
+  AI enabled and, when the project requires consent, the case's consent
+  record answers this purpose "yes".
+- Cases with no answer for this purpose, including notice versions from
+  before it existed, are not processed.
+- Withdrawing consent stops further processing and deletes that case's
+  stored narrative-AI results, the de-identified copy included.
+
+**For the legal review:**
+- The wording promises "not sent to any outside company". That holds only
+  while the processing stays on the operator's own systems. Moving to an
+  external service would need new notice text and fresh consent.
+- If a mentoring institution runs the workstation for [ORGANISATION], name
+  it as a processor in the notice or the project's data processing
+  agreement.
+
+## Refusal profile, for legal review (owner 2026-10-27)
+
+When a respondent refuses, the project records only the deceased's broad age
+group and sex, from the death register where available. There is no name,
+identifier or other answer. This is for refusal-bias statistics (see
+`docs/policy/digitva-who-form-overrides.md`, "Equity extension: refusal
+profile"). The legal review should confirm the basis, which is not consent,
+and whether the refusal script should say this to the respondent.
+
 ## Seed text for Project Setup (owner 2026-10-22)
 
 Project Setup's "Seed from draft" (Respondent consent section) creates notice
@@ -118,6 +193,7 @@ Why we collect it, and who sees it.
 4. To decide the cause of death (required). Doctors and coders review the answers. They do not see your name, phone, address or any identity number.
 5. For government and statistical reports (required). Counts and summaries that do not name anyone.
 6. For research on verbal autopsy (optional). De-identified answers may be shared in research repositories in India and other countries. Your name, phone, exact address, identity numbers and the exact date of death are never included.
+7. Computer help to check and translate your account (optional). Programs on systems controlled by [ORGANISATION] in India may remove names, places and numbers from a copy of your account, check whether it has enough detail, translate it into English, and point out symptoms for the doctors. They do not decide the cause of death, and your account is not sent to any outside company.
 
 How we protect it. Your name, phone number, address and identity numbers are stored in encrypted form. Only people whose work needs them can see them, and what they see is recorded.
 
@@ -150,6 +226,7 @@ Your choice. Please say yes or no to each numbered item.
 4. मृत्यु का कारण तय करने के लिए (आवश्यक)। डॉक्टर और कोडर उत्तरों की समीक्षा करते हैं। वे आपका नाम, फ़ोन, पता या कोई पहचान नंबर नहीं देखते।
 5. सरकारी और सांख्यिकीय रिपोर्टों के लिए (आवश्यक)। गिनती और सारांश, जिनमें किसी का नाम नहीं होता।
 6. वर्बल ऑटोप्सी पर शोध के लिए (वैकल्पिक)। पहचान हटाए गए उत्तर भारत और अन्य देशों के शोध भंडारों में साझा किए जा सकते हैं। आपका नाम, फ़ोन, सटीक पता, पहचान नंबर और मृत्यु की सटीक तारीख कभी शामिल नहीं की जाती।
+7. आपके विवरण की जाँच और अनुवाद में कंप्यूटर की मदद (वैकल्पिक)। भारत में [ORGANISATION] द्वारा नियंत्रित प्रणालियों पर चलने वाले प्रोग्राम आपके विवरण की एक प्रति से नाम, स्थान और नंबर हटा सकते हैं, जाँच सकते हैं कि उसमें पर्याप्त जानकारी है या नहीं, उसका अंग्रेज़ी में अनुवाद कर सकते हैं, और डॉक्टरों के लिए लक्षण बता सकते हैं। ये मृत्यु का कारण तय नहीं करते, और आपका विवरण किसी बाहरी कंपनी को नहीं भेजा जाता।
 
 हम इसकी सुरक्षा कैसे करते हैं। आपका नाम, फ़ोन नंबर, पता और पहचान नंबर एन्क्रिप्ट करके रखे जाते हैं। केवल वही लोग इन्हें देख सकते हैं जिनके काम के लिए ये ज़रूरी हैं, और वे क्या देखते हैं, यह दर्ज किया जाता है।
 
@@ -179,6 +256,7 @@ every purpose of the version it names); labels are translated.
 | `cause_of_death_coding` | yes | Doctors and coders decide the cause of death (without my name, phone or address) |
 | `statistics_reports` | yes | Use counts and summaries in government and statistical reports |
 | `research_sharing` | no | Share de-identified answers in research repositories |
+| `narrative_automated_processing` | no | Computer programs on [ORGANISATION]'s systems in India may de-identify, check, translate and suggest symptoms from my account (they do not decide the cause of death) |
 
 Allowed modes: spoken, tap, signed; a witness may be recorded as present (no
 witness name). Covered fields: the service default

@@ -60,6 +60,7 @@ COVERED_HELPERS = frozenset({
     "routes/api/analytics.py::_dm_scope_filter",
     "routes/api/dm_kpi/dm_kpi_pipeline.py::_ready_for_coding_count",
     "services/reviewer_dashboard_service.py::_available_where",
+    "services/ai_analytics_tables.py::_scope_filter",
 })
 
 _WRITER = "writer of workflow state; readers exclude the submission, writers keep it consistent"

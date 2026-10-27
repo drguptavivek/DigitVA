@@ -23,6 +23,7 @@ SEED_TEXT = {
         "4. To decide the cause of death (required). Doctors and coders review the answers. They do not see your name, phone, address or any identity number.\n"
         "5. For government and statistical reports (required). Counts and summaries that do not name anyone.\n"
         "6. For research on verbal autopsy (optional). De-identified answers may be shared in research repositories in India and other countries. Your name, phone, exact address, identity numbers and the exact date of death are never included.\n"
+        "7. Computer help to check and translate your account (optional). Programs on systems controlled by [ORGANISATION] in India may remove names, places and numbers from a copy of your account, check whether it has enough detail, translate it into English, and point out symptoms for the doctors. They do not decide the cause of death, and your account is not sent to any outside company.\n"
         "\n"
         "How we protect it. Your name, phone number, address and identity numbers are stored in encrypted form. Only people whose work needs them can see them, and what they see is recorded.\n"
         "\n"
@@ -52,6 +53,7 @@ SEED_TEXT = {
         "4. मृत्यु का कारण तय करने के लिए (आवश्यक)। डॉक्टर और कोडर उत्तरों की समीक्षा करते हैं। वे आपका नाम, फ़ोन, पता या कोई पहचान नंबर नहीं देखते।\n"
         "5. सरकारी और सांख्यिकीय रिपोर्टों के लिए (आवश्यक)। गिनती और सारांश, जिनमें किसी का नाम नहीं होता।\n"
         "6. वर्बल ऑटोप्सी पर शोध के लिए (वैकल्पिक)। पहचान हटाए गए उत्तर भारत और अन्य देशों के शोध भंडारों में साझा किए जा सकते हैं। आपका नाम, फ़ोन, सटीक पता, पहचान नंबर और मृत्यु की सटीक तारीख कभी शामिल नहीं की जाती।\n"
+        "7. आपके विवरण की जाँच और अनुवाद में कंप्यूटर की मदद (वैकल्पिक)। भारत में [ORGANISATION] द्वारा नियंत्रित प्रणालियों पर चलने वाले प्रोग्राम आपके विवरण की एक प्रति से नाम, स्थान और नंबर हटा सकते हैं, जाँच सकते हैं कि उसमें पर्याप्त जानकारी है या नहीं, उसका अंग्रेज़ी में अनुवाद कर सकते हैं, और डॉक्टरों के लिए लक्षण बता सकते हैं। ये मृत्यु का कारण तय नहीं करते, और आपका विवरण किसी बाहरी कंपनी को नहीं भेजा जाता।\n"
         "\n"
         "हम इसकी सुरक्षा कैसे करते हैं। आपका नाम, फ़ोन नंबर, पता और पहचान नंबर एन्क्रिप्ट करके रखे जाते हैं। केवल वही लोग इन्हें देख सकते हैं जिनके काम के लिए ये ज़रूरी हैं, और वे क्या देखते हैं, यह दर्ज किया जाता है।\n"
         "\n"
@@ -78,6 +80,7 @@ SEED_PURPOSES = {
         {"code": "cause_of_death_coding", "label": "Doctors and coders decide the cause of death (without my name, phone or address)", "required": True},
         {"code": "statistics_reports", "label": "Use counts and summaries in government and statistical reports", "required": True},
         {"code": "research_sharing", "label": "Share de-identified answers in research repositories", "required": False},
+        {"code": "narrative_automated_processing", "label": "Computer programs on [ORGANISATION]'s systems in India may de-identify, check, translate and suggest symptoms from my account (they do not decide the cause of death)", "required": False},
     ],
     "hi": [
         {"code": "record_and_interview", "label": "मृत्यु दर्ज करना और साक्षात्कार पूरा करना", "required": True},
@@ -86,6 +89,7 @@ SEED_PURPOSES = {
         {"code": "cause_of_death_coding", "label": "डॉक्टर और कोडर मृत्यु का कारण तय करें (मेरा नाम, फ़ोन या पता देखे बिना)", "required": True},
         {"code": "statistics_reports", "label": "सरकारी और सांख्यिकीय रिपोर्टों में गिनती और सारांश का उपयोग", "required": True},
         {"code": "research_sharing", "label": "पहचान हटाए गए उत्तरों को शोध भंडारों में साझा करना", "required": False},
+        {"code": "narrative_automated_processing", "label": "भारत में [ORGANISATION] की प्रणालियों पर कंप्यूटर प्रोग्राम मेरे विवरण से पहचान हटा सकते हैं, उसकी जाँच, अनुवाद और लक्षण सुझा सकते हैं (वे मृत्यु का कारण तय नहीं करते)", "required": False},
     ],
 }
 

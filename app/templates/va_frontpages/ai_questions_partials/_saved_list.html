@@ -1,0 +1,32 @@
+<h5 class="mb-3"><i class="fa-solid fa-bookmark me-1"></i> My saved queries</h5>
+{% if just_saved %}<div class="alert alert-success py-2 small">Saved.</div>{% endif %}
+{% if saved_queries %}
+  <ul class="list-group">
+    {% for saved in saved_queries %}
+      <li class="list-group-item d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+          <div class="fw-semibold">{{ saved.title }}</div>
+          {% if saved.description %}<div class="small text-muted">{{ saved.description }}</div>{% endif %}
+          <div class="small text-muted">
+            Run {{ saved.run_count }} times{% if saved.last_run_at %}, last {{ saved.last_run_at | user_timezone('%Y-%m-%d %H:%M') }}{% endif %}
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-sm btn-outline-primary"
+                  hx-post="{{ url_for('data_management.ai_questions_run_saved', saved_id=saved.id) }}"
+                  hx-target="#ai-result" hx-swap="innerHTML">
+            <i class="fa-solid fa-play me-1"></i> Run
+          </button>
+          <button type="button" class="btn btn-sm btn-outline-danger"
+                  hx-post="{{ url_for('data_management.ai_questions_delete_saved', saved_id=saved.id) }}"
+                  hx-target="#ai-saved" hx-swap="innerHTML"
+                  hx-confirm="Delete this saved query?">
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <div class="text-muted">No saved queries yet. Ask a question and save the answer to run it again without using your weekly AI questions.</div>
+{% endif %}

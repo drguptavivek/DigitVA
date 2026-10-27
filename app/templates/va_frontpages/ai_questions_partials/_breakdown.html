@@ -1,0 +1,14 @@
+<p class="small text-muted">Counts in your scope where <code>{{ column }}</code> is <strong>{{ value }}</strong>. Aggregates only.</p>
+{% for label, rows in groups %}
+  <h6 class="mt-3">{{ label }}</h6>
+  {% if rows %}
+    <table class="table table-sm mb-0">
+      <thead><tr><th scope="col">{{ label }}</th><th scope="col" class="text-end">Cases</th></tr></thead>
+      <tbody>
+        {% for key, n in rows %}<tr><td>{{ key if key is not none else '(none)' }}</td><td class="text-end">{{ '{:,}'.format(n) }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="small text-muted">No cases.</div>
+  {% endif %}
+{% endfor %}

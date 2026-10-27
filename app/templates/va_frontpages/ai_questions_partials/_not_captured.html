@@ -1,0 +1,8 @@
+<div class="content-section" data-ai-result data-ai-title="{{ title }}" data-ai-question="{{ question }}" data-ai-source="ai">
+  <h5 class="mb-1">{{ title }}</h5>
+  <div class="text-muted small mb-3">{{ question }}</div>
+  <div class="alert alert-secondary mb-0" role="status" data-ai-not-captured>{{ message }}</div>
+  <div class="small text-muted mt-2">No query was run.</div>
+</div>
+
+{% for q in follow_ups %}<template data-ai-follow-up="{{ q }}"></template>{% endfor %}

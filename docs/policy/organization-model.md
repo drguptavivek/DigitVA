@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-27
 ---
 
 # Organization Model Policy
@@ -270,8 +270,92 @@ Two consequences of that rule, both easy to assume wrongly later:
 State this when a project is seeded. It is cheaper than discovering it as a
 failed import halfway through loading a state's villages.
 
-There is no `external_code` column on `mas_org_unit` and none is planned. If a
-project ever has to carry two coding systems at once, that is when to add one.
+### Official geography codes, facility ids and boundary maps (owner decisions 2026-10-27)
+
+That point has come. Health-system projects name units after facilities
+(`DH01` District Hospital, a CHC, an SDH). Areas and facilities have their
+own official ids, and DigitVA runs in other countries too. So the unit code
+stays as it is, and every unit gets optional, country-neutral official ids
+alongside it.
+
+- **Geography code: `geo_scheme`, `geo_level`, `geo_code`.** The official
+  code of the administrative area the unit belongs to. Each facility carries
+  the code of the area it sits in.
+  - `geo_scheme` names the coding system: `lgd` (India's Local Government
+    Directory), `pcode` (OCHA P-codes), `geoboundaries` (shape ids),
+    `iso3166_2`, or a national scheme such as `inegi` (Mexico).
+  - `geo_level` is `adm1` to `adm4`, labelled per project. India: state,
+    district, sub-district or block, village.
+  - India's usual pairings: a district or district hospital takes the
+    district LGD; an SDH or taluka takes the sub-district LGD; a CHC takes
+    the block or sub-district LGD; a PHC or sub-centre takes its block or
+    village LGD; a village takes the village LGD.
+  - Codes are not unique: several facilities share an area. They are
+    indexed for lookup.
+- **Area type: `area_type`.** `rural`, `urban` or blank, for the area the
+  unit serves. DigitVA captures rural/urban nowhere else: the WHO VA form
+  does not ask it.
+  - **Proposed from the geography code:** an LGD village is rural; an LGD
+    urban local body is urban.
+  - **Proposed from facility type:** UPHC and urban AAM are urban.
+  - An editor confirms or sets it. A case inherits its unit's area type for
+    reports. Blank means "not captured", never a guess.
+- **Facility id: `facility_scheme`, `facility_id`.** For example `hfr` (ABDM
+  Health Facility Registry) or `nin` in India, or a national master facility
+  list or DHIS2 org-unit id elsewhere. Unique within a project when set.
+- **Boundary packs per project.**
+  - **Who uploads:** admins and Project Setup editors.
+  - **What a pack is:** one GeoJSON file per level, plus the scheme, the
+    level, the property holding the code and the one holding the name. A
+    licence and attribution are required.
+  - **Before activation:** DigitVA previews which units matched a shape by
+    code and which did not, and shows the map. Nothing goes live before
+    then.
+  - **Versions:** each upload is a new version; the old one is kept for
+    rollback.
+  - **Sources:** India uses the Survey-of-India-derived files
+    (`drguptavivek/soi-geojson`). Elsewhere, geoBoundaries (CC BY 4.0) or
+    OCHA COD-AB with P-codes.
+- **Upload checks, since the files come from outside.**
+  - Size caps per file and on shape count.
+  - Polygon and multipolygon shapes only.
+  - WGS84 latitude and longitude only. Projected files are refused with a
+    clear message.
+  - Every property except the chosen code and name is dropped. Names are
+    escaped wherever shown.
+  - Stored privately and served only to signed-in users of that project.
+  - Audited.
+- **Simplification on upload.** Port `build_web_data.py` from
+  `drguptavivek/soi-geojson`, using shapely only (no geopandas):
+  - Douglas-Peucker with topology preserved, with tolerances per level
+    (about 0.010 degrees for states, 0.002 for districts, 0.0005 for
+    sub-districts);
+  - 5-decimal coordinates;
+  - a label point per shape.
+  
+  Each shape is simplified on its own, so shared borders may show hairline
+  gaps at close zoom. That is acceptable for display.
+- **India's depiction.** An India project uses only the
+  Survey-of-India-derived pack. No uploaded or international dataset draws
+  India's national outline. Per-state district maps avoid the national
+  outline altogether.
+- **Facility points.** Units already store latitude and longitude, so maps
+  can show facilities as points on the boundaries, in any country, with no
+  codes needed.
+
+**What maps and codes are for:** maps match units by (scheme, code) against
+the active pack. A unit with no code shows as "not on map", never matched by
+name. Reports by official geography read these codes, since the deepest code
+on a submission stays unreliable for that (see above).
+
+**What they are not:** routing, form choice lists and grants keep using the
+unit code alone. Geography and facility ids never drive submission routing,
+so a missing or wrong code cannot misroute a case.
+
+**Entry:** on the org unit form, and as optional `geo_scheme`, `geo_level`,
+`geo_code`, `area_type`, `facility_scheme` and `facility_id` columns in the unit import
+and export (blank leaves the stored value unchanged). Admin and
+project-setup editors only; changes are audited like other unit edits.
 
 ## Lifecycle
 

@@ -5,6 +5,51 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **AI questions for data managers** (`digitva-qwvt`, `digitva-qwvt.1`):
+  - **Asking:** data managers and admins ask in plain language at
+    `/data-management/ai-questions`. Claude Sonnet (default) or Gemini,
+    chosen per question from the enabled providers, writes SQL over
+    per-request temp tables built with the caller's scope. The provider
+    never sees result rows (owner decision: aggregates only,
+    `docs/policy/ai-analytics-questions.md`).
+  - **What questions can read:**
+    - `ai_cube`: case counts with language, org-unit names, consent mode
+      and final-saved week;
+    - `ai_org_levels`;
+    - `ai_staff`: staff counts, with no names;
+    - `ai_coder`: named coder results, for data managers and admins only.
+  - **How answers come back:** comparative where possible, with a peer
+    reference line. Questions needing data DigitVA does not hold get "This
+    data is not captured in DigitVA: …" and run no SQL.
+  - **How the SQL runs:** through `digitva_ai_run`, a SECURITY DEFINER
+    function owned by `digitva_ai_reader` (migration `a9e4c7f2b3d6`), after
+    a pglast allowlist check. Time, memory, temp files, output and joins
+    are capped, and advisory locks are released after each run. `SET ROLE`
+    alone was rejected because the reader could switch back to the session
+    user.
+  - **Without the model:** 12 built-in reports, 94 catalog questions and
+    saved queries run with no model call or quota.
+  - **Search:** Typesense (192 MB, internal only) gives typo-tolerant search
+    over catalog questions, the user's saved queries, role-filtered help
+    pages and VA definitions, with an in-process fallback.
+  - **Live test:** checked live with Claude on dev. Prompt caching is
+    working, at about 0.5 cents a question.
+  - **Not yet:** not deployed (staging freeze).
+- **Policies recorded, built later** (owner 2026-10-27):
+  - narrative AI on a local workstation, with PII detection and
+    de-identification (`digitva-sxg9`, `docs/policy/narrative-ai-processing.md`);
+  - consent item 7 and purpose `narrative_automated_processing`, added to
+    the default consent seed (English and Hindi; legal review pending);
+  - country-neutral geography codes, rural/urban area type, facility ids
+    and boundary-pack maps (`digitva-v1oi`);
+  - an `equity` form extension with DHS-aligned choices (`digitva-r9lk`);
+  - DHS Program data links (`digitva-1835`);
+  - per-project AI keys stored with the post-quantum envelope
+    (`digitva-6383`);
+  - ODK credentials moved off Fernet to the post-quantum envelope
+    (`digitva-lep4`);
+  - a DuckDB store for all reports, in the next version (`digitva-2476`).
+
 - **ICD-10 annex-only vs ICD-11 widened, recorded as a decision**
   (`digitva-7pl2`): ICD-10 projects have no DORIS, so the WHO annex list stays
   their check that a final is a WHO VA cause code; ICD-11 is wider because

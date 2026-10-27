@@ -3,7 +3,7 @@ title: CLI Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # CLI Reference
@@ -399,6 +399,15 @@ the Project Forms admin panel to remove the wrong one.
 |---------|-------------|
 | `analytics refresh-submission-mv` | Refresh all three submission analytics MVs. |
 | `analytics refresh-submission-mv --concurrently` | Refresh without blocking reads (recommended for production). |
+
+---
+
+## `ai-catalog` and `ai-search` — AI questions (docs/current-state/ai-analytics-questions.md)
+
+| Command | Description |
+|---------|-------------|
+| `ai-catalog generate [--provider anthropic\|gemini] [--count 60] [--as <admin email>]` | Ask an enabled model for catalog questions; keep those that pass the SQL parser and `EXPLAIN` as `digitva_ai_reader`; write `app/data/ai_question_catalog.json` and `docs/kb/ai-question-catalog.md`. |
+| `ai-search reindex` | Rebuild the Typesense suggestions index (help, definitions, catalog, saved queries). |
 
 ---
 

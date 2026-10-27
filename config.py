@@ -153,6 +153,20 @@ class Config:
     # Debug only: log the full WHO DORIS/CoDEdit request and response to
     # logs/doris_calls.log (docs/current-state/doris-cod-workflow.md). Keep off.
     DORIS_CALL_LOG = os.environ.get("DORIS_CALL_LOG", "").strip().lower() in {"1", "true", "yes", "on"}
+    # AI analytics questions (docs/policy/ai-analytics-questions.md). Off
+    # unless set; saved queries still run while it is off. A provider is
+    # enabled when its credentials are set: anthropic with ANTHROPIC_API_KEY;
+    # gemini on Vertex AI when GOOGLE_CLOUD_PROJECT is set (Application
+    # Default Credentials), else the Gemini API with GEMINI_API_KEY. No key or
+    # project id is hard-coded.
+    AI_ANALYTICS_ENABLED = os.environ.get("AI_ANALYTICS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+    AI_ANALYTICS_MODEL_ANTHROPIC = os.environ.get("AI_ANALYTICS_MODEL_ANTHROPIC") or "claude-sonnet-5-5"
+    AI_ANALYTICS_MODEL_GEMINI = os.environ.get("AI_ANALYTICS_MODEL_GEMINI") or "gemini-3.5-flash"
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+    AI_ANALYTICS_WEEKLY_QUOTA = int(os.environ.get("AI_ANALYTICS_WEEKLY_QUOTA") or "50")
+    GOOGLE_CLOUD_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT", "")
+    GOOGLE_CLOUD_LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION") or "asia-south1"
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     STATIC_ASSET_VERSION = os.environ.get("STATIC_ASSET_VERSION", "1")
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = os.environ.get("SESSION_COOKIE_SAMESITE", "Lax")
@@ -668,6 +682,11 @@ class TestConfig(Config):
     # Off whatever .env holds; the split tests turn it on per test.
     PAYLOAD_PII_SPLIT_ENABLED = False
     REGISTER_PII_SPLIT_ENABLED = False
+    # Off and keyless whatever .env holds; the AI tests mock the client.
+    AI_ANALYTICS_ENABLED = False
+    ANTHROPIC_API_KEY = ""
+    GOOGLE_CLOUD_PROJECT = ""
+    GEMINI_API_KEY = ""
     # Throwaway in-process keys (app/utils/pii_crypto.py), whatever the
     # developer's .env holds: tests must read what they write.
     PII_KEM_PUBLIC_KEY = ""

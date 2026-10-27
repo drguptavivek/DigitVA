@@ -21,8 +21,8 @@ from app.models import (
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
     AuthDeviceSigningKey,
-    AuthSignInToken,
     AuthSecurityEvent,
+    AuthSignInToken,
     MapCaseContactAttempt,
     MapCaseTransition,
     MapConsentAudit,
@@ -32,6 +32,8 @@ from app.models import (
     MapUserNotification,
     MasDeathIdentifierType,
     MasPiiAccessLog,
+    VaAiQueryAuditLog,
+    VaAiSavedQuery,
     VaAllocations,
     VaCoderReview,
     VaCodingEpisode,
@@ -265,6 +267,9 @@ class PurgeBase(PublicDemoBase):
         self._add(MapConsentAudit, project_id=PROJECT, actor_user_id=uid)
         self._add(MapIdentifierAudit, project_id=PROJECT, actor_user_id=uid)
         self._add(MasPiiAccessLog, user_id=uid, submission_id=sid)
+        self._add(VaAiQueryAuditLog, user_id=uid, mode="ai_llm")
+        self._add(VaAiSavedQuery, owner_user_id=uid, title="Deaths", original_prompt="Deaths",
+                  validated_sql="SELECT 1 AS x", layout_recipe={})
         self._add(MapUserNotification, user_id=uid, kind="x", project_id=PROJECT, va_sid=sid,
                   draft_id=draft.draft_id, death_id=other_death.death_id)
         # A device only this account used, enrolled by a code it created.

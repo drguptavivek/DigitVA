@@ -41,8 +41,38 @@ digest; verify the runtime DLL version rather than trusting the Compose comment.
    Deck reflects the 2026-10-27 allowability changes.
    ICD-11 allowability shipped in code (not yet on staging; deploy freeze):
    before deploying migrations b8d4f2a6c1e9 and c5e8a2f4b7d1 run `digitva-77ti`
-   (read-only count of saved finals on chapter 22 or KD3B*). Remaining docs
-   item `digitva-7pl2` (ICD-10 annex-only vs ICD-11 widened, as a decision).
+   (read-only count of saved finals on chapter 22 or KD3B*).
+6. `digitva-qwvt` AI questions (policy `docs/policy/ai-analytics-questions.md`,
+   state `docs/current-state/ai-analytics-questions.md`): committed;
+   live-tested with Claude. Follow-ups:
+   - `ai_interviewer` from `va_data_collector` (owner: the interviewer is the
+     data collector);
+   - a level-type column, so staffing by sub-centre or CHC works across
+     level wording;
+   - the senility ICD breakdown inside "Cause of death unknown";
+   - the intake source dimension;
+   - equity dimensions, gender and district first;
+   - ECharts in place of Chart.js;
+   - KPI and label fixes;
+   - question-bank marking.
+   
+   Gemini needs Vertex settings in `.env`.
+   - **Before staging:** the migrating DB user needs CREATEROLE and `SET ON
+     PARAMETER temp_file_limit`; then set `TYPESENSE_API_KEY` and run
+     `flask ai-search reindex`.
+   - **Dev rule:** never run memory, disk or lock bomb SQL against dev
+     Postgres.
+   - **Flaky test:** `test_org_unit_coding_gates.py::test_daily_limit_counted_once_across_gated_subtree`
+     failed once at the midnight-UTC boundary and passed on rerun. Check how
+     it computes "today".
+7. **After that** (each needs a migration):
+   - `digitva-r9lk`: equity form extension;
+   - `digitva-v1oi`: geography codes, area type and maps;
+   - `digitva-6383`: per-project AI keys;
+   - `digitva-lep4`: ODK credentials to the post-quantum envelope;
+   - `digitva-1835`: DHS links.
+   
+   Waiting on owner sign-off: `digitva-sxg9`, the narrative AI policy draft.
 
 ## Runtime and release caveats
 

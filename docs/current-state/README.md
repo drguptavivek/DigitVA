@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-27
 ---
 
 # Current State Index
@@ -35,6 +35,7 @@ Read these documents in this order:
     - [Split Production Deploy Runbook](split-production-deploy.md): preflight, backup, deploy, post-checks and rollback for the three-host deployment
 11. [Data Manager Dashboard](data-manager-dashboard.md)
 12. [Submission Analytics Materialized View](submission-analytics.md)
+    - [AI Analytics Questions](ai-analytics-questions.md): natural-language questions over the per-request `ai_cube`, built-in reports, question catalog, suggestions search and the Typesense container
 13. [COD Bucket Reporting](cod-bucket-reporting.md)
 14. [Sync Entrypoints Audit](sync-entrypoints-audit.md)
 15. [Health-System Organization Model](health-system-organization-model.md)

@@ -20,7 +20,8 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app import limiter, talisman
+from app import cache, limiter, talisman
+from app.services import ai_search_service
 from app.services.authz import effective_roles
 from app.services.icd11_licence import ICD11_CITATION
 from app.services.cod_bucket_mapping_service import (
@@ -368,6 +369,24 @@ def inject_contextual_page_help():
 def index():
     """Help index with search."""
     return render_template("help/help_base.html", **_base_ctx())
+
+
+@help_bp.get("/help/search")
+@login_required
+@limiter.limit("60 per minute")
+def suggestions():
+    """Typo-tolerant suggestions for the signed-in user's roles (help pages,
+    VA definitions, catalog questions, their own saved queries)."""
+    effective_roles(current_user)  # records the authenticated decision for the consulted guard
+    query = (request.args.get("q") or "").strip()[:_MAX_QUERY_LEN]
+    if len(query) < 2:
+        return jsonify({"results": []})
+    key = f"help-search:{current_user.user_id}:{query.lower()}"
+    results = cache.get(key)
+    if results is None:
+        results = ai_search_service.search(current_user, query)
+        cache.set(key, results, timeout=30)  # short: roles and saved queries change
+    return jsonify({"results": results})
 
 
 @help_bp.route("/help/organization-demo")

@@ -5,6 +5,19 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **Contact us form** (`digitva-gyfj.1`): name, email, topic (general,
+  consent, deletion, technical), message. Animal slide-to-slot puzzle with
+  the target kept server side, plus the existing proof-of-work check, a
+  honeypot and rate limits (per IP, and per inbox with plus-tags and Gmail
+  dots folded). Double opt-in: the message waits 24 h in the cache and is
+  emailed to `PUBLIC_CONTACT_EMAIL` only after the sender confirms by POST
+  from the emailed link; the link carries only a token. The form shows only
+  when that address and outgoing mail are configured. Mail logs now mask
+  recipients for every email. Security review: no high findings; the
+  low ones are fixed or recorded in the policy.
+- **APK builds** of `60aef7ee8` (build only, not published): Collect and
+  Collect Plus both succeeded.
+
 - **Staging-safe release** (`digitva-weiq`, `digitva-g67f`):
   - The AI questions migration `a9e4c7f2b3d6` no longer needs a superuser.
     Without the privileges it creates the tables, skips the reader role and

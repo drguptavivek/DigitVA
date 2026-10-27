@@ -39,6 +39,14 @@ def is_mail_configured() -> bool:
     return bool(server and server != "localhost")
 
 
+def _masked_recipients(to) -> str:
+    """Recipients for logs with the local part hidden (a***@example.org)."""
+    addresses = [to] if isinstance(to, str) else list(to or ())
+    return ", ".join(
+        f"{a[0]}***@{a.split('@', 1)[1]}" if "@" in a else "***" for a in addresses
+    )
+
+
 def _normalized_email(value: str) -> str:
     return (value or "").strip().lower()
 
@@ -59,7 +67,7 @@ def _is_suppressed_recipient(to: str) -> bool:
     try:
         return bool(cache.get(key))
     except Exception as exc:
-        log.warning("Email suppression read failed for %s: %s", to, exc)
+        log.warning("Email suppression read failed for %s: %s", _masked_recipients(to), exc)
         return False
 
 
@@ -76,7 +84,7 @@ def _mark_suppressed_email(to: str, exc: Exception) -> None:
     try:
         cache.set(key, payload, timeout=ttl_seconds)
     except Exception as cache_exc:
-        log.warning("Email suppression write failed for %s: %s", to, cache_exc)
+        log.warning("Email suppression write failed for %s: %s", _masked_recipients(to), cache_exc)
 
 
 def _should_attempt_email_delivery(to: str) -> bool:
@@ -85,10 +93,10 @@ def _should_attempt_email_delivery(to: str) -> bool:
     if not to:
         return False
     if not _email_delivery_enabled():
-        log.info("Email delivery disabled by config — skipping %s", to)
+        log.info("Email delivery disabled by config — skipping %s", _masked_recipients(to))
         return False
     if _is_suppressed_recipient(to):
-        log.warning("Email recipient is suppressed due to prior permanent failures: %s", to)
+        log.warning("Email recipient is suppressed due to prior permanent failures: %s", _masked_recipients(to))
         return False
     return True
 
@@ -348,19 +356,50 @@ def send_verification_email(user, token: str, *, actor_user_id=None, commit: boo
     return True
 
 
+def send_contact_confirmation_email(to: str, token: str) -> bool:
+    """Queue the public contact form's confirmation link
+    (docs/policy/public-privacy-and-data-requests.md section 7). The link
+    carries only the token; the held message never enters this email.
+    Returns False, sending nothing, when delivery is off or *to* is
+    suppressed; the caller answers the same either way."""
+    if not _should_attempt_email_delivery(to):
+        return False
+    _dispatch_email.delay(
+        to=to,
+        subject="Confirm your message to DigitVA",
+        template_name="emails/contact_confirm",
+        context={"confirm_url": f"{_email_link_base_url()}/contact/confirm/{token}"},
+    )
+    return True
+
+
+def send_contact_message(*, to: str, reply_to: str, name: str, topic_label: str, message: str) -> None:
+    """Queue a confirmed contact-form message to the programme mailbox *to*,
+    with Reply-To the sender. The subject is fixed text plus the topic, never
+    sender-supplied text."""
+    _dispatch_email.delay(
+        to=to,
+        subject=f"DigitVA contact form: {topic_label}",
+        template_name="emails/contact_message",
+        context={"name": name, "email": reply_to, "topic_label": topic_label, "message": message},
+        reply_to=reply_to,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Celery task
 # ---------------------------------------------------------------------------
 
 def _actually_send_email(
-    to: str, subject: str, template_name: str, context: dict, inline_images=None
+    to: str, subject: str, template_name: str, context: dict, inline_images=None, reply_to=None
 ) -> None:
     """Render templates and send via Flask-Mail. Runs inside Celery worker,
     or inline for credential-bearing mail. *inline_images* is a list of
     ``(content_id, png_bytes)`` the HTML references as ``cid:<content_id>``;
-    synchronous senders only, never through the Celery task."""
+    synchronous senders only, never through the Celery task. *reply_to* sets
+    the Reply-To header (the contact form's sender)."""
     if not is_mail_configured():
-        log.warning("Mail not configured — skipping email to %s", to)
+        log.warning("Mail not configured — skipping email to %s", _masked_recipients(to))
         return
 
     html = render_template(template_name + ".html", **context)
@@ -371,6 +410,7 @@ def _actually_send_email(
         recipients=[to],
         html=html,
         body=text,
+        reply_to=reply_to,
     )
     for content_id, data in inline_images or ():
         msg.attach(
@@ -378,7 +418,7 @@ def _actually_send_email(
             disposition="inline", headers={"Content-ID": f"<{content_id}>"},
         )
     mail.send(msg)
-    log.info("Email sent to %s: %s", to, subject)
+    log.info("Email sent to %s: %s", _masked_recipients(to), subject)
 
 
 def _is_permanent_email_failure(exc: Exception) -> bool:
@@ -409,27 +449,32 @@ try:
         max_retries=3,
         default_retry_delay=30,
     )
-    def _dispatch_email(to: str, subject: str, template_name: str, context: dict) -> None:
-        """Celery task: render and send an email."""
+    def _dispatch_email(
+        to: str, subject: str, template_name: str, context: dict, reply_to: str | None = None
+    ) -> None:
+        """Celery task: render and send an email. *reply_to* defaults to None
+        so jobs queued before it existed still run."""
         if not _should_attempt_email_delivery(to):
             return
         try:
-            _actually_send_email(to, subject, template_name, context)
+            _actually_send_email(to, subject, template_name, context, reply_to=reply_to)
         except Exception as exc:
             if _is_permanent_email_failure(exc):
                 _mark_suppressed_email(to, exc)
                 log.error(
                     "Permanent email failure for %s (no retry): %s",
-                    to,
+                    _masked_recipients(to),
                     exc,
                 )
                 return
-            log.exception("Email send failed for %s: %s", to, exc)
+            log.exception("Email send failed for %s: %s", _masked_recipients(to), exc)
             raise _dispatch_email.retry(exc=exc)
 
 except ImportError:
     # Celery not available (e.g. in tests) — fall back to sync
-    def _dispatch_email(to: str, subject: str, template_name: str, context: dict) -> None:
+    def _dispatch_email(
+        to: str, subject: str, template_name: str, context: dict, reply_to: str | None = None
+    ) -> None:
         if not _should_attempt_email_delivery(to):
             return
-        _actually_send_email(to, subject, template_name, context)
+        _actually_send_email(to, subject, template_name, context, reply_to=reply_to)

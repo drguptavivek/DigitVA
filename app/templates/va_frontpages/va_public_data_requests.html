@@ -6,13 +6,13 @@
     <p>This page applies to the DigitVA web portal and the DigitVA Collect and Collect Plus Android apps. DigitVA accounts are created and managed by programme administrators, so there is no self-service sign-up; consent changes and deletion are requested by writing to us.</p>
 
     <h2 class="h4">Withdraw or change your consent</h2>
-    <p>If you gave information about a death in your family and want it withdrawn, erased or left out of reports and research, write to us and quote the case number you were given. Information already shared for research in de-identified form cannot be taken back because it no longer identifies you.</p>
+    <p>If you gave information about a death in your family and want it withdrawn, erased or left out of reports and research, write to us{% if org.email %} (you can use the <a href="{{ url_for('public_pages.contact', topic='consent') }}">contact form</a>){% endif %} and quote the case number you were given. Information already shared for research in de-identified form cannot be taken back because it no longer identifies you.</p>
 
 
     <h2 class="h4">Request deletion of your account and data</h2>
     <ol>
       <li>
-        {% if org.email %}Email <a href="mailto:{{ org.email }}?subject=DigitVA%20account%20deletion%20request">{{ org.email }}</a> from the address registered on your account, or ask your project administrator to send the request for you.
+        {% if org.email %}Email <a href="mailto:{{ org.email }}?subject=DigitVA%20account%20deletion%20request">{{ org.email }}</a> from the address registered on your account, use the <a href="{{ url_for('public_pages.contact', topic='deletion') }}">contact form</a>, or ask your project administrator to send the request for you.
         {% else %}Ask your project administrator to send the request to the programme team.{% endif %}
       </li>
       <li>Say that you want your account and associated data deleted, and give your name and the email address or mobile number you sign in with. Do not include your password.</li>

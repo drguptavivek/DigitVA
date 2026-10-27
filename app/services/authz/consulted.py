@@ -91,7 +91,10 @@ PUBLIC_ENDPOINTS = {
                          "PUBLIC_DEMO_ENABLED; CAPTCHA, per-IP limits, account cap.",
     "va_main.va_index": "Public landing page; renders no user data.",
     "public_pages.privacy": "Public privacy policy; renders no user data.",
-    "public_pages.contact": "Contact us; renders configured org details only.",
+    "public_pages.contact": "Contact us: configured org details and the public contact form; "
+                            "CSRF, captcha and rate limits, reads no user data.",
+    "public_pages.contact_confirm": "Contact form email confirmation; the link token is the "
+                                    "only credential and opens nothing but its own held message.",
     "public_pages.data_requests": "Consent and data requests instructions; no form, no user data.",
     "va_main.who_va_document": "Published WHO VA reference PDFs from a fixed registry.",
     "training_demo.public_page": "Public explainer of the Training & demo project; "

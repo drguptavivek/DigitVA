@@ -6,6 +6,12 @@ from tests.base import BaseTestCase
 
 
 class TestEmailService(BaseTestCase):
+    def test_masked_recipients_hide_the_local_part(self):
+        from app.services.email_service import _masked_recipients
+
+        self.assertEqual(_masked_recipients("victim@example.org"), "v***@example.org")
+        self.assertEqual(_masked_recipients(["ab@x.in", "bad"]), "a***@x.in, ***")
+
     def test_test_config_suppresses_mail_send(self):
         self.assertTrue(self.app.config["MAIL_SUPPRESS_SEND"])
 

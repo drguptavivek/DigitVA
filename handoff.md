@@ -19,7 +19,10 @@ Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
    <sha>` once the server image for that sha is built. Then a superuser runs
    `deploy/sql/ai_reader_setup.sql` (`digitva-weiq`) to enable AI questions.
    Fill the `PUBLIC_*` values and get legal review of the public pages
-   (`digitva-gyfj`, `digitva-athy`). Audit and preflight: CHANGELOG
+   (`digitva-gyfj`, `digitva-athy`). The contact form needs `PUBLIC_CONTACT_EMAIL`
+   and mail configured; not yet submitted end to end in a browser. Vertex
+   is configured in staging `.env` (key in `private/`); after the deploy check
+   that `gemini-3.5-flash` is served in `asia-south1`. Audit and preflight: CHANGELOG
    2026-10-27 "Staging-safe release".
 2. Collect Plus next: `digitva-5bzf.11` (bundled translations) and `.12`
    (pin definition version); related `digitva-tb0j`. S5b landed but is

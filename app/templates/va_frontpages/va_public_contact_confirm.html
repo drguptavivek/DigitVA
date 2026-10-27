@@ -1,0 +1,18 @@
+{% extends "va_frontpages/va_base.html" %}
+{% block title %}DigitVA | Confirm your message{% endblock %}
+{% block content %}
+  <div class="container mt-5 pt-5 mb-5" style="max-width: 800px;">
+    <h1 class="h2">Confirm your message</h1>
+    {% if state == "ready" %}
+      <p>Press the button to send your message to {{ org.name }}. Nothing is sent until you do.</p>
+      <form method="post" action="{{ url_for('public_pages.contact_confirm', token=token) }}">
+        {{ form.hidden_tag() }}
+        {{ form.submit(class="btn btn-primary", value="Send my message") }}
+      </form>
+    {% elif state == "sent" %}
+      <div class="alert alert-success" role="status">Thank you. Your message has been sent. We reply to the email address you gave.</div>
+    {% else %}
+      <div class="alert alert-secondary" role="status">This link is no longer valid. It may have expired, or the message may already have been sent. You can write again from the <a href="{{ url_for('public_pages.contact') }}">contact page</a>.</div>
+    {% endif %}
+  </div>
+{% endblock %}

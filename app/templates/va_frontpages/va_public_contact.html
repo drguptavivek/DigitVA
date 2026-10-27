@@ -12,5 +12,59 @@
       <li>Privacy questions or complaints: see the <a href="{{ url_for('public_pages.privacy') }}">privacy policy</a>.</li>
     </ul>
     <p>Please do not send names, phone numbers or details about a deceased person by email. Quote the case number you were given, if you have one.</p>
+
+    {% if sent %}
+      <div class="alert alert-success" role="status">
+        Thank you. If the address you gave can receive email, a confirmation link is on its way to it. Open the link within 24 hours and press the button there to send your message.
+      </div>
+    {% elif refused %}
+      <div class="alert alert-secondary" role="status">
+        The contact form is not available. Please write to your project administrator, who will pass your message on.
+      </div>
+    {% elif form %}
+      <h2 class="h4" id="contact-form-heading">Write to us</h2>
+      <p class="small text-muted">We email you a link to confirm before the message is sent. Your message is held for 24 hours until you confirm, then deleted.</p>
+      {% if error %}<div class="alert alert-warning" role="alert">{{ error }}</div>{% endif %}
+      <noscript>
+        <div class="alert alert-warning" role="alert">JavaScript is required to send this form. Please enable it, or write to your project administrator.</div>
+      </noscript>
+      {# id reused so app/static/js/pow_captcha.js drives the CAPTCHA here too #}
+      <form id="login-email-form" action="{{ url_for('public_pages.contact') }}" method="post" aria-labelledby="contact-form-heading"
+            data-captcha-challenge-url="{{ url_for('va_auth.va_login_captcha_challenge') }}"
+            data-captcha-worker-url="{{ url_for('static', filename='js/pow_captcha_worker.js') }}">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.name.label(class="form-label") }}
+          {{ form.name(class="form-control", maxlength=100, autocomplete="name") }}
+          {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.email.label(class="form-label") }}
+          {{ form.email(class="form-control", type="email", maxlength=254, autocomplete="email") }}
+          {% for e in form.email.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.topic.label(class="form-label") }}
+          {{ form.topic(class="form-select") }}
+          {% for e in form.topic.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.message.label(class="form-label") }}
+          {{ form.message(class="form-control", rows=6, maxlength=4000) }}
+          {% for e in form.message.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+        </div>
+        <div aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;">
+          {{ form.website.label() }}
+          {{ form.website(tabindex="-1", autocomplete="off") }}
+        </div>
+        {% include "va_frontpages/_slide_captcha.html" %}
+        <div id="captcha-status" class="form-text mb-3" role="status"></div>
+        {{ form.submit(class="btn btn-primary", disabled=True) }}
+      </form>
+    {% endif %}
   </div>
+  {% if form and not sent and not refused %}
+    <script src="{{ url_for('static', filename='js/pow_captcha.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+    <script src="{{ url_for('static', filename='js/slide_captcha.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+  {% endif %}
 {% endblock %}

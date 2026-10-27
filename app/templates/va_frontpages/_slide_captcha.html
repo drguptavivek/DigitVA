@@ -1,0 +1,51 @@
+{# Slide-to-slot puzzle (app/services/slide_captcha_service.py). Drawn server side
+   in viewBox units; the range input moves the piece, app/static/js/slide_captcha.js
+   fills the slide_* hidden fields. Only constants and integers are rendered here. #}
+<fieldset class="mb-3" id="slide-captcha">
+  <legend class="form-label fs-6 mb-1">Puzzle</legend>
+  <p class="small text-muted mb-2" id="slide-captcha-help">Move the slider, by dragging or with the arrow keys (Shift with an arrow moves faster), until the piece fills the gap in the picture. If you cannot use this puzzle, write to your project administrator instead.</p>
+  <svg viewBox="0 0 {{ geometry.width }} {{ geometry.height }}" role="img" aria-labelledby="slide-captcha-title"
+       style="width:100%;max-width:{{ geometry.width }}px;display:block;border-radius:6px;">
+    <title id="slide-captcha-title">A {{ slide.animal }} with a square gap</title>
+    <rect width="{{ geometry.width }}" height="{{ geometry.height }}" fill="#e7f1ff"/>
+    <g fill="#3d5a80">
+      {% if slide.animal == "cat" %}
+        <ellipse cx="160" cy="112" rx="62" ry="40"/>
+        <circle cx="218" cy="66" r="30"/>
+        <polygon points="196,48 202,20 214,42"/>
+        <polygon points="222,42 236,20 240,50"/>
+        <path d="M100 120 Q55 118 70 70" stroke="#3d5a80" stroke-width="12" fill="none" stroke-linecap="round"/>
+      {% elif slide.animal == "elephant" %}
+        <ellipse cx="150" cy="85" rx="80" ry="45"/>
+        <circle cx="236" cy="72" r="34"/>
+        <rect x="95" y="105" width="20" height="45" rx="6"/>
+        <rect x="125" y="110" width="20" height="40" rx="6"/>
+        <rect x="170" y="110" width="20" height="40" rx="6"/>
+        <rect x="200" y="105" width="20" height="45" rx="6"/>
+        <path d="M262 86 Q284 118 266 146" stroke="#3d5a80" stroke-width="14" fill="none" stroke-linecap="round"/>
+        <ellipse cx="220" cy="74" rx="20" ry="28" fill="#5a7aa3"/>
+      {% elif slide.animal == "fish" %}
+        <ellipse cx="160" cy="82" rx="88" ry="46"/>
+        <polygon points="80,82 26,40 26,124"/>
+        <polygon points="140,40 176,14 190,42"/>
+        <circle cx="218" cy="70" r="7" fill="#e7f1ff"/>
+      {% else %}
+        <ellipse cx="150" cy="96" rx="70" ry="40"/>
+        <circle cx="220" cy="60" r="26"/>
+        <polygon points="244,54 278,62 244,70"/>
+        <polygon points="86,90 28,68 40,112"/>
+        <ellipse cx="140" cy="88" rx="40" ry="22" fill="#5a7aa3"/>
+        <rect x="140" y="132" width="5" height="22"/>
+        <rect x="165" y="132" width="5" height="22"/>
+      {% endif %}
+    </g>
+    <rect x="{{ slide.slot_x }}" y="{{ slide.slot_y }}" width="{{ geometry.piece }}" height="{{ geometry.piece }}" rx="6"
+          fill="#000" fill-opacity="0.45" stroke="#fff" stroke-width="2" stroke-dasharray="4 3"/>
+    <g id="slide-captcha-piece" transform="translate(0 0)">
+      <rect x="0" y="{{ slide.slot_y }}" width="{{ geometry.piece }}" height="{{ geometry.piece }}" rx="6"
+            fill="#f4a261" fill-opacity="0.9" stroke="#fff" stroke-width="2"/>
+    </g>
+  </svg>
+  <input type="range" id="slide-captcha-range" class="form-range mt-2" min="0" max="{{ geometry.track }}" step="1" value="0"
+         style="max-width:{{ geometry.width }}px;" aria-label="Puzzle slider" aria-describedby="slide-captcha-help">
+</fieldset>

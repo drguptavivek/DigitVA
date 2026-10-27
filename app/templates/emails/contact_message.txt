@@ -1,0 +1,7 @@
+A message from the DigitVA public contact form. The sender confirmed it from their email address; reply to this email to answer them.
+
+Name: {{ name }}
+Email: {{ email }}
+Topic: {{ topic_label }}
+
+{{ message }}

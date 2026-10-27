@@ -12,6 +12,7 @@ from app.forms.va_reviewerreview_form import VaReviewerReviewForm
 from app.forms.va_usernote_form import VaUsernoteForm
 from app.forms.va_pwresettnc_form import VaForcePasswordChangeForm
 from app.forms.password_reset_form import ConfirmLinkForm, ForgotPasswordForm
+from app.forms.contact_form import ContactForm
 
 __all__ = [
     "EmailStepForm",
@@ -27,4 +28,5 @@ __all__ = [
     "VaForcePasswordChangeForm",
     "ForgotPasswordForm",
     "ConfirmLinkForm",
+    "ContactForm",
 ]

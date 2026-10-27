@@ -1,0 +1,9 @@
+Hello,
+
+Someone, hopefully you, used the DigitVA contact form with this email address.
+To send the message, open this link and press the button on the page:
+{{ confirm_url }}
+
+This link expires in 24 hours. If you did not write to us, ignore this email and nothing will be sent.
+
+DigitVA Team

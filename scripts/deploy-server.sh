@@ -68,6 +68,11 @@ fi
 
 echo "== 5. maintenance page on, pull and start (no build)"
 touch "$MAINT_FLAG"
+# The checkout is bind-mounted over /app, so /app/.venv is a named volume that
+# Docker fills from the image only when it is created. Drop it on every deploy
+# so the new image's dependencies are used (a stale one broke 2026-10-27).
+$DC rm -sf minerva_app_service minerva_celery_worker minerva_celery_beat
+docker volume rm -f "${COMPOSE_PROJECT_NAME:-$(basename "$PWD" | tr '[:upper:]' '[:lower:]')}_minerva_venv"
 make prod-pull
 
 echo "== 6. wait for the app to be healthy"

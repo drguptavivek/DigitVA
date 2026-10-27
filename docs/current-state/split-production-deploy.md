@@ -292,6 +292,15 @@ transient error, keeps its data and retries:
 - The first deploy that ships this recreates `digitva_ingress` to pick up the
   new mount. `ingress-demo.conf` (the demo stack) is not covered.
 
+### Python environment volume
+
+The checkout is bind-mounted over `/app`, so `/app/.venv` is the named volume
+`<project>_minerva_venv`, which Docker fills from the image only when the
+volume is created. `scripts/deploy-server.sh` removes it before `make
+prod-pull` on every deploy, so a new image's dependencies are used. On
+2026-10-27 a stale volume kept `pglast` out of the app and the deploy failed
+health checks until the volume was removed by hand.
+
 ## 5. Post-checks
 
 ```bash

@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **Staging deployed** at `17e43e4d8` (migration head `f3d9b5c7a2e4`):
+  public pages, contact form, AI questions and the rest of the day's set.
+  The first attempt failed health checks: the app's `.venv` named volume
+  still held the 25 October dependencies (no `pglast`). Fixed forward by
+  removing the volume; `scripts/deploy-server.sh` now drops it on every
+  deploy. Vertex AI checked from the staging app: `gemini-3.5-flash` in
+  `asia-south1` answers through a dedicated service account
+  (`digitva-vertex`); `gemini-3.5-flash-lite` returns 429 (no quota yet).
+  A Gemini client bug ("client has been closed") is fixed with a
+  regression test.
+
 - **Contact us form** (`digitva-gyfj.1`): name, email, topic (general,
   consent, deletion, technical), message. Animal slide-to-slot puzzle with
   the target kept server side, plus the existing proof-of-work check, a

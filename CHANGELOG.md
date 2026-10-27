@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **Public demo live** at https://digitvademo.causeofdeathindia.com (image
+  `c8b749f7b`): own database, S3 user on `demo/`, Let's Encrypt on the proxy.
+  First start needed three fixes: the demo compose sets the PII key path
+  (`4d1cb7a2e`), the image ships the migration seed folders (`2c11c6365`), and
+  the demo mounts `docs/` read-only for boot-time reference data (`9b8c33351`).
+  Headers and titles carry `SITE_ENV_LABEL` (DEMO on the demo; set STAGING on
+  staging if wanted); the Expo app shows a DEMO badge and title from the
+  server origin, and its compiled demo host is now `digitvademo`.
+- **Expo web export pinned to `expo-web-v2026.10.27.1`** (from `d011406a7`);
+  the image had carried the 25 October export, so staging's `/app/` still
+  lacks today's web changes until its next deploy.
+
 - **Staging deployed** at `17e43e4d8` (migration head `f3d9b5c7a2e4`):
   public pages, contact form, AI questions and the rest of the day's set.
   The first attempt failed health checks: the app's `.venv` named volume

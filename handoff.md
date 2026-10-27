@@ -22,8 +22,8 @@ Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
    the owner. Staging's checkout still has the old `deploy-server.sh`, so on
    the next deploy that changes `uv.lock` remove `digitva_minerva_venv` by hand
    first. Request Vertex quota for `gemini-3.5-flash-lite` in `asia-south1`
-   before switching to it. The public demo is live at
-   https://digitvademo.causeofdeathindia.com (image `2c11c63`, own database
+   before switching to it. Staging runs the 25 October Expo web export until it deploys `c8b749f7b` or later (owner go). The public demo is live at
+   https://digitvademo.causeofdeathindia.com (image `c8b749f`, own database
    `minerva_demo`, S3 user `digitva-demo-s3` on `demo/`). On the app host it
    runs with `/home/ubuntu/digitva-demo.override.yml` (PII key path and the
    docs/ mount) until staging's checkout reaches `9b8c33351` or later, which

@@ -117,6 +117,9 @@ services:
       # Pool at least the thread count: 6 + 2 = 8 connections.
       DB_POOL_SIZE: "6"
       DB_MAX_OVERFLOW: "2"
+      # The mounted secret below; without this the app refuses to start
+      # (pii_crypto refuses a readable key it was not told to use).
+      PII_KEM_PRIVATE_KEY_FILE: /run/secrets/pii_kem_private_key
     secrets:
       - source: demo_pii_kem_private_key
         target: pii_kem_private_key
@@ -157,6 +160,7 @@ services:
       <<: *demo-env
       DB_POOL_SIZE: "1"
       DB_MAX_OVERFLOW: "2"
+      PII_KEM_PRIVATE_KEY_FILE: /run/secrets/pii_kem_private_key
     secrets:
       - source: demo_pii_kem_private_key
         target: pii_kem_private_key

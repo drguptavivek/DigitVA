@@ -284,6 +284,8 @@
   "contactDetailsHeading": "Family and informant",
   "caseActionsUnavailable": "No follow-up actions are available in this status.",
   "referenceDataUnavailable": "Sync project settings before starting a new death registration or interview.",
+  "firstDownloadTitle": "Downloading questionnaires and data",
+  "firstDownloadMessage": "Syncing. Please wait, and keep mobile data or Wi-Fi on until this closes.",
   "questionnaireLanguageUnavailable": "This questionnaire language is not available offline. Sync project settings when connected and try again.",
   "termsTitle": "Terms and Conditions",
   "termsConfidential": "All data and content accessible via the VA Coding platform is considered strictly confidential.",

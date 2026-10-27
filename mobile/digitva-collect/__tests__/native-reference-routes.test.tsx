@@ -614,6 +614,35 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("blocks Home with the first-download modal until a new phone has its projects and cases", async () => {
+    (getCachedReferenceData as jest.Mock).mockImplementation(async () => undefined);
+    let release!: () => void;
+    (refreshReferenceData as jest.Mock).mockImplementationOnce(
+      () => new Promise((resolve) => { release = () => resolve(mockReference); }),
+    );
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    expect(tree!.root.findAllByProps({ testID: "first-download-modal" }).length).toBeGreaterThan(0);
+
+    await act(async () => { release(); });
+    await settle();
+    expect(jest.requireMock("../src/sync").refreshAuthorizedProjectDefinitions)
+      .toHaveBeenCalledWith("u1", mockDb, mockReference);
+    expect(refreshCases).toHaveBeenCalledWith("u1", mockDb);
+    expect(tree!.root.findAllByProps({ testID: "first-download-modal" })).toHaveLength(0);
+    await act(async () => tree!.unmount());
+  });
+
+  it("does not show the first-download modal once the phone has downloaded before", async () => {
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    expect(refreshReferenceData).toHaveBeenCalled();
+    expect(tree!.root.findAllByProps({ testID: "first-download-modal" })).toHaveLength(0);
+    await act(async () => tree!.unmount());
+  });
+
   it("shows a spinner on Refresh while it runs, then the refreshed content", async () => {
     mockCachedReference = pack("both", "P1");
     mockReference = pack("both", "P1");

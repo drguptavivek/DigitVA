@@ -30,6 +30,7 @@ import {
 import { sendRefusals, type SendRefusal } from "../unsentWork";
 import { deleteUnsentDraft, listDrafts, retryHeldDraft, type Db, type DraftRow } from "../drafts";
 import { ConfirmDialog } from "../ConfirmDialog";
+import { FirstDownloadModal } from "../FirstDownloadModal";
 import { t } from "../i18n";
 import { useShell } from "../nativeShell/shellContext";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -84,6 +85,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const [drafts, setDrafts] = useState<DraftRow[]>([]);
   const [refusals, setRefusals] = useState<Map<string, SendRefusal>>(new Map());
   const [revisions, setRevisions] = useState<RevisionRow[]>([]);
+  const [firstDownload, setFirstDownload] = useState(false);
   const [submittedRevisions, setSubmittedRevisions] = useState<SubmittedRevisionSummary[]>([]);
   const [submittedRevisionsLoaded, setSubmittedRevisionsLoaded] = useState(false);
   const [submittedRevisionsError, setSubmittedRevisionsError] = useState(false);
@@ -395,6 +397,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           const cached = await getCachedReferenceData(handle);
           if (!active) return;
           setReference(cached);
+          // Nothing downloaded yet (first sign-in on this phone): block Home until it is.
+          const isFirstDownload = !cached;
+          if (isFirstDownload) setFirstDownload(true);
           void loadSubmittedInterviews(
             new Set(cached?.projects.map(({ project }) => project.project_id) ?? []),
             () => active && isCurrent(),
@@ -433,7 +438,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
                 authorizedProjectIds,
                 () => active && isCurrent(),
               );
-              if (forceRefresh) await refreshCases(account.user_id, handle);
+              if (forceRefresh || isFirstDownload) await refreshCases(account.user_id, handle);
               await loadLocal(handle, () => active && isCurrent());
               if (fresh) setMessage("");
               else if (!cached) setMessage(t("referenceDataUnavailable"));
@@ -452,6 +457,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
                 () => active && isCurrent(),
                 error,
               );
+          } finally {
+            if (isFirstDownload) setFirstDownload(false);
           }
         } catch (error) {
           if (active) await handleError(error);
@@ -886,6 +893,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   );
   const sheets = (
     <>
+      {firstDownload ? <FirstDownloadModal /> : null}
       {deleting ? (
         <ConfirmDialog
           destructive

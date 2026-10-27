@@ -22,8 +22,15 @@ Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
    the owner. Staging's checkout still has the old `deploy-server.sh`, so on
    the next deploy that changes `uv.lock` remove `digitva_minerva_venv` by hand
    first. Request Vertex quota for `gemini-3.5-flash-lite` in `asia-south1`
-   before switching to it. The demo portal is not deployed; its public keys
-   are `DEMO_PUBLIC_*` in `/data/digitva-demo.env`.
+   before switching to it. The public demo is live at
+   https://digitvademo.causeofdeathindia.com (image `2c11c63`, own database
+   `minerva_demo`, S3 user `digitva-demo-s3` on `demo/`). On the app host it
+   runs with `/home/ubuntu/digitva-demo.override.yml` (PII key path and the
+   docs/ mount) until staging's checkout reaches `9b8c33351` or later, which
+   carries both; then drop the override. Admin password is in
+   `/home/ubuntu/demo-admin-password.txt` (owner: move it to the password
+   manager, delete the file, enrol a second factor). Purge stays off until two
+   nightly backups and a restore test pass (runbook step 7).
 2. Collect Plus next: `digitva-5bzf.11` (bundled translations) and `.12`
    (pin definition version); related `digitva-tb0j`. S5b landed but is
    tested only against a mocked network: check one adoption push against

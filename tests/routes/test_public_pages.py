@@ -41,3 +41,10 @@ class PublicPagesTest(BaseTestCase):
         body = self.client.get("/vaauth/va_login").get_data(as_text=True)
         for path in PAGES:
             self.assertIn(f'href="{path}"', body)
+
+    def test_header_says_demo_only_on_the_public_demo(self):
+        badge = ">DEMO</span>"
+        with patch.dict(self.app.config, PUBLIC_DEMO_ENABLED=True):
+            self.assertIn(badge, self.client.get("/privacy").get_data(as_text=True))
+        with patch.dict(self.app.config, PUBLIC_DEMO_ENABLED=False):
+            self.assertNotIn(badge, self.client.get("/privacy").get_data(as_text=True))

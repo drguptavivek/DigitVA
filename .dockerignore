@@ -13,6 +13,13 @@ output/
 private/
 tests/
 docs/
+# Seed data that migrations read: a fresh database (the public demo) migrates
+# from the image alone. tests/test_dockerignore_migration_data.py checks this.
+!docs/icd-causegrp-mappings/migration-artifacts/icd10-2019-base-2026-04-27
+!docs/icd-causegrp-mappings/migration-artifacts/cmea10-cod-2026-04-27
+!docs/icd-causegrp-mappings/migration-artifacts/srs-india-cod-2026-04-27
+!docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-04-27
+!docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision
 node_modules/
 tasks/
 backup/

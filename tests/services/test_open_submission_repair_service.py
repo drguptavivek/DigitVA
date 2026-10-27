@@ -35,13 +35,36 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
     def test_returns_without_odk_calls_when_no_current_payload_gaps(self):
         with self.app.app_context(), \
             patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
+            patch("app.services.open_submission_repair_service.db.session.commit"), \
             patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=({}, {"attachments_missing": 0})), \
+            patch("app.services.open_submission_repair_service.get_submission_workflow_state", return_value="coding_in_progress"), \
+            patch("app.services.open_submission_repair_service.mark_attachment_sync_completed") as mock_attachment_transition, \
             patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids") as mock_fetch:
             result = repair_submission_for_coding_open("SID-1")
 
         self.assertFalse(result["attempted"])
         self.assertEqual(result["reason"], "no-gaps")
         mock_fetch.assert_not_called()
+        mock_attachment_transition.assert_not_called()
+
+    def test_no_gaps_advances_a_submission_still_waiting_on_attachments(self):
+        # The sync downloaded attachments and SmartVA inline, so repair finds no
+        # gap; the submission must still leave attachment_sync_pending.
+        states = iter(["attachment_sync_pending", "smartva_pending"])
+        with self.app.app_context(), \
+            patch("app.services.open_submission_repair_service.db.session.get", side_effect=self._db_get), \
+            patch("app.services.open_submission_repair_service.db.session.commit"), \
+            patch("app.services.open_submission_repair_service._build_repair_map_for_form", return_value=({}, {"attachments_missing": 0})), \
+            patch("app.services.open_submission_repair_service.get_submission_workflow_state", side_effect=lambda _sid: next(states)), \
+            patch("app.services.open_submission_repair_service.mark_attachment_sync_completed") as mock_attachment_transition, \
+            patch("app.services.open_submission_repair_service.mark_smartva_completed") as mock_smartva_transition, \
+            patch("app.services.open_submission_repair_service.va_odk_fetch_submissions_by_ids") as mock_fetch:
+            result = repair_submission_for_coding_open("SID-1")
+
+        self.assertEqual(result["reason"], "no-gaps")
+        mock_fetch.assert_not_called()
+        mock_attachment_transition.assert_called_once()
+        mock_smartva_transition.assert_called_once()
 
     def test_holds_submission_out_of_ordinary_repair_after_upstream_change_detection(self):
         initial_plan = {

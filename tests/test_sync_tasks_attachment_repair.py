@@ -261,6 +261,32 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         self.assertEqual(summary["attachments_missing"], 0)
         self.assertNotIn(va_sid, repair_map)
 
+    def test_audit_csv_counted_in_attachments_expected_is_accounted_for(self):
+        # Central's attachment list, and so AttachmentsExpected, includes
+        # audit.csv; readiness leaves it out. An audit-only submission must
+        # still be complete, or it sits in attachment_sync_pending forever.
+        audit_only = self._create_submission_with_attachment(
+            filename="audit.csv",
+            storage_name="audit-only-storage.csv",
+            local_path=None,
+            store_state="s3",
+            attachments_expected=1,
+        )
+        # Baseline: audit.csv accounts for one file, not for a missing photo.
+        photo_missing = self._create_submission_with_attachment(
+            filename="audit.csv",
+            storage_name="photo-missing-audit-storage.csv",
+            local_path=None,
+            store_state="s3",
+            attachments_expected=2,
+        )
+
+        repair_map, summary = _build_repair_map_for_form(self.form_id, {}, {})
+
+        self.assertTrue(repair_map[photo_missing]["needs_attachments"])
+        self.assertEqual(summary["attachments_missing"], 1)
+        self.assertNotIn(audit_only, repair_map)
+
     def test_retired_submission_attachments_never_make_it_incomplete(self):
         # docs/policy/odk-retired-submissions.md: ODK has purged the source, so
         # no repair can ever run and the submission must not sit in the queue.

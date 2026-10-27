@@ -1854,6 +1854,10 @@ class SubmissionAttachmentState:
     # Files refused for size and recorded: accounted for, neither ready nor
     # missing (docs/policy/odk-attachment-intake-limits.md).
     refused_count: int = 0
+    # ``audit.csv`` rows Central lists. Central's attachment list, and so the
+    # payload's ``AttachmentsExpected``, includes it: accounted for, never
+    # blocking, so completeness compares like with like.
+    audit_count: int = 0
 
 
 def attachment_state_by_submission(
@@ -1898,6 +1902,7 @@ def attachment_state_by_submission(
     ready: dict[str, set[str]] = {}
     unready: dict[str, list[str]] = {}
     refused: dict[str, int] = {}
+    audit: dict[str, int] = {}
     retired: dict[str, bool] = {}
     for row in db.session.execute(stmt).mappings().all():
         va_sid = row["va_sid"]
@@ -1905,6 +1910,7 @@ def attachment_state_by_submission(
             retired.get(va_sid, False) or row["va_sync_issue_code"] == MISSING_IN_ODK
         )
         if (row["filename"] or "").lower() == AUDIT_FILENAME:
+            audit[va_sid] = audit.get(va_sid, 0) + 1
             continue
         if row["source_state"] in (SOURCE_MISSING, SOURCE_RETIRED):
             continue
@@ -1933,6 +1939,7 @@ def attachment_state_by_submission(
             ready_count=len(ready.get(va_sid, ())),
             unready=tuple(sorted(unready.get(va_sid, ()))),
             refused_count=refused.get(va_sid, 0),
+            audit_count=audit.get(va_sid, 0),
         )
         for va_sid, is_retired in retired.items()
     }

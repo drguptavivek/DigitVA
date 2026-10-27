@@ -963,9 +963,12 @@ def _build_repair_map_for_form(
         if attachment_state is not None and attachment_state.retired:
             attachments_complete = True
         else:
-            # A file refused for size is accounted for, not missing.
+            # A file refused for size is accounted for, not missing; so is
+            # audit.csv, which AttachmentsExpected counts but readiness skips.
             ready_attachment_count = (
-                attachment_state.ready_count + attachment_state.refused_count
+                attachment_state.ready_count
+                + attachment_state.refused_count
+                + attachment_state.audit_count
                 if attachment_state else 0
             )
             unready_attachments = (

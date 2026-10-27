@@ -615,6 +615,7 @@ class AttachmentStateTests(AttachmentLifecycleBase):
         self.assertTrue(states[retired.va_sid].retired)
         self.assertEqual(states[audit_only.va_sid].ready_count, 0)
         self.assertEqual(states[audit_only.va_sid].unready, ())
+        self.assertEqual(states[audit_only.va_sid].audit_count, 1)
 
     def test_a_source_central_no_longer_holds_never_blocks(self):
         sub = self._submission()

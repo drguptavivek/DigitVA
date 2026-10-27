@@ -108,6 +108,15 @@ def repair_submission_current_payload(
     )
     plan_item = repair_map.get(va_sid)
     if plan_item is None:
+        # Nothing missing: a submission still waiting on its attachments or
+        # SmartVA is complete, typically because the sync downloaded both
+        # inline. Without this it stays in attachment_sync_pending for good.
+        _advance_workflow_after_current_payload_repair(
+            va_sid=va_sid,
+            needs_attachments=False,
+            needs_smartva=False,
+        )
+        db.session.commit()
         return {
             "attempted": False,
             "reason": "no-gaps",

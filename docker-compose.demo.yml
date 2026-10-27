@@ -128,6 +128,9 @@ services:
       - demo_smartva_runs:/app/smartva_runs
       - demo_logs:/app/logs
       - *demo-db-ca
+      # Public reference data the app reads at boot and on request (WHO
+      # workbooks, ICD mappings); the image leaves docs/ out.
+      - ./docs:/app/docs:ro
     networks: [default, digitva_icd]
     depends_on:
       demo_redis_service:
@@ -169,6 +172,9 @@ services:
       - demo_smartva_runs:/app/smartva_runs
       - demo_logs:/app/logs
       - *demo-db-ca
+      # Public reference data the app reads at boot and on request (WHO
+      # workbooks, ICD mappings); the image leaves docs/ out.
+      - ./docs:/app/docs:ro
     networks: [default, digitva_icd]
     depends_on:
       demo_app_service:

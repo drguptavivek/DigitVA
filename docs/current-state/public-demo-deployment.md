@@ -3,7 +3,7 @@ title: Public Demo Deployment Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-27
 ---
 
 # Public Demo Deployment Runbook
@@ -302,14 +302,14 @@ curl -ks https://<DEMO_BIND_IP>:8001/health -H 'Host: localhost'   # on the app 
 ```
 
 Then, on the DMZ proxy: enable the demo site, `sudo nginx -t && sudo systemctl reload nginx`.
-`curl -sI https://demo.causeofdeathindia.com/signup` returns 200.
+`curl -sI https://digitvademo.causeofdeathindia.com/vaauth/signup` returns 200.
 
 ## 6. Verify
 
 Do these with a throwaway account (usernames and data are visible to the demo
 team; the 30-day rule applies). Each is a pass or fail.
 
-1. **Sign-up.** `/signup` shows the notice and the proof-of-work CAPTCHA; a
+1. **Sign-up.** `/vaauth/signup` shows the notice and the proof-of-work CAPTCHA; a
    12+ character password creates the account and signs in. The app's JSON
    sign-up works from digitva-collect ("Try the demo").
 2. **Collect.** Start a verbal autopsy on the web: consent notice (English and
@@ -334,7 +334,7 @@ team; the 30-day rule applies). Each is a pass or fail.
    know (call it A):
 
    ```bash
-   curl -s -o /dev/null -H 'X-Forwarded-For: 203.0.113.9' https://demo.causeofdeathindia.com/signup
+   curl -s -o /dev/null -H 'X-Forwarded-For: 203.0.113.9' https://digitvademo.causeofdeathindia.com/vaauth/signup
    $DD logs --tail 3 demo_ingress
    ```
 
@@ -350,7 +350,7 @@ team; the 30-day rule applies). Each is a pass or fail.
 
    Also, from any host other than the DMZ proxy that can reach the port, the
    header must be ignored:
-   `curl -ks -H 'X-Forwarded-For: 203.0.113.9' https://<APP_PRIVATE_IP>:8001/signup`
+   `curl -ks -H 'X-Forwarded-For: 203.0.113.9' https://<APP_PRIVATE_IP>:8001/vaauth/signup`
    logs that host's own address.
 10. **Limits.** Do not exhaust the sign-up limits (they are shared by everyone);
     the configured values printed in step 3 are the check, and

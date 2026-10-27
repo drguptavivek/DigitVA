@@ -15,6 +15,8 @@ const mockReload = jest.fn(async () => undefined);
 const mockReplace = jest.fn();
 const mockAccept = jest.fn(async (_userId: string) => undefined);
 const mockRefresh = jest.fn<Promise<unknown>, [string]>(async (_userId) => undefined);
+const mockLockNow = jest.fn(async () => true);
+const mockSignOut = jest.fn(async (_userId: string) => undefined);
 jest.mock("expo-router", () => ({
   useGlobalSearchParams: () => ({ userId: mockRouteUser }),
   useRouter: () => ({ replace: mockReplace }),
@@ -25,6 +27,7 @@ jest.mock("../src/AppState", () => ({
       { user_id: "worker", name: "Worker", terms_required: mockRequired, access_blocked: mockBlocked },
     ],
     reload: mockReload,
+    lockNow: mockLockNow,
     error: mockAppError,
     errorBlocking: mockErrorBlocking,
     clearError: mockClearError,
@@ -36,7 +39,7 @@ jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({
 jest.mock("../src/auth", () => ({
   acceptDeviceTerms: (userId: string) => mockAccept(userId),
   refreshAccessSummary: (userId: string) => mockRefresh(userId),
-  signOut: jest.fn(),
+  signOut: (userId: string) => mockSignOut(userId),
 }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
@@ -238,4 +241,27 @@ describe("background error toast", () => {
     expect(mockShow).not.toHaveBeenCalled();
     await act(async () => tree.unmount());
   });
+});
+
+it("locks every store before signing out from the gate, then goes Home", async () => {
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+  await act(async () => { tree.root.findByProps({ label: "signOut" }).props.onPress(); });
+  expect(mockSignOut).toHaveBeenCalledWith("worker");
+  expect(mockLockNow.mock.invocationCallOrder[0]).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
+  expect(mockReload).toHaveBeenCalled();
+  expect(mockReplace).toHaveBeenCalledWith("/");
+  await act(async () => tree.unmount());
+});
+
+it("stays on the gate with a message, signing nobody out, when the stores could not be locked", async () => {
+  mockLockNow.mockResolvedValueOnce(false);
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeTermsGate>navigation</NativeTermsGate>); });
+  await act(async () => { tree.root.findByProps({ label: "signOut" }).props.onPress(); });
+  expect(mockLockNow).toHaveBeenCalledTimes(1);
+  expect(mockSignOut).not.toHaveBeenCalled();
+  expect(mockReplace).not.toHaveBeenCalled();
+  expect(JSON.stringify(tree.toJSON())).toContain("errGeneric");
+  await act(async () => tree.unmount());
 });

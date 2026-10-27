@@ -51,6 +51,7 @@ import * as TaskManager from "expo-task-manager";
 import { Platform } from "react-native";
 import { NATIVE_NOTIFICATION_TASK, runNativeNotificationTask, syncNotificationTaskRegistration } from "../src/notificationTask";
 import { readNotificationState } from "../src/notificationState";
+import { NotInSlotError } from "../src/authErrors";
 
 beforeEach(() => {
   mockSecure.clear();
@@ -88,6 +89,16 @@ it("defines one module-scope task and stores only a pending cursor for a locked 
     { timeoutMs: 15_000 },
   );
   expect(await readNotificationState("locked-account-1")).toMatchObject({ cursor: 7, pendingSync: true });
+});
+
+it("skips a user the chosen slot no longer serves without failing the task or recording a sync", async () => {
+  mockAuthedRequest.mockRejectedValue(new NotInSlotError());
+  await expect(runNativeNotificationTask()).resolves.toBeUndefined();
+  expect(mockAuthedRequest).toHaveBeenCalledTimes(1);
+  expect((await readNotificationState(mockAccounts[0].user_id))?.pendingSync ?? false).toBe(false);
+
+  mockRefreshAccessSummary.mockRejectedValue(new NotInSlotError());
+  await expect(runNativeNotificationTask()).resolves.toBeUndefined();
 });
 
 it("exits without network access when SecureStore is unavailable", async () => {

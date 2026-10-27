@@ -3,7 +3,7 @@ title: Android Release Builds
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-27
 ---
 
 # Android release builds
@@ -19,7 +19,7 @@ DigitVA web app" (`docs/policy/field-data-collection.md`).
 | --- | --- |
 | Android package | `com.causeofdeathindia.digitvacollect` (was `org.digitva.collect` for the 0.1.0 test build; a different app to Android, so 0.1.0 must be uninstalled) |
 | Future coding app | `com.causeofdeathindia.digitvacoder` (not built) |
-| Release server | `https://digitva.causeofdeathindia.com` (`EXPO_PUBLIC_API_BASE_URL`); the QR rule still enrols on any https host under `causeofdeathindia.com` |
+| Release server | `https://digitvav3.causeofdeathindia.com`, staging (`EXPO_PUBLIC_API_BASE_URL`; owner 2026-10-27, `digitva-0d6l`; phones already enrolled keep their server); the QR rule still enrols on any https host under `causeofdeathindia.com` |
 | APKs | one per ABI, `arm64-v8a` (most phones) and `armeabi-v7a` (older 32-bit phones); no universal APK |
 | versionCode | base `major*10000 + minor*100 + patch` (0.2.0 -> `200`), each APK `base*10 + ABI digit`: `armeabi-v7a` 1, `arm64-v8a` 2 |
 | Signing certificate SHA-256 | `6D:94:71:8A:08:78:71:0B:8C:A7:F2:84:11:6D:13:67:1C:F3:9E:4D:D5:F6:EB:8B:B0:FB:A7:EF:6D:36:17:67` (`CN=DigitVA Collect, O=Cause of Death India, C=IN`, RSA 4096, valid to 2056-10-14) |
@@ -74,13 +74,13 @@ rm /private/tmp/digitva-collect.keystore.b64
 cd mobile/digitva-collect
 set -a; . ../../private/android/release-signing.env; set +a
 export DIGITVA_ANDROID_RELEASE_BUILD=1 \
-  EXPO_PUBLIC_API_BASE_URL=https://digitva.causeofdeathindia.com \
+  EXPO_PUBLIC_API_BASE_URL=https://digitvav3.causeofdeathindia.com \
   DIGITVA_ANDROID_VERSION_CODE=200 ANDROID_HOME=~/Library/Android/sdk
 npx expo prebuild --platform android --clean --non-interactive
 (cd android && ./gradlew --no-daemon clean assembleRelease)
 # android/app/build/outputs/apk/release/app-{arm64-v8a,armeabi-v7a}-release.apk
 ../../scripts/verify-android-release.sh android/app/build/outputs/apk/release/app-arm64-v8a-release.apk \
-  6D94718A0878710B8CA7F284116D13671CF39E4DD5F6EB8BB0FBA7EF6D361767 https://digitva.causeofdeathindia.com 2002
+  6D94718A0878710B8CA7F284116D13671CF39E4DD5F6EB8BB0FBA7EF6D361767 https://digitvav3.causeofdeathindia.com 2002
 ```
 
 Keep the variables exported for both prebuild and Gradle: Gradle embeds the

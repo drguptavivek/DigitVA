@@ -98,7 +98,8 @@ export async function enrolAndSignInDemo(
   onProgress?.({ stage: "enrol" });
   await enrolDemoDevice(demoServer(), name, password, Constants.deviceName ?? "Android", APP_VERSION);
   onProgress?.({ stage: "signin" });
-  return signIn(name, password);
+  // Pinned to Demo: a switch while this ran keeps neither the account nor its tokens.
+  return signIn(name, password, "demo");
 }
 
 /** The demo pages that open in the system browser (the dashboard is public; reports need a web sign-in). */

@@ -212,12 +212,18 @@ that would collect an interviewer's password.
 - The server pages the app opens (code redemption, forgotten password) use
   the same rule.
 - **Changing server is re-enrolling.** Settings shows the enrolled server
-  read-only. **Change server / re-enrol** is refused while any interviewer on
-  the phone has unsent work (drafts, registrations, queued case actions,
-  revisions) or a locked store whose contents cannot be counted; the refusal
-  names each interviewer and says to unlock and sync. When nothing is unsent
-  it asks once, signs every interviewer out (the ordinary sign-out wipe) and
-  drops the enrolment, then opens the enrol screen for the new server's QR.
+  read-only. **Change server / re-enrol** is refused while any signed-in
+  interviewer on the phone has unsent work (drafts, registrations, queued
+  case actions, revisions) or a locked store whose contents cannot be
+  counted; the refusal names each interviewer and says to unlock and sync. A
+  signed-out profile's store is always locked and does not refuse (owner
+  decision 2026-10-27): the confirmation names each one and says its data
+  stays on this phone, encrypted, and work in it can be sent only from this
+  server; the interviewer can still go ahead. Otherwise it asks once, signs
+  every interviewer out (the ordinary sign-out, which keeps each encrypted
+  store, its PIN and its fingerprint and screen-lock entries) and drops the
+  enrolment, then opens the enrol screen for the new server's QR. Profiles of
+  the old server are then hidden but kept on the phone.
 
 ## 8. Sign-in QR (owner decision 2026-10-23; server and phone scan built, Users-page screens pending)
 
@@ -329,7 +335,11 @@ PIN in a row are unchanged.
     code, which could skip the prompt. It is
     offered only when the phone has a screen lock set.
   Turning an option on needs the PIN (or the first-run PIN just set) and one
-  successful prompt. Wipe, sign-out and re-enrolment erase both entries.
+  successful prompt. A wipe (a revoked session with nothing unsent, the
+  fifth wrong PIN) erases both entries with the store; sign-out and
+  re-enrolment keep them, and a signed-out profile is not offered either
+  option and must sign in again before its PIN, fingerprint or screen lock
+  opens the store.
 - **First-run prompt.** After the first PIN setup the app offers, once and
   skippably, fingerprint and phone screen lock (whichever the phone supports).
   If skipped it is offered **once more** on a later PIN unlock, then never

@@ -9,7 +9,8 @@ const mockEnrol = jest.fn<Promise<{ user_id: string; name: string }>, [string, s
 
 jest.mock("react-native", () => ({ Platform: { OS: "android" }, Pressable: "pressable", Text: "text", TextInput: "textinput", View: "view" }));
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
-jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: mockReload }) }));
+const mockLockNow = jest.fn(async () => true);
+jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: mockReload, lockNow: mockLockNow }) }));
 jest.mock("../src/i18n", () => ({ t: (key: string, vars?: Record<string, unknown>) => (vars ? `${key}:${JSON.stringify(vars)}` : key) }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -90,6 +91,22 @@ it("signs up, enrols, signs in and goes to unlock", async () => {
   expect(mockEnrol).toHaveBeenCalledWith("demo.user", GOOD, expect.any(Function));
   expect(mockReload).toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+});
+
+it("saves and locks every store before anything is sent, and stops when that fails", async () => {
+  const tree = await render();
+  await fillCreate(tree);
+  mockLockNow.mockResolvedValueOnce(false);
+  await press(button(tree, "demoSubmitCreate"));
+  expect(mockLockNow).toHaveBeenCalledTimes(1);
+  expect(mockSignUp).not.toHaveBeenCalled();
+  expect(mockEnrol).not.toHaveBeenCalled();
+  expect(texts(tree)).toContain("errGeneric");
+
+  await press(button(tree, "demoTryAgain"));
+  expect(mockLockNow).toHaveBeenCalledTimes(2);
+  expect(mockLockNow.mock.invocationCallOrder[1]).toBeLessThan(mockSignUp.mock.invocationCallOrder[0]);
+  expect(mockEnrol).toHaveBeenCalledTimes(1);
 });
 
 it("checks the fields before any request", async () => {

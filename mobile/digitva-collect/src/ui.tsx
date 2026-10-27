@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
-import { SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { describeError, recordError } from "./errorLog";
 import { isStorageFull } from "./storageErrors";
 import { t, type StringKey } from "./i18n";
@@ -305,6 +305,8 @@ export function errorText(error: unknown): string {
   if (isStorageFull(error)) return t("phoneStorageFull");
   if (error instanceof SessionRevokedError) return t(error.keptUnsent ? "accessRemovedKept" : "sessionRevoked");
   if (error instanceof SignInRequiredError) return t("signInAgain");
+  if (error instanceof AlreadyEnrolledError) return t("errAlreadyEnrolled");
+  if (error instanceof NotInSlotError) return t("errSlotChanged");
   if (error instanceof ApiError) {
     if (error.code === "enrolment_invalid") return t("errEnrolInvalid");
     if (error.code === "csrf_failed") return t("csrfRefreshed");

@@ -16,7 +16,8 @@ jest.mock("expo-camera", () => ({
   useCameraPermissions: () => [{ granted: true }, jest.fn()],
   CameraView: "CameraView",
 }));
-jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: mockReload }) }));
+const mockLockNow = jest.fn(async () => true);
+jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: mockReload, lockNow: mockLockNow }) }));
 jest.mock("../src/auth", () => ({
   redeemSignInQr: (...args: unknown[]) => mockRedeem(...args),
   enrolDevice: (...args: unknown[]) => mockEnrol(...args),
@@ -91,6 +92,19 @@ it("redeems on confirm, then goes to PIN setup through unlock with the refresh f
   expect(mockReload).toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
   expect(loggedAnything()).toBe(false);
+});
+
+it("saves and locks every store before redeeming or enrolling, and sends nothing when that fails", async () => {
+  mockLockNow.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
+  for (const qr of [signInQr, enrolQr]) {
+    const tree = await render();
+    scan(tree, qr);
+    await press(tree, "enrolConfirm");
+    expect(text(tree)).toContain("errGeneric");
+  }
+  expect(mockLockNow).toHaveBeenCalledTimes(2);
+  expect(mockRedeem).not.toHaveBeenCalled();
+  expect(mockEnrol).not.toHaveBeenCalled();
 });
 
 it("shows one message for every refusal and never the token", async () => {

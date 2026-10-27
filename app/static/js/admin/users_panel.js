@@ -103,6 +103,19 @@
           + '<i class="fa-solid fa-key"></i></button>';
       }
 
+      // Present only for a public-demo account on a demo deployment
+      // (docs/policy/public-demo.md section 8): kept accounts are never purged.
+      var keepBtn = '';
+      if (CURRENT_USER_IS_ADMIN && typeof u.public_demo_keep === 'boolean') {
+        keepBtn = '<button class="btn btn-sm py-0 px-2 user-demo-keep-btn '
+          + (u.public_demo_keep ? 'btn-success' : 'btn-outline-secondary') + '"'
+          + ' data-id="' + esc(u.user_id) + '"'
+          + ' data-keep="' + (u.public_demo_keep ? '1' : '0') + '"'
+          + ' aria-pressed="' + (u.public_demo_keep ? 'true' : 'false') + '"'
+          + ' title="' + (u.public_demo_keep ? 'Kept: never expires (click to let it expire)' : 'Keep (Play Store review account only): never expire this demo account') + '">'
+          + '<i class="fa-solid fa-thumbtack"></i></button>';
+      }
+
       var adminBadge = isAdmin ? ' <span class="badge text-bg-warning small">Admin</span>' : '';
       var verifyBadge = u.mobile_only
         ? '<span class="badge text-bg-info text-dark">Mobile</span>'
@@ -124,7 +137,7 @@
             : '<span class="badge text-bg-secondary">Inactive</span>')
         + '</td>'
         + '<td class="align-middle py-2">' + verifyBadge + '</td>'
-        + '<td class="align-middle py-2 text-end">' + verifyBtn + ' ' + resetFactorsBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
+        + '<td class="align-middle py-2 text-end">' + verifyBtn + ' ' + resetFactorsBtn + ' ' + keepBtn + ' ' + toggleBtn + ' ' + editBtn + '</td>'
         + '</tr>';
     }).join('');
 
@@ -205,6 +218,30 @@
     for (var j = 0; j < toggleBtns.length; j++) {
       toggleBtns[j].addEventListener('click', function () {
         promptToggle(this.getAttribute('data-id'), this.getAttribute('data-email'), this.getAttribute('data-active') === '1');
+      });
+    }
+
+    var keepBtns = wrap.querySelectorAll('.user-demo-keep-btn');
+    for (var q = 0; q < keepBtns.length; q++) {
+      keepBtns[q].addEventListener('click', function () {
+        var btn = this;
+        var userId = btn.getAttribute('data-id');
+        btn.disabled = true;
+        apiJson('/admin/api/users/' + encodeURIComponent(userId) + '/public-demo-keep', 'POST',
+          { keep: btn.getAttribute('data-keep') !== '1' })
+          .then(function (res) {
+            btn.disabled = false;
+            if (!res.ok) {
+              var w = document.getElementById('user-table-wrap');
+              w.insertAdjacentHTML('afterbegin', '<div class="alert alert-danger small py-2 mt-2">' + esc(res.data.error || 'Failed.') + '</div>');
+              return;
+            }
+            _users = _users.map(function (u) {
+              return u.user_id === userId ? Object.assign({}, u, { public_demo_keep: res.data.public_demo_keep }) : u;
+            });
+            renderTable();
+          })
+          .catch(function () { btn.disabled = false; });
       });
     }
 

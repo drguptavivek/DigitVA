@@ -99,7 +99,12 @@ placeholder. The owner's personal email is never hardcoded.
 3. **Grievance officer** name and designation (`PUBLIC_GRIEVANCE_OFFICER`; DPDP).
 4. **Postal address** (`PUBLIC_POSTAL_ADDRESS`).
 5. **Respondent data retention period** and what happens after: the consent
-   notice leaves `[RETENTION PERIOD AND WHAT HAPPENS AFTER]` open.
+   notice leaves `[RETENTION PERIOD AND WHAT HAPPENS AFTER]` open, except on
+   the public demo project. The consent notice's placeholders are filled from
+   the settings above only when a notice version is saved, never when it is
+   shown; an unset setting leaves its placeholder; the demo project also gets
+   its retention and district lines (`digitva-e9hx`, see
+   docs/policy/respondent-consent-notice-draft.md "Seed text for Project Setup").
 6. **Deletion request response time** (days to complete after a verified request).
 7. **De-linking rule:** whether deleting a coder or interviewer account
    anonymises their authorship on records and audit entries, or keeps it.

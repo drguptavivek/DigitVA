@@ -1,5 +1,6 @@
 /** Accounts home: interviewers signed in on this device, by display name and lock state only. */
 import { Redirect, useRouter } from "expo-router";
+import { useEffect } from "react";
 import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -15,8 +16,13 @@ export default function Home() {
   if (Platform.OS === "web") return <WorkspaceScreen />;
   const router = useRouter();
   // The context value changes on every lock and unlock, so this re-renders.
-  const { ready, device, accounts } = useAppState();
-  if (!ready) return <ActivityIndicator style={{ flex: 1 }} />;
+  const { ready, device, accounts, slot, switchSlot } = useAppState();
+  // An empty Demo slot is never offered QR enrolment (that fills Active): it hands the phone back to Active.
+  const emptyDemo = ready && slot === "demo" && !device;
+  useEffect(() => {
+    if (emptyDemo) void switchSlot?.("active");
+  }, [emptyDemo, switchSlot]);
+  if (!ready || emptyDemo) return <ActivityIndicator style={{ flex: 1 }} />;
   const standalone = accounts.some((account) => account.standalone);
   if (!device && !standalone) return <Redirect href="/enrol" />;
   return (
@@ -31,17 +37,18 @@ export default function Home() {
             style={styles.card}
             onPress={() =>
               router.push({
-                pathname: isUnlocked(account.user_id) ? homeRoute(account) : "/unlock",
+                // A signed-out profile signs in (password), then its PIN opens the kept data.
+                pathname: account.signed_out ? "/sign-in" : isUnlocked(account.user_id) ? homeRoute(account) : "/unlock",
                 params: { userId: account.user_id }
               })
             }
           >
             <Text style={styles.text}>{account.name}</Text>
             <Text style={styles.muted}>
-              {isUnlocked(account.user_id) ? t("unlockedState") : t("locked")}
+              {account.signed_out ? t("signedOutKept") : isUnlocked(account.user_id) ? t("unlockedState") : t("locked")}
             </Text>
             {account.access_removed ? <Text style={styles.error}>{t("accessRemovedKept")}</Text> : null}
-            {account.needs_sign_in ? <Text style={styles.muted}>{t("signInAgain")}</Text> : null}
+            {account.needs_sign_in && !account.signed_out ? <Text style={styles.muted}>{t("signInAgain")}</Text> : null}
             {/* Path C adoption is offered on the standalone home, behind its PIN. */}
             {device && account.standalone ? <Text style={styles.muted}>{t("standaloneAdoptHint", { name: account.name })}</Text> : null}
           </Pressable>

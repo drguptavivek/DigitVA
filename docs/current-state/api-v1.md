@@ -1081,8 +1081,15 @@ Contract: [Offline API Contract](../policy/offline-api-contract.md) section 5
   10/min): version 1 in `en` and `hi` from the policy draft
   (`app/services/consent_notice_seed.py`, kept equal to
   docs/policy/respondent-consent-notice-draft.md by a test), `[PROJECT NAME]`
-  filled in; 201 `{notice_versions}`; 409 `conflict` when the project has any
-  version. `POST .../consent-notices/<notice_version_id>/approve`: admin only
+  and the placeholders the `PUBLIC_*` settings know filled in
+  (`consent_service._fill_from_settings`; on the demo project of a demo
+  deployment also the district line, and the retention line while
+  `PUBLIC_DEMO_PURGE_ENABLED`); 201 `{notice_versions}`; 409 `conflict` when
+  the project has any version. `POST .../consent-notices/fill` (same roles,
+  10/min): one new version, in each language whose latest version still has
+  a placeholder the settings fill, with those filled; earlier versions are
+  untouched; 201 `{notice_versions}`; 409 `conflict` when the project has no
+  notice or nothing would change. Purpose labels: up to 400 characters. `POST .../consent-notices/<notice_version_id>/approve`: admin only
   (403 otherwise), sets `approved_at`/`approved_by` once (a repeat changes
   nothing), audit `consent_notice_approved`; 404 `not_found` for another
   project's or an unknown id; replies the configuring view.

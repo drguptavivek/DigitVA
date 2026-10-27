@@ -4,7 +4,8 @@ and /consent-notices.
 Admin, or a live project_pi / project-scoped data_manager grant (the
 identifier-type rule), sets whether the project requires consent, its
 contacts and retention, and adds notice versions. Notice versions are never
-edited or deleted; ``.../seed`` creates version 1 from the policy draft and
+edited or deleted; ``.../seed`` creates version 1 from the policy draft,
+``.../fill`` a new version with the placeholders filled from settings, and
 an admin marks a version legally reviewed (``.../approve``). Browser session
 only; state changes need ``X-CSRFToken``. Every change writes a
 ``map_consent_audit`` row. Project Setup's Respondent consent section
@@ -92,6 +93,19 @@ def seed_consent_notices(project_id: str):
     with no notice yet (409 ``conflict`` otherwise). Pending legal review."""
     project_id = identifier_type_service.normalise_project_id(project_id)
     rows = service.seed_notice_versions(current_user, project_id)
+    db.session.commit()
+    return _no_store(jsonify({"notice_versions": [service.serialize_version(row) for row in rows]})), 201
+
+
+@bp.post("/<project_id>/consent-notices/fill")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("10 per minute")
+def fill_consent_notices(project_id: str):
+    """A new version of each language's latest notice with the placeholders
+    filled from the PUBLIC_* settings (409 ``conflict`` when the project has
+    no notice or nothing would change). Pending legal review."""
+    project_id = identifier_type_service.normalise_project_id(project_id)
+    rows = service.fill_notice_versions(current_user, project_id)
     db.session.commit()
     return _no_store(jsonify({"notice_versions": [service.serialize_version(row) for row in rows]})), 201
 

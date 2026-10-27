@@ -3,7 +3,7 @@ title: Public Demo
 doc_type: policy
 status: approved baseline
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-27
 ---
 
 # Public demo
@@ -163,6 +163,16 @@ account-cap lock and is audited like the purge (counts only). While the purge
 is switched off (`PUBLIC_DEMO_PURGE_ENABLED`, section 9), sign-up at the cap
 is refused.
 
+**Kept accounts (owner 2026-10-27).** An admin may mark a public-demo account
+*kept* on the admin Users page (shown only with `PUBLIC_DEMO_ENABLED`). It is
+for the app-store review test account only (the sign-in Google Play's
+reviewers are given), never for ordinary demo users, whose accounts expire as
+above; an admin clears the mark once the account is no longer needed. A kept
+account is never evicted, but still counts toward the account cap; if every
+account idle 7 days is kept, sign-up at the cap is refused as above. Every
+change of the mark is audited (`public_demo_keep`, the acting admin and the new
+value, never the username).
+
 Per-IP limits are a loose backstop only: Indian mobile networks put many users
 behind one carrier-grade NAT address, and a training room shares one Wi-Fi
 address, so a tight per-IP limit would lock out real people. The proof of work
@@ -209,6 +219,11 @@ on this database (section 1). The demo database is backed up nightly (owner
 2026-10-22), so a purge can be recovered from the previous night's backup; the
 purge stays off on any deployment whose backup is not in place.
 
+An account an admin marked kept (section 8) is never purged, however long it
+is idle, until an admin clears the mark; every change of the mark is audited.
+SmartVA run folders on the demo project still expire by age (they are kept
+per form, not per account); the results stay.
+
 ## 10. Android
 
 digitva-collect gets a "Try the demo" path: sign up or sign in with username
@@ -218,6 +233,65 @@ code**, through a demo enrolment endpoint that exists only when
 (`enrol_device` caps `max_uses` at 200, `app/services/device_auth_service.py`
 `ENROLMENT_MAX_USES`). Devices per account are limited (section 8). The
 rest of the app and its device-token rules are unchanged.
+
+### 10.1 Active and Demo on one phone (owner decision 2026-10-27, `digitva-7yme`)
+
+A phone keeps **two enrolments side by side**: **Active** (the live server,
+enrolled by QR) and **Demo** (the demo server, enrolled by "Try the demo").
+App Settings has a switch between them; the phone uses one at a time.
+
+- **Separate slots.** Each slot has its own device record, device secret and
+  accounts list in SecureStore. Active keeps today's keys (`device`,
+  `device_secret`, `accounts`), so phones already enrolled need no
+  migration; Demo uses the same names prefixed `demo.`. The chosen slot is
+  one more key (`active_slot`: `active` or `demo`, missing means `active`).
+  Tokens and interviewer stores stay keyed by user id, which the two servers
+  never share.
+- **What switching does.** First it saves open work, exactly as locking
+  does. Then it locks every unlocked interviewer store of the slot being left
+  and changes `active_slot`. Home then shows the other slot's accounts.
+  Nothing is deleted or signed out, and each slot keeps its own PINs.
+- **Only the chosen slot runs.** Sync, polling, token refresh and
+  notifications run only for the chosen slot. Unsent work in the other slot
+  stays on the phone, encrypted, and is sent after switching back to it.
+  The Sync badge counts the chosen slot only.
+- **First switch.** Switching to Demo when the phone has no demo enrolment
+  opens "Try the demo". Switching to Active when the phone has no live
+  enrolment opens the QR enrolment screen. Leaving either screen without
+  enrolling keeps the current slot.
+- **Badge.** In Demo the DEMO badge shows in the header and on the accounts
+  list, as it does today for a phone enrolled on the demo server. Active
+  shows no badge.
+- **Never mixed.** Requests always go to the chosen slot's server. Demo and
+  live data never share a store, a request or an upload. Each account records
+  the server it signed in on, and its token and the device secret are never
+  sent to any other server. Accounts kept before slots have no record and
+  stay in Active; each is bound to the Active device's server on the next
+  app reload, sign-out or forgotten device, whichever comes first. A request for a user the chosen slot does not hold is
+  refused before anything is sent; background polling skips it without an
+  error. An account bound to another server than the phone now uses (the
+  phone was re-enrolled elsewhere after a revoked device) is not shown at
+  all, and none of its data is (owner 2026-10-27). It is hidden, not
+  deleted: its store is locked behind its PIN, so the phone cannot tell
+  whether it holds unsent work, and unsent work is never purged. It comes
+  back if the phone is enrolled on that server again. An account kept from before servers
+  were recorded is bound to its device's server the first time this version
+  sees it. One whose device an older version already dropped cannot be
+  placed: the next enrolment retires it (tokens dropped, data kept, hidden)
+  until that person signs in again on their own server. A re-enrolment from
+  Settings signs everyone out first and refuses while a signed-in account
+  has, or may have, unsent work; signed-out profiles it names and keeps,
+  hidden in the same way. An account removed on the server keeps
+  the existing "access removed" notice.
+- **No overwrite.** An enrolment never replaces the slot's existing
+  enrolment; that is re-enrolment (Settings), which refuses over a
+  signed-in account's unsent work and signs everyone out first. Losing the demo enrolment (device revoked,
+  re-enrolment) returns the phone to Active, and an empty Demo slot is never
+  offered QR enrolment. Locally set up (standalone) accounts belong to Active
+  only.
+- **Locks first.** Every change of the chosen slot, including the one an
+  enrolment makes, saves and locks open work first, and does not happen if
+  that fails. Sign-in writes nothing if the slot changed while it ran.
 
 ## 11. Open item
 

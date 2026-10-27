@@ -3,7 +3,8 @@
   Whether the project requires the DPDP respondent consent screen, and its notice per language with
   version history. Calls GET/PUT /api/v1/projects/<id>/consent-settings, POST .../consent-notices
   (an edit saves a new version; versions are never changed), POST .../consent-notices/seed (version 1
-  in English and Hindi from the policy draft) and POST .../consent-notices/<id>/approve (admin only)
+  in English and Hindi from the policy draft), POST .../consent-notices/fill (a new version with the
+  placeholders filled from the PUBLIC_* settings) and POST .../consent-notices/<id>/approve (admin only)
   with X-CSRFToken (window._adminCsrf). The API decides who may configure (admin, or a live
   project_pi / data_manager grant on the project). Policy:
   docs/policy/respondent-consent-notice-draft.md "Web flow". Ids are prefixed cns-.
@@ -16,6 +17,8 @@
       <div class="d-flex gap-2">
         <button type="button" class="btn btn-sm btn-outline-primary d-none" id="cns-seed-btn">
           <i class="fa-solid fa-file-import me-1"></i>Seed from draft</button>
+        <button type="button" class="btn btn-sm btn-outline-primary d-none" id="cns-fill-btn">
+          <i class="fa-solid fa-wand-magic-sparkles me-1"></i>Fill from settings</button>
         <button type="button" class="btn btn-sm btn-primary d-none" id="cns-add-btn">
           <i class="fa-solid fa-plus me-1"></i>New language</button>
       </div>
@@ -115,6 +118,7 @@
     $('cns-required').disabled = false;
     $('cns-seed-btn').classList.toggle('d-none', versions.length > 0);
     $('cns-add-btn').classList.toggle('d-none', versions.length === 0);
+    $('cns-fill-btn').classList.toggle('d-none', versions.length === 0);
     var list = $('cns-list');
     if (!versions.length) {
       list.innerHTML = '<div class="text-muted py-1">No notice yet. Seed one from the policy draft (English and Hindi), then edit it.</div>';
@@ -165,7 +169,7 @@
     row.setAttribute('data-cns-purpose', '');
     row.innerHTML =
       '<div class="col-md-3"><input class="form-control form-control-sm font-monospace" data-field="code" maxlength="64" spellcheck="false" placeholder="code" aria-label="Purpose code"></div>' +
-      '<div class="col-md-6"><input class="form-control form-control-sm" data-field="label" maxlength="200" placeholder="What the respondent agrees to" aria-label="Purpose label"></div>' +
+      '<div class="col-md-6"><input class="form-control form-control-sm" data-field="label" maxlength="400" placeholder="What the respondent agrees to" aria-label="Purpose label"></div>' +
       '<div class="col-md-2"><div class="form-check"><input class="form-check-input" type="checkbox" data-field="required" aria-label="Required"><label class="form-check-label">Required</label></div></div>' +
       '<div class="col-md-1"><button type="button" class="btn btn-sm btn-outline-danger py-0" data-cns-remove aria-label="Remove purpose">&times;</button></div>';
     row.querySelector('[data-field="code"]').value = p.code || '';
@@ -255,6 +259,17 @@
     request('POST', base + '/consent-notices/seed').then(function (res) {
       btn.disabled = false;
       if (!res.ok) { showError($('cns-error'), errorText(res, 'Could not seed the notice')); return; }
+      load();
+    }).catch(function () { btn.disabled = false; showError($('cns-error'), 'Network error.'); });
+  });
+
+  // A new version of each language's latest notice; 409 says when nothing would change.
+  $('cns-fill-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    request('POST', base + '/consent-notices/fill').then(function (res) {
+      btn.disabled = false;
+      if (!res.ok) { showError($('cns-error'), errorText(res, 'Could not fill the notice')); return; }
       load();
     }).catch(function () { btn.disabled = false; showError($('cns-error'), 'Network error.'); });
   });

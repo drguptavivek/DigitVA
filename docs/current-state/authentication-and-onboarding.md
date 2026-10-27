@@ -283,7 +283,13 @@ answer 404 and a username never resolves at sign-in.
   so refused accounts do not block it; a failed try never queues its stored
   files), audited as a
   `public_demo_evict` security event with row counts only). Its stored files
-  go after the sign-up commits; a rolled-back sign-up deletes nothing. When
+  go after the sign-up commits; a rolled-back sign-up deletes nothing. An
+  account an admin marked kept (`va_users.public_demo_keep`, migration
+  `d8e2a6c4f1b7`; admin toggle `POST /admin/api/users/<id>/public-demo-keep`,
+  404 when the demo is off, audited as a `public_demo_keep` security event
+  with the actor and `{keep}` only) is never evicted or purged
+  (`public_demo_purge_service._eligible`, also the row-locked re-check) but
+  still counts toward the cap. When
   nobody qualifies, or the purge is off, sign-up is refused: JSON 503
   `{"code": "cap_reached", "error": "The demo is full; try again later."}`,
   the same text flashed on the web form.

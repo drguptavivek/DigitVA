@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  EXPO_PUBLIC_API_BASE_URL: https://digitva.causeofdeathindia.com
+  EXPO_PUBLIC_API_BASE_URL: https://digitvav3.causeofdeathindia.com
   DIGITVA_ANDROID_RELEASE_BUILD: "1"
   # The offline ICD-11 engine release this build stages. scripts/icd11-engine.env holds the same version; a step
   # checks the two match.

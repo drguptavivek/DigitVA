@@ -79,6 +79,11 @@ class VaUsers(UserMixin, db.Model):
     is_public_demo: so.Mapped[bool] = so.mapped_column(
         sa.Boolean, nullable=False, default=False, server_default=sa.false()
     )
+    # An admin-kept public-demo account: never purged or evicted, still counted
+    # toward the account cap (docs/policy/public-demo.md sections 8 and 9).
+    public_demo_keep: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    )
     # When a mobile-only account first redeemed a sign-in code: its
     # equivalent of email_verified (mobile-sign-in.md section 2).
     mobile_verified_at: so.Mapped[datetime | None] = so.mapped_column(

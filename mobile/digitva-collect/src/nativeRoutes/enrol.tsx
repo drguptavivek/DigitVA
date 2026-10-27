@@ -4,8 +4,9 @@
  * and wait for the user to confirm, then POST /enroll. A sign-in QR (docs/policy/mobile-sign-in.md section 8)
  * is taken the same way but redeems its token, which enrols the phone and signs the person in; they go
  * on to PIN setup. Pasting the JSON is a
- * debug-build convenience for the emulator. "Try the demo" (src/nativeRoutes/demo.tsx)
- * enrols on the public demo server without a code.
+ * debug-build convenience for the emulator. Both enrol the Active slot. "Try the demo" switches to the
+ * Demo slot (src/AppState.tsx switchSlot), opening src/nativeRoutes/demo.tsx to enrol on the public demo
+ * server without a code when the phone has no demo enrolment yet.
  */
 import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -26,7 +27,7 @@ const APP_VERSION = Constants.expoConfig?.version ?? "0.0.0";
 export default function Enrol() {
   const styles = useUiStyles();
   const router = useRouter();
-  const { reload } = useAppState();
+  const { reload, switchSlot, lockNow, slot } = useAppState();
   const [permission, requestPermission] = useCameraPermissions();
   const [pasted, setPasted] = useState("");
   const [error, setError] = useState("");
@@ -51,6 +52,12 @@ export default function Enrol() {
     setBusy(true);
     setError("");
     try {
+      // Enrolling chooses the Active slot, so every store is saved and locked first (section 10.1).
+      if (!(await lockNow())) {
+        setPending(undefined);
+        setError(t("errGeneric"));
+        return;
+      }
       const deviceName = Constants.deviceName ?? "Android";
       if (payload.kind === "sign_in") {
         const account = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
@@ -122,10 +129,11 @@ export default function Enrol() {
       {pending ? null : (
         <View style={{ gap: 8 }}>
           <Text style={styles.muted}>{t("demoTryHint")}</Text>
-          <Button kind="secondary" label={t("demoTryTitle")} disabled={busy} onPress={() => router.push("/demo")} />
+          <Button kind="secondary" label={t("demoTryTitle")} disabled={busy} onPress={() => void switchSlot?.("demo").catch((caught) => setError(errorText(caught)))} />
         </View>
       )}
-      {pending || Platform.OS !== "android" || !isPlusVariant() ? null : (
+      {/* Standalone (Path C) accounts belong to Active only. */}
+      {pending || slot === "demo" || Platform.OS !== "android" || !isPlusVariant() ? null : (
         <View style={{ gap: 8 }}>
           <Text style={styles.muted}>{t("standaloneWarning")}</Text>
           <Button kind="secondary" label={t("standaloneEntry")} disabled={busy} onPress={() => router.push("/standalone-setup")} />

@@ -27,7 +27,7 @@ describe("t()", () => {
   });
 
   it("interpolates variables and leaves unknown placeholders", () => {
-    expect(t("signOutUnsent", { count: 3 })).toContain("3 interviews");
+    expect(t("reEnrolUnsentName", { name: "Asha", count: 3 })).toContain("Asha: 3 items");
     expect(t("syncResult", { sent: 1 })).toContain("{failed}");
   });
 

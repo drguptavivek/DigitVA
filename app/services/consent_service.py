@@ -24,6 +24,7 @@ import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
+from flask import current_app
 from sqlalchemy.exc import IntegrityError
 
 from app import db
@@ -78,6 +79,8 @@ MAX_PURPOSES = 30
 MAX_COVERED_FIELDS = 100
 MAX_DISTRICTS = 500
 _CONTACT_CHARS = 200
+#: A purpose label: a seed label with a long ``PUBLIC_ORG_NAME`` filled in passes 200.
+_LABEL_CHARS = 400
 _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
 _LANGUAGE = re.compile(r"[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}")
 _PURPOSE_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}")
@@ -777,7 +780,7 @@ def create_notice_version(user, project_id: str, body: dict) -> MasConsentNotice
                 or not isinstance(item["code"], str) or not _PURPOSE_CODE.fullmatch(item["code"])
                 or not isinstance(item["required"], bool) or item["code"] in cleaned_purposes):
             raise _bad("Each purpose is {code (lower_snake), label, required}, once per code.", "purposes")
-        label = _text(item["label"], "purposes.label")
+        label = _text(item["label"], "purposes.label", max_len=_LABEL_CHARS)
         if not label:
             raise _bad("Each purpose needs a label.", "purposes")
         cleaned_purposes[item["code"]] = {"code": item["code"], "label": label, "required": item["required"]}
@@ -822,25 +825,117 @@ def create_notice_version(user, project_id: str, body: dict) -> MasConsentNotice
     return row
 
 
+def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tuple[str, list[dict]]:
+    """A notice's ``text`` and purpose labels with the seed placeholders filled
+    from the project name and the ``PUBLIC_*`` settings (English and Hindi
+    spellings; policy: respondent-consent-notice-draft.md "Seed text for
+    Project Setup"). Called only when a version is saved, never when one is
+    shown, so a record's stored text and hash stay what the respondent heard.
+    An unset or empty setting leaves its placeholder as it is; ``, [PHONE]``
+    goes, as there is no phone setting. The demo project on a demo deployment
+    (public_demo_service.is_demo_project) also gets its district line, and its
+    retention line while PUBLIC_DEMO_PURGE_ENABLED.
+    Returns new purpose dicts; the inputs (``SEED_PURPOSES``) are not changed."""
+    config = current_app.config
+    org, email = config.get("PUBLIC_ORG_NAME") or "", config.get("PUBLIC_CONTACT_EMAIL") or ""
+    officer = config.get("PUBLIC_GRIEVANCE_OFFICER") or ""
+    fills = [
+        (PROJECT_NAME_PLACEHOLDER, db.session.get(VaProjectMaster, project_id).project_name),
+        (", [PHONE]", ""), (", [फ़ोन]", ""),
+    ]
+    if org:
+        fills.append(("[ORGANISATION]", org))
+    if email:
+        fills += [("[DELETION AND EXCLUSION EMAIL]", email), ("[डेटा मिटाने और बाहर रखने का ईमेल]", email),
+                  ("[EMAIL, PHONE]", email), ("[ईमेल, फ़ोन]", email)]
+    if officer and email:
+        fills += [("[DATA PROTECTION OFFICER]", f"the Grievance Officer, {officer} ({email})"),
+                  ("[डेटा संरक्षण अधिकारी]", f"शिकायत अधिकारी, {officer} ({email})")]
+    # Imported here: public_demo_service seeds notices through this module.
+    from app.services.public_demo_service import is_demo_project
+
+    days = config.get("PUBLIC_DEMO_PURGE_IDLE_DAYS")
+    demo = is_demo_project(project_id)
+    if demo:
+        fills += [
+            ("[DISTRICT CONTACT NAME, EMAIL, PHONE]", "not applicable in the public demo"),
+            ("[ज़िला संपर्क का नाम, ईमेल, फ़ोन]", "सार्वजनिक डेमो में लागू नहीं"),
+        ]
+    # The deletion promise becomes a hashed consent record, so it is written only
+    # while the purge actually runs (PUBLIC_DEMO_PURGE_ENABLED, off until backups are proven).
+    if demo and days and config.get("PUBLIC_DEMO_PURGE_ENABLED"):
+        fills += [
+            ("[RETENTION PERIOD AND WHAT HAPPENS AFTER]",
+             "This is a public demo for practice only. Everything entered, including this interview, "
+             f"is deleted {days} days after the demo account was last used."),
+            ("[रखने की अवधि और उसके बाद क्या होगा]",
+             "यह केवल अभ्यास के लिए एक सार्वजनिक डेमो है। इसमें दर्ज सब कुछ, यह साक्षात्कार भी, "
+             f"डेमो खाते के अंतिम उपयोग के {days} दिन बाद मिटा दिया जाता है।"),
+        ]
+    # Stored texts are NFC (create_notice_version), so match the NFC spelling.
+    fills = [(unicodedata.normalize("NFC", placeholder), value) for placeholder, value in fills]
+
+    def fill(value: str) -> str:
+        for placeholder, replacement in fills:
+            value = value.replace(placeholder, replacement)
+        return value
+
+    return fill(text), [{**purpose, "label": fill(purpose["label"])} for purpose in purposes]
+
+
 def seed_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]:
     """Project Setup's "Seed from draft": version 1 in English and Hindi from
-    ``consent_notice_seed`` (the policy draft), ``[PROJECT NAME]`` filled in,
-    pending legal review. Only for a project with no notice version yet (409
-    ``conflict``); a concurrent seed loses on the version unique key (409)."""
+    ``consent_notice_seed`` (the policy draft), placeholders filled from
+    settings (``_fill_from_settings``), pending legal review. Only for a
+    project with no notice version yet (409 ``conflict``); a concurrent seed
+    loses on the version unique key (409)."""
     configuring_role(user, project_id)
     if db.session.scalar(sa.select(MasConsentNoticeVersion.notice_version_id)
                          .where(MasConsentNoticeVersion.project_id == project_id,
                                 MasConsentNoticeVersion.source == "project").limit(1)):
         raise ConsentError("This project already has a notice. Edit it to save a new version.",
                            "conflict", 409, fields=[])
-    name = db.session.get(VaProjectMaster, project_id).project_name
+    rows = []
+    for language in ("en", "hi"):
+        text, purposes = _fill_from_settings(project_id, SEED_TEXT[language], SEED_PURPOSES[language])
+        rows.append(create_notice_version(user, project_id, {
+            "version": 1, "language": language, "text": text,
+            "purposes": purposes, "allowed_modes": SEED_ALLOWED_MODES,
+        }))
+    return rows
+
+
+def fill_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]:
+    """Project Setup's "Fill from settings": for each language, the latest
+    non-retired version's text and purpose labels with the placeholders filled
+    (``_fill_from_settings``), saved as one new version number (its modes,
+    covered fields and witness rule kept), audited as ``consent_notice_created``.
+    A language with nothing to fill is skipped; earlier versions are never
+    changed. 409 ``conflict`` when the project has no notice or nothing would
+    change."""
+    configuring_role(user, project_id)
+    latest = {row.language: row for row in active_versions(project_id)}  # oldest first: the last wins
+    if not latest:
+        raise ConsentError("This project has no notice yet. Seed one from the draft first.",
+                           "conflict", 409, fields=[])
+    filled = {}
+    for language, row in latest.items():
+        text, purposes = _fill_from_settings(project_id, row.text, row.purposes)
+        if text != row.text or purposes != row.purposes:
+            filled[language] = (row, text, purposes)
+    if not filled:
+        raise ConsentError("Nothing to fill: the latest notice has no placeholder the settings fill.",
+                           "conflict", 409, fields=[])
+    version = (db.session.scalar(sa.select(sa.func.max(MasConsentNoticeVersion.version))
+                                 .where(MasConsentNoticeVersion.project_id == project_id,
+                                        MasConsentNoticeVersion.source == "project")) or 0) + 1
     return [
         create_notice_version(user, project_id, {
-            "version": 1, "language": language,
-            "text": SEED_TEXT[language].replace(PROJECT_NAME_PLACEHOLDER, name),
-            "purposes": SEED_PURPOSES[language], "allowed_modes": SEED_ALLOWED_MODES,
+            "version": version, "language": language, "text": text, "purposes": purposes,
+            "covered_fields": row.covered_fields, "allowed_modes": row.allowed_modes,
+            "witness_allowed": row.witness_allowed,
         })
-        for language in ("en", "hi")
+        for language, (row, text, purposes) in sorted(filled.items())
     ]
 
 

@@ -22,18 +22,26 @@ const mockEnableScreenLock = jest.fn(async () => undefined);
 const mockOfferCount = jest.fn(async () => 0);
 const mockNoteOffer = jest.fn(async () => undefined);
 let mockCanUseBiometric = false;
+let mockSlot: "active" | "demo" = "active";
+const mockOrder: string[] = [];
+const mockForgetDevice = jest.fn(async (..._args: unknown[]) => void mockOrder.push("forget"));
 const mockStoredPinLength = jest.fn<Promise<number | null>, []>(async () => null);
 const mockRecordPinLength = jest.fn(async (..._args: unknown[]) => undefined);
 let mockParams: { userId?: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string } = { userId: "u1", refresh: "1" };
+let mockSignedOut = false;
+const mockRedirect = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
-  Redirect: () => null
+  Redirect: ({ href }: { href: unknown }) => {
+    mockRedirect(href);
+    return null;
+  }
 }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({
-    accounts: [mockAccount],
+    accounts: [mockSignedOut ? { ...mockAccount, needs_sign_in: true, signed_out: true } : mockAccount],
     reload: mockReload,
     lockNow: mockLockNow,
     unlocked: mockUnlocked
@@ -41,7 +49,8 @@ jest.mock("../src/AppState", () => ({
 }));
 jest.mock("../src/auth", () => ({
   signIn: (...args: Parameters<typeof mockSignIn>) => mockSignIn(...args),
-  forgetDevice: jest.fn(),
+  forgetDevice: (...args: unknown[]) => mockForgetDevice(...args),
+  loadActiveSlot: jest.fn(async () => mockSlot),
   loadDevice: jest.fn(async () => ({ server: "http://localhost:8051" })),
   unlockInterviewer: (...args: Parameters<typeof mockUnlockInterviewer>) => mockUnlockInterviewer(...args)
 }));
@@ -70,7 +79,17 @@ jest.mock("../src/vault", () => ({
   pinProblem: () => undefined
 }));
 jest.mock("expo-secure-store", () => ({ canUseBiometricAuthentication: () => mockCanUseBiometric }));
-jest.mock("../src/api", () => ({ ApiError: class ApiError extends Error {} }));
+jest.mock("../src/api", () => ({
+  ApiError: class ApiError extends Error {
+    status: number;
+    code?: string;
+    constructor(status: number, code?: string) {
+      super(`HTTP ${status}`);
+      this.status = status;
+      this.code = code;
+    }
+  },
+}));
 jest.mock("../src/nativeAuthLinks", () => ({
   mobileDigitsFromInput: (value: string) => value,
   nativeAuthUrl: () => "http://localhost:8051/vaauth/sign-in",
@@ -90,6 +109,7 @@ jest.mock("../src/ui", () => {
   };
 });
 
+import { ApiError } from "../src/api";
 import SignIn from "../src/nativeRoutes/sign-in";
 import Unlock from "../src/nativeRoutes/unlock";
 import PinSetup from "../src/nativeRoutes/pin-setup";
@@ -115,6 +135,8 @@ describe("native login refresh handoff", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockParams = { userId: "u1", refresh: "1" };
+    mockSignedOut = false;
+    mockSlot = "active";
     mockIsUnlocked.mockReturnValue(false);
     mockHasInterviewerStore.mockResolvedValue(true);
     mockBiometricEnabled.mockResolvedValue(false);
@@ -142,9 +164,57 @@ describe("native login refresh handoff", () => {
     act(() => input(tree!, "email")!.props.onChangeText("worker@example.org"));
     act(() => input(tree!, "password")!.props.onChangeText("secret"));
     await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
-    expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret");
+    expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "active");
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
     await act(async () => tree!.unmount());
+  });
+
+  describe("a revoked device", () => {
+    async function submitRevoked() {
+      mockSignIn.mockImplementationOnce(async () => {
+        // A switch lands while the request is out; the revoked device is still the pinned slot's.
+        const slotAtStart = mockSlot;
+        mockSlot = slotAtStart === "demo" ? "active" : "demo";
+        throw new ApiError(403, "device_revoked");
+      });
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<SignIn />);
+      });
+      act(() => input(tree!, "email")!.props.onChangeText("worker@example.org"));
+      act(() => input(tree!, "password")!.props.onChangeText("secret"));
+      await act(async () => tree!.root.findByProps({ "data-label": "signIn" }).props.onClick());
+      await act(async () => tree!.unmount());
+    }
+    beforeEach(() => {
+      mockOrder.length = 0;
+      mockLockNow.mockImplementation(async () => {
+        mockOrder.push("lock");
+        return true;
+      });
+    });
+
+    it("forgets the Demo device the sign-in used, after locking, since that returns the phone to Active", async () => {
+      mockSlot = "demo";
+      await submitRevoked();
+      expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "secret", "demo");
+      expect(mockForgetDevice).toHaveBeenCalledWith("demo");
+      expect(mockOrder).toEqual(["lock", "forget"]);
+    });
+
+    it("keeps the Demo device when locking fails", async () => {
+      mockSlot = "demo";
+      mockLockNow.mockImplementation(async () => false);
+      await submitRevoked();
+      expect(mockForgetDevice).not.toHaveBeenCalled();
+    });
+
+    it("forgets the Active device the sign-in used without locking (the slot does not change)", async () => {
+      mockSlot = "active";
+      await submitRevoked();
+      expect(mockForgetDevice).toHaveBeenCalledWith("active");
+      expect(mockOrder).toEqual(["forget"]);
+    });
   });
 
   it("preserves refresh when an already-unlocked account redirects", async () => {
@@ -180,6 +250,24 @@ describe("native login refresh handoff", () => {
     await act(async () => tree!.root.findByProps({ "data-label": "pinSave" }).props.onClick());
     expect(mockCreateInterviewerDb).toHaveBeenCalledWith("u1", "123456");
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", refresh: "1" } });
+    await act(async () => tree!.unmount());
+  });
+
+  it("sends a signed-out profile to sign-in: no prompt, no PIN, nothing unlocked", async () => {
+    mockSignedOut = true;
+    mockParams = { userId: "u1", enableBiometric: "1" };
+    mockBiometricEnabled.mockResolvedValue(true);
+    mockReadBiometricPin.mockResolvedValue("123456" as never);
+    let tree: ReturnType<typeof create>;
+    await act(async () => {
+      tree = create(<Unlock />);
+    });
+    await settle();
+    expect(mockRedirect).toHaveBeenCalledWith({ pathname: "/sign-in", params: { userId: "u1" } });
+    expect(tree!.root.findAllByProps({ "data-label": "unlock" })).toHaveLength(0);
+    expect(mockReadBiometricPin).not.toHaveBeenCalled();
+    expect(mockHasInterviewerStore).not.toHaveBeenCalled();
+    expect(mockUnlockInterviewer).not.toHaveBeenCalled();
     await act(async () => tree!.unmount());
   });
 

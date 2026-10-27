@@ -36,6 +36,8 @@ jest.mock("../src/AppState", () => ({
 jest.mock("../src/auth", () => ({ signOut: (userId: string) => mockSignOut(userId) }));
 jest.mock("../src/signOutConfirm", () => ({ confirmSignOut: (userId: string, cb: () => void) => mockConfirmSignOut(userId, cb) }));
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => true }));
+const mockToast = jest.fn();
+jest.mock("../src/toast", () => ({ useToast: () => ({ show: mockToast }) }));
 
 import { activeNativeTab, nativeTabs, showNativeHeader, showNativeTabs } from "../src/nativeShell/navAdapter";
 import { FAQ } from "../src/nativeShell/faq";
@@ -190,7 +192,7 @@ describe("account menu", () => {
     expect(out).toContain("3 unsent");
     expect(out).toContain("Version ");
   });
-  it("runs Settings, Help, Lock now, Switch interviewer and language", async () => {
+  it("runs Settings, Help, Lock now, Switch profile and language", async () => {
     const value = shellValue({ sheet: "account" });
     const tree = await render(<AccountSheet />, value);
     await press(tree, "Settings");
@@ -199,18 +201,43 @@ describe("account menu", () => {
     expect(value.openSheet).toHaveBeenCalledWith("help");
     await press(tree, "Lock now");
     expect(mockLockNow).toHaveBeenCalled();
-    await press(tree, "Switch interviewer");
+    mockLockNow.mockClear();
+    await press(tree, "Switch profile");
+    // Switching profile locks (saving open work) before showing the profiles list.
+    expect(mockLockNow).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).toHaveBeenCalledWith("/");
     await press(tree, "हिन्दी");
     expect(mockChooseLocale).toHaveBeenCalledWith("hi");
   });
-  it("signs out only through the existing unsent-work confirmation", async () => {
+  it("signs out through the confirmation, locking the stores first", async () => {
+    mockLockNow.mockClear();
     const tree = await render(<AccountSheet />, shellValue({ sheet: "account" }));
     await press(tree, "Sign out");
     expect(mockConfirmSignOut).toHaveBeenCalledWith("u1", expect.any(Function));
+    expect(mockLockNow).toHaveBeenCalledTimes(1);
     expect(mockSignOut).toHaveBeenCalledWith("u1");
+    expect(mockLockNow.mock.invocationCallOrder[0]).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
     expect(mockReload).toHaveBeenCalled();
     expect(mockRouter.replace).toHaveBeenCalledWith("/");
+  });
+  it("signs nobody out, and shows nothing but a message, when the stores could not be locked", async () => {
+    mockLockNow.mockClear();
+    mockSignOut.mockClear();
+    mockRouter.replace.mockClear();
+    mockToast.mockClear();
+    mockLockNow.mockResolvedValueOnce(false);
+    const tree = await render(<AccountSheet />, shellValue({ sheet: "account" }));
+    await press(tree, "Sign out");
+    expect(mockLockNow).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "Something went wrong. Try again." });
+
+    mockToast.mockClear();
+    mockLockNow.mockResolvedValueOnce(false);
+    await press(tree, "Switch profile");
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "Something went wrong. Try again." });
   });
 });
 

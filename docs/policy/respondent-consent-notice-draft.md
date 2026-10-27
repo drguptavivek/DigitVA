@@ -170,9 +170,28 @@ and whether the refusal script should say this to the respondent.
 Project Setup's "Seed from draft" (Respondent consent section) creates notice
 version 1 of a project with no notice versions, in English and Hindi, from the
 two blocks below: plain text (the consent screen shows the text as written,
-not as Markdown), `[PROJECT NAME]` replaced by the project's name, every other
-bracketed item left for the project to fill in. Filling them in is an edit,
-which saves a new version. The app keeps the same text in
+not as Markdown), `[PROJECT NAME]` replaced by the project's name and the
+placeholders below filled from the `PUBLIC_*` settings; every other bracketed
+item is left for the project to fill in. Filling them in is an edit, which
+saves a new version.
+
+Placeholders are filled from settings (owner 2026-10-27, `digitva-e9hx`) only
+when a version is saved, by the seed or by Project Setup's "Fill from
+settings" (a new version from the latest one per language), never when a
+notice is shown, so a consent record's stored text and hash stay what the
+respondent heard. In English and Hindi, text and purpose labels:
+`[ORGANISATION]` is `PUBLIC_ORG_NAME`; the deletion and exclusion email and
+the central team's `[EMAIL, PHONE]` are `PUBLIC_CONTACT_EMAIL`; `[DATA
+PROTECTION OFFICER]` is "the Grievance Officer, `PUBLIC_GRIEVANCE_OFFICER`
+(`PUBLIC_CONTACT_EMAIL`)"; `[PHONE]` and the ", " before it are dropped, as
+there is no phone setting. An unset or empty setting leaves its placeholder
+exactly as it is. On the public demo project (`PUBLIC_DEMO_PROJECT_ID`, on a
+deployment with `PUBLIC_DEMO_ENABLED`) only, the district contact is "not
+applicable in the public demo", and, only while `PUBLIC_DEMO_PURGE_ENABLED`
+(the deletion must be true when the respondent hears it), the retention
+placeholder says the demo is for practice and everything entered is deleted
+`PUBLIC_DEMO_PURGE_IDLE_DAYS` days after the demo account was last used. If
+nothing would change, no version is saved. The app keeps the same text in
 `app/services/consent_notice_seed.py`; a test fails if the two differ. The
 Hindi text is a working translation and needs the same legal and language
 review as the English.

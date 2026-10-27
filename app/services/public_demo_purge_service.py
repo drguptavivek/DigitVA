@@ -19,7 +19,9 @@ than the same idle period (``purge_smartva_runs``).
 Guards, checked in the selection and again per account under the row lock:
 ``PUBLIC_DEMO_ENABLED``, ``PUBLIC_DEMO_PURGE_ENABLED`` (on only once the
 nightly backup is verified), no project in ``va_project_master`` but the demo
-project (the main-database guard), ``is_public_demo``, and per account: every
+project (the main-database guard), ``is_public_demo`` and not
+``public_demo_keep`` (an admin-kept account, policy section 8, is never
+taken), and per account: every
 draft, death registration, submission, grant and device belongs to the demo
 project, and no other account shares a case. Any miss refuses that account and
 deletes nothing.
@@ -236,7 +238,14 @@ def _last_activity():
 
 
 def _eligible(idle_days: int, now: datetime):
-    return (VaUsers.is_public_demo.is_(True), _last_activity() <= now - timedelta(days=idle_days))
+    """The selection's and the per-account re-check's filter, shared by the
+    daily purge and the cap eviction: a public-demo account, not kept by an
+    admin, idle at least *idle_days*."""
+    return (
+        VaUsers.is_public_demo.is_(True),
+        VaUsers.public_demo_keep.is_(False),
+        _last_activity() <= now - timedelta(days=idle_days),
+    )
 
 
 def idle_user_ids(idle_days: int, *, limit: int, active_only: bool = False, lock: bool = False,
@@ -435,8 +444,8 @@ def delete_account(user_id, idle_days: int, *, apply: bool = True, now: datetime
 
     Raises PurgeRefused: ``not_enabled`` / ``purge_disabled`` /
     ``main_database`` from the deployment guards, ``not_eligible`` when the
-    row is not a public-demo account idle that long (or another transaction
-    holds it), ``not_demo_project`` / ``shared_case`` / ``grant_outside_demo``
+    row is not a public-demo account idle that long, is kept, or another
+    transaction holds it, ``not_demo_project`` / ``shared_case`` / ``grant_outside_demo``
     from the per-account guards. A refusal deletes nothing.
     """
     counts, files = _delete_rows(user_id, idle_days, apply=apply, now=now)

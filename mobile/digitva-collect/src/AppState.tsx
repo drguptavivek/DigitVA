@@ -6,6 +6,10 @@
  * Locking (auto after idle or time in the background, or "Lock now") runs
  * the registered before-lock hooks first (the open form saves its draft),
  * then closes every database and returns to the home screen.
+ *
+ * Active and Demo (docs/policy/public-demo.md section 10.1): `device` and
+ * `accounts` are the chosen slot's (src/auth.ts). Switching locks first, as
+ * above, then chooses the other slot; nothing is deleted or signed out.
  */
 import { useRouter } from "expo-router";
 import { getLocales } from "expo-localization";
@@ -23,19 +27,24 @@ import {
 import { AppState as NativeAppState } from "react-native";
 
 import {
+  bindLegacyAccounts,
   loadAccounts,
+  loadActiveSlot,
   loadDevice,
+  setActiveSlot,
   subscribeAccountChanges,
   subscribeAccessChanges,
   type Account,
   type Device,
+  type Slot,
 } from "./auth";
 import { createAutoLock, type AutoLock } from "./autoLock";
 import { setUiLocale } from "./i18n";
 import { anyUnlocked, isUnlocked, lockAll, openInterviewerDb } from "./interviewerDb";
 import { errorText } from "./ui";
 import { isOffline, onReconnect, OfflineError, startNetworkWatch, useIsOffline } from "./network";
-import { SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { accountServerChanged, lacksServer } from "./accountServer";
+import { NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { reconcileReferenceAccess, refreshReferenceData } from "./sync";
 import type { ClientBootstrap } from "./client/api";
 import { refreshNativeNotifications, runNativeSync, type NativeSyncCallbacks, type NativeSyncResult } from "./nativeNotificationSync";
@@ -49,11 +58,23 @@ const RECONNECT_DEBOUNCE_MS = 2_000;
 const POLL_MAX_MS = 600_000;
 
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** A refusal for a user the chosen slot no longer serves (a switch or wipe landed mid-pass) is skipped, not reported. */
+const skipNotInSlot = (error: unknown) => {
+  if (!(error instanceof NotInSlotError)) throw error;
+};
 
 interface AppState {
   ready: boolean;
   device: Device | undefined;
   accounts: Account[];
+  /** Native only: the enrolment in use, Active (live server) or Demo. */
+  slot?: Slot;
+  /**
+   * Native only: lock as lockNow does, then use `slot`; a slot not yet
+   * enrolled opens its enrolment screen instead and stays unchosen until that
+   * enrols. Resolves false when locking failed and nothing changed.
+   */
+  switchSlot?(slot: Slot): Promise<boolean>;
   uiLocale: string;
   reload(): Promise<void>;
   chooseUiLocale(code: string): Promise<void>;
@@ -100,6 +121,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [device, setDevice] = useState<Device | undefined>();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [slot, setSlot] = useState<Slot>("active");
   const [uiLocale, setLocaleState] = useState("en");
   const [lockVersion, setLockVersion] = useState(0);
   const [error, setErrorText] = useState<string>();
@@ -149,6 +171,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (text === undefined) setOffline(false);
   }, []);
   const reportBackgroundError = useCallback((e: unknown) => {
+    if (e instanceof NotInSlotError) return;
     // Offline is shown by the header marker only; no banner, no log entry.
     setBackgroundErrorText(e instanceof OfflineError ? undefined : errorText(e));
     setOffline(e instanceof TypeError);
@@ -202,14 +225,45 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reload = useCallback(async () => {
-    const [nextDevice, nextAccounts] = await Promise.all([
-      loadDevice(),
-      loadAccounts(),
+    // Device and accounts from one slot, read once, even if a switch lands meanwhile.
+    const nextSlot = await loadActiveSlot();
+    const [nextDevice, storedAccounts] = await Promise.all([
+      loadDevice(nextSlot),
+      loadAccounts(nextSlot),
     ]);
+    // Accounts kept before they recorded a server belong to this device's: one write, then never again.
+    const slotAccounts = nextDevice && storedAccounts.some(lacksServer) && (await bindLegacyAccounts(nextSlot))
+      ? await loadAccounts(nextSlot)
+      : storedAccounts;
+    // An account signed in on another server than the phone now uses (it was
+    // re-enrolled elsewhere) is not shown at all: its encrypted store stays on
+    // the phone, unsent work included, and returns if the phone is enrolled on
+    // that server again.
+    const nextAccounts = slotAccounts.filter((account) => !accountServerChanged(account, nextDevice));
+    setSlot(nextSlot);
     // Keep identities when nothing changed so an idle poll redraws nothing.
     setDevice((prev) => (sameJson(prev, nextDevice) ? prev : nextDevice));
     setAccounts((prev) => (sameJson(prev, nextAccounts) ? prev : nextAccounts));
   }, []);
+
+  const switchSlot = useCallback(async (next: Slot) => {
+    if (!(await lockNow())) return false;
+    // Enrolled as Home counts it: a device, or (Active only) a standalone account.
+    const enrolled = (await loadDevice(next)) !== undefined
+      || (next === "active" && (await loadAccounts(next)).some((account) => account.standalone));
+    // An empty Demo slot is never kept: leaving it chooses Active, whose Home opens QR enrolment if needed.
+    const leavingEmptyDemo = next === "active" && (await loadDevice("demo")) === undefined;
+    if (!enrolled && !leavingEmptyDemo) {
+      // That screen's enrolment chooses the slot (src/auth.ts storeEnrolment); leaving it keeps this one.
+      router.push(next === "demo" ? "/demo" : "/enrol");
+      return true;
+    }
+    await setActiveSlot(next);
+    await reload();
+    router.replace("/");
+    setLockVersion((v) => v + 1);
+    return true;
+  }, [lockNow, reload, router]);
 
   const flushBeforeRefresh = useCallback(async () => {
     for (const hook of [...beforeLock.current]) await hook();
@@ -239,23 +293,27 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (isOffline()) return;
     for (const account of accountsRef.current) {
       if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
-      const handle = isUnlocked(account.user_id)
-        ? await openInterviewerDb(account.user_id)
-        : undefined;
-      const didSync = await refreshNativeNotifications(account.user_id, handle);
-      if (didSync) {
-        bumpRefresh();
-        continue;
-      }
-      const currentAccount = (await loadAccounts()).find(({ user_id }) => user_id === account.user_id);
-      if (!handle || currentAccount?.collection_access !== true) continue;
       try {
-        await refreshReferenceData(account.user_id, handle, { force: true });
+        const handle = isUnlocked(account.user_id)
+          ? await openInterviewerDb(account.user_id)
+          : undefined;
+        const didSync = await refreshNativeNotifications(account.user_id, handle);
+        if (didSync) {
+          bumpRefresh();
+          continue;
+        }
+        const currentAccount = (await loadAccounts()).find(({ user_id }) => user_id === account.user_id);
+        if (!handle || currentAccount?.collection_access !== true) continue;
+        try {
+          await refreshReferenceData(account.user_id, handle, { force: true });
+        } catch (refreshError) {
+          if (refreshError instanceof TypeError) continue;
+          throw refreshError;
+        }
+        bumpRefresh();
       } catch (refreshError) {
-        if (refreshError instanceof TypeError) continue;
-        throw refreshError;
+        skipNotInSlot(refreshError);
       }
-      bumpRefresh();
     }
     await reload();
   }, [flushBeforeRefresh, reload, bumpRefresh]);
@@ -267,11 +325,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (isOffline()) return true;
       for (const account of accountsRef.current) {
         if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
-        const handle = isUnlocked(account.user_id)
-          ? await openInterviewerDb(account.user_id)
-          : undefined;
-        const didSync = await refreshNativeNotifications(account.user_id, handle);
-        if (didSync) bumpRefresh();
+        try {
+          const handle = isUnlocked(account.user_id)
+            ? await openInterviewerDb(account.user_id)
+            : undefined;
+          if (await refreshNativeNotifications(account.user_id, handle)) bumpRefresh();
+        } catch (accountError) {
+          skipNotInSlot(accountError);
+        }
       }
       await reload();
       setBackgroundError(undefined);
@@ -332,8 +393,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           for (const account of accountsRef.current) {
             if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
             if (account.collection_access !== true || !isUnlocked(account.user_id)) continue;
-            await runNativeSync(account.user_id, await openInterviewerDb(account.user_id));
-            bumpRefresh();
+            try {
+              await runNativeSync(account.user_id, await openInterviewerDb(account.user_id));
+              bumpRefresh();
+            } catch (accountError) {
+              skipNotInSlot(accountError);
+            }
           }
           await pollForegroundNotifications();
         } catch (syncError) {
@@ -402,6 +467,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ready,
       device,
       accounts,
+      slot,
+      switchSlot,
       uiLocale,
       reload,
       chooseUiLocale,
@@ -424,6 +491,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       ready,
       device,
       accounts,
+      slot,
+      switchSlot,
       uiLocale,
       reload,
       chooseUiLocale,

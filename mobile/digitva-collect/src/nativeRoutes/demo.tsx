@@ -2,7 +2,8 @@
  * Try the demo (docs/policy/public-demo.md sections 2 and 10): create a demo
  * account, or use one, then enrol this phone on the demo server without a QR
  * code and sign in. The server is the compiled demo origin (src/demo.ts), kept
- * as the enrolled server like a QR enrolment keeps its server; changing it
+ * in the phone's Demo slot beside any live enrolment, and the Demo slot is
+ * then the one in use (docs/policy/public-demo.md section 10.1); changing it
  * later is by re-enrolling. A refused call is shown and stops there: limits
  * are never retried on their own, and a failed security check gets a fresh
  * challenge only when the user presses the button again.
@@ -45,7 +46,7 @@ export function progressText(progress: DemoProgress): string {
 export default function Demo() {
   const styles = useUiStyles();
   const router = useRouter();
-  const { reload } = useAppState();
+  const { reload, lockNow } = useAppState();
   const [mode, setMode] = useState<Mode>("choose");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -91,6 +92,11 @@ export default function Demo() {
     setError("");
     setLimited(false);
     try {
+      // Enrolling chooses the Demo slot, so every store is saved and locked first (section 10.1).
+      if (!(await lockNow())) {
+        setError(t("errGeneric"));
+        return;
+      }
       if (mode === "create" && createdRef.current !== name) {
         await signUpDemoAccount(name, password, { onProgress: setProgress, signal: cancel.current });
         createdRef.current = name;

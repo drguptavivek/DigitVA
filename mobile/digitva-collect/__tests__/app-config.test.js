@@ -43,7 +43,7 @@ describe("Expo release configuration", () => {
     delete process.env.EXPO_PUBLIC_API_BASE_URL;
     delete process.env.DIGITVA_ANDROID_VERSION_CODE;
     expect(appConfig({ config: require("../app.json").expo }).extra.digitvaReleaseServer).toBe(
-      "https://digitva.causeofdeathindia.com"
+      "https://digitvav3.causeofdeathindia.com"
     );
     expect(appConfig({ config: require("../app.json").expo }).android.versionCode).toBe(1);
   });

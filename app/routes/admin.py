@@ -2269,6 +2269,11 @@ def _serialize_user(user, *, include_profile=False):
     if include_profile:
         data["year_of_birth"] = user.year_of_birth
         data["sex"] = user.sex
+        from app.services import public_demo_service as demo
+
+        # The kept mark exists only on a demo deployment (public-demo.md section 8).
+        if demo.enabled() and user.is_public_demo:
+            data["public_demo_keep"] = bool(user.public_demo_keep)
     return data
 
 
@@ -2591,6 +2596,43 @@ def admin_toggle_user(target_user_id):
         "user_id": str(target_user.user_id),
         "status": target_user.user_status.value,
     })
+
+
+@admin.post("/api/users/<uuid:target_user_id>/public-demo-keep")
+@role_required("admin")
+def admin_set_public_demo_keep(target_user_id):
+    """Mark a public-demo account kept (never purged or evicted, still counted
+    toward the cap) or clear the mark; body ``{"keep": bool}``. Audited as
+    ``public_demo_keep``. 404 unless ``PUBLIC_DEMO_ENABLED``, like every other
+    demo-only route, and for an account that is not a public-demo account
+    (docs/policy/public-demo.md sections 8 and 9)."""
+    from app.services import public_demo_service as demo
+    from app.services.security_event_service import record_security_event
+
+    if not demo.enabled():
+        return _json_error("Not found.", 404)
+    if not current_user.is_admin():
+        return _json_error("Admin access required.", 403)
+
+    payload = request.get_json(silent=True) or {}
+    keep = payload.get("keep")
+    if not isinstance(keep, bool):
+        return _json_error("keep must be a boolean.", 400)
+
+    target_user = db.session.get(VaUsers, target_user_id)
+    if not target_user or not target_user.is_public_demo:
+        return _json_error("Public demo account not found.", 404)
+
+    if target_user.public_demo_keep != keep:
+        target_user.public_demo_keep = keep
+        record_security_event(
+            user_id=target_user.user_id,
+            actor_user_id=current_user.user_id,
+            event_type="public_demo_keep",
+            detail={"keep": keep},
+        )
+        db.session.commit()
+    return jsonify({"user_id": str(target_user.user_id), "public_demo_keep": keep})
 
 
 @admin.post("/api/users/<uuid:target_user_id>/toggle-admin")

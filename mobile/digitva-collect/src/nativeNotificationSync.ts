@@ -1,6 +1,7 @@
 /** Foreground notification polling and the coalesced authoritative sync path. */
 import { ApiError } from "./api";
 import { authedRequest, loadAccounts, refreshAccessSummary, SessionRevokedError, SignInRequiredError } from "./auth";
+import { NotInSlotError } from "./authErrors";
 import { isUnlocked } from "./interviewerDb";
 import { drainNotificationPages } from "./notificationPoll";
 import {
@@ -36,6 +37,8 @@ export interface NativeSyncCallbacks {
 function isAuthFailure(error: unknown): boolean {
   return error instanceof SessionRevokedError
     || error instanceof SignInRequiredError
+    // Not the chosen slot's user: propagate (the poller skips it) rather than record a pending sync.
+    || error instanceof NotInSlotError
     || (error instanceof ApiError && (error.status === 401 || error.status === 403));
 }
 

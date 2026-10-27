@@ -12,7 +12,7 @@ import { Button, errorText, Screen, useUiStyles } from "./ui";
 
 export default function NativeTermsGate({ children }: { children: ReactNode }) {
   const params = useGlobalSearchParams<{ userId?: string }>();
-  const { accounts, reload, clearError, error: appError, errorBlocking, backgroundError, dismissBackgroundError } = useAppState();
+  const { accounts, lockNow, reload, clearError, error: appError, errorBlocking, backgroundError, dismissBackgroundError } = useAppState();
   const router = useRouter();
   const styles = useUiStyles();
   const account = accounts.find((entry) => entry.user_id === params.userId);
@@ -130,9 +130,17 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
               onPress={() => {
                 if (!account) return;
                 setBusy(true);
-                void signOut(account.user_id)
-                  .then(reload)
-                  .then(() => router.replace("/"))
+                void lockNow()
+                  .then(async (locked) => {
+                    // Not locked: open work may not be saved, so nobody is signed out and the gate stays.
+                    if (!locked) {
+                      setMessage(t("errGeneric"));
+                      return;
+                    }
+                    await signOut(account.user_id);
+                    await reload();
+                    router.replace("/");
+                  })
                   .catch((error) => setMessage(errorText(error)))
                   .finally(() => setBusy(false));
               }}

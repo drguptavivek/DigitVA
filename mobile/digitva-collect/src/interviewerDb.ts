@@ -47,11 +47,20 @@ export type UnlockResult =
   | { ok: false; failures: 0; wipe: false; storeMissing: true };
 
 const unlocked = new Map<string, Db>();
+/** Unlocks and PIN setups in flight: lockAll waits for them, so a store opening as it locks is closed too. */
+const opening = new Set<Promise<unknown>>();
+
+function tracked<T>(work: Promise<T>): Promise<T> {
+  opening.add(work);
+  void work.catch(() => undefined).finally(() => opening.delete(work));
+  return work;
+}
 
 const fileName = async (userId: string) => `iv_${await storeHash(userId)}.db`;
 
 export const isUnlocked = (userId: string) => unlocked.has(userId);
-export const anyUnlocked = () => unlocked.size > 0;
+/** A store is open, or opening (lockAll will wait for it). */
+export const anyUnlocked = () => unlocked.size > 0 || opening.size > 0;
 /** An open store for device-level records that belong to no one interviewer (the error log); undefined while locked. */
 export const firstUnlockedDb = (): Db | undefined => unlocked.values().next().value;
 
@@ -134,7 +143,11 @@ const isWrongKey = (error: unknown) => /not a database|SQLITE_NOTADB|code 26|bad
  * secret already exists, so reaching PIN setup (a deep link, say) can never
  * replace a PIN or erase a store.
  */
-export async function createInterviewerDb(userId: string, pin: string): Promise<void> {
+export function createInterviewerDb(userId: string, pin: string): Promise<void> {
+  return tracked(createInterviewerDbOnce(userId, pin));
+}
+
+async function createInterviewerDbOnce(userId: string, pin: string): Promise<void> {
   if (await hasInterviewerStore(userId)) throw new Error("store_exists");
   await deleteInterviewerDb(userId);
   const secret = await createStoreSecret(userId);
@@ -150,7 +163,11 @@ export async function createInterviewerDb(userId: string, pin: string): Promise<
  * keys are already deleted; the caller then signs the interviewer out.
  * Throws StoreLockedError when no PIN is set up (go to PIN setup).
  */
-export async function unlockInterviewerDb(userId: string, pin: string): Promise<UnlockResult> {
+export function unlockInterviewerDb(userId: string, pin: string): Promise<UnlockResult> {
+  return tracked(unlockInterviewerDbOnce(userId, pin));
+}
+
+async function unlockInterviewerDbOnce(userId: string, pin: string): Promise<UnlockResult> {
   if (unlocked.has(userId)) return { ok: true };
   const secret = await readStoreSecret(userId);
   if (!secret) throw new StoreLockedError();
@@ -173,8 +190,9 @@ export async function unlockInterviewerDb(userId: string, pin: string): Promise<
   return { ok: false, failures, wipe: true };
 }
 
-/** Close every unlocked database and drop the handles. */
+/** Close every unlocked database and drop the handles, after any unlock in flight has settled. */
 export async function lockAll(): Promise<void> {
+  await Promise.allSettled([...opening]);
   const failures: unknown[] = [];
   await Promise.all([...unlocked.entries()].map(async ([userId, db]) => {
     try {

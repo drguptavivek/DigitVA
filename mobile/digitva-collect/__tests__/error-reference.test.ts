@@ -1,4 +1,5 @@
 import { ApiError, maskApiPath, requestJson } from "../src/api";
+import { AlreadyEnrolledError, NotInSlotError } from "../src/authErrors";
 import { errorReference, errorText } from "../src/ui";
 
 describe("maskApiPath", () => {
@@ -38,6 +39,10 @@ describe("errorReference", () => {
     expect(path).toContain("file:… failed; file:…");
     const long = errorReference(new Error("x".repeat(500)));
     expect(long.split(" · ")[0].length).toBeLessThanOrEqual("Ref: Error ".length + 160);
+  });
+  it("shows a slot refusal as a normal message, without a reference", () => {
+    expect(errorText(new AlreadyEnrolledError())).toBe("This phone is already enrolled there. To change it, use Settings, \"Change server / re-enrol\".");
+    expect(errorText(new NotInSlotError())).toBe("The phone switched between Active and Demo meanwhile. Try again.");
   });
   it("is appended to the generic fallback only", () => {
     expect(errorText(new ApiError(500, undefined))).toContain("Ref: HTTP 500");

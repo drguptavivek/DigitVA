@@ -17,3 +17,23 @@ export class SignInRequiredError extends Error {
     this.name = "SignInRequiredError";
   }
 }
+
+/**
+ * Native only (docs/policy/public-demo.md section 10.1): the account is not served by the chosen slot's device
+ * (it sits in the other slot, is gone, or is bound to another server), or the slot a sign-in started in is no
+ * longer the chosen one. Nothing was sent. Background pollers skip it quietly; a screen shows errSlotChanged.
+ */
+export class NotInSlotError extends Error {
+  constructor() {
+    super("not_in_slot");
+    this.name = "NotInSlotError";
+  }
+}
+
+/** Native only: that slot already holds an enrolment; replacing it is re-enrolment (src/reEnrolConfirm.ts). */
+export class AlreadyEnrolledError extends Error {
+  constructor() {
+    super("already_enrolled");
+    this.name = "AlreadyEnrolledError";
+  }
+}

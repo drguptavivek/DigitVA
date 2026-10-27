@@ -236,8 +236,9 @@ reported without a log cable, the Android app keeps a small local error log.
   while no store is open, up to 50 entries wait in memory only and move in on
   the next unlock. It is not unsent work and is never uploaded.
 - **Cap:** the newest 500 rows and at most 30 days, enforced on every write.
-- **Wipe:** it lives in the interviewer's database file, so sign-out, a revoked
-  session, a wipe after failed PINs and re-enrolment delete it with the store.
+- **Wipe:** it lives in the interviewer's database file, so a wipe (a revoked
+  session with nothing unsent, the fifth wrong PIN) deletes it with the store.
+  Sign-out and re-enrolment keep the store, and the log with it.
 - **Export:** Settings > Help & support > Export errors builds one text file
   content, `digitva-errors-<date>.txt` (a header with app version, device and
   export time, then entries newest first, cut to about 60,000 characters), and
@@ -340,7 +341,7 @@ brand-blue header (emblem, a spinner or Offline marker only while syncing or off
 the 文A app-language button, account avatar), bottom tabs
 (Home, Interviews, Register death, Sync; the badge on Sync is the unsent count)
 and an account menu sheet (Settings, Help, language, Lock now, Switch
-interviewer, Sign out (refused while work is unsent, `digitva-dxgj`), version). The
+profile (locks first), Sign out (keeps the encrypted data, `digitva-dxgj`), version). The
 tabs follow the account's `collection_access`, `registration_access` and
 `registered_deaths_access` through the browser's `navEntries` rules and never
 show coding or review (web-only). Header and tabs are hidden on the interview

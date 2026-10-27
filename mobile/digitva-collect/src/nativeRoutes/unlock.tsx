@@ -2,7 +2,8 @@
  * Unlock one interviewer's store: the biometric prompt first when it is on, else
  * the phone screen-lock prompt when that is on; the PIN (six boxes) always. Warns from the third wrong PIN; the fifth in a row erases
  * that interviewer's store and signs them out (src/auth.ts unlockInterviewer).
- * An interviewer with no PIN yet goes to PIN setup.
+ * An interviewer with no PIN yet goes to PIN setup. A signed-out profile goes
+ * to sign-in instead: its PIN alone never opens the kept store.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
@@ -43,6 +44,7 @@ export default function Unlock() {
   const enabling = enableBiometricParam === "1" || enableScreenLockParam === "1";
   const { accounts, reload, unlocked, lockNow } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
+  const signedOut = account?.signed_out === true;
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [storeMissing, setStoreMissing] = useState(false);
@@ -61,7 +63,7 @@ export default function Unlock() {
 
   const tryPin = useCallback(
     async (candidate: string) => {
-      if (!userId) return;
+      if (!userId || signedOut) return;
       setBusy(true);
       setError("");
       try {
@@ -113,7 +115,7 @@ export default function Unlock() {
         setBusy(false);
       }
     },
-    [userId, enableBiometricParam, enableScreenLockParam, enabling, unlocked, toWorklist, reload, router, lockNow]
+    [userId, signedOut, enableBiometricParam, enableScreenLockParam, enabling, unlocked, toWorklist, reload, router, lockNow]
   );
 
   const tryBiometric = useCallback(async () => {
@@ -139,7 +141,8 @@ export default function Unlock() {
   }, [userId, tryPin]);
 
   useEffect(() => {
-    if (!userId) return;
+    // Signed out: no biometric or screen-lock prompt; the render below sends it to sign-in.
+    if (!userId || signedOut) return;
     if (isUnlocked(userId) && !enabling) {
       toWorklist();
       return;
@@ -171,9 +174,10 @@ export default function Unlock() {
       active = false;
     };
     // Once per screen: a failed biometric must not re-prompt on every render.
-  }, [userId, enabling, lockNow]);
+  }, [userId, enabling, lockNow, signedOut]);
 
   if (!account) return <Redirect href="/" />;
+  if (signedOut) return <Redirect href={{ pathname: "/sign-in", params: { userId: account.user_id } }} />;
   if (offer) {
     return (
       <Screen title={t("unlockTitle")}>

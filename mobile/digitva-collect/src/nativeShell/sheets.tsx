@@ -42,6 +42,8 @@ export function AccountSheet() {
   const router = useRouter();
   const { accounts, device, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
   const { ui } = useTheme();
+  const toast = useToast();
+  const lockFailed = () => toast.show({ kind: "error", text: t("errGeneric") });
   const account = accounts.find((item) => item.user_id === shell.userId);
   const userId = account?.user_id;
   const go = (action: () => void) => () => {
@@ -51,6 +53,11 @@ export function AccountSheet() {
   async function doSignOut() {
     if (!userId) return;
     try {
+      // Save open work and close every store first: sign-out keeps the data.
+      if (!(await lockNow())) {
+        lockFailed();
+        return;
+      }
       await signOut(userId);
       await reload();
       router.replace("/");
@@ -82,7 +89,7 @@ export function AccountSheet() {
         </View>
       </View>
       <SheetRow label={t("lockNow")} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
-      <SheetRow label={t("switchInterviewer")} onPress={go(() => router.replace("/"))} />
+      <SheetRow label={t("switchInterviewer")} onPress={go(() => void lockNow().then((locked) => (locked ? router.replace("/") : lockFailed())))} />
       <SheetRow label={t("signOut")} tone="danger" disabled={!userId} onPress={go(() => userId && void confirmSignOut(userId, () => void doSignOut()))} />
       <Text style={{ ...typography.caption, color: ui.mutedForeground, marginTop: spacing.xs }}>{t("appVersionLabel", { version: APP_VERSION })}</Text>
     </BottomSheet>

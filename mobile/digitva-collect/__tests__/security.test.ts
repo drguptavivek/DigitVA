@@ -60,11 +60,13 @@ import { classifyAuthError, loadAccounts, signOut, unlockInterviewer } from "../
 import { ApiError } from "../src/api";
 import { BACKGROUND_LOCK_MS, createAutoLock, IDLE_LOCK_MS } from "../src/autoLock";
 import {
+  anyUnlocked,
   createInterviewerDb,
   isUnlocked,
   lockAll,
   openInterviewerDb,
-  StoreLockedError
+  StoreLockedError,
+  unlockInterviewerDb
 } from "../src/interviewerDb";
 import { buildPassphrase, failedAttempts, pinProblem, storeHash } from "../src/vault";
 
@@ -194,6 +196,23 @@ describe("store setup, unlock and lock", () => {
     await expect(unlockInterviewer(A, PIN)).rejects.toBeInstanceOf(StoreLockedError);
   });
 
+  it("closes a store whose unlock was still in flight when locking began", async () => {
+    seedAccounts();
+    await createInterviewerDb(A, PIN);
+    await lockAll();
+
+    const unlocking = unlockInterviewerDb(A, PIN);
+    // Locking counts it as open before the handle exists, so a slot switch never runs past it.
+    expect(isUnlocked(A)).toBe(false);
+    expect(anyUnlocked()).toBe(true);
+    await lockAll();
+
+    expect(await unlocking).toEqual({ ok: true });
+    expect(isUnlocked(A)).toBe(false);
+    expect(anyUnlocked()).toBe(false);
+    expect(mockOpenHandles.size).toBe(0);
+  });
+
   it("retains a database whose close fails and closes it on retry", async () => {
     seedAccounts();
     await createInterviewerDb(A, PIN);
@@ -246,11 +265,14 @@ describe("failed PINs", () => {
 });
 
 describe("wipe matrix", () => {
-  it("sign-out wipes that interviewer only", async () => {
+  it("sign-out keeps the store and PIN, drops only that interviewer's tokens, and marks the profile signed out", async () => {
     await setUpBoth();
     await signOut(A);
-    expect(footprint(A)).toEqual({ file: false, secret: false, tokens: false, biometric: false });
+    expect(footprint(A)).toEqual({ file: true, secret: true, tokens: false, biometric: true });
+    expect((await loadAccounts()).find(({ user_id }) => user_id === A)).toMatchObject({ signed_out: true, needs_sign_in: true });
     expect(footprint(B)).toEqual({ file: true, secret: true, tokens: true, biometric: true });
+    // Its PIN still opens the kept data.
+    expect(await unlockInterviewer(A, PIN)).toEqual({ ok: true });
   });
 
   it("session_revoked wipes that interviewer only when the unlocked store holds nothing unsent", async () => {

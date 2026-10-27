@@ -1,7 +1,8 @@
 /**
- * Phone Settings, in sections: Account, Language, Security, Sync, Help & support, About. The enrolled server is
- * shown read-only and changed only by re-enrolling (src/reEnrolConfirm.ts). The questionnaire's own language is
- * chosen in the form's menu.
+ * Phone Settings, in sections: Account, Active or demo, Language, Security, Sync, Help & support, About. The
+ * enrolled server is shown read-only and changed only by re-enrolling (src/reEnrolConfirm.ts). Active or demo
+ * switches between the phone's two enrolments (docs/policy/public-demo.md section 10.1). The questionnaire's own
+ * language is chosen in the form's menu.
  */
 import { useRouter } from "expo-router";
 import { useEffect, useState, type ReactNode } from "react";
@@ -9,6 +10,7 @@ import { canUseBiometricAuthentication } from "expo-secure-store";
 import { Linking, Text, View } from "react-native";
 
 import { useAppState } from "../AppState";
+import type { Slot } from "../auth";
 import type { Db } from "../drafts";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { DataActions } from "../standalone/DataActions";
@@ -38,7 +40,7 @@ export default function NativeSettings() {
   const router = useRouter();
   const toast = useToast();
   const shell = useShell();
-  const { device, accounts, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
+  const { device, accounts, slot, switchSlot, uiLocale, chooseUiLocale, lockNow, reload } = useAppState();
   const styles = useUiStyles();
   const [biometricUsers, setBiometricUsers] = useState<Set<string>>(new Set());
   const [screenLockUsers, setScreenLockUsers] = useState<Set<string>>(new Set());
@@ -123,10 +125,11 @@ export default function NativeSettings() {
     setBusy(true);
     setError("");
     try {
-      await reEnrolDevice(accounts);
+      await reEnrolDevice(accounts, lockNow);
       await reload();
-      // Settings sits above Home, so Home's redirect to /enrol would not run.
-      router.replace("/enrol");
+      // Settings sits above Home, so Home's redirect to /enrol would not run. Demo re-enrols
+      // through Try the demo: a QR enrolment there would fill the Active slot instead.
+      router.replace(slot === "demo" ? "/demo" : "/enrol");
     } catch (caught) {
       setError(caught instanceof Error && caught.message === "unsent_work" ? t("reEnrolBlocked") : t("errGeneric"));
     } finally {
@@ -136,6 +139,17 @@ export default function NativeSettings() {
   function requestReEnrol() {
     setError("");
     confirmReEnrol(accounts, () => void reEnrol()).catch(() => setError(t("errGeneric")));
+  }
+  async function chooseSlot(next: Slot) {
+    setBusy(true);
+    setError("");
+    try {
+      if (!(await switchSlot?.(next))) setError(t("errGeneric"));
+    } catch {
+      setError(t("errGeneric"));
+    } finally {
+      setBusy(false);
+    }
   }
   async function shareErrors() {
     setExporting(true);
@@ -170,6 +184,20 @@ export default function NativeSettings() {
           </>
         ) : null}
       </Section>
+      <Section title={t("settingsSlot")}>
+        {(["active", "demo"] as const).map((option) => (
+          <Button
+            key={option}
+            kind={option === slot ? "primary" : "secondary"}
+            label={t(option === "active" ? "slotActive" : "slotDemo")}
+            disabled={busy}
+            onPress={() => {
+              if (option !== slot) void chooseSlot(option);
+            }}
+          />
+        ))}
+        <Text style={styles.muted}>{t("slotNote")}</Text>
+      </Section>
       <Section title={t("settingsLanguage")}>
         <Text style={styles.muted}>{t("appLanguage")}</Text>
         {UI_LOCALES.map((locale) => (
@@ -189,7 +217,8 @@ export default function NativeSettings() {
             <Text style={styles.muted}>{`${t("biometricOn")}: ${item.name}`}</Text>
             <Button kind="secondary" label={`${t("biometricOff")}: ${item.name}`} onPress={() => void turnOff(turnOffBiometric, item.user_id)} />
           </View>
-        ) : (
+        ) : item.signed_out ? null : (
+          // Turning it on unlocks with the PIN, which a signed-out profile gets only after signing in again.
           <Button
             key={`biometric-${item.user_id}`}
             kind="secondary"
@@ -204,7 +233,7 @@ export default function NativeSettings() {
             <Text style={styles.muted}>{`${t("screenLockOn")}: ${item.name}`}</Text>
             <Button kind="secondary" label={`${t("screenLockOff")}: ${item.name}`} onPress={() => void turnOff(turnOffScreenLock, item.user_id)} />
           </View>
-        ) : screenLockPossible ? (
+        ) : screenLockPossible && !item.signed_out ? (
           <Button
             key={`screen-lock-${item.user_id}`}
             kind="secondary"

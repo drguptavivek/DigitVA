@@ -5,7 +5,7 @@ import { AppState } from "react-native";
 const mockAppStateListeners = new Set<(state: string) => void>();
 const mockRouter = { replace: jest.fn() };
 const mockSecure = new Map<string, string>();
-const mockAccounts = [{ user_id: "worker", name: "Worker", collection_access: true }];
+const mockAccounts = [{ user_id: "worker", name: "Worker", server: "https://example.test", collection_access: true }];
 const mockSave = jest.fn(async () => undefined);
 const mockLockAll = jest.fn(async (..._args: unknown[]) => undefined);
 const mockOpenDb = jest.fn(async (..._args: unknown[]) => ({}) as never);
@@ -31,6 +31,8 @@ jest.mock("../src/autoLock", () => ({
 jest.mock("../src/i18n", () => ({ setUiLocale: () => "en" }));
 jest.mock("../src/ui", () => ({ errorText: (error: unknown) => `error:${String(error)}` }));
 jest.mock("../src/auth", () => ({
+  loadActiveSlot: jest.fn(async () => "active"),
+  setActiveSlot: jest.fn(async () => undefined),
   loadDevice: jest.fn(async () => ({ device_id: "d", server: "https://example.test", project_id: "p", project_name: "P" })),
   loadAccounts: jest.fn(async () => mockAccounts.map((account) => ({ ...account }))),
   subscribeAccountChanges: jest.fn(() => () => undefined),

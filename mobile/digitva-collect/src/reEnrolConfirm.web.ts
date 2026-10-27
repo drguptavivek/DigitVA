@@ -10,6 +10,6 @@ export async function confirmReEnrol(_accounts: Account[], _onConfirmed: () => v
   throw new Error("re_enrol_native_only");
 }
 
-export async function reEnrolDevice(_accounts: Account[]): Promise<void> {
+export async function reEnrolDevice(_accounts: Account[], _lock: () => Promise<boolean>): Promise<void> {
   throw new Error("re_enrol_native_only");
 }

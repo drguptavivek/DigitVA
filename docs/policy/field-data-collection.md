@@ -99,15 +99,20 @@ Requirements, all of which must hold before the app collects real data:
   only**, and only when it holds no unsent work (see "Unsent work is never
   purged automatically" below), and refuses further use under that account;
   other accounts on the same handset are untouched.
-- **Wipe on logout**, covering that interviewer's database, attachments and
-  cached keys, and only once nothing is unsent (owner decision 2026-10-27,
-  `digitva-dxgj`): while the store holds unsent work, sign-out is refused
-  and lists what is unsent by kind (interviews, registrations, contact
-  attempts and visits, revisions), telling the interviewer to send it first
-  or ask their supervisor. A locked store cannot be counted and its data
-  cannot be read without the PIN, so sign-out from it still warns and asks a
-  second time. An account that only needs to sign in again is offered
-  "Sign in again", which keeps the store.
+- **Sign-out keeps the data** (owner decision 2026-10-27, `digitva-dxgj`;
+  replaces "wipe on logout"). Sign-out ends the server session and drops
+  that interviewer's tokens; their encrypted database, attachments, PIN and
+  profile stay on the phone, listed as "Signed out". Signing in again with
+  the same account, then that PIN, shows the data, and unsent work is sent
+  then. The confirmation asks once, says the data stays and lists by kind
+  what is not sent yet (interviews, registrations, contact attempts and
+  visits, revisions); a locked store's count cannot be read without its PIN
+  and is not shown, and no unencrypted count is kept. Signed-out profiles
+  are never removed from the phone. The account menu also has "Switch
+  profile" (lock and show the profiles list, session kept) and the profiles
+  list "Add profile" (another person signs in alongside). What still deletes
+  a store: the fifth wrong PIN in a row, and a revoked session whose store
+  is known to hold nothing unsent.
 - **Unsent work is never purged automatically** (owner decision 2026-10-22,
   `digitva-tnr6`). A completed interview not yet acknowledged, an offline
   registration, a queued contact attempt or visit, a queued revision or an

@@ -6,7 +6,7 @@ let mockUnlocked = true;
 let mockState: {
   accounts: Array<{ user_id: string; name: string; collection_access: boolean; registered_deaths_access: boolean }>;
   lockVersion: number;
-  lockNow: () => Promise<void>;
+  lockNow: jest.Mock<Promise<boolean>, []>;
   reload: () => Promise<void>;
 };
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
@@ -23,7 +23,9 @@ jest.mock("expo-router", () => ({
   },
 }));
 jest.mock("../src/AppState", () => ({ useAppState: () => mockState }));
-jest.mock("../src/auth", () => ({ signOut: jest.fn(async () => undefined) }));
+const mockSignOut = jest.fn(async (_userId: string) => undefined);
+jest.mock("../src/auth", () => ({ signOut: (userId: string) => mockSignOut(userId) }));
+jest.mock("../src/signOutConfirm", () => ({ confirmSignOut: async (_userId: string, onConfirmed: () => void) => onConfirmed() }));
 jest.mock("../src/deathRegistrationApi", () => ({ getNativeRegisteredDeaths: (...args: unknown[]) => mockLoad(...args) }));
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => mockUnlocked }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
@@ -45,10 +47,15 @@ beforeEach(() => {
   mockRouter.replace.mockClear();
   mockRouter.push.mockClear();
   mockLoad.mockReset();
+  mockSignOut.mockClear();
   mockState = {
     accounts: [{ user_id: "u1", name: "Worker", collection_access: false, registered_deaths_access: true }],
     lockVersion: 0,
-    lockNow: jest.fn(async () => { mockUnlocked = false; mockState.lockVersion += 1; }),
+    lockNow: jest.fn(async () => {
+      mockUnlocked = false;
+      mockState.lockVersion += 1;
+      return true;
+    }),
     reload: jest.fn(async () => undefined),
   };
 });
@@ -120,4 +127,33 @@ it("hides one reporter's rows immediately and ignores its pending page after an 
   expect(JSON.stringify(tree.toJSON())).toContain("Second worker's death");
   expect(JSON.stringify(tree.toJSON())).not.toContain("First worker's death");
   await act(async () => tree.unmount());
+});
+
+describe("sign-out (reporter without collection access)", () => {
+  async function pressSignOut() {
+    mockLoad.mockResolvedValue({ deaths: [], next_cursor: null });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={false} />); });
+    await act(async () => { tree.root.findByProps({ label: "signOut" }).props.onPress(); await Promise.resolve(); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    return tree;
+  }
+
+  it("locks every store before signing out, then goes Home", async () => {
+    const tree = await pressSignOut();
+    expect(mockState.lockNow).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).toHaveBeenCalledWith("u1");
+    expect(mockState.lockNow.mock.invocationCallOrder[0]).toBeLessThan(mockSignOut.mock.invocationCallOrder[0]);
+    expect(mockRouter.replace).toHaveBeenCalledWith("/");
+    await act(async () => tree.unmount());
+  });
+
+  it("signs nobody out and says so when the stores could not be locked", async () => {
+    mockState.lockNow.mockResolvedValueOnce(false);
+    const tree = await pressSignOut();
+    expect(mockState.lockNow).toHaveBeenCalledTimes(1);
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree.toJSON())).toContain("errGeneric");
+    await act(async () => tree.unmount());
+  });
 });

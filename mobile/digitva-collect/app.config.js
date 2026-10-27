@@ -1,6 +1,6 @@
 const appJson = require("./app.json");
 
-const DEFAULT_RELEASE_SERVER = "https://digitva.causeofdeathindia.com";
+const DEFAULT_RELEASE_SERVER = "https://digitvav3.causeofdeathindia.com";
 const DEFAULT_ANDROID_VERSION_CODE = 1;
 // Base code: release APKs use base * 10 + ABI digit (plugins/with-android-abi-splits.js),
 // which must stay within Android's 2,100,000,000 limit.

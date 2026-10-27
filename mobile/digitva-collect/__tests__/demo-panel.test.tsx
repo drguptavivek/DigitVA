@@ -4,6 +4,7 @@ import { act, create } from "react-test-renderer";
 
 const mockOpenUrl = jest.fn(async (_url: string) => undefined);
 const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn() };
+const mockSwitchSlot = jest.fn(async (_slot: string) => true);
 
 jest.mock("react-native", () => ({
   Platform: { OS: "android" }, Linking: { openURL: (url: string) => mockOpenUrl(url) },
@@ -12,7 +13,7 @@ jest.mock("react-native", () => ({
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
 jest.mock("expo-constants", () => ({ __esModule: true, default: { deviceName: "Phone", expoConfig: { version: "1.0.0" } } }));
 jest.mock("expo-camera", () => ({ CameraView: "camera", useCameraPermissions: () => [{ granted: true }, jest.fn()] }));
-jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: jest.fn() }) }));
+jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: jest.fn(), switchSlot: mockSwitchSlot }) }));
 jest.mock("../src/auth", () => ({ enrolDevice: jest.fn() }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
@@ -69,7 +70,8 @@ it("the enrol screen offers Try the demo in a release build too", async () => {
     expect(labels(tree!)).toContain("demoTryTitle");
     expect(labels(tree!)).not.toContain("enrolSubmit"); // the paste box is debug only
     await act(async () => tree!.root.findAll((n) => n.props.label === "demoTryTitle")[0].props.onPress());
-    expect(mockRouter.push).toHaveBeenCalledWith("/demo");
+    // switchSlot opens /demo when the phone has no demo enrolment, or switches to the one it has.
+    expect(mockSwitchSlot).toHaveBeenCalledWith("demo");
   } finally {
     (globalThis as { __DEV__?: boolean }).__DEV__ = previous;
   }

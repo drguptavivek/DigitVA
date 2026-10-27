@@ -646,6 +646,7 @@ it("clears the sign-in-again flag when the interviewer signs in again", async ()
   expect((await loadAccounts()).find((a) => a.user_id === USER)).toEqual({
     user_id: USER,
     name: "A",
+    server: SERVER,
     collection_access: false,
     registration_access: false,
     registered_deaths_access: false,
@@ -677,8 +678,8 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
 
   const account = await signIn("+919876543210", "pw");
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
-  expect(account).toEqual({ user_id: USER, name: "A" });
-  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false }]);
+  expect(account).toEqual({ user_id: USER, name: "A", server: SERVER });
+  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false }]);
 });
 
 it("persists only explicit coder and reviewer roles, never admin demo coding", async () => {
@@ -699,6 +700,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
   expect(await loadAccounts()).toEqual([{
     user_id: USER,
     name: "A",
+    server: SERVER,
     collection_access: false,
     registration_access: false,
     registered_deaths_access: false,
@@ -713,6 +715,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
   expect(await loadAccounts()).toEqual([{
     user_id: USER,
     name: "A",
+    server: SERVER,
     collection_access: false,
     registration_access: false,
     registered_deaths_access: false,

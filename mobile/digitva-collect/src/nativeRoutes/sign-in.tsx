@@ -5,7 +5,7 @@ import { Linking, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
-import { forgetDevice, loadDevice, signIn } from "../auth";
+import { forgetDevice, loadActiveSlot, loadDevice, signIn, type Slot } from "../auth";
 import { normalizeUsername } from "../demoRules";
 import { isDemoServer } from "../enrolment";
 import { t } from "../i18n";
@@ -22,7 +22,7 @@ export default function SignIn() {
   const router = useRouter();
   // "Sign in again" names the account it came from; signIn never wipes a store.
   const { userId } = useLocalSearchParams<{ userId?: string }>();
-  const { reload, accounts, device } = useAppState();
+  const { reload, accounts, device, lockNow } = useAppState();
   // The public demo signs in by username and has no code or password-reset links.
   const demo = isDemoServer(device?.server, __DEV__, process.env.EXPO_PUBLIC_DEMO_SERVER);
   const returning = accounts.find((account) => account.user_id === userId);
@@ -52,14 +52,19 @@ export default function SignIn() {
     }
     setBusy(true);
     setError("");
+    // The slot this sign-in uses, pinned: a revoked device is forgotten there, not in a slot chosen meanwhile.
+    let slot: Slot | undefined;
     try {
-      const account = await signIn(submittedIdentifier, password);
+      slot = await loadActiveSlot();
+      const account = await signIn(submittedIdentifier, password, slot);
       await reload();
       // Unlock sends an interviewer without a PIN yet to PIN setup.
       router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
-      if (caught instanceof ApiError && caught.code === "device_revoked") {
-        await forgetDevice();
+      // Forgetting the Demo device hands the phone back to Active, a slot change: lock first, or keep it.
+      if (caught instanceof ApiError && caught.code === "device_revoked" && slot !== undefined
+        && (slot === "active" || await lockNow())) {
+        await forgetDevice(slot);
         await reload();
       }
       setError(errorText(caught));

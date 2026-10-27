@@ -113,6 +113,10 @@ export default function RegisteredDeaths({
 
   async function doSignOut() {
     try {
+      if (!(await lockNow())) {
+        setMessage(t("errGeneric"));
+        return;
+      }
       await signOut(userId);
       await reload();
       router.replace("/");

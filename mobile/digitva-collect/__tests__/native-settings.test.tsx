@@ -11,7 +11,9 @@ const mockReEnrol = jest.fn<Promise<void>, [unknown[]]>(async () => undefined);
 const mockExport = jest.fn(async () => 4);
 const mockToast = jest.fn();
 let mockBiometricAvailable = true;
-const mockAccounts = [{ user_id: "a", name: "Asha" }];
+const mockAccounts: Array<{ user_id: string; name: string; signed_out?: boolean; needs_sign_in?: boolean }> = [{ user_id: "a", name: "Asha" }];
+const mockSwitchSlot = jest.fn(async (_slot: string) => true);
+let mockSlot = "active";
 
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
 jest.mock("expo-secure-store", () => ({ canUseBiometricAuthentication: () => mockBiometricAvailable }));
@@ -24,6 +26,8 @@ jest.mock("../src/AppState", () => ({
     chooseUiLocale: mockChooseLocale,
     lockNow: mockLockNow,
     reload: mockReload,
+    slot: mockSlot,
+    switchSlot: mockSwitchSlot,
   }),
 }));
 let mockScreenLockOn = false;
@@ -69,12 +73,13 @@ beforeEach(() => {
   mockBiometricAvailable = true;
   mockScreenLockOn = false;
   mockScreenLockPossible = true;
+  mockSlot = "active";
 });
 
 it("is titled Settings and shows every section", async () => {
   const tree = await render();
   const text = out(tree);
-  for (const heading of ["Settings", "Account", "Language", "Security", "Sync", "Help & support", "About"]) expect(text).toContain(`"${heading}"`);
+  for (const heading of ["Settings", "Account", "Active or demo", "Language", "Security", "Sync", "Help & support", "About"]) expect(text).toContain(`"${heading}"`);
   expect(text).toContain("https://digitvav3.causeofdeathindia.com");
   expect(text).toContain("dev-1");
   expect(text).toContain("Synced 09:07");
@@ -143,7 +148,48 @@ it("turns the phone screen lock on through the PIN screen, and off again", async
   expect(mockTurnOffScreenLock).toHaveBeenCalledWith("a");
 });
 
+it("offers neither fingerprint nor screen lock for a signed-out profile: its PIN alone must not open it", async () => {
+  mockAccounts.push({ user_id: "s", name: "Sita", signed_out: true, needs_sign_in: true });
+  try {
+    const text = out(await render());
+    expect(text).toContain("Use fingerprint: Asha");
+    expect(text).toContain("Use phone screen lock: Asha");
+    expect(text).not.toContain("Use fingerprint: Sita");
+    expect(text).not.toContain("Use phone screen lock: Sita");
+  } finally {
+    mockAccounts.pop();
+  }
+});
+
 it("offers no screen-lock button on a phone without a screen lock", async () => {
   mockScreenLockPossible = false;
   expect(out(await render())).not.toContain("Use phone screen lock");
+});
+
+it("switches to Demo from the Active or demo section, and does nothing for the slot already in use", async () => {
+  const tree = await render();
+  const kind = (label: string) => tree.root.findAll((n) => n.props.label === label && n.props.kind)[0]?.props.kind;
+  expect(kind("Active")).toBe("primary");
+  expect(kind("Demo")).toBe("secondary");
+  await pressLabel(tree, "Active");
+  expect(mockSwitchSlot).not.toHaveBeenCalled();
+  // switchSlot itself opens Try the demo when there is no demo enrolment (__tests__/slot-switch.test.tsx).
+  await pressLabel(tree, "Demo");
+  expect(mockSwitchSlot).toHaveBeenCalledWith("demo");
+});
+
+it("shows an error when the switch could not save open work", async () => {
+  mockSwitchSlot.mockResolvedValueOnce(false);
+  const tree = await render();
+  await pressLabel(tree, "Demo");
+  expect(mockSwitchSlot).toHaveBeenCalledWith("demo");
+  expect(out(tree)).toContain("Something went wrong. Try again.");
+});
+
+it("re-enrols the demo slot through Try the demo, not QR enrolment", async () => {
+  mockSlot = "demo";
+  const tree = await render();
+  await pressLabel(tree, "Change server / re-enrol");
+  await act(async () => mockConfirm.mock.calls[0][1]());
+  expect(mockRouter.replace).toHaveBeenCalledWith("/demo");
 });

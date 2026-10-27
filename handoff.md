@@ -15,15 +15,15 @@ Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
 
 ## Ranked next steps
 
-1. **Staging is on `17e43e4d8`** (deployed 2026-10-27). Still to do there:
-   a superuser runs `deploy/sql/ai_reader_setup.sql` (`digitva-weiq`) so AI
-   questions work; fill `PUBLIC_*` and get legal review of the public pages
-   (`digitva-gyfj`, `digitva-athy`); the contact form needs
-   `PUBLIC_CONTACT_EMAIL` and mail. Staging's checkout still has the old
-   `deploy-server.sh`, so on the next deploy that changes `uv.lock` remove
-   `digitva_minerva_venv` by hand first (the fix runs from the deploy after).
-   Request Vertex quota for `gemini-3.5-flash-lite` in `asia-south1` before
-   switching `AI_ANALYTICS_MODEL_GEMINI` to it.
+1. **Staging is on `17e43e4d8`** (deployed 2026-10-27): AI reader set up
+   (`digitva-weiq`), Vertex `gemini-3.5-flash` working, `PUBLIC_*` set, contact
+   form live. Still open: legal review of the public pages (`digitva-gyfj`,
+   `digitva-athy`); a first real contact-form submission and AI question by
+   the owner. Staging's checkout still has the old `deploy-server.sh`, so on
+   the next deploy that changes `uv.lock` remove `digitva_minerva_venv` by hand
+   first. Request Vertex quota for `gemini-3.5-flash-lite` in `asia-south1`
+   before switching to it. The demo portal is not deployed; its public keys
+   are `DEMO_PUBLIC_*` in `/data/digitva-demo.env`.
 2. Collect Plus next: `digitva-5bzf.11` (bundled translations) and `.12`
    (pin definition version); related `digitva-tb0j`. S5b landed but is
    tested only against a mocked network: check one adoption push against

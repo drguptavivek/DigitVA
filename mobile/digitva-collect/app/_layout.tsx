@@ -15,6 +15,7 @@ import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
 import { ShellHeader, ShellRoot, ShellTabs } from "../src/nativeShell/chrome";
 import { ClockWarning } from "../src/nativeShell/ClockNotice";
+import { useDemoDocumentTitle } from "../src/DemoBadge";
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 
@@ -71,6 +72,7 @@ function ActivityRoot() {
 export default function RootLayout() {
   const theme = useTheme();
   useWhoWebTheme();
+  useDemoDocumentTitle();
   useEffect(() => {
     applyScreenCaptureBlock();
   }, []);

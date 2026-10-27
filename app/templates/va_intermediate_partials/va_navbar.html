@@ -2,7 +2,7 @@
   <div class="container-fluid">
     <a class="navbar-brand" href="{{ url_for('va_main.va_index') }}">
       <img src="{{ url_for('static', filename='digitva_logo.png') }}" alt="DigitVA Logo" class="navbar-brand-logo">
-      {% if config.PUBLIC_DEMO_ENABLED %}<span class="badge bg-warning text-dark ms-2 align-middle" title="Public demo: practice data only">DEMO</span>{% endif %}
+      {% if config.SITE_ENV_LABEL %}<span class="badge bg-warning text-dark ms-2 align-middle">{{ config.SITE_ENV_LABEL }}</span>{% endif %}
       <!-- <i class="fa-solid fa-laptop-medical me-2"></i>DigitVA -->
     </a>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

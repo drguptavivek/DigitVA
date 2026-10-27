@@ -5,7 +5,7 @@
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>
-      {% block title %}DigitVA{% endblock %}
+      {% if config.SITE_ENV_LABEL %}{{ config.SITE_ENV_LABEL }} - {% endif %}{% block title %}DigitVA{% endblock %}
     </title>
     <link href="{{ url_for('static', filename='vendors/roboto/roboto.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}" rel="stylesheet"/>
     <link href="{{ url_for('static', filename='vendors/fontawesome/css/all.min.css') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}" rel="stylesheet"/>

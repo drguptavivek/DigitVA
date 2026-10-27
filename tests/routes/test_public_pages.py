@@ -42,9 +42,13 @@ class PublicPagesTest(BaseTestCase):
         for path in PAGES:
             self.assertIn(f'href="{path}"', body)
 
-    def test_header_says_demo_only_on_the_public_demo(self):
-        badge = ">DEMO</span>"
-        with patch.dict(self.app.config, PUBLIC_DEMO_ENABLED=True):
-            self.assertIn(badge, self.client.get("/privacy").get_data(as_text=True))
-        with patch.dict(self.app.config, PUBLIC_DEMO_ENABLED=False):
-            self.assertNotIn(badge, self.client.get("/privacy").get_data(as_text=True))
+    def test_site_env_label_in_header_and_title(self):
+        with patch.dict(self.app.config, SITE_ENV_LABEL="DEMO"):
+            body = self.client.get("/privacy").get_data(as_text=True)
+        self.assertIn(">DEMO</span>", body)
+        self.assertRegex(body, r"<title>\s*DEMO - DigitVA")
+        with patch.dict(self.app.config, SITE_ENV_LABEL=""):
+            body = self.client.get("/privacy").get_data(as_text=True)
+        self.assertIn("<title>", body)
+        self.assertNotIn(">DEMO</span>", body)
+        self.assertNotIn("DEMO - DigitVA", body)

@@ -406,6 +406,11 @@ class Config:
         "true", "1", "yes",
     )
     PUBLIC_DEMO_PROJECT_ID = os.environ.get("PUBLIC_DEMO_PROJECT_ID", "PUB01").strip()
+    # Label shown in the header badge and page titles ("DEMO", "STAGING").
+    # Unset: "DEMO" on the public demo, nothing elsewhere.
+    SITE_ENV_LABEL = (
+        os.environ.get("SITE_ENV_LABEL") or ("DEMO" if PUBLIC_DEMO_ENABLED else "")
+    ).strip()
     # Sign-up limiter strings, counted on successful sign-ups only: per client
     # address (IPv6 per /64; a loose backstop, many people share a carrier NAT
     # or a training room) and across the whole demo.

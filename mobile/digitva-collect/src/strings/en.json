@@ -935,6 +935,7 @@
   "demoRateLimited": "Too many attempts. Wait a few minutes before trying again.",
   "demoNotAvailable": "The demo is not available right now. Try again later.",
   "demoBadge": "Public demo",
+  "demoHeaderBadge": "DEMO",
   "demoLinkDashboard": "Demo dashboard (opens in your browser)",
   "demoLinkReports": "My reports (opens in your browser; sign in there first)",
   "demoLinkFailed": "Could not open the browser.",

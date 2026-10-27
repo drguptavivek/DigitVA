@@ -43,10 +43,10 @@ x-demo-env: &demo-env
   # The demo's own origin. PUBLIC_BASE_URL is the only trusted Host in
   # production (config.trusted_hosts_for); WebAuthn and the device URL are
   # set explicitly, though config derives them from it.
-  PUBLIC_BASE_URL: https://${DEMO_HOST:-demo.causeofdeathindia.com}
-  WEBAUTHN_RP_ID: ${DEMO_HOST:-demo.causeofdeathindia.com}
-  WEBAUTHN_ORIGIN: https://${DEMO_HOST:-demo.causeofdeathindia.com}
-  DEVICE_PUBLIC_URL: https://${DEMO_HOST:-demo.causeofdeathindia.com}
+  PUBLIC_BASE_URL: https://${DEMO_HOST:-digitvademo.causeofdeathindia.com}
+  WEBAUTHN_RP_ID: ${DEMO_HOST:-digitvademo.causeofdeathindia.com}
+  WEBAUTHN_ORIGIN: https://${DEMO_HOST:-digitvademo.causeofdeathindia.com}
+  DEVICE_PUBLIC_URL: https://${DEMO_HOST:-digitvademo.causeofdeathindia.com}
   # Public privacy, contact and data-requests pages (unset: neutral wording).
   # The contact form stays hidden here: the demo suppresses outgoing mail.
   PUBLIC_ORG_NAME: ${DEMO_PUBLIC_ORG_NAME:-}
@@ -244,7 +244,7 @@ services:
 
   # TLS ingress for the DMZ reverse proxy (deploy/ingress-demo.conf), the
   # demo's counterpart of digitva_ingress on port 8000: the proxy sends
-  # demo.causeofdeathindia.com to https://<APP_PRIVATE_IP>:8001 and verifies
+  # digitvademo.causeofdeathindia.com to https://<APP_PRIVATE_IP>:8001 and verifies
   # the app certificate as in split production. Same nginx tag as main.
   demo_ingress:
     image: nginx:1.29-alpine

@@ -4,6 +4,7 @@ import { useWindowDimensions } from "react-native";
 
 import { getLocalStationLaunchToken } from "../api";
 import { useAppState } from "../AppState";
+import DemoBadge from "../DemoBadge";
 import { t } from "../i18n";
 import { ui, useTheme } from "../theme";
 import { AccountMenu } from "../workspace/AccountMenu.web";
@@ -221,6 +222,8 @@ function Brand({ go, size }: { go: (path: string) => void; size: number }) {
 function HeaderEnd({ nav }: { nav: ReturnType<typeof useNav> }) {
   const { bootstrap, pathname, logout, signOut } = nav;
   return h("span", { style: { display: "flex", alignItems: "center", alignSelf: "stretch", gap: 12, marginLeft: "auto" } },
+    // In the end group, not Brand: wide screens with the sidebar draw no logo here but still need the badge.
+    h(DemoBadge, { server: typeof window === "undefined" ? undefined : window.location.origin }),
     h(HeaderLink, { href: "/help", newTab: true, className: "dva-tab dva-help-link", style: { height: "100%" } },
       h("span", { className: "dva-tab-in", style: { display: "inline-flex", alignItems: "center", gap: 8, opacity: 0.8 } }, h(Icon, { name: "help" }), "Help")),
     h("span", { id: HELP_SLOT_ID, ref: setHelpSlot, style: { display: "contents" } }),

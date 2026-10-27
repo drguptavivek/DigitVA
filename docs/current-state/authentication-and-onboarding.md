@@ -1004,7 +1004,7 @@ even if one never signed in. No migration.
 The Android app (`mobile/digitva-collect`, "Try the demo" on the enrolment
 screen) is the client: section 6.7's sign-up with the proof of work solved in
 JavaScript (`src/pow.ts`), then this call, then `POST /sessions`, against the
-compiled `https://demo.causeofdeathindia.com` (`src/enrolment.ts` `DEMO_SERVER`;
+compiled `https://digitvademo.causeofdeathindia.com` (`src/enrolment.ts` `DEMO_SERVER`;
 a debug build may name a local dev server). The demo server is stored as the
 enrolled server like a QR enrolment's. `429 demo_limit` and any other 429 are
 shown and never retried automatically; an upload refused with `demo_limit`

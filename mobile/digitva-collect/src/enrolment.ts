@@ -19,7 +19,7 @@ export const DEFAULT_RELEASE_SERVER = `https://digitva.${ENROLMENT_DOMAIN}`;
  * in: "Try the demo" enrols only here, so a release build never sends a demo
  * username or password anywhere else.
  */
-export const DEMO_SERVER = `https://demo.${ENROLMENT_DOMAIN}`;
+export const DEMO_SERVER = `https://digitvademo.${ENROLMENT_DOMAIN}`;
 /**
  * Debug builds may also reach a dev server from the emulator or over adb
  * reverse. Empty in release (`__DEV__` is false there), so the strings never

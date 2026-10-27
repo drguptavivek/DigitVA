@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
 import { useAppState } from "../AppState";
+import DemoBadge from "../DemoBadge";
 import { t, UI_LOCALES } from "../i18n";
 import { controlText, spacing, typography, ui, useTheme } from "../theme";
 import { activeNativeTab, isPreLoginRoute, nativeTabs, type NativeTab } from "./navAdapter";
@@ -76,7 +77,7 @@ export function NativeHeader() {
 
 function HeaderBar() {
   const shell = useShell();
-  const { accounts } = useAppState();
+  const { accounts, device } = useAppState();
   const insets = useSafeAreaInsets();
   const account = accounts.find((item) => item.user_id === shell.userId);
   const chip = syncIndicator(shell.sync);
@@ -88,6 +89,7 @@ function HeaderBar() {
       <View style={{ height: HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.sm, paddingRight: spacing.xxs }}>
         <Image source={require("../../assets/icon.png")} accessibilityLabel={t("appName")} style={{ width: 28, height: 28, borderRadius: 6, backgroundColor: "#FFFFFF" }} />
         <Text accessibilityRole="header" numberOfLines={1} style={{ ...typography.headline, color: ON_BAR, flex: 1 }}>DigitVA</Text>
+        <DemoBadge server={device?.server} />
         {account && chip && !preLogin ? (
           <Pressable
             accessibilityRole="button"

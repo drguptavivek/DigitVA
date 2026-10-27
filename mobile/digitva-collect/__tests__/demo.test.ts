@@ -37,7 +37,7 @@ import { setUiLocale, t } from "../src/i18n";
 
 describe("the demo origin rule", () => {
   it("is the compiled https demo host under the organisation's domain", () => {
-    expect(DEMO_SERVER).toBe("https://demo.causeofdeathindia.com");
+    expect(DEMO_SERVER).toBe("https://digitvademo.causeofdeathindia.com");
     expect(demoServerOrigin(false)).toBe(DEMO_SERVER);
     expect(demoServerOrigin(false, undefined)).toBe(DEMO_SERVER);
   });
@@ -46,8 +46,8 @@ describe("the demo origin rule", () => {
     "http://10.0.2.2:8051",
     "http://localhost:8051",
     "https://evil.example",
-    "https://demo.causeofdeathindia.com.evil.io",
-    "http://demo.causeofdeathindia.com",
+    "https://digitvademo.causeofdeathindia.com.evil.io",
+    "http://digitvademo.causeofdeathindia.com",
   ])("a release build ignores an override such as %s", (override) => {
     expect(demoServerOrigin(false, override)).toBe(DEMO_SERVER);
   });

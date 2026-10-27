@@ -108,7 +108,7 @@ birthday. The backend must enforce the same upper age limit.
   JavaScript by `src/pow.ts` in short slices that yield to the UI, with a
   progress line) or use an existing one, then `POST /api/v1/auth/demo-enroll`
   and the normal `POST /sessions`. The server is the compiled
-  `DEMO_SERVER` (`https://demo.causeofdeathindia.com`, `src/enrolment.ts`); a
+  `DEMO_SERVER` (`https://digitvademo.causeofdeathindia.com`, `src/enrolment.ts`); a
   debug build may set `EXPO_PUBLIC_DEMO_SERVER` to a local dev server; a release
   build ignores it. It is stored as the enrolled server like a QR enrolment's
   (Settings shows it read-only; a change is by re-enrolling). A phone enrolled

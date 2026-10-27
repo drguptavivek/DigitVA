@@ -15,7 +15,7 @@ Placeholders (`<APP_PRIVATE_IP>`, `<DB_PRIVATE_IP>`, `<BACKEND_TLS_NAME>`) are
 as in [Split Production TLS](split-production-tls.md). Run each step by hand.
 
 ```
-Browser ─HTTPS 443─► DMZ proxy (nginx, public TLS for demo.causeofdeathindia.com)
+Browser ─HTTPS 443─► DMZ proxy (nginx, public TLS for digitvademo.causeofdeathindia.com)
                        │  appends X-Forwarded-For, HTTPS :8001, verified as <BACKEND_TLS_NAME>
                        ▼
 App host:  demo_ingress ─► demo_app_service ◄─► demo_redis_service (own password, own volume)
@@ -80,7 +80,7 @@ DD="docker compose --env-file /data/digitva-demo.env -f docker-compose.demo.yml"
 
    `cpu_shares: 256` against the default 1024 means main wins when the host's
    CPUs are contended; the caps bound the demo when they are not.
-2. **DNS.** `demo.causeofdeathindia.com` A record to the DMZ proxy's public IP.
+2. **DNS.** `digitvademo.causeofdeathindia.com` A record to the DMZ proxy's public IP.
    It must be a `*.causeofdeathindia.com` host: release builds of
    digitva-collect accept only those (`mobile/digitva-collect/src/enrolment.ts`).
 3. **DMZ proxy** (do not enable the site yet, step 5): a certbot certificate
@@ -89,7 +89,7 @@ DD="docker compose --env-file /data/digitva-demo.env -f docker-compose.demo.yml"
    ```nginx
    server {
        listen 443 ssl;
-       server_name demo.causeofdeathindia.com;
+       server_name digitvademo.causeofdeathindia.com;
        # ssl_certificate / ssl_certificate_key: certbot, as for the main site
        client_max_body_size 12m;
        location / {

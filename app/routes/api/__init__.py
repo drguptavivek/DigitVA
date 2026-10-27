@@ -46,9 +46,11 @@ from app.routes.api import (  # noqa: E402, F401
 from app.routes.api.dm_kpi import (  # noqa: E402, F401
     dm_kpi_burndown,
     dm_kpi_coders,
+    dm_kpi_critical_path,
     dm_kpi_exclusions,
     dm_kpi_grid,
     dm_kpi_language,
+    dm_kpi_outcomes,
     dm_kpi_pipeline,
     dm_kpi_sync,
     dm_kpi_workflow,
@@ -100,4 +102,6 @@ api_v1.register_blueprint(dm_kpi_coders.bp, url_prefix="/analytics/dm-kpi/coders
 api_v1.register_blueprint(dm_kpi_pipeline.bp, url_prefix="/analytics/dm-kpi/pipeline")
 api_v1.register_blueprint(dm_kpi_burndown.bp, url_prefix="/analytics/dm-kpi/burndown")
 api_v1.register_blueprint(dm_kpi_workflow.bp, url_prefix="/analytics/dm-kpi/workflow")
+api_v1.register_blueprint(dm_kpi_outcomes.bp, url_prefix="/analytics/dm-kpi/outcomes")
+api_v1.register_blueprint(dm_kpi_critical_path.bp, url_prefix="/analytics/dm-kpi/critical-path")
 api_v1.register_blueprint(dm_kpi_cache_bp, url_prefix="/analytics/dm-kpi")

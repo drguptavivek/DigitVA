@@ -1,0 +1,72 @@
+{
+ "options": {
+  "country": "IND",
+  "freetext": true,
+  "hce": true,
+  "hiv": false,
+  "malaria": false
+ },
+ "records": {
+  "FIX-01": {
+   "cause1": "Diabetes",
+   "cause2": null,
+   "cause3": null,
+   "likelihood1": "Possible",
+   "likelihood2": null,
+   "likelihood3": null
+  },
+  "FIX-02": {
+   "cause1": "Cirrhosis",
+   "cause2": "Lung Cancer",
+   "cause3": "Prostate Cancer",
+   "likelihood1": "Likely",
+   "likelihood2": "Somewhat Likely",
+   "likelihood3": "Possible"
+  },
+  "FIX-03": {
+   "cause1": "Maternal",
+   "cause2": "Colorectal Cancer",
+   "cause3": "Other Infectious Diseases",
+   "likelihood1": "Very Likely",
+   "likelihood2": "Somewhat Likely",
+   "likelihood3": "Somewhat Likely"
+  },
+  "FIX-04": {
+   "cause1": "Diarrhea/Dysentery",
+   "cause2": null,
+   "cause3": null,
+   "likelihood1": "Very Likely",
+   "likelihood2": null,
+   "likelihood3": null
+  },
+  "FIX-05": {
+   "cause1": "Congenital malformation",
+   "cause2": null,
+   "cause3": null,
+   "likelihood1": "Very Likely",
+   "likelihood2": null,
+   "likelihood3": null
+  },
+  "FIX-06": {
+   "cause1": "Congenital malformation",
+   "cause2": null,
+   "cause3": null,
+   "likelihood1": "Very Likely",
+   "likelihood2": null,
+   "likelihood3": null
+  },
+  "FIX-07": {
+   "cause1": "Stroke",
+   "cause2": null,
+   "cause3": null,
+   "likelihood1": "Likely",
+   "likelihood2": null,
+   "likelihood3": null
+  }
+ },
+ "rejected": [
+  "FIX-REJ-01"
+ ],
+ "smartva_git_rev": "cb89e05ab4692345f42097261594618d2566a721",
+ "smartva_version": "3.0.1"
+}

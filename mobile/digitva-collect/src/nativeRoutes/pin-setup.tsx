@@ -10,6 +10,7 @@ import { Text } from "react-native";
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import { createInterviewerDb } from "../interviewerDb";
+import { homeRoute } from "../standalone/home";
 import { PinBoxes } from "../PinBoxes";
 import { Button, Screen, useUiStyles } from "../ui";
 import { pendingUnlockOffer, UnlockOffer } from "../UnlockOffer";
@@ -28,7 +29,7 @@ export default function PinSetup() {
   const [offer, setOffer] = useState<{ biometric: boolean; screenLock: boolean }>();
 
   if (!account) return <Redirect href="/" />;
-  const toWorklist = () => router.replace({ pathname: "/worklist", params: { userId: account.user_id, ...(refresh === "1" ? { refresh: "1" } : {}) } });
+  const toWorklist = () => router.replace({ pathname: homeRoute(account), params: { userId: account.user_id, ...(refresh === "1" ? { refresh: "1" } : {}) } });
 
   async function submit() {
     if (!account) return;

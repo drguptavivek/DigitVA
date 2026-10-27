@@ -20,15 +20,11 @@ build scoped sub-queries.  The key design decisions:
   (``authz.active_pair``; digitva-26pg). Each row is tested once in one
   WHERE, so a submission both in a direct pair and in the subtree is
   counted once.
-- **Aggregate panels** (daily grid, burndown, backlog trend) read
-  ``va_daily_kpi_aggregates``, which holds one row per (date, site) counting
-  every project's forms at that site (``app/tasks/kpi_tasks.py``; its
-  ``project_id`` is only the site's latest owner). So a row is read only for
-  a site whose every project with forms there is in the DM's pairs for that
-  site (``aggregate_site_ids``). The rest of the scope -- shared sites and
-  the unit subtree outside those sites -- is added live with
-  ``DmScope.outside_aggregates_sql``, disjoint from the aggregate part, so
-  nothing is double-counted.
+- **Every panel is live** (digitva-0hul): ``va_daily_kpi_aggregates`` is
+  no longer read. Per-day series come from ``bucket_flow_by_day``, which
+  rebuilds end-of-day counts from workflow events in the viewer's timezone
+  (``DmScope.tz``), so a unit subtree is counted with the same one WHERE as
+  every other panel.
 - Coder counts keyed by coder grant project (utilization denominator, coders
   per language) include a unit grant's project; they are counts only. The
   coder roster names coders, so it stays on the direct projects: a unit grant
@@ -42,6 +38,8 @@ from __future__ import annotations
 import hashlib
 import logging
 from dataclasses import dataclass
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from flask import Blueprint, current_app, jsonify, request
@@ -49,9 +47,17 @@ from flask_login import current_user
 
 from app import cache, db, limiter
 from app.decorators import role_required
-from app.models import VaForms
 from app.services.authz import grant_cache
 from app.services.data_management_service import dm_grant_scope
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
+from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.definition import (
+    CODING_BUCKET_CODED,
+    NOT_DEMO_EVENT_SQL,
+    TRANSITION_DEMO_STARTED,
+    WORKFLOW_CODING_BUCKETS,
+)
+from app.utils.va_render.va_render_07_serialisedates import va_user_timezone_name
 
 log = logging.getLogger(__name__)
 
@@ -74,31 +80,26 @@ GRANT_PROJECT_SQL = "COALESCE(g.project_id, gps.project_id, gou.project_id)"
 bp = Blueprint("dm_kpi_cache", __name__)
 
 
-def _aggregate_safe_sites(pairs: set[tuple[str, str]]) -> list[str]:
-    """Sites of *pairs* whose aggregate rows hold only projects in *pairs*.
+# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
+_IN_ODK_SQL = in_odk_sql("s")
+# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
+_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
-    A ``va_daily_kpi_aggregates`` row counts every form at its site whatever
-    the project, so it may be read only when every project with a form at
-    the site is one the DM holds there. A site with no forms has nothing of
-    another project in it. One query.
+#: Viewer timezone when the user has none (docs/policy/kpis.md, Time Frames).
+DEFAULT_KPI_TZ = "Asia/Kolkata"
 
-    ponytail: a site that ever held a form of a project outside the DM's
-    pairs (a closed or departed project's old forms included) is served live
-    for good -- slower, never a leak. Per-project aggregate rows
-    (``(snapshot_date, project_id, site_id)``) would lift that.
-    """
-    if not pairs:
-        return []
-    held: dict[str, set[str]] = {}
-    for project_id, site_id in pairs:
-        held.setdefault(site_id, set()).add(project_id)
-    rows = db.session.execute(
-        sa.select(VaForms.site_id, VaForms.project_id)
-        .where(VaForms.site_id.in_(sorted(held)))
-        .distinct()
-    ).all()
-    unsafe = {site_id for site_id, project_id in rows if project_id not in held[site_id]}
-    return sorted(set(held) - unsafe)
+#: Demo exclusion for output and rate KPIs (docs/policy/kpis.md, "Demo
+#: exclusion"): no ``demo_started`` event on the submission and the form's
+#: project is not ``demo_training_enabled``. Over ``va_submission_workflow_events
+#: e`` joined to ``va_forms f``.
+NOT_DEMO_OUTPUT_SQL = (
+    f"({NOT_DEMO_EVENT_SQL} AND NOT EXISTS (SELECT 1 FROM va_project_master dm_demo_pm"
+    " WHERE dm_demo_pm.project_id = f.project_id AND dm_demo_pm.demo_training_enabled))"
+)
+
+_CODED_STATES = sorted(
+    state for state, bucket in WORKFLOW_CODING_BUCKETS.items() if bucket == CODING_BUCKET_CODED
+)
 
 
 @dataclass(frozen=True)
@@ -107,16 +108,15 @@ class DmScope:
 
     ``pairs`` are bound as two parallel text arrays and ``unit_ids`` (string
     UUIDs of the DM's granted units, the subtree anchors) as a ``uuid[]``;
-    nothing is interpolated. ``aggregate_site_ids`` are the direct sites
-    whose daily aggregate rows may be read (``_aggregate_safe_sites``).
-    ``unit_project_ids`` are the unit grants' projects (counts and project
+    nothing is interpolated. ``tz`` is the viewer's timezone, the day
+    boundary of every per-day figure. ``unit_project_ids`` are the unit grants' projects (counts and project
     metadata only); ``direct`` says the DM holds a project or pair grant
     (authz ``Lens.DM_DIRECT``), which the system-level sync panels need.
     """
 
     pairs: list[tuple[str, str]]
     unit_ids: list[str]
-    aggregate_site_ids: list[str]
+    tz: str = DEFAULT_KPI_TZ
     unit_project_ids: tuple[str, ...] = ()
     direct: bool = True
     grant_project_ids: tuple[str, ...] = ()
@@ -191,39 +191,149 @@ class DmScope:
         return sorted(set(self.direct_project_ids) | set(self.unit_project_ids))
 
     @property
-    def has_outside_aggregates(self) -> bool:
-        """Whether some of the scope is not covered by readable aggregate rows."""
-        covered = set(self.aggregate_site_ids)
-        return bool(self.unit_ids) or any(site_id not in covered for _, site_id in self.pairs)
-
-    def outside_aggregates_sql(self, form: str = "f", sub: str = "s") -> str:
-        """The scope minus the aggregate sites, for adding live figures to
-        aggregate rows without counting a submission twice."""
-        return (
-            f"{self.sql(form, sub)}"
-            f" AND NOT COALESCE({form}.site_id = ANY(:aggregate_site_ids), FALSE)"
-        )
-
-    @property
     def params(self) -> dict:
-        """Bind parameters matching ``sql`` / ``outside_aggregates_sql``."""
+        """Bind parameters matching ``sql`` and ``grant_in_scope_sql``."""
         return {
             "pair_project_ids": [project_id for project_id, _ in self.pairs],
             "pair_site_ids": [site_id for _, site_id in self.pairs],
             "unit_ids": self.unit_ids,
-            "aggregate_site_ids": self.aggregate_site_ids,
             "grant_project_ids": list(self.grant_project_ids),
         }
 
     def digest(self) -> str:
         """Short stable hash of the scope, for cache keys. Pairs, not sites:
         the same site in another project is another scope; the unit grant
-        ids, not their subtrees: two grants are two scopes."""
+        ids, not their subtrees: two grants are two scopes. The timezone moves
+        every day boundary, so it is part of the scope too."""
         raw = (
             "|".join(f"{project_id}/{site_id}" for project_id, site_id in self.pairs)
-            + "#" + "|".join(self.unit_ids)
+            + "#" + "|".join(self.unit_ids) + "#" + self.tz
         )
         return hashlib.sha1(raw.encode()).hexdigest()[:16]
+
+
+def local_today(tz: str) -> date:
+    """Today's date in *tz*: the grid's last row, never the database's or the server's day."""
+    return datetime.now(ZoneInfo(tz)).date()
+
+
+def local_day_start(day: date, tz: str) -> datetime:
+    """Midnight of *day* in *tz*, as an aware datetime (binds as timestamptz)."""
+    return datetime.combine(day, time(), ZoneInfo(tz))
+
+
+def bucket_flow_by_day(
+    scope_sql: str,
+    params: dict,
+    states,
+    from_date: date,
+    to_date: date,
+    tz: str,
+) -> list[dict]:
+    """Daily flow across the boundary of the state set *states*, one query.
+
+    For each day from *from_date* to *to_date* (days in *tz*, ascending):
+    ``inflow`` (events whose ``previous_state`` is outside *states* and
+    ``current_state`` inside), ``outflow`` (the reverse), split into
+    ``outflow_coded`` (left for the coded bucket) and ``outflow_other``, and
+    ``end_of_day``, the count in *states* at the end of that day.
+
+    ``end_of_day`` is replayed from events: the current count minus the net
+    crossings of every later event (docs/policy/kpis.md, "Aggregates are
+    retired"), so the scan runs from *from_date* to now, not to *to_date*.
+    The replay counts every event; inflow and outflow drop demo events (the
+    ``NOT_DEMO_OUTPUT_SQL`` rule, written as joins here: as correlated
+    subqueries over a year of events the planner's estimate tripped JIT,
+    ~95% of the run time on dev), so ``inflow - outflow`` need not equal the
+    day's change in ``end_of_day`` when demo cases moved.
+
+    *scope_sql* / *params* are ``DmScope.sql()`` / ``DmScope.params`` (aliases
+    ``f`` and ``s``). *states* are fixed state names, bound as an array.
+
+    ponytail: a case with no events (imported before workflow events) is
+    counted in ``end_of_day`` for every past day. Add its created date as a
+    synthetic entry if that history matters.
+    """
+    today = local_today(tz)
+    to_date = min(to_date, today)
+    rows = db.session.execute(
+        sa.text(f"""
+            WITH now_count AS (
+                SELECT COUNT(*) AS n
+                FROM va_submission_workflow w
+                JOIN va_submissions s ON s.va_sid = w.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                WHERE {scope_sql}
+                  AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
+                  AND w.workflow_state = ANY(CAST(:flow_states AS text[]))
+            ), crossings AS (
+                SELECT
+                    DATE(timezone(:flow_tz, e.event_created_at)) AS d,
+                    CASE WHEN e.current_state = ANY(CAST(:flow_states AS text[])) THEN 1 ELSE 0 END
+                      - CASE WHEN e.previous_state = ANY(CAST(:flow_states AS text[])) THEN 1 ELSE 0 END
+                      AS net,
+                    e.current_state = ANY(CAST(:flow_coded_states AS text[])) AS to_coded,
+                    demo.va_sid IS NULL AND pm.demo_training_enabled IS NOT TRUE AS counted
+                FROM va_submission_workflow_events e
+                JOIN va_submissions s ON s.va_sid = e.va_sid
+                JOIN va_forms f ON f.form_id = s.va_form_id
+                JOIN va_project_master pm ON pm.project_id = f.project_id
+                LEFT JOIN (
+                    SELECT DISTINCT va_sid FROM va_submission_workflow_events
+                    WHERE transition_id = :flow_demo_started
+                ) demo ON demo.va_sid = e.va_sid
+                WHERE {scope_sql}
+                  AND {_IN_ODK_SQL}
+                  AND {_NOT_DUPLICATE_SQL}
+                  AND e.event_created_at >= :flow_start
+            ), per_day AS (
+                SELECT d,
+                       SUM(net) AS net,
+                       COUNT(*) FILTER (WHERE net = 1 AND counted) AS inflow,
+                       COUNT(*) FILTER (WHERE net = -1 AND counted AND to_coded) AS outflow_coded,
+                       COUNT(*) FILTER (WHERE net = -1 AND counted AND NOT to_coded) AS outflow_other
+                FROM crossings
+                WHERE net <> 0
+                GROUP BY d
+            )
+            SELECT n.n AS now_n, p.d, p.net, p.inflow, p.outflow_coded, p.outflow_other
+            FROM now_count n
+            LEFT JOIN per_day p ON TRUE
+        """),
+        {
+            **IN_ODK_BIND,
+            **params,
+            "flow_states": list(states),
+            "flow_coded_states": _CODED_STATES,
+            "flow_tz": tz,
+            "flow_start": local_day_start(from_date, tz),
+            "flow_demo_started": TRANSITION_DEMO_STARTED,
+        },
+    ).mappings().all()
+
+    now_n = rows[0]["now_n"] if rows else 0
+    by_day = {r["d"]: r for r in rows if r["d"] is not None}
+    series = []
+    running = now_n
+    day = today
+    while day >= from_date:
+        r = by_day.get(day)
+        if day <= to_date:
+            coded = r["outflow_coded"] if r else 0
+            other = r["outflow_other"] if r else 0
+            series.append({
+                "date": day.isoformat(),
+                "inflow": r["inflow"] if r else 0,
+                "outflow": coded + other,
+                "outflow_coded": coded,
+                "outflow_other": other,
+                "end_of_day": running,
+            })
+        running -= r["net"] if r else 0
+        day -= timedelta(days=1)
+    series.reverse()
+    return series
 
 
 _SCOPE_ENVIRON_KEY = "digitva.dm_kpi_scope"
@@ -244,7 +354,7 @@ def dm_scope() -> DmScope:
     scope = DmScope(
         pairs=sorted(pairs),
         unit_ids=sorted(str(u) for u in grants.unit_grant_ids),
-        aggregate_site_ids=_aggregate_safe_sites(pairs),
+        tz=va_user_timezone_name(current_user),
         unit_project_ids=tuple(sorted(grants.unit_project_ids)),
         direct=grants.has_direct,
         grant_project_ids=tuple(sorted(grants.project_ids)),
@@ -326,36 +436,17 @@ def cache_bust():
 @role_required("data_manager", "admin")
 @limiter.limit("2 per minute")
 def refresh_dashboard():
-    """Full dashboard refresh: recompute daily KPIs, refresh MVs, bust cache.
+    """Full dashboard refresh: refresh MVs, bust cache.
+
+    KPIs are computed live (digitva-0hul), so there is nothing to recompute.
 
     Steps:
-      1. Recompute today's daily KPI aggregates for the DM's sites
-      2. Refresh all materialized views
-      3. Clear cached KPI data and analytics cache
+      1. Refresh all materialized views
+      2. Clear cached KPI data and analytics cache
     """
     from app.services.submission_analytics_mv import refresh_submission_analytics_mv
-    from app.tasks.kpi_tasks import compute_daily_kpi_snapshot
 
-    # Step 1: Recompute today's KPI aggregates for the DM's sites (the rows
-    # are site-keyed; dm_scope decides which of them the DM may read)
-    site_ids = sorted({site_id for _project_id, site_id in dm_scope().pairs})
-    kpi_result = {"status": "skipped", "sites_processed": 0}
-    if site_ids:
-        try:
-            from datetime import date as _date
-            result = compute_daily_kpi_snapshot.apply(kwargs={
-                "snapshot_date": _date.today().isoformat(),
-                "site_ids": site_ids,
-            })
-            kpi_result = result.result if result.successful() else {
-                "status": "error",
-                "reason": str(result.result),
-            }
-        except Exception as exc:
-            log.exception("KPI snapshot recomputation failed: %s", exc)
-            kpi_result = {"status": "error", "reason": "KPI recomputation failed. Check server logs."}
-
-    # Step 2: Refresh materialized views
+    # Step 1: Refresh materialized views
     mv_ok = False
     try:
         refresh_submission_analytics_mv(concurrently=True)
@@ -363,7 +454,7 @@ def refresh_dashboard():
     except Exception as exc:
         log.exception("MV refresh failed: %s", exc)
 
-    # Step 3: Bust caches
+    # Step 2: Bust caches
     cache_deleted = bust_dm_kpi_cache()
     try:
         from app.routes.api.analytics import _bust_user_analytics_cache
@@ -372,7 +463,6 @@ def refresh_dashboard():
         log.warning("Analytics cache bust failed: %s", exc, exc_info=True)
 
     return jsonify({
-        "kpi_snapshot": kpi_result,
         "mv_refreshed": mv_ok,
         "cache_deleted": cache_deleted,
     }), 200

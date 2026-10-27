@@ -75,6 +75,12 @@ const HASH = /^[0-9a-f]{64}$/i;
 const PAGE_SIZE = 100;
 const LIST_LIMIT = 200;
 
+/** Server times are Python isoformat (6 fractional digits, +00:00); do not rely on the engine's Date.parse for them. */
+export function isIsoTimestamp(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.test(value);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -161,8 +167,8 @@ function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config
       !isRecord(envelope) || envelope.id !== summary.draft_id || envelope.schemaVersion !== 1 ||
       typeof envelope.formVersion !== "string" || !envelope.formVersion || typeof envelope.instrumentId !== "string" || !envelope.instrumentId ||
       typeof envelope.instrumentVersion !== "string" || typeof envelope.currentSection !== "string" ||
-      typeof envelope.createdAt !== "string" || !Number.isFinite(Date.parse(envelope.createdAt)) ||
-      typeof envelope.updatedAt !== "string" || !Number.isFinite(Date.parse(envelope.updatedAt)) || !isRecord(envelope.data) ||
+      typeof envelope.createdAt !== "string" || !isIsoTimestamp(envelope.createdAt) ||
+      typeof envelope.updatedAt !== "string" || !isIsoTimestamp(envelope.updatedAt) || !isRecord(envelope.data) ||
       !isRecord(detail.prefill) ||
       (detail.answers_sha256 !== null && (typeof detail.answers_sha256 !== "string" || !HASH.test(detail.answers_sha256)))) {
     throw new ApiError(200, "malformed_response");
@@ -175,7 +181,7 @@ function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config
     }
   }
   for (const key of ["startedAt", "completedAt"] as const) {
-    if (envelope[key] !== undefined && (typeof envelope[key] !== "string" || !Number.isFinite(Date.parse(envelope[key] as string)))) {
+    if (envelope[key] !== undefined && !isIsoTimestamp(envelope[key])) {
       throw new ApiError(200, "malformed_response");
     }
   }

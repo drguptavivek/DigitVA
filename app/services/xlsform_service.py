@@ -91,6 +91,7 @@ EXTENSION_ORDER = (
     "digitva_core",
     "geography",
     "abha",
+    "equity",
     "narration_language",
     "social_autopsy",
     "death_summary",
@@ -727,7 +728,18 @@ def compose_project_form(
         style=str(settings.get("style") or "pages"),
     )
     _attach_translations(form, translations, cleared_cells=cleared_cells)
+    _drop_unserved_languages(form)
     return form
+
+
+def _drop_unserved_languages(form: XlsForm) -> None:
+    """Remove ``<field>::<code>`` cells of a language the project does not
+    serve. Specs may carry inline text (the equity Hindi); without this a
+    project with no Hindi would get a stray ``label::hi (hi)`` column."""
+    served = {code for code, _name in form.languages}
+    for row in (*form.survey, *form.choices):
+        for key in [k for k in row if "::" in k and k.partition("::")[2] not in served]:
+            del row[key]
 
 
 def _attach_translations(

@@ -226,6 +226,12 @@ class VaProjectMaster(db.Model):
     web_intake_medical_records_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=True, server_default="true"
     )
+    # Whether the questionnaire carries the equity layer (residence_type,
+    # social_group, vulnerable_group, health_coverage and the refusal profile;
+    # docs/policy/digitva-who-form-overrides.md). Off unless a project opts in.
+    web_intake_equity_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=False, server_default="false"
+    )
 
     def __repr__(self) -> str:
         return f"VA Project Master -> {self.project_id} ({self.project_status})"

@@ -107,6 +107,17 @@ class DmKpiRetiredSubmissionTests(BaseTestCase):
         )
         db.session.add_all(
             [
+                # Enters the pending set: C-19 inflow (digitva-0hul).
+                VaSubmissionWorkflowEvent(
+                    va_sid=sid,
+                    transition_id="sync_new_payload_routed",
+                    previous_state=None,
+                    current_state="smartva_pending",
+                    actor_kind="system",
+                    actor_role="vasystem",
+                    transition_reason="test_seed",
+                    event_created_at=now - timedelta(hours=4),
+                ),
                 VaSubmissionWorkflowEvent(
                     va_sid=sid,
                     transition_id="smartva_completed",
@@ -242,7 +253,8 @@ class DmKpiRetiredSubmissionTests(BaseTestCase):
 
         self.assertEqual(flowchart["total_synced"], 1)
         self.assertEqual(flowchart["stages"]["coder_finalized"]["total"], 1)
-        self.assertEqual(sum(d["total"] for d in transitions["days"]), 3)
+        # Four events of the one in-ODK submission (the sync entry included).
+        self.assertEqual(sum(d["total"] for d in transitions["days"]), 4)
 
     def test_coder_counts_exclude_retired_submissions(self):
         output = self._kpi("coders/output")

@@ -30,6 +30,11 @@ import { ActivityIndicator, AppState, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
+import { getOfflineProfile } from "../offlineProfile";
+import { standaloneConsentConfig } from "../standalone/consent";
+import { STANDALONE_DEFAULT_EXTENSIONS } from "../standalone/config";
+import { STANDALONE_SITE_ID, standaloneDefinition, standaloneProject, standaloneProjectId } from "../standalone/project";
+import { saveStandaloneConsent } from "../standaloneConsentStore";
 import { useStableAccount } from "../useStableAccount";
 import {
   getCase,
@@ -104,6 +109,7 @@ import { recordError } from "../errorLog";
 import { refusalProblems } from "../refusalText";
 import { preSendIssues } from "../submissionChecks";
 import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
+import { coalesceLatest } from "../coalesceSaves";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { useWhoFormTheme } from "../whoWebTheme";
 
@@ -119,6 +125,8 @@ interface Loaded extends DraftHost {
   /** The interviewer's own details from their last interview (src/interviewerRecall.ts). */
   recall?: InterviewerRecall;
   accountName?: string;
+  /** Path C: no server project; the bundled form, the bundled consent notice, local translations only. */
+  standalone?: boolean;
 }
 
 interface DraftConfig {
@@ -133,6 +141,8 @@ interface DraftConfig {
 type ConsentDecision = "granted" | "refused" | "none";
 type ConsentView =
   | { kind: "checking" }
+  /** Standalone with no bundled notice in the questionnaire language: the interview cannot be recorded. */
+  | { kind: "blocked" }
   | { kind: "ask"; config: ProjectConsentConfig }
   /**
    * `required`: the project asks for consent (the top bar shows the status chip). `config`: a usable notice is
@@ -363,6 +373,51 @@ export default function Form() {
         return;
       }
       if (!db || !active || generation !== loadGeneration.current) return;
+      if (account.standalone) {
+        // Path C: no server project, reference pack or definition fetch. The bundled instrument and the
+        // standalone default extensions; the draft's own saved config wins on reopen.
+        try {
+          const projectId = standaloneProjectId(account.user_id);
+          const [row, savedConfig, recall] = await Promise.all([
+            getDraftRow(db, draftId),
+            getMeta<DraftConfig>(db, draftConfigKey(draftId)),
+            getMeta<InterviewerRecall>(db, RECALL_META_KEY),
+          ]);
+          if (row?.completed) {
+            router.back();
+            return;
+          }
+          let config: DraftConfig = isDraftConfig(savedConfig) && savedConfig.projectId === projectId
+            ? savedConfig
+            : { projectId, locale: "en", enabledExtensions: [...STANDALONE_DEFAULT_EXTENSIONS], instrumentCode: "WHO_2022_VA" };
+          if (row) {
+            const stored = await db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
+            if (!stored) throw new Error("draft_missing");
+            config = withEnvelopeLocale(config, JSON.parse(stored.envelope));
+          }
+          if (!active || generation !== loadGeneration.current) return;
+          setLoaded({
+            db,
+            project: standaloneProject(projectId),
+            config,
+            definition: standaloneDefinition(config.enabledExtensions),
+            accessVersion: lockVersion,
+            hasStartedSection: Boolean(row),
+            recall,
+            accountName: account.name,
+            standalone: true,
+            projectId,
+            siteId: STANDALONE_SITE_ID,
+            binding: { projectId },
+          });
+          setLocale(config.locale);
+        } catch (error) {
+          if (!active || generation !== loadGeneration.current) return;
+          setBlockedReferenceData(true);
+          setMessage(errorText(error));
+        }
+        return;
+      }
       try {
         const [
           referenceData,
@@ -694,7 +749,18 @@ export default function Form() {
       const last = await sendRefusal(loaded.db, draftId);
       // The server refused the decision this draft inherited: ask for a new attempt-level one.
       const inheritedRefused = applied && !applied.own && await inheritedConsentRefused(loaded.db, draftId);
-      const gate = interviewConsentGate(await getConsentConfig(loaded.db, loaded.projectId));
+      let gateConfig: ProjectConsentConfig | undefined;
+      if (loaded.standalone) {
+        const profile = await getOfflineProfile().catch(() => null);
+        gateConfig = standaloneConsentConfig(loaded.projectId, loaded.config.locale, { organisation: profile?.facility_name }) ?? undefined;
+        if (!gateConfig && !applied) {
+          if (live) setConsentView({ kind: "blocked" });
+          return;
+        }
+      } else {
+        gateConfig = await getConsentConfig(loaded.db, loaded.projectId);
+      }
+      const gate = interviewConsentGate(gateConfig);
       if (!live) return;
       setRefusal(last?.message || last?.status === 422 ? last : undefined);
       const config = gate.state === "ask" ? gate.config : undefined;
@@ -731,7 +797,8 @@ export default function Form() {
     const version = loaded.config.translationVersion;
     void (async () => {
       try {
-        const translations = await translationsForDraft(
+        // Standalone has no server to fetch translations from: the bundled English instrument only.
+        const translations = loaded.standalone ? null : await translationsForDraft(
           account.user_id,
           loaded.db,
           loaded.project.project_id,
@@ -796,6 +863,23 @@ export default function Form() {
       translationVersion: loaded.config.translationVersion,
       definitionPin: loaded.definition.pin,
     });
+    let configSaved = false;
+    const writeLatest = coalesceLatest(async (draft: Parameters<typeof store.save>[0]) => {
+      // Keep the questionnaire choices with the encrypted draft so a later
+      // pack refresh cannot silently change its language or modules. Once per
+      // mount: they cannot change while the form is open (digitva-wh4w).
+      if (!configSaved) {
+        await setMeta(loaded.db, draftConfigKey(draftId), loaded.config);
+        configSaved = true;
+      }
+      // Remember the interviewer's own details for the next interview.
+      const recall = recallFromData(draft.data);
+      if (recall && recallChanged(loaded.recall, recall)) {
+        await setMeta(loaded.db, RECALL_META_KEY, recall);
+        loaded.recall = recall;
+      }
+      return store.save(draft);
+    });
     return {
       ...store,
       save: (draft: Parameters<typeof store.save>[0]) => {
@@ -804,18 +888,7 @@ export default function Form() {
           return Promise.reject(new Error("interview_access_changed"));
         }
         activity();
-        return (async () => {
-          // Keep the questionnaire choices with the encrypted draft so a later
-          // pack refresh cannot silently change its language or modules.
-          await setMeta(loaded.db, draftConfigKey(draftId), loaded.config);
-          // Remember the interviewer's own details for the next interview.
-          const recall = recallFromData(draft.data);
-          if (recall && recallChanged(loaded.recall, recall)) {
-            await setMeta(loaded.db, RECALL_META_KEY, recall);
-            loaded.recall = recall;
-          }
-          return store.save(draft);
-        })();
+        return writeLatest(draft);
       },
     };
   }, [loaded, draftId, activity, lockVersion]);
@@ -903,6 +976,15 @@ export default function Form() {
         const record = storedConsent(envelope, config, account!.user_id);
         // Replaces the decision on file: only this record travels with the interview (the server keeps the newest).
         await saveDraftConsent(loaded!.db, draftId!, record);
+        if (loaded!.standalone) {
+          // The exact text the respondent saw travels with the record on the later push (contract section 17).
+          const notice = config.notice_versions.find((version) => version.notice_version_id === envelope.notice_version_id) as
+            | (typeof config.notice_versions[number] & { bundle_version?: string; bundle_sha256?: string }) | undefined;
+          if (!notice?.bundle_version || !notice.bundle_sha256) throw new Error("standalone_notice_unknown");
+          await saveStandaloneConsent(loaded!.db, draftId!, {
+            envelope, notice_text: notice.text, bundle_version: notice.bundle_version, bundle_sha256: notice.bundle_sha256,
+          });
+        }
         // A refusal takes the covered answers off the stored draft and its prefill now, not only in memory.
         if (envelope.decision === "refused") await stripDraftCovered(loaded!.db, draftId!, record.covered_fields);
         const granted = envelope.decision !== "refused";
@@ -922,6 +1004,14 @@ export default function Form() {
       <Screen title={t("consentHeading")}>
         <RespondentConsentPanel config={config} language={locale} clientDraftId={draftId!} makeId={randomUUID} onDecision={(envelope) => void recordConsent(envelope)} />
         <Button kind="secondary" label={t("cancel")} onPress={() => (changing ? setChangingConsent(false) : router.back())} />
+      </Screen>
+    );
+  }
+  if (consentView.kind === "blocked") {
+    return (
+      <Screen title={t("consentHeading")}>
+        <Text accessibilityRole="alert" style={styles.error}>{t("standaloneConsentUnavailable")}</Text>
+        <Button kind="secondary" label={t("cancel")} onPress={() => router.back()} />
       </Screen>
     );
   }
@@ -972,7 +1062,9 @@ export default function Form() {
       return;
     }
     toast.show({ kind: "success", text: t("deleteDraftDone") });
-    router.replace({ pathname: "/worklist", params: { userId: account!.user_id, view: "interviews", filter: "drafts" } });
+    router.replace(account!.standalone
+      ? { pathname: "/standalone", params: { userId: account!.user_id } }
+      : { pathname: "/worklist", params: { userId: account!.user_id, view: "interviews", filter: "drafts" } });
   }
 
   /** Flush first; a failed save asks before leaving so typed answers are never dropped silently. */
@@ -1050,9 +1142,15 @@ export default function Form() {
       controller.current?.showProblems();
       return;
     }
-    await controller.current?.saveDraft();
-    await markCompleted(loaded.db, draftId, completion);
-    await clearSendError(loaded.db, draftId);
+    try {
+      await controller.current?.saveDraft();
+      await markCompleted(loaded.db, draftId, completion);
+      await clearSendError(loaded.db, draftId);
+    } catch (error) {
+      // Stay on the form with the answers intact; say what went wrong (digitva-jish).
+      setMessage(error instanceof Error && error.message === "draft_conflict" ? t("formDraftConflict") : errorText(error));
+      return;
+    }
     leaveGuard.release();
     router.back();
   }

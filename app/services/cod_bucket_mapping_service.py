@@ -3467,6 +3467,7 @@ def aggregate_coded_submissions_by_bucket(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -3557,6 +3558,7 @@ def aggregate_coded_submissions_by_bucket(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 MapIcdCodBucket.age_scope.is_(None),
                 base_rows.c.age_scope.is_(None),
             ),
@@ -3641,6 +3643,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -3709,6 +3712,7 @@ def summarize_unmatched_coded_submissions_by_bucket(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 MapIcdCodBucket.age_scope.is_(None),
                 base_rows.c.age_scope.is_(None),
             ),
@@ -3805,6 +3809,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -3881,6 +3886,7 @@ def list_unmatched_coded_submission_icds_by_bucket(
                     MapIcdCodBucket.scheme_id == scheme.scheme_id,
                     MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                     MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                    MapIcdCodBucket.is_active.is_(True),
                     MapIcdCodBucket.age_scope.is_(None),
                     base_rows.c.age_scope.is_(None),
                 ),
@@ -3991,6 +3997,7 @@ def _matched_cod_bucket_rows_subquery(*, scheme, base_rows):
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -4707,6 +4714,7 @@ def export_cod_bucket_reporting_csv(
                 MapIcdCodBucket.scheme_id == scheme.scheme_id,
                 MapIcdCodBucket.icd_classification == base_rows.c.icd_classification,
                 MapIcdCodBucket.icd_code == base_rows.c.reporting_icd,
+                MapIcdCodBucket.is_active.is_(True),
                 sa.or_(
                     sa.and_(
                         MapIcdCodBucket.age_scope.is_(None),
@@ -4798,19 +4806,26 @@ def export_cod_bucket_reporting_csv(
 
 
 def _icd11_reporting_code_subquery(scheme, final_icd11_column):
-    """(start_code, reporting_code) for the ICD-11 stems of final CODs.
+    """(start_code, age_scope, reporting_code) for the ICD-11 stems of final CODs.
 
-    ``reporting_code`` is the stem itself or its nearest ancestor on the
-    mas_icd11_mms parent chain (block nodes have no code) that has an icd11
-    row in ``scheme``. Seeded from the distinct stems in use, so it walks a
-    handful of chains, not the catalogue. A stem with no mapped code on its
-    chain, or absent from the catalogue, gets no row.
+    ``reporting_code`` is the scheme's own ``icd_code`` for the stem or its
+    nearest ancestor on the mas_icd11_mms parent chain (block nodes have no
+    code) that has a mapping in ``scheme`` for that ``age_scope`` (NULL = the
+    all-ages scope). A row counts only when it is active, its leaf node is
+    active, and its code matches case-insensitively: the same rule as the
+    COD snapshot view's ``_who_2026_bucket_sql`` (docs/policy/icd11-cod-bucket-schemes.md,
+    "Which mapping rows resolve"). Seeded from the distinct stems in use, so
+    it walks a handful of chains, not the catalogue. A stem with no mapped
+    code on its chain, or absent from the catalogue, gets no row.
     """
-    # ponytail: ignores age scope when choosing the ancestor; the WHO schemes
-    # have no age-scoped rows. Match per age scope if an ICD-11 scheme gets them.
-    mapped_codes = sa.select(MapIcdCodBucket.icd_code).where(
-        MapIcdCodBucket.scheme_id == scheme.scheme_id,
-        MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+    scopes = (
+        sa.select(MasCodBucketSchemeAgeBand.age_scope.label("age_scope"))
+        .where(
+            MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id,
+            MasCodBucketSchemeAgeBand.is_active.is_(True),
+        )
+        .distinct()
+        .subquery("icd11_report_scopes")
     )
     stems = (
         sa.select(final_icd11_column.label("stem"))
@@ -4818,14 +4833,35 @@ def _icd11_reporting_code_subquery(scheme, final_icd11_column):
         .distinct()
         .subquery("icd11_stems")
     )
+
+    def mapping(code_column, age_scope_column):
+        """The scheme's active icd11 row for *code_column* in *age_scope_column*."""
+        return (
+            sa.select(MapIcdCodBucket.icd_code)
+            .join(MasCodBucketNode, MasCodBucketNode.node_id == MapIcdCodBucket.node_id)
+            .where(
+                MapIcdCodBucket.scheme_id == scheme.scheme_id,
+                MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+                MapIcdCodBucket.is_active.is_(True),
+                MasCodBucketNode.is_active.is_(True),
+                sa.func.upper(MapIcdCodBucket.icd_code) == sa.func.upper(code_column),
+                MapIcdCodBucket.age_scope.is_not_distinct_from(age_scope_column),
+            )
+            .limit(1)
+            .scalar_subquery()
+        )
+
     chain = (
         sa.select(
             stems.c.stem.label("start_code"),
+            scopes.c.age_scope.label("age_scope"),
             MasIcd11Mms.code.label("code"),
             MasIcd11Mms.parent_linearization_uri.label("parent_uri"),
             sa.literal(0).label("depth"),
         )
-        .join(MasIcd11Mms, MasIcd11Mms.code == stems.c.stem)
+        .select_from(stems)
+        .join(MasIcd11Mms, sa.func.upper(MasIcd11Mms.code) == sa.func.upper(stems.c.stem))
+        .join(scopes, sa.true())
         .where(MasIcd11Mms.release == DEFAULT_ICD11_RELEASE)
         .cte("icd11_report_chain", recursive=True)
     )
@@ -4833,22 +4869,27 @@ def _icd11_reporting_code_subquery(scheme, final_icd11_column):
     chain = chain.union_all(
         sa.select(
             chain.c.start_code,
+            chain.c.age_scope,
             parent.code,
             parent.parent_linearization_uri,
             chain.c.depth + 1,
         ).where(
             parent.release == DEFAULT_ICD11_RELEASE,
             parent.linearization_uri == chain.c.parent_uri,
-            sa.or_(chain.c.code.is_(None), chain.c.code.not_in(mapped_codes)),
+            sa.or_(chain.c.code.is_(None), mapping(chain.c.code, chain.c.age_scope).is_(None)),
             # A parent cycle in bad catalogue data must not hang the report.
             chain.c.depth < 20,
         )
     )
     return (
-        sa.select(chain.c.start_code, chain.c.code.label("reporting_code"))
-        .where(chain.c.code.in_(mapped_codes))
-        .distinct(chain.c.start_code)
-        .order_by(chain.c.start_code, chain.c.depth)
+        sa.select(
+            chain.c.start_code,
+            chain.c.age_scope,
+            mapping(chain.c.code, chain.c.age_scope).label("reporting_code"),
+        )
+        .where(mapping(chain.c.code, chain.c.age_scope).is_not(None))
+        .distinct(chain.c.start_code, chain.c.age_scope)
+        .order_by(chain.c.start_code, chain.c.age_scope, chain.c.depth)
         .subquery("icd11_reporting_code")
     )
 
@@ -5006,7 +5047,6 @@ def _cod_bucket_aggregate_base_subquery(
         .join(VaSubmissions, VaSubmissions.va_sid == core.c.va_sid)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .outerjoin(reporting_alias, reporting_alias.legacy_code == cod.c.final_icd)
-        .outerjoin(icd11_resolved, icd11_resolved.c.start_code == cod.c.final_icd11)
         .join(
             age_band,
             sa.and_(
@@ -5020,6 +5060,13 @@ def _cod_bucket_aggregate_base_subquery(
                     age_band.max_age_value,
                     age_band.max_age_unit,
                 ),
+            ),
+        )
+        .outerjoin(
+            icd11_resolved,
+            sa.and_(
+                icd11_resolved.c.start_code == cod.c.final_icd11,
+                icd11_resolved.c.age_scope.is_not_distinct_from(age_band.age_scope),
             ),
         )
         .where(sa.and_(*conditions))

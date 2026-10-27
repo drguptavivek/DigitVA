@@ -129,14 +129,16 @@ def _session_body(issued, user) -> dict:
 def enroll():
     """Optional ``signing_public_key`` (base64url Ed25519, 32 bytes): checked
     before the code is consumed, so a bad key never burns a single-use code;
-    the reply then adds ``signing_key_id``."""
+    the reply then adds ``signing_key_id``. Optional ``client_device_uuid``
+    (Collect Plus install UUID): validated the same way, stored on the device."""
     p = _body()
+    client_uuid = devices.parse_client_device_uuid(p.get("client_device_uuid"))
     public_key = None
     if p.get("signing_public_key") is not None:
         public_key = signing.parse_public_key(p["signing_public_key"])
     device, secret = devices.enrol_device(
         p.get("code"), device_name=p.get("device_name"), platform=p.get("platform"),
-        app_version=p.get("app_version"),
+        app_version=p.get("app_version"), client_device_uuid=client_uuid,
     )
     reply = {
         "device_id": str(device.device_id),
@@ -180,7 +182,7 @@ def open_session():
 @limiter.limit("5 per minute", key_func=lambda: sign_in_qr.token_limit_key(_safe_body().get("token")))
 def redeem_sign_in_qr():
     """Scan a sign-in QR (docs/policy/mobile-sign-in.md section 8): ``{token,
-    device_name, platform, app_version?, signing_public_key?}``. Enrols the
+    device_name, platform, app_version?, signing_public_key?, client_device_uuid?}``. Enrols the
     device and opens that user's device session in one step; the reply is
     ``/enroll``'s plus ``/sessions``'s: 201 ``{device_id, device_secret,
     signing_key_id?, project, server_time, ...tokens, access}``. Every
@@ -188,12 +190,13 @@ def redeem_sign_in_qr():
     404 ``sign_in_qr_invalid``. Limits: per IP and per token digest (there is
     no device yet to key on). The user's email, if any, gets a notice."""
     p = _body()
+    client_uuid = devices.parse_client_device_uuid(p.get("client_device_uuid"))
     public_key = None
     if p.get("signing_public_key") is not None:
         public_key = signing.parse_public_key(p["signing_public_key"])
     device, secret, issued, user = sign_in_qr.redeem(
         p.get("token"), device_name=p.get("device_name"), platform=p.get("platform"),
-        app_version=p.get("app_version"),
+        app_version=p.get("app_version"), client_device_uuid=client_uuid,
     )
     reply = {"device_id": str(device.device_id), "device_secret": secret}
     if public_key is not None:

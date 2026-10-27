@@ -160,6 +160,9 @@ docker compose exec minerva_app_service uv run flask instrument-translations lif
 docker compose exec minerva_app_service uv run flask instrument-translations lifecycle WHO_2022_VA hi approved --approved-by testadmin@digitva.com
 docker compose exec minerva_app_service uv run flask instrument-translations activate WHO_2022_VA hi
 docker compose exec minerva_app_service uv run flask instrument-translations deactivate WHO_2022_VA hi
+docker compose exec minerva_app_service uv run flask instrument-translations fix-label-codes [WHO_2022_VA] [--locale hi]   # dry run: lists mismatches
+docker compose exec minerva_app_service uv run flask instrument-translations fix-label-codes --apply --backup /path/new-backup.json
+docker compose exec minerva_app_service uv run flask instrument-translations fix-label-codes --restore /path/backup.json
 docker compose exec minerva_app_service uv run flask instrument-translations export WHO_2022_VA hi [--output hi.json]
 docker compose exec minerva_app_service uv run flask instrument-translations export-xliff WHO_2022_VA hi [--output hi.xlf]
 docker compose exec minerva_app_service uv run flask instrument-translations import-xliff WHO_2022_VA hi hi.xlf [--as imported|edited] [--acknowledge-demotion]
@@ -408,18 +411,6 @@ the Project Forms admin panel to remove the wrong one.
 |---------|-------------|
 | `ai-catalog generate [--provider anthropic\|gemini] [--count 60] [--as <admin email>]` | Ask an enabled model for catalog questions; keep those that pass the SQL parser and `EXPLAIN` as `digitva_ai_reader`; write `app/data/ai_question_catalog.json` and `docs/kb/ai-question-catalog.md`. |
 | `ai-search reindex` | Rebuild the Typesense suggestions index (help, definitions, catalog, saved queries). |
-
----
-
-## `kpi` — Daily KPI aggregates
-
-| Command | Description |
-|---------|-------------|
-| `kpi backfill --from D --to D [--site S]` | Recompute every column of `va_daily_kpi_aggregates` for each day in the range. Past days get today's `pending_count` and `upstream_changed_count`, so it does not preserve their backlog history. |
-| `kpi snapshot [--date D] [--site S]` | Compute one day (default yesterday). |
-| `kpi recount-day-events [--from D] [--to D] [--dry-run]` | Recompute only `consent_refused_count` and `not_codeable_count` of stored rows (default: all) from workflow events, one set-based `UPDATE`. Touches no other column, inserts no row, writes only rows whose value differs and prints how many. `--dry-run` reports the count and writes nothing. Repairs rows written before digitva-9uqn, which held a running stock. |
-
-Dates are `YYYY-MM-DD`. See [Data Manager Dashboard](data-manager-dashboard.md), "Daily Operations Grid".
 
 ---
 

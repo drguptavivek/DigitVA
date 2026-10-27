@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-10-27
 ---
 
 # Interview Revisions Policy
@@ -253,6 +253,20 @@ Owner confirmed 2026-10-05:
   COD are history.
 - Every revision, send-back and reopen is audited: actor, case, reason, time.
   Reasons carry no personal data.
+
+## KPIs for the correction loop (owner decision 2026-10-27, `digitva-r5s0`)
+
+The send-back and revision loop is measured by four registered KPIs in
+[Data Manager KPI Framework](kpis.md): CL-01 (send-back and reopen rate by
+reason), CL-02 (time to correct), CL-03 (repeat send-backs) and CL-04
+(supervisor review turnaround, inactive until `digitva-ydnl.4`).
+
+- They cover Collect cases only. ODK submissions are refused for send-back.
+- **ODK review-state history is not stored.** ODK reasons, time to correct and
+  repeat flags are therefore not captured; the ODK side is shown only as a
+  proxy (`hasIssues` plus upstream-change counts).
+- Per-interviewer rows name people, so they are web only and never sent over
+  MCP.
 
 ## Related
 

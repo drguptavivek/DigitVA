@@ -25,7 +25,7 @@ function ActivityRoot() {
   useEffect(() => {
     if (!ready || Platform.OS !== "android") return;
     const eligible = accounts.some(
-      (account) => !account.needs_sign_in && !account.terms_required && !account.access_blocked,
+      (account) => !account.standalone && !account.needs_sign_in && !account.terms_required && !account.access_blocked,
     );
     const { syncNotificationTaskRegistration } = require(
       "../src/notificationTask",

@@ -33,6 +33,63 @@ Tracked in `digitva-sxg9`. Plan: `.tasks/digitva-sxg9-narrative-ai-workstation.m
   uploads results through the API. DigitVA never connects into the
   workstation's network.
 
+## The support-model host: a dedicated Mac mini or GPU workstation (owner decisions 2026-10-27)
+
+The "local AI workstation" is a dedicated machine, used only for this:
+either an Apple-silicon Mac mini, or a Linux workstation or server with an
+NVIDIA GPU. Either qualifies, under the same rules. It runs every support model and pushes results to the server
+through the API:
+
+- **Narrative stage:** PII detection and de-identification, the quality
+  score, translation and symptom hints (this policy).
+- **Documents:** the vision-language model reading death summaries and
+  medical records (`digitva-sxg9.1`).
+- **Algorithms:** InterVA5 and EAVA, the additional cause-of-death
+  algorithms (`digitva-13gs`), fed the same personal-data-free answer export
+  as SmartVA. SmartVA stays on the server, where it runs today.
+- **Teacher:** the teacher model for distilling the on-phone classifier
+  (`digitva-fixy.1`).
+
+**How it runs:**
+- It connects outward only. It signs in with the device-bound
+  `narrative_processor` machine account (renamed `support_models` if that
+  reads better), leases work items and uploads versioned results. DigitVA
+  never connects into it.
+- Each work item carries only what its task needs:
+  - the algorithms get the scrubbed answers;
+  - the narrative tasks get the pseudonymised narrative;
+  - the document model gets the page images.
+
+  Results never include identifiers.
+- **Software:** one worker, with a runtime per platform.
+  - **Mac mini:** native services under launchd, using MLX and mlx-vlm,
+    llama.cpp with Metal, PyTorch with MPS, and R (arm64). Docker on macOS
+    cannot use the Apple GPU.
+  - **NVIDIA host:** Docker images with the NVIDIA Container Toolkit, using
+    vLLM or llama.cpp with CUDA, PyTorch with CUDA, and R.
+  - The job contract, results and machine account are the same on both, so
+    the host can be swapped or a second one added.
+- It sends a heartbeat. The server shows when the host was last seen and
+  how deep the queue is, so a stopped host is visible and the cases simply
+  wait. Cases are never processed elsewhere as a fallback.
+- **Host security:**
+  - FileVault on, with a dedicated macOS account, automatic security
+    updates and the firewall on with no inbound services;
+  - physically secured, with named operators only;
+  - nothing kept after upload except the in-flight queue;
+  - logs hold no narrative or answer text.
+- **Sizing and choice:**
+  - **Mac mini (M4 Pro, 48–64 GB unified memory):** holds a 7B-class
+    vision model, translation and an 8B text model at once. It is quiet,
+    low power and little upkeep, and enough for phase 1 (the quality
+    classifier, InterVA5 and EAVA) and moderate volumes.
+  - **NVIDIA workstation or server (one 24–48 GB GPU, for example an RTX
+    4090/5090 or an A6000-class card):** faster batch throughput for the
+    vision and text models, and the widest model support (vLLM). It needs
+    more power, cooling and driver upkeep.
+  - Choose the NVIDIA host for large document volumes or models above 8B;
+    otherwise the Mac mini.
+
 ## Rules
 
 - **Suggestions only.** Results never overwrite an ODK answer, the original
@@ -115,8 +172,7 @@ Tracked in `digitva-sxg9`. Plan: `.tasks/digitva-sxg9-narrative-ai-workstation.m
 
 ## Open questions for the owner
 
-1. Workstation or a GPU host in AWS Mumbai next to the server? Both meet the
-   rules above. The choice is about cost and upkeep.
+1. Settled 2026-10-27: a dedicated Mac mini (above).
 2. Which languages first? The mix of narration languages per project decides
    this.
 3. Who reviews translations and symptom hints for the quality gate?

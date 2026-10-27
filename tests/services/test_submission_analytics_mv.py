@@ -1363,6 +1363,109 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(row["authoritative_who_bucket_section"], "Vector-borne infections")
         self.assertEqual(row["authoritative_who_bucket"], "Dengue")
 
+    def test_report_and_snapshot_resolve_icd11_buckets_against_the_same_rows(self):
+        """digitva-mubf: inactive rows, age-scoped rows and a mixed-case code
+        resolve the same in the COD snapshot view and in the report path."""
+        from app.models import MasCodBucketSchemeAgeBand
+        from app.services.cod_bucket_mapping_service import _icd11_reporting_code_subquery
+
+        scheme = db.session.scalar(
+            sa.select(MasCodBucketScheme).where(MasCodBucketScheme.scheme_code == "WHO_2022_VA_2026")
+        )
+        if scheme is None:
+            scheme = MasCodBucketScheme(
+                scheme_code="WHO_2022_VA_2026", scheme_name="WHO 2022 VA 2026", is_active=True
+            )
+            db.session.add(scheme)
+            db.session.flush()
+        section = MasCodBucketNode(
+            scheme_id=scheme.scheme_id, node_type="category", node_code="SEC_AGR",
+            node_label="Agreement section", sort_order=1, is_active=True,
+        )
+        labels = {"FAR": "Far", "INACTIVE": "Inactive row", "LOWER": "Lower-case row", "ADULT": "Adult only"}
+        leaves = {
+            key: MasCodBucketNode(
+                scheme_id=scheme.scheme_id, node_type="field", parent=section,
+                node_code=f"BUCKET_AGR_{key}", node_label=label, sort_order=i, is_active=True,
+            )
+            for i, (key, label) in enumerate(labels.items())
+        }
+        db.session.add_all([section, *leaves.values()])
+        db.session.flush()
+        rows = (
+            ("9X00", None, True, "FAR"),
+            ("9X10", None, False, "INACTIVE"),  # inactive: must be walked past
+            ("9x30", None, True, "LOWER"),  # stored lower case
+            ("9X20", "adult", True, "ADULT"),  # not in the all-ages scope
+        )
+        for code, scope, active, key in rows:
+            db.session.add(MapIcdCodBucket(
+                scheme_id=scheme.scheme_id, icd_code=code, icd_classification="icd11",
+                node_id=leaves[key].node_id, age_scope=scope, is_active=active,
+            ))
+        existing_scopes = set(db.session.scalars(
+            sa.select(MasCodBucketSchemeAgeBand.age_scope).where(
+                MasCodBucketSchemeAgeBand.scheme_id == scheme.scheme_id,
+                MasCodBucketSchemeAgeBand.is_active.is_(True),
+            )
+        ))
+        for scope, label in ((None, "All ages"), ("adult", "Adult")):
+            if scope not in existing_scopes:
+                db.session.add(MasCodBucketSchemeAgeBand(
+                    scheme_id=scheme.scheme_id, age_scope=scope, age_label=label,
+                    min_age_value=0, min_age_unit="years", max_age_value=120,
+                    max_age_unit="years", is_active=True,
+                ))
+        base = "http://id.who.int/icd/release/11/mms/test-agr"
+        for code, uri, parent_uri, kind in (
+            ("9X00", f"{base}/9x00", None, "category"),
+            (None, f"{base}/block", f"{base}/9x00", "block"),
+            ("9X10", f"{base}/9x10", f"{base}/block", "category"),
+            ("9X11", f"{base}/9x11", f"{base}/9x10", "category"),
+            ("9X20", f"{base}/9x20", f"{base}/block", "category"),
+            ("9X21", f"{base}/9x21", f"{base}/9x20", "category"),
+            ("9X30", f"{base}/9x30", f"{base}/block", "category"),
+            ("9X31", f"{base}/9x31", f"{base}/9x30", "category"),
+        ):
+            db.session.add(MasIcd11Mms(
+                release=DEFAULT_ICD11_RELEASE, linearization_uri=uri, parent_linearization_uri=parent_uri,
+                code=code, title=code or "Test block", class_kind=kind, source_version="test",
+            ))
+        stems = ("9X11", "9X21", "9X31")
+        for stem in stems:
+            sid = f"uuid:mv-agr-{stem}"
+            self._add_submission(sid, {"Id10476": "agreement test"}, workflow_state="coder_finalized")
+            db.session.add(VaFinalAssessments(
+                va_sid=sid, va_finassess_by=self.base_coder_user.user_id,
+                va_conclusive_cod=f"{stem} Test", va_finassess_status=VaStatuses.active,
+            ))
+        db.session.commit()
+        refresh_submission_analytics_mv(concurrently=False)
+
+        snapshot = dict(db.session.execute(
+            sa.text(f"SELECT va_sid, coder_final_who_bucket FROM {COD_SNAPSHOT_MV_NAME} WHERE va_sid = ANY(:s)"),
+            {"s": [f"uuid:mv-agr-{stem}" for stem in stems]},
+        ).all())
+        values = sa.values(sa.column("stem", sa.String), name="v").data([(stem,) for stem in stems])
+        resolved = _icd11_reporting_code_subquery(scheme, values.c.stem)
+        report = {
+            (start, scope): code
+            for start, scope, code in db.session.execute(
+                sa.select(resolved.c.start_code, resolved.c.age_scope, resolved.c.reporting_code)
+            )
+        }
+        leaf_label = {code.upper(): labels[key] for code, scope, _active, key in rows if scope is None}
+        for stem in stems:
+            with self.subTest(stem=stem):
+                code = report.get((stem, None))
+                self.assertEqual(
+                    snapshot[f"uuid:mv-agr-{stem}"], leaf_label[code.upper()] if code else None
+                )
+        self.assertEqual(snapshot["uuid:mv-agr-9X11"], "Far")  # inactive 9X10 walked past
+        self.assertEqual(snapshot["uuid:mv-agr-9X21"], "Far")  # age-scoped 9X20 not all-ages
+        self.assertEqual(snapshot["uuid:mv-agr-9X31"], "Lower-case row")  # 9x30 matches 9X30
+        self.assertEqual(report[("9X21", "adult")], "9X20")  # but it is the adult scope's
+
     def test_cod_snapshot_mv_buckets_each_cod_through_its_own_classification(self):
         """ICD-10 values use icd10 rows only; ICD-11 values use icd11 rows,
         exact code then nearest catalogue ancestor, first stem of a
@@ -1557,7 +1660,7 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
                 self.assertEqual(rows[sid]["coder_final_who_bucket_provenance"], "unmapped")
                 self.assertEqual(rows[sid]["authoritative_who_bucket_provenance"], "unmapped")
 
-    def test_pending_coding_kpi_excludes_pre_coding_pipeline_states(self):
+    def test_pending_coding_filter_covers_all_six_pending_states(self):
         # Use a separate project to avoid data leakage from prior tests
         kpi_project = "KPMV01"
         kpi_site = "KP01"
@@ -1758,9 +1861,12 @@ class SubmissionAnalyticsMaterializedViewTests(BaseTestCase):
         self.assertEqual(unfiltered_kpi["smartva_pending_submissions"], 1)
 
         kpi = get_dm_kpi_from_mv([kpi_project], [], workflow="pending_coding")
-        self.assertEqual(kpi["total_submissions"], 3)
-        self.assertEqual(kpi["pending_submissions"], 3)
-        self.assertEqual(kpi["smartva_pending_submissions"], 0)
+        # Pending is the 6 states (docs/policy/kpis.md): the filter keeps the
+        # screening, attachment and SmartVA pipeline cases the card counts.
+        self.assertEqual(kpi["total_submissions"], 6)
+        self.assertEqual(kpi["pending_submissions"], 6)
+        self.assertEqual(kpi["smartva_pending_submissions"], 1)
+        self.assertEqual(unfiltered_kpi["pending_submissions"], 6)
 
     def test_kpi_splits_send_backs_from_odk_upstream_changes(self):
         """digitva-jcll: revoked and the fuc filter are ODK-only; send-backs apart."""

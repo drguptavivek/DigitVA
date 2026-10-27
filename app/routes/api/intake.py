@@ -23,7 +23,14 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from app import db, limiter, talisman
 from app.decorators import role_required
-from app.models import AuthDevice, VaDeathRegister, VaSubmissionPayloadVersion, VaSubmissions, VaWebIntakeDraft
+from app.models import (
+    AuthDevice,
+    VaDeathRegister,
+    VaProjectMaster,
+    VaSubmissionPayloadVersion,
+    VaSubmissions,
+    VaWebIntakeDraft,
+)
 from app.routes.api.request_helpers import (
     error,
     identifier_rate_limit,
@@ -41,6 +48,7 @@ from app.services import death_identifier_write as identifier_write_svc
 from app.services import device_auth_service as devices
 from app.services import identifier_type_service as identifier_types_svc
 from app.services import interview_send_back_service as send_back_svc
+from app.services import offline_coding_import_service as offline_import
 from app.services import web_intake_attachment_service as attachments_svc
 from app.services import web_intake_service as intake_svc
 from app.services.authz import resolve_grants
@@ -154,6 +162,12 @@ def _project_or_client_error(exc):
 def _intake_error(exc):
     db.session.rollback()
     return intake_error(exc)
+
+
+@bp.errorhandler(offline_import.OfflineCodingError)
+def _offline_coding_error(exc):
+    db.session.rollback()
+    return error(str(exc), exc.code, exc.status_code)
 
 
 @bp.errorhandler(consent_svc.ConsentError)
@@ -1013,17 +1027,21 @@ def _parse_upload_answers(p):
     return data, digest, None
 
 
-def _upload_reply(draft, *, kept, received_sha256, locked, status):
+def _upload_reply(draft, *, kept, received_sha256, locked, status, offline_coding=None):
     """The upload result (``serialize_device_upload``, the coder version's
     hash in ``answers_sha256``) with whose answers the coder has (``kept``:
     ``incoming`` or ``server``), the hash the server received (the app deletes
     its copy when it equals what it sent) and whether coding is final or the
     case closed (``locked``), and ``can_code_now`` (a self-coding project's
-    coder may code this case now: ``POST /coding/submissions/<va_sid>/code-now``)."""
+    coder may code this case now: ``POST /coding/submissions/<va_sid>/code-now``).
+    A standalone push with offline coding adds ``offline_coding``
+    (``{status, code}``, contract section 17)."""
     body = {
         **intake_svc.serialize_device_upload(draft), "kept": kept, "received_sha256": received_sha256, "locked": locked,
         "can_code_now": intake_svc.can_code_now(current_user, draft),
     }
+    if offline_coding is not None:
+        body["offline_coding"] = offline_coding
     return jsonify(body), status
 
 
@@ -1045,7 +1063,15 @@ def submit_interview():
     covered answers need it granted or, without one, a granted registration
     consent on the case (422 ``consent_required`` / ``consent_conflict`` /
     ``consent_invalid``, 409 ``conflict``). A resend of the same answers
-    returns the first result unchecked."""
+    returns the first result unchecked.
+
+    Collect Plus standalone push (contract section 17): ``standalone``
+    (``client_device_uuid`` of this bearer's device, else 403
+    ``device_mismatch``; profile snapshot; ``org_code`` naming the unit, an
+    unmatched one starting without a unit; ``consent``, the standalone
+    consent record, in place of ``consent``) and, optionally,
+    ``offline_coding``, held for import and reported as ``offline_coding``
+    in the reply. The same draft id from another device is 409 ``conflict``."""
     p = parse_body()
     try:
         client_draft_id = uuid.UUID(str(p.get("client_draft_id")))
@@ -1064,6 +1090,17 @@ def submit_interview():
     data, answers_sha256, refusal = _parse_upload_answers(p)
     if refusal is not None:
         return refusal
+    standalone = coding = standalone_device = None
+    if p.get("standalone") is not None:
+        standalone = offline_import.parse_standalone(p["standalone"])
+        if p.get("offline_coding") is not None:
+            coding = offline_import.parse_offline_coding(p["offline_coding"])
+        if p.get("consent") is not None and standalone["consent"] is not None:
+            return error("Send the consent once: standalone.consent or consent.", "invalid_request", 400)
+        standalone_device = offline_import.require_session_device(
+            g.get("device_session"), standalone["client_device_uuid"], coding)
+    elif p.get("offline_coding") is not None:
+        return error("offline_coding is sent with standalone only.", "offline_coding_invalid", 422)
     try:
         intake_svc.check_device_times(envelope)
     except intake_svc.WebIntakeError as exc:
@@ -1071,46 +1108,69 @@ def submit_interview():
 
     def _apply_interview_consent(draft):
         # On the case the upload landed on, gating the answers as received.
+        consent = p.get("consent")
+        if standalone is not None and standalone["consent"] is not None:
+            consent = consent_svc.standalone_consent(current_user, project_id, standalone["consent"])
         consent_svc.apply_interview_consent(
             current_user, project_id=project_id, death=db.session.get(VaDeathRegister, draft.death_id),
-            client_draft_id=client_draft_id, consent=p.get("consent"), answers=data, channel=_consent_channel(),
+            client_draft_id=client_draft_id, consent=consent, answers=data, channel=_consent_channel(),
         )
+
+    def _hold_coding(draft):
+        if coding is None:
+            return None
+        return offline_import.hold(current_user, db.session.get(VaProjectMaster, project_id), draft, coding,
+                                   standalone["profile_snapshot"])
 
     def resend(existing):
         # The same hash is the first result again; other answers are a later
         # version of the interview.
+        if standalone_device is not None and (existing.meta or {}).get("deviceId") != str(standalone_device.device_id):
+            # A backup restored on a second phone: never a new case.
+            return error("This interview was sent from another device.", "conflict", 409)
         if existing.answers_sha256 == answers_sha256:
             closed = existing.status == "superseded"
             return _upload_reply(
-                existing, kept="server" if closed else "incoming", received_sha256=answers_sha256, locked=closed, status=200
+                existing, kept="server" if closed else "incoming", received_sha256=answers_sha256, locked=closed,
+                status=200, offline_coding=offline_import.coding_status(client_draft_id) if coding else None,
             )
         kept, locked = intake_svc.resubmit_device_interview(
             current_user, existing, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
         )
         _apply_interview_consent(existing)
+        held = _hold_coding(existing)
         db.session.commit()
-        return _upload_reply(existing, kept=kept, received_sha256=answers_sha256, locked=locked, status=200)
+        return _upload_reply(existing, kept=kept, received_sha256=answers_sha256, locked=locked, status=200,
+                             offline_coding=held)
 
     existing = intake_svc.find_device_upload(current_user, client_draft_id)
     if existing is not None and not intake_svc.is_attachment_draft(existing):
         return resend(existing)
     session = g.get("device_session")
     device = db.session.get(AuthDevice, session.device_id) if session is not None else None
+    org_unit_id = p.get("org_unit_id") or None
+    if standalone is not None:
+        org_unit_id = offline_import.resolve_org_unit(current_user, project_id, site_id, standalone["org_code"])
     try:
         draft, kept, locked = intake_svc.submit_device_interview(
             current_user,
             project_id=project_id,
             client_draft_id=client_draft_id,
             site_id=site_id,
-            org_unit_id=p.get("org_unit_id") or None,
+            org_unit_id=org_unit_id,
             death_id=p.get("death_id") or None,
             envelope=envelope,
             data=data,
             answers_sha256=answers_sha256,
             completion=completion,
             device_id=device.device_id if device else None,
+            unrouted_ok=standalone is not None,
         )
+        if standalone is not None:
+            draft.meta = {**(draft.meta or {}), "standalone": offline_import.interview_provenance(
+                standalone, coding, org_unit_id)}
         _apply_interview_consent(draft)
+        held = _hold_coding(draft)
         db.session.commit()
     except IntegrityError:
         # A concurrent resend of the same client_draft_id won the unique index.
@@ -1119,7 +1179,8 @@ def submit_interview():
         if existing is None or intake_svc.is_attachment_draft(existing):
             raise
         return resend(existing)
-    return _upload_reply(draft, kept=kept, received_sha256=answers_sha256, locked=locked, status=201)
+    return _upload_reply(draft, kept=kept, received_sha256=answers_sha256, locked=locked, status=201,
+                         offline_coding=held)
 
 
 @bp.post("/submissions/<va_sid>/revisions")

@@ -21,6 +21,8 @@ export interface OfflineProfile {
   facility_name: string;
   country: string;
   state: string;
+  /** Optional org code naming the facility unit (owner default, Path C); a claim validated by the server on push. */
+  org_code?: string;
   /** SmartVA HIV adjustment input. */
   hiv_mortality: "none" | "low" | "high" | null;
   /** SmartVA malaria endemicity input. */
@@ -109,6 +111,7 @@ export async function saveOfflineProfile(input: OfflineProfile): Promise<void> {
     facility_name: nullableText(input.facility_name) ?? "",
     country,
     state: nullableText(input.state) ?? "",
+    org_code: nullableText(input.org_code) ?? "",
     hiv_mortality: nullableChoice(input.hiv_mortality, MORTALITY_LEVELS),
     malaria_mortality: nullableChoice(input.malaria_mortality, MORTALITY_LEVELS),
     updated_at: new Date().toISOString(),

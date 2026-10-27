@@ -27,7 +27,10 @@ Only three things are sent to the model provider:
 
 1. A fixed system instruction: the aggregate table's column names and types,
    the allowed code values, SQL rules and example queries. It contains no data
-   values from submissions.
+   values from submissions. KPI definition text from the KPI registry
+   (`app/data/kpi_registry.json`; owner decision 2026-10-27, `digitva-r5s0`)
+   may be included in it, so the model can say which KPI a question maps to.
+   That is definition text (a name, a question, a formula in words), not data.
 2. The user's question, plus on a follow-up the previous SQL and up to five
    earlier questions.
 3. On a retry, the error for the SQL the model wrote: the SQLSTATE and

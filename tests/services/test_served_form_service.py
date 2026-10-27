@@ -1,7 +1,7 @@
 """app/services/served_form_service.py filters the composed definition
 (app/data/who-va-2022.composed.json, tooling/who-va-2022/
 build-composed-instrument.mjs) by a project's enabled extensions. The build
-itself proves the filter equals the package's composer for all 32 subsets; this
+itself proves the filter equals the package's composer for all 64 subsets; this
 pins the Python half of the rule against the committed file. No database.
 """
 import hashlib
@@ -10,7 +10,7 @@ import unittest
 
 from app.services import served_form_service as svc
 
-CONDITIONAL = {"social_autopsy", "narration_language", "death_summary", "medical_records", "abha"}
+CONDITIONAL = {"social_autopsy", "narration_language", "death_summary", "medical_records", "abha", "equity"}
 
 
 def _names(items):

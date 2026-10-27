@@ -108,6 +108,34 @@ def coding_bucket(workflow_state: str | None) -> str:
     return WORKFLOW_CODING_BUCKETS.get(workflow_state, CODING_BUCKET_OTHER)
 
 
+def _sql_in_list(states) -> str:
+    """Quoted, parenthesised SQL list of fixed workflow-state names (never user input)."""
+    return "(" + ", ".join(f"'{s}'" for s in sorted(states)) + ")"
+
+
+#: "Pending" for every KPI: the awaiting-coding and in-coding buckets
+#: (docs/policy/kpis.md, canonical definitions). Derived, never retyped.
+PENDING_STATES = tuple(
+    state
+    for state, bucket in WORKFLOW_CODING_BUCKETS.items()
+    if bucket in (CODING_BUCKET_AWAITING, CODING_BUCKET_IN_CODING)
+)
+
+#: The states behind the data manager's "Coded" card and its ``workflow=coded``
+#: list filter. Excludes ``finalized_upstream_changed`` (listed as its own
+#: filter) though the coded bucket includes it.
+DM_CODED_STATES = (
+    WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_REVIEWER_ELIGIBLE,
+    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
+    WORKFLOW_REVIEWER_FINALIZED,
+)
+
+#: SQL forms for ``w.workflow_state IN {...}``.
+PENDING_STATES_SQL = _sql_in_list(PENDING_STATES)
+CODER_READY_POOL_STATES_SQL = _sql_in_list(CODER_READY_POOL_STATES)
+
+
 TRANSITION_SYNC_NEW_PAYLOAD = "sync_new_payload_routed"
 TRANSITION_ATTACHMENTS_SYNCED = "attachments_synced"
 TRANSITION_UPSTREAM_CHANGE_DETECTED = "upstream_change_detected"
@@ -135,14 +163,19 @@ TRANSITION_INCOMPLETE_REVIEWER_RESET = "incomplete_reviewer_reset"
 TRANSITION_DEMO_RESET = "demo_reset"
 
 #: SQL predicates over ``va_submission_workflow_events e`` for the C-01 grid's
-#: per-day "Not analysable" / "Not Codeable" counts. The live grid and the
-#: stored daily aggregates (app/tasks/kpi_tasks.py) both count these events, so
-#: the two definitions live here; docs/policy/kpis.md, C-01.
+#: per-day "Not analysable" / "Not Codeable" counts (dm_kpi_grid.compute_c01);
+#: docs/policy/kpis.md, C-01.
 EVENT_CONSENT_REFUSED_SQL = f"e.current_state = '{WORKFLOW_CONSENT_REFUSED}'"
 EVENT_NOT_CODEABLE_SQL = (
     f"e.transition_id IN ('{TRANSITION_CODER_NOT_CODEABLE}', '{TRANSITION_DM_NOT_CODEABLE}')"
 )
 TRANSITION_DEMO_STARTED = "demo_started"
+#: Drops events of demo/training sessions: a submission with any demo_started
+#: event is demo. Append to a WHERE over ``va_submission_workflow_events e``.
+NOT_DEMO_EVENT_SQL = (
+    "NOT EXISTS (SELECT 1 FROM va_submission_workflow_events d "
+    f"WHERE d.va_sid = e.va_sid AND d.transition_id = '{TRANSITION_DEMO_STARTED}')"
+)
 # A coding_tester finished a real submission: its output is tester output and
 # the case returns to the pool (digitva-ggc3). Never counted as coded.
 TRANSITION_TESTER_CODING_RETURNED = "tester_coding_returned"

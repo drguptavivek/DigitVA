@@ -1,4 +1,4 @@
-"""Sign-in QR for data collectors and death reporters (digitva-3g19).
+"""Sign-in QR for data collectors, death reporters and coders (digitva-3g19, digitva-5bzf.10).
 
 Baseline: docs/policy/mobile-sign-in.md section 8. One scan enrols a device
 and opens that one user's normal device session, with no password typed.
@@ -6,9 +6,11 @@ and opens that one user's normal device session, with no password typed.
 Token: ``secrets.token_urlsafe(32)``, stored only as its SHA-256 digest
 (``device_auth_service.hash_token``), single use, 6 hours, bound to the first
 device that redeems it and to the user's ``auth_session_version`` at issue. At most one is pending per user; a new issue voids it.
-Eligibility (checked at issue and again at redeem): an active ``interviewer``
-or ``death_reporter`` grant and no other active grant of any kind, in any
-project. Issuer: an admin, or anyone who may manage every active grant the
+Eligibility (checked at issue and again at redeem): an active ``interviewer``,
+``death_reporter`` or ``coder`` grant (a self-coding grant is the interviewer
+grant a coder grant implies, so it needs no row of its own; a coder grant alone
+is enough, owner default 2026-10-27) and no other active grant of any kind, in
+any project. Issuer: an admin, or anyone who may manage every active grant the
 person holds (``authz.grant_list_filter``, the section 3 ``can_grant`` rule).
 
 Audit: ``sign_in_qr_issued`` / ``_redeemed`` / ``_expired`` / ``_revoked`` / ``_refused``,
@@ -47,6 +49,7 @@ log = logging.getLogger(__name__)
 TOKEN_TTL = timedelta(hours=6)
 DELIVERIES = ("show", "email")
 COLLECTOR_ROLES = frozenset({VaAccessRoles.interviewer, VaAccessRoles.death_reporter})
+ELIGIBLE_ROLES = COLLECTOR_ROLES | {VaAccessRoles.coder}
 _TOKEN_MAX = 256
 INVALID_MESSAGE = "Sign-in QR is invalid or expired."
 
@@ -84,8 +87,8 @@ def _invalid() -> devices.DeviceAuthError:
 def eligible_project(user: VaUsers) -> str | None:
     """The project a sign-in QR would enrol *user*'s device under, or None
     when they are not eligible: active account, at least one active
-    interviewer or death_reporter grant on an active project that opens the
-    app (``has_device_access``), and no other active grant of any kind or
+    interviewer, death_reporter or coder grant on an active project that opens
+    the app (``has_device_access``), and no other active grant of any kind or
     global scope anywhere."""
     if user.user_status != VaStatuses.active:
         return None
@@ -93,7 +96,7 @@ def eligible_project(user: VaUsers) -> str | None:
         sa.select(_G.role, _G.scope_type).where(_G.user_id == user.user_id, _G.grant_status == VaStatuses.active)
     ).all()
     if not rows or any(
-        r.role not in COLLECTOR_ROLES or r.scope_type == VaAccessScopeTypes.global_scope for r in rows
+        r.role not in ELIGIBLE_ROLES or r.scope_type == VaAccessScopeTypes.global_scope for r in rows
     ):
         return None
     resolved = authz.resolve_grants(user)
@@ -103,7 +106,11 @@ def eligible_project(user: VaUsers) -> str | None:
     # counts, so a closed project is never picked for the enrolment.
     context = web_intake_service.interviewer_context(user, _grants=resolved)
     reach = context + web_intake_service.register_death_context(user, context, _grants=resolved)
-    projects = sorted({e["project_id"] for e in reach if devices._project_active(e["project_id"])})
+    # A coder grant that opens its gate reaches the app on its own (offline coding).
+    coding = [g.project_id for g in resolved.of({VaAccessRoles.coder}, virtual=False) if g.opens_gate]
+    projects = sorted({
+        pid for pid in [e["project_id"] for e in reach] + coding if devices._project_active(pid)
+    })
     return projects[0] if projects else None
 
 
@@ -177,7 +184,7 @@ def issue(actor, user_id, delivery) -> dict:
         raise _not_found()
     if eligible_project(user) is None:
         raise SignInQrError(
-            "A sign-in QR is only for an active data collector or death reporter with no other role.",
+            "A sign-in QR is only for an active data collector, death reporter or coder with no other role.",
             400, "not_eligible",
         )
     if delivery == "email" and not (user.email and user.email_verified):
@@ -294,7 +301,7 @@ def _burn(token_id, user_id, reason: str) -> devices.DeviceAuthError:
     return _invalid()
 
 
-def redeem(token, *, device_name, platform, app_version):
+def redeem(token, *, device_name, platform, app_version, client_device_uuid=None):
     """Consume a sign-in QR: enrol a device and open the user's normal device
     session. Returns ``(device, device_secret, IssuedTokens, user)``. Every
     failure is one 404 ``sign_in_qr_invalid``. Caller commits a success."""
@@ -335,7 +342,7 @@ def redeem(token, *, device_name, platform, app_version):
     if not user.is_admin() and should_block_non_admin_after_cutoff():
         raise _invalid()
 
-    device, secret = devices._add_device(project_id, name, platform, version, None)
+    device, secret = devices._add_device(project_id, name, platform, version, None, client_device_uuid)
     device.enrolled_via_sign_in_token = claimed.id
     db.session.execute(
         sa.update(table).where(table.c.id == claimed.id).values(redeemed_device_id=device.device_id)

@@ -8,6 +8,7 @@ import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { describeError, recordError } from "./errorLog";
+import { isStorageFull } from "./storageErrors";
 import { t, type StringKey } from "./i18n";
 import { useShell } from "./nativeShell/shellContext";
 import { BUTTON_MIN_WIDTH, buttonTone, controlText, controls, fontSize, radius, spacing, typography, ui, useTheme, type ButtonSize, type ButtonVariant, type UiTokens } from "./theme";
@@ -301,6 +302,7 @@ export function errorReference(error: unknown): string {
 /** The UI string for an error from the device API; never shows server text or answers. */
 export function errorText(error: unknown): string {
   recordError(describeError(error));
+  if (isStorageFull(error)) return t("phoneStorageFull");
   if (error instanceof SessionRevokedError) return t(error.keptUnsent ? "accessRemovedKept" : "sessionRevoked");
   if (error instanceof SignInRequiredError) return t("signInAgain");
   if (error instanceof ApiError) {

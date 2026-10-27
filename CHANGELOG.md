@@ -5,6 +5,63 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-27
 
+- **KPI refresh: every KPI computed live from workflow events**
+  (`digitva-0hul`, `digitva-r5s0`):
+  - **Policy:** `docs/policy/kpis.md` rewritten as 18 core panels out of 35
+    registered (16 merged, 1 retired), grouped by results-chain stage, with
+    analytic views.
+  - **Source of truth:** stored daily aggregates are no longer read.
+    `bucket_flow_by_day` replays workflow events to end of day in the
+    viewer's timezone. `kpi_tasks`, `flask kpi` and the recompute hooks are
+    deleted; the table stays.
+  - **Bugs fixed:** grid total showing 0; a time-to-code fan-out with
+    negative durations; case-sensitive language matching (English coders
+    went from 0 to 97); the recode window hard-coded at 24 h; blocked forms
+    counting coded cases; the training project leaking to unit data
+    managers; deactivated coders counted as available.
+  - **New KPIs:** O-UNK, D-QG-09 at WHO bucket level, EQ-01, EQ-02,
+    AD-FCOD, AD-COV, D-WF-02 (outcome, equity and critical path).
+  - **Registry:** `app/data/kpi_registry.json` with a loader, a drift test,
+    the help page rendered from it, a `kpi` search kind and 9 catalog
+    entries.
+  - **Review fixes:** equity XLSForm spec, chart filters, burndown timezone,
+    CSV guard, temp-file sweep, admin booleans.
+- **Bug fixes:**
+  - `digitva-fvbc`: a dead session gets 401 before CSRF; the client pauses
+    autosave and shows a sign-in prompt.
+  - `digitva-x928`: no session save on unmodified API GETs.
+  - `digitva-783d`: SmartVA export header order is deterministic.
+  - `digitva-mubf`: the COD report and snapshot use the same mapping rows.
+  - `digitva-8dzk`: `allocation_exists` answers 409.
+  - `digitva-p6fs.27`: advertised and downloadable translations agree.
+  - `digitva-fb5` (partly): label-code audit and fix CLI; 16 rows still
+    need a speaker.
+  - `digitva-46xk`, `digitva-jish`, `digitva-wh4w`: Collect revise layout,
+    stuck uploads and low-end performance.
+  - `digitva-owbz` (partly); `digitva-e1t9` race fix plus retry (still open).
+  - `digitva-ke83.8`: the corpus parity test now compares real values;
+    `digitva-ke83.7` was already fixed.
+  - `digitva-l945`, `digitva-yeg3.26`: DM cards equal lists; `org_unit`,
+    `visit_note` and date-of-death filters; pending is 6 states; org-unit
+    picker.
+- **Collect Plus standalone** (epic `digitva-5bzf`; slices S0 to S8):
+  - S0 policy baseline; S1 equity layer (migration `b4f8d2e6a1c3`); S2
+    offline allowability pack; S3 device UUID binding (`c7a3e9d1f5b8`); S4
+    standalone onboarding; S6 export and passphrase-encrypted backup; S7
+    bundled consent; S8 coder sign-in QR; S5a server import
+    (`f3d9b5c7a2e4`).
+  - New web-bundle guard test keeps native-only code out of the web export.
+  - S5b app push after enrolment (`digitva-5bzf.7`): a separate push queue
+    from the standalone store; a record is deleted only after the server
+    acknowledges it; coding whose answers changed is not sent. Deleting a
+    sent draft now removes its offline-coding row for every account. Audio
+    on tree projects can stall at the file step until the draft endpoint
+    accepts no unit. Tested with a mocked network only.
+- **More policies recorded:** Collect correction loop (`digitva-ydnl`),
+  interview support and its edge model (`digitva-fixy`, `.1`), EAVA and
+  InterVA5 (`digitva-13gs`), document vision-language model
+  (`digitva-sxg9.1`); the earlier narrative AI, geography, equity, DHS,
+  BYOK, `digitva-lep4` and DuckDB entries are below.
 - **AI questions for data managers** (`digitva-qwvt`, `digitva-qwvt.1`):
   - **Asking:** data managers and admins ask in plain language at
     `/data-management/ai-questions`. Claude Sonnet (default) or Gemini,

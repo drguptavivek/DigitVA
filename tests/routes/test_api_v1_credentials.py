@@ -112,6 +112,15 @@ class ApiV1CredentialTests(BaseTestCase):
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()["timezone"], "Asia/Kolkata")
 
+    def test_dead_cookie_session_gets_401_before_csrf_but_live_one_keeps_csrf(self):
+        # digitva-fvbc: no session means "sign in again", not csrf_failed.
+        dead = self.client.patch(TIMEZONE, json={"timezone": "UTC"})
+        self.assertEqual(dead.status_code, 401)
+        self.assertEqual(dead.get_json()["code"], "unauthorized")
+        self._login(str(self.interviewer.user_id))
+        live = self.client.patch(TIMEZONE, json={"timezone": "UTC"})
+        self.assertEqual((live.status_code, live.get_json()["code"]), (400, "csrf_failed"))
+
     def test_profile_nudge_dismissal_requires_cookie_and_csrf(self):
         tokens = self._tokens()
         self._login(str(self.interviewer.user_id))

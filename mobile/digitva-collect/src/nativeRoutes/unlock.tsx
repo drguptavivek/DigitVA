@@ -11,7 +11,8 @@ import { Alert, Pressable, Text, TextInput } from "react-native";
 import { useAppState } from "../AppState";
 import { unlockInterviewer } from "../auth";
 import { t } from "../i18n";
-import { hasInterviewerStore, isUnlocked } from "../interviewerDb";
+import { hasInterviewerStore, isUnlocked, resetMissingStore } from "../interviewerDb";
+import { homeRoute } from "../standalone/home";
 import { PIN_BOXES, PinBoxes } from "../PinBoxes";
 import { Button, Screen, useUiStyles } from "../ui";
 import { pendingUnlockOffer, UnlockOffer } from "../UnlockOffer";
@@ -44,6 +45,7 @@ export default function Unlock() {
   const account = accounts.find((a) => a.user_id === userId);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
+  const [storeMissing, setStoreMissing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [biometric, setBiometric] = useState(false);
   const [screenLock, setScreenLock] = useState(false);
@@ -53,8 +55,8 @@ export default function Unlock() {
   const [offer, setOffer] = useState<{ pin: string; options: { biometric: boolean; screenLock: boolean } }>();
 
   const toWorklist = useCallback(
-    () => router.replace({ pathname: "/worklist", params: { userId: userId ?? "", ...(refresh === "1" ? { refresh: "1" } : {}) } }),
-    [router, userId, refresh]
+    () => router.replace({ pathname: homeRoute(account), params: { userId: userId ?? "", ...(refresh === "1" ? { refresh: "1" } : {}) } }),
+    [router, userId, refresh, account]
   );
 
   const tryPin = useCallback(
@@ -89,6 +91,11 @@ export default function Unlock() {
           const options = enabling ? null : await pendingUnlockOffer(userId).catch(() => null);
           if (options) setOffer({ pin: candidate, options });
           else toWorklist();
+          return;
+        }
+        if ("storeMissing" in result) {
+          setPin("");
+          setStoreMissing(true);
           return;
         }
         setPin("");
@@ -174,6 +181,28 @@ export default function Unlock() {
       </Screen>
     );
   }
+  if (storeMissing) {
+    const resetStore = () => Alert.alert(t("storeMissingTitle"), t("storeMissingConfirm"), [
+      { text: t("cancel"), style: "cancel" },
+      {
+        text: t("storeMissingReset"),
+        style: "destructive",
+        onPress: () => {
+          void resetMissingStore(account.user_id)
+            .then(() => router.replace({ pathname: "/pin-setup", params: { userId: account.user_id } }))
+            .catch(() => setError(t("errGeneric")));
+        },
+      },
+    ]);
+    return (
+      <Screen title={t("unlockTitle")}>
+        <Text style={styles.muted}>{account.name}</Text>
+        <Text style={styles.error} testID="store-missing">{t("storeMissing")}</Text>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Button kind="danger" label={t("storeMissingReset")} onPress={resetStore} />
+      </Screen>
+    );
+  }
   return (
     <Screen title={t("unlockTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
@@ -183,6 +212,8 @@ export default function Unlock() {
           style={styles.input}
           accessibilityLabel={t("pin")}
           secureTextEntry
+          autoComplete="off"
+          importantForAutofill="no"
           keyboardType="number-pad"
           autoFocus
           maxLength={PIN_MAX_LENGTH}

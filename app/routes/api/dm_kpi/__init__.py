@@ -9,4 +9,6 @@ Grouped endpoint files:
   dm_kpi_coders      — C-12/C-21/C-24/D-LC-04/D-QG-09 coder stats
   dm_kpi_pipeline    — C-07/C-10/C-11/C-19/C-22 pipeline health
   dm_kpi_burndown    — C-16/C-17/C-18 burndown & predictions
+  dm_kpi_outcomes    — O-UNK/D-QG-09/EQ-01/EQ-02/AD-FCOD/AD-COV
+  dm_kpi_critical_path — D-WF-02 critical path
 """

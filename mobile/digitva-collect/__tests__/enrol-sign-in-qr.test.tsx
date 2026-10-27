@@ -107,6 +107,28 @@ it("shows one message for every refusal and never the token", async () => {
   expect(loggedAnything()).toBe(false);
 });
 
+it("tells a rate-limited scan to wait, not that the QR is invalid", async () => {
+  mockRedeem.mockRejectedValueOnce(new ApiError(429, "rate_limited"));
+  const tree = await render();
+  scan(tree, signInQr);
+  await press(tree, "enrolConfirm");
+  expect(text(tree)).toContain("errSignInQrRateLimited");
+  expect(text(tree)).not.toContain("errSignInQrInvalid");
+});
+
+it("names expiry, prior use and another server in the invalid-QR message", () => {
+  const en = require("../src/strings/en.json").errSignInQrInvalid as string;
+  for (const word of ["expired", "already been scanned", "different DigitVA server"]) expect(en).toContain(word);
+});
+
+it("redeems for a coder-only account the same way and goes to unlock, where the gate picks the coding screens", async () => {
+  mockRedeem.mockResolvedValue({ user_id: "coder1", name: "Coder" });
+  const tree = await render();
+  scan(tree, signInQr);
+  await press(tree, "enrolConfirm");
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "coder1", refresh: "1" } });
+});
+
 it("treats a network failure as an ordinary error, not as an invalid QR", async () => {
   mockRedeem.mockRejectedValueOnce(new Error("network"));
   const tree = await render();

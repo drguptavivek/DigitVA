@@ -145,7 +145,7 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(self._issue("admin", "interviewer_p1").status_code, 201)
 
     def test_privileged_or_other_role_people_are_not_eligible(self):
-        for target in ("pi_ta", "dm_c1", "incharge_c1", "coder_p1", "reviewer_p1", "tester_ta",
+        for target in ("pi_ta", "dm_c1", "incharge_c1", "reviewer_p1", "tester_ta",
                        "collab_c1", "supervisor_c1", "admin"):
             res = self._issue("admin", target)
             self.assertEqual(res.status_code, 400, target)
@@ -153,8 +153,23 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(db.session.scalars(sa.select(AuthSignInToken)).all(), [])
 
     def test_any_other_grant_anywhere_makes_a_collector_ineligible(self):
-        self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZSP01")
+        self._add_grant("interviewer_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
         self.assertEqual(self._issue("admin", "interviewer_p1").get_json()["code"], "not_eligible")
+
+    def test_coder_grant_alone_gets_and_redeems_a_sign_in_qr(self):
+        # Owner default 2026-10-27 (digitva-5bzf.10): a coder grant is enough.
+        token = self._token("admin", "coder_p1")
+        res = self._redeem(token)
+        self.assertEqual(res.status_code, 201, res.get_json())
+        self.assertEqual(res.get_json()["project"]["project_id"], "AZTA01")
+        self.assertEqual(self._redeem(token).status_code, 404)  # used
+        self.assertEqual(len(self._events("sign_in_qr_redeemed")), 1)
+
+    def test_coder_with_a_privileged_grant_is_refused_at_issue_and_redeem(self):
+        token = self._token("admin", "coder_p1")
+        self._add_grant("coder_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
+        self.assertEqual(self._issue("admin", "coder_p1").get_json()["code"], "not_eligible")
+        self.assertEqual(self._redeem(token).status_code, 404)
 
     def test_inactive_account_is_not_eligible(self):
         user = self.users["interviewer_p1"]
@@ -304,9 +319,20 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(self.client.get(f"{USERS}/{self.users['interviewer_p1'].user_id}/sign-in-qr"
                                          ).status_code, 403)
 
+    def test_redeem_stores_the_client_device_uuid_and_refuses_a_bad_one(self):
+        token = self._token()
+        res = self._redeem(token, client_device_uuid="nope")
+        self.assertEqual((res.status_code, res.get_json()["code"]), (400, "invalid_request"))
+        self.assertIsNone(self._row().redeemed_at)  # the token was not consumed
+        client_uuid = uuid.uuid4()
+        res = self._redeem(token, client_device_uuid=str(client_uuid))
+        self.assertEqual(res.status_code, 201, res.get_json())
+        device = db.session.get(AuthDevice, uuid.UUID(res.get_json()["device_id"]))
+        self.assertEqual(device.client_device_uuid, client_uuid)
+
     def test_redeem_rechecks_eligibility(self):
         token = self._token()
-        self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZSP01")
+        self._add_grant("interviewer_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
         res = self._redeem(token)
         self.assertEqual((res.status_code, res.get_json()["code"]), (404, "sign_in_qr_invalid"))
         self.assertEqual(db.session.scalars(sa.select(AuthDevice).where(
@@ -344,7 +370,7 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_ineligible_at_redeem_audits_a_refusal(self):
         token = self._token()
-        self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZSP01")
+        self._add_grant("interviewer_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
         self.assertEqual(self._redeem(token).status_code, 404)
         [event] = self._events("sign_in_qr_refused")
         self.assertEqual(event.detail, {"reason": "not_eligible"})

@@ -309,7 +309,34 @@ def _device_fields(device_name, platform, app_version) -> tuple[str, str | None]
     return name, version
 
 
-def _add_device(project_id: str, name: str, platform: str, version: str | None, via) -> tuple[AuthDevice, str]:
+def parse_client_device_uuid(value) -> uuid.UUID | None:
+    """The optional Collect Plus install UUID an enrolment request carries:
+    None when absent, else the parsed UUID or 400 ``invalid_request``. Routes
+    call it before a code or QR token is consumed."""
+    if value is None:
+        return None
+    try:
+        if not isinstance(value, str):
+            raise ValueError
+        return uuid.UUID(value)
+    except ValueError:
+        raise DeviceAuthError("client_device_uuid must be a UUID.", "invalid_request", 400) from None
+
+
+def device_for_client_uuid(session: AuthDeviceSession, client_device_uuid) -> AuthDevice | None:
+    """The session's own device when it was enrolled with *client_device_uuid*,
+    else None. Never another device's row: the UUID is a claim, the session
+    is the proof (offline-api-contract.md section 17)."""
+    claimed = parse_client_device_uuid(client_device_uuid)
+    device = db.session.get(AuthDevice, session.device_id)
+    if claimed is None or device is None or device.client_device_uuid != claimed:
+        return None
+    return device
+
+
+def _add_device(
+    project_id: str, name: str, platform: str, version: str | None, via, client_device_uuid=None
+) -> tuple[AuthDevice, str]:
     """Insert a device enrolled through the code row *via*; returns (device,
     plaintext secret). Caller commits."""
     secret = _new_secret()
@@ -323,6 +350,7 @@ def _add_device(project_id: str, name: str, platform: str, version: str | None, 
         app_version=version,
         secret_hash=hash_token(secret),
         enrolled_via=via,
+        client_device_uuid=client_device_uuid,
     )
     db.session.add(device)
     db.session.flush()
@@ -334,7 +362,9 @@ def _add_device(project_id: str, name: str, platform: str, version: str | None, 
     return device, secret
 
 
-def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevice, str]:
+def enrol_device(
+    code, *, device_name, platform, app_version, client_device_uuid=None
+) -> tuple[AuthDevice, str]:
     """Consume one use of an enrolment code and register a device. Returns
     (device, plaintext device secret). An unknown, expired, revoked or used-up
     code is one answer, 404 ``enrolment_invalid``. Caller commits."""
@@ -357,7 +387,7 @@ def enrol_device(code, *, device_name, platform, app_version) -> tuple[AuthDevic
     ).first()
     if consumed is None or not _project_active(consumed.project_id):
         raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
-    return _add_device(consumed.project_id, name, platform, version, consumed.id)
+    return _add_device(consumed.project_id, name, platform, version, consumed.id, client_device_uuid)
 
 
 def _demo_code_hash(user: VaUsers) -> str:

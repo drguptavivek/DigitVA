@@ -1,0 +1,394 @@
+{
+  "blocks": [
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Neonate (under 28 days)",
+          "label::hi": "नवजात (28 दिन से कम)",
+          "list_name": "REFUSAL_AGE_GROUP",
+          "name": "neonate"
+        },
+        {
+          "label": "Child (28 days to 14 years)",
+          "label::hi": "बच्चा (28 दिन से 14 वर्ष)",
+          "list_name": "REFUSAL_AGE_GROUP",
+          "name": "child"
+        },
+        {
+          "label": "15 to 49 years",
+          "label::hi": "15 से 49 वर्ष",
+          "list_name": "REFUSAL_AGE_GROUP",
+          "name": "15_49y"
+        },
+        {
+          "label": "50 to 64 years",
+          "label::hi": "50 से 64 वर्ष",
+          "list_name": "REFUSAL_AGE_GROUP",
+          "name": "50_64y"
+        },
+        {
+          "label": "65 years or older",
+          "label::hi": "65 वर्ष या अधिक",
+          "list_name": "REFUSAL_AGE_GROUP",
+          "name": "65_plus"
+        },
+        {
+          "label": "Unknown",
+          "label::hi": "अज्ञात",
+          "list_name": "REFUSAL_AGE_GROUP",
+          "name": "unknown"
+        },
+        {
+          "label": "Male",
+          "label::hi": "पुरुष",
+          "list_name": "REFUSAL_SEX",
+          "name": "male"
+        },
+        {
+          "label": "Female",
+          "label::hi": "महिला",
+          "list_name": "REFUSAL_SEX",
+          "name": "female"
+        },
+        {
+          "label": "Unknown",
+          "label::hi": "अज्ञात",
+          "list_name": "REFUSAL_SEX",
+          "name": "unknown"
+        }
+      ],
+      "id": "equity_consent_mode",
+      "odk": {
+        "after": "Id10013"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "hint": "Record what is already known, or ask only this if the family is willing. Unknown is allowed.",
+          "hint::hi": "जो पहले से पता है वह दर्ज करें, या परिवार राज़ी हो तो केवल यही पूछें। अज्ञात चुन सकते हैं।",
+          "label": "Age group of the deceased",
+          "label::hi": "मृतक का आयु वर्ग",
+          "name": "refusal_age_group",
+          "relevant": "selected(${Id10013}, 'no')",
+          "type": "select_one REFUSAL_AGE_GROUP"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Sex of the deceased",
+          "label::hi": "मृतक का लिंग",
+          "name": "refusal_sex",
+          "relevant": "selected(${Id10013}, 'no')",
+          "type": "select_one REFUSAL_SEX"
+        }
+      ],
+      "title": "Equity questions after Id10013"
+    },
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Scheduled Caste (SC)",
+          "label::hi": "अनुसूचित जाति (SC)",
+          "list_name": "SOCIAL_GROUP",
+          "name": "sc"
+        },
+        {
+          "label": "Scheduled Tribe (ST), including PVTG",
+          "label::hi": "अनुसूचित जनजाति (ST), विशेष रूप से कमज़ोर जनजातीय समूह (PVTG) सहित",
+          "list_name": "SOCIAL_GROUP",
+          "name": "st"
+        },
+        {
+          "label": "Other Backward Class (OBC)",
+          "label::hi": "अन्य पिछड़ा वर्ग (OBC)",
+          "list_name": "SOCIAL_GROUP",
+          "name": "obc"
+        },
+        {
+          "label": "None of these (general)",
+          "label::hi": "इनमें से कोई नहीं (सामान्य)",
+          "list_name": "SOCIAL_GROUP",
+          "name": "general"
+        },
+        {
+          "label": "Don't know",
+          "label::hi": "पता नहीं",
+          "list_name": "SOCIAL_GROUP",
+          "name": "dk"
+        },
+        {
+          "label": "Prefer not to say",
+          "label::hi": "बताना नहीं चाहते",
+          "list_name": "SOCIAL_GROUP",
+          "name": "ref"
+        }
+      ],
+      "id": "equity_Id10053",
+      "odk": {
+        "after": "Id10053"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "hint": "Ask neutrally. Never infer the answer from name, surname or appearance.",
+          "hint::hi": "तटस्थ रूप से पूछें। नाम, उपनाम या रूप-रंग से उत्तर का अनुमान कभी न लगाएँ।",
+          "label": "Which of these groups did the deceased belong to?",
+          "label::hi": "मृतक इनमें से किस समूह से थे?",
+          "name": "social_group",
+          "type": "select_one SOCIAL_GROUP"
+        }
+      ],
+      "title": "Equity questions after Id10053"
+    },
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "Rural (village)",
+          "label::hi": "ग्रामीण (गाँव)",
+          "list_name": "RESIDENCE_TYPE",
+          "name": "rural"
+        },
+        {
+          "label": "Urban (town or city)",
+          "label::hi": "शहरी (कस्बा या शहर)",
+          "list_name": "RESIDENCE_TYPE",
+          "name": "urban"
+        },
+        {
+          "label": "Urban slum or informal settlement",
+          "label::hi": "शहरी झुग्गी बस्ती",
+          "list_name": "RESIDENCE_TYPE",
+          "name": "urban_slum"
+        },
+        {
+          "label": "Don't know",
+          "label::hi": "पता नहीं",
+          "list_name": "RESIDENCE_TYPE",
+          "name": "dk"
+        }
+      ],
+      "id": "equity_Id10055",
+      "odk": {
+        "after": "Id10055"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "label": "Was the place where the deceased usually lived rural, urban or an urban slum?",
+          "label::hi": "मृतक जहाँ सामान्यतः रहते थे, वह स्थान ग्रामीण था, शहरी था या शहरी झुग्गी बस्ती?",
+          "name": "residence_type",
+          "type": "select_one RESIDENCE_TYPE"
+        }
+      ],
+      "title": "Equity questions after Id10055"
+    },
+    {
+      "change": [],
+      "choices": [
+        {
+          "label": "A person with a disability (physical, sensory, intellectual or psychosocial)",
+          "label::hi": "दिव्यांग व्यक्ति (शारीरिक, संवेदी, बौद्धिक या मनोसामाजिक)",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "disability"
+        },
+        {
+          "label": "Homeless or destitute",
+          "label::hi": "बेघर या निराश्रित",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "homeless"
+        },
+        {
+          "label": "Migrant worker, seasonal or from another region",
+          "label::hi": "प्रवासी मज़दूर, मौसमी या किसी अन्य क्षेत्र से",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "migrant"
+        },
+        {
+          "label": "Internally displaced person, refugee, asylum seeker or stateless",
+          "label::hi": "आंतरिक रूप से विस्थापित व्यक्ति, शरणार्थी, शरण चाहने वाला या राज्यविहीन",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "displaced"
+        },
+        {
+          "label": "Enrolled in the national poverty or food-security programme (AAY or priority household ration card)",
+          "label::hi": "राष्ट्रीय गरीबी या खाद्य सुरक्षा कार्यक्रम में नामांकित (अंत्योदय (AAY) या प्राथमिकता परिवार राशन कार्ड)",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "poverty_programme"
+        },
+        {
+          "label": "None of these",
+          "label::hi": "इनमें से कोई नहीं",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "none"
+        },
+        {
+          "label": "Don't know",
+          "label::hi": "पता नहीं",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "dk"
+        },
+        {
+          "label": "Prefer not to say",
+          "label::hi": "बताना नहीं चाहते",
+          "list_name": "VULNERABLE_GROUP",
+          "name": "ref"
+        },
+        {
+          "label": "Yes",
+          "label::hi": "हाँ",
+          "list_name": "EQUITY_YES_NO_DK_REF",
+          "name": "yes"
+        },
+        {
+          "label": "No",
+          "label::hi": "नहीं",
+          "list_name": "EQUITY_YES_NO_DK_REF",
+          "name": "no"
+        },
+        {
+          "label": "Don't know",
+          "label::hi": "पता नहीं",
+          "list_name": "EQUITY_YES_NO_DK_REF",
+          "name": "dk"
+        },
+        {
+          "label": "Prefer not to say",
+          "label::hi": "बताना नहीं चाहते",
+          "list_name": "EQUITY_YES_NO_DK_REF",
+          "name": "ref"
+        },
+        {
+          "label": "Social security health insurance",
+          "label::hi": "सामाजिक सुरक्षा स्वास्थ्य बीमा",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "social_security"
+        },
+        {
+          "label": "A government health scheme (Ayushman Bharat PM-JAY or a state scheme)",
+          "label::hi": "सरकारी स्वास्थ्य योजना (आयुष्मान भारत PM-JAY या कोई राज्य योजना)",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "government_scheme"
+        },
+        {
+          "label": "Mutual health organisation or community-based insurance",
+          "label::hi": "म्युचुअल स्वास्थ्य संगठन या समुदाय-आधारित बीमा",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "community_mutual"
+        },
+        {
+          "label": "Other employer-based insurance",
+          "label::hi": "अन्य नियोक्ता-आधारित बीमा",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "employer"
+        },
+        {
+          "label": "Privately purchased commercial insurance",
+          "label::hi": "निजी तौर पर खरीदा गया व्यावसायिक बीमा",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "private"
+        },
+        {
+          "label": "Other",
+          "label::hi": "अन्य",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "other"
+        },
+        {
+          "label": "No health insurance",
+          "label::hi": "कोई स्वास्थ्य बीमा नहीं",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "none"
+        },
+        {
+          "label": "Don't know",
+          "label::hi": "पता नहीं",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "dk"
+        },
+        {
+          "label": "Prefer not to say",
+          "label::hi": "बताना नहीं चाहते",
+          "list_name": "HEALTH_COVERAGE",
+          "name": "ref"
+        }
+      ],
+      "id": "equity_Id10066",
+      "odk": {
+        "after": "Id10066"
+      },
+      "survey": [
+        {
+          "agegroup": "ALL",
+          "constraint": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)",
+          "constraint_message": "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+          "constraint_message::hi": "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।",
+          "hint": "Ask neutrally. Never infer the answer from name, surname or appearance.",
+          "hint::hi": "तटस्थ रूप से पूछें। नाम, उपनाम या रूप-रंग से उत्तर का अनुमान कभी न लगाएँ।",
+          "label": "Did any of these apply to the deceased? Tick all that apply.",
+          "label::hi": "क्या इनमें से कोई बात मृतक पर लागू होती थी? जो भी लागू हों, सभी चुनें।",
+          "name": "vulnerable_group",
+          "type": "select_multiple VULNERABLE_GROUP"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Was the deceased a child without parental care?",
+          "label::hi": "क्या मृतक माता-पिता की देखभाल से वंचित बच्चा था?",
+          "name": "vulnerable_group_child_no_care",
+          "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+          "type": "select_one EQUITY_YES_NO_DK_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Was the deceased a widow or a woman heading the household alone?",
+          "label::hi": "क्या मृतक विधवा थीं या अकेले परिवार की मुखिया महिला थीं?",
+          "name": "vulnerable_group_female_head",
+          "relevant": "selected(${isAdult}, '1') and selected(${Id10019}, 'female')",
+          "type": "select_one EQUITY_YES_NO_DK_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Was the deceased an older person living alone?",
+          "label::hi": "क्या मृतक अकेले रहने वाले बुज़ुर्ग व्यक्ति थे?",
+          "name": "vulnerable_group_elderly_alone",
+          "relevant": "selected(${isAdult}, '1')",
+          "type": "select_one EQUITY_YES_NO_DK_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Was the deceased a transgender or gender-diverse person?",
+          "label::hi": "क्या मृतक ट्रांसजेंडर या जेंडर-विविध व्यक्ति थे?",
+          "name": "vulnerable_group_gender_minority",
+          "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+          "type": "select_one EQUITY_YES_NO_DK_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "label": "Was the deceased in prison or custody at the time of death?",
+          "label::hi": "क्या मृत्यु के समय मृतक जेल या हिरासत में थे?",
+          "name": "vulnerable_group_custody",
+          "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+          "type": "select_one EQUITY_YES_NO_DK_REF"
+        },
+        {
+          "agegroup": "ALL",
+          "constraint": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)",
+          "constraint_message": "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+          "constraint_message::hi": "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।",
+          "label": "What health insurance did the deceased have? Tick all that apply.",
+          "label::hi": "मृतक के पास कौन-सा स्वास्थ्य बीमा था? जो भी लागू हों, सभी चुनें।",
+          "name": "health_coverage",
+          "type": "select_multiple HEALTH_COVERAGE"
+        }
+      ],
+      "title": "Equity questions after Id10066"
+    }
+  ],
+  "schemaVersion": 1,
+  "source": {
+    "definition": "vendor/who-va-2022/src/digitva-extension.ts",
+    "extension": "equity",
+    "generatedBy": "tooling/who-va-2022/build-odk-extension-rows.mjs"
+  }
+}

@@ -25,6 +25,7 @@ jest.mock("../src/ui", () => {
   };
 });
 
+jest.mock("../src/appVariant", () => ({ isPlusVariant: () => false }));
 import DemoPanel from "../src/DemoPanel";
 import { DEMO_SERVER } from "../src/enrolment";
 import Enrol from "../src/nativeRoutes/enrol";

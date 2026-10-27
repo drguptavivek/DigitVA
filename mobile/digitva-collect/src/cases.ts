@@ -115,6 +115,12 @@ export interface CaseDetail
   remarks: string | null;
   /** Present only when the caller may start or resume this interview. */
   prefill?: Prefill;
+  /**
+   * The list row this detail was downloaded against, serialised. A sync skips
+   * the detail request while the row is unchanged (it carries `updated_at`
+   * plus the draft, candidate and coding fields the death row's stamp misses).
+   */
+  list_sig?: string;
   links: { self: string; attempts: string; visit: string };
 }
 

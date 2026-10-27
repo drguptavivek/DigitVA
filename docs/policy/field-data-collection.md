@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-10-27
 ---
 
 # Field Data Collection Policy
@@ -22,11 +22,12 @@ Central collection is out of scope — that data is governed by the ODK
 deployment and reaches DigitVA only through sync
 ([ODK Sync Policy](odk-sync-policy.md)).
 
-## Two permitted paths
+## Permitted paths
 
-Only these two collection paths are permitted. Any third arrangement — in
-particular a browser client that persists answers locally — requires this
-policy to be amended first.
+Only these three collection paths are permitted: Path A and Path B, and since
+2026-10-27 Path C (standalone Collect Plus, below; owner decision, `digitva-5bzf`).
+Any further arrangement — in particular a browser client that persists answers
+locally — requires this policy to be amended first.
 
 ### Path A — online browser intake
 
@@ -85,8 +86,13 @@ Requirements, all of which must hold before the app collects real data:
 - **Push and purge.** The device keeps only in-flight interviews. Once the
   server acknowledges a submission and its attachments, the local copy is
   deleted. The device is not an archive and holds no history of past cases.
-  There is no time ceiling on unsent work (decision C3).
-- **Revocable device sessions.** A refresh credential is bound to a
+  There is no time ceiling on unsent work (decision C3). This holds for every
+  enrolled (non-standalone) account; a Path C standalone phone is the stated
+  exception and keeps its records until pushed or removed by the user (owner
+  decision 2026-10-27, `digitva-5bzf`; see Path C).
+- **Revocable device sessions** (Path B; a Path C standalone phone has no
+  server session until enrolled, owner decision 2026-10-27, `digitva-5bzf`).
+  A refresh credential is bound to a
   (device, worker) pair, revocable server-side, and revoked automatically
   when the worker no longer holds any grant that opens a device session (see
   "Who may sign in on a device" below). Revocation wipes **that worker's store
@@ -577,6 +583,161 @@ controls are per-interviewer encryption, the PIN gate, and the server-side
 record of outstanding work above. This trade should be revisited if devices are
 lost in practice.
 
+### Path C: standalone Collect Plus (owner decision 2026-10-27, `digitva-5bzf`)
+
+Status: policy baseline, nothing built. Implementation slices S1 to S8 of
+`.tasks/collect-plus-standalone-and-parity-plan.md` follow this text. Every
+rule below carries the owner decision of 2026-10-27 (`digitva-5bzf`).
+
+Path C is Collect Plus (see "Collect Plus (experimental)") used **without a
+server**: an unenrolled phone that collects interviews and codes them on the
+device, and pushes both later, once the phone is enrolled. It is a third
+arrangement, so this section is the amendment this policy demands for one.
+Path A and Path B are unchanged for every enrolled, non-standalone use.
+
+- **Who and where (owner decision 2026-10-27, `digitva-5bzf`).** Owner-controlled
+  pilot phones only. A standalone phone is never handed to an interviewer;
+  the person holding it is the owner's named pilot user. The plain build
+  never offers Path C (it is Collect Plus only, and Android only like the
+  device identity below).
+- **Entry flow (owner decision 2026-10-27, `digitva-5bzf`).** The first-run
+  screen offers "Use without a server" beside enrolment. It creates, on the
+  phone alone: an **offline profile** (name and country required; the other
+  profile fields as the app defines them), a **local account** with its own
+  PIN and its own encrypted store under the Path B rules (SQLCipher, Keystore
+  secret plus PIN, auto-lock, five wrong PINs wipe that store only), and a
+  **project-less form path**: the interview runs from the instrument bundled in
+  the app, with the DigitVA extension set the user picks in setup (default
+  none; the equity layer available once it ships). The local account is not
+  a server account: it holds no grants, never calls the server, and is
+  skipped by token refresh, notification polling and sync until enrolment.
+  Informant details are saved only after the standalone consent below.
+- **Device identity (owner decision 2026-10-27, `digitva-5bzf`).** On first run
+  the phone mints a device UUID, kept in the Keystore-backed secure store,
+  never regenerated, and stamped on every standalone interview and coding
+  result. It is provenance, not authentication: when the phone is later
+  enrolled the server records it as the optional `client_device_uuid` of the
+  device row (one device row per UUID; an idempotent re-enrol never makes a
+  second), and the bearer token stays the only credential.
+- **Retention (owner decision 2026-10-27, `digitva-5bzf`).** No hard ceiling,
+  consistent with decision C3: unsent work is never purged automatically.
+  Because a standalone phone has no server record of what it holds and no
+  remote revoke or wipe, the app shows a visible **age warning** on any
+  standalone interview or coding result that has not been pushed or backed up
+  for longer than a stated number of days, and **backup reminders** (days since
+  the last backup, count of records not in any backup). The thresholds are
+  set in the implementation slice (open point 1 below).
+- **Accepted risks (owner decision 2026-10-27, `digitva-5bzf`).** The
+  "Outstanding work is visible server-side" control of Path B does not exist
+  before enrolment: the server cannot tell what a lost standalone phone
+  holds. Accepted, with these mitigations: per-store encryption, the PIN, the
+  five-failure wipe, screen-capture blocking, and the backup reminders. There is no
+  remote wipe, and a wiped or uninstalled phone destroys the only copy
+  (OS backup is off), which is why the backup rules below are part of this
+  policy. A phone that has never synced is not judged by the phone-clock
+  check, so a standalone phone shows a standing "check Date & time" notice
+  and its interview times are the phone's own until the first sync measures
+  an offset.
+- **Masking.** Coding on a standalone phone is not masked (accepted
+  2026-10-26): the same person collects and codes. After enrolment the case
+  reaches the server as an imported, coded result with its provenance, not as
+  a masked coding (see [Offline API Contract](offline-api-contract.md)
+  section 17).
+- **Enrolment later (owner decision 2026-10-27, `digitva-5bzf`).** Enrolling
+  the phone (enrolment QR or sign-in QR,
+  [Sign-in by Mobile Number](mobile-sign-in.md) section 8) binds the device
+  UUID to the server device row and moves the standalone records under the
+  redeemed account only through an explicit, PIN-confirmed adoption step that
+  shows how many interviews and coding results will be sent; adoption is never
+  silent, because whoever redeems first would otherwise inherit the data.
+  The offline profile carries an **optional org code**, a single code at one
+  organisation level of the project tree (which level: open point 2). The
+  app stamps it into the interview as the matching `org_<level>_code` answer
+  so the server's normal routing applies. The code is a claim, validated
+  against the project tree like any payload; free text such as the facility
+  name never routes. A record whose code is absent, unknown or does not
+  match goes to the project's **unrouted queue** for a data manager to
+  place or pin, never guessed (see [Organization Model](organization-model.md),
+  routing and the unrouted queue). What is pushed and how it is accepted:
+  [Offline API Contract](offline-api-contract.md) section 17. Once the
+  server acknowledges a record, the Path B push-and-purge rule applies to
+  that record (open point 3).
+- **Consent.** A standalone interview uses a notice bundled in the app,
+  generated from the server seed, with the text snapshot sent on push:
+  [Respondent Consent Notice](respondent-consent-notice-draft.md) "Standalone
+  notice". A missing or unusable bundled notice behaves like no notice:
+  covered fields stay locked empty, never "consent off".
+- **SmartVA offline is out of scope for now (owner decision 2026-10-27,
+  `digitva-5bzf`).** No SmartVA runs on a standalone phone, and the app says
+  so. The profile's HIV and malaria mortality levels are collected for a later
+  SmartVA build and are unused until then.
+- **Plus-only.** Everything here requires the Plus variant on Android
+  (arm64); the plain build is unchanged.
+
+#### Export and backup (owner decision 2026-10-27, `digitva-5bzf`)
+
+These two acts are allowed on a standalone account. On an enrolled,
+non-standalone account they are off (so "the device is not an archive" stays
+true for Path B) unless a later decision lets a project enable them (open
+point 4). Neither is automatic, neither goes to a cloud service by the app,
+and each is recorded in the on-device log as a kind and a count, never content.
+
+**Export of your own records.** The user exports their own records as **CSV
+or JSON**, one record or a chosen set, through the share sheet.
+
+- *Included:* the interview answers, the consent record (decision, purposes,
+  notice version and hash, mode, time), the offline coding result with its
+  provenance (device UUID, pack and engine versions, process token), and the
+  profile snapshot used at the time.
+- *Excluded:* audio and document images (they are in the backup only), the
+  PIN, the store secret and any key, the backup passphrase, and any other
+  account's data. Aadhaar and VID are already reduced at capture and never
+  re-expanded.
+- *Identifiers:* the user may choose "omit identifiers", which strips the
+  personal-field registry fields (`app/services/pii_field_registry.py`) and
+  the consent notice's covered fields. Whether that option is on by default is
+  open point 5.
+- *Handling:* an export is plaintext by nature, like a printout. The app
+  confirms with a message naming the personal data it contains, writes the file
+  only to its private cache, deletes it when the share ends, and never
+  writes to shared storage on its own.
+
+**Encrypted backup.** One file holding the whole store (interviews,
+attachments, coding results, consent records, profile).
+
+- *Passphrase:* a **user-chosen** passphrase of at least 12 characters, not
+  the PIN, set at each backup. **There is no recovery**: the app, the owner
+  and the server cannot open a backup whose passphrase is lost.
+- *Format:* the store re-keyed under that passphrase with SQLCipher's own key
+  derivation at a high iteration count (so no new format or KDF dependency).
+  A copied live database file is useless on another phone, because its key is
+  Keystore-bound; the backup is not. The exact export call is confirmed by
+  an early spike (plan section 10) before the slice is built.
+- *Saved* through the **share sheet** only. The app does not pick a folder
+  and never uploads.
+- *Restore* works on the same or a new Collect Plus phone, into an unlocked
+  store, in one transaction: it needs the passphrase, imports rows whose ids do
+  not already exist (existing ids are skipped, never overwritten) and marks
+  each restored row with the backup's device UUID so the server can detect the
+  same interview arriving from two phones. A restore never deletes anything.
+  The app offers "back up only what is not yet sent" and says that restoring
+  already-acknowledged cases is pointless.
+- *Warning shown before every export and backup:* "This file contains
+  names, phone numbers, addresses and the stories of real people. Anyone who
+  has the file and (for a backup) the passphrase can read it. Save it only
+  where you control access. Do not send it by WhatsApp, e-mail or any chat
+  app. If you lose the passphrase, nothing can recover the backup. The wipe
+  after five wrong PINs does not protect a file you have already saved."
+
+#### Path C open points
+
+1. Number of days for the standalone age warning and the backup reminder.
+2. Which organisation level the profile's optional org code names.
+3. Whether a standalone user may keep acknowledged records instead of the
+   Path B purge.
+4. Whether a project may enable export and backup for enrolled accounts.
+5. Whether "omit identifiers" is on by default for an export.
+
 ### Pre-release builds
 
 Until decision C4 is settled the app is built unsigned, for development only.
@@ -634,7 +795,9 @@ case-workspace screens and carries the offline WHO ICD-11 / DORIS engine from th
 owner's private spike (`private/icd11-offline-spike`, never committed). It exists
 to profile coding on a phone (bead digitva-hs7e).
 
-- **Experimental, not for interviewers.** It is never uploaded to `/download/android`,
+- **Experimental, not for interviewers.** (Unchanged by Path C: a standalone
+  phone is an owner-controlled pilot phone, owner decision 2026-10-27,
+  `digitva-5bzf`.) It is never uploaded to `/download/android`,
   never pinned in `docker-compose.yml`, and never handed to interviewers. Since the
   owner's decision of 2026-10-25 it may be published as a public GitHub prerelease
   (`collect-plus-release.yml`, arm64 only) and its engine as a release asset
@@ -645,9 +808,14 @@ to profile coding on a phone (bead digitva-hs7e).
   another encrypted store, another URL scheme (`digitvacollectplus`).
 - The plain build is unchanged: it has no engine, no engine assets and no module
   code, and its coding routes still explain that coding is done on the web.
-- Phase A coding screens still call the server for DORIS; the offline engine is
-  exercised by the hidden Settings > "Offline engine check" screen. The masking
-  rules above apply unchanged to the coding screens.
+- Connected (enrolled) coding screens still call the server for DORIS; the
+  offline engine is exercised by the hidden Settings > "Offline engine check"
+  screen and, on a standalone phone (Path C), by on-device coding with the
+  same ICD-11 allowability rules as the server
+  ([DORIS COD Workflow Policy](doris-cod-workflow.md) "Collect Plus offline
+  parity"). Amended 2026-10-27 (`digitva-5bzf`): this replaces "Phase A coding
+  screens still call the server for DORIS". The masking rules above apply
+  unchanged to the connected coding screens.
 
 ## Phone numbers
 
@@ -687,12 +855,16 @@ they are untouched; clearing them on a row that had one is refused.
 | C2 | One device per interviewer, or shared? | **Decided 2026-09-18:** shared, with one encrypted store per interviewer |
 | C3 | Retention ceiling for an unsent interview | **Decided 2026-09-18:** no ceiling; purge only after a confirmed push. Accepted risk recorded above |
 | C4 | Distribution and signing-key custody | ~~Deferred 2026-09-18: unsigned development builds for now; must be settled before the app collects real interviews~~ **Deferred 2026-09-19:** with the native app, not open; decided when that work starts |
+| C5 | Standalone Collect Plus (Path C) | **Decided 2026-10-27** (`digitva-5bzf`): owner-controlled pilot phones only; no retention ceiling with age warning and backup reminders; SmartVA offline out of scope. Open points listed under Path C |
 
 ## References
 
 - [Web Intake Policy](web-intake.md)
 - [Interview Revisions Policy](interview-revisions.md)
 - [Organization Model Policy](organization-model.md)
+- [Offline API Contract](offline-api-contract.md) (standalone push, section 17)
+- [Respondent Consent Notice](respondent-consent-notice-draft.md) (standalone notice)
+- [DORIS COD Workflow Policy](doris-cod-workflow.md) (offline parity)
 - [Access Control Model](access-control-model.md)
 - [Attachment Storage Policy](attachment-storage.md)
 - `docs/planning/who-va-2022-web-intake-plan.md`

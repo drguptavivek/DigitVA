@@ -101,3 +101,20 @@ class SessionRefreshWindowTests(BaseTestCase):
         inner = mock.Mock()
         BearerBlindSessionInterface(inner).regenerate("session")
         inner.regenerate.assert_called_once_with("session")
+
+    def test_unchanged_api_get_never_writes_even_past_window(self):
+        # digitva-x928: an in-flight GET must not revive a session logout ended.
+        session = self._loaded(_user_id="u", _refreshed_at=self.NOW)
+        inner = mock.Mock()
+        with self.app.test_request_context("/api/v1/me/access"):
+            with mock.patch("app.utils.bearer_session.time.time", return_value=self.NOW + 10_000):
+                BearerBlindSessionInterface(inner).save_session(self.app, session, Response())
+        inner.save_session.assert_not_called()
+
+    def test_modified_api_get_still_writes(self):
+        session = self._loaded(_user_id="u", _refreshed_at=self.NOW)
+        session["last_activity_at"] = self.NOW
+        inner = mock.Mock()
+        with self.app.test_request_context("/api/v1/me/access"):
+            BearerBlindSessionInterface(inner).save_session(self.app, session, Response())
+        inner.save_session.assert_called_once()

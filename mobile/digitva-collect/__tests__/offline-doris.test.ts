@@ -262,8 +262,11 @@ describe("save (offline_coding row)", () => {
       reply,
       deviceUuid: "device-1",
       coderProfileUpdatedAt: "2026-10-26T09:00:00.000+05:30",
+      answersSha256: "c".repeat(64),
     });
     expect(row.status).toBe("coded");
+    // Bound to the answers it was coded on (contract 17 coded_answers_sha256).
+    expect(row.answers_sha256).toBe("c".repeat(64));
     expect(row.client_draft_id).toBe("draft-1");
     expect(JSON.parse(row.certificate)).toEqual(CERTIFICATE);
     expect(JSON.parse(row.result!)).toEqual({ status: "completed", result: { code: "BA41.Z", reject: false } });

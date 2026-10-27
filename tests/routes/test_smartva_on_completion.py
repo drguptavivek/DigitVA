@@ -15,6 +15,7 @@ from datetime import UTC, date, datetime, timedelta
 from unittest import mock
 
 import sqlalchemy as sa
+from flask import g
 
 from app import db, limiter
 from app.models import (
@@ -602,9 +603,27 @@ class SmartvaOnCompletionTests(BaseTestCase):
             # Signed out, with a valid token: the rate limiter's key must not need a user.
             with self.client.session_transaction() as sess:
                 sess.clear()
+            # The harness keeps one app context for the whole run, so g
+            # outlives a request: the no-CSRF POST above loaded the coder
+            # into g._login_user (the 401-before-CSRF check reads
+            # current_user), and that cache would answer for this request.
+            # Production pushes a fresh app context, and g, per request.
+            g.pop("_login_user", None)
             self.assertEqual(self.client.post(
                 f"{CODING}/submissions/{va_sid}/smartva", headers=self._csrf_headers(), json={}).status_code, 401)
         delay.assert_not_called()
+
+    def test_run_is_refused_after_a_real_logout(self):
+        _death, va_sid = self._submitted()
+        with mock.patch(DELAY) as delay:
+            self.assertEqual(self._run(va_sid, self.coder_id).status_code, 202)
+            # No g cleanup here: the logout itself must reset the cached user.
+            logout = self.client.post("/vaauth/valogout", headers=self._csrf_headers())
+            self.assertIn(logout.status_code, (200, 302))
+            after = self.client.post(
+                f"{CODING}/submissions/{va_sid}/smartva", headers=self._csrf_headers(), json={})
+        self.assertEqual((after.status_code, after.get_json()["code"]), (401, "unauthorized"))
+        delay.assert_called_once()
 
     def test_run_is_rate_limited_per_user(self):
         _death, va_sid = self._submitted()

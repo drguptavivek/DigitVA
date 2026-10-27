@@ -80,6 +80,7 @@ from app.services import consent_service, smartva_service
 from app.services import death_identifier_service as identifiers_svc
 from app.services import death_identifier_write as identifier_write
 from app.services import device_auth_service as devices
+from app.services import offline_coding_import_service as offline_coding_import
 from app.services import station_config_service as station_config
 from app.services import web_intake_service as intake
 from app.services.authz import resolve_grants
@@ -1448,7 +1449,11 @@ def _finish(held: VaBundlePendingCoding, outcome: str, code: str | None, fields=
 
 def _apply_one_pending(held: VaBundlePendingCoding) -> str:
     """Apply one held result whose case left the not-ready states; returns
-    ``applied``, ``rejected`` or ``pending``. Commits."""
+    ``applied``, ``rejected`` or ``pending``. Commits. A Collect Plus
+    standalone coding (contract section 17) is imported by its own service:
+    no station, no DORIS reprocessing."""
+    if offline_coding_import.is_offline_hold(held):
+        return offline_coding_import.apply_held(held)
     actor = db.session.get(VaUsers, held.actor_user_id)
     record = dict(held.result)
     draft = db.session.scalar(

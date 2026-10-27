@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-23
+last_updated: 2026-10-27
 ---
 
 # Offline API Contract v1
@@ -607,6 +607,21 @@ phone question, so the register is the only place the phone travels.
   consent and writes no informant fields, with no fallback to a default
   notice: 422 `consent_notice_unavailable` ("This project has no consent
   notice yet, so informant details cannot be recorded offline.").
+- **Exception: the bundled standalone notice (owner decision 2026-10-27,
+  `digitva-5bzf`).** The "no silent fallback" and "strict capture" rules above
+  stay for every provisioned project and every enrolled account. The one
+  exception is a Collect Plus phone used without a server (Path C), which
+  records consent against the notice **bundled in the app**, generated from
+  `app/services/consent_notice_seed.py` (same purpose codes, item 7 included).
+  The exception is bounded: it applies only to the unenrolled standalone
+  account, never to an enrolled account or a provisioned project; the exact
+  text shown, its hash, language and purposes are stored with the consent;
+  the push (section 17) carries the text snapshot and the server validates it
+  there; and if the bundled notice is missing or fails its hash the phone
+  behaves as with no notice (covered fields locked empty, no interview with
+  informant details). See
+  [Respondent Consent Notice](respondent-consent-notice-draft.md) "Standalone
+  notice".
 - Notice version choice compares `version` as an integer.
 - A `client_id` is never reused for different content; a correction is a new
   record with `supersedes_client_id`.
@@ -736,11 +751,11 @@ HTTP shape: `{"error", "code"}` (+ `fields`). Codes a device can receive:
 | --- | --- |
 | 400 | `invalid_request` (malformed; on `PUT .../identifiers` also a rule refusal with `fields`) |
 | 401 | `unauthorized`, `device_invalid`, `invalid_credentials`, `refresh_reused`, `session_revoked`, `session_ended`, `session_expired`, `refresh_invalid` |
-| 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant` |
+| 403 | `forbidden`, `project_forbidden`, `terms_required`, `device_session_required`, `email_unverified`, `maintenance`, `device_revoked`, `no_interviewer_grant`, `device_mismatch` (standalone push, 17) |
 | 404 | `not_found` |
 | 409 | `conflict` (client id of another user, consent id reuse), `case_closed`, `death_stale`, `case_completed`, `details_pending`, `refresh_retry_race`, `revision_locked`, `case_already_submitted`, `case_state_conflict`; station only: `policy_locked`, `station_coding_not_enabled` (4.3) |
 | 411 / 413 | `length_required`, `payload_too_large` |
-| 422 | `invalid_registration`, `invalid_death`, `invalid_interview`, `answers_hash_required`, `answers_hash_invalid`, `invalid_reason`, `invalid_attempt`, `invalid_visit`; new: `consent_required`, `consent_invalid`, `consent_conflict` (`digitva-gb8w.3`) |
+| 422 | `invalid_registration`, `invalid_death`, `invalid_interview`, `answers_hash_required`, `answers_hash_invalid`, `invalid_reason`, `invalid_attempt`, `invalid_visit`; new: `consent_required`, `consent_invalid`, `consent_conflict` (`digitva-gb8w.3`); standalone push (17): `standalone_invalid`, `offline_coding_invalid` |
 | 429 | `rate_limited` |
 
 Bundle whole-file refusals (bundle spec 5.2, 3.3, 3.4): `payload_too_large`,
@@ -769,6 +784,11 @@ an uploader who may not upload, 409 `conflict` for a bundle still being
 ingested, 413 for a record line or record count over its limit, and the
 per-record `not_ready`, `allocation_exists` or `doris_pending` code on a
 `pending` coding result.
+
+Standalone push coding outcomes (17, in the 2xx reply's `offline_coding`, not
+HTTP errors): `pending` `not_ready`, `applied`, `refused` with
+`coding_grant_required`, `coding_mode_mismatch`, `coded_version_superseded`,
+`not_available` or an allocation code.
 
 A client branches on `code`, never on `error` text, and treats an unknown
 code by its HTTP status class.
@@ -835,7 +855,8 @@ Accepted as the app's own backend. It MUST:
 
 ## 10. Station modes and data protection
 
-- **Standalone (unprovisioned)**: a clearly labelled local **sandbox** with
+- **Standalone (unprovisioned)** (the desktop station; not Collect Plus Path C,
+  whose records are ingestable after enrolment, section 17): a clearly labelled local **sandbox** with
   the editable local roster of 4.1. Its records are never ingestable and
   never remapped (owner decision 2): project, identifier type codes (a local
   `crs_reg_no` / `mccd_cert_no` is not a server code), notice version and
@@ -984,7 +1005,7 @@ number; send a witness name; reuse a client id for other content; canonicalise
 corrections or identifiers under any supervisor role other than the roster's
 `station_supervisor`, or on a closed case; send an attempt, visit, revision,
 or a correction under a non-supervisor acting role in a bundle; record a
-consent withdrawal; send sandbox records; ingest bundles, hold a server
+consent withdrawal; send station sandbox records (Path C records are sent as section 17 says); ingest bundles, hold a server
 private key, or decide anything section 1 gives the central server.
 
 ## 16. Server-side changes we must make
@@ -999,6 +1020,169 @@ private key, or decide anything section 1 gives the central server.
 | `digitva-gb8w.6` | `tests/fixtures/bundles/` vectors; client crate support |
 | `digitva-gb8w.7` | server tests (bundle spec 9) and the bearer-acceptance check of `/coding/allocation` and the workspace read |
 | `digitva-athy` | registration consent on web and Expo, withdrawal on the web, purge emission |
+
+## 17. Standalone push (Collect Plus Path C; owner decision 2026-10-27, `digitva-5bzf`)
+
+Status: `server implemented (digitva-5bzf.6, server half of digitva-5bzf.9;
+uncommitted); app push implemented (digitva-5bzf.7, uncommitted)`. The arrangement is
+[Field Data Collection](field-data-collection.md) "Path C". It is **not** the
+station sandbox of 4.1 and 10: a station sandbox is never ingestable, whereas a
+Path C phone's records are accepted once the phone is enrolled, on the rules
+below.
+
+**Shape (owner decision 2026-10-27, `digitva-5bzf`).** The standalone
+interview goes over the existing `POST /intake/submissions` (3.6), one
+interview per request, a bearer (device) session only, with its offline coding
+in the same call, so the interview and the coding commit together or not at
+all. The body is the 3.6 upload plus:
+
+- `standalone` (required for a standalone origin):
+
+  | Key | Rule |
+  | --- | --- |
+  | `client_device_uuid` | the install UUID sent at enrolment (S3). It must be the bearer session's own device (`device_for_client_uuid`), else 403 `device_mismatch` |
+  | `profile_snapshot` | `{name, designation, facility, country}`, each text up to 200 characters or null; stored as provenance |
+  | `org_code` | a unit code of the project (the facility unit), or null |
+  | `consent` | the standalone consent record below, or null; never sent beside the 5.3 `consent` key (400 `invalid_request`) |
+
+- `offline_coding` (only with `standalone`; alone it is 422
+  `offline_coding_invalid`), the phone's `offline_coding` row:
+
+  | Key | Rule |
+  | --- | --- |
+  | `coded_answers_sha256` | the `answers_sha256` of the answers that were coded |
+  | `device_uuid` | must equal `standalone.client_device_uuid` (else 403 `device_mismatch`) |
+  | `process_token` | `local-<uuid>`, **opaque provenance**, never verified as a server token |
+  | `conclusive_cod` | `"<code> <title>"`; its leading code expression must equal `provenance.antecedent.code` |
+  | `remark` | text up to 2000 characters, or null |
+  | `certificate`, `result`, `codedit_result` | the on-device DORIS certificate and envelopes, stored as imported (objects; `result` and `codedit_result` may be null) |
+  | `certificate_digest`, `result_digest` | local integrity markers (64 hex) or null; never verified |
+  | `provenance` | `{allowability: {rules, release}, antecedent: {code, primary_stem, release, causing_condition_unknown?, age_restriction_confirmation?}}`; the confirmation is the six-key record of `record_final_cod_flags` |
+  | `pack_versions` | at most 20 `{name: version}` texts (allowability pack, WHO files, engine) |
+
+  A malformed object refuses the whole upload with 422
+  `offline_coding_invalid` (the phone keeps both); `standalone` with 422
+  `standalone_invalid`.
+
+**Standalone consent record** (`standalone.consent`, S7,
+`mobile/digitva-collect/src/standaloneConsent.ts`): `{envelope, notice_text,
+bundle_version, bundle_sha256}`. `envelope` is the 5.3 consent object whose
+`notice_version_id` is `standalone-<notice_sha256>`. The server checks
+`sha256(notice_text) == envelope.notice_sha256` (UTF-8, the exact text sent),
+`notice_version_id`, a language with a bundled notice, and that
+`bundle_sha256` is on the platform allowlist
+(`consent_service.STANDALONE_BUNDLE_SHA256`: the bundle generated from the
+current `consent_notice_seed.py`; a previous hash is added, never removed, when
+the seed changes). It then stores the text once per (project, language, hash)
+as an append-only notice version with `source = standalone`, the seed's
+purposes and modes and the default covered fields, audited
+(`standalone_notice_stored`), and validates the envelope against it as any
+5.3 consent: every purpose answered, item 7 (`narrative_automated_processing`)
+honoured as answered. A standalone version is never served in
+`GET /intake/consent-config` nor listed in Project Setup. Any failure is 422
+`consent_invalid` and nothing is stored: unknown text is refused, not trusted.
+A consent failure is terminal and visible on the phone, never a reopen loop.
+
+**Idempotency (owner decision 2026-10-27, `digitva-5bzf`).** The key is
+`(client_device_uuid, client_draft_id)` with `answers_sha256`; duplicate
+pushes are safe.
+
+| Push | Result |
+| --- | --- |
+| Same device, same draft id, same `answers_sha256` | 200, the first result; nothing written again (the coding too); `offline_coding` reports the held coding's status |
+| Same device, same draft id, different hash | the existing later-version-wins rule of 3.6, and history-only once coding is finished (`kept: server`, `locked: true`, [Interview Revisions](interview-revisions.md)). A coding still `pending` for the earlier answers is replaced by this push's coding when it codes the answers now kept, else refused `coded_version_superseded` at once |
+| Same draft id, **different** device (a backup restored on a second phone) | 409 `conflict`, never a new case |
+| `offline_coding.coded_answers_sha256` not equal to the interview's `answers_sha256` (the coding is stale) | the interview is accepted, the coding is **not** applied (`refused`, `coded_version_superseded`), the case enters the normal coding queue |
+
+**Reply.** The 3.6 reply plus, when `offline_coding` was sent,
+`offline_coding: {status, code}`:
+
+| `status` | `code` | Meaning |
+| --- | --- | --- |
+| `pending` | `not_ready` | received and held; the server imports it once attachments and SmartVA are done |
+| `applied` | null | imported as the coder's final |
+| `refused` | `coding_grant_required` | the account holds no `coder` grant that codes on the project (the self-coding grant included) |
+| `refused` | `coding_mode_mismatch` | the project is not unmasked DORIS on ICD-11 |
+| `refused` | `coded_version_superseded` | stale coding (above) |
+| `refused` | `not_available` | no case of its own (a superseded copy), or the account is gone |
+| `refused` | an allocation code (`forbidden`, ...) | the import could not take the coder's allocation (scope, language, coding gates) |
+
+`pending` is an acknowledgement of receipt: the phone may delete the
+interview and its coding row together on a 2xx with `offline_coding` present,
+whatever the status. Every refusal leaves the interview in the normal coding
+queue.
+
+**Provenance stored (owner decision 2026-10-27, `digitva-5bzf`).** On the
+interview's draft meta (`standalone`): the device UUID claim, the profile
+snapshot, the org code and whether it matched, the process token and the pack
+versions. On the imported final: `cod_entry_mode_snapshot.coding_origin =
+collect_plus_offline` and `offline` (device UUID, process token, pack
+versions, allowability rules and release, local digests, profile snapshot);
+`icd11_provenance.conclusive` in the server's shape (code, title, release,
+linearization and foundation URI from the local MMS row, `codeinfo_uri` null,
+`primary_stem`, `coding_origin`, the device's causing-condition flag and age
+confirmation, and `allowability_disagreement` when the server disagrees). The
+device UUID is a client claim, not authentication; the bearer is the credential
+and the server never trusts the UUID for access.
+
+**What the server does with offline coding (owner decision 2026-10-27,
+`digitva-5bzf`).**
+
+1. **No DORIS re-run, no WHO call.** The result is stored as imported. This
+   differs from the station bundle path
+   (`bundle_ingest_service._station_doris_fields`), which still re-runs DORIS;
+   that path is unchanged. The coding is held (`va_bundle_pending_coding`,
+   `result.origin = collect_plus_offline`) and the bundle applier
+   (`apply_pending_coding`, Celery) imports it once the case is
+   `ready_for_coding`.
+2. **Allowability is re-applied** from the local `mas_icd11_mms` policy
+   columns (the rules of `validate_icd11_mms_coding_value_for_submission`; a
+   cluster's primary stem is the device's when it is one of the cluster's
+   stems, since only WHO codeinfo names the causing condition). Disagreement
+   codes: `primary_stem_mismatch`, `release_mismatch`, `not_selectable`
+   (chapter 22, not selectable or unknown), `sex_conflict`, `age_unconfirmed`
+   (an age conflict with no confirmation of that code),
+   `causing_condition_flag_invalid`. A flagged result is never dropped or
+   rewritten.
+3. **State.** The case lands as **coded** (`coder_finalized`), counted as the
+   pushing coder's final, with the normal recode window. A disagreement sends
+   it to `reviewer_eligible` at once (the recode window skipped): reviewer
+   selection has no sampling rate, so "forced review" is that every flagged
+   case is in the reviewer pool immediately. See
+   [Coding Workflow State Machine](coding-workflow-state-machine.md)
+   "Imported offline final".
+4. **Who may push coding.** An account holding a `coder` grant that codes on
+   the project (in a self-coding project, that grant is the self-coding
+   grant; the sign-in QR is allowed for these grants,
+   [Sign-in by Mobile Number](mobile-sign-in.md) section 8). From an account
+   without one, the interview is accepted and the coding is refused
+   `coding_grant_required`; the case enters the normal coding queue.
+
+**Routing.** `standalone.org_code` names a live unit of the project that the
+pushing interviewer may name: the interview starts in that unit and routes
+there (`form_field`). An unmatched code, or none, starts the interview without
+a unit (the one exception to "a unit must always be named" in a project with
+a tree) and the existing rule applies: the form mapping fallback, else the
+project's unrouted queue ([Organization Model](organization-model.md)). The
+code is never guessed from free text.
+
+**Audit.** In `va_submissions_auditlog`: `final cod imported from collect plus
+offline`, `offline coding allowability disagreement: <codes>`, `offline coding
+refused (<code>)`; the standard release and supersede rows; workflow events
+with reasons `offline_coding_imported` and `offline_coding_disagreement_review`.
+In `map_consent_audit`: `standalone_notice_stored`.
+
+**Load.** One interview per request (2 MB body cap, certificate and results
+included), attachments by the existing per-file `PUT`, resumable with backoff.
+
+**Open points.**
+
+1. The single-call shape (above) was chosen over a sibling endpoint for
+   atomicity; the owner has not signed it separately from decisions 1 to 8.
+2. An unrouted standalone case in a project with a tree is not codeable by a
+   unit-scoped coder until a data manager routes it, so its coding may be
+   refused at import with the allocation's code.
+3. The `expo-client.md` follow-up edit (S5b).
 
 ## Change log
 
@@ -1042,3 +1226,14 @@ private key, or decide anything section 1 gives the central server.
   `station_config_expired` (422) when `created_at` is after the named
   config's `expires_at` (bundle spec 5.2); a superseded, unexpired config is
   still accepted (8).
+- 2026-10-27: Path C standalone Collect Plus (owner decision, `digitva-5bzf`):
+  new section 17 (standalone push, idempotency, provenance, no DORIS re-run,
+  allowability re-applied, coded with normal reviewer sampling), an exception
+  to the "no hardcoded fallback" rule of 5.6, and clarifications to 10 and
+  15 that the station sandbox stays non-ingestable.
+- 2026-10-27: section 17 server built (`digitva-5bzf.6`, server half of
+  `digitva-5bzf.9`): final wire names (`standalone`, `offline_coding`, the
+  standalone consent record), reply `offline_coding {status, code}`, codes
+  `device_mismatch`, `standalone_invalid`, `offline_coding_invalid`,
+  `coding_grant_required`, held import, disagreement codes and forced review
+  (open points 1, 3, 4 and 5 resolved); notice versions gain `source`.

@@ -1,5 +1,6 @@
 import { requestClientJson, type ClientCsrf } from "./api";
 import type { Db } from "./drafts";
+import { getStandaloneConsentNotice } from "./standaloneConsent";
 
 export type ConsentMode = "spoken" | "tap" | "signed";
 export type LegacyConsentMode = ConsentMode | "tapped";
@@ -264,52 +265,6 @@ export function selectActiveNoticeVersion(
   return [...pool].sort((a, b) => compareNoticeVersions(b, a))[0] ?? null;
 }
 
-const SANDBOX_EN_TEXT =
-  "We are sorry for your loss. Before we write down your name, phone number or address, please read or listen to how this information is used under the Digital Personal Data Protection Act, 2023.\n\n" +
-  "**Why we ask for your details:**\n" +
-  "1. To record the death and conduct the Verbal Autopsy interview.\n" +
-  "2. To contact you if a health worker needs to schedule or follow up on the visit.\n" +
-  "3. For trained physicians to assign a cause of death (without seeing your name or phone).\n" +
-  "4. For anonymised public-health and government mortality statistics.\n\n" +
-  "**Your rights:** You may refuse to share your contact details (the death record and interview can still proceed without them), and you may withdraw your consent or ask for your contact details to be erased at any time.";
-
-const SANDBOX_HI_TEXT =
-  "आपके दुःख में हम सहभागी हैं। आपका नाम, फ़ोन नंबर या पता लिखने से पहले कृपया जान लें कि डिजिटल व्यक्तिगत डेटा संरक्षण अधिनियम (DPDP Act, 2023) के अंतर्गत इस जानकारी का उपयोग कैसे किया जाएगा।\n\n" +
-  "आप अपनी संपर्क जानकारी देने से मना कर सकते हैं और किसी भी समय अपनी सहमति वापस ले सकते हैं।";
-
-const SANDBOX_PURPOSES: ConsentPurposeSpec[] = [
-  {
-    code: "cause_of_death_coding",
-    label: "Assign cause of death (physicians see clinical answers only, not my contact details)",
-    required: true,
-  },
-  {
-    code: "contact_followup",
-    label: "Contact me by phone or visit for interview scheduling and follow-up",
-    required: true,
-  },
-  {
-    code: "record_and_interview",
-    label: "Record the death and conduct the verbal autopsy interview",
-    required: true,
-  },
-  {
-    code: "research_sharing",
-    label: "Optional: Share de-identified clinical data in approved health research repositories",
-    required: false,
-  },
-  {
-    code: "sms_whatsapp_messages",
-    label: "Optional: Send appointment or follow-up messages by SMS / WhatsApp",
-    required: false,
-  },
-  {
-    code: "statistical_reports",
-    label: "Include de-identified data in public-health and government mortality reports",
-    required: true,
-  },
-];
-
 /**
  * Built-in consent config ONLY for the unprovisioned standalone sandbox (`projectId === "1"`).
  * Contract Section 5.6: Provisioned projects MUST NOT fall back to hardcoded defaults.
@@ -318,30 +273,11 @@ export function sandboxProjectConsentConfig(): ProjectConsentConfig {
   return {
     project_id: SANDBOX_PROJECT_ID,
     consent_required: true,
-    notice_versions: [
-      {
-        notice_version_id: "00000000-0000-4000-8000-000000000001",
-        version: 1,
-        language: "en",
-        text: SANDBOX_EN_TEXT,
-        text_sha256: computeUtf8Sha256HexSync(SANDBOX_EN_TEXT),
-        purposes: SANDBOX_PURPOSES.map((p) => ({ ...p })),
-        covered_fields: [...INFORMANT_PII_FIELDS, "Id10007"],
-        allowed_modes: ["spoken", "tap", "signed"],
-        witness_allowed: true,
-      },
-      {
-        notice_version_id: "00000000-0000-4000-8000-000000000002",
-        version: 1,
-        language: "hi",
-        text: SANDBOX_HI_TEXT,
-        text_sha256: computeUtf8Sha256HexSync(SANDBOX_HI_TEXT),
-        purposes: SANDBOX_PURPOSES.map((p) => ({ ...p })),
-        covered_fields: [...INFORMANT_PII_FIELDS, "Id10007"],
-        allowed_modes: ["spoken", "tap", "signed"],
-        witness_allowed: true,
-      },
-    ],
+    // The bundled notice generated from the server seed (same purpose codes, item 7 included), placeholders unfilled.
+    notice_versions: ["en", "hi"].flatMap((language) => {
+      const notice = getStandaloneConsentNotice(language);
+      return notice ? [notice] : [];
+    }),
     contacts: {
       deletion: {
         email: "privacy-support@digitva.org",

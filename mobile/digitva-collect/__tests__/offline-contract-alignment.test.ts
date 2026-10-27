@@ -59,11 +59,12 @@ describe("Offline API Contract v1 frontend alignment", () => {
       const cfg = sandboxProjectConsentConfig();
       const notice = selectActiveNoticeVersion(cfg, "en")!;
       const purposes = buildSortedPurposeChoices(notice, {
-        statistical_reports: true,
+        statistics_reports: true,
         record_and_interview: true,
         contact_followup: true,
         cause_of_death_coding: true,
-        sms_whatsapp_messages: false,
+        messages: false,
+        narrative_automated_processing: false,
         research_sharing: true,
       });
       const env: ConsentRecordEnvelope = {

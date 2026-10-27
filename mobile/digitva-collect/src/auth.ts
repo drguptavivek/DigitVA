@@ -28,6 +28,7 @@ import { APP_VERSION } from "./appVersion";
 import { accessCapabilities, ApiError, AUTH_API, parseAccessSummary, requestJson, requestRaw, type AccessSummary, type RawApiResponse } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./authErrors";
 import type { UnlockResult } from "./interviewerDb";
+import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
 import { attachmentMediaKind } from "./workspace/media/path";
 
@@ -60,6 +61,8 @@ export interface Account {
   terms_required?: boolean;
   /** A global bearer gate keeps local work but blocks collection until fixed. */
   access_blocked?: "maintenance";
+  /** Path C: a local account with no server session; sync, token refresh and polling skip it. */
+  standalone?: boolean;
 }
 
 interface Tokens {
@@ -236,6 +239,12 @@ async function storeEnrolment(server: string, body: EnrolReply): Promise<Device>
   return device;
 }
 
+/** Collect Plus only: the install UUID the server binds to the device row; {} on the plain build and the web. */
+async function clientDeviceUuid(): Promise<{ client_device_uuid?: string }> {
+  const identity = await getOrCreatePlusDeviceIdentity();
+  return identity ? { client_device_uuid: identity.uuid } : {};
+}
+
 /** POST /enroll and keep the device record. */
 export async function enrolDevice(
   server: string,
@@ -250,6 +259,7 @@ export async function enrolDevice(
       device_name: deviceName,
       platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
+      ...(await clientDeviceUuid()),
     },
   });
   return storeEnrolment(server, body);
@@ -331,6 +341,7 @@ export async function redeemSignInQr(
       device_name: deviceName,
       platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
+      ...(await clientDeviceUuid()),
     },
   });
   await storeEnrolment(server, body);
@@ -366,6 +377,24 @@ function saveTokens(userId: string, t: Tokens): Promise<void> {
     refresh_expires_at: t.refresh_expires_at,
   };
   return writeJson(tokensKey(userId), tokens);
+}
+
+/**
+ * Path C: keep a local standalone account (no server, no tokens). Idempotent: an existing entry is returned
+ * unchanged. Collection access is granted locally because nothing can refresh it.
+ */
+export async function createStandaloneAccount(userId: string, name: string): Promise<Account> {
+  const accounts = await loadAccounts();
+  const existing = accounts.find((a) => a.user_id === userId);
+  if (existing) return existing;
+  const account: Account = {
+    user_id: userId, name, standalone: true,
+    collection_access: true, registration_access: false, registered_deaths_access: false,
+    coding_access: false, reviewing_access: false,
+  };
+  await writeJson(ACCOUNTS_KEY, [...accounts, account]);
+  for (const listener of accountListeners) listener();
+  return account;
 }
 
 /** Wipe one interviewer: database, tokens, account entry. Nobody else's. */
@@ -412,7 +441,8 @@ async function revokeInterviewer(userId: string): Promise<SessionRevokedError> {
 
 /** Sign out: tell the server (best effort, offline is fine), then wipe. */
 export async function signOut(userId: string): Promise<void> {
-  try {
+  const standalone = (await loadAccounts()).find((a) => a.user_id === userId)?.standalone;
+  if (!standalone) try {
     await authedRequest(userId, `${AUTH_API}/sessions/current`, {
       method: "DELETE",
     });

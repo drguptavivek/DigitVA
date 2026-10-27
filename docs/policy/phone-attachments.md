@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Phone Attachments
@@ -69,8 +69,11 @@ is the phone's side. Server caps and accepted types are not restated here:
      when it is deleted, and at start-up (`wipeMediaCache`). A failed
      pre-scale, recorder stop or cancel deletes its own plain file at once. Only
      paths that resolve (decoded, `.`/`..` collapsed) inside the app cache are
-     ever deleted; anything else is left alone. Backups are off (`allowBackup: false`), so none
-     of this leaves the phone.
+     ever deleted; anything else is left alone. Operating-system backups are off (`allowBackup: false`), so none
+     of this leaves the phone. (Clarified 2026-10-27, `digitva-5bzf`: this is
+     the OS backup. A Collect Plus standalone user may make a passphrase-encrypted
+     backup that includes attachments, see `field-data-collection.md` Path C
+     "Export and backup".)
    - The answer holds `{ id, uri: "who-va-attachment:<uuid>", name, mimeType,
      size, ... }` exactly as the web engine writes it. The id is the UUID the
      server uses as `client_attachment_id`. A file path is never in an answer.

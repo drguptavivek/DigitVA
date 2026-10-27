@@ -86,6 +86,7 @@ export function PinBoxes({
             secureTextEntry={!shown}
             autoFocus={autoFocus && index === 0}
             autoComplete="off"
+            importantForAutofill="no"
             autoCorrect={false}
             selectTextOnFocus
             value={value[index] ?? ""}

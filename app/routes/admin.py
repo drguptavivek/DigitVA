@@ -449,6 +449,7 @@ def _serialize_project(project, form_type_codes=None):
         "web_intake_intake_note": project.web_intake_intake_note,
         "web_intake_death_summary_enabled": project.web_intake_death_summary_enabled,
         "web_intake_medical_records_enabled": project.web_intake_medical_records_enabled,
+        "web_intake_equity_enabled": project.web_intake_equity_enabled,
     }
 
 
@@ -463,6 +464,14 @@ def _active_language_codes():
             )
         ).all()
     )
+
+
+_WEB_INTAKE_BOOL_FIELDS = (
+    "web_intake_show_guidance",
+    "web_intake_death_summary_enabled",
+    "web_intake_medical_records_enabled",
+    "web_intake_equity_enabled",
+)
 
 
 def _web_intake_form_option_updates(payload):
@@ -533,7 +542,7 @@ def _web_intake_form_option_updates(payload):
             updates[field] = list(dict.fromkeys(raw))
 
     if "web_intake_show_guidance" in payload:
-        updates["web_intake_show_guidance"] = bool(payload["web_intake_show_guidance"])
+        updates["web_intake_show_guidance"] = payload["web_intake_show_guidance"]
 
     if "web_intake_form_type_id" in payload:
         form_type_id, error = _validated_web_form_type_id(
@@ -555,14 +564,22 @@ def _web_intake_form_option_updates(payload):
             return {}, "web_intake_intake_note must be text or null."
 
     if "web_intake_death_summary_enabled" in payload:
-        updates["web_intake_death_summary_enabled"] = bool(
-            payload["web_intake_death_summary_enabled"]
-        )
+        updates["web_intake_death_summary_enabled"] = payload[
+            "web_intake_death_summary_enabled"
+        ]
 
     if "web_intake_medical_records_enabled" in payload:
-        updates["web_intake_medical_records_enabled"] = bool(
-            payload["web_intake_medical_records_enabled"]
-        )
+        updates["web_intake_medical_records_enabled"] = payload[
+            "web_intake_medical_records_enabled"
+        ]
+
+    if "web_intake_equity_enabled" in payload:
+        updates["web_intake_equity_enabled"] = payload["web_intake_equity_enabled"]
+
+    # A string such as "false" must not coerce to True: the toggles take real booleans only.
+    for field in _WEB_INTAKE_BOOL_FIELDS:
+        if field in updates and not isinstance(updates[field], bool):
+            return {}, f"{field} must be true or false."
 
     return updates, None
 

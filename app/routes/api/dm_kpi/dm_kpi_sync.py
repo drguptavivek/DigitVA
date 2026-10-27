@@ -3,8 +3,7 @@
 Blueprint prefix: ``/api/v1/analytics/dm-kpi/sync``
 
 KPIs served:
-  C-02  Last Sync Run Status
-  C-03  Sync Error Rate
+  C-03  Sync Error Rate (C-02 last run status merged)
   C-13  Sync Latency (ODK → App) — P50/P90/P99
   C-14  Attachment Health
   D-SH-01  Attachment Download Completeness
@@ -45,7 +44,6 @@ from datetime import datetime, timedelta, timezone
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
@@ -67,97 +65,95 @@ def _system_level_refused():
     return api_error("System-level sync figures need a project or site grant.", status_code=403)
 
 
+def compute_c03(scope, period=None, by: str | None = None) -> dict:
+    """C-03 Sync Error Rate, with C-02 (last run status) merged in.
+
+    Error or partial runs over all ``va_sync_runs`` started in the window, as a
+    rate. *period* is ``"7d"`` (the default) or ``"cumulative"``; the headline
+    ``rate`` / ``runs`` / ``errors`` follow it and both windows are returned
+    (``error_rate_7d``, ``runs_7d``, ``error_rate_cumulative``,
+    ``runs_cumulative``). ``latest_run`` / ``last_status`` are the most recent
+    run (C-02). System level: ``va_sync_runs`` has no per-site rows, so *scope*
+    is not used to filter; the caller refuses a DM without a direct grant.
+    """
+    if by is not None:
+        raise ValueError(f"C-03 has no by={by!r}")
+    if period not in (None, "7d", "cumulative"):
+        raise ValueError(f"C-03 has no period {period!r}")
+    window = period or "7d"
+
+    latest = db.session.execute(
+        sa.text("""
+            SELECT status, started_at, finished_at,
+                   records_added, records_updated, records_skipped
+            FROM va_sync_runs
+            ORDER BY started_at DESC
+            LIMIT 1
+        """)
+    ).mappings().first()
+    latest_data = None
+    if latest:
+        latest_data = {
+            "status": latest["status"],
+            "started_at": latest["started_at"].isoformat() if latest["started_at"] else None,
+            "finished_at": latest["finished_at"].isoformat() if latest["finished_at"] else None,
+            "records_added": latest["records_added"],
+            "records_updated": latest["records_updated"],
+            "records_skipped": latest["records_skipped"],
+        }
+
+    counts = db.session.execute(
+        sa.text("""
+            SELECT
+                COUNT(*) FILTER (WHERE started_at >= :cutoff) AS runs_7d,
+                COUNT(*) FILTER (WHERE started_at >= :cutoff
+                                   AND status IN ('error', 'partial')) AS errors_7d,
+                COUNT(*) AS runs_all,
+                COUNT(*) FILTER (WHERE status IN ('error', 'partial')) AS errors_all
+            FROM va_sync_runs
+        """),
+        {"cutoff": datetime.now(timezone.utc) - timedelta(days=7)},
+    ).mappings().first()
+
+    def pct(total, errors):
+        return round(errors / total * 100, 1) if total > 0 else 0.0
+
+    runs_7d, errors_7d = counts["runs_7d"] or 0, counts["errors_7d"] or 0
+    runs_all, errors_all = counts["runs_all"] or 0, counts["errors_all"] or 0
+    runs, errors = (runs_7d, errors_7d) if window == "7d" else (runs_all, errors_all)
+    return {
+        "period": window,
+        "rate": pct(runs, errors),
+        "runs": runs,
+        "errors": errors,
+        "last_status": latest_data["status"] if latest_data else None,
+        "latest_run": latest_data,
+        "error_rate_7d": pct(runs_7d, errors_7d),
+        "error_rate_cumulative": pct(runs_all, errors_all),
+        "runs_7d": {"total": runs_7d, "errors": errors_7d},
+        "runs_cumulative": {"total": runs_all, "errors": errors_all},
+    }
+
+
 @bp.get("/status")
 @role_required("data_manager", "admin")
 def sync_status():
     """System-level, so direct grants only (module docstring, digitva-38lp).
 
-KPIs: C-02 (Last Sync Run Status) + C-03 (Sync Error Rate).
+    KPI: C-03 (Sync Error Rate) with C-02 (Last Sync Run Status) merged in; a
+    thin wrapper over ``compute_c03``. ``?period=7d|cumulative`` picks the
+    headline ``rate``; both windows and ``latest_run`` are always returned.
 
-    C-02 — Last Sync Run Status:
-      Definition: status, started_at, finished_at from most recent
-                  va_sync_runs row.
-      Source: va_sync_runs ORDER BY started_at DESC LIMIT 1.
-      Time frame: Snapshot.
-      Scope: System-level (no DM scoping — va_sync_runs is not per-site).
-
-    C-03 — Sync Error Rate:
-      Numerator: COUNT of va_sync_runs where status IN ('error', 'partial')
-                 and started_at ≥ window_start.
-      Denominator: COUNT of all va_sync_runs where started_at ≥ window_start.
-      Rate: N / D × 100.
-      Time frames: 7d, cumulative.
+    C-03: error or partial runs / all runs started in the window × 100.
+    C-02: status, started_at, finished_at of the most recent run.
     """
-    if not dm_scope().direct:
+    scope = dm_scope()
+    if not scope.direct:
         return _system_level_refused()
-
-    def compute():
-        # C-02: latest sync run
-        latest = db.session.execute(
-            sa.text("""
-                SELECT status, started_at, finished_at,
-                       records_added, records_updated, records_skipped
-                FROM va_sync_runs
-                ORDER BY started_at DESC
-                LIMIT 1
-            """)
-        ).mappings().first()
-
-        latest_data = None
-        if latest:
-            latest_data = {
-                "status": latest["status"],
-                "started_at": latest["started_at"].isoformat() if latest["started_at"] else None,
-                "finished_at": latest["finished_at"].isoformat() if latest["finished_at"] else None,
-                "records_added": latest["records_added"],
-                "records_updated": latest["records_updated"],
-                "records_skipped": latest["records_skipped"],
-            }
-
-        # C-03: sync error rate for 7d and cumulative
-        now = datetime.now(timezone.utc)
-        seven_days_ago = now - timedelta(days=7)
-
-        rate_7d = db.session.execute(
-            sa.text("""
-                SELECT
-                    COUNT(*) AS total,
-                    COUNT(*) FILTER (WHERE status IN ('error', 'partial')) AS errors
-                FROM va_sync_runs
-                WHERE started_at >= :cutoff
-            """),
-            {"cutoff": seven_days_ago},
-        ).mappings().first()
-
-        rate_cumulative = db.session.execute(
-            sa.text("""
-                SELECT
-                    COUNT(*) AS total,
-                    COUNT(*) FILTER (WHERE status IN ('error', 'partial')) AS errors
-                FROM va_sync_runs
-            """)
-        ).mappings().first()
-
-        def _pct(total, errors):
-            t = total or 0
-            e = errors or 0
-            return round(e / t * 100, 1) if t > 0 else 0.0
-
-        return {
-            "latest_run": latest_data,
-            "error_rate_7d": _pct(rate_7d["total"], rate_7d["errors"]),
-            "error_rate_cumulative": _pct(rate_cumulative["total"], rate_cumulative["errors"]),
-            "runs_7d": {
-                "total": rate_7d["total"] or 0,
-                "errors": rate_7d["errors"] or 0,
-            },
-            "runs_cumulative": {
-                "total": rate_cumulative["total"] or 0,
-                "errors": rate_cumulative["errors"] or 0,
-            },
-        }
-
-    return jsonify(cached_kpi("sync_status", compute))
+    period = request.args.get("period") or None
+    if period not in (None, "7d", "cumulative"):
+        return api_error("Unsupported 'period'; use '7d' or 'cumulative'.", status_code=400)
+    return jsonify(cached_kpi("sync_status", lambda: compute_c03(scope, period)))
 
 
 @bp.get("/latency")

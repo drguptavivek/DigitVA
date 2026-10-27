@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # API v1 Reference
@@ -107,6 +107,22 @@ Codes now returned by the blueprints that used to answer without one:
 | workflow | `not_found`, `forbidden` |
 | analytics, analytics/dm-kpi/sync | `server_error`, `forbidden` |
 | organization, profile | unchanged (`invalid_request`, `forbidden`, `not_found`, `conflict`, `unavailable`, `reauth_required`, `cookie_session_required`) |
+
+## DM KPI outcomes and critical path (`/api/v1/analytics/dm-kpi`, `app/routes/api/dm_kpi/dm_kpi_outcomes.py`, `dm_kpi_critical_path.py`)
+
+`data_manager` or `admin`; results are scoped by `dm_scope()` and cached with `cached_kpi`. An unsupported `by` answers 400 `invalid_request`.
+
+| Route | KPI | Notes |
+| --- | --- | --- |
+| `GET /outcomes/unknown-cause` | O-UNK | `?by=icd` lists the codes inside the unknown section |
+| `GET /outcomes/disagreement` | D-QG-09 | WHO 2026 bucket comparison; `/coders/disagreement` returns the same body |
+| `GET /outcomes/female-share` | EQ-01 | per peer unit; `?by=unit` |
+| `GET /outcomes/female-final-gap` | EQ-02 | |
+| `GET /outcomes/final-cause-coverage` | AD-FCOD | `?by=sex` |
+| `GET /outcomes/register-coverage` | AD-COV | `{"applicable": false}` outside death-register projects |
+| `GET /critical-path/?days=` | D-WF-02 | `days` 1 to 90, default 30; 400 otherwise |
+
+Policy: `docs/policy/kpis.md`.
 
 ## Sign-in (`/api/v1/auth`, `app/routes/api/auth.py`)
 
@@ -299,8 +315,8 @@ projects. 201 `{va_sid, actiontype: "vapickcoding"}`; 200 `varesumecoding` when
 the caller already holds this case. Errors `{error, code}` (a 409 for a case
 outside the pool also carries `workflow_state`): 404 `not_found`; 403
 `forbidden` (not a self-coding project, not the caller's own submitted case, or
-outside their coding scope), 403 `allocation_exists` (another active coding
-allocation); 409 `not_ready` (attachments or SmartVA still pending: the client
+outside their coding scope); 409 `allocation_exists` (another active coding
+allocation), 409 `not_ready` (attachments or SmartVA still pending: the client
 retries), 409 `held_by_another` (a coder holds it), 409 `not_available` (any
 other state), 409 `conflict` (retired or confirmed duplicate). The browser
 submit screen and the interviewer worklist call it and open `/coding/resume`.

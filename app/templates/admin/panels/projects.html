@@ -190,6 +190,10 @@
               <input class="form-check-input" type="checkbox" id="project-web-intake-medical-records-input" role="switch" checked>
               <label class="form-check-label small" for="project-web-intake-medical-records-input">Medical records: offer medical-record fields</label>
             </div>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" id="project-web-intake-equity-input" role="switch">
+              <label class="form-check-label small" for="project-web-intake-equity-input">Equity: ask residence type, social group, vulnerable groups, health coverage and the refusal profile</label>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label small mb-1" for="project-web-intake-intake-note-input">Welcome note</label>
@@ -654,6 +658,7 @@
   var formTypeInput = document.getElementById('project-web-intake-form-type-input');
   var deathSummaryInput = document.getElementById('project-web-intake-death-summary-input');
   var medicalRecordsInput = document.getElementById('project-web-intake-medical-records-input');
+  var equityInput = document.getElementById('project-web-intake-equity-input');
   var intakeNoteInput = document.getElementById('project-web-intake-intake-note-input');
   var intakeNoteStateEl = document.getElementById('project-web-intake-intake-note-state');
   var intakeNoteDefaultBtn = document.getElementById('project-web-intake-intake-note-default-btn');
@@ -936,7 +941,8 @@
       // null is "use the default note"; "" is "no welcome screen".
       web_intake_intake_note: _intakeNoteIsDefault ? null : intakeNoteInput.value,
       web_intake_death_summary_enabled: deathSummaryInput.checked,
-      web_intake_medical_records_enabled: medicalRecordsInput.checked
+      web_intake_medical_records_enabled: medicalRecordsInput.checked,
+      web_intake_equity_enabled: equityInput.checked
     };
   }
 
@@ -1000,6 +1006,7 @@
     formTypeInput.value = '';
     deathSummaryInput.checked = true;
     medicalRecordsInput.checked = true;
+    equityInput.checked = false;
     intakeNoteInput.value = '';
     _intakeNoteIsDefault = true;
     syncIntakeNoteState();
@@ -1021,6 +1028,7 @@
       ? '' : (project.web_intake_form_type_id || '');
     deathSummaryInput.checked = project.web_intake_death_summary_enabled !== false;
     medicalRecordsInput.checked = project.web_intake_medical_records_enabled !== false;
+    equityInput.checked = project.web_intake_equity_enabled === true;
     _intakeNoteIsDefault = (project.web_intake_intake_note === null
       || project.web_intake_intake_note === undefined);
     intakeNoteInput.value = project.web_intake_intake_note || '';

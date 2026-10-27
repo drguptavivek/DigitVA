@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-10-27
 ---
 
 # DORIS COD Workflow Policy
@@ -201,6 +201,35 @@ prefilled.
 
 Working notes and the question-by-question evidence:
 `docs/kb/DORIS/who-va-2022-to-doris.md`.
+
+## Collect Plus offline parity (owner decision 2026-10-27, `digitva-5bzf`)
+
+A standalone Collect Plus phone ([Field Data Collection](field-data-collection.md)
+"Path C") codes on the device with the offline DORIS engine. It must not
+accept a code the server would refuse.
+
+- **Same rules from a versioned data pack.** The device applies the server's
+  ICD-11 allowability rules from a **versioned data pack** and not from its
+  own copy of the logic: chapter 22 and every non-selectable item are
+  refused in search and in save, `KD3B.Z` is allowed, the sex block refuses,
+  the age restriction asks for the same confirmation (who, when, DORIS warning
+  stored), the bucket stem of a `/` cluster is its primary stem, and the
+  picker offers "Causing condition not known". Offline search returns the flat
+  MMS list, so the pack filters its results on the device.
+- **The pack.** Generated server-side from the policy columns of
+  `mas_icd11_mms` (`is_coding_selectable`, `age_group_selectable`,
+  `sex_selectable`), with a content hash and the migration revision it came
+  from, and shipped with the app. A pytest drift test asserts the committed pack equals the database at head, so a
+  future policy migration cannot ship without a refreshed pack. Each saved
+  offline result records the pack version and the engine and WHO file hashes.
+  Phone and server DORIS versions move together.
+- **Server re-check on import.** The server re-applies the same rules when the
+  result is pushed and flags any disagreement; it does not re-run DORIS; the
+  case lands coded with normal reviewer sampling
+  ([Offline API Contract](offline-api-contract.md) section 17). Local digests
+  are integrity markers, not WHO canonical digests, and are never used for
+  server verification.
+- **SmartVA** is not available offline for now; this section covers DORIS only.
 
 ## Public Help proof
 

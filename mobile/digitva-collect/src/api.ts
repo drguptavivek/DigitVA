@@ -740,6 +740,15 @@ function signalAccessStale(status: number, code: string | undefined, path: strin
   }
 }
 
+/**
+ * True when the cookie session is dead: 401, or 400 `csrf_failed` (older servers answered a dead session
+ * with that before auth). Callers reach it only after requestJson's one token refresh already failed,
+ * so retrying cannot help; they pause and ask the user to sign in (digitva-fvbc).
+ */
+export function isSignedOutError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || (error.status === 400 && error.code === "csrf_failed"));
+}
+
 let csrfRefresh: Promise<unknown> | undefined;
 
 /** Re-read /me/access once for a fresh token; concurrent csrf_failed refusals share the one request. */

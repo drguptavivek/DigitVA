@@ -294,6 +294,8 @@ export default function InterviewScreen() {
   // The last autosave or leave-save failed; the leave dialog then says the answers could not be saved.
   const saveFailedRef = useRef(false);
   const [busy, setBusy] = useState(false);
+  // The cookie session died mid-interview: autosave is paused until the user signs in again (digitva-fvbc).
+  const [signedOut, setSignedOut] = useState(false);
   const [translationFallback, setTranslationFallback] = useState(false);
   // The draft's own form could not be recovered and it now uses the current one.
   const [formAdopted, setFormAdopted] = useState(false);
@@ -565,6 +567,11 @@ export default function InterviewScreen() {
             if (!isCurrent()) return;
             saveFailedRef.current = true;
             setMessage(interviewErrorText(error));
+          },
+          onSignedOut: () => {
+            if (!isCurrent()) return;
+            saveFailedRef.current = true;
+            setSignedOut(true);
           }
         });
     if (nextStore instanceof ServerDraftStore) await nextStore.load(nextDraftId);
@@ -1036,8 +1043,24 @@ export default function InterviewScreen() {
   }, [store, updateLiveAnswers]);
   const handleDraftError = useCallback((error: unknown) => {
     saveFailedRef.current = true;
+    if (store instanceof ServerDraftStore && store.isSignedOut()) return;
     setMessage(revision ? revisionErrorText(error) : browserErrorText(error));
-  }, [revision]);
+  }, [revision, store]);
+
+  const resumeAfterSignIn = useCallback(async () => {
+    if (!(store instanceof ServerDraftStore)) return;
+    setBusy(true);
+    try {
+      await store.resume();
+      saveFailedRef.current = false;
+      setSignedOut(false);
+      setMessage("");
+    } catch (error) {
+      setMessage(store.isSignedOut() || error instanceof ClientApiError ? t("sessionEndedStillOut") : browserErrorText(error));
+    } finally {
+      setBusy(false);
+    }
+  }, [store]);
 
   return (
     <WebShell
@@ -1134,6 +1157,17 @@ export default function InterviewScreen() {
           ) : null}
           {translationFallback ? <Text style={styles.muted}>{t("questionnaireEnglishFallback")}</Text> : null}
           {formAdopted ? <Text style={styles.muted} testID="form-adopted-notice">{t("formDefinitionAdopted")}</Text> : null}
+          {signedOut ? (
+            <View testID="session-ended-prompt" accessibilityRole="alert" style={{ gap: 8 }}>
+              <Text style={styles.error}>{t("sessionEndedKept")}</Text>
+              <Button
+                kind="primary"
+                label={t("signInAgainAction")}
+                onPress={() => { if (loadedBootstrap?.links.login && typeof window !== "undefined") window.open(loadedBootstrap.links.login, "_blank"); }}
+              />
+              <Button kind="secondary" loading={busy} label={t("sessionEndedResume")} onPress={() => void resumeAfterSignIn()} />
+            </View>
+          ) : null}
           {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
           {consentPending ? (
             consentGate ? (
@@ -1196,6 +1230,7 @@ export default function InterviewScreen() {
               draftId={draftId}
               draftStore={store}
               autoSaveDraftOnChange
+              autoSaveDraftIntervalMs={signedOut ? false : undefined}
               onDraftController={setController}
               onChange={handleFormChange}
               onDraftSaved={handleDraftSaved}

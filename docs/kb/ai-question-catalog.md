@@ -15,7 +15,7 @@ with no model call and no quota. Generated from
 `app/data/ai_question_catalog.json`; regenerate with
 `flask ai-catalog generate`, never edit this page by hand.
 
-Source: hand-written catalog (digitva-qwvt), operational questions added 2026-10-27; comparative, staff and coder questions 2026-10-27. Questions: 94.
+Source: hand-written catalog (digitva-qwvt), operational questions added 2026-10-27; comparative, staff and coder questions 2026-10-27; kpi_<id> entries for the KPI registry 2026-10-27 (digitva-r5s0). Questions: 103.
 
 ## How many cases are there in total?
 
@@ -767,4 +767,76 @@ Key `cause_mix_site_vs_project`. Share of coded deaths per WHO cause section at 
 
 ```sql
 WITH s AS (SELECT site_id, authoritative_who_bucket_section AS section, sum(n) AS deaths FROM ai_cube WHERE authoritative_who_bucket_section IS NOT NULL GROUP BY site_id, authoritative_who_bucket_section) SELECT site_id, section, deaths, round(100.0 * deaths / NULLIF(sum(deaths) OVER (PARTITION BY site_id), 0), 1) AS site_pct, round(100.0 * sum(deaths) OVER (PARTITION BY section) / NULLIF(sum(deaths) OVER (), 0), 1) AS all_sites_pct FROM s ORDER BY site_id, deaths DESC
+```
+
+## O-UNK: what share of final causes is in the Cause of death unknown section?
+
+Key `kpi_o_unk`. KPI O-UNK, unknown cause share: authoritative finals whose WHO 2026 VA cause section is 'Cause of death unknown', as a percentage of authoritative finals, per project. The rate is left out under 20 finals.
+
+```sql
+SELECT project_id, sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL) AS finals, sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Cause of death unknown') AS unknown, CASE WHEN sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE authoritative_who_bucket_section = 'Cause of death unknown') / sum(n) FILTER (WHERE authoritative_who_bucket_section IS NOT NULL), 1) END AS unknown_pct FROM ai_cube GROUP BY project_id ORDER BY project_id
+```
+
+## EQ-01: what is the female share of cases in each district, against the project?
+
+Key `kpi_eq_01`. KPI EQ-01, female share against peers: female cases as a percentage of cases with sex known (female or male), per district (level-1 unit), with the project share. Unknown sex is excluded (see EQ-03). The share is left out under 20 cases.
+
+```sql
+WITH d AS (SELECT project_id, org_l1_name, sum(n) FILTER (WHERE lower(sex) = 'female') AS female, sum(n) FILTER (WHERE lower(sex) IN ('female', 'male')) AS known FROM ai_cube WHERE org_l1_name IS NOT NULL GROUP BY project_id, org_l1_name) SELECT org_l1_name, project_id, female, known, CASE WHEN known >= 20 THEN round(100.0 * female / known, 1) END AS female_pct, round(100.0 * sum(female) OVER (PARTITION BY project_id) / NULLIF(sum(known) OVER (PARTITION BY project_id), 0), 1) AS project_pct FROM d ORDER BY female_pct NULLS LAST
+```
+
+## EQ-02: do female cases get a final cause as often as male cases?
+
+Key `kpi_eq_02`. KPI EQ-02, female-male final cause gap: per project, the share of female coding-pool cases with an authoritative final cause, the same for male cases, and the gap in percentage points (female minus male). Unknown sex is excluded. The register half (reported deaths with an interview) is not in the cube.
+
+```sql
+SELECT project_id, sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) AS female_cases, sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) AS male_cases, CASE WHEN sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager') AND authoritative_source IS NOT NULL) / sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')), 1) END AS female_final_pct, CASE WHEN sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager') AND authoritative_source IS NOT NULL) / sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')), 1) END AS male_final_pct, CASE WHEN sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) >= 20 AND sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager') AND authoritative_source IS NOT NULL) / sum(n) FILTER (WHERE lower(sex) = 'female' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) - 100.0 * sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager') AND authoritative_source IS NOT NULL) / sum(n) FILTER (WHERE lower(sex) = 'male' AND workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')), 1) END AS gap_points FROM ai_cube GROUP BY project_id ORDER BY project_id
+```
+
+## EQ-03: what share of cases has sex or age unknown, by project?
+
+Key `kpi_eq_03`. KPI EQ-03, sex or age unknown: cases whose sex is not female or male, or whose age band is missing or unknown, as a percentage of all cases per project. It guards the validity of EQ-01 and EQ-02.
+
+```sql
+SELECT project_id, sum(n) AS cases, sum(n) FILTER (WHERE sex IS NULL OR lower(sex) NOT IN ('female', 'male')) AS sex_unknown, sum(n) FILTER (WHERE analytics_age_band IS NULL OR analytics_age_band = 'unknown') AS age_unknown, CASE WHEN sum(n) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE sex IS NULL OR lower(sex) NOT IN ('female', 'male') OR analytics_age_band IS NULL OR analytics_age_band = 'unknown') / sum(n), 1) END AS either_unknown_pct FROM ai_cube GROUP BY project_id ORDER BY project_id
+```
+
+## AD-FCOD: what share of codeable cases at each site has a final cause?
+
+Key `kpi_ad_fcod`. KPI AD-FCOD, final cause coverage: coding-pool cases (consent given, not marked not codeable by the data manager) with an authoritative final cause, as a percentage, per site. The rate is left out under 20 cases.
+
+```sql
+SELECT site_id, sum(n) FILTER (WHERE workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) AS codeable, sum(n) FILTER (WHERE workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager') AND authoritative_source IS NOT NULL) AS with_final, CASE WHEN sum(n) FILTER (WHERE workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager') AND authoritative_source IS NOT NULL) / sum(n) FILTER (WHERE workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')), 1) END AS coverage_pct FROM ai_cube GROUP BY site_id ORDER BY site_id
+```
+
+## C-05: what share of cases is not codeable, by coder and by data manager?
+
+Key `kpi_c_05`. KPI C-05, not codeable: cases marked not codeable by the coder or by the data manager, as a percentage of all synced cases, per project. The rate is left out under 20 cases.
+
+```sql
+SELECT project_id, sum(n) AS cases, sum(n) FILTER (WHERE workflow_state = 'not_codeable_by_coder') AS by_coder, sum(n) FILTER (WHERE workflow_state = 'not_codeable_by_data_manager') AS by_data_manager, CASE WHEN sum(n) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE workflow_state IN ('not_codeable_by_coder', 'not_codeable_by_data_manager')) / sum(n), 1) END AS not_codeable_pct FROM ai_cube GROUP BY project_id ORDER BY project_id
+```
+
+## C-06: what share of interviews cannot be analysed, by project?
+
+Key `kpi_c_06`. KPI C-06, not analysable: interviews that cannot be analysed (consent refused, respondent unavailable, partially completed) as a percentage of all synced cases, per project. The rate is left out under 20 cases.
+
+```sql
+SELECT project_id, sum(n) AS cases, sum(n) FILTER (WHERE workflow_state = 'consent_refused') AS not_analysable, CASE WHEN sum(n) >= 20 THEN round(100.0 * sum(n) FILTER (WHERE workflow_state = 'consent_refused') / sum(n), 1) END AS not_analysable_pct FROM ai_cube GROUP BY project_id ORDER BY project_id
+```
+
+## MO-01: what is the cause mix of authoritative finals by WHO 2026 cause section?
+
+Key `kpi_mo_01`. KPI MO-01, cause mix: authoritative finals by WHO 2026 VA cause section, with the share of all finals.
+
+```sql
+SELECT authoritative_who_bucket_section, sum(n) AS finals, round(100.0 * sum(n) / NULLIF(sum(sum(n)) OVER (), 0), 1) AS share_pct FROM ai_cube WHERE authoritative_who_bucket_section IS NOT NULL GROUP BY authoritative_who_bucket_section ORDER BY finals DESC
+```
+
+## D-LC-01: in which languages are the interviews?
+
+Key `kpi_d_lc_01`. KPI D-LC-01, submission language distribution: cases with consent given, grouped by narration language (capital letters ignored), with the share of those cases.
+
+```sql
+SELECT narration_language, sum(n) AS cases, round(100.0 * sum(n) / NULLIF(sum(sum(n)) OVER (), 0), 1) AS share_pct FROM ai_cube WHERE narration_language IS NOT NULL AND workflow_state <> 'consent_refused' GROUP BY narration_language ORDER BY cases DESC
 ```

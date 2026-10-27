@@ -3,120 +3,108 @@
 ## Start here
 
 Read `AGENTS.md`, `docs/current-state/README.md` and the relevant policy.
-Owner focus: DigitVA web app, training and Android. Product branding is DigitVA.
-Preserve unrelated `scripts/loadtest/restore.sh` and orientation files.
-Use Docker for commands. Owner authorized local Docker web exports for diagnosis
-on 2026-10-25; published releases/APKs remain CI-built. HMR: localhost:8051.
-Owner accepts roughly 1.5 s slower cold direct interview; do not implement the
-proposed startup-overlap optimization. Owner's DORIS target stays 1.1.176 pending
-an official WHO image approved for upgrade. Preserve the immutable WHO image
-digest; verify the runtime DLL version rather than trusting the Compose comment.
+Owner focus: DigitVA web app, training, Android (Collect) and Collect Plus
+standalone. Product branding is DigitVA. Use Docker for commands. HMR:
+localhost:8051. Preserve unrelated `scripts/loadtest/restore.sh` and the
+orientation files under `docs/manuscript/`.
+Large change set of 2026-10-27 is uncommitted until the owner gives the go
+(see CHANGELOG.md). Owner's DORIS target stays 1.1.176 pending an official
+WHO image; preserve the immutable WHO image digest and verify the runtime DLL
+version, not the Compose comment. Owner accepts about 1.5 s slower cold direct
+interview; do not implement the startup-overlap optimization.
+Migration head: `f3d9b5c7a2e4` (run `flask db heads` before adding one).
 
 ## Ranked next steps
 
-1. `digitva-5mbn`: remaining web acceptance and a separately approved
-   staging window. Follow docs/current-state/split-production-deploy.md's
-   matched web release sequence. Published expo-web-v2026.10.25.2 from source
-   1892f085ddb5ca41ca6ee1c7d0449ef0470f8b9d; CI40200511607 all jobs passed.
-   App tarball SHA256:
-   63c9db9b987498a9c85c061278e46ebdbdb3c7093c319820349ae41b571a45f0.
-   Both archive checksums, matching WHO/app metadata and strict profile verified
-   after download. digitva-9f8n closed. Compose pins remain .1; next commit app
-   release pins, then build the server image of that pin commit. Do not deploy the web
-   source SHA with old pins and expect new browser code. Remaining acceptance:
-   physical device, complete interview submission and mid-transfer interruption;
-   the blocked-chunk retry and offline edit/reconnect/save/reload passed Chrome.
-2. `digitva-e1t9`: intermittent ICD picker backdrop without panel; logs did not
-   prove a root cause. `digitva-lo67`: empty text child toast remains untraced.
-3. `digitva-dv58`: WHO vendor Docker serial Vitest933/935; draft-save-order
-   failure repeats on unchanged8b79f0b5 baseline; navigation passes both isolated
-   reruns. Build/typecheck/entrypoint regressions pass. No assertions skipped.
-4. `digitva-bx43`: optional DORIS hints only, discuss first; no mandatory fields.
-   `digitva-ve8n`: Expo login idea, discussion only. TanStack Router discussed:
-   keep Expo Router this release; web-only shell migration needs its own plan.
-
-5. WHO ICD-11 call 2026-10-29: deck https://claude.ai/artifact/Y6g1epS6LgVieFQg8mtJcL
+1. **Owner answers pending:** the 11 S0 defaults (`digitva-5bzf`), the case-list
+   "Pending Coding" wording (6 states), and the S5a readings (forced review
+   skips the recode window; an unknown bundle hash is refused).
+2. Collect Plus next: `digitva-5bzf.11` (bundled translations) and `.12`
+   (pin definition version); related `digitva-tb0j`. S5b landed but is
+   tested only against a mocked network: check one adoption push against
+   dev. Audio on tree projects can stall at the file step (draft endpoint
+   needs a unit).
+3. **Device checks** (Collect Plus and phone fixes, none done on hardware):
+   - encrypted backup restored on a second phone (`digitva-5bzf.8`);
+   - the share sheet saving export and backup;
+   - the cluster codeinfo on the device engine (`digitva-5bzf.3`);
+   - the `digitva-owbz` revise reference on 0.3.10;
+   - `digitva-e1t9` on staging after the web export;
+   - the `digitva-46xk` revise layout on a small phone.
+4. `digitva-5mbn`: remaining web acceptance and a separately approved staging
+   window; follow `docs/current-state/split-production-deploy.md`. Published
+   expo-web-v2026.10.25.2 (source 1892f085d); Compose pins remain .1: commit
+   release pins, then build the server image of that pin commit. Remaining:
+   physical device, complete interview submission, mid-transfer interruption.
+5. `digitva-fb5`: label-code fix, 16 rows need a speaker (owner decision below).
+   `digitva-e1t9` (blank ICD picker, retry added, root cause unproven),
+   `digitva-owbz` (partial), `digitva-lo67` (empty text child toast untraced).
+6. WHO ICD-11 call 2026-10-29: deck https://claude.ai/artifact/Y6g1epS6LgVieFQg8mtJcL
    (private; share before the call). Ask WHO for written licence 2.3/2.4
-   confirmation; record it in `docs/policy/icd11-local-api-runtime.md`.
-   Deck reflects the 2026-10-27 allowability changes.
-   ICD-11 allowability shipped in code (not yet on staging; deploy freeze):
-   before deploying migrations b8d4f2a6c1e9 and c5e8a2f4b7d1 run `digitva-77ti`
-   (read-only count of saved finals on chapter 22 or KD3B*).
-6. `digitva-qwvt` AI questions (policy `docs/policy/ai-analytics-questions.md`,
-   state `docs/current-state/ai-analytics-questions.md`): committed;
-   live-tested with Claude. Follow-ups:
-   - `ai_interviewer` from `va_data_collector` (owner: the interviewer is the
-     data collector);
-   - a level-type column, so staffing by sub-centre or CHC works across
-     level wording;
-   - the senility ICD breakdown inside "Cause of death unknown";
-   - the intake source dimension;
-   - equity dimensions, gender and district first;
-   - ECharts in place of Chart.js;
-   - KPI and label fixes;
-   - question-bank marking.
-   
+   confirmation; record in `docs/policy/icd11-local-api-runtime.md`. Deck
+   reflects the 2026-10-27 allowability changes.
+7. `digitva-qwvt` AI questions follow-ups (policy
+   `docs/policy/ai-analytics-questions.md`): `ai_interviewer` from
+   `va_data_collector`; level-type column; senility ICD breakdown inside
+   "Cause of death unknown"; intake source dimension; equity dimensions
+   (gender, district first); ECharts for Chart.js; question-bank marking.
    Gemini needs Vertex settings in `.env`.
-   - **Before staging:** the migrating DB user needs CREATEROLE and `SET ON
-     PARAMETER temp_file_limit`; then set `TYPESENSE_API_KEY` and run
-     `flask ai-search reindex`.
-   - **Dev rule:** never run memory, disk or lock bomb SQL against dev
-     Postgres.
-   - **Flaky test:** `test_org_unit_coding_gates.py::test_daily_limit_counted_once_across_gated_subtree`
-     failed once at the midnight-UTC boundary and passed on rerun. Check how
-     it computes "today".
-7. **After that** (each needs a migration):
-   - `digitva-r9lk`: equity form extension;
-   - `digitva-v1oi`: geography codes, area type and maps;
-   - `digitva-6383`: per-project AI keys;
-   - `digitva-lep4`: ODK credentials to the post-quantum envelope;
-   - `digitva-1835`: DHS links.
-   
-   Waiting on owner sign-off: `digitva-sxg9`, the narrative AI policy draft.
+8. Correction loop `digitva-ydnl` (policy only), `digitva-bx43` (DORIS
+   hints, discuss first), `digitva-ve8n` (discussion only), `digitva-hs7e`,
+   `digitva-knh9`, `digitva-342x`, `digitva-oux5`, Hindi review.
+9. Policies recorded, built later (each may need a migration): `digitva-r9lk`
+    equity web extension beyond S1, `digitva-v1oi` geography codes and boundary
+    packs, `digitva-6383` per-project AI keys, `digitva-lep4` ODK credentials to
+    the post-quantum envelope, `digitva-1835` DHS links, `digitva-fixy` and
+    `.1` interview support edge model, `digitva-13gs` EAVA and InterVA5,
+    `digitva-sxg9` / `.1` narrative AI and document vision-language model,
+    `digitva-2476` DuckDB in the next version.
 
-## Runtime and release caveats
+## Open owner decisions
 
-Staging digitvav3 (i-0b2caee6465bfcac1, ap-south-1, profile digitva, /data/DigitVA)
-last verified image d7f8ac86e, web expo-web-v2026.10.25.1; no deployment for this
-work. Recheck live state before a future deployment. Migration head at acceptance
-c3f9a1d7e2b4. Preserve APK0.3.10 override
-DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted. DORIS_CALL_LOG=1 remains on.
-TRN01: single-stage, masked_cod_required=False, NQA=False, standard intake welcome
-and seeded DPDP consent enabled (`docs/policy/training-demo-project.md`); discuss
-before changing. Three-tier Inside vs Outside health-system PII model, 7-level
-default hierarchy (`State / Province` at depth 1), and parent-unit deactivation
-choice are live in policy and backend (`docs/policy/access-control-model.md`,
-`docs/policy/organization-model.md`).
-Use scripts/deploy-staging.sh with the full CI-built server SHA and its printed
-rollback. Previous rollback reference73561675a must be refreshed from live host.
+- The 11 S0 defaults of `digitva-5bzf.1` are not confirmed by the owner.
+- Case-list "Pending Coding" wording.
+- S5a interpretations (`digitva-5bzf.6`): forced review skips the recode
+  window; an unknown bundle hash is refused.
+- `digitva-8kud`: SmartVA consent-"no" row with age data (Python scores it,
+  Rust refuses); which behaviour is right.
+- `digitva-fb5`: 16 translation rows need a speaker to decide.
+- Machine Hindi for the equity questions: accept as is or review first.
+- `digitva-sxg9` narrative AI policy draft and consent item 7 await sign-off
+  and legal review.
 
-The public WHO package is a verified CI build input. Browser WHO chunks remain
-part of the complete matched app archive, lazy-loaded or warmed after eligible
-login. Never deploy the WHO archive as an independent frontend or cache APIs/
-answers/private definitions. Preserve canonical clinical rules and native entrypoints.
-Updates wait for old tabs to close; don't force worker activation mid-interview.
-Closed work: digitva-k2s1, digitva-k2s1.1, digitva-bc56, digitva-ydgv, digitva-idvp,
-digitva-eiym, digitva-ewa5, digitva-2yo5, digitva-0v8f, digitva-9qoq.
-Evidence and limits are in `docs/current-state/expo-connectivity-profile.md`;
-history is in CHANGELOG.md.
+## Approved, not started
 
-Local HMR /app redirects to root (Expo57 dev base URL behavior). The old8053
-comparison export is obsolete; use8051 HMR for development. Profiling containers
-are temporary and removed at closeout. Local traces and downloaded CI artifacts
-remain under /private/tmp/digitva-web-profile-20261025 and
-/private/tmp/digitva-paired-ci-40198746587. No HMR timing claims.
-Owned synthetic fixture: death1cdfce1e-e2ea-41e2-8fae-9265bbe3ac6b,
-training draftb869db8f-25f9-45bf-bc88-ccc865e7b4fb (test age changed to99);
-normal profiling draft1edc4153-3e5b-4f70-8f56-1db4f95b3e0c.
-Do not alter other testadmin drafts. Screenshot of exact CI artifact:
-/private/tmp/digitva-ci-training-recovery.png. Saved answers survived reload;
-Save and leave returned to /app/training/interview without identifier warnings.
+Collect Plus translations, pinning (above); epic decisions 1 to 8
+accepted 2026-10-27 (`digitva-5bzf` notes). Screenshot allowance removal
+after 2026-10-30 (`digitva-om65`).
 
-## Other queued work
+## Caveats still true
 
-Collect Plus/phaseB digitva-hs7e, DORIS demo parity digitva-knh9, screenshot
-allowance removal after2026-10-30 digitva-om65, P1s digitva-fvbc/owbz/46xk/342x,
-mentor view digitva-oux5, Hindi review remain queued. KEM001 has24 attachment
-sync-pending submissions. Consent notices await legal review. Unattached Docker
-volumes need explicit inventory/approval before deletion. SmartVA Redis batch
-claiming assumes one Celery worker; strengthen before increasing concurrency.
+- **Staging freeze:** nothing from 2026-10-27 is deployed. Staging digitvav3
+  (i-0b2caee6465bfcac1, ap-south-1, profile digitva, /data/DigitVA) last
+  verified image d7f8ac86e, web expo-web-v2026.10.25.1. Recheck live state
+  before deploying; use `scripts/deploy-staging.sh` with the full CI-built
+  server SHA and its printed rollback (refresh the old rollback from the host).
+- **Before staging:**
+  - the migrating DB user needs CREATEROLE and `SET ON PARAMETER
+    temp_file_limit`;
+  - set `TYPESENSE_API_KEY` and run `flask ai-search reindex`;
+  - drain, or expect the "unregistered task" log for, queued
+    `recompute_kpi_days_for_submission` messages (the task is deleted);
+  - run `digitva-77ti` (read-only count of saved finals on chapter 22 or
+    `KD3B*`) before migrations `b8d4f2a6c1e9` and `c5e8a2f4b7d1`.
+- **Dev rule:** never run memory, disk or lock bomb SQL against dev Postgres.
+- **Flaky test:** `test_org_unit_coding_gates.py::test_daily_limit_counted_once_across_gated_subtree`
+  failed once at the midnight-UTC boundary; check how it computes "today".
+- Keep APK 0.3.10 override `DIGITVA_ANDROID_APK_DIR=/app/private/android-hosted`; `DORIS_CALL_LOG=1` stays on.
+- TRN01: single-stage, masked_cod_required=False, NQA=False, standard intake
+  welcome and seeded DPDP consent enabled
+  (`docs/policy/training-demo-project.md`); discuss before changing.
+- The public WHO package is a CI build input; never deploy the WHO archive as
+  an independent frontend or cache APIs, answers or private definitions.
+  Updates wait for old tabs to close; do not force worker activation.
+- `digitva-dv58`: WHO vendor Docker Vitest failures (draft-save-order repeats
+  on an unchanged baseline); no assertions skipped.
+- KEM001: 24 attachment sync-pending submissions. Unattached Docker volumes
+  need approval before deletion. SmartVA Redis claiming assumes one worker.

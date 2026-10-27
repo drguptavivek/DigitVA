@@ -10,7 +10,6 @@ import hashlib
 import json
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from unittest.mock import patch
 
 import sqlalchemy as sa
 
@@ -343,11 +342,9 @@ class InterviewChoiceTests(BaseTestCase):
         before_id = before.payload_version_id
         self.assertEqual(before.payload_data["SubmitterID"], self.alice_id)
 
-        with patch("app.services.case_transition_service._recompute_kpi_rows_after_commit") as recount:
-            response = self._choose(self.dm_id, death_id, bela_draft.draft_id)
+        response = self._choose(self.dm_id, death_id, bela_draft.draft_id)
 
         self.assertEqual(response.status_code, 200, response.get_json())
-        recount.assert_called_once_with(va_sid)
         case = response.get_json()["case"]
         self.assertEqual((case["va_sid"], case["state"]), (va_sid, "submitted"))
         self.assertIs(case["other_complete_interview"], True)  # Alice's is now the candidate

@@ -115,3 +115,18 @@ describe("PinBoxes", () => {
     start.mockRestore();
   });
 });
+
+describe("PIN inputs stay out of the autofill service (digitva-jish)", () => {
+  it("every box opts out of autofill", () => {
+    const { create } = require("react-test-renderer");
+    const { PinBoxes: Boxes } = require("../src/PinBoxes");
+    let tree: any;
+    require("react-test-renderer").act(() => { tree = create(<Boxes value="" onChange={() => undefined} label="PIN" />); });
+    const boxes = tree.root.findAll((n: any) => /^pin-box-/.test(n.props.testID ?? "") && typeof n.type === "string");
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const box of boxes) {
+      expect(box.props.importantForAutofill).toBe("no");
+      expect(box.props.autoComplete).toBe("off");
+    }
+  });
+});

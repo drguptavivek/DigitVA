@@ -18,7 +18,7 @@ let registration = Promise.resolve();
 export async function runNativeNotificationTask(): Promise<void> {
   const accounts = await loadAccounts();
   for (const account of accounts) {
-    if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+    if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
     await refreshAccessSummary(account.user_id);
     await runNotificationPoll(account.user_id, async () => {
       const expectedEpoch = notificationStateGeneration(account.user_id);

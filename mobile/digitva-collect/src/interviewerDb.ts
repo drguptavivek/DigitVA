@@ -15,7 +15,8 @@
  * held no real interviews, and opening a plaintext file with a key fails
  * exactly like a wrong PIN, so it would otherwise burn the attempts.
  */
-import { deleteDatabaseAsync, openDatabaseAsync } from "expo-sqlite";
+import { File } from "expo-file-system";
+import { defaultDatabaseDirectory, deleteDatabaseAsync, openDatabaseAsync } from "expo-sqlite";
 
 import { countUnsentWork, migrate, type Db } from "./drafts";
 import { wipeMediaCache } from "./mediaFiles";
@@ -41,7 +42,9 @@ export class StoreLockedError extends Error {
 export type UnlockResult =
   | { ok: true }
   /** `revoked`: the PIN was right, but access was removed and nothing was left unsent, so the store was wiped. */
-  | { ok: false; failures: number; wipe: boolean; revoked?: true };
+  | { ok: false; failures: number; wipe: boolean; revoked?: true }
+  /** The Keystore secret survives but the database file is gone: nothing is opened or counted; the caller offers a reset. */
+  | { ok: false; failures: 0; wipe: false; storeMissing: true };
 
 const unlocked = new Map<string, Db>();
 
@@ -51,6 +54,21 @@ export const isUnlocked = (userId: string) => unlocked.has(userId);
 export const anyUnlocked = () => unlocked.size > 0;
 /** An open store for device-level records that belong to no one interviewer (the error log); undefined while locked. */
 export const firstUnlockedDb = (): Db | undefined => unlocked.values().next().value;
+
+/**
+ * True only when the database directory is known and the interviewer's file is not in it. Opening a missing
+ * file would create an empty one that the surviving secret keys without error, unlocking an empty store
+ * silently (digitva-jish). Unknown directory or any error counts as present: never block a working unlock.
+ */
+async function dbFileMissing(userId: string): Promise<boolean> {
+  try {
+    if (typeof defaultDatabaseDirectory !== "string" || !defaultDatabaseDirectory) return false;
+    const dir = defaultDatabaseDirectory.startsWith("file://") ? defaultDatabaseDirectory : `file://${defaultDatabaseDirectory}`;
+    return !new File(dir, await fileName(userId)).exists;
+  } catch {
+    return false;
+  }
+}
 
 /** The interviewer's unlocked database; rejects with StoreLockedError while locked. */
 export async function openInterviewerDb(userId: string): Promise<Db> {
@@ -130,6 +148,7 @@ export async function unlockInterviewerDb(userId: string, pin: string): Promise<
   if (unlocked.has(userId)) return { ok: true };
   const secret = await readStoreSecret(userId);
   if (!secret) throw new StoreLockedError();
+  if (await dbFileMissing(userId)) return { ok: false, failures: 0, wipe: false, storeMissing: true };
   const failures = await recordFailedAttempt(userId);
   try {
     const db = await openKeyed(await fileName(userId), buildPassphrase(secret, pin));
@@ -175,4 +194,13 @@ export async function deleteInterviewerDb(userId: string): Promise<void> {
   }
   await forgetStoreKeys(userId);
   wipeMediaCache();
+}
+
+/**
+ * Reset after `storeMissing`: forget the orphaned keys so PIN setup makes a new store. The file is already
+ * gone, so no data is lost here; interviews that were only on this phone were lost with the file.
+ */
+export async function resetMissingStore(userId: string): Promise<void> {
+  if (!(await dbFileMissing(userId))) throw new Error("store_present");
+  await deleteInterviewerDb(userId);
 }

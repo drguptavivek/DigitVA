@@ -1,6 +1,6 @@
 {
  "rule": "app/services/served_form_service.py served_definition: filter_definition over the enabled extensions that are composed-file tags, top-level extensions sorted, then json.dumps(ensure_ascii=False, separators=(',', ':'), sort_keys=True) UTF-8; sha256 of those bytes.",
- "version": "2026081401-7ee547b8e7",
+ "version": "2026081401-65fa41ff53",
  "cases": [
   {
    "name": "none",
@@ -9,7 +9,7 @@
     "intake_screen"
    ],
    "extensions": [],
-   "sha256": "6ed58aac8907affe374a9ee020c17b3c554807c275ae880abe85754a1640d187",
+   "sha256": "47d4edd45d3d3f547292d06538d81f03b80e0fac3c99f5fe054354693c213ac8",
    "bytes": 600030
   },
   {
@@ -20,7 +20,7 @@
    "extensions": [
     "social_autopsy"
    ],
-   "sha256": "6f92205fd48fabb1d75f7b5ef34269fee8b1b2437bc09c48f6984f33f5edc57f",
+   "sha256": "6a77851934518072b58535f4ebb5c3ec6447c0ce6663445855ad27c4bcd8d4b2",
    "bytes": 632016
   },
   {
@@ -41,7 +41,7 @@
     "medical_records",
     "narration_language"
    ],
-   "sha256": "dac0ac8faa6788d7b81627654b546242495cdc22f27102ae2548d5c64904825f",
+   "sha256": "53c7c003d70247bc872a4035011a8f125f5b86644826f090ef8a9e1d60a067ed",
    "bytes": 626277
   },
   {
@@ -52,6 +52,7 @@
     "digitva_core",
     "doris_support_whova_2022",
     "geography",
+    "equity",
     "intake_screen",
     "medical_records",
     "narration_language",
@@ -60,12 +61,13 @@
    "extensions": [
     "abha",
     "death_summary",
+    "equity",
     "medical_records",
     "narration_language",
     "social_autopsy"
    ],
-   "sha256": "670e9e550fed317b5fafbd086029bca6130c10615aad2595c2575ef21ebccd4e",
-   "bytes": 658264
+   "sha256": "abcb18bbdbbd7ac095ba69bb78ec015eafd542ff38fd2754d19a74b7665b66d6",
+   "bytes": 682324
   }
  ]
 }

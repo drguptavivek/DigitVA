@@ -843,6 +843,192 @@
     },
     {
       "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Neonate (under 28 days)",
+            "hi": "नवजात (28 दिन से कम)"
+          },
+          "sourceRow": 0,
+          "value": "neonate"
+        },
+        {
+          "label": {
+            "en": "Child (28 days to 14 years)",
+            "hi": "बच्चा (28 दिन से 14 वर्ष)"
+          },
+          "sourceRow": 0,
+          "value": "child"
+        },
+        {
+          "label": {
+            "en": "15 to 49 years",
+            "hi": "15 से 49 वर्ष"
+          },
+          "sourceRow": 0,
+          "value": "15_49y"
+        },
+        {
+          "label": {
+            "en": "50 to 64 years",
+            "hi": "50 से 64 वर्ष"
+          },
+          "sourceRow": 0,
+          "value": "50_64y"
+        },
+        {
+          "label": {
+            "en": "65 years or older",
+            "hi": "65 वर्ष या अधिक"
+          },
+          "sourceRow": 0,
+          "value": "65_plus"
+        },
+        {
+          "label": {
+            "en": "Unknown",
+            "hi": "अज्ञात"
+          },
+          "sourceRow": 0,
+          "value": "unknown"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {
+        "en": "Record what is already known, or ask only this if the family is willing. Unknown is allowed.",
+        "hi": "जो पहले से पता है वह दर्ज करें, या परिवार राज़ी हो तो केवल यही पूछें। अज्ञात चुन सकते हैं।"
+      },
+      "label": {
+        "en": "Age group of the deceased",
+        "hi": "मृतक का आयु वर्ग"
+      },
+      "listName": "REFUSAL_AGE_GROUP",
+      "name": "refusal_age_group",
+      "order": 586,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "arguments": [
+            {
+              "name": "Id10013",
+              "type": "reference"
+            },
+            {
+              "type": "literal",
+              "value": "no"
+            }
+          ],
+          "name": "selected",
+          "type": "call"
+        },
+        "source": "selected(${Id10013}, 'no')"
+      },
+      "required": false,
+      "sectionPath": [
+        "respondent_backgr"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one REFUSAL_AGE_GROUP",
+      "validation": {
+        "choiceValues": [
+          "neonate",
+          "child",
+          "15_49y",
+          "50_64y",
+          "65_plus",
+          "unknown"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Male",
+            "hi": "पुरुष"
+          },
+          "sourceRow": 0,
+          "value": "male"
+        },
+        {
+          "label": {
+            "en": "Female",
+            "hi": "महिला"
+          },
+          "sourceRow": 0,
+          "value": "female"
+        },
+        {
+          "label": {
+            "en": "Unknown",
+            "hi": "अज्ञात"
+          },
+          "sourceRow": 0,
+          "value": "unknown"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Sex of the deceased",
+        "hi": "मृतक का लिंग"
+      },
+      "listName": "REFUSAL_SEX",
+      "name": "refusal_sex",
+      "order": 587,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "arguments": [
+            {
+              "name": "Id10013",
+              "type": "reference"
+            },
+            {
+              "type": "literal",
+              "value": "no"
+            }
+          ],
+          "name": "selected",
+          "type": "call"
+        },
+        "source": "selected(${Id10013}, 'no')"
+      },
+      "required": false,
+      "sectionPath": [
+        "respondent_backgr"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one REFUSAL_SEX",
+      "validation": {
+        "choiceValues": [
+          "male",
+          "female",
+          "unknown"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
       "constraintMessage": {},
       "control": "system",
       "dataType": "dateTime",
@@ -1254,7 +1440,7 @@
       },
       "listName": "dob_precision",
       "name": "dob_precision",
-      "order": 586,
+      "order": 597,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -1376,7 +1562,7 @@
         "en": "In which month and year was the deceased born?"
       },
       "name": "dob_month_year",
-      "order": 587,
+      "order": 598,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -1513,7 +1699,7 @@
         "en": "In which year was the deceased born?"
       },
       "name": "dob_year",
-      "order": 588,
+      "order": 599,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -3195,6 +3381,99 @@
     },
     {
       "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Scheduled Caste (SC)",
+            "hi": "अनुसूचित जाति (SC)"
+          },
+          "sourceRow": 0,
+          "value": "sc"
+        },
+        {
+          "label": {
+            "en": "Scheduled Tribe (ST), including PVTG",
+            "hi": "अनुसूचित जनजाति (ST), विशेष रूप से कमज़ोर जनजातीय समूह (PVTG) सहित"
+          },
+          "sourceRow": 0,
+          "value": "st"
+        },
+        {
+          "label": {
+            "en": "Other Backward Class (OBC)",
+            "hi": "अन्य पिछड़ा वर्ग (OBC)"
+          },
+          "sourceRow": 0,
+          "value": "obc"
+        },
+        {
+          "label": {
+            "en": "None of these (general)",
+            "hi": "इनमें से कोई नहीं (सामान्य)"
+          },
+          "sourceRow": 0,
+          "value": "general"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {
+        "en": "Ask neutrally. Never infer the answer from name, surname or appearance.",
+        "hi": "तटस्थ रूप से पूछें। नाम, उपनाम या रूप-रंग से उत्तर का अनुमान कभी न लगाएँ।"
+      },
+      "label": {
+        "en": "Which of these groups did the deceased belong to?",
+        "hi": "मृतक इनमें से किस समूह से थे?"
+      },
+      "listName": "SOCIAL_GROUP",
+      "name": "social_group",
+      "order": 588,
+      "readOnly": false,
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one SOCIAL_GROUP",
+      "validation": {
+        "choiceValues": [
+          "sc",
+          "st",
+          "obc",
+          "general",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
       "constraintMessage": {},
       "control": "text",
       "dataType": "string",
@@ -3258,6 +3537,78 @@
       "sourceRow": 74,
       "sourceType": "text",
       "validation": {
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Rural (village)",
+            "hi": "ग्रामीण (गाँव)"
+          },
+          "sourceRow": 0,
+          "value": "rural"
+        },
+        {
+          "label": {
+            "en": "Urban (town or city)",
+            "hi": "शहरी (कस्बा या शहर)"
+          },
+          "sourceRow": 0,
+          "value": "urban"
+        },
+        {
+          "label": {
+            "en": "Urban slum or informal settlement",
+            "hi": "शहरी झुग्गी बस्ती"
+          },
+          "sourceRow": 0,
+          "value": "urban_slum"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Was the place where the deceased usually lived rural, urban or an urban slum?",
+        "hi": "मृतक जहाँ सामान्यतः रहते थे, वह स्थान ग्रामीण था, शहरी था या शहरी झुग्गी बस्ती?"
+      },
+      "listName": "RESIDENCE_TYPE",
+      "name": "residence_type",
+      "order": 589,
+      "readOnly": false,
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one RESIDENCE_TYPE",
+      "validation": {
+        "choiceValues": [
+          "rural",
+          "urban",
+          "urban_slum",
+          "dk"
+        ],
         "constraintMessage": {},
         "dataType": "string",
         "required": false
@@ -3689,6 +4040,1263 @@
       "validation": {
         "constraintMessage": {},
         "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "A person with a disability (physical, sensory, intellectual or psychosocial)",
+            "hi": "दिव्यांग व्यक्ति (शारीरिक, संवेदी, बौद्धिक या मनोसामाजिक)"
+          },
+          "sourceRow": 0,
+          "value": "disability"
+        },
+        {
+          "label": {
+            "en": "Homeless or destitute",
+            "hi": "बेघर या निराश्रित"
+          },
+          "sourceRow": 0,
+          "value": "homeless"
+        },
+        {
+          "label": {
+            "en": "Migrant worker, seasonal or from another region",
+            "hi": "प्रवासी मज़दूर, मौसमी या किसी अन्य क्षेत्र से"
+          },
+          "sourceRow": 0,
+          "value": "migrant"
+        },
+        {
+          "label": {
+            "en": "Internally displaced person, refugee, asylum seeker or stateless",
+            "hi": "आंतरिक रूप से विस्थापित व्यक्ति, शरणार्थी, शरण चाहने वाला या राज्यविहीन"
+          },
+          "sourceRow": 0,
+          "value": "displaced"
+        },
+        {
+          "label": {
+            "en": "Enrolled in the national poverty or food-security programme (AAY or priority household ration card)",
+            "hi": "राष्ट्रीय गरीबी या खाद्य सुरक्षा कार्यक्रम में नामांकित (अंत्योदय (AAY) या प्राथमिकता परिवार राशन कार्ड)"
+          },
+          "sourceRow": 0,
+          "value": "poverty_programme"
+        },
+        {
+          "label": {
+            "en": "None of these",
+            "hi": "इनमें से कोई नहीं"
+          },
+          "sourceRow": 0,
+          "value": "none"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraint": {
+        "ast": {
+          "left": {
+            "left": {
+              "operand": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "none"
+                    }
+                  ],
+                  "name": "selected",
+                  "type": "call"
+                },
+                "operator": "and",
+                "right": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      }
+                    ],
+                    "name": "count-selected",
+                    "type": "call"
+                  },
+                  "operator": ">",
+                  "right": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "type": "binary"
+                },
+                "type": "binary"
+              },
+              "operator": "not",
+              "type": "unary"
+            },
+            "operator": "and",
+            "right": {
+              "operand": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "dk"
+                    }
+                  ],
+                  "name": "selected",
+                  "type": "call"
+                },
+                "operator": "and",
+                "right": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      }
+                    ],
+                    "name": "count-selected",
+                    "type": "call"
+                  },
+                  "operator": ">",
+                  "right": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "type": "binary"
+                },
+                "type": "binary"
+              },
+              "operator": "not",
+              "type": "unary"
+            },
+            "type": "binary"
+          },
+          "operator": "and",
+          "right": {
+            "operand": {
+              "left": {
+                "arguments": [
+                  {
+                    "type": "current"
+                  },
+                  {
+                    "type": "literal",
+                    "value": "ref"
+                  }
+                ],
+                "name": "selected",
+                "type": "call"
+              },
+              "operator": "and",
+              "right": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    }
+                  ],
+                  "name": "count-selected",
+                  "type": "call"
+                },
+                "operator": ">",
+                "right": {
+                  "type": "literal",
+                  "value": 1
+                },
+                "type": "binary"
+              },
+              "type": "binary"
+            },
+            "operator": "not",
+            "type": "unary"
+          },
+          "type": "binary"
+        },
+        "source": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)"
+      },
+      "constraintMessage": {
+        "en": "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+        "hi": "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।"
+      },
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {
+        "en": "Ask neutrally. Never infer the answer from name, surname or appearance.",
+        "hi": "तटस्थ रूप से पूछें। नाम, उपनाम या रूप-रंग से उत्तर का अनुमान कभी न लगाएँ।"
+      },
+      "label": {
+        "en": "Did any of these apply to the deceased? Tick all that apply.",
+        "hi": "क्या इनमें से कोई बात मृतक पर लागू होती थी? जो भी लागू हों, सभी चुनें।"
+      },
+      "listName": "VULNERABLE_GROUP",
+      "name": "vulnerable_group",
+      "order": 590,
+      "readOnly": false,
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_multiple VULNERABLE_GROUP",
+      "validation": {
+        "choiceValues": [
+          "disability",
+          "homeless",
+          "migrant",
+          "displaced",
+          "poverty_programme",
+          "none",
+          "dk",
+          "ref"
+        ],
+        "constraint": {
+          "ast": {
+            "left": {
+              "left": {
+                "operand": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      },
+                      {
+                        "type": "literal",
+                        "value": "none"
+                      }
+                    ],
+                    "name": "selected",
+                    "type": "call"
+                  },
+                  "operator": "and",
+                  "right": {
+                    "left": {
+                      "arguments": [
+                        {
+                          "type": "current"
+                        }
+                      ],
+                      "name": "count-selected",
+                      "type": "call"
+                    },
+                    "operator": ">",
+                    "right": {
+                      "type": "literal",
+                      "value": 1
+                    },
+                    "type": "binary"
+                  },
+                  "type": "binary"
+                },
+                "operator": "not",
+                "type": "unary"
+              },
+              "operator": "and",
+              "right": {
+                "operand": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      },
+                      {
+                        "type": "literal",
+                        "value": "dk"
+                      }
+                    ],
+                    "name": "selected",
+                    "type": "call"
+                  },
+                  "operator": "and",
+                  "right": {
+                    "left": {
+                      "arguments": [
+                        {
+                          "type": "current"
+                        }
+                      ],
+                      "name": "count-selected",
+                      "type": "call"
+                    },
+                    "operator": ">",
+                    "right": {
+                      "type": "literal",
+                      "value": 1
+                    },
+                    "type": "binary"
+                  },
+                  "type": "binary"
+                },
+                "operator": "not",
+                "type": "unary"
+              },
+              "type": "binary"
+            },
+            "operator": "and",
+            "right": {
+              "operand": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "ref"
+                    }
+                  ],
+                  "name": "selected",
+                  "type": "call"
+                },
+                "operator": "and",
+                "right": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      }
+                    ],
+                    "name": "count-selected",
+                    "type": "call"
+                  },
+                  "operator": ">",
+                  "right": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "type": "binary"
+                },
+                "type": "binary"
+              },
+              "operator": "not",
+              "type": "unary"
+            },
+            "type": "binary"
+          },
+          "source": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)"
+        },
+        "constraintMessage": {
+          "en": "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+          "hi": "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।"
+        },
+        "dataType": "string[]",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Yes",
+            "hi": "हाँ"
+          },
+          "sourceRow": 0,
+          "value": "yes"
+        },
+        {
+          "label": {
+            "en": "No",
+            "hi": "नहीं"
+          },
+          "sourceRow": 0,
+          "value": "no"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Was the deceased a child without parental care?",
+        "hi": "क्या मृतक माता-पिता की देखभाल से वंचित बच्चा था?"
+      },
+      "listName": "EQUITY_YES_NO_DK_REF",
+      "name": "vulnerable_group_child_no_care",
+      "order": 591,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "left": {
+            "arguments": [
+              {
+                "name": "isNeonatal",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "operator": "or",
+          "right": {
+            "arguments": [
+              {
+                "name": "isChild",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "type": "binary"
+        },
+        "source": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')"
+      },
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one EQUITY_YES_NO_DK_REF",
+      "validation": {
+        "choiceValues": [
+          "yes",
+          "no",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Yes",
+            "hi": "हाँ"
+          },
+          "sourceRow": 0,
+          "value": "yes"
+        },
+        {
+          "label": {
+            "en": "No",
+            "hi": "नहीं"
+          },
+          "sourceRow": 0,
+          "value": "no"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Was the deceased a widow or a woman heading the household alone?",
+        "hi": "क्या मृतक विधवा थीं या अकेले परिवार की मुखिया महिला थीं?"
+      },
+      "listName": "EQUITY_YES_NO_DK_REF",
+      "name": "vulnerable_group_female_head",
+      "order": 592,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "left": {
+            "arguments": [
+              {
+                "name": "isAdult",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "operator": "and",
+          "right": {
+            "arguments": [
+              {
+                "name": "Id10019",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "female"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "type": "binary"
+        },
+        "source": "selected(${isAdult}, '1') and selected(${Id10019}, 'female')"
+      },
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one EQUITY_YES_NO_DK_REF",
+      "validation": {
+        "choiceValues": [
+          "yes",
+          "no",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Yes",
+            "hi": "हाँ"
+          },
+          "sourceRow": 0,
+          "value": "yes"
+        },
+        {
+          "label": {
+            "en": "No",
+            "hi": "नहीं"
+          },
+          "sourceRow": 0,
+          "value": "no"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Was the deceased an older person living alone?",
+        "hi": "क्या मृतक अकेले रहने वाले बुज़ुर्ग व्यक्ति थे?"
+      },
+      "listName": "EQUITY_YES_NO_DK_REF",
+      "name": "vulnerable_group_elderly_alone",
+      "order": 593,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "arguments": [
+            {
+              "name": "isAdult",
+              "type": "reference"
+            },
+            {
+              "type": "literal",
+              "value": "1"
+            }
+          ],
+          "name": "selected",
+          "type": "call"
+        },
+        "source": "selected(${isAdult}, '1')"
+      },
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one EQUITY_YES_NO_DK_REF",
+      "validation": {
+        "choiceValues": [
+          "yes",
+          "no",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Yes",
+            "hi": "हाँ"
+          },
+          "sourceRow": 0,
+          "value": "yes"
+        },
+        {
+          "label": {
+            "en": "No",
+            "hi": "नहीं"
+          },
+          "sourceRow": 0,
+          "value": "no"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Was the deceased a transgender or gender-diverse person?",
+        "hi": "क्या मृतक ट्रांसजेंडर या जेंडर-विविध व्यक्ति थे?"
+      },
+      "listName": "EQUITY_YES_NO_DK_REF",
+      "name": "vulnerable_group_gender_minority",
+      "order": 594,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "left": {
+            "arguments": [
+              {
+                "name": "isChild",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "operator": "or",
+          "right": {
+            "arguments": [
+              {
+                "name": "isAdult",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "type": "binary"
+        },
+        "source": "selected(${isChild}, '1') or selected(${isAdult}, '1')"
+      },
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one EQUITY_YES_NO_DK_REF",
+      "validation": {
+        "choiceValues": [
+          "yes",
+          "no",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Yes",
+            "hi": "हाँ"
+          },
+          "sourceRow": 0,
+          "value": "yes"
+        },
+        {
+          "label": {
+            "en": "No",
+            "hi": "नहीं"
+          },
+          "sourceRow": 0,
+          "value": "no"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraintMessage": {},
+      "control": "singleChoice",
+      "dataType": "string",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "Was the deceased in prison or custody at the time of death?",
+        "hi": "क्या मृत्यु के समय मृतक जेल या हिरासत में थे?"
+      },
+      "listName": "EQUITY_YES_NO_DK_REF",
+      "name": "vulnerable_group_custody",
+      "order": 595,
+      "readOnly": false,
+      "relevant": {
+        "ast": {
+          "left": {
+            "arguments": [
+              {
+                "name": "isChild",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "operator": "or",
+          "right": {
+            "arguments": [
+              {
+                "name": "isAdult",
+                "type": "reference"
+              },
+              {
+                "type": "literal",
+                "value": "1"
+              }
+            ],
+            "name": "selected",
+            "type": "call"
+          },
+          "type": "binary"
+        },
+        "source": "selected(${isChild}, '1') or selected(${isAdult}, '1')"
+      },
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_one EQUITY_YES_NO_DK_REF",
+      "validation": {
+        "choiceValues": [
+          "yes",
+          "no",
+          "dk",
+          "ref"
+        ],
+        "constraintMessage": {},
+        "dataType": "string",
+        "required": false
+      }
+    },
+    {
+      "ageGroup": "ALL",
+      "choices": [
+        {
+          "label": {
+            "en": "Social security health insurance",
+            "hi": "सामाजिक सुरक्षा स्वास्थ्य बीमा"
+          },
+          "sourceRow": 0,
+          "value": "social_security"
+        },
+        {
+          "label": {
+            "en": "A government health scheme (Ayushman Bharat PM-JAY or a state scheme)",
+            "hi": "सरकारी स्वास्थ्य योजना (आयुष्मान भारत PM-JAY या कोई राज्य योजना)"
+          },
+          "sourceRow": 0,
+          "value": "government_scheme"
+        },
+        {
+          "label": {
+            "en": "Mutual health organisation or community-based insurance",
+            "hi": "म्युचुअल स्वास्थ्य संगठन या समुदाय-आधारित बीमा"
+          },
+          "sourceRow": 0,
+          "value": "community_mutual"
+        },
+        {
+          "label": {
+            "en": "Other employer-based insurance",
+            "hi": "अन्य नियोक्ता-आधारित बीमा"
+          },
+          "sourceRow": 0,
+          "value": "employer"
+        },
+        {
+          "label": {
+            "en": "Privately purchased commercial insurance",
+            "hi": "निजी तौर पर खरीदा गया व्यावसायिक बीमा"
+          },
+          "sourceRow": 0,
+          "value": "private"
+        },
+        {
+          "label": {
+            "en": "Other",
+            "hi": "अन्य"
+          },
+          "sourceRow": 0,
+          "value": "other"
+        },
+        {
+          "label": {
+            "en": "No health insurance",
+            "hi": "कोई स्वास्थ्य बीमा नहीं"
+          },
+          "sourceRow": 0,
+          "value": "none"
+        },
+        {
+          "label": {
+            "en": "Don't know",
+            "hi": "पता नहीं"
+          },
+          "sourceRow": 0,
+          "value": "dk"
+        },
+        {
+          "label": {
+            "en": "Prefer not to say",
+            "hi": "बताना नहीं चाहते"
+          },
+          "sourceRow": 0,
+          "value": "ref"
+        }
+      ],
+      "constraint": {
+        "ast": {
+          "left": {
+            "left": {
+              "operand": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "none"
+                    }
+                  ],
+                  "name": "selected",
+                  "type": "call"
+                },
+                "operator": "and",
+                "right": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      }
+                    ],
+                    "name": "count-selected",
+                    "type": "call"
+                  },
+                  "operator": ">",
+                  "right": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "type": "binary"
+                },
+                "type": "binary"
+              },
+              "operator": "not",
+              "type": "unary"
+            },
+            "operator": "and",
+            "right": {
+              "operand": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "dk"
+                    }
+                  ],
+                  "name": "selected",
+                  "type": "call"
+                },
+                "operator": "and",
+                "right": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      }
+                    ],
+                    "name": "count-selected",
+                    "type": "call"
+                  },
+                  "operator": ">",
+                  "right": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "type": "binary"
+                },
+                "type": "binary"
+              },
+              "operator": "not",
+              "type": "unary"
+            },
+            "type": "binary"
+          },
+          "operator": "and",
+          "right": {
+            "operand": {
+              "left": {
+                "arguments": [
+                  {
+                    "type": "current"
+                  },
+                  {
+                    "type": "literal",
+                    "value": "ref"
+                  }
+                ],
+                "name": "selected",
+                "type": "call"
+              },
+              "operator": "and",
+              "right": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    }
+                  ],
+                  "name": "count-selected",
+                  "type": "call"
+                },
+                "operator": ">",
+                "right": {
+                  "type": "literal",
+                  "value": 1
+                },
+                "type": "binary"
+              },
+              "type": "binary"
+            },
+            "operator": "not",
+            "type": "unary"
+          },
+          "type": "binary"
+        },
+        "source": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)"
+      },
+      "constraintMessage": {
+        "en": "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+        "hi": "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।"
+      },
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "extensions": [
+        "equity"
+      ],
+      "guidance": {},
+      "hint": {},
+      "label": {
+        "en": "What health insurance did the deceased have? Tick all that apply.",
+        "hi": "मृतक के पास कौन-सा स्वास्थ्य बीमा था? जो भी लागू हों, सभी चुनें।"
+      },
+      "listName": "HEALTH_COVERAGE",
+      "name": "health_coverage",
+      "order": 596,
+      "readOnly": false,
+      "required": false,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ],
+      "sourceRow": 0,
+      "sourceType": "select_multiple HEALTH_COVERAGE",
+      "validation": {
+        "choiceValues": [
+          "social_security",
+          "government_scheme",
+          "community_mutual",
+          "employer",
+          "private",
+          "other",
+          "none",
+          "dk",
+          "ref"
+        ],
+        "constraint": {
+          "ast": {
+            "left": {
+              "left": {
+                "operand": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      },
+                      {
+                        "type": "literal",
+                        "value": "none"
+                      }
+                    ],
+                    "name": "selected",
+                    "type": "call"
+                  },
+                  "operator": "and",
+                  "right": {
+                    "left": {
+                      "arguments": [
+                        {
+                          "type": "current"
+                        }
+                      ],
+                      "name": "count-selected",
+                      "type": "call"
+                    },
+                    "operator": ">",
+                    "right": {
+                      "type": "literal",
+                      "value": 1
+                    },
+                    "type": "binary"
+                  },
+                  "type": "binary"
+                },
+                "operator": "not",
+                "type": "unary"
+              },
+              "operator": "and",
+              "right": {
+                "operand": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      },
+                      {
+                        "type": "literal",
+                        "value": "dk"
+                      }
+                    ],
+                    "name": "selected",
+                    "type": "call"
+                  },
+                  "operator": "and",
+                  "right": {
+                    "left": {
+                      "arguments": [
+                        {
+                          "type": "current"
+                        }
+                      ],
+                      "name": "count-selected",
+                      "type": "call"
+                    },
+                    "operator": ">",
+                    "right": {
+                      "type": "literal",
+                      "value": 1
+                    },
+                    "type": "binary"
+                  },
+                  "type": "binary"
+                },
+                "operator": "not",
+                "type": "unary"
+              },
+              "type": "binary"
+            },
+            "operator": "and",
+            "right": {
+              "operand": {
+                "left": {
+                  "arguments": [
+                    {
+                      "type": "current"
+                    },
+                    {
+                      "type": "literal",
+                      "value": "ref"
+                    }
+                  ],
+                  "name": "selected",
+                  "type": "call"
+                },
+                "operator": "and",
+                "right": {
+                  "left": {
+                    "arguments": [
+                      {
+                        "type": "current"
+                      }
+                    ],
+                    "name": "count-selected",
+                    "type": "call"
+                  },
+                  "operator": ">",
+                  "right": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "type": "binary"
+                },
+                "type": "binary"
+              },
+              "operator": "not",
+              "type": "unary"
+            },
+            "type": "binary"
+          },
+          "source": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)"
+        },
+        "constraintMessage": {
+          "en": "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+          "hi": "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।"
+        },
+        "dataType": "string[]",
         "required": false
       }
     },
@@ -5209,7 +6817,7 @@
         "en": "For how many hours did the baby live?"
       },
       "name": "doris_hours_survived",
-      "order": 590,
+      "order": 601,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -7334,7 +8942,7 @@
       },
       "listName": "injury_date_known",
       "name": "doris_injury_date_known",
-      "order": 593,
+      "order": 604,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -7438,7 +9046,7 @@
         "en": "On what date was (s)he injured?"
       },
       "name": "doris_injury_date",
-      "order": 594,
+      "order": 605,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -7591,7 +9199,7 @@
         "en": "In which month and year was (s)he injured?"
       },
       "name": "doris_injury_month_year",
-      "order": 595,
+      "order": 606,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -7762,7 +9370,7 @@
       },
       "listName": "injury_place",
       "name": "doris_injury_place",
-      "order": 596,
+      "order": 607,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -7849,7 +9457,7 @@
       },
       "listName": "legal_war",
       "name": "doris_injury_legal_war",
-      "order": 597,
+      "order": 608,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -23445,7 +25053,7 @@
         "en": "How old was the baby's mother, in completed years, when the baby was born?"
       },
       "name": "doris_mother_age",
-      "order": 592,
+      "order": 603,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -23759,7 +25367,7 @@
         "en": "A birth weight of ${Id10366} g is unusual. Check the card and confirm the weight is in grammes."
       },
       "name": "Id10366_confirm",
-      "order": 589,
+      "order": 600,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -24069,7 +25677,7 @@
         "en": "How many completed weeks long was the pregnancy? (only if known, e.g. from an antenatal card)"
       },
       "name": "doris_pregnancy_weeks",
-      "order": 591,
+      "order": 602,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -27360,7 +28968,7 @@
       },
       "listName": "YES_NO_DK_REF",
       "name": "doris_surgery_performed",
-      "order": 598,
+      "order": 609,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -27459,7 +29067,7 @@
         "en": "How long before death was the operation? (number)"
       },
       "name": "doris_surgery_when",
-      "order": 599,
+      "order": 610,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -27579,7 +29187,7 @@
       },
       "listName": "time_unit",
       "name": "doris_surgery_when_unit",
-      "order": 600,
+      "order": 611,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -27660,7 +29268,7 @@
         "en": "What operation was done?"
       },
       "name": "doris_surgery_type",
-      "order": 601,
+      "order": 612,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -27703,7 +29311,7 @@
         "en": "For what illness or condition was it done?"
       },
       "name": "doris_surgery_reason",
-      "order": 602,
+      "order": 613,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -28584,7 +30192,7 @@
       },
       "listName": "YES_NO_DK_REF",
       "name": "doris_autopsy_requested",
-      "order": 603,
+      "order": 614,
       "readOnly": false,
       "required": false,
       "sectionPath": [
@@ -28647,7 +30255,7 @@
       },
       "listName": "YES_NO_DK_REF",
       "name": "doris_autopsy_findings",
-      "order": 604,
+      "order": 615,
       "readOnly": false,
       "relevant": {
         "ast": {
@@ -33272,7 +34880,7 @@
         "en": "Address visited"
       },
       "name": "visit_address",
-      "order": 605,
+      "order": 616,
       "readOnly": false,
       "required": true,
       "sectionPath": [
@@ -33314,7 +34922,7 @@
         "en": "Date of the visit"
       },
       "name": "visit_date",
-      "order": 606,
+      "order": 617,
       "readOnly": false,
       "required": true,
       "sectionPath": [
@@ -33356,7 +34964,7 @@
         "en": "Remarks"
       },
       "name": "visit_remarks",
-      "order": 607,
+      "order": 618,
       "readOnly": false,
       "required": false,
       "sectionPath": [
@@ -33414,7 +35022,7 @@
       },
       "listName": "INTERVIEW_OUTCOME",
       "name": "interview_outcome",
-      "order": 608,
+      "order": 619,
       "readOnly": false,
       "required": false,
       "sectionPath": [
@@ -33899,7 +35507,7 @@
         "en": "Visit note"
       },
       "name": "digitva_visit_note",
-      "order": 604,
+      "order": 615,
       "relevant": {
         "ast": {
           "left": {
@@ -33991,7 +35599,7 @@
         "en": "Interview outcome"
       },
       "name": "digitva_outcome",
-      "order": 607,
+      "order": 618,
       "sourceRow": 0
     }
   ],
@@ -34003,5 +35611,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-7ee547b8e7"
+  "version": "2026081401-65fa41ff53"
 }

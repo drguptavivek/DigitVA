@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Device Collection API (Path B server side)
@@ -59,7 +59,7 @@ and the API contract the app is built against:
 | Table | Holds |
 |---|---|
 | `auth_device_enrolment_codes` | project, `code_hash` (unique), `expires_at`, `max_uses`, `use_count`, `created_by`, `revoked_at`; on a public-demo deployment also one hidden, revoked row per demo account that its `POST /auth/demo-enroll` devices name in `enrolled_via` (the device cap and the purge use it; [authentication](authentication-and-onboarding.md) section 6.8) |
-| `auth_devices` | `device_id`, project, name, platform, app version, `secret_hash`, `enrolled_at`, `enrolled_via` (code id), `revoked_at`, `revoked_by`, `last_seen_at`; migration `b9e4f2a7c1d3` adds `revoked_compromised`, `signing_public_key`, `signing_key_id`, `signing_key_set_at` (below) |
+| `auth_devices` | `device_id`, project, name, platform, app version, `secret_hash`, `enrolled_at`, `enrolled_via` (code id), `revoked_at`, `revoked_by`, `last_seen_at`, nullable `client_device_uuid` (migration `c7a3e9d1f5b8`, below); migration `b9e4f2a7c1d3` adds `revoked_compromised`, `signing_public_key`, `signing_key_id`, `signing_key_set_at` (below) |
 | `auth_device_signing_keys` | every Ed25519 bundle-signing key a device has held (migration `b9e4f2a7c1d3`): `signing_public_key` (raw 32 bytes), `signing_key_id`, `set_at`, `retired_at` (NULL for the current key); unique `(device_id, signing_key_id)` |
 | `auth_device_sessions` | one per (device, interviewer) sign-in: `access_hash` / `refresh_hash` (unique) and expiries, `previous_refresh_hash` (reuse detection), `user_session_version`, `last_seen_at`, `revoked_at` + `revoked_reason`, `outstanding_count`, `outstanding_unique_ids` (JSONB), `outstanding_reported_at` |
 | `va_web_intake_drafts.client_draft_id` | the app's draft UUID, unique where not null (`uq_va_web_intake_drafts_client_draft_id`) |
@@ -127,6 +127,18 @@ values). The device secret is compared with `hmac.compare_digest`.
   (detail `compromised`), `device_signing_key_set` (detail `signing_key_id`,
   `via`: `enroll`, `device` or `enrolment_file`; never the key),
   `device_registered_from_file`.
+- **Collect Plus install UUID** (digitva-5bzf.4, migration `c7a3e9d1f5b8`).
+  `POST /auth/enroll` and `POST /auth/sign-in-qr/redeem` accept an optional
+  `client_device_uuid`, the UUID the Plus app minted once per install
+  (`offlineIdentity`); the plain build sends none. It is validated before the
+  code or token is consumed (a non-string or non-UUID is 400
+  `invalid_request`, nothing burned) and stored on the new `auth_devices` row.
+  Every enrolment adds a row, so re-enrolling the same install repeats the
+  UUID across rows: the column has a plain index, not a unique one (a unique
+  client claim would let anyone block an install's enrolment).
+  `device_auth_service.device_for_client_uuid(session, uuid)` returns the
+  session's own device only when it carries that UUID, for the standalone
+  push (offline-api-contract.md section 17); it never returns another row.
 - **Bundle-signing keys** (digitva-gb8w.5,
   `app/services/device_signing_service.py`; policy
   `docs/policy/offline-bundle-and-transfer.md` 3.2). An offline station sends
@@ -312,7 +324,8 @@ behaviour.
   `has_informant_phone`, `has_informant_phone_2` (booleans), `registered_by_me`,
   `started_by_me`, `my_draft_id`, `other_draft_active`,
   `other_draft_started_at`, `va_sid`, `other_complete_interview`, `code_now`,
-  `created_at`, `updated_at`)
+  `created_at`, `updated_at`; `updated_at` is the death row's change stamp, bumped on every edit
+  to it)
   plus `possible_duplicates` (`[{death_id, unique_id}]`, up to three, from
   the whole scope); `counts` per state cover the scope, the project and
   `mine` but not `state`. Every state in scope is listed; the app picks its
@@ -577,9 +590,7 @@ credential, CSRF for a cookie; body cap 2 MB). Code:
   interviewer) and `death.va_sid` is cleared when it was this submission. A
   teammate's superseded copies stay superseded. Applies to the public revision
   and to a `resubmitted` correction alike.
-- **Every changed revision** queues the stored daily KPI recount of the
-  submission (`_recompute_kpi_rows_after_commit`; its `updatedAt` moved), and
-  stores the version's completion time in the draft's
+- **Every changed revision** stores the version's completion time in the draft's
   `meta.effectiveSavedAt` (`_completion_time` of the envelope: `completedAt`
   corrected by `deviceClockAt`, else now). No revision or correction sends
   `case_submitted_by_other`.
@@ -663,8 +674,67 @@ submitted follows the existing open-draft rules (listed under `GET /drafts`,
 discardable with `POST /drafts/<id>/discard`). Its id is set only here, never
 by `/drafts/sync`.
 
+## Standalone push (Collect Plus Path C, `digitva-5bzf.6`)
+
+Contract: [offline-api-contract.md](../policy/offline-api-contract.md)
+section 17 (wire names, codes). `POST /api/v1/intake/submissions` with a
+`standalone` object, optionally `offline_coding`; code in
+`app/services/offline_coding_import_service.py` and the route.
+
+- **Device.** `standalone.client_device_uuid` (and `offline_coding.device_uuid`)
+  must be the bearer session's device as enrolled
+  (`device_auth_service.device_for_client_uuid`), else 403 `device_mismatch`
+  before anything is written. A resend of the same `client_draft_id` from
+  another device (`meta.deviceId` differs) is 409 `conflict`.
+- **Interview.** The ordinary upload (`submit_device_interview`). The unit is
+  the live unit `standalone.org_code` names, when the interviewer may name it;
+  otherwise the upload starts without a unit (`unrouted_ok`, the one exception
+  to `_require_scope`'s unit rule) and routing gives the mapping fallback or the
+  unrouted queue. Draft meta `standalone` keeps the device UUID claim, the
+  profile snapshot, the org code and whether it matched, the process token and
+  the pack versions.
+- **Consent.** `standalone.consent` (`{envelope, notice_text, bundle_version,
+  bundle_sha256}`) becomes a 5.3 consent on a notice version with `source =
+  standalone` (`consent_service.standalone_consent`), stored once per
+  (project, language, text hash), never served in the consent config.
+- **Coding.** Held in `va_bundle_pending_coding` (key `client_draft_id`,
+  `bundle_ids` empty, `result.origin = collect_plus_offline`); a refusal at push
+  is stored `rejected` with its code. The bundle applier
+  (`apply_pending_coding`) hands these rows to `apply_held` once the case is
+  ready: allocation for the pushing coder, the server's allowability re-check
+  over `mas_icd11_mms` (no WHO call, no DORIS), the final saved with
+  `cod_entry_mode_snapshot.coding_origin` and `offline` provenance,
+  `coder_finalized`, and `reviewer_eligible` at once when the re-check
+  disagrees. The reply's `offline_coding` is `{status, code}` (`pending`,
+  `applied`, `refused`).
+- **App (`digitva-5bzf.7`, uncommitted).** The standalone store stays its own
+  push queue: on the standalone home (behind its PIN) the user confirms "Send
+  your standalone records to <server>?" with the counts, the enrolled account
+  and a direct-start site (`mobile/digitva-collect/src/standalone/adopt.ts`,
+  `AdoptionCard.tsx`); the store keeps that choice and each "Send now" runs
+  `uploadQueuedWork` with the account's bearer and `standalone`. The coding row
+  keeps `answers_sha256` from coding time (`sync.ts` `sentAnswers`, the hash
+  the upload sends); a stale or foreign-device coding is not sent. The draft,
+  its coding row and `standaloneConsent:<id>` are deleted together on the 2xx
+  only, and only when the reply carries `offline_coding` for a coding sent;
+  `refused` codes are kept as notices. 403 `device_mismatch` and 422
+  `consent_*`, `standalone_invalid`, `offline_coding_invalid` hold the draft
+  (`upload_issue = standalone_refused`), 409 holds it as `case_conflict`;
+  both are sent again only on "Send again". `conclusive_cod` is the bare code
+  (the server takes the title from its MMS row).
+- **Tables.** Migration `f3d9b5c7a2e4`: `mas_consent_notice_versions.source`
+  (`project` | `standalone`), `bundle_version`, `bundle_sha256`; the
+  (project, version, language) unique key is now partial on `source =
+  'project'`, beside a partial unique (project, language, text_sha256) for
+  standalone rows. Tests: `tests/routes/test_offline_coding_import_api.py`,
+  `tests/migrations/test_add_consent_notice_source.py`.
+
 ## Not built
 
+- A standalone push to an unrouted case's attachment draft: `POST
+  /intake/drafts` still requires a unit in a project with a tree, so a
+  standalone interview with files and no matching org code cannot use the
+  direct-start attachment draft.
 - Admin UI for per-session revocation (device revoke ends all its sessions).
 - Chunked, resumable attachment upload (`attachment_chunk`). The phone sends each file as one
   `PUT /intake/drafts/<id>/attachments/<id>` before the interview, as

@@ -251,6 +251,14 @@ If the form engine cannot filter single choices within a `select_multiple`,
 each filtered choice becomes its own small yes/no question with that
 relevance, under the same codes.
 
+The engine has no per-choice relevance, so the five filtered codes are
+separate yes/no/`dk`/`ref` questions named `vulnerable_group_<code>`
+(`vulnerable_group_child_no_care`, `_female_head`, `_elderly_alone`,
+`_gender_minority`, `_custody`) right after `vulnerable_group`, which keeps the
+unfiltered codes. `none`, `dk` and `ref` are kept exclusive by a constraint on
+`vulnerable_group` and `health_coverage`; `none` covers only the choices in
+that question, not the split ones.
+
 ### Equity extension: refusal profile (owner decision 2026-10-27)
 
 When consent is refused (`Id10013` = no, interview outcome

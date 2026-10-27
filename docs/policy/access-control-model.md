@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-27
 ---
 
 # Access Control Model
@@ -639,10 +639,18 @@ the union with nothing counted twice. The site-keyed daily aggregates (daily
 grid, burndown, backlog trend) count every project at a site, so they serve
 only direct sites whose every project with forms there is in the manager's
 scope; the rest of the scope is added live from the raw tables, limited to
-submissions outside those sites. Coder counts keyed by coder grant project
-(utilization, coders per language) include a unit grant's project, but the
-coder roster, which names coders, lists only coders whose grant sits inside
-the manager's own scope: a project grant's coders of that project at any
+submissions outside those sites. (Superseded (owner decision 2026-10-27, `digitva-0hul`): the daily aggregates are
+retired as a read source and every KPI is computed live; see
+[Data Manager KPI Framework](kpis.md).) Coder counts that are numbers, not
+names (the coder-availability denominator of utilization, coders per language)
+count the coders who can code at least one case in the manager's subtree (owner decision 2026-10-27, `digitva-0hul`):
+project grants, grants on in-scope (project, site) pairs, and unit grants that
+are ancestors or descendants of the manager's unit. They exclude ancestors above
+`coding_scope_level_id` when the project is `view_only`, since those coders
+code nothing (see [Organization Model](organization-model.md), "Coding scope"). This supersedes the 2026-10-03 `digitva-4b3e` decision for the
+availability denominator only. The coder roster, which names coders, keeps the
+stricter rule and lists only coders whose grant sits inside the manager's own
+scope: a project grant's coders of that project at any
 scope, a site manager's coders on its own (project, site) pairs, a unit
 manager's coders on units in its subtree (owner decision 2026-10-03,
 digitva-4b3e). Whole-form
@@ -1072,6 +1080,39 @@ window) stay with the workflow services. The legacy `permission` JSONB column is
     figures depend on, though the digest does not) shows in the next request,
     not after the 5-minute cache life. Redis unavailable: the version part is
     empty and the KPI cache falls back to its TTL.
+
+## MCP access for KPI reads (owner 2026-10-27, digitva-r5s0)
+
+AI agents may read KPI aggregates over a minimal MCP endpoint
+(`POST /api/v1/mcp`; see [Data Manager KPI Framework](kpis.md#kpi-registry-and-mcp-access)).
+Access is the caller's own, never a shared key.
+
+- **Token:** a per-user personal token in `va_api_tokens`.
+  - Stored hashed; the plain value is shown once, at creation.
+  - Purpose `mcp_kpi_read`; it expires after at most 90 days.
+  - Revocable by the user and by an admin.
+  - Created only after re-authentication.
+- **Where it works:** only the `/api/v1/mcp` route accepts it, through its own
+  `before_request` branch. Device tokens are refused there, and MCP tokens are
+  refused on every other route. `NATIVE_DEVICE_ROLES` is not widened.
+- **Scope:** resolved on every call from the user's own grants, so a revoked or
+  narrowed grant takes effect on the next call. A request can only narrow that
+  scope; anything outside it is a 403. A unit grant confers nothing above its
+  unit.
+- **Who may use it:** data managers and admins. Other roles are refused.
+- **What comes back:** aggregates only.
+  - A count under 5 is shown as `<5`.
+  - A rate on a denominator under 20 is left out (null).
+  - No names and no per-person rows; KPIs marked `totals_only` or `none` in
+    the registry return totals or nothing.
+  - Cell-level suppression only for now; complementary suppression is needed
+    before MCP output is published further.
+- **Rate limits:** per token user, 60 calls a minute overall, 20 a minute for
+  `get_kpi_values`, and a daily cap.
+- **Audit:** every call is written to `va_ai_query_audit_log` with mode
+  `mcp_tool` (the mode check is widened in the same migration as the token
+  table). The audit holds the tool, the KPI id, the scope and the outcome, not
+  the returned values.
 
 ## API And CSRF Baseline
 

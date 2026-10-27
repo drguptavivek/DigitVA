@@ -131,12 +131,16 @@ def _export_filters_from_request() -> dict[str, str | None]:
         "site": request.args.get("site", ""),
         "date_from": request.args.get("date_from") or None,
         "date_to": request.args.get("date_to") or None,
+        "death_from": request.args.get("death_from") or None,
+        "death_to": request.args.get("death_to") or None,
         "odk_status": request.args.get("odk_status", ""),
         "smartva": request.args.get("smartva", ""),
         "age_group": request.args.get("age_group", ""),
         "gender": request.args.get("gender", ""),
         "odk_sync": request.args.get("odk_sync", ""),
         "workflow": request.args.get("workflow", ""),
+        "visit_note": request.args.get("visit_note", ""),
+        "org_unit": request.args.get("org_unit", ""),
     }
 
 
@@ -298,6 +302,8 @@ def submissions():
         site=request.args.get("site", ""),
         date_from=request.args.get("date_from") or None,
         date_to=request.args.get("date_to") or None,
+        death_from=request.args.get("death_from") or None,
+        death_to=request.args.get("death_to") or None,
         odk_status=request.args.get("odk_status", ""),
         smartva=request.args.get("smartva", ""),
         age_group=request.args.get("age_group", ""),
@@ -385,12 +391,16 @@ def kpi():
             site=request.args.get("site", ""),
             date_from=request.args.get("date_from") or None,
             date_to=request.args.get("date_to") or None,
+            death_from=request.args.get("death_from") or None,
+            death_to=request.args.get("death_to") or None,
             odk_status=request.args.get("odk_status", ""),
             smartva=request.args.get("smartva", ""),
             age_group=request.args.get("age_group", ""),
             gender=request.args.get("gender", ""),
             odk_sync=request.args.get("odk_sync", ""),
             workflow=request.args.get("workflow", ""),
+            visit_note=request.args.get("visit_note", ""),
+            org_unit=request.args.get("org_unit", ""),
         )
     ))
 
@@ -645,12 +655,16 @@ def project_site_submissions():
         site=request.args.get("site", ""),
         date_from=request.args.get("date_from") or None,
         date_to=request.args.get("date_to") or None,
+        death_from=request.args.get("death_from") or None,
+        death_to=request.args.get("death_to") or None,
         odk_status=request.args.get("odk_status", ""),
         smartva=request.args.get("smartva", ""),
         age_group=request.args.get("age_group", ""),
         gender=request.args.get("gender", ""),
         odk_sync=request.args.get("odk_sync", ""),
         workflow=request.args.get("workflow", ""),
+        visit_note=request.args.get("visit_note", ""),
+        org_unit=request.args.get("org_unit", ""),
     )
 
     # Grouping by organization unit needs exactly one project with a tree —

@@ -16,7 +16,7 @@
 //      instrument.ts, digitva_core (custom_medical_certificate_upload,
 //      consent_mode) is spliced in unconditionally, so whatever is new here
 //      relative to the base is digitva_core's contribution.
-//   3. For each of the other seven names in ALL_DIGITVA_EXTENSIONS, call
+//   3. For each of the other names in ALL_DIGITVA_EXTENSIONS, call
 //      createWhoVa2022Instrument([name]) and diff against step 2's result.
 //      Whatever is new is that one extension's contribution (empty for
 //      social_autopsy / intake_screen / geography, which gate content outside

@@ -11,12 +11,13 @@ import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { Text, TextInput, View } from "react-native";
+import { Platform, Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
 import { enrolDevice, redeemSignInQr } from "../auth";
 import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
+import { isPlusVariant } from "../appVariant";
 import { t } from "../i18n";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 
@@ -65,7 +66,8 @@ export default function Enrol() {
       setPending(undefined);
       // One message for every refusal of a sign-in QR; the token and the server's detail are never shown or logged.
       const refused = payload.kind === "sign_in" && caught instanceof ApiError && (caught.status === 404 || caught.status === 400);
-      setError(refused ? t("errSignInQrInvalid") : errorText(caught));
+      const limited = payload.kind === "sign_in" && caught instanceof ApiError && caught.status === 429;
+      setError(refused ? t("errSignInQrInvalid") : limited ? t("errSignInQrRateLimited") : errorText(caught));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -121,6 +123,12 @@ export default function Enrol() {
         <View style={{ gap: 8 }}>
           <Text style={styles.muted}>{t("demoTryHint")}</Text>
           <Button kind="secondary" label={t("demoTryTitle")} disabled={busy} onPress={() => router.push("/demo")} />
+        </View>
+      )}
+      {pending || Platform.OS !== "android" || !isPlusVariant() ? null : (
+        <View style={{ gap: 8 }}>
+          <Text style={styles.muted}>{t("standaloneWarning")}</Text>
+          <Button kind="secondary" label={t("standaloneEntry")} disabled={busy} onPress={() => router.push("/standalone-setup")} />
         </View>
       )}
       {busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null}

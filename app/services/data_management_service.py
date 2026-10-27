@@ -76,6 +76,8 @@ from app.services.smartva_service import promote_active_smartva_to_payload
 from app.services.submission_analytics_mv import (
     ODK_SYNC_ALL,
     ODK_SYNC_MISSING,
+    death_date_conditions,
+    org_unit_subtree_condition,
 )
 from app.services.submission_payload_projection_service import (
     apply_payload_to_submission_summary,
@@ -100,16 +102,8 @@ from app.services.authz import (
 from app.services.workflow.transitions import admin_actor, data_manager_actor
 from app.services.workflow.state_store import get_submission_workflow_record
 from app.services.workflow.definition import (
-    WORKFLOW_ATTACHMENT_SYNC_PENDING,
-    WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_CODER_STEP1_SAVED,
-    WORKFLOW_CODING_IN_PROGRESS,
-    WORKFLOW_READY_FOR_CODING,
-    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-    WORKFLOW_REVIEWER_ELIGIBLE,
-    WORKFLOW_REVIEWER_FINALIZED,
-    WORKFLOW_SCREENING_PENDING,
-    WORKFLOW_SMARTVA_PENDING,
+    DM_CODED_STATES,
+    PENDING_STATES,
 )
 from app.services.workflow.revision_request_sql import (
     SENT_BACK_FOR_REVISION,
@@ -402,6 +396,18 @@ def _list_scope(user):
     )
 
 
+def _without_training_units(unit_ids: frozenset[uuid.UUID], training_id: str) -> frozenset[uuid.UUID]:
+    """*unit_ids* less the units of the training project (one query)."""
+    if not unit_ids:
+        return unit_ids
+    training_units = set(db.session.scalars(
+        sa.select(MasOrgUnit.org_unit_id).where(
+            MasOrgUnit.org_unit_id.in_(unit_ids), MasOrgUnit.project_id == training_id
+        )
+    ))
+    return frozenset(unit_ids - training_units)
+
+
 def _without_training(scope: DmGrantScope) -> DmGrantScope:
     """*scope* with the training project's grants dropped while the request is
     in the exclude scope."""
@@ -411,7 +417,7 @@ def _without_training(scope: DmGrantScope) -> DmGrantScope:
     return DmGrantScope(
         project_ids=scope.project_ids - {tid},
         pairs=frozenset(pair for pair in scope.pairs if pair[0] != tid),
-        unit_grant_ids=scope.unit_grant_ids,
+        unit_grant_ids=_without_training_units(scope.unit_grant_ids, tid),
         unit_project_ids=scope.unit_project_ids - {tid},
     )
 
@@ -779,20 +785,6 @@ _SORT_FIELDS = {
 }
 
 
-def _org_unit_subtree_condition(raw_unit_id: str):
-    """SQL predicate: the submission is routed to *raw_unit_id* or below it.
-    A malformed id matches nothing. The caller's scope filter still applies."""
-    try:
-        unit_id = uuid.UUID(str(raw_unit_id))
-    except ValueError:
-        return sa.false()
-    anchor = sa.select(MasOrgUnit.path).where(MasOrgUnit.org_unit_id == unit_id).scalar_subquery()
-    sub = sa.orm.aliased(MasOrgUnit)
-    return VaSubmissions.org_unit_id.in_(
-        sa.select(sub.org_unit_id).where(sub.path.op("<@")(anchor))
-    )
-
-
 def dm_submissions_page(
     user,
     *,
@@ -803,6 +795,8 @@ def dm_submissions_page(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
@@ -828,34 +822,24 @@ def dm_submissions_page(
     coder_final_user = sa.orm.aliased(VaUsers)
     reviewer_final_user = sa.orm.aliased(VaUsers)
 
-    attachment_counts = (
-        sa.select(VaSubmissionAttachments.va_sid, sa.func.count().label("cnt"))
-        .where(VaSubmissionAttachments.exists_on_odk.is_(True))
-        .group_by(VaSubmissionAttachments.va_sid)
-        .subquery()
+    attachment_counts, smartva_sids, smartva_failed_sids, _mv_ref, conditions = _dm_submission_query_parts(
+        user,
+        search=search,
+        project=project,
+        site=site,
+        date_from=date_from,
+        date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
+        odk_status=odk_status,
+        smartva=smartva,
+        age_group=age_group,
+        gender=gender,
+        odk_sync=odk_sync,
+        workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
-    smartva_sids = (
-        sa.select(VaSmartvaResults.va_sid)
-        .where(VaSmartvaResults.va_smartva_status == VaStatuses.active)
-        .distinct()
-        .subquery()
-    )
-    smartva_failed_sids = (
-        sa.select(VaSmartvaResults.va_sid)
-        .where(
-            VaSmartvaResults.va_smartva_status == VaStatuses.active,
-            VaSmartvaResults.va_smartva_outcome == VaSmartvaResults.OUTCOME_FAILED,
-        )
-        .distinct()
-        .subquery()
-    )
-    _mv_ref = None
-    if _submission_analytics_mv_available():
-        _mv_ref = sa.table(
-            "va_submission_analytics_demographics_mv",
-            sa.column("va_sid"),
-            sa.column("analytics_age_band"),
-        )
     active_final = (
         sa.select(
             VaFinalAssessments.va_sid.label("va_sid"),
@@ -875,66 +859,6 @@ def dm_submissions_page(
         .subquery()
     )
     redact_pii = should_redact_pii(user)
-
-    # Confirmed-duplicate web cases leave the grid and every export built here.
-    conditions = [
-        _list_scope(user),
-        not_confirmed_duplicate_condition(VaSubmissions.va_sid),
-    ]
-    project_values = _csv_values(project)
-    site_values = _csv_values(site)
-
-    if search:
-        conditions.append(_dm_search_condition(search, redact_staff_identity=redact_pii))
-    if project_values:
-        conditions.append(VaForms.project_id.in_(project_values))
-    if site_values:
-        conditions.append(VaForms.site_id.in_(site_values))
-    conditions.extend(_local_date_conditions(user, date_from, date_to))
-    if odk_status == "hasIssues":
-        conditions.append(VaSubmissions.va_odk_reviewstate == "hasIssues")
-    elif odk_status == "approved":
-        conditions.append(VaSubmissions.va_odk_reviewstate == "approved")
-    elif odk_status == "no_review_state":
-        conditions.append(VaSubmissions.va_odk_reviewstate.is_(None))
-    if smartva == "available":
-        conditions.append(smartva_sids.c.va_sid.is_not(None))
-    elif smartva == "missing":
-        conditions.append(smartva_sids.c.va_sid.is_(None))
-    elif smartva == "failed":
-        conditions.append(smartva_failed_sids.c.va_sid.is_not(None))
-    if age_group:
-        if _mv_ref is None:
-            conditions.append(sa.false())
-        else:
-            conditions.append(_mv_ref.c.analytics_age_band == age_group)
-    if gender:
-        conditions.append(
-            sa.func.lower(VaSubmissions.va_deceased_gender) == gender.strip().lower()
-        )
-    conditions.append(_odk_sync_condition(odk_sync))
-    if visit_note == "1":
-        conditions.append(has_visit_note_condition())
-    if org_unit:
-        conditions.append(_org_unit_subtree_condition(org_unit))
-    if workflow:
-        if workflow == "pending_coding":
-            conditions.append(VaSubmissionWorkflow.workflow_state.in_([
-                WORKFLOW_READY_FOR_CODING,
-                WORKFLOW_CODING_IN_PROGRESS,
-                WORKFLOW_CODER_STEP1_SAVED,
-            ]))
-        elif workflow == "coded":
-            conditions.append(VaSubmissionWorkflow.workflow_state.in_([
-                WORKFLOW_CODER_FINALIZED,
-                WORKFLOW_REVIEWER_ELIGIBLE,
-                WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-                WORKFLOW_REVIEWER_FINALIZED,
-            ]))
-        else:
-            conditions.extend(workflow_filter_conditions(
-                workflow, VaSubmissionWorkflow.workflow_state, VaSubmissions.va_sid
-            ))
 
     analytics_age_band_column = (
         _mv_ref.c.analytics_age_band
@@ -1104,14 +1028,22 @@ def _dm_submission_query_parts(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
 ):
     """Return shared query pieces for the DM grid and full export.
+
+    ``visit_note`` ("1") and ``org_unit`` (a unit's subtree, within the
+    caller's scope) are the same filters the KPI cards apply
+    (``build_dm_mv_filter_conditions``).
 
     ``odk_sync`` defaults to "in sync", so every export built on these pieces
     leaves out submissions retired from ODK unless asked for them.
@@ -1161,6 +1093,7 @@ def _dm_submission_query_parts(
     if site_values:
         conditions.append(VaForms.site_id.in_(site_values))
     conditions.extend(_local_date_conditions(user, date_from, date_to))
+    conditions.extend(death_date_conditions(VaSubmissions.va_sid, death_from, death_to))
     if odk_status == "hasIssues":
         conditions.append(VaSubmissions.va_odk_reviewstate == "hasIssues")
     elif odk_status == "approved":
@@ -1183,23 +1116,15 @@ def _dm_submission_query_parts(
             sa.func.lower(VaSubmissions.va_deceased_gender) == gender.strip().lower()
         )
     conditions.append(_odk_sync_condition(odk_sync))
+    if visit_note == "1":
+        conditions.append(has_visit_note_condition())
+    if org_unit:
+        conditions.append(org_unit_subtree_condition(VaSubmissions.org_unit_id, org_unit))
     if workflow:
         if workflow == "pending_coding":
-            conditions.append(VaSubmissionWorkflow.workflow_state.in_([
-                WORKFLOW_SCREENING_PENDING,
-                WORKFLOW_ATTACHMENT_SYNC_PENDING,
-                WORKFLOW_SMARTVA_PENDING,
-                WORKFLOW_READY_FOR_CODING,
-                WORKFLOW_CODING_IN_PROGRESS,
-                WORKFLOW_CODER_STEP1_SAVED,
-            ]))
+            conditions.append(VaSubmissionWorkflow.workflow_state.in_(PENDING_STATES))
         elif workflow == "coded":
-            conditions.append(VaSubmissionWorkflow.workflow_state.in_([
-                WORKFLOW_CODER_FINALIZED,
-                WORKFLOW_REVIEWER_ELIGIBLE,
-                WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-                WORKFLOW_REVIEWER_FINALIZED,
-            ]))
+            conditions.append(VaSubmissionWorkflow.workflow_state.in_(DM_CODED_STATES))
         else:
             conditions.extend(workflow_filter_conditions(
                 workflow, VaSubmissionWorkflow.workflow_state, VaSubmissions.va_sid
@@ -1471,12 +1396,16 @@ def write_dm_submissions_export_csv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> None:
@@ -1500,12 +1429,16 @@ def write_dm_submissions_export_csv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
 
     active_ini = (
@@ -1848,12 +1781,16 @@ def dm_coded_cod_snapshot_export_csv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> str:
@@ -1876,12 +1813,16 @@ def dm_coded_cod_snapshot_export_csv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
 
     snapshot_columns = [
@@ -2101,12 +2042,16 @@ def write_dm_smartva_input_export_csv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> None:
@@ -2123,12 +2068,16 @@ def write_dm_smartva_input_export_csv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
     query = (
         sa.select(
@@ -2161,7 +2110,6 @@ def write_dm_smartva_input_export_csv(
         "workflow_state",
     ]
     pii_payload_status_by_form: dict = {}
-    # First-seen order is the column order, so a list beside the set.
     payload_headers: list = []
     seen_headers: set = set(preferred_front) | {"sid"}
     with _export_spool() as spool:
@@ -2199,7 +2147,8 @@ def write_dm_smartva_input_export_csv(
         finally:
             result.close()
 
-        headers = preferred_front + payload_headers + ["sid"]
+        # Sorted like the submissions export: row order must not decide the header (digitva-783d).
+        headers = preferred_front + sorted(payload_headers) + ["sid"]
         writer = csv.DictWriter(out, fieldnames=headers, extrasaction="ignore")
         writer.writeheader()
         for prepared in _read_spool(spool):
@@ -2221,12 +2170,16 @@ def dm_smartva_results_export_csv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> str:
@@ -2238,12 +2191,16 @@ def dm_smartva_results_export_csv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
     query = (
         sa.select(
@@ -2338,12 +2295,16 @@ def dm_smartva_likelihoods_export_csv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
 ) -> str:
@@ -2355,12 +2316,16 @@ def dm_smartva_likelihoods_export_csv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
     query = (
         sa.select(
@@ -2457,12 +2422,16 @@ def dm_coder_daily_statistics(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     days: int = 7,
     timezone_name: str = "Asia/Kolkata",
 ) -> dict:
@@ -2511,12 +2480,16 @@ def dm_coder_daily_statistics(
             site=site,
             date_from=date_from,
             date_to=date_to,
+            death_from=death_from,
+            death_to=death_to,
             odk_status=odk_status,
             smartva=smartva,
             age_group=age_group,
             gender=gender,
             odk_sync=odk_sync,
             workflow=workflow,
+            visit_note=visit_note,
+            org_unit=org_unit,
         )
     )
 
@@ -2664,6 +2637,7 @@ def dm_filter_options(user) -> dict:
     Genders come from the submissions the user may list.
     """
     visible = _dm_visible_forms_condition(user)
+    org_units, truncated = dm_org_unit_options(user)
     projects = db.session.scalars(
         sa.select(VaForms.project_id).where(visible).distinct().order_by(VaForms.project_id)
     ).all()
@@ -2688,7 +2662,68 @@ def dm_filter_options(user) -> dict:
         "projects": list(projects),
         "sites": [{"project_id": r["project_id"], "site_id": r["site_id"]} for r in sites],
         "genders": list(genders),
+        "org_units": org_units,
+        "org_units_truncated": truncated,
     }
+
+
+_ORG_UNIT_OPTIONS_LIMIT = 2000
+
+
+def dm_org_unit_options(user) -> tuple[list[dict], bool]:
+    """Org units the ``org_unit`` filter may offer *user*, in tree order.
+
+    A unit is offered when it holds, or has below it, a submission the user
+    may list, and the user's grants reach the unit itself: its project is
+    granted whole (project grant, or a pair grant in it) or it lies in their
+    unit-grant subtree. So an ancestor above a unit grant, or a branch with
+    no visible case, is never named. One query; the DISTINCT paths of the
+    listable submissions are matched to units through the GiST index on
+    ``mas_org_unit.path``. Capped at ``_ORG_UNIT_OPTIONS_LIMIT`` rows; returns
+    ``(options, truncated)``, ``truncated`` true when the cap cut the list.
+    """
+    scope = dm_grant_scope(user, viewers=True)
+    reach = []
+    granted_projects = set(scope.project_ids) | {project for project, _ in scope.pairs}
+    if granted_projects:
+        reach.append(MasOrgUnit.project_id.in_(sorted(granted_projects)))
+    subtree = scope.unit_subtree()
+    if subtree is not None:
+        reach.append(MasOrgUnit.org_unit_id.in_(subtree))
+    if not reach:
+        return [], False
+
+    used = sa.orm.aliased(MasOrgUnit)
+    used_paths = (
+        sa.select(used.path)
+        .select_from(VaSubmissions)
+        .join(VaForms, VaSubmissions.va_form_id == VaForms.form_id)
+        .join(used, used.org_unit_id == VaSubmissions.org_unit_id)
+        .where(_list_scope(user), not_confirmed_duplicate_condition(VaSubmissions.va_sid))
+        .distinct()
+        .subquery()
+    )
+    rows = db.session.execute(
+        sa.select(
+            MasOrgUnit.org_unit_id, MasOrgUnit.project_id, MasOrgUnit.unit_code, MasOrgUnit.unit_name
+        )
+        .where(
+            MasOrgUnit.is_active.is_(True),
+            sa.or_(*reach),
+            sa.exists().where(used_paths.c.path.op("<@")(MasOrgUnit.path)),
+        )
+        .order_by(MasOrgUnit.project_id, MasOrgUnit.path)
+        .limit(_ORG_UNIT_OPTIONS_LIMIT + 1)
+    ).all()
+    truncated = len(rows) > _ORG_UNIT_OPTIONS_LIMIT
+    return [
+        {
+            "org_unit_id": str(r.org_unit_id),
+            "project_id": r.project_id,
+            "label": f"{r.project_id} · {r.unit_name} ({r.unit_code})",
+        }
+        for r in rows[:_ORG_UNIT_OPTIONS_LIMIT]
+    ], truncated
 
 
 # ---------------------------------------------------------------------------

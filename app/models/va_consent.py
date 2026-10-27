@@ -19,6 +19,10 @@ from app import db
 CONSENT_MODES = ("spoken", "tap", "signed")
 CONSENT_EVENTS = ("granted", "refused", "withdrawn")
 CONSENT_CHANNELS = ("web", "device", "bundle")
+#: ``project``: a project's own notice (consent config, Project Setup);
+#: ``standalone``: the text a Collect Plus phone used without a server showed,
+#: stored from its push (offline-api-contract.md section 17). Never served.
+NOTICE_SOURCES = ("project", "standalone")
 EXPIRY_ACTIONS = ("erase", "lock")
 #: Open enum (contract 13): new values are added, never changed.
 REFUSAL_BEHAVIOURS = ("interview_without_informant_data",)
@@ -68,13 +72,17 @@ class MasConsentNoticeVersion(db.Model):
     """One notice text in one language. Never edited: a change is a new
     version. ``text_sha256`` is the lowercase hex SHA-256 of the UTF-8 bytes
     of ``text`` exactly as served. Retired versions stay for the records that
-    name them."""
+    name them. A ``standalone`` row is the text snapshot of a Collect Plus
+    push (version 1, found again by its hash, never in the consent config)."""
 
     __tablename__ = "mas_consent_notice_versions"
     __table_args__ = (
-        sa.UniqueConstraint("project_id", "version", "language",
-                            name="uq_mas_consent_notice_versions_project_version_language"),
+        sa.Index("uq_mas_consent_notice_versions_project_notice", "project_id", "version", "language",
+                 unique=True, postgresql_where=sa.text("source = 'project'")),
+        sa.Index("uq_mas_consent_notice_versions_standalone_text", "project_id", "language", "text_sha256",
+                 unique=True, postgresql_where=sa.text("source = 'standalone'")),
         sa.CheckConstraint("version >= 1", name="version"),
+        sa.CheckConstraint(f"source IN {_in(NOTICE_SOURCES)}", name="source"),
     )
 
     notice_version_id: so.Mapped[uuid.UUID] = so.mapped_column(
@@ -107,6 +115,12 @@ class MasConsentNoticeVersion(db.Model):
     approved_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
     )
+    source: so.Mapped[str] = so.mapped_column(
+        sa.String(16), nullable=False, default="project", server_default="project"
+    )
+    #: A standalone row's bundled notice: the asset's version and content hash.
+    bundle_version: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
+    bundle_sha256: so.Mapped[str | None] = so.mapped_column(sa.String(64), nullable=True)
 
 
 class VaConsentRecord(db.Model):

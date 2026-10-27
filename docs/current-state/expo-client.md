@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-10-27
 ---
 
 # Expo Client Hosting And Access
@@ -678,7 +678,10 @@ the device while unenrolled.
   (`src/workspace/offlineDoris.ts`), and saves to the per-interviewer store's
   `offline_coding` table (certificate, engine results, local digests,
   `process_token` `local-<uuid>`, `device_uuid` +
-  `coder_profile_updated_at` provenance). Engine error payloads never surface
+  `coder_profile_updated_at` provenance, and `answers_sha256` of the answers
+  coded, so later edits make it stale). The row is deleted with its draft when
+  an upload is acknowledged; a standalone store pushes it with the interview
+  after adoption (device-collection-api.md "Standalone push"). Engine error payloads never surface
   or log (status `unavailable`). Screens are platform-split (`​.native`/`.web`
   twins) so the web export never pulls expo-sqlite.
 - Limits, accepted: subtree-scoped term search answers the flat MMS list (the

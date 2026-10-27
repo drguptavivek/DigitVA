@@ -10,10 +10,9 @@ them.
 Row order: the export query has no ORDER BY, so the database is free to return
 rows in any order. The golden comparison therefore pins the header line and the
 set of whole records byte for byte, and not their sequence. The SmartVA input
-export also orders its payload columns by first sight across rows, so its
-comparison pins the leading columns and the trailing ``sid`` and treats the
-payload columns and the rows as sets. Byte identity in real order was checked
-on a 7k-row dev clone, where the plan is the production one.
+export sorts its payload columns, so its header is pinned exactly. Byte
+identity in real order was checked on a 7k-row dev clone, where the plan is the
+production one.
 """
 import csv
 import io
@@ -85,14 +84,9 @@ SMARTVA_FRONT = ["project_id", "site_id", "va_form_id", "va_uniqueid_masked", "w
 
 
 def _smartva_view(text):
-    """The SmartVA input CSV with its row-order-dependent column order factored out."""
+    """The SmartVA input CSV: header exact (it is sorted, digitva-783d), rows as a set."""
     header, *rows = csv.reader(io.StringIO(text.removeprefix(export_store_service.UTF8_BOM)))
-    return (
-        header[:5],
-        header[-1],
-        sorted(header[5:-1]),
-        sorted(sorted(zip(header, row)) for row in rows),
-    )
+    return header, sorted(sorted(zip(header, row)) for row in rows)
 
 
 def _split_records(text, record_start):
@@ -291,7 +285,8 @@ class DmExportStreamingTests(BaseTestCase):
 
     def test_smartva_input_export_matches_the_golden_file(self):
         actual = _smartva_view(dm_smartva_input_export_csv(self.user, project=PROJECT))
-        self.assertEqual(actual[:2], (SMARTVA_FRONT, "sid"))
+        self.assertEqual((actual[0][:5], actual[0][-1]), (SMARTVA_FRONT, "sid"))
+        self.assertEqual(actual[0][5:-1], sorted(actual[0][5:-1]))
         self.assertEqual(actual, _smartva_view(self._golden("smartva_input.csv")))
 
     def test_export_carries_the_country_stamp(self):

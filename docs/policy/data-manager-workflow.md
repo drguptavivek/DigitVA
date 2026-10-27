@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Data Manager Workflow Policy
@@ -120,18 +120,12 @@ those exports must protect PII.
 
 Dashboard state semantics:
 
-- `Pending Coding` is reserved for coder-actionable workload only:
-  - `ready_for_coding`
-  - `coding_in_progress`
-  - `coder_step1_saved`
-- pre-coding pipeline states are distinct operational queues and must not be
-  counted as pending coding:
-  - `screening_pending`
-  - `attachment_sync_pending`
-  - `smartva_pending`
+- `Pending Coding` is the 6 `PENDING_STATES` of `docs/policy/kpis.md` (owner
+  decision 2026-10-27): `screening_pending`, `attachment_sync_pending`,
+  `smartva_pending`, `ready_for_coding`, `coding_in_progress`,
+  `coder_step1_saved`; the card and the `pending_coding` list filter agree
 - workflow visualizations such as the workflow-state donut and workflow guide
-  should show the actual underlying workflow states rather than collapsing
-  these pre-coding states into pending coding
+  should show the actual underlying workflow states
 
 Export policy:
 

@@ -448,6 +448,21 @@ class FormOptionsAdminEditingTests(BaseTestCase):
         self.assertEqual(project["web_intake_narration_languages"], ["fopt2_hi"])
         self.assertTrue(project["web_intake_show_guidance"])
 
+    def test_put_takes_real_booleans_only_for_the_web_intake_toggles(self):
+        fields = (
+            "web_intake_show_guidance",
+            "web_intake_death_summary_enabled",
+            "web_intake_medical_records_enabled",
+            "web_intake_equity_enabled",
+        )
+        for field in fields:
+            for value in (True, False):  # positive control first
+                response = self._put({field: value})
+                self.assertEqual(response.status_code, 200, response.get_json())
+                self.assertIs(response.get_json()["project"][field], value)
+            for bad in ("false", "true", 0, 1, None, []):
+                self.assertEqual(self._put({field: bad}).status_code, 400, (field, bad))
+
     def test_put_takes_the_base_locale_and_rejects_a_language_code(self):
         """Positive control first, so the rejection is not a broken payload."""
         self.assertEqual(
@@ -888,6 +903,17 @@ class WebFormTypeAndExtensionOptionsTests(BaseTestCase):
         db.session.commit()
         self.assertNotIn("medical_records", self._payload()["enabled_extensions"])
 
+    def test_equity_is_off_by_default_and_comes_when_switched_on(self):
+        self.assertNotIn("equity", self._payload()["enabled_extensions"])
+
+        self.project.web_intake_equity_enabled = True
+        db.session.commit()
+        self.assertIn("equity", self._payload()["enabled_extensions"])
+
+        self.project.web_intake_equity_enabled = False
+        db.session.commit()
+        self.assertNotIn("equity", self._payload()["enabled_extensions"])
+
     def test_doris_support_is_on_whatever_the_cod_entry_mode(self):
         # Every web form asks the DORIS support questions (digitva-hln).
         self.project.icd_classification = "icd11"
@@ -1046,6 +1072,15 @@ class WebFormTypeAdminValidationTests(BaseTestCase):
         self.assertTrue(
             response.get_json()["project"]["web_intake_medical_records_enabled"]
         )
+
+    def test_put_sets_the_equity_switch(self):
+        response = self._put({"web_intake_equity_enabled": True})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertTrue(response.get_json()["project"]["web_intake_equity_enabled"])
+
+        response = self._put({"web_intake_equity_enabled": False})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertFalse(response.get_json()["project"]["web_intake_equity_enabled"])
 
     def test_put_rejects_a_non_text_note(self):
         response = self._put({"web_intake_intake_note": 7})
@@ -1258,6 +1293,32 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
             {"id": "FDEF06"},
         ).scalar()
         self.assertTrue(value)
+
+    def test_equity_column_server_default_is_false(self):
+        """A row inserted without the column gets ``false`` from the DB."""
+        db.session.execute(
+            sa.text(
+                "INSERT INTO va_project_master "
+                "(project_id, project_name, project_nickname, project_status, "
+                " project_registered_at, project_updated_at) "
+                "VALUES (:id, :name, :nickname, :status, now(), now())"
+            ),
+            {
+                "id": "FDEF07",
+                "name": "Default Eq",
+                "nickname": "DefEq",
+                "status": VaStatuses.active.value,
+            },
+        )
+        db.session.commit()
+        value = db.session.execute(
+            sa.text(
+                "SELECT web_intake_equity_enabled FROM va_project_master "
+                "WHERE project_id = :id"
+            ),
+            {"id": "FDEF07"},
+        ).scalar()
+        self.assertIs(value, False)
 
 
 class FormOptionsInstrumentLocaleTests(BaseTestCase):

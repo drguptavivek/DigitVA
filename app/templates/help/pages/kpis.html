@@ -13,19 +13,112 @@
   that specific pair. The dashboard never exposes data outside your authorized scope.
 </div>
 
-<h2>Data Sources</h2>
+<h2>Core Panels and Registered KPIs</h2>
 
-<p>The dashboard uses a hybrid storage model:</p>
+<p>
+  The dashboard keeps a small set of <strong>18 core panels</strong>: the numbers
+  that matter most, always in the same place. A further <strong>35 registered
+  KPIs</strong> have no fixed panel but can be looked up by name or id. Every KPI
+  is classified by where it sits in the results chain:
+</p>
+
+<table class="table">
+  <thead>
+    <tr>
+      <th>Stage</th>
+      <th>What it answers</th>
+      <th>Examples</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Input</td>
+      <td>What do we have to work with?</td>
+      <td>Coder availability, language gap</td>
+    </tr>
+    <tr>
+      <td>Process</td>
+      <td>How do cases move?</td>
+      <td>Uncoded and when it will clear, blockers, time in each state, ODK sync</td>
+    </tr>
+    <tr>
+      <td>Output</td>
+      <td>What did we produce?</td>
+      <td>Cases coded each day, final cause coverage, cases lost to coding, interviews that cannot be analysed</td>
+    </tr>
+    <tr>
+      <td>Outcome</td>
+      <td>What do the results say?</td>
+      <td>Share of finals with no meaningful cause, coder-reviewer agreement, female against male coverage</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  Within a stage, KPIs are grouped by category, such as workforce, flow,
+  timeliness, coding quality, coverage, data quality and equity. Some earlier KPIs
+  are now a breakdown of another one (for example, not-codeable by coder or by data
+  manager is a breakdown of &ldquo;cases lost to coding&rdquo;); their ids still
+  work.
+</p>
+
+<div class="help-info">
+  <strong>Small numbers:</strong> A count under 5 is folded, and a rate or rank is
+  shown only when it rests on 20 or more cases. Comparisons are only with sibling
+  units inside your own grant (districts with districts, PHCs with PHCs).
+  Coverage of reported deaths and the register part of the female-male comparison
+  apply only to projects that keep a death register.
+</div>
+
+<h3>Blockers, Critical Path, Forecast and Trend</h3>
 
 <ul>
-  <li><strong>Pre-computed daily grid</strong> &mdash; the <code>va_daily_kpi_aggregates</code>
-    table stores one row per (snapshot_date, project_id, site_id) with daily counts of
-    synced, coded, pending, refused, and not-codeable submissions, plus coding duration
-    percentiles. This table is populated by a daily Celery task and refreshed after each
-    sync run.</li>
-  <li><strong>Event-sourced detail</strong> &mdash; detailed KPIs (reason breakdowns,
-    language gaps, per-coder stats) are computed on-demand from
-    <code>va_submission_workflow_events</code> and supporting tables.</li>
+  <li><strong>Blockers</strong> &mdash; for each reason a case is stuck: how many,
+    how old (median and oldest) and who can unblock them.</li>
+  <li><strong>Critical path</strong> &mdash; the typical and slow (90th percentile)
+    time cases spend in each stage. The <em>dominant</em> stage takes the largest
+    share of the total time. The <em>bottleneck</em> is the stage where you are
+    furthest behind your sibling units (shown when there are 20 or more cases).</li>
+  <li><strong>Forecast</strong> &mdash; days to clear is the pending count divided by
+    the average daily outflow of the last 28 days, with a range from the lowest and
+    highest of the last four weekly rates. A capacity ceiling (coders times their
+    recent rate) is shown as an assumption, not blended into the estimate. If more
+    cases arrive than leave over 28 days, the forecast says it <em>does not
+    clear</em>. Each forecast is checked against what happened over the past 12
+    weeks. No forecast is shown for fewer than 20 cases.</li>
+  <li><strong>Trend</strong> &mdash; the change from the previous period and, once 13
+    months of history exist, from the same period last year. A KPI is flagged
+    rising or falling when the last four weeks differ from the four before by at
+    least 10% and at least 5 cases; otherwise it is flat.</li>
+</ul>
+
+<h3>For AI Agents</h3>
+
+<p>
+  Data managers and admins can create a personal access token (after signing in
+  again) and let an AI assistant query KPI aggregates. The token works only on the
+  KPI endpoint, lasts at most 90 days, can be revoked, and sees only what your own
+  grants allow. Results are aggregates: counts under 5 show as &lt;5, rates on
+  fewer than 20 cases are left out, and no names are returned.
+</p>
+
+<h2>Data Sources</h2>
+
+<p>Every number on the dashboard is worked out live from the record of what happened
+to each case (its workflow events), so it is always current. Nothing is stored in a
+nightly snapshot.</p>
+
+<ul>
+  <li><strong>Days follow your timezone</strong> &mdash; &ldquo;today&rdquo; and each
+    row of the daily grid start at midnight in your own timezone (India time unless
+    you have set another).</li>
+  <li><strong>Demo sessions are left out</strong> &mdash; practice (demo) coding is not
+    counted in coded, throughput, rate or time-to-code figures. Demo projects still
+    appear in your scope.</li>
+  <li><strong>Pending means not yet coded</strong> &mdash; every case still being
+    screened, waiting for attachments or SmartVA, ready for coding, or part-way through
+    coding. The &ldquo;ready pool&rdquo; is the smaller set of cases a coder can pick
+    up right now.</li>
 </ul>
 
 <h2>Denominator Scopes</h2>
@@ -103,7 +196,7 @@
     </tr>
     <tr>
       <td>Pending Coding</td>
-      <td>Submissions in ready_for_coding, coding_in_progress, or coder_step1_saved states</td>
+      <td>Cases not yet coded at the end of that day: being screened, waiting for attachments or SmartVA, ready for coding, or part-way through coding</td>
     </tr>
     <tr>
       <td>Not analysable</td>
@@ -116,116 +209,58 @@
   </tbody>
 </table>
 
-<p>Additional daily operation metrics include:</p>
+<h2 id="kpi-reference">KPI Reference</h2>
+
+<p>
+  Every KPI, read from the KPI registry. Levels: <strong>Pj</strong> project,
+  <strong>St</strong> project-site pair, <strong>Dt</strong> district,
+  <strong>Bk</strong> block, <strong>Fu</strong> facility unit,
+  <strong>Sys</strong> the system itself (ODK sync, SmartVA queue). Core KPIs have a
+  fixed panel; registered KPIs are looked up by name or id.
+</p>
+
+{% for stage, categories in kpi_groups %}
+<h3>{{ stage | capitalize }}</h3>
+{% for category, kpis in categories %}
+<h4>{{ category | capitalize }}</h4>
+<table class="table">
+  <thead>
+    <tr>
+      <th>KPI</th>
+      <th>Question</th>
+      <th>Tier</th>
+      <th>Level</th>
+      <th>Views</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for kpi in kpis %}
+    <tr id="{{ kpi.id }}">
+      <td><strong>{{ kpi.name }}</strong> <code>{{ kpi.id }}</code></td>
+      <td>{{ kpi.question }}</td>
+      <td>{{ kpi.tier }}</td>
+      <td>{{ kpi.level | join(' ') }}</td>
+      <td>{{ kpi.views | map('replace', '_', ' ') | join(', ') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% endfor %}
+
+<h3>Merged and Retired</h3>
+
+<p>
+  These ids still resolve. A merged KPI is now a breakdown of the KPI it points to;
+  a retired one is no longer a measure.
+</p>
 
 <ul>
-  <li><strong>Sync status</strong> &mdash; status, start time, and finish time of the
-    most recent ODK sync run</li>
-  <li><strong>Sync error rate</strong> &mdash; percentage of sync runs that resulted in
-    error or partial status over 7-day and cumulative windows</li>
-  <li><strong>% Uncoded</strong> &mdash; fraction of the coding pool that has not yet
-    been coded</li>
-  <li><strong>% Not Codeable</strong> &mdash; fraction of all synced submissions that
-    are in a not-codeable state</li>
-  <li><strong>Consent refusal rate</strong> &mdash; fraction of all synced submissions
-    where consent was refused</li>
-  <li><strong>Pipeline aging</strong> &mdash; count of submissions stuck in
-    ready_for_coding beyond 48 hours, 7 days, and 30 days</li>
-</ul>
-
-<h3>Timing Metrics</h3>
-
-<ul>
-  <li><strong>Time to Code</strong> &mdash; for each finalized submission, the elapsed
-    time from coding_started to coder_finalized. Reported as minimum, maximum, median
-    (P50), and P90 percentile. Covers both first-pass coding and recode episodes.</li>
-  <li><strong>Sync latency</strong> &mdash; time between the ODK submission timestamp
-    and the local database insert. Reported as P50, P90, and P99.</li>
-  <li><strong>Predicted days to clear backlog</strong> &mdash; estimated days to code
-    all currently pending forms, computed as pending_count divided by the mean daily
-    coding rate over the trailing 7 days. Also reported per language.</li>
-</ul>
-
-<h3>Coder Metrics</h3>
-
-<ul>
-  <li><strong>Coder throughput</strong> &mdash; count of coder_finalized events in the
-    selected window, with per-coder breakdown</li>
-  <li><strong>Coder utilization rate</strong> &mdash; percentage of active coders who
-    have at least one active allocation. Low utilization (&lt;70%) suggests idle coders;
-    high utilization (&gt;95%) suggests saturation.</li>
-  <li><strong>Coder output by language</strong> &mdash; a heatmap showing how many forms
-    each coder has produced in each language, with per-language backlog totals</li>
-  <li><strong>Coder pool</strong> &mdash; list of active coders, their assigned languages,
-    total forms coded, and currently allocated count</li>
-</ul>
-
-<h3>Quality Metrics</h3>
-
-<ul>
-  <li><strong>% Forms reviewed</strong> &mdash; fraction of coded submissions that have
-    at least one active reviewer final assessment. Excludes coder_finalized forms less
-    than 24 hours old (the recode window).</li>
-  <li><strong>Upstream change queue</strong> &mdash; count of submissions currently in
-    the finalized_upstream_changed state because ODK data changed after coding. Cases a
-    coder, reviewer or supervisor sent back for the interviewer's revision share that
-    state but are counted apart as &ldquo;sent back for revision&rdquo;.</li>
-  <li><strong>Upstream change resolution time</strong> &mdash; median time to resolve
-    upstream changes over the trailing 7 days</li>
-  <li><strong>Coder-reviewer disagreement rate</strong> &mdash; among submissions with
-    both coder and reviewer final assessments, the percentage where the conclusive COD
-    differs</li>
-  <li><strong>NQA completion rate</strong> &mdash; percentage of coded submissions (in
-    projects where Narrative Quality Assessment is enabled) that have an active NQA
-    record</li>
-  <li><strong>Social Autopsy completion rate</strong> &mdash; percentage of coded
-    submissions (in projects where Social Autopsy is enabled) that have an active
-    Social Autopsy record</li>
-</ul>
-
-<h3>Backlog Metrics</h3>
-
-<ul>
-  <li><strong>Coding backlog trend</strong> &mdash; daily time-series of the count of
-    submissions in ready_for_coding, shown as a line chart over a configurable window
-    (default 90 days)</li>
-  <li><strong>Burndown chart</strong> &mdash; compares the projected completion
-    trajectory against actual cumulative coding progress. Requires an admin-configured
-    target completion date for the project.</li>
-  <li><strong>Daily inflow vs outflow</strong> &mdash; side-by-side bar chart comparing
-    new forms entering the coding pipeline against forms coded each day. Consistent
-    positive net delta means the backlog is growing.</li>
-  <li><strong>Reopen rate</strong> &mdash; fraction of finalized forms that were
-    re-opened for recoding (via upstream change acceptance or admin override)</li>
-</ul>
-
-<h3>Infrastructure Metrics</h3>
-
-<ul>
-  <li><strong>Attachment health</strong> &mdash; percentage of submissions past the
-    SmartVA gate that have zero attachments. A high rate indicates attachment sync
-    problems.</li>
-  <li><strong>Attachment completeness</strong> &mdash; ratio of successfully downloaded
-    attachments to total attachment attempts in the latest sync run</li>
-  <li><strong>SmartVA failure rate</strong> &mdash; percentage of SmartVA runs that
-    failed over 7-day and cumulative windows</li>
-</ul>
-
-<h3>Language Metrics</h3>
-
-<ul>
-  <li><strong>Language gap alert</strong> &mdash; count of submissions in
-    ready_for_coding where the narration language has zero active coders who know that
-    language. Includes a breakdown of which languages are affected and how many
-    submissions are blocked.</li>
-  <li><strong>Language bottleneck</strong> &mdash; table ranking languages by pendency
-    (pending count descending), showing available coders and predicted days to clear for
-    each language</li>
-  <li><strong>Language-not-codeable correlation</strong> &mdash; percentage of
-    language-related not-codeable decisions that correspond to languages in the gap set</li>
-  <li><strong>Missing/unmapped language forms</strong> &mdash; count of submissions in
-    the coding pool where the narration language is blank, null, or not present in the
-    language alias mapping table. These forms cannot be language-matched to coders.</li>
+  {% for kpi in kpi_closed %}
+  <li id="{{ kpi.id }}"><strong>{{ kpi.name }}</strong> <code>{{ kpi.id }}</code> &mdash;
+    {% if kpi.merged_into %}merged into <a href="#{{ kpi.merged_into }}">{{ kpi.merged_into }}</a>
+    as {{ kpi.definition.measure | replace('Merged into ' ~ kpi.merged_into ~ ' as ', '') }}{% else %}retired: {{ kpi.retired_reason }}{% endif %}</li>
+  {% endfor %}
 </ul>
 
 <h2>API Endpoints</h2>
@@ -246,7 +281,7 @@
   <tbody>
     <tr>
       <td><code>GET /api/v1/analytics/dm-kpi/grid/</code></td>
-      <td>Daily operations grid rows from pre-computed aggregates</td>
+      <td>Daily operations grid rows, computed live</td>
     </tr>
     <tr>
       <td><code>GET /api/v1/analytics/dm-kpi/scope/</code></td>

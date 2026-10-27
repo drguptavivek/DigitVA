@@ -58,7 +58,10 @@ def has_visit_note_condition(va_sid_expr=VaSubmissions.va_sid):
                 sa.or_(
                     _payload_text(DATE_KEY) != "", _payload_text(ADDRESS_KEY) != "", _sealed_address()
                 ),
-            )
+            # Only the submission correlates out: a caller that joins the
+            # payload-version table itself (the export) must not strip this
+            # EXISTS' own FROM.
+            ).correlate(VaSubmissions)
         ),
     )
 

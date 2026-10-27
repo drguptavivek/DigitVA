@@ -261,6 +261,45 @@ class DeviceApiTests(BaseTestCase):
         self.assertEqual(device.secret_hash, hashlib.sha256(body["device_secret"].encode()).hexdigest())
         self.assertNotEqual(device.secret_hash, body["device_secret"])
 
+    def test_enrol_stores_the_client_device_uuid_and_looks_it_up_per_session(self):
+        client_uuid = str(uuid.uuid4())
+        body = self.client.post(f"{API}/enroll", json={
+            "code": self._code(), "device_name": "Plus phone", "platform": "android",
+            "client_device_uuid": client_uuid.upper(),
+        }).get_json()
+        device = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
+        self.assertEqual(str(device.client_device_uuid), client_uuid)
+        tokens = self._sign_in(body).get_json()
+        session = devices.resolve_access_token(tokens["access_token"])[0]
+        self.assertEqual(devices.device_for_client_uuid(session, client_uuid).device_id, device.device_id)
+        self.assertIsNone(devices.device_for_client_uuid(session, str(uuid.uuid4())))
+        self.assertIsNone(devices.device_for_client_uuid(session, None))
+        # A plain enrolment leaves it NULL.
+        plain = db.session.get(AuthDevice, uuid.UUID(self._enrol()["device_id"]))
+        self.assertIsNone(plain.client_device_uuid)
+
+    def test_enrol_refuses_a_bad_client_device_uuid_without_burning_the_code(self):
+        code = self._code()
+        for bad in ("not-a-uuid", 7, ["x"], ""):
+            response = self.client.post(f"{API}/enroll", json={
+                "code": code, "device_name": "Plus phone", "platform": "android", "client_device_uuid": bad,
+            })
+            self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"))
+        self._enrol(code)  # the single-use code is still good
+
+    def test_re_enrolling_the_same_install_adds_a_row_with_the_same_uuid(self):
+        client_uuid = uuid.uuid4()
+        ids = [
+            self.client.post(f"{API}/enroll", json={
+                "code": self._code(), "device_name": "Plus phone", "platform": "android",
+                "client_device_uuid": str(client_uuid),
+            }).get_json()["device_id"]
+            for _ in range(2)
+        ]
+        self.assertNotEqual(*ids)
+        rows = db.session.scalars(sa.select(AuthDevice).where(AuthDevice.client_device_uuid == client_uuid)).all()
+        self.assertEqual({str(r.device_id) for r in rows}, set(ids))
+
     def test_enrol_refuses_unknown_expired_used_and_revoked_codes_alike(self):
         def enrol(code):
             return self.client.post(f"{API}/enroll", json={

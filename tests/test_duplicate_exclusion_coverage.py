@@ -58,9 +58,10 @@ COVERED_HELPERS = frozenset({
     "services/data_management_service.py::_dm_submission_query_parts",
     "services/sitepi_reporting_service.py::_workflow_kpis",
     "routes/api/analytics.py::_dm_scope_filter",
-    "routes/api/dm_kpi/dm_kpi_pipeline.py::_ready_for_coding_count",
+    "routes/api/dm_kpi/dm_kpi_scope.py::bucket_flow_by_day",
     "services/reviewer_dashboard_service.py::_available_where",
     "services/ai_analytics_tables.py::_scope_filter",
+    "services/area_dashboard_service.py::_medians",
 })
 
 _WRITER = "writer of workflow state; readers exclude the submission, writers keep it consistent"
@@ -171,10 +172,6 @@ EXEMPT = {
     "services/web_intake_service.py::_revision_reply": (
         "echoes the revised submission's own workflow state to its submitter"
     ),
-    "routes/api/dm_kpi/dm_kpi_grid.py::daily_grid": (
-        "dispatcher; its live queries (_grid_from_*) apply the predicate, the aggregate table "
-        "is pre-counted by kpi_tasks and recounted on confirm / reopen"
-    ),
     "routes/api/workflow.py::get_events": (
         "one named submission's event history for a user with form access; a view, not a "
         "coding list or count"
@@ -257,10 +254,6 @@ EXEMPT = {
     "services/workflow/transitions.py::_apply_transition": _WRITER,
     "services/workflow/transitions.py::_apply_release_reset_transition": _WRITER,
     "services/workflow/upstream_changes.py::record_protected_upstream_change": _SYNC,
-    "tasks/kpi_tasks.py::recompute_kpi_days_for_submission": (
-        "finds the stored days a duplicate touched, so it must see it; the recount itself "
-        "runs through the predicate-applying _count_* queries"
-    ),
     "tasks/sync_tasks.py::_refresh_batch_plan_after_enrichment": _SYNC,
     "tasks/sync_tasks.py::refresh_submission_analytics_mv_task": _MV_DDL,
     "utils/va_permission/va_permission_07_ensurenotreviewed.py::va_permission_ensurenotreviewed": _ONE_ROW,

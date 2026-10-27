@@ -1234,11 +1234,12 @@ function ProcessingSummary({ processing, saved, api, vaSid }: { processing: Dori
     .filter((note) => !isTechnicalWhoNote(note));
   const [showDetails, setShowDetails] = useState(false);
   // An empty report is no box at all; a run of blank lines reads as one blank line.
-  const report = (value: unknown) => {
+  const report = (key: string, value: unknown) => {
     const body = collapseBlankLines(value);
-    return body ? <ReportBox>{body}</ReportBox> : null;
+    return body ? <ReportBox key={key}>{body}</ReportBox> : null;
   };
-  const reports = [dr.report, cr.report, cr.tabularReport].map(report);
+  // Fixed three slots, so the slot name is the stable key.
+  const reports = [report("doris", dr.report), report("codedit", cr.report), report("codedit-tabular", cr.tabularReport)];
   const hasDetails = typeof dr.stemCode === "string" || typeof dr.uri === "string" || ucodParts.length > 1 || reports.some(Boolean);
   return (
     <Card>

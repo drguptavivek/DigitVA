@@ -30,7 +30,7 @@ CASES = {
     ],
     "all": [
         "abha", "death_summary", "digitva_core", "doris_support_whova_2022", "geography",
-        "intake_screen", "medical_records", "narration_language", "social_autopsy",
+        "equity", "intake_screen", "medical_records", "narration_language", "social_autopsy",
     ],
 }
 

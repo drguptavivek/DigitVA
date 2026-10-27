@@ -5,6 +5,8 @@ not read docs at run time; tests/services/test_consent_notice_seed.py fails if
 the two differ. ``[PROJECT NAME]`` is replaced by the project's name; the
 other bracketed items are left for the project to fill in (a new version).
 """
+import hashlib
+import json
 
 PROJECT_NAME_PLACEHOLDER = "[PROJECT NAME]"
 
@@ -94,3 +96,14 @@ SEED_PURPOSES = {
 }
 
 SEED_ALLOWED_MODES = ["spoken", "tap", "signed"]
+
+
+def standalone_bundle_sha256() -> str:
+    """The content hash of the notice Collect Plus bundles for a phone used
+    without a server (``scripts/export_standalone_consent_notice.py`` writes it
+    into the asset as ``sha256``): SHA-256 of the compact JSON of the text,
+    purposes and allowed modes. The push names it as ``bundle_sha256`` and the
+    server allowlists it (consent_service.STANDALONE_BUNDLE_SHA256)."""
+    content = {"text": SEED_TEXT, "purposes": SEED_PURPOSES, "allowed_modes": SEED_ALLOWED_MODES}
+    body = json.dumps(content, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(body).hexdigest()

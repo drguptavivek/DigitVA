@@ -23,11 +23,9 @@ import type { Prefill } from "../cases";
 import { type Completion, type Db, type DeviceTimedDraft } from "../drafts";
 import { createNativeDefinitionCache } from "../formDefinitionCache";
 import {
-  PinnedDefinitionError,
   resolveSavedEnvelopeDefinition,
   type ResolvedInstrument,
 } from "../formDefinitionRuntime";
-import { FormDefinitionError } from "../formDefinitions";
 import {
   questionnaireDefault,
   t,
@@ -36,6 +34,8 @@ import {
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { initialDataFromPrefill } from "../prefill";
 import { revisionName } from "../revisionLabel";
+import { isStorageFull } from "../storageErrors";
+import { attentionMessage, loadFailureMessage } from "../revisionMessages";
 import {
   beginRevision,
   createRevisionDraftStore,
@@ -62,7 +62,7 @@ import { useLeaveGuard } from "../leaveGuard";
 import { useShell } from "../nativeShell/shellContext";
 import { useToast } from "../toast";
 import { useTheme } from "../theme";
-import { Button, errorText, Row, Screen, useUiStyles } from "../ui";
+import { Button, Row, Screen, useUiStyles } from "../ui";
 import { useWhoFormTheme } from "../whoWebTheme";
 
 const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
@@ -119,54 +119,6 @@ function isPrefill(value: Record<string, unknown>): value is Record<string, unkn
       (Array.isArray(value.lockedQuestionNames) &&
         value.lockedQuestionNames.every((name) => typeof name === "string")))
   );
-}
-
-function attentionMessage(code: string | null): string {
-  switch (code) {
-    case "revision_locked":
-      return t("revisionLocked");
-    case "case_already_submitted":
-      return t("revisionAlreadySubmitted");
-    case "case_closed":
-      return t("revisionCaseClosed");
-    case "case_state_conflict":
-      return t("revisionCaseConflict");
-    case "invalid_reason":
-    case "required_finish_partial":
-      return t("revisionInvalidReason");
-    case "not_found":
-      return t("revisionUnavailable");
-    case "answers_hash_invalid":
-    case "local_hash_mismatch":
-    case "invalid_revision_snapshot":
-    case "invalid_revision_ack":
-      return t("revisionRetry");
-    default:
-      return t("revisionRetry");
-  }
-}
-
-function loadFailureMessage(error: unknown): string {
-  if (error instanceof FormDefinitionError && error.code === "incompatible_engine") {
-    return "Update the app to open this form. Your saved answers remain on this device.";
-  }
-  if (error instanceof PinnedDefinitionError && error.code === "unknown_saved_definition") {
-    return "This interview's original form is unavailable. Your saved answers remain on this device.";
-  }
-  if (error instanceof Error && error.message === "revision_project_unavailable") {
-    return t("revisionUnavailable");
-  }
-  if (error instanceof ApiError) {
-    if (error.code === "revision_locked") return t("revisionLocked");
-    if (error.code === "case_already_submitted") return t("revisionAlreadySubmitted");
-    if (error.code === "case_closed") return t("revisionCaseClosed");
-    if (error.code === "case_state_conflict") return t("revisionCaseConflict");
-    if (error.status === 404) return t("revisionUnavailable");
-  }
-  if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
-    return errorText(error);
-  }
-  return t("revisionRetry");
 }
 
 function configForRevision(row: RevisionRow, project: ProjectSettings): RevisionConfig {
@@ -437,7 +389,7 @@ export default function Revision() {
           if (active && isCurrentRevision(generation)) router.replace("/");
           return;
         }
-        setMessage(t("revisionRetry"));
+        setMessage(loadFailureMessage(error));
         setInstrument(undefined);
       }
     })();
@@ -674,7 +626,7 @@ export default function Revision() {
         setMessage(t("revisionInvalidReason"));
         return;
       }
-      if (isCurrentRevision(current.generation)) setMessage(t("revisionRetry"));
+      if (isCurrentRevision(current.generation)) setMessage(isStorageFull(error) ? t("phoneStorageFull") : t("revisionRetry"));
     } finally {
       if (isCurrentRevision(current.generation)) setBusy(false);
     }
@@ -750,36 +702,42 @@ export default function Revision() {
           onCancel={() => setConfirmFinish(false)}
         />
       ) : null}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 4 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("revisionReason")}
-          disabled={busy}
-          onPress={() => setReasonOpen(true)}
-          testID="revision-reason"
-          style={{
-            minHeight: 44,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 8,
-            ...(reasonInvalid && !reason ? { borderWidth: 2, borderColor: ui.destructiveText, borderRadius: 8, paddingHorizontal: 8 } : {}),
-          }}
-        >
-          <Text numberOfLines={1} style={[reason ? styles.text : styles.muted, { flex: 1 }]}>
-            {reason ? t(REASONS.find((item) => item.code === reason)!.label as never) : t("revisionReason")}
-          </Text>
-          <Text style={styles.text}>▾</Text>
-        </Pressable>
+      <View testID="revision-reason-strip" style={{ paddingHorizontal: 16, paddingVertical: 2 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("revisionReason")}
+            disabled={busy}
+            onPress={() => setReasonOpen(true)}
+            testID="revision-reason"
+            style={{
+              flex: 1,
+              minHeight: 40,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              ...(reasonInvalid && !reason ? { borderWidth: 2, borderColor: ui.destructiveText, borderRadius: 8, paddingHorizontal: 8 } : {}),
+            }}
+          >
+            <Text numberOfLines={1} style={[reason ? styles.text : styles.muted, { flex: 1 }]}>
+              {reason ? t(REASONS.find((item) => item.code === reason)!.label as never) : t("revisionReason")}
+            </Text>
+            <Text style={styles.text}>▾</Text>
+          </Pressable>
+          {reason ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={t(REASONS.find((item) => item.code === reason)!.message as never)} testID="revision-notice-toggle" onPress={() => setNoticeOpen((open) => !open)} style={{ minHeight: 40, minWidth: 40, alignItems: "center", justifyContent: "center" }}>
+              <Text style={styles.text}>ⓘ</Text>
+            </Pressable>
+          ) : null}
+        </View>
         {reasonInvalid && !reason ? (
           <Text accessibilityRole="alert" style={styles.error} testID="revision-reason-error">{t("revisionReasonRequired")}</Text>
         ) : null}
-        {reason ? (
-          <Pressable accessibilityRole="button" onPress={() => setNoticeOpen((open) => !open)}>
-            <Text numberOfLines={noticeOpen ? undefined : 1} style={styles.muted}>
-              {t(REASONS.find((item) => item.code === reason)!.message as never)}
-            </Text>
-          </Pressable>
+        {reason && noticeOpen ? (
+          <Text style={styles.muted} testID="revision-notice">
+            {t(REASONS.find((item) => item.code === reason)!.message as never)}
+          </Text>
         ) : null}
         {translationFallback ? <Text numberOfLines={1} style={styles.muted}>{t("questionnaireEnglishFallback")}</Text> : null}
       </View>
@@ -797,7 +755,7 @@ export default function Revision() {
           },
         }))}
       />
-      <View style={{ flex: 1 }}>
+      <View testID="revision-form-area" style={{ flex: 1, minHeight: 0 }}>
         <WhoVaForm
           theme={whoTheme}
           key={`${loaded.row.draft_id}-${loaded.config.locale}`}

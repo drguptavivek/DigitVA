@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-27
 ---
 
 # Coding Workflow State Machine Policy
@@ -78,16 +78,10 @@ Decisions 10 and 14 of `.tasks/2026-09-28-interviewer-worklist.md`.
 - **Materialized views keep the rows.** Exclusion is applied at query time,
   so confirmation and reopen take effect without a refresh (cached dashboard
   responses may lag by their TTL).
-- **Stored daily KPI rows are recounted.** Confirming or reopening queues
-  `kpi_tasks.recompute_kpi_days_for_submission` after the commit. It recounts
-  the `va_daily_kpi_aggregates` rows already stored for the submission's form
-  site on the days its counts touched (created, last ODK update, and its
-  coded, reviewer-finalized and reopened events); days with no stored row are
-  live-filled by their readers. A past day keeps its end-of-day columns
-  (pending, consent refused, not codeable, upstream changed), which record
-  that day's backlog; today's row is recounted whole. Known ceiling:
-  `total_submissions` is cumulative, so stored days between those recounted
-  keep the old total until `flask kpi backfill` recomputes them.
+- **KPIs need no recount.** Every data-manager KPI is computed live with
+  the predicate (`va_daily_kpi_aggregates` is no longer read, `digitva-0hul`),
+  so confirmation and reopen take effect at once (cached responses may lag
+  by their TTL).
 
 ## Core Workflow Tracks
 
@@ -851,6 +845,39 @@ code their own case. This adds no workflow state and no new pool rule.
   correction after coding is handled.
 - A coder may release their own allocation; see [Coding Allocation Timeout
   Policy](coding-allocation-timeouts.md), "Coder release".
+
+## Imported offline final
+
+Owner decision 2026-10-27, `digitva-5bzf` (Collect Plus Path C; contract
+[Offline API Contract](offline-api-contract.md) section 17). A coder who coded
+a standalone interview on the phone pushes the result with the interview after
+enrolment. It adds no workflow state and no new transition.
+
+- **Held until ready.** The pushed coding waits, server-side, while the case
+  is in `attachment_sync_pending` or `smartva_pending`: the SmartVA gate
+  applies to an imported final as to any coding.
+- **Import.** Once the case is `ready_for_coding`, the pushing coder is
+  allocated the case (`coding_started`, as "Code this case now": scope,
+  language and coding gates apply, pick mode does not) and the result is saved
+  as their final (`coder_finalized`, reason `offline_coding_imported`). No
+  DORIS re-run and no WHO call; the narrative QA and social autopsy gates are
+  not asked, since the phone has neither.
+- **Who.** Only an account holding a `coder` grant that codes on the project
+  (the self-coding grant included). Without one the interview is kept and the
+  coding refused (`coding_grant_required`); so is a stale coding or a
+  project not in unmasked DORIS on ICD-11. A refused coding leaves the case in
+  the ordinary coding pool.
+- **Agreement.** The server re-applies ICD-11 allowability. When it agrees,
+  the case keeps the normal recode window and the sweep moves it to
+  `reviewer_eligible` like any coder final.
+- **Disagreement.** The final is still saved, never dropped or rewritten, with
+  `allowability_disagreement` on its provenance, and the case moves to
+  `reviewer_eligible` at once (reason `offline_coding_disagreement_review`),
+  skipping the recode window. Reviewer selection has no sampling rate, so every
+  flagged case is in the reviewer pool from the moment it is imported.
+- **Unchanged.** Recode (by the importing coder, within the window), review,
+  revisions, send-back and KPIs treat it as any coder final; it counts as the
+  pushing coder's final.
 
 ## Names on the coding screens
 

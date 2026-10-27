@@ -1,6 +1,6 @@
 import type { SubmissionData, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 
-import { ClientApiError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
+import { ClientApiError, isSignedOutError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
 import { readDefinitionPin, withDefinitionPin, type DefinitionPin } from "../formDefinitionRuntime";
 
 type SectionMap = Record<string, Record<string, unknown>>;
@@ -32,6 +32,8 @@ export interface ServerDraftStoreOptions {
   locale?: string;
   translationVersion?: number;
   onError?: (error: unknown) => void;
+  /** The cookie session is dead: autosave is paused and the pending answers are kept on this device. */
+  onSignedOut?: () => void;
   onSaveAcknowledged?: (info: { savedSections: number; updatedAt?: string }) => void;
 }
 
@@ -49,6 +51,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private readonly identity?: ServerDraftStoreOptions["identity"];
   private definitionPin: DefinitionPin | null;
   private readonly onError?: (error: unknown) => void;
+  private readonly onSignedOut?: () => void;
+  private signedOut = false;
   private readonly onSaveAcknowledged?: (info: { savedSections: number; updatedAt?: string }) => void;
   private locale?: string;
   private translationVersion?: number;
@@ -83,6 +87,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.locale = options.locale;
     this.translationVersion = options.translationVersion;
     this.onError = options.onError;
+    this.onSignedOut = options.onSignedOut;
     this.onSaveAcknowledged = options.onSaveAcknowledged;
   }
 
@@ -124,9 +129,13 @@ export class ServerDraftStore implements WhoVaDraftStore {
     // Server drafts can predate fields added by a new registration prefill.
     // Apply those defaults underneath the saved answers so a partial draft is
     // completed without ever replacing an answer already stored on the server.
-    const mergedData = this.initialData
-      ? { ...(this.initialData as Record<string, unknown>), ...savedData }
-      : savedData;
+    // Answers kept on this tab after a dead session come back over the server's (digitva-fvbc).
+    const kept = readKeptDraft(id);
+    const mergedData = {
+      ...(this.initialData ? (this.initialData as Record<string, unknown>) : {}),
+      ...savedData,
+      ...(kept ?? {}),
+    };
     envelope.data = mergedData as SubmissionData;
     if (!envelope.instrumentVersion && this.definitionPin) envelope.instrumentVersion = this.definitionPin.instrumentVersion;
     if (!envelope.instrumentVersion && this.identity) envelope.instrumentVersion = this.identity.instrumentVersion;
@@ -163,6 +172,10 @@ export class ServerDraftStore implements WhoVaDraftStore {
   save(draft: WhoVaDraft): Promise<void> {
     if (!this.loaded) return Promise.reject(new Error("Draft must load before it can be saved."));
     this.pending = draft;
+    if (this.signedOut) {
+      keepDraft(draft);
+      return Promise.reject(new ClientApiError(401, "unauthorized"));
+    }
     const settled = new Promise<void>((resolve, reject) => this.waiters.push({ resolve, reject }));
     if (this.timer) clearTimeout(this.timer);
     const immediate = draft.currentSection !== this.lastSection;
@@ -179,6 +192,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
       this.timer = undefined;
     }
     if (!this.pending) return this.writing;
+    if (this.signedOut) throw new ClientApiError(401, "unauthorized");
     const draft = this.pending;
     this.pending = undefined;
     const waiters = this.waiters;
@@ -189,11 +203,29 @@ export class ServerDraftStore implements WhoVaDraftStore {
       () => waiters.forEach(({ resolve }) => resolve()),
       (error) => {
         if (!this.pending) this.pending = draft;
-        this.onError?.(error);
+        if (isSignedOutError(error)) {
+          // A dead session cannot be revived by retrying: stop, keep the answers, ask for sign-in.
+          this.signedOut = true;
+          keepDraft(this.pending);
+          this.onSignedOut?.();
+        } else {
+          this.onError?.(error);
+        }
         waiters.forEach(({ reject }) => reject(error));
       }
     );
     return write;
+  }
+
+  isSignedOut(): boolean {
+    return this.signedOut;
+  }
+
+  /** After the user signed in again: take a fresh token, then send what was held back. Throws while still signed out. */
+  async resume(): Promise<void> {
+    await requestClientJson("/api/v1/me/access");
+    this.signedOut = false;
+    await this.flush();
   }
 
   async remove(id: string): Promise<void> {
@@ -256,6 +288,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
       throw new ClientApiError(200, "malformed_response");
     }
     this.serverUpdatedAt = acknowledgement.draft.updated_at;
+    if (!options?.isPinOnly && !this.pending) forgetKeptDraft(draft.id);
     for (const [name, answers] of Object.entries(changed)) this.baseline[name] = serialise(answers);
     if (Object.hasOwn(changed, RETAINED_SECTION)) this.retainedUnwritten = false;
     this.lastSection = draft.currentSection;
@@ -269,6 +302,44 @@ export class ServerDraftStore implements WhoVaDraftStore {
           : Object.values(this.baseline).filter((value) => value !== "{}").length;
       this.onSaveAcknowledged?.({ savedSections, updatedAt: this.serverUpdatedAt });
     }
+  }
+}
+
+const KEPT_PREFIX = "digitva-kept-draft:";
+
+function keptStorage(): Storage | undefined {
+  try {
+    return typeof sessionStorage === "undefined" ? undefined : sessionStorage;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Mirror unsent answers to this tab's sessionStorage (cleared when the tab closes, survives a reload). */
+function keepDraft(draft: WhoVaDraft | undefined): void {
+  if (!draft) return;
+  try {
+    keptStorage()?.setItem(KEPT_PREFIX + draft.id, JSON.stringify(draft.data));
+  } catch {
+    // Storage full or blocked: the open tab still holds the answers.
+  }
+}
+
+function readKeptDraft(id: string): Record<string, unknown> | undefined {
+  try {
+    const raw = keptStorage()?.getItem(KEPT_PREFIX + id);
+    const value: unknown = raw ? JSON.parse(raw) : undefined;
+    return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function forgetKeptDraft(id: string): void {
+  try {
+    keptStorage()?.removeItem(KEPT_PREFIX + id);
+  } catch {
+    // Nothing to clear.
   }
 }
 

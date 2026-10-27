@@ -90,6 +90,7 @@ export default function OfflineProfileScreen() {
   const [facilityName, setFacilityName] = useState("");
   const [country, setCountry] = useState("");
   const [stateName, setStateName] = useState("");
+  const [orgCode, setOrgCode] = useState("");
   const [hivMortality, setHivMortality] = useState<Level | null>(null);
   const [malariaMortality, setMalariaMortality] = useState<Level | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -107,6 +108,7 @@ export default function OfflineProfileScreen() {
       setFacilityName(profile.facility_name);
       setCountry(profile.country);
       setStateName(profile.state);
+      setOrgCode(profile.org_code ?? "");
       setHivMortality(profile.hiv_mortality);
       setMalariaMortality(profile.malaria_mortality);
       setSavedAt(profile.updated_at);
@@ -127,6 +129,7 @@ export default function OfflineProfileScreen() {
         facility_name: facilityName,
         country,
         state: stateName,
+        org_code: orgCode,
         hiv_mortality: hivMortality,
         malaria_mortality: malariaMortality,
         updated_at: "",
@@ -164,6 +167,7 @@ export default function OfflineProfileScreen() {
       <Field label={t("offlineProfileFacility")} value={facilityName} onChange={setFacilityName} />
       <Field label={t("offlineProfileCountry")} value={country} onChange={setCountry} />
       <Field label={t("offlineProfileState")} value={stateName} onChange={setStateName} />
+      <Field label={t("offlineProfileOrgCode")} value={orgCode} onChange={setOrgCode} />
       <ChoiceRow
         label={t("offlineProfileHiv")}
         options={LEVEL_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}

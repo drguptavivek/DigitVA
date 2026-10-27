@@ -94,6 +94,7 @@ class ActiveAllocationUniquenessTests(CodingScopeFixtureMixin, BaseTestCase):
         with self._missed_precheck(), self.assertRaises(AllocationError) as ctx:
             allocate_pick_form(self.user, "csc-other")
         self.assertEqual(ctx.exception.code, "allocation_exists")
+        self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(self._active(), ["csc-held"])
         self.assertEqual(self.user.vacode_formcount, formcount)
         self.assertEqual(get_submission_workflow_state("csc-other"), "ready_for_coding")

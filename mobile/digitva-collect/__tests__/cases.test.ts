@@ -479,6 +479,36 @@ describe("case download", () => {
     expect(await getCase(db, DEATH)).toMatchObject({ va_sid: null, other_complete_interview: false });
   });
 
+  it("downloads a detail only for new, changed or timestamp-less cached cases", async () => {
+    const db = await freshDb();
+    const reference = referenceData();
+    const detailCalls = () => calls.filter((c) => /\/cases\/[^/?]+$/.test(c.url)).length;
+    const row = caseRow(DEATH, { updated_at: "2026-10-01T00:00:00+00:00" });
+    mockServer(accepting([row]), () => row);
+    await refreshCases(USER, db, reference);
+    expect(detailCalls()).toBe(1);
+
+    mockServer(accepting([row]), () => row);
+    await refreshCases(USER, db, reference);
+    expect(detailCalls()).toBe(0);
+    expect(await getCase(db, DEATH)).toMatchObject({ deceased_name: "Ram Lal" });
+
+    const changed = caseRow(DEATH, { updated_at: "2026-10-02T00:00:00+00:00", deceased_name: "Ram L" });
+    mockServer(accepting([changed]), () => changed);
+    await refreshCases(USER, db, reference);
+    expect(detailCalls()).toBe(1);
+    expect(await getCase(db, DEATH)).toMatchObject({ deceased_name: "Ram L" });
+
+    // Older stored data without the stamp refetches once.
+    await replaceCases(db, PROJECT, [changed]);
+    mockServer(accepting([changed]), () => changed);
+    await refreshCases(USER, db, reference);
+    expect(detailCalls()).toBe(1);
+    mockServer(accepting([changed]), () => changed);
+    await refreshCases(USER, db, reference);
+    expect(detailCalls()).toBe(0);
+  });
+
   it("replaces the full project list atomically when an insert fails", async () => {
     const db = await freshDb();
     const second = "dddddddd-0000-4000-8000-000000000002";

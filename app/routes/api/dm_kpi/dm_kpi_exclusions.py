@@ -3,14 +3,9 @@
 Blueprint prefix: ``/api/v1/analytics/dm-kpi/exclusions``
 
 KPIs served:
-  C-05  % Not Codeable (Overall)
-  C-06  Consent Refusal Rate
+  C-05  % Not Codeable (Overall); D-QG-01..05 are its by=actor / by=reason views
+  C-06  Not Analysable Rate
   C-23  Blocked Forms Alert (Composite)
-  D-QG-01  Coder Not-Codeable Count & Rate
-  D-QG-02  DM Not-Codeable Count & Rate
-  D-QG-03  Exclusions by Actor
-  D-QG-04  Coder Not-Codeable Reason Breakdown
-  D-QG-05  DM Not-Codeable Reason Breakdown
   D-QG-06  ODK Has Issues Count
   D-QG-07  NQA Completion Rate
   D-QG-08  Social Autopsy Completion Rate
@@ -32,14 +27,20 @@ import logging
 
 import sqlalchemy as sa
 from flask import Blueprint, jsonify, request
-from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services import not_analysable
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.workflow.definition import CODER_READY_POOL_STATES_SQL, PENDING_STATES_SQL
+from app.routes.api.dm_kpi.dm_kpi_coders import (
+    CODING_GRANT_CODES_SQL,
+    CODING_GRANT_JOINS,
+    coders_covering_scope_sql,
+)
 from app.routes.api.dm_kpi.dm_kpi_scope import cached_kpi, dm_scope
+from app.routes.api.request_helpers import error as api_error
 from app.services.workflow.revision_request_sql import (
     SENT_BACK_FOR_REVISION,
     odk_changed_sql,
@@ -55,152 +56,95 @@ _IN_ODK_SQL = in_odk_sql("s")
 _NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 
-@bp.get("/rates")
-@role_required("data_manager", "admin")
-def exclusion_rates():
-    """KPIs: C-05 (% Not Codeable Overall), C-06 (Consent Refusal Rate),
-    D-QG-01 (Coder Not-Codeable Rate), D-QG-02 (DM Not-Codeable Rate).
+def _state_counts(scope) -> dict:
+    """ALL-SYNCED and the state counts C-05 and C-06 share, in one scan."""
+    return db.session.execute(
+        sa.text(f"""
+            SELECT
+                COUNT(*) AS all_synced,
+                COUNT(*) FILTER (WHERE w.workflow_state = 'consent_refused')
+                    AS consent_refused,
+                COUNT(*) FILTER (WHERE w.workflow_state = 'not_codeable_by_data_manager')
+                    AS dm_not_codeable,
+                COUNT(*) FILTER (WHERE w.workflow_state = 'not_codeable_by_coder')
+                    AS coder_not_codeable,
+                COUNT(*) FILTER (WHERE w.workflow_state NOT IN (
+                    'consent_refused', 'not_codeable_by_data_manager'
+                )) AS coding_pool
+            FROM va_submissions s
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+            WHERE {scope.sql()}
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+        """),
+        {**IN_ODK_BIND, **scope.params},
+    ).mappings().first()
 
-    C-05 — % Not Codeable (Overall):
-      Numerator: COUNT WHERE workflow_state IN ('not_codeable_by_coder',
-                 'not_codeable_by_data_manager').
-      Denominator: COUNT of ALL-SYNCED.
-      Rate: N / D × 100.
-      Scope: ALL-SYNCED.
-      Time frames: Snapshot.
 
-    C-06 — Not Analysable Rate (was Consent Refusal Rate):
-      Numerator: COUNT WHERE workflow_state = 'consent_refused', the one
-                 state holding refused, respondent-unavailable and partially
-                 completed interviews (app/services/not_analysable.py), with
-                 a per-reason split under ``not_analysable.by_reason``. The
-                 ``consent_refused`` key is kept for existing readers.
-      Denominator: COUNT of ALL-SYNCED.
-      Rate: N / D × 100.
-      Time frames: Snapshot.
+def _pct(n, d):
+    return round(n / d * 100, 1) if d > 0 else 0.0
 
-    D-QG-01 — Coder Not-Codeable Rate:
-      Numerator: COUNT WHERE workflow_state = 'not_codeable_by_coder'.
-      Denominator: COUNT of CODING-POOL.
-      Rate: N / D × 100.
 
-    D-QG-02 — DM Not-Codeable Rate:
-      Numerator: COUNT WHERE workflow_state = 'not_codeable_by_data_manager'.
-      Denominator: COUNT of ALL-SYNCED.
-      Rate: N / D × 100.
+def compute_c05(scope, period=None, by: str | None = None, *, counts=None) -> dict:
+    """C-05 % Not Codeable, with D-QG-01 to 05 folded in as views.
+
+    ``by=None``: the overall count and rate over ALL-SYNCED, with the coder
+    share (rate over the CODING-POOL, D-QG-01) and the DM share (D-QG-02) as
+    ``coder`` and ``dm``. ``by="actor"`` (D-QG-03): active review rows by actor
+    -- data manager, coder -- and workflow events ``screening_rejected``.
+    ``by="reason"`` (D-QG-04/05): active review rows by reason, for the coder
+    and the data manager. Cumulative, so *period* is ignored. *counts* lets a
+    caller that already ran ``_state_counts`` share it.
     """
-    scope = dm_scope()
+    if by not in (None, "actor", "reason"):
+        raise ValueError(f"C-05 has no by={by!r}")
     if not scope:
-        return jsonify({})
+        return {"all_synced": 0, "count": 0, "rate": 0.0, "coding_pool": 0,
+                "coder": {"count": 0, "rate": 0.0}, "dm": {"count": 0, "rate": 0.0}}\
+            if by is None else {"by": by, "rows": []}
 
-    def compute():
+    params = {**IN_ODK_BIND, **scope.params}
+    if by == "actor":
         row = db.session.execute(
             sa.text(f"""
                 SELECT
-                    COUNT(*) AS all_synced,
-                    COUNT(*) FILTER (WHERE w.workflow_state = 'consent_refused')
-                        AS consent_refused,
-                    COUNT(*) FILTER (WHERE w.workflow_state = 'not_codeable_by_data_manager')
-                        AS dm_not_codeable,
-                    COUNT(*) FILTER (WHERE w.workflow_state = 'not_codeable_by_coder')
-                        AS coder_not_codeable,
-                    COUNT(*) FILTER (WHERE w.workflow_state NOT IN (
-                        'consent_refused', 'not_codeable_by_data_manager'
-                    )) AS coding_pool
-                FROM va_submissions s
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
+                    (SELECT COUNT(*) FROM va_data_manager_review dr
+                     JOIN va_submissions s ON s.va_sid = dr.va_sid
+                     JOIN va_forms f ON f.form_id = s.va_form_id
+                     WHERE {scope.sql()} AND dr.va_dmreview_status = 'active'
+                       AND {_IN_ODK_SQL}
+                       AND {_NOT_DUPLICATE_SQL}
+                    ) AS data_manager,
+                    (SELECT COUNT(*) FROM va_coder_review cr
+                     JOIN va_submissions s ON s.va_sid = cr.va_sid
+                     JOIN va_forms f ON f.form_id = s.va_form_id
+                     WHERE {scope.sql()} AND cr.va_creview_status = 'active'
+                       AND {_IN_ODK_SQL}
+                       AND {_NOT_DUPLICATE_SQL}
+                    ) AS coder,
+                    (SELECT COUNT(*) FROM va_submission_workflow_events e
+                     JOIN va_submissions s ON s.va_sid = e.va_sid
+                     JOIN va_forms f ON f.form_id = s.va_form_id
+                     WHERE {scope.sql()}
+                       AND {_IN_ODK_SQL}
+                       AND {_NOT_DUPLICATE_SQL}
+                       AND e.transition_id = 'screening_rejected') AS screening_rejected
             """),
-            {**IN_ODK_BIND, **scope.params},
+            params,
         ).mappings().first()
-
-        reason_rows = db.session.execute(
-            sa.text(f"""
-                SELECT {not_analysable.REASON_SQL} AS reason, COUNT(*) AS cnt
-                FROM va_submissions s
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                {not_analysable.PAYLOAD_JOIN_SQL}
-                WHERE {scope.sql()}
-                  AND w.workflow_state = 'consent_refused'
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                GROUP BY 1
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).all()
-
-        all_synced = row["all_synced"] or 0
-        consent = row["consent_refused"] or 0
-        dm_nc = row["dm_not_codeable"] or 0
-        coder_nc = row["coder_not_codeable"] or 0
-        coding_pool = row["coding_pool"] or 0
-
-        def pct(n, d):
-            return round(n / d * 100, 1) if d > 0 else 0.0
-
         return {
-            "all_synced": all_synced,
-            "consent_refused": {"count": consent, "rate": pct(consent, all_synced)},
-            "not_analysable": {
-                "count": consent,
-                "rate": pct(consent, all_synced),
-                "by_reason": not_analysable.by_reason(reason_rows),
-            },
-            "not_codeable_overall": {
-                "count": dm_nc + coder_nc,
-                "rate": pct(dm_nc + coder_nc, all_synced),
-            },
-            "coder_not_codeable": {
-                "count": coder_nc,
-                "rate": pct(coder_nc, coding_pool),
-            },
-            "dm_not_codeable": {
-                "count": dm_nc,
-                "rate": pct(dm_nc, all_synced),
-            },
-            "coding_pool": coding_pool,
+            "by": "actor",
+            "rows": [
+                {"actor": actor, "count": row[actor] or 0}
+                for actor in ("data_manager", "coder", "screening_rejected")
+            ],
         }
 
-    return jsonify(cached_kpi("exclusion_rates", compute))
-
-
-@bp.get("/breakdown")
-@role_required("data_manager", "admin")
-def exclusion_breakdown():
-    """KPIs: D-QG-04 (Coder Not-Codeable Reason Breakdown),
-    D-QG-05 (DM Not-Codeable Reason Breakdown), D-QG-03 (Exclusions by Actor).
-
-    D-QG-04 — Coder Not-Codeable Reason Breakdown:
-      Numerator: COUNT grouped by va_creview_reason.
-      Values: narration_language, narration_doesnt_match, no_info, others.
-      Where: va_creview_status = 'active'.
-      Time frame: Cumulative.
-
-    D-QG-05 — DM Not-Codeable Reason Breakdown:
-      Numerator: COUNT grouped by va_dmreview_reason.
-      Values: submission_incomplete, source_data_mismatch,
-              duplicate_submission, language_unreadable, others.
-      Where: va_dmreview_status = 'active'.
-      Time frame: Cumulative.
-
-    D-QG-03 — Exclusions by Actor:
-      COUNT grouped by actor type (DM, Coder, Reviewer rejection,
-      Screening rejected).
-      Time frame: Cumulative.
-    """
-    scope = dm_scope()
-    if not scope:
-        return jsonify({"coder_reasons": [], "dm_reasons": [], "by_actor": {}})
-
-    def compute():
-        # Coder reason breakdown
-        coder_reasons = db.session.execute(
+    if by == "reason":
+        rows = db.session.execute(
             sa.text(f"""
-                SELECT cr.va_creview_reason, COUNT(*) AS count
+                SELECT 'coder' AS actor, cr.va_creview_reason AS reason, COUNT(*) AS count
                 FROM va_coder_review cr
                 JOIN va_submissions s ON s.va_sid = cr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
@@ -209,15 +153,8 @@ def exclusion_breakdown():
                   AND {_NOT_DUPLICATE_SQL}
                   AND cr.va_creview_status = 'active'
                 GROUP BY cr.va_creview_reason
-                ORDER BY count DESC
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).mappings().all()
-
-        # DM reason breakdown
-        dm_reasons = db.session.execute(
-            sa.text(f"""
-                SELECT dr.va_dmreview_reason, COUNT(*) AS count
+                UNION ALL
+                SELECT 'data_manager', dr.va_dmreview_reason, COUNT(*)
                 FROM va_data_manager_review dr
                 JOIN va_submissions s ON s.va_sid = dr.va_sid
                 JOIN va_forms f ON f.form_id = s.va_form_id
@@ -228,218 +165,354 @@ def exclusion_breakdown():
                 GROUP BY dr.va_dmreview_reason
                 ORDER BY count DESC
             """),
-            {**IN_ODK_BIND, **scope.params},
+            params,
         ).mappings().all()
+        return {
+            "by": "reason",
+            "rows": [{"actor": r["actor"], "reason": r["reason"], "count": r["count"]} for r in rows],
+        }
 
-        # D-QG-03: Exclusions by actor
-        dm_count = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(*) AS cnt FROM va_data_manager_review dr
-                JOIN va_submissions s ON s.va_sid = dr.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()} AND dr.va_dmreview_status = 'active'
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
+    row = counts or _state_counts(scope)
+    all_synced = row["all_synced"] or 0
+    dm_nc = row["dm_not_codeable"] or 0
+    coder_nc = row["coder_not_codeable"] or 0
+    coding_pool = row["coding_pool"] or 0
+    return {
+        "all_synced": all_synced,
+        "count": dm_nc + coder_nc,
+        "rate": _pct(dm_nc + coder_nc, all_synced),
+        "coding_pool": coding_pool,
+        "coder": {"count": coder_nc, "rate": _pct(coder_nc, coding_pool)},
+        "dm": {"count": dm_nc, "rate": _pct(dm_nc, all_synced)},
+    }
 
-        coder_count = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(*) AS cnt FROM va_coder_review cr
-                JOIN va_submissions s ON s.va_sid = cr.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()} AND cr.va_creview_status = 'active'
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
 
-        screening_rejected = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(*) AS cnt
-                FROM va_submission_workflow_events e
-                JOIN va_submissions s ON s.va_sid = e.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND e.transition_id = 'screening_rejected'
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
+def compute_c06(scope, period=None, by: str | None = None, *, counts=None) -> dict:
+    """C-06 Not Analysable Rate: ``consent_refused`` over ALL-SYNCED, with
+    ``by_reason`` (refused, respondent unavailable, partially completed) always
+    present; ``by="reason"`` is the same split. Snapshot, so *period* is ignored.
+    """
+    if by not in (None, "reason"):
+        raise ValueError(f"C-06 has no by={by!r}")
+    if not scope:
+        return {"all_synced": 0, "count": 0, "rate": 0.0, "by_reason": not_analysable.by_reason([])}
+    row = counts or _state_counts(scope)
+    reason_rows = db.session.execute(
+        sa.text(f"""
+            SELECT {not_analysable.REASON_SQL} AS reason, COUNT(*) AS cnt
+            FROM va_submissions s
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+            {not_analysable.PAYLOAD_JOIN_SQL}
+            WHERE {scope.sql()}
+              AND w.workflow_state = 'consent_refused'
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+            GROUP BY 1
+        """),
+        {**IN_ODK_BIND, **scope.params},
+    ).all()
+    all_synced = row["all_synced"] or 0
+    consent = row["consent_refused"] or 0
+    return {
+        "all_synced": all_synced,
+        "count": consent,
+        "rate": _pct(consent, all_synced),
+        "by_reason": not_analysable.by_reason(reason_rows),
+    }
 
+
+def _by_param(allowed):
+    """The ``?by=`` value when allowed (or absent), else a 400 response."""
+    by = request.args.get("by") or None
+    if by in (None, *allowed):
+        return by, None
+    return by, api_error(f"Unsupported 'by'; use one of {', '.join(allowed)}.", status_code=400)
+
+
+@bp.get("/rates")
+@role_required("data_manager", "admin")
+def exclusion_rates():
+    """KPIs: C-05 (% Not Codeable), C-06 (Not Analysable Rate), with D-QG-01
+    (coder share) and D-QG-02 (DM share) as ``coder_not_codeable`` /
+    ``dm_not_codeable``. The legacy response shape, served from
+    ``compute_c05`` / ``compute_c06``.
+
+    C-05: COUNT of not_codeable_by_coder + not_codeable_by_data_manager over
+      ALL-SYNCED. D-QG-01: coder share over the CODING-POOL. D-QG-02: DM share
+      over ALL-SYNCED.
+    C-06: COUNT of consent_refused over ALL-SYNCED, split in
+      ``not_analysable.by_reason``; the ``consent_refused`` key is kept for
+      existing readers.
+    """
+    scope = dm_scope()
+    if not scope:
+        return jsonify({})
+
+    def compute():
+        counts = _state_counts(scope)
+        c05 = compute_c05(scope, counts=counts)
+        c06 = compute_c06(scope, counts=counts)
+        return {
+            "all_synced": c05["all_synced"],
+            "consent_refused": {"count": c06["count"], "rate": c06["rate"]},
+            "not_analysable": {
+                "count": c06["count"], "rate": c06["rate"], "by_reason": c06["by_reason"],
+            },
+            "not_codeable_overall": {"count": c05["count"], "rate": c05["rate"]},
+            "coder_not_codeable": c05["coder"],
+            "dm_not_codeable": c05["dm"],
+            "coding_pool": c05["coding_pool"],
+        }
+
+    return jsonify(cached_kpi("exclusion_rates", compute))
+
+
+@bp.get("/not-codeable")
+@role_required("data_manager", "admin")
+def not_codeable():
+    """KPI: C-05, ``?by=actor`` (D-QG-03) or ``?by=reason`` (D-QG-04/05)."""
+    by, bad = _by_param(("actor", "reason"))
+    if bad:
+        return bad
+    scope = dm_scope()
+    return jsonify(cached_kpi("not_codeable", lambda: compute_c05(scope, None, by)))
+
+
+@bp.get("/not-analysable")
+@role_required("data_manager", "admin")
+def not_analysable_rate():
+    """KPI: C-06, with ``by_reason`` (``?by=reason`` is the same split)."""
+    by, bad = _by_param(("reason",))
+    if bad:
+        return bad
+    scope = dm_scope()
+    return jsonify(cached_kpi("not_analysable", lambda: compute_c06(scope, None, by)))
+
+
+@bp.get("/breakdown")
+@role_required("data_manager", "admin")
+def exclusion_breakdown():
+    """KPIs: D-QG-04 (Coder Not-Codeable Reason Breakdown), D-QG-05 (DM
+    Not-Codeable Reason Breakdown), D-QG-03 (Exclusions by Actor). The legacy
+    response shape, a thin wrapper over ``compute_c05(by="reason" / "actor")``.
+
+    D-QG-04: active ``va_coder_review`` rows by ``va_creview_reason``.
+    D-QG-05: active ``va_data_manager_review`` rows by ``va_dmreview_reason``.
+    D-QG-03: COUNT by actor (DM, coder, screening rejected). Cumulative.
+    """
+    scope = dm_scope()
+    if not scope:
+        return jsonify({"coder_reasons": [], "dm_reasons": [], "by_actor": {}})
+
+    def compute():
+        reasons = compute_c05(scope, None, "reason")["rows"]
+        actors = compute_c05(scope, None, "actor")["rows"]
         return {
             "coder_reasons": [
-                {"reason": r["va_creview_reason"], "count": r["count"]}
-                for r in coder_reasons
+                {"reason": r["reason"], "count": r["count"]} for r in reasons if r["actor"] == "coder"
             ],
             "dm_reasons": [
-                {"reason": r["va_dmreview_reason"], "count": r["count"]}
-                for r in dm_reasons
+                {"reason": r["reason"], "count": r["count"]} for r in reasons if r["actor"] == "data_manager"
             ],
-            "by_actor": {
-                "data_manager": dm_count,
-                "coder": coder_count,
-                "screening_rejected": screening_rejected,
-            },
+            "by_actor": {r["actor"]: r["count"] for r in actors},
         }
 
     return jsonify(cached_kpi("exclusion_breakdown", compute))
 
 
+# C-23 blocker rows: key, label, DM action, fixed owner (docs/policy/kpis.md),
+# and the per-case boolean they count (columns of the ``cases`` CTE below).
+# Every row except the two upstream ones is limited to the 6 pending states.
+_BLOCKERS = (
+    ("screening_pending", "Awaiting DM screening", "Pass or reject screening",
+     "data manager"),
+    ("attachment_sync_pending", "Attachments not synced", "Trigger attachment sync",
+     "data manager, or admin when the queue is down"),
+    ("smartva_pending", "SmartVA not run", "Check SmartVA queue",
+     "data manager, or admin when the queue is down"),
+    ("finalized_upstream_changed", "Upstream change pending", "Accept or reject upstream change",
+     "data manager"),
+    (SENT_BACK_FOR_REVISION, "Sent back for revision",
+     "Wait for the interviewer or cancel the request",
+     "interviewer, through the in-charge"),
+    ("missing_language", "Missing language", "Fix language mapping",
+     "data manager"),
+    ("language_gap", "Language gap", "Recruit or reassign coders",
+     "coder supervisor or in-charge"),
+    ("no_coder_at_unit", "No coder at unit", "Grant a coder who can code this unit",
+     "coder supervisor or in-charge"),
+    ("odk_has_issues", "ODK flagged", "Coordinate with field team",
+     "field team, through the in-charge"),
+)
+_SOFT_GATE_OWNER = "data manager"
+# Per-case booleans; ``w`` is the workflow row, ``s`` the submission, ``cu`` its unit.
+_BLOCKER_CASE_SQL = {
+    "screening_pending": "w.workflow_state = 'screening_pending'",
+    "attachment_sync_pending": "w.workflow_state = 'attachment_sync_pending'",
+    "smartva_pending": "w.workflow_state = 'smartva_pending'",
+    "finalized_upstream_changed": odk_changed_sql("w"),
+    SENT_BACK_FOR_REVISION: sent_back_sql("w"),
+    "missing_language": (
+        f"(w.workflow_state IN {PENDING_STATES_SQL} AND trim(COALESCE(s.va_narration_language, '')) = '')"
+    ),
+    # Ready pool, a language set, and no covering coder who matches it.
+    "language_gap": (
+        f"(w.workflow_state IN {CODER_READY_POOL_STATES_SQL}"
+        " AND trim(COALESCE(s.va_narration_language, '')) <> ''"
+        " AND NOT EXISTS (SELECT 1 FROM cov WHERE cardinality(cov.languages) = 0"
+        " OR lower(trim(s.va_narration_language)) = ANY(cov.languages)))"
+    ),
+    # Pending, and no coder grant that codes reaches this case's own unit or pair.
+    "no_coder_at_unit": (
+        f"(w.workflow_state IN {PENDING_STATES_SQL} AND NOT EXISTS ("
+        " SELECT 1 FROM va_user_access_grants g "
+        f"{CODING_GRANT_JOINS}"
+        " WHERE g.role = 'coder' AND g.grant_status = 'active'"
+        " AND EXISTS (SELECT 1 FROM va_users gu WHERE gu.user_id = g.user_id"
+        " AND gu.user_status = 'active')"
+        f" AND {CODING_GRANT_CODES_SQL}"
+        " AND (g.scope_type = 'project' AND g.project_id = f.project_id"
+        " OR g.scope_type = 'project_site' AND gps.project_id = f.project_id"
+        " AND gps.site_id = f.site_id"
+        " OR g.scope_type = 'org_unit' AND gou.project_id = f.project_id"
+        " AND cu.path IS NOT NULL AND cu.path <@ gou.path)))"
+    ),
+    "odk_has_issues": (
+        f"(w.workflow_state IN {PENDING_STATES_SQL} AND s.va_odk_reviewstate = 'hasIssues')"
+    ),
+}
+_SOFT_GATE_SQL = "w.workflow_state IN ('not_codeable_by_coder', 'not_codeable_by_data_manager')"
+
+
+def compute_c23(scope, period=None, by: str | None = None) -> dict:
+    """C-23 Blocked Forms: why cases cannot reach a coder, how old, who unblocks.
+
+    One query. Every row is restricted to the 6 pending states except the two
+    upstream rows (coded cases waiting on a DM). Each row has ``count``,
+    ``age_p50_hours`` and ``age_max_hours`` (time in the current workflow
+    state), a fixed ``owner``, and ``intake_source`` (``form_source`` odk/web).
+    A case may sit in several rows; ``total_blocked`` counts it once. The
+    soft-gate not-codeable cases (coder and DM) are a separate
+    ``soft_gate_not_codeable`` count outside the total. ``by="unit"`` returns
+    one row per routed unit (counts only, unrouted cases under a null unit).
+    Snapshot, so *period* is ignored.
+    """
+    if by not in (None, "reason", "unit"):
+        raise ValueError(f"C-23 has no by={by!r}")
+    if not scope:
+        return {"breakdown": [], "total_blocked": 0, "soft_gate_not_codeable": 0}
+
+    flags = ",\n".join(f"({_BLOCKER_CASE_SQL[key]}) AS {key}" for key, *_ in _BLOCKERS)
+    any_blocker = " OR ".join(key for key, *_ in _BLOCKERS)
+    # Pending, upstream or soft-gate cases only: coded cases are never blocked.
+    cases = f"""
+        WITH cov AS ({coders_covering_scope_sql()}),
+        cases AS (
+            SELECT s.org_unit_id, f.form_source, {_SOFT_GATE_SQL} AS soft_gate,
+                   EXTRACT(EPOCH FROM (timezone('UTC', now()) - w.workflow_updated_at)) / 3600.0
+                       AS age_hours,
+                   {flags}
+            FROM va_submissions s
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            JOIN va_submission_workflow w ON w.va_sid = s.va_sid
+            LEFT JOIN mas_org_unit cu ON cu.org_unit_id = s.org_unit_id
+            WHERE {scope.sql()}
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+              AND (w.workflow_state IN {PENDING_STATES_SQL}
+                   OR w.workflow_state = 'finalized_upstream_changed'
+                   OR {_SOFT_GATE_SQL})
+        )
+    """
+    params = {**IN_ODK_BIND, **scope.params}
+
+    if by == "unit":
+        counts = ",\n".join(f"COUNT(*) FILTER (WHERE c.{key}) AS {key}" for key, *_ in _BLOCKERS)
+        any_c = " OR ".join(f"c.{key}" for key, *_ in _BLOCKERS)
+        rows = db.session.execute(
+            sa.text(cases + f"""
+                SELECT c.org_unit_id, MIN(u.unit_name) AS unit_name,
+                       COUNT(*) FILTER (WHERE {any_c}) AS total_blocked,
+                       {counts}
+                FROM cases c
+                LEFT JOIN mas_org_unit u ON u.org_unit_id = c.org_unit_id
+                GROUP BY c.org_unit_id
+                HAVING COUNT(*) FILTER (WHERE {any_c}) > 0
+                ORDER BY total_blocked DESC, unit_name
+            """),
+            params,
+        ).mappings().all()
+        return {
+            "by": "unit",
+            "rows": [
+                {
+                    "org_unit_id": str(r["org_unit_id"]) if r["org_unit_id"] else None,
+                    "unit_name": r["unit_name"],
+                    "total_blocked": r["total_blocked"],
+                    "counts": {key: r[key] for key, *_ in _BLOCKERS},
+                }
+                for r in rows
+            ],
+        }
+
+    aggregates = ",\n".join(
+        f"""COUNT(*) FILTER (WHERE {key}) AS {key}_n,
+            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY age_hours) FILTER (WHERE {key}) AS {key}_p50,
+            MAX(age_hours) FILTER (WHERE {key}) AS {key}_max,
+            COUNT(*) FILTER (WHERE {key} AND form_source = 'odk') AS {key}_odk,
+            COUNT(*) FILTER (WHERE {key} AND form_source = 'web') AS {key}_web"""
+        for key, *_ in _BLOCKERS
+    )
+    row = db.session.execute(
+        sa.text(cases + f"""
+            SELECT COUNT(*) FILTER (WHERE {any_blocker}) AS total_blocked,
+                   COUNT(*) FILTER (WHERE soft_gate) AS soft_gate_not_codeable,
+                   {aggregates}
+            FROM cases
+        """),
+        params,
+    ).mappings().first()
+
+    def hours(value):
+        return round(float(value), 1) if value is not None else None
+
+    breakdown = [
+        {
+            "blockage_reason": key,
+            "label": label,
+            "count": row[f"{key}_n"],
+            "dm_action": action,
+            "owner": owner,
+            "age_p50_hours": hours(row[f"{key}_p50"]),
+            "age_max_hours": hours(row[f"{key}_max"]),
+            "intake_source": {"odk": row[f"{key}_odk"], "web": row[f"{key}_web"]},
+        }
+        for key, label, action, owner in _BLOCKERS
+        if row[f"{key}_n"] > 0
+    ]
+    return {
+        "breakdown": breakdown,
+        "total_blocked": row["total_blocked"] or 0,
+        "soft_gate_not_codeable": row["soft_gate_not_codeable"] or 0,
+        "soft_gate_owner": _SOFT_GATE_OWNER,
+    }
+
+
 @bp.get("/blocked")
 @role_required("data_manager", "admin")
 def blocked_forms():
-    """KPI: C-23 — Blocked Forms Alert (Composite).
+    """KPI: C-23 — Blocked Forms Alert (Composite); ``?by=unit`` for the unit slice.
 
-    Definition: COUNT and breakdown of all submissions in CODING-POOL that
-    cannot be routed to a coder right now, grouped by blockage reason.
-
-    Breakdown (each condition checked independently):
-      - screening_pending       → DM: pass or reject screening
-      - attachment_sync_pending → DM: trigger attachment sync
-      - smartva_pending         → DM: check SmartVA queue
-      - finalized_upstream_changed → DM: accept or reject upstream change
-                                     (ODK changes only)
-      - sent_back_for_revision  → DM: wait for the interviewer or cancel the
-                                  request (finalized_upstream_changed whose
-                                  latest event is a send-back or reopen)
-      - missing_language        → DM: fix language mapping
-      - odk_has_issues          → DM: coordinate with field team
-
-    Scope: CODING-POOL (excludes consent_refused).
-    Time frame: Snapshot.
-    Actionable: DM's "to-do list" — each blockage has a clear action.
+    Pending cases that cannot reach a coder, plus the two upstream rows; one
+    row per reason with count, age, fixed owner and intake source. See
+    ``compute_c23`` and docs/policy/kpis.md.
     """
+    by, bad = _by_param(("reason", "unit"))
+    if bad:
+        return bad
     scope = dm_scope()
-    if not scope:
-        return jsonify({"breakdown": [], "total_blocked": 0})
-
-    def compute():
-        breakdown = []
-
-        # Define blockage categories with their queries
-        categories = [
-            ("screening_pending", "Awaiting DM screening", "Pass or reject screening"),
-            ("attachment_sync_pending", "Attachments not synced", "Trigger attachment sync"),
-            ("smartva_pending", "SmartVA not run", "Check SmartVA queue"),
-            ("finalized_upstream_changed", "Upstream change pending", "Accept or reject upstream change"),
-            (
-                SENT_BACK_FOR_REVISION,
-                "Sent back for revision",
-                "Wait for the interviewer or cancel the request",
-            ),
-        ]
-
-        for state, label, action in categories:
-            # The two upstream kinds share the stored state; split on the latest event.
-            if state == SENT_BACK_FOR_REVISION:
-                state_sql = sent_back_sql("w")
-            elif state == "finalized_upstream_changed":
-                state_sql = odk_changed_sql("w")
-            else:
-                state_sql = f"w.workflow_state = '{state}'"
-            count = db.session.execute(
-                sa.text(f"""
-                    SELECT COUNT(*) AS cnt
-                    FROM va_submission_workflow w
-                    JOIN va_submissions s ON s.va_sid = w.va_sid
-                    JOIN va_forms f ON f.form_id = s.va_form_id
-                    WHERE {scope.sql()}
-                      AND {_IN_ODK_SQL}
-                      AND {_NOT_DUPLICATE_SQL}
-                      AND {state_sql}
-                """),
-                {**IN_ODK_BIND, **scope.params},
-            ).scalar() or 0
-            if count > 0:
-                breakdown.append({
-                    "blockage_reason": state,
-                    "label": label,
-                    "count": count,
-                    "dm_action": action,
-                })
-
-        # Missing language
-        missing_lang = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(*) AS cnt
-                FROM va_submission_workflow w
-                JOIN va_submissions s ON s.va_sid = w.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND w.workflow_state IN ('ready_for_coding', 'coding_in_progress', 'coder_step1_saved')
-                  AND (s.va_narration_language IS NULL OR s.va_narration_language = '')
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
-        if missing_lang > 0:
-            breakdown.append({
-                "blockage_reason": "missing_language",
-                "label": "Missing language",
-                "count": missing_lang,
-                "dm_action": "Fix language mapping",
-            })
-
-        # ODK has issues
-        odk_issues = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(*) AS cnt
-                FROM va_submissions s
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                LEFT JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND w.workflow_state NOT IN ('consent_refused', 'not_codeable_by_data_manager')
-                  AND s.va_odk_reviewstate = 'hasIssues'
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
-        if odk_issues > 0:
-            breakdown.append({
-                "blockage_reason": "odk_has_issues",
-                "label": "ODK flagged",
-                "count": odk_issues,
-                "dm_action": "Coordinate with field team",
-            })
-
-        # Total unique blocked (deduplicated)
-        total_blocked = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(DISTINCT s.va_sid) AS cnt
-                FROM va_submissions s
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                JOIN va_submission_workflow w ON w.va_sid = s.va_sid
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND w.workflow_state NOT IN (
-                      'consent_refused', 'not_codeable_by_data_manager',
-                      'not_codeable_by_coder'
-                  )
-                  AND (
-                      w.workflow_state IN (
-                          'screening_pending', 'attachment_sync_pending',
-                          'smartva_pending', 'finalized_upstream_changed'
-                      )
-                      OR (s.va_narration_language IS NULL OR s.va_narration_language = '')
-                      OR s.va_odk_reviewstate = 'hasIssues'
-                  )
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
-
-        return {
-            "breakdown": breakdown,
-            "total_blocked": total_blocked,
-        }
-
-    return jsonify(cached_kpi("blocked_forms", compute))
+    return jsonify(cached_kpi("blocked_forms", lambda: compute_c23(scope, None, by)))
 
 
 @bp.get("/nqa-sa")

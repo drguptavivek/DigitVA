@@ -16,7 +16,7 @@
 // _enabled_extensions in app/routes/api/organization.py) and intake_screen /
 // geography contribute no content, so none of them is tagged.
 //
-// The build fails unless, for all 2^5 subsets S of the conditional extensions,
+// The build fails unless, for all 2^6 subsets S of the conditional extensions,
 // filter(tagged, S) equals compose(always-on + S): same section and question
 // names in the same order, and every item deep-equal. `order` is the one
 // field allowed to differ -- createDigitVaExtension numbers its questions with
@@ -50,7 +50,7 @@ const outPath = path.join(repo, "app", "data", "who-va-2022.composed.json");
 
 export const ENGINE_VERSION = 1;
 const ALWAYS_ON = ["digitva_core", "doris_support_whova_2022"];
-const CONDITIONAL = ["social_autopsy", "narration_language", "death_summary", "medical_records", "abha"];
+const CONDITIONAL = ["social_autopsy", "narration_language", "death_summary", "medical_records", "abha", "equity"];
 
 async function loadInstrumentModule() {
   const tmpDir = mkdtempSync(path.join(tmpdir(), "whova-composed-instrument-"));
@@ -116,7 +116,7 @@ function tagDefinition(all, compose) {
 /** Item kept for subset S when untagged or any tag is enabled (the server's rule). */
 const keep = (enabled) => (item) => !item.extensions || item.extensions.some((name) => enabled.has(name));
 
-/** The 2^5 equivalence check; throws on any difference but `order`. */
+/** The 2^6 equivalence check; throws on any difference but `order`. */
 function checkSubsets(tagged, compose) {
   let subsets = 0;
   let orderDiffs = 0;
@@ -165,7 +165,7 @@ async function main() {
     `Wrote ${tagged.questions.length} questions, ${tagged.sections.length} sections, version ${output.version} -> ${outPath}`
   );
   console.log(`Tagged items per extension: ${JSON.stringify(tagCounts)}`);
-  console.log(`Subset check: ${subsets}/32 subsets match compose(); \`order\` differs in ${orderDiffs} item placements (absolute numbers only; relative order verified identical)`);
+  console.log(`Subset check: ${subsets}/${1 << CONDITIONAL.length} subsets match compose(); \`order\` differs in ${orderDiffs} item placements (absolute numbers only; relative order verified identical)`);
 }
 
 const isMainModule = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;

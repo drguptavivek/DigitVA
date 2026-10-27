@@ -47,6 +47,7 @@ from app.services.web_form_instruments import (
     DEFAULT_LOCALE,
     FALLBACK_INSTRUMENT_CODE,
     instrument_locale_catalogue,
+    resolved_instrument_code,
 )
 from app.services.web_intake_service import resolve_intake_note
 
@@ -593,7 +594,8 @@ def _enabled_extensions(
     -- a project that blanked the note wants no welcome screen -- and
     ``death_summary`` and ``medical_records`` each follow their own project
     switch, on unless an administrator turned it off (decided 2026-09-19,
-    docs/policy/va-web-form-options.md). ``digitva_core`` and
+    docs/policy/va-web-form-options.md); ``equity`` follows
+    ``web_intake_equity_enabled``, off unless turned on. ``digitva_core`` and
     ``doris_support_whova_2022`` are always on: every web form asks the
     DORIS support questions, whatever the COD entry mode (decided
     2026-09-29, digitva-hln). The document upload itself lands with
@@ -609,6 +611,8 @@ def _enabled_extensions(
         extensions.append("death_summary")
     if project.web_intake_medical_records_enabled:
         extensions.append("medical_records")
+    if project.web_intake_equity_enabled:
+        extensions.append("equity")
 
     has_geography = db.session.scalar(
         sa.select(sa.func.count())
@@ -717,7 +721,7 @@ def served_instrument_locales(project: VaProjectMaster) -> tuple[str, set[str]]:
     default_form_type = next((ft for ft in _project_form_types(project) if ft["is_default"]), None)
     instrument_code = (default_form_type or {}).get("instrument_code")
     _default, available = _resolve_locales(project, instrument_code)
-    return instrument_code or FALLBACK_INSTRUMENT_CODE, {entry["code"] for entry in available}
+    return resolved_instrument_code(instrument_code), {entry["code"] for entry in available}
 
 
 def form_options_payload(project: VaProjectMaster) -> dict:
@@ -733,10 +737,12 @@ def form_options_payload(project: VaProjectMaster) -> dict:
     intake_note = resolve_intake_note(project)
     # What an already-open page revalidates its cached translations against:
     # the version of every locale this instrument currently serves.
+    # Resolved like available_locales (fallback to WHO_2022_VA when the
+    # project's instrument has no servable locale), so the two agree.
     translation_versions = active_locale_versions(
-        default_form_type["instrument_code"]
-        if default_form_type and default_form_type["instrument_code"]
-        else FALLBACK_INSTRUMENT_CODE
+        resolved_instrument_code(
+            default_form_type["instrument_code"] if default_form_type else None
+        )
     )
 
     enabled_extensions = _enabled_extensions(

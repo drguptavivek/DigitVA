@@ -188,6 +188,28 @@
     {
       "calculation": null,
       "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "refusal_age_group",
+      "relevant": "selected(${Id10013}, 'no')",
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "refusal_sex",
+      "relevant": "selected(${Id10013}, 'no')",
+      "sectionPath": [
+        "respondent_backgr"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
       "control": "system",
       "dataType": "dateTime",
       "name": "Id10011",
@@ -849,6 +871,19 @@
     {
       "calculation": null,
       "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "social_group",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
       "control": "text",
       "dataType": "string",
       "name": "Id10054",
@@ -866,6 +901,19 @@
       "dataType": "string",
       "name": "Id10055",
       "relevant": "selected(${Id10051}, 'yes')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "residence_type",
+      "relevant": null,
       "sectionPath": [
         "consented",
         "deceased_CRVS",
@@ -944,6 +992,97 @@
       "dataType": "string",
       "name": "Id10066",
       "relevant": "(selected(${isChild}, '1') or selected(${isAdult}, '1')) and selected(${Id10051}, 'yes') and selected(${Id10065}, 'mainly_employed')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "vulnerable_group",
+      "relevant": null,
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "vulnerable_group_child_no_care",
+      "relevant": "selected(${isNeonatal}, '1') or selected(${isChild}, '1')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "vulnerable_group_female_head",
+      "relevant": "selected(${isAdult}, '1') and selected(${Id10019}, 'female')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "vulnerable_group_elderly_alone",
+      "relevant": "selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "vulnerable_group_gender_minority",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": null,
+      "control": "singleChoice",
+      "dataType": "string",
+      "name": "vulnerable_group_custody",
+      "relevant": "selected(${isChild}, '1') or selected(${isAdult}, '1')",
+      "sectionPath": [
+        "consented",
+        "deceased_CRVS",
+        "info_on_deceased"
+      ]
+    },
+    {
+      "calculation": null,
+      "constraint": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)",
+      "control": "multipleChoice",
+      "dataType": "string[]",
+      "name": "health_coverage",
+      "relevant": null,
       "sectionPath": [
         "consented",
         "deceased_CRVS",

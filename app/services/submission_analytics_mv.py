@@ -38,20 +38,12 @@ from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.workflow.definition import (
     CODING_BUCKET_OTHER,
     CODING_BUCKETS,
-    WORKFLOW_ATTACHMENT_SYNC_PENDING,
-    WORKFLOW_CODER_FINALIZED,
-    WORKFLOW_CODER_STEP1_SAVED,
+    DM_CODED_STATES,
+    PENDING_STATES,
     WORKFLOW_CODING_BUCKETS,
-    WORKFLOW_CODING_IN_PROGRESS,
     WORKFLOW_CONSENT_REFUSED,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-    WORKFLOW_NOT_CODEABLE_BY_CODER,
     WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
-    WORKFLOW_READY_FOR_CODING,
-    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-    WORKFLOW_REVIEWER_ELIGIBLE,
-    WORKFLOW_REVIEWER_FINALIZED,
-    WORKFLOW_SCREENING_PENDING,
     WORKFLOW_SMARTVA_PENDING,
 )
 from app.services.workflow.revision_request_sql import (
@@ -1307,10 +1299,63 @@ def _mv_scope_filter(
     return sa.and_(scope, mv.c.odk_missing.is_(False))
 
 
+def org_unit_subtree_condition(unit_id_column, raw_unit_id: str):
+    """SQL predicate: *unit_id_column* is *raw_unit_id* or below it in the tree.
+
+    The one subtree filter for the DM list, exports and KPI cards. A malformed
+    id matches nothing. Callers AND it with their scope filter, so a unit
+    outside the viewer's scope never widens what they see.
+    """
+    import uuid
+
+    from app.models.mas_organization import MasOrgUnit
+
+    try:
+        unit_id = uuid.UUID(str(raw_unit_id))
+    except ValueError:
+        return sa.false()
+    anchor = sa.select(MasOrgUnit.path).where(MasOrgUnit.org_unit_id == unit_id).scalar_subquery()
+    sub = sa.orm.aliased(MasOrgUnit)
+    return unit_id_column.in_(sa.select(sub.org_unit_id).where(sub.path.op("<@")(anchor)))
+
+
 def _csv_values(raw: str | None) -> list[str]:
     if not raw:
         return []
     return [value.strip() for value in raw.split(",") if value.strip()]
+
+
+def death_date_conditions(va_sid_expr, death_from, death_to) -> list:
+    """WHERE terms for the date-of-death filter, shared by the list, cards and exports.
+
+    The date comes from the case (``va_death_register.date_of_death``, one live
+    case per submission). A submission with no case, or a case without a date,
+    is left out whenever either bound is set. Unparseable bounds are ignored.
+    Served by ``ix_va_death_register_va_sid``.
+    """
+    from datetime import date
+
+    from app.models import VaDeathRegister
+
+    column = VaDeathRegister.date_of_death
+    terms = []
+    for raw, make in ((death_from, lambda d: column >= d), (death_to, lambda d: column <= d)):
+        try:
+            if raw:
+                terms.append(make(date.fromisoformat(str(raw)[:10])))
+        except ValueError:
+            pass
+    if not terms:
+        return []
+    return [
+        sa.exists(
+            sa.select(1).where(
+                VaDeathRegister.va_sid == va_sid_expr,
+                VaDeathRegister.status.not_in(("duplicate", "cancelled")),
+                *terms,
+            )
+        )
+    ]
 
 
 def build_dm_mv_filter_conditions(
@@ -1324,12 +1369,16 @@ def build_dm_mv_filter_conditions(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
 ):
     """Return MV filter conditions for the data-manager dashboard.
 
@@ -1365,6 +1414,7 @@ def build_dm_mv_filter_conditions(
         conditions.append(core.c.submission_date >= date_from)
     if date_to:
         conditions.append(core.c.submission_date <= date_to)
+    conditions.extend(death_date_conditions(core.c.va_sid, death_from, death_to))
     if odk_status == "hasIssues":
         conditions.append(core.c.odk_review_state == "hasIssues")
     elif odk_status == "approved":
@@ -1381,20 +1431,25 @@ def build_dm_mv_filter_conditions(
         conditions.append(sa.func.lower(demo.c.sex) == gender.strip().lower())
     if odk_sync == ODK_SYNC_MISSING:
         conditions.append(core.c.odk_missing.is_(True))
+    if visit_note == "1":
+        from app.models import VaSubmissions
+        from app.services.visit_note import has_visit_note_condition
+
+        conditions.append(
+            sa.exists().where(
+                VaSubmissions.va_sid == core.c.va_sid,
+                has_visit_note_condition(VaSubmissions.va_sid),
+            # Only core correlates out: a caller that also joins VaSubmissions
+            # (the not-analysable split) must not strip this EXISTS' own FROM.
+            ).correlate(core)
+        )
+    if org_unit:
+        conditions.append(org_unit_subtree_condition(core.c.org_unit_id, org_unit))
     if workflow:
         if workflow == "pending_coding":
-            conditions.append(core.c.workflow_state.in_([
-                WORKFLOW_READY_FOR_CODING,
-                WORKFLOW_CODING_IN_PROGRESS,
-                WORKFLOW_CODER_STEP1_SAVED,
-            ]))
+            conditions.append(core.c.workflow_state.in_(PENDING_STATES))
         elif workflow == "coded":
-            conditions.append(core.c.workflow_state.in_([
-                WORKFLOW_CODER_FINALIZED,
-                WORKFLOW_REVIEWER_ELIGIBLE,
-                WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-                WORKFLOW_REVIEWER_FINALIZED,
-            ]))
+            conditions.append(core.c.workflow_state.in_(DM_CODED_STATES))
         else:
             conditions.extend(workflow_filter_conditions(workflow, core.c.workflow_state, core.c.va_sid))
     return conditions
@@ -1408,15 +1463,22 @@ def get_dm_kpi_from_mv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     unit_ids=None,
 ) -> dict:
     """Return scoped KPI counts for the data-manager dashboard from the analytics MVs.
+
+    Each card counts exactly the states its list filter shows: ``coded`` is
+    ``DM_CODED_STATES`` and ``flagged`` is ``not_codeable_by_data_manager``.
 
     *unit_ids* is the subtree of the caller's unit grants (see
     ``_mv_scope_filter``); ``None`` or empty adds nothing.
@@ -1451,12 +1513,16 @@ def get_dm_kpi_from_mv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
 
     joined = core.join(demo, core.c.va_sid == demo.c.va_sid)
@@ -1469,11 +1535,7 @@ def get_dm_kpi_from_mv(
         sa.select(sa.func.count())
         .select_from(joined)
         .where(where)
-        .where(
-            core.c.workflow_state.in_(
-                [WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER, WORKFLOW_NOT_CODEABLE_BY_CODER]
-            )
-        )
+        .where(core.c.workflow_state == WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER)
     ) or 0
     odk_issues = db.session.scalar(
         sa.select(sa.func.count())
@@ -1517,27 +1579,13 @@ def get_dm_kpi_from_mv(
         sa.select(sa.func.count())
         .select_from(joined)
         .where(where)
-        .where(
-            core.c.workflow_state.in_(
-                [
-                    WORKFLOW_CODER_FINALIZED,
-                    WORKFLOW_REVIEWER_ELIGIBLE,
-                    WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
-                    WORKFLOW_REVIEWER_FINALIZED,
-                    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
-                ]
-            )
-        )
+        .where(core.c.workflow_state.in_(DM_CODED_STATES))
     ) or 0
     pending = db.session.scalar(
         sa.select(sa.func.count())
         .select_from(joined)
         .where(where)
-        .where(core.c.workflow_state.in_([
-            WORKFLOW_READY_FOR_CODING,
-            WORKFLOW_CODING_IN_PROGRESS,
-            WORKFLOW_CODER_STEP1_SAVED,
-        ]))
+        .where(core.c.workflow_state.in_(PENDING_STATES))
     ) or 0
 
     # Retired submissions are excluded from every count above; this one
@@ -1552,12 +1600,16 @@ def get_dm_kpi_from_mv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=ODK_SYNC_MISSING,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     ))
     missing_in_odk = db.session.scalar(
         sa.select(sa.func.count()).select_from(joined).where(missing_in_odk_where)
@@ -1636,12 +1688,16 @@ def get_dm_project_site_stats_from_mv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     unit_ids=None,
 ) -> list[dict]:
     """Return project/site submission stats for the data-manager dashboard.
@@ -1689,12 +1745,16 @@ def get_dm_project_site_stats_from_mv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
 
     joined = core.join(demo, core.c.va_sid == demo.c.va_sid)
@@ -1738,12 +1798,16 @@ def get_dm_org_unit_stats_from_mv(
     site: str = "",
     date_from: str | None = None,
     date_to: str | None = None,
+    death_from: str | None = None,
+    death_to: str | None = None,
     odk_status: str = "",
     smartva: str = "",
     age_group: str = "",
     gender: str = "",
     odk_sync: str = "",
     workflow: str = "",
+    visit_note: str = "",
+    org_unit: str = "",
     unit_ids: Iterable | None = None,
     include_breakdown: bool = False,
     scope_unit_ids=None,
@@ -1794,12 +1858,16 @@ def get_dm_org_unit_stats_from_mv(
         site=site,
         date_from=date_from,
         date_to=date_to,
+        death_from=death_from,
+        death_to=death_to,
         odk_status=odk_status,
         smartva=smartva,
         age_group=age_group,
         gender=gender,
         odk_sync=odk_sync,
         workflow=workflow,
+        visit_note=visit_note,
+        org_unit=org_unit,
     )
 
     joined = core.join(demo, core.c.va_sid == demo.c.va_sid)

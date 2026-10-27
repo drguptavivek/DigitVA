@@ -41,7 +41,7 @@ async function loadExtensionModule() {
   const outfile = path.join(tmpDir, "bundle.mjs");
   writeFileSync(
     entryPath,
-    `export { createDigitVaExtension, createConsentModeQuestion } from ${JSON.stringify(
+    `export { createDigitVaExtension, createConsentModeQuestion, createEquityExtension } from ${JSON.stringify(
       path.join(vendorSrc, "digitva-extension.js"),
     )};\nexport { createWhoVa2022Instrument } from ${JSON.stringify(
       path.join(vendorSrc, "instrument.js"),
@@ -95,6 +95,12 @@ export function surveyRow(question) {
     // ODK-only: caps the image size sent from the phone, as the deployed forms do.
     parameters: question.sourceType === "image" ? "max-pixels=1024" : "",
   };
+  // Inline non-English text (the equity questions carry Hindi) as `<field>::<code>`.
+  for (const [field, column] of [["label", "label"], ["hint", "hint"], ["constraintMessage", "constraint_message"]]) {
+    for (const [code, text] of Object.entries(question[field] ?? {})) {
+      if (code !== "en" && text) row[`${column}::${code}`] = text;
+    }
+  }
   return Object.fromEntries(Object.entries(row).filter(([, v]) => v !== ""));
 }
 
@@ -110,6 +116,11 @@ export function choiceRows(questions, skipLists = []) {
         list_name: question.listName,
         name: choice.value,
         label: choice.label?.en ?? "",
+        ...Object.fromEntries(
+          Object.entries(choice.label ?? {})
+            .filter(([code, text]) => code !== "en" && text)
+            .map(([code, text]) => [`label::${code}`, text]),
+        ),
       });
     }
   }
@@ -145,7 +156,7 @@ export function groupRows(sections, questions, name, extra = {}) {
 const ANCHOR_PATH = ["digitva_anchor", "narrat"];
 
 async function main() {
-  const { createDigitVaExtension, createConsentModeQuestion, createWhoVa2022Instrument } =
+  const { createDigitVaExtension, createConsentModeQuestion, createEquityExtension, createWhoVa2022Instrument } =
     await loadExtensionModule();
   const only = (extension) =>
     createDigitVaExtension(0, ANCHOR_PATH, "digitva_parent", ["digitva_anchor", "deceased"], [extension]);
@@ -313,6 +324,26 @@ async function main() {
   specs.medical_records = [
     { id: medical.id, title: medical.title, odk: { after: "comment" }, survey: medical.survey, choices: medical.choices, change: [] },
   ];
+
+  // equity: the questions sit after the WHO row each follows. The refusal
+  // profile anchors on Id10013 (consent_mode is itself spliced after it, and
+  // blocks at one anchor keep EXTENSION_ORDER, digitva_core first).
+  const equity = createEquityExtension(0, (anchor) => ["equity_anchor", anchor]);
+  const equityAnchors = { consent_mode: "Id10013", Id10053: "Id10053", Id10055: "Id10055", Id10066: "Id10066" };
+  const equityListsDone = new Set();
+  specs.equity = Object.entries(equity.after).map(([key, questions]) => {
+    // A list shared by several blocks is emitted once (the server merges by list).
+    const choices = choiceRows(questions, [...equityListsDone]);
+    questions.forEach((q) => equityListsDone.add(q.listName));
+    return {
+      id: `equity_${key}`,
+      title: `Equity questions after ${equityAnchors[key]}`,
+      odk: { after: equityAnchors[key] },
+      survey: questions.map(surveyRow),
+      choices,
+      change: [],
+    };
+  });
 
   mkdirSync(outDir, { recursive: true });
   for (const [extension, blocks] of Object.entries(specs)) {

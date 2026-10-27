@@ -114,6 +114,7 @@ class XlsFormBase(BaseTestCase):
             cls.FULL,
             project_structure_mode="organization",
             web_intake_medical_records_enabled=False,
+            web_intake_equity_enabled=True,
             web_intake_narration_languages=["hindi", "english"],
         )
         cls._project(
@@ -207,12 +208,39 @@ class XlsFormContentTests(XlsFormBase):
         self.assertEqual(
             form.extensions,
             ["digitva_core", "doris_support_whova_2022", "social_autopsy", "intake_screen",
-             "death_summary", "geography", "narration_language"],
+             "death_summary", "equity", "geography", "narration_language"],
         )
         # Absent: medical records is switched off, ABHA is not configured.
         self.assertNotIn("md_available", names)
         self.assertNotIn("md_im1", names)
         self.assertNotIn("abha_number", names)
+        self.assertNotIn("social_group", self._survey_names(self._build(self.LEAN)[1]))
+
+    def test_equity_rows_follow_their_anchors_and_carry_hindi_and_exclusive_constraints(self):
+        form, data = self._build(self.FULL)
+        self.assertIn("equity", form.extensions)
+        survey = _sheet(data, "survey")
+        order = [r["name"] for r in survey if "name" in r]
+        rows = {r["name"]: r for r in survey if "name" in r}
+        for name, anchor in (("refusal_age_group", "consent_mode"), ("social_group", "Id10053"),
+                             ("residence_type", "Id10055"), ("vulnerable_group", "Id10066")):
+            self.assertIn(name, order)
+            self.assertGreater(order.index(name), order.index(anchor))
+        self.assertEqual(rows["refusal_sex"]["relevant"], "selected(${Id10013}, 'no')")
+        self.assertEqual(rows["social_group"]["type"], "select_one SOCIAL_GROUP")
+        self.assertEqual(rows["health_coverage"]["type"], "select_multiple HEALTH_COVERAGE")
+        self.assertIn("count-selected(.) > 1", rows["vulnerable_group"]["constraint"])
+        self.assertIn("count-selected(.) > 1", rows["health_coverage"]["constraint"])
+        self.assertEqual(rows["residence_type"]["label::Hindi (hi)"][:3], "मृत")
+        choices = {(c["list_name"], c["name"]) for c in _sheet(data, "choices")}
+        self.assertLessEqual({("SOCIAL_GROUP", "sc"), ("RESIDENCE_TYPE", "urban_slum"),
+                              ("VULNERABLE_GROUP", "none"), ("EQUITY_YES_NO_DK_REF", "ref")}, choices)
+
+    def test_a_language_the_project_does_not_serve_gets_no_inline_column(self):
+        with patch.object(xf, "_display_locales", return_value=[]):
+            _form, data = self._build(self.FULL)
+        self.assertFalse([h for h in _headers(data, "survey") if "(hi)" in h or h.endswith("::hi")])
+        self.assertFalse([h for h in _headers(data, "choices") if "(hi)" in h or h.endswith("::hi")])
 
     def test_an_extension_that_is_off_is_absent_and_the_one_that_is_on_is_present(self):
         _form, data = self._build(self.LEAN)
@@ -675,6 +703,13 @@ class XlsFormRouteTests(XlsFormBase):
         workbook.close()
         self.assertIn("sa01", self._survey_names(response.data))
 
+    def test_a_project_with_equity_on_downloads_its_form_with_the_equity_rows(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual({"social_group", "residence_type", "refusal_sex", "health_coverage"},
+                             self._survey_names(response.data))
+
     def test_the_project_pi_downloads_it(self):
         self._login(str(self.pi_user.user_id))
         self.assertEqual(self.client.get(self._url()).status_code, 200)
@@ -748,6 +783,7 @@ class XlsFormDiffTests(XlsFormBase):
         self.assertIn("Survey rows only in the workbook", result.output)
         self.assertIn("site_individual_id", result.output)
         self.assertIn("consent_mode", result.output)
+        self.assertIn("social_group", result.output)  # equity is on for FULL and ND01 lacks it
 
     def test_cli_refuses_an_unknown_project(self):
         result = self.app.test_cli_runner().invoke(

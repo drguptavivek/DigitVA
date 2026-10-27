@@ -186,7 +186,8 @@ describe("createWhoVa2022Instrument: layer composition", () => {
       "death_summary",
       "medical_records",
       "abha",
-      "doris_support_whova_2022"
+      "doris_support_whova_2022",
+      "equity"
     ]);
     expect(whoVa2022Instrument.questions.map((q) => q.name)).toEqual(allOn.questions.map((q) => q.name));
     expect(whoVa2022Instrument.sections.map((s) => s.name)).toEqual(allOn.sections.map((s) => s.name));

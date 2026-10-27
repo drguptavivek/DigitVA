@@ -9,6 +9,7 @@ import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
+import { ApiError } from "../api";
 import { useAppState } from "../AppState";
 import { isPlusVariant } from "../appVariant";
 import {
@@ -25,12 +26,15 @@ import {
 import { isUnlocked, openInterviewerDb, StoreLockedError } from "../interviewerDb";
 import { getOrCreatePlusDeviceIdentity } from "../offlineIdentity";
 import { getOfflineProfile } from "../offlineProfile";
+import allowabilityPack from "../../assets/icd11-allowability-2026-01.json";
+import { codingContextFromInterview, createAllowabilityIndex, type AllowabilityPack } from "../coding/icd11Allowability";
 import { errorText, Button, Screen, useUiStyles } from "../ui";
-import { createOfflineDorisEditor, certificateSeedFromInterview, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
+import { createOfflineDorisEditor, certificateSeedFromInterview, OfflineAllowabilityError, type OfflineCodingStore, type OfflineDorisEditor } from "../workspace/offlineDoris";
 import type { WorkspaceApi } from "../workspace/api";
 import type { CodingWriteReply, DorisProcessReply, WorkspaceIdentity, WorkspacePayload } from "../workspace/contracts";
 import { offlineEngine } from "../offlineEngine";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
+import { draftAnswersSha256 } from "../sync";
 
 type Params = { userId?: string | string[]; caseId?: string | string[] };
 
@@ -78,7 +82,12 @@ async function resolveOfflineSaveContext(): Promise<{ deviceUuid: string; coderP
  * offline_coding, VA definitions (a server crosswalk) answer none. Every
  * server-only call refuses, so an offline screen can never half-talk to a server.
  */
-function offlineWorkspaceApi(editor: OfflineDorisEditor, reply: { current: DorisProcessReply | null }, vaSid: string): WorkspaceApi {
+function offlineWorkspaceApi(
+  editor: OfflineDorisEditor,
+  reply: { current: DorisProcessReply | null },
+  vaSid: string,
+  answersHash: (draftId: string) => Promise<string | null>,
+): WorkspaceApi {
   const unavailable = (_name: string): never => { throw new Error("offline_server_unavailable"); };
   return {
     getWorkspace: () => unavailable("getWorkspace"),
@@ -122,14 +131,28 @@ function offlineWorkspaceApi(editor: OfflineDorisEditor, reply: { current: Doris
     },
     async saveInitial(_vaSid, body): Promise<CodingWriteReply> {
       const { deviceUuid, coderProfileUpdatedAt } = await resolveOfflineSaveContext();
-      await editor.save({ clientDraftId: vaSid, body, reply: reply.current, deviceUuid, coderProfileUpdatedAt });
+      try {
+        const answersSha256 = await answersHash(vaSid);
+        await editor.save({ clientDraftId: vaSid, body, reply: reply.current, deviceUuid, coderProfileUpdatedAt, answersSha256 });
+      } catch (error) {
+        // The shapes DorisPanel handles for the server's 400 invalid_cod and 422 age confirmation.
+        if (!(error instanceof OfflineAllowabilityError)) throw error;
+        if (error.kind === "age_confirm") {
+          throw new ApiError(422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED", undefined, undefined, { error: error.message, age_restriction: { ...error.restriction } });
+        }
+        throw new ApiError(400, "invalid_cod", undefined, undefined, { error: error.message, messages: [error.message] });
+      }
       return { va_sid: vaSid };
     },
   };
 }
 
+// Built once: the bundled pack is indexed on first use and refuses to load if it is not understood.
+let allowabilityIndex: ReturnType<typeof createAllowabilityIndex> | undefined;
+const packIndex = () => (allowabilityIndex ??= createAllowabilityIndex(allowabilityPack as AllowabilityPack));
+
 /** The editor's one case: minimal header (no PII beyond what this coder collected) plus the offline editor. */
-function OfflineCase({ db, clientDraftId, onDone }: { db: Db; clientDraftId: string; onDone: () => Promise<void> }) {
+function OfflineCase({ db, userId, clientDraftId, onDone }: { db: Db; userId: string; clientDraftId: string; onDone: () => Promise<void> }) {
   const styles = useUiStyles();
   const engine = offlineEngine();
   const [loaded, setLoaded] = useState<{ row: OfflineCodingCase; draft: DeviceTimedDraft; coding: OfflineCodingRow | null } | undefined>();
@@ -182,10 +205,17 @@ function OfflineCase({ db, clientDraftId, onDone }: { db: Db; clientDraftId: str
 
   const identity: WorkspaceIdentity = useMemo(() => ({ vaSid: clientDraftId, mode: "coding" }), [clientDraftId]);
   const editor = useMemo(
-    () => createOfflineDorisEditor(engine, offlineCodingStore(db)),
-    [engine, db],
+    () => createOfflineDorisEditor(
+      engine,
+      offlineCodingStore(db),
+      loaded ? { index: packIndex(), context: codingContextFromInterview(loaded.draft.data ?? {}), confirmedBy: userId } : undefined,
+    ),
+    [engine, db, loaded, userId],
   );
-  const api = useMemo(() => offlineWorkspaceApi(editor, lastReply, clientDraftId), [editor, clientDraftId]);
+  const api = useMemo(
+    () => offlineWorkspaceApi(editor, lastReply, clientDraftId, (draftId) => draftAnswersSha256(db, draftId)),
+    [editor, clientDraftId, db],
+  );
   const request = useMemo(() => async () => { throw new Error("offline_server_unavailable"); }, []);
 
   if (failed) {
@@ -311,7 +341,7 @@ export default function OfflineCoding() {
   return (
     <Screen title="Offline coding">
       {selected ? (
-        <OfflineCase key={selected} db={db} clientDraftId={selected} onDone={closeCase} />
+        <OfflineCase key={selected} db={db} userId={userId} clientDraftId={selected} onDone={closeCase} />
       ) : (
         <OfflineCaseList key={reloadTick} db={db} onOpen={setSelected} />
       )}

@@ -191,6 +191,7 @@ class CodeThisCaseNowTests(SelfCodingFixture, BaseTestCase):
         with self.assertRaises(AllocationError) as ctx:
             allocate_own_case(self.submitter, "csc-own")
         self.assertEqual(ctx.exception.code, "allocation_exists")
+        self.assertEqual(ctx.exception.status_code, 409)
         self.assertEqual(self._allocations("csc-own"), [])
 
     def test_unknown_case_is_404(self):
@@ -231,6 +232,16 @@ class CodeNowApiTests(SelfCodingFixture, BaseTestCase):
         missing = self._post(self.submitter, "csc-nothing")
         self.assertEqual((missing.status_code, missing.get_json()["code"]), (404, "not_found"))
 
+    def test_another_held_allocation_is_a_409_allocation_exists_on_code_now_and_recode(self):
+        self._own_case("csc-own")
+        self._submission("csc-elsewhere")
+        self._hold("csc-elsewhere", self.submitter)
+        code_now = self._post(self.submitter, "csc-own")
+        self.assertEqual((code_now.status_code, code_now.get_json()["code"]), (409, "allocation_exists"))
+        recode = self.client.post("/api/v1/coding/recode/csc-own", headers=self._csrf_headers())
+        self.assertEqual((recode.status_code, recode.get_json()["code"]), (409, "allocation_exists"))
+        self.assertEqual(self._allocations("csc-own"), [])
+
     def test_a_transition_lost_to_a_concurrent_take_is_a_409_and_leaves_no_trace(self):
         from unittest import mock
 
@@ -261,6 +272,25 @@ class CodeNowApiTests(SelfCodingFixture, BaseTestCase):
         response = self._post(self.outsider, "csc-own")
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self._allocations("csc-own"), [])
+
+
+class BrowserAllocationErrorTests(BaseTestCase):
+    def test_the_browser_shows_allocation_exists_on_its_403_page_and_keeps_other_statuses(self):
+        from unittest import mock
+
+        import importlib
+
+        coding_routes = importlib.import_module("app.routes.coding")  # app.routes.coding is the blueprint
+        from app.services.coder_workflow_service import _allocation_exists
+
+        with mock.patch.object(coding_routes, "va_permission_abortwithflash") as abort:
+            error = _allocation_exists()
+            coding_routes._handle_allocation_error(error)
+            abort.assert_called_once_with(error.message, 403)
+            abort.reset_mock()
+            other = AllocationError("Retired.", 409)
+            coding_routes._handle_allocation_error(other)
+            abort.assert_called_once_with("Retired.", 409)
 
 
 class CoderReleaseTests(SelfCodingFixture, BaseTestCase):

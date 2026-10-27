@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-10-27
 ---
 
 # Data Manager Dashboard
@@ -62,23 +62,63 @@ The coded COD snapshot export currently includes:
 
 ## Daily Operations Grid
 
-C-01 reads `va_daily_kpi_aggregates` for stored days and counts the rest live
-(`app/routes/api/dm_kpi/dm_kpi_grid.py`). Both paths use the same per-day
-definitions for the two refusal columns, shared as
-`EVENT_CONSENT_REFUSED_SQL` / `EVENT_NOT_CODEABLE_SQL` in
-`app/services/workflow/definition.py`:
+C-01 is computed live for every day (owner decision 2026-10-27, `digitva-0hul`,
+step 2): `va_daily_kpi_aggregates` is not read, written or refreshed, and the
+`flask kpi` commands and the duplicate-change recount are gone.
+`compute_c01` in `app/routes/api/dm_kpi/dm_kpi_grid.py` runs three queries
+whatever the window: created submissions (Total, New), workflow events
+(Coded, Not analysable, Not Codeable) and `bucket_flow_by_day`
+(`app/routes/api/dm_kpi/dm_kpi_scope.py`) for Pending. Every day of the window
+has a row. Days follow the viewer's timezone (`DmScope.tz`, default
+Asia/Kolkata); coding gates stay on UTC.
 
-- `consent_refused_count` ("Not analysable"): workflow events whose resulting
-  state is `consent_refused`, by `DATE(event_created_at)`.
-- `not_codeable_count`: `coder_not_codeable` and `data_manager_not_codeable`
-  events, by `DATE(event_created_at)`.
+- **Total:** cumulative, the scope's count now minus the submissions created
+  after the day.
+- **New:** submissions created that day (ODK and web).
+- **Updated in ODK:** 0 for now; its per-scope source is not defined.
+- **Coded:** non-demo `coder_finalized` / `recode_finalized` events
+  (`NOT_DEMO_OUTPUT_SQL`).
+- **Pending:** the 6 pending states at the end of the day, the current count
+  minus the net crossings of every later event (`previous_state` /
+  `current_state`).
+- **Not analysable / Not Codeable:** per-day event counts, shared as
+  `EVENT_CONSENT_REFUSED_SQL` / `EVENT_NOT_CODEABLE_SQL` in
+  `app/services/workflow/definition.py`.
 
-They are per-day event counts like `coded_count`, not a running stock, so a
-recomputed past day refreshes them. Only `pending_count` and
-`upstream_changed_count` are end-of-day state counts that a past-day
-recompute preserves. Rows written before digitva-9uqn hold the old stock;
-repair them with `flask kpi recount-day-events` (see
-[CLI Reference](cli-reference.md)), not `kpi backfill`.
+`bucket_flow_by_day` also serves C-04 (`days_to_clear` = pending ÷ the 28-day
+mean outflow, and the end-of-day series behind `pipeline/backlog-trend`) and
+C-19 (inflow and outflow across the pending boundary, `net_28d`,
+`does_not_clear`). See [Data Manager KPI Framework](../policy/kpis.md).
+
+## Core Panels And Registered KPIs
+
+Target state (owner decision 2026-10-27, `digitva-r5s0`; implemented in steps
+2 to 6 of that bead, so the dashboard still shows the earlier card set until
+then). The dashboard keeps **18 core panels** in fixed positions and makes the
+other **35 KPIs** (registered) available by id, with no fixed panel. The
+definitions and the classification of each are in
+[Data Manager KPI Framework](../policy/kpis.md).
+
+- **Grouping:** results-chain stage (input, process, output, outcome), then
+  category.
+- **Core panels:** coder availability (C-21), language gap (C-15), uncoded and
+  its forecast (C-04), inflow against outflow (C-19), blockers (C-23), aging
+  (C-07), time to code (C-08), the critical path (D-WF-02), ODK sync (C-03), the
+  daily grid (C-01), final-cause coverage (AD-FCOD), reported-death coverage
+  (AD-COV, death-register projects only), not-codeable (C-05), not-analysable
+  (C-06), unknown-cause share (O-UNK), coder-reviewer agreement (D-QG-09) and
+  the two equity panels (EQ-01, EQ-02).
+- **Analytic views:** blockers (count, age and owner per reason), the critical
+  path (dominant stage and bottleneck), a forecast (days to clear, range,
+  "does not clear" flag, 12-week backtest) and a trend (period change,
+  same period last year, rising, falling or flat).
+- **Endpoints stay.** Trimming the panels does not delete any endpoint; every
+  KPI endpoint keeps serving the registry and MCP.
+- **Registry and MCP:** the machine-readable list is
+  `app/data/kpi_registry.json`; the help page at `/help/kpis` renders from it;
+  the `kpi` search kind finds a KPI by name; and DMs and admins can query
+  aggregates over `POST /api/v1/mcp` with a personal token (see
+  [Access Control Model](../policy/access-control-model.md)).
 
 ## Summary Cards
 
@@ -115,19 +155,19 @@ Current cards include:
   and the exports exclude them by default
 - clicking it filters the table to `odk_sync=missing_in_odk`
 
-Some card counts apply filters directly to the table when clicked.
+Some card counts apply filters directly to the table when clicked. `Coded` counts `DM_CODED_STATES` (not `finalized_upstream_changed`) and `Not Codeable (DM)` counts `not_codeable_by_data_manager` only, exactly what `workflow=coded` and `workflow=not_codeable_by_data_manager` list (`digitva-l945`).
 
-Current `Pending Coding` semantics:
+Current `Pending Coding` semantics (owner decision 2026-10-27,
+[Data Manager KPI Framework](../policy/kpis.md)):
 
-- `Pending Coding` counts only coder-actionable workflow states:
-  - `ready_for_coding`
-  - `coding_in_progress`
-  - `coder_step1_saved`
-- pre-coding pipeline states such as:
-  - `screening_pending`
-  - `attachment_sync_pending`
-  - `smartva_pending`
-  are not counted as pending coding
+- `Pending Coding` is the 6 `PENDING_STATES`: `screening_pending`,
+  `attachment_sync_pending`, `smartva_pending`, `ready_for_coding`,
+  `coding_in_progress`, `coder_step1_saved`
+- the card and its list filter `workflow=pending_coding` (page, exports and
+  `build_dm_mv_filter_conditions`) use the same constant, so the card equals
+  the list total
+- only `ready_for_coding` is handed to a coder now (`CODER_READY_POOL_STATES`);
+  there is no separate list filter for it
 
 ## Submission Table
 
@@ -142,7 +182,7 @@ Current load path:
 - the Mermaid workflow guide is served from `static/js/data_manager_workflow_guide.js` and only loads Mermaid when the guide is opened
 - the table rows load lazily through the paginated API
 - AG Grid uses the infinite row model and fetches rows from `/api/v1/data-management/submissions`
-- the submissions API also takes `visit_note=1` (only cases whose active payload has a visit note) and `org_unit=<uuid>` (that unit's subtree, within the viewer's scope), both sent by the area dashboard's Visit notes link; each row carries `visit_note` (date, address, remarks; date only for a viewer `should_redact_pii` redacts), read in one query per page. The CSV exports do not take these two filters
+- the submissions API also takes `visit_note=1` (only cases whose active payload has a visit note) and `org_unit=<uuid>` (that unit's subtree, within the viewer's scope), both sent by the area dashboard's Visit notes link; each row carries `visit_note` (date, address, remarks; date only for a viewer `should_redact_pii` redacts), read in one query per page. the KPI cards, the coder daily statistics and every CSV export take both through the same builders as the list (`_dm_submission_query_parts` for the list and exports, `build_dm_mv_filter_conditions` for the cards, one `org_unit_subtree_condition`), and the filter drawer has an Org unit picker fed by `filter-options` `org_units` (only units the viewer's grants reach that hold or contain a listable case). The `date_from`/`date_to` filters are the submission date and are labelled so. `death_from`/`death_to` (Date of death from/to, inclusive ISO days) filter the list, the KPI cards and every CSV export through the same builders (`death_date_conditions`). The date of death is the case's `va_death_register.date_of_death` (confirmed duplicates and cancelled cases ignored). An ODK submission without a case, or whose case has no date, is not matched: while either bound is set only submissions with a known date of death are shown, and the filter tooltip says so. It uses `ix_va_death_register_va_sid`; no new index.
 - the submissions API avoids a full `COUNT(*)` on each page request by over-fetching one row to detect the end of the result set
 - the page opts out of the shared DataTables, jQuery, Select2, Cropper, and HTMX assets from the VA base template
 - Chart.js is loaded only when deferred chart rendering begins
@@ -499,6 +539,10 @@ resolve to their own unit are listed here so a data manager can assign them.
   are written to the submission audit log.
 
 Policy: `docs/policy/organization-model.md`.
+
+## Outcome and critical-path KPIs
+
+The `/api/v1/analytics/dm-kpi/outcomes/*` endpoints (O-UNK, D-QG-09, EQ-01, EQ-02, AD-FCOD, AD-COV) and `/critical-path/` (D-WF-02) are API-only so far; the dashboard does not render them. `coders/disagreement` now returns the D-QG-09 bucket comparison. Routes are listed in `api-v1.md`.
 
 ## Related Files
 

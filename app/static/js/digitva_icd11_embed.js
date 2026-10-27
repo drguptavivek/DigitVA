@@ -11,7 +11,8 @@
  *                {t:'search', query}   fill the search box and search now
  *                {t:'revision', value}
  *                {t:'res', id, ok:true, data} | {t:'res', id, ok:false, error:{code,message,status}}
- *   page -> app  {t:'ready'} {t:'req', id, path, body} {t:'select', choice}
+ *                {t:'ping'}  (web) page re-sends ready if not yet initialised
+ *   page -> app  {t:'ready'} (repeated every second until init) {t:'req', id, path, body} {t:'select', choice}
  *                {t:'uncoded', text} {t:'close'}
  *
  * URL params (host page): `theme` dark|light (colour scheme, handled in the
@@ -142,6 +143,9 @@ function receive(message) {
   if (message.t === 'res') settle(message);
   else if (message.t === 'revision') revision = message.value;
   else if (message.t === 'init') {
+    // A repeated ready can draw a second init; it must not wipe the user's search.
+    if (initialised) return;
+    initialised = true;
     revision = message.revision;
     line.querySelector('[data-doris-line-title]').textContent = String(message.title || 'Find an ICD-11 condition');
     if (typeof message.accent === 'string' && /^#[0-9a-fA-F]{6}$/.test(message.accent)) line.style.setProperty('--doris-line-accent', message.accent);
@@ -157,10 +161,21 @@ function receive(message) {
   }
 }
 
+// "ready" is one-shot, so a parent whose listener attached late would never answer.
+// Repeat it until init arrives; the parent's {t:'ping'} (after iframe onLoad) asks for it now.
+var initialised = false;
+var readyTimer = null;
+function announce() {
+  if (initialised) { clearInterval(readyTimer); return; }
+  send({t: 'ready'});
+}
+
 window.__digitvaEmbedReceive = receive;
 window.addEventListener('message', function (event) {
   // Browser build only: accept the parent frame on our own origin.
   if (native || event.source !== window.parent || event.origin !== window.location.origin) return;
+  if (event.data && event.data.t === 'ping') { announce(); return; }
   receive(event.data);
 });
-send({t: 'ready'});
+announce();
+readyTimer = setInterval(announce, 1000);

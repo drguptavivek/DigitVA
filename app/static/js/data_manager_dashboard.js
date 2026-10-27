@@ -38,6 +38,8 @@
     site: '',
     date_from: '',
     date_to: '',
+    death_from: '',
+    death_to: '',
     odk_status: '',
     smartva: '',
     age_group: '',
@@ -99,7 +101,7 @@
 
   function loadStateFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
+    ['search', 'project', 'site', 'date_from', 'date_to', 'death_from', 'death_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
       .forEach(key => {
         if (params.has(key)) currentFilters[key] = params.get(key) || '';
       });
@@ -184,12 +186,13 @@
   }
 
   /* ── Filter-options cache ── */
-  let filterOptions = { projects: [], sites: [], genders: [] };
+  let filterOptions = { projects: [], sites: [], genders: [], org_units: [] };
   let filterOptionsPromise = null;
 
   /* ── Tom Select instances ── */
   let tsProjectFilter = null;
   let tsSiteFilter = null;
+  let tsOrgUnitFilter = null;
   let tsSyncProject = null;
   let tsSyncSite = null;
   let tomSelectLoader = null;
@@ -965,8 +968,10 @@
     search: 'Search',
     project: 'Project',
     site: 'Site',
-    date_from: 'From',
-    date_to: 'To',
+    date_from: 'Submitted from',
+    date_to: 'Submitted to',
+    death_from: 'Died from',
+    death_to: 'Died to',
     odk_status: 'ODK Status',
     smartva: 'SmartVA Status',
     age_group: 'Age Group',
@@ -978,7 +983,7 @@
   };
 
   /* Filters whose pill never shows the raw URL value (an id, or a flag). */
-  const FIXED_PILL_TEXT = { visit_note: 'Only cases with a visit note', org_unit: 'Selected area' };
+  const FIXED_PILL_TEXT = { visit_note: 'Only cases with a visit note' };
 
   /* Filter values whose pill text differs from the raw query value. */
   const FILTER_VALUE_LABELS = {
@@ -1007,7 +1012,7 @@
       hasAny = true;
       renderTemplate.push({
         key,
-        value: FIXED_PILL_TEXT[key] || (FILTER_VALUE_LABELS[key] && FILTER_VALUE_LABELS[key][val]) || val,
+        value: FIXED_PILL_TEXT[key] || (key === 'org_unit' && orgUnitLabel(val)) || (FILTER_VALUE_LABELS[key] && FILTER_VALUE_LABELS[key][val]) || val,
         label: FILTER_LABELS[key] || key,
       });
     });
@@ -1019,7 +1024,7 @@
       renderTemplate.forEach(({ key, value, label }) => {
         const pill = document.createElement('span');
         pill.className = 'dm-filter-pill';
-        pill.innerHTML = `<strong>${label}:</strong>&nbsp;${value}
+        pill.innerHTML = `<strong>${label}:</strong>&nbsp;${escapeHtml(value)}
           <button type="button" aria-label="Remove filter" data-filter-key="${key}">&#x2715;</button>`;
         pills.appendChild(pill);
       });
@@ -1045,18 +1050,23 @@
     currentFilters.site      = tsSiteFilter    ? tsSiteFilter.getValue().join(',')    : '';
     currentFilters.date_from = document.getElementById('dm-date-from').value;
     currentFilters.date_to   = document.getElementById('dm-date-to').value;
+    currentFilters.death_from = document.getElementById('dm-death-from').value;
+    currentFilters.death_to   = document.getElementById('dm-death-to').value;
     currentFilters.odk_status= document.getElementById('dm-odk-status-filter').value;
     currentFilters.smartva   = document.getElementById('dm-smartva-filter').value;
     currentFilters.age_group = document.getElementById('dm-age-group-filter').value;
     currentFilters.gender    = document.getElementById('dm-gender-filter').value;
     currentFilters.odk_sync  = document.getElementById('dm-odk-sync-filter').value;
     currentFilters.workflow  = document.getElementById('dm-workflow-filter').value;
+    if (tsOrgUnitFilter) currentFilters.org_unit = tsOrgUnitFilter.getValue() || '';
   }
 
   function syncInputsFromState() {
     document.getElementById('dm-search-input').value = currentFilters.search || '';
     document.getElementById('dm-date-from').value    = currentFilters.date_from || '';
     document.getElementById('dm-date-to').value      = currentFilters.date_to || '';
+    document.getElementById('dm-death-from').value   = currentFilters.death_from || '';
+    document.getElementById('dm-death-to').value     = currentFilters.death_to || '';
     document.getElementById('dm-odk-status-filter').value = currentFilters.odk_status || '';
     document.getElementById('dm-smartva-filter').value    = currentFilters.smartva || '';
     document.getElementById('dm-age-group-filter').value  = currentFilters.age_group || '';
@@ -1064,6 +1074,10 @@
     document.getElementById('dm-odk-sync-filter').value   = currentFilters.odk_sync || DEFAULT_FILTERS.odk_sync;
     document.getElementById('dm-workflow-filter').value   = currentFilters.workflow || '';
 
+    if (tsOrgUnitFilter) {
+      tsOrgUnitFilter.clear(true);
+      if (currentFilters.org_unit) tsOrgUnitFilter.addItem(currentFilters.org_unit, true);
+    }
     if (tsProjectFilter) {
       const vals = currentFilters.project ? currentFilters.project.split(',') : [];
       tsProjectFilter.clear(true);
@@ -1125,7 +1139,7 @@
     const includePagination = options && options.includePagination;
     const includeSelection = options && options.includeSelection;
     const params = new URLSearchParams();
-    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
+    ['search', 'project', 'site', 'date_from', 'date_to', 'death_from', 'death_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
       .forEach(key => {
         const value = currentFilters[key];
         if (value) params.set(key, value);
@@ -1155,7 +1169,7 @@
     };
     const exportPath = exportPathByKind[kind] || exportPathByKind.data;
     const url = new URL(exportPath, window.location.origin);
-    ['search', 'project', 'site', 'date_from', 'date_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow']
+    ['search', 'project', 'site', 'date_from', 'date_to', 'death_from', 'death_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
       .forEach(key => {
         const value = currentFilters[key];
         if (value) url.searchParams.set(key, value);
@@ -1205,6 +1219,27 @@
     });
   }
 
+  /* Single-select of the units in the viewer's scope (filter-options). A
+     unit id from the URL that is not offered stays as the filter value (the
+     server scopes it) but shows no label. */
+  function initOrgUnitTomSelect(units, truncated) {
+    const el = document.getElementById('dm-org-unit-filter');
+    if (!el) return;
+    if (tsOrgUnitFilter) tsOrgUnitFilter.destroy();
+    tsOrgUnitFilter = new TomSelect(el, {
+      maxOptions: 2000,
+      options: [{ value: '', text: 'All org units' }].concat(
+        units.map(u => ({ value: u.org_unit_id, text: u.label }))),
+      allowEmptyOption: true,
+      placeholder: truncated ? 'List shortened — type to search' : 'All org units…',
+    });
+  }
+
+  function orgUnitLabel(id) {
+    const hit = (filterOptions.org_units || []).find(u => u.org_unit_id === id);
+    return hit ? hit.label : 'Selected area';
+  }
+
   function cascadeSiteFilter() {
     if (!tsSiteFilter) return;
     const selectedProjects = tsProjectFilter ? tsProjectFilter.getValue() : [];
@@ -1249,6 +1284,7 @@
         return loadTomSelect().then(() => {
           initProjectTomSelect(data.projects || []);
           initSiteTomSelect(data.sites || []);
+          initOrgUnitTomSelect(data.org_units || [], !!data.org_units_truncated);
           syncInputsFromState();
           cascadeSiteFilter();
           return data;

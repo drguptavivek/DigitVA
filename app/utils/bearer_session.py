@@ -38,6 +38,16 @@ class BearerBlindSessionInterface(SessionInterface):
     def save_session(self, app, session, response):
         if request_bearer_token(flask_request) is not None:
             return None
+        # A read-only API GET that changed nothing never writes the session
+        # (digitva-x928): its copy may predate a logout finishing meanwhile,
+        # and saving it would bring the old cookie back. Real activity still
+        # saves, because the idle stamp in enforce_idle_timeout marks it modified.
+        if (
+            flask_request.method in ("GET", "HEAD")
+            and flask_request.path.startswith("/api/v1/")
+            and not session.modified
+        ):
+            return None
         # An empty session is never stamped: that would create a row and a
         # cookie for an anonymous visitor, and logout's deletion must reach
         # the store. A session left holding only the stamp counts as empty,

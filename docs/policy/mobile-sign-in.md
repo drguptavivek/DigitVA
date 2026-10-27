@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Sign-in by Mobile Number
@@ -229,12 +229,19 @@ Today a new data collector needs two things: the enrolment QR (a device
 credential, section 6) and then their own password. This proposal lets one
 scan do both for the least-privileged accounts.
 
-- **Who.** A user holding an active `interviewer` or `death_reporter` grant.
-  Never for an admin, project PI, data manager, In-charge, coder, coding
-  tester, reviewer or any other privileged account. If the person also holds
-  any such other grant, in any project, no sign-in QR is offered or redeemable
-  (checked at issue and again at redeem); they get the enrolment QR and
-  password sign-in only.
+- **Who.** A user holding an active `interviewer`, `death_reporter`, `coder`
+  or self-coding grant. Never for an admin, project PI, data manager,
+  In-charge, coding tester, reviewer or any other privileged account. If the
+  person also holds any such other grant, in any project, no sign-in QR is
+  offered or redeemable (checked at issue and again at redeem); they get the
+  enrolment QR and password sign-in only.
+  **Amended 2026-10-27** (owner decision, `digitva-5bzf`): `coder` and
+  self-coding grants were excluded before; they are now allowed, because a
+  Collect Plus user who codes on the phone and pushes offline coding after
+  enrolment holds them ([Offline API Contract](offline-api-contract.md)
+  section 17). Everything else about the exclusion list stands. Whether a
+  coder grant alone is enough, with no interviewer or death-reporter grant,
+  is open point 1 below.
 - **What one scan does.** It enrols the device (as `enrol_device` does today)
   and opens the normal device session for that one user: same device API
   scope only, same 15-minute access and sliding refresh lifetimes, same
@@ -274,9 +281,21 @@ scan do both for the least-privileged accounts.
   the sessions); the phone still demands the PIN and screen lock on every
   unlock; the credential reaches only the device API, never web pages,
   account-security APIs or any admin or supervisory power; privileged roles
-  are excluded outright. Residual risk: the window before redeem, and a
+  other than coder and self-coding are excluded outright (amended 2026-10-27).
+  A coder account sees case content, so the stranger-redeems-first risk
+  weighs more for it; the mitigation added is that adopting standalone data into
+  the account is an explicit, PIN-confirmed step on the phone
+  ([Field Data Collection](field-data-collection.md) "Path C"). Residual risk: the window before redeem, and a
   stranger redeeming first. This is weaker than password sign-in, which
   needs something the person knows.
+- **A coder-only QR is a password.** Once shown or emailed, a sign-in QR for
+  a coder (or self-coding) account gives coder access on a new device for its
+  validity (6 hours, single use) to whoever scans it first. Coders see more
+  case data than collectors do, so issuing staff must treat the QR like a
+  password: never email it to a shared mailbox, hand it over only to the
+  person in person, and revoke it on any doubt (Users page, or
+  `DELETE /api/v1/users/<user_id>/sign-in-qr`; revoking a device ends a
+  session already opened).
 - **Show-QR needs no verified sign-in.** Redeem does not require the person's
   `sign_in_verified` flag: the issuer hands the on-screen QR over in person and
   so verifies who is holding the phone. The email route is limited to a
@@ -289,6 +308,12 @@ scan do both for the least-privileged accounts.
   email or on screen in person; one scan, no second code at redeem; issued by
   an admin, a project PI or a data manager under the section 3 `can_grant`
   rule; first-time accounts (no password set yet) are the main use.
+
+**Open point 1 (amendment 2026-10-27).** Is a coder or self-coding grant on its
+own enough for a sign-in QR, or must the person also hold an interviewer or
+death-reporter grant? The built server check (`app/services/sign_in_qr_service.py`)
+and `docs/current-state/authentication-and-onboarding.md` 6.1a now allow a coder
+grant alone (S8, `digitva-5bzf.10`), pending owner confirmation.
 
 Shipped endpoints, fields, rate limits and error codes: [Authentication, Login and Onboarding](../current-state/authentication-and-onboarding.md).
 

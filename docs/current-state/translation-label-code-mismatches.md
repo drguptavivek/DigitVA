@@ -3,7 +3,7 @@ title: "Translated labels that display another question's code"
 doc_type: reference
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-09-27
+last_updated: 2026-10-27
 ---
 
 # Translated labels that display another question's code
@@ -318,3 +318,34 @@ Re-approving a locale after review is a deliberate administrator action:
   question, so the wording may be exactly what belongs there.
 
 Tracked as `digitva-fb5`.
+
+## Detector and repair command (digitva-fb5, 2026-10-27)
+
+`app/services/translation_label_code_audit.py` finds every non-machine
+translated question label whose leading `(Id...)` differs from its own
+`item_key` and sorts it into `case_only`, `mistyped` (the shown code names no
+reference question) or `needs_review` (the shown code is another real
+question, or the key is an ODK-only name). `flask instrument-translations
+fix-label-codes` is a dry run by default; `--apply --backup <new file>`
+rewrites only the bracketed code of the first two kinds through
+`update_string` (old and new text are in the existing edit log line; the row
+becomes `edited`, the locale version bumps). The backup (prior text, source,
+author, timestamp) is written and read back before any write; `--restore
+<file>` puts it back. Re-running finds nothing left to fix. `needs_review` rows
+are never touched. There is no per-string flag on the suggestions queue
+(`map_instrument_translation_suggestions` needs a suggesting user, project and
+proposed wording), so the owner list is this one.
+
+Dev dry run 2026-10-27 (broader than the 34 above: the sweep now also catches
+`ID`/`id` case slips such as `bn/Id10077` and `ml/Id10057`): 49 mismatches,
+33 auto-fixable, 16 needs review. The 16, for the owner (a speaker must
+decide each; Class 3 wording is wrong or unverified):
+
+- `or`: Id10192, Id10194, Id10195 (confirmed shifted wording); Id10213_units,
+  Id10248_b (text likely own, code is a neighbour's); abdominal_pain,
+  mother_deliv (ODK-only names)
+- `kn`: Id10422, Id10471 (confirmed another question's wording)
+- `hi`: Id10148_units
+- `ta`: Id10148_c, Id10414_b
+- `fr`: Id10184_c, Id10413_d
+- `ml`: Id10179_1, Id10184_c

@@ -51,7 +51,10 @@ coding = Blueprint("coding", __name__)
 
 
 def _handle_allocation_error(e: AllocationError):
-    va_permission_abortwithflash(e.message, e.status_code)
+    # The browser's 403 page shows the flash; its 409 page does not. The API
+    # answers allocation_exists with 409 (digitva-8dzk).
+    status = 403 if e.code == "allocation_exists" else e.status_code
+    va_permission_abortwithflash(e.message, status)
 
 
 def _require_or_abort(action: Action, va_sid: str) -> None:

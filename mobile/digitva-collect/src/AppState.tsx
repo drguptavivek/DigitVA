@@ -238,7 +238,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await flushBeforeRefresh();
     if (isOffline()) return;
     for (const account of accountsRef.current) {
-      if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+      if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
       const handle = isUnlocked(account.user_id)
         ? await openInterviewerDb(account.user_id)
         : undefined;
@@ -266,7 +266,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       await flushBeforeRefresh();
       if (isOffline()) return true;
       for (const account of accountsRef.current) {
-        if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+        if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
         const handle = isUnlocked(account.user_id)
           ? await openInterviewerDb(account.user_id)
           : undefined;
@@ -330,7 +330,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       debounce = setTimeout(async () => {
         try {
           for (const account of accountsRef.current) {
-            if (account.needs_sign_in || account.terms_required || account.access_blocked) continue;
+            if (account.standalone || account.needs_sign_in || account.terms_required || account.access_blocked) continue;
             if (account.collection_access !== true || !isUnlocked(account.user_id)) continue;
             await runNativeSync(account.user_id, await openInterviewerDb(account.user_id));
             bumpRefresh();

@@ -57,6 +57,7 @@ it("saves a normalized profile and reads it back unchanged", async () => {
     facility_name: "PHC Rampur",
     country: "India",
     state: "Bihar",
+    org_code: "",
     hiv_mortality: "low",
     malaria_mortality: null,
     updated_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),

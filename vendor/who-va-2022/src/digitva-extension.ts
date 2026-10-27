@@ -37,10 +37,11 @@ export const DIGITVA_LAYER_EXTENSIONS = [
   "death_summary",
   "medical_records",
   "social_autopsy",
-  "doris_support_whova_2022"
+  "doris_support_whova_2022",
+  "equity"
 ] as const;
 export type DigitVaLayerExtension = (typeof DIGITVA_LAYER_EXTENSIONS)[number];
-/** All nine names DigitVA recognises in `enabled_extensions` (see docs/policy/va-form-project-configuration.md). */
+/** All ten names DigitVA recognises in `enabled_extensions` (see docs/policy/va-form-project-configuration.md). */
 export const ALL_DIGITVA_EXTENSIONS = [
   "digitva_core",
   "social_autopsy",
@@ -50,7 +51,8 @@ export const ALL_DIGITVA_EXTENSIONS = [
   "death_summary",
   "medical_records",
   "abha",
-  "doris_support_whova_2022"
+  "doris_support_whova_2022",
+  "equity"
 ] as const;
 
 /**
@@ -185,8 +187,13 @@ function expression(source: string): SourceExpression {
   return { source, ast: parseExpression(source) };
 }
 
-function choices(list: ReadonlyArray<{ value: string; label: string }>): InstrumentChoice[] {
-  return list.map((item) => ({ value: item.value, label: { en: item.label }, sourceRow: 0 }));
+/** `hi`, when given, is the choice's inline Hindi label (the equity layer's lists). */
+function choices(list: ReadonlyArray<{ value: string; label: string; hi?: string }>): InstrumentChoice[] {
+  return list.map((item) => ({
+    value: item.value,
+    label: item.hi ? { en: item.label, hi: item.hi } : { en: item.label },
+    sourceRow: 0
+  }));
 }
 
 function base(
@@ -798,6 +805,360 @@ export function createInterviewOutcome(order: number): { section: InstrumentSect
         choiceValues: INTERVIEW_OUTCOMES.map((item) => item.value)
       }
     })
+  };
+}
+
+/** The `equity` layer's extension name (docs/policy/digitva-who-form-overrides.md, "Equity extension"). */
+export const EQUITY_EXTENSION = "equity";
+
+/**
+ * Which country choice set `social_group` uses, and which national names the
+ * `poverty_programme` and `government_scheme` labels carry. `india` is the
+ * NFHS set; `default` is the international one. The served definition is one
+ * composed file filtered by layer, with no project country in it, so today
+ * every composed instrument uses `india`. ponytail: two fixed sets, a
+ * project-defined set and per-project label overrides come with digitva-rou1.
+ */
+export type EquityChoiceSet = "india" | "default";
+
+type BilingualChoice = { value: string; label: string; hi: string };
+type Bilingual = { en: string; hi: string };
+
+const EQUITY_DK: BilingualChoice = { value: "dk", label: "Don't know", hi: "पता नहीं" };
+const EQUITY_REF: BilingualChoice = { value: "ref", label: "Prefer not to say", hi: "बताना नहीं चाहते" };
+const EQUITY_NONE_OF_THESE: BilingualChoice = { value: "none", label: "None of these", hi: "इनमें से कोई नहीं" };
+
+const RESIDENCE_TYPE: ReadonlyArray<BilingualChoice> = [
+  { value: "rural", label: "Rural (village)", hi: "ग्रामीण (गाँव)" },
+  { value: "urban", label: "Urban (town or city)", hi: "शहरी (कस्बा या शहर)" },
+  { value: "urban_slum", label: "Urban slum or informal settlement", hi: "शहरी झुग्गी बस्ती" },
+  EQUITY_DK
+];
+
+const SOCIAL_GROUP: Record<EquityChoiceSet, ReadonlyArray<BilingualChoice>> = {
+  india: [
+    { value: "sc", label: "Scheduled Caste (SC)", hi: "अनुसूचित जाति (SC)" },
+    {
+      value: "st",
+      label: "Scheduled Tribe (ST), including PVTG",
+      hi: "अनुसूचित जनजाति (ST), विशेष रूप से कमज़ोर जनजातीय समूह (PVTG) सहित"
+    },
+    { value: "obc", label: "Other Backward Class (OBC)", hi: "अन्य पिछड़ा वर्ग (OBC)" },
+    { value: "general", label: "None of these (general)", hi: "इनमें से कोई नहीं (सामान्य)" },
+    EQUITY_DK,
+    EQUITY_REF
+  ],
+  default: [
+    { value: "indigenous", label: "Indigenous people", hi: "आदिवासी या मूल निवासी" },
+    { value: "ethnic_minority", label: "Ethnic minority", hi: "जातीय अल्पसंख्यक" },
+    { value: "majority", label: "Majority population", hi: "बहुसंख्यक आबादी" },
+    EQUITY_DK,
+    EQUITY_REF
+  ]
+};
+
+const POVERTY_PROGRAMME: Record<EquityChoiceSet, Bilingual> = {
+  india: {
+    en: "Enrolled in the national poverty or food-security programme (AAY or priority household ration card)",
+    hi: "राष्ट्रीय गरीबी या खाद्य सुरक्षा कार्यक्रम में नामांकित (अंत्योदय (AAY) या प्राथमिकता परिवार राशन कार्ड)"
+  },
+  default: {
+    en: "Enrolled in the national poverty or food-security programme",
+    hi: "राष्ट्रीय गरीबी या खाद्य सुरक्षा कार्यक्रम में नामांकित"
+  }
+};
+
+const GOVERNMENT_SCHEME: Record<EquityChoiceSet, Bilingual> = {
+  india: {
+    en: "A government health scheme (Ayushman Bharat PM-JAY or a state scheme)",
+    hi: "सरकारी स्वास्थ्य योजना (आयुष्मान भारत PM-JAY या कोई राज्य योजना)"
+  },
+  default: { en: "A government (tax-funded) health scheme", hi: "सरकारी (कर-वित्तपोषित) स्वास्थ्य योजना" }
+};
+
+/** The `vulnerable_group` choices no age or sex filter applies to. */
+function vulnerableGroupChoices(set: EquityChoiceSet): ReadonlyArray<BilingualChoice> {
+  return [
+    {
+      value: "disability",
+      label: "A person with a disability (physical, sensory, intellectual or psychosocial)",
+      hi: "दिव्यांग व्यक्ति (शारीरिक, संवेदी, बौद्धिक या मनोसामाजिक)"
+    },
+    { value: "homeless", label: "Homeless or destitute", hi: "बेघर या निराश्रित" },
+    { value: "migrant", label: "Migrant worker, seasonal or from another region", hi: "प्रवासी मज़दूर, मौसमी या किसी अन्य क्षेत्र से" },
+    {
+      value: "displaced",
+      label: "Internally displaced person, refugee, asylum seeker or stateless",
+      hi: "आंतरिक रूप से विस्थापित व्यक्ति, शरणार्थी, शरण चाहने वाला या राज्यविहीन"
+    },
+    { value: "poverty_programme", label: POVERTY_PROGRAMME[set].en, hi: POVERTY_PROGRAMME[set].hi },
+    EQUITY_NONE_OF_THESE,
+    EQUITY_DK,
+    EQUITY_REF
+  ];
+}
+
+const NEONATE_OR_CHILD = "selected(${isNeonatal}, '1') or selected(${isChild}, '1')";
+const CHILD_OR_ADULT = "selected(${isChild}, '1') or selected(${isAdult}, '1')";
+
+/**
+ * The `vulnerable_group` codes the policy filters by age or sex. The engine
+ * has no per-choice relevance in a `select_multiple`, so each is its own
+ * yes/no question `vulnerable_group_<code>` with that relevance, as the
+ * policy allows ("Age and sex filters").
+ */
+const VULNERABLE_GROUP_FILTERED: ReadonlyArray<{ code: string; label: Bilingual; relevant: string }> = [
+  {
+    code: "child_no_care",
+    label: {
+      en: "Was the deceased a child without parental care?",
+      hi: "क्या मृतक माता-पिता की देखभाल से वंचित बच्चा था?"
+    },
+    relevant: NEONATE_OR_CHILD
+  },
+  {
+    code: "female_head",
+    label: {
+      en: "Was the deceased a widow or a woman heading the household alone?",
+      hi: "क्या मृतक विधवा थीं या अकेले परिवार की मुखिया महिला थीं?"
+    },
+    relevant: "selected(${isAdult}, '1') and selected(${Id10019}, 'female')"
+  },
+  {
+    code: "elderly_alone",
+    label: {
+      en: "Was the deceased an older person living alone?",
+      hi: "क्या मृतक अकेले रहने वाले बुज़ुर्ग व्यक्ति थे?"
+    },
+    relevant: "selected(${isAdult}, '1')"
+  },
+  {
+    code: "gender_minority",
+    label: {
+      en: "Was the deceased a transgender or gender-diverse person?",
+      hi: "क्या मृतक ट्रांसजेंडर या जेंडर-विविध व्यक्ति थे?"
+    },
+    relevant: CHILD_OR_ADULT
+  },
+  {
+    code: "custody",
+    label: {
+      en: "Was the deceased in prison or custody at the time of death?",
+      hi: "क्या मृत्यु के समय मृतक जेल या हिरासत में थे?"
+    },
+    relevant: CHILD_OR_ADULT
+  }
+];
+
+const EQUITY_YES_NO_DK_REF: ReadonlyArray<BilingualChoice> = [
+  { value: "yes", label: "Yes", hi: "हाँ" },
+  { value: "no", label: "No", hi: "नहीं" },
+  EQUITY_DK,
+  EQUITY_REF
+];
+
+function healthCoverageChoices(set: EquityChoiceSet): ReadonlyArray<BilingualChoice> {
+  return [
+    { value: "social_security", label: "Social security health insurance", hi: "सामाजिक सुरक्षा स्वास्थ्य बीमा" },
+    { value: "government_scheme", label: GOVERNMENT_SCHEME[set].en, hi: GOVERNMENT_SCHEME[set].hi },
+    {
+      value: "community_mutual",
+      label: "Mutual health organisation or community-based insurance",
+      hi: "म्युचुअल स्वास्थ्य संगठन या समुदाय-आधारित बीमा"
+    },
+    { value: "employer", label: "Other employer-based insurance", hi: "अन्य नियोक्ता-आधारित बीमा" },
+    { value: "private", label: "Privately purchased commercial insurance", hi: "निजी तौर पर खरीदा गया व्यावसायिक बीमा" },
+    { value: "other", label: "Other", hi: "अन्य" },
+    { value: "none", label: "No health insurance", hi: "कोई स्वास्थ्य बीमा नहीं" },
+    EQUITY_DK,
+    EQUITY_REF
+  ];
+}
+
+/** Analytics age bands (policy "Equity extension: refusal profile"). */
+const REFUSAL_AGE_GROUP: ReadonlyArray<BilingualChoice> = [
+  { value: "neonate", label: "Neonate (under 28 days)", hi: "नवजात (28 दिन से कम)" },
+  { value: "child", label: "Child (28 days to 14 years)", hi: "बच्चा (28 दिन से 14 वर्ष)" },
+  { value: "15_49y", label: "15 to 49 years", hi: "15 से 49 वर्ष" },
+  { value: "50_64y", label: "50 to 64 years", hi: "50 से 64 वर्ष" },
+  { value: "65_plus", label: "65 years or older", hi: "65 वर्ष या अधिक" },
+  { value: "unknown", label: "Unknown", hi: "अज्ञात" }
+];
+
+const REFUSAL_SEX: ReadonlyArray<BilingualChoice> = [
+  { value: "male", label: "Male", hi: "पुरुष" },
+  { value: "female", label: "Female", hi: "महिला" },
+  { value: "unknown", label: "Unknown", hi: "अज्ञात" }
+];
+
+/** `none`, `dk` and `ref` each stand alone in a `select_multiple`. */
+const EXCLUSIVE_CONSTRAINT = ["none", "dk", "ref"]
+  .map((code) => `not(selected(., '${code}') and count-selected(.) > 1)`)
+  .join(" and ");
+const EXCLUSIVE_MESSAGE: Bilingual = {
+  en: "None, Don't know and Prefer not to say cannot be ticked with any other answer.",
+  hi: "'कोई नहीं', 'पता नहीं' और 'बताना नहीं चाहते' को किसी अन्य उत्तर के साथ नहीं चुना जा सकता।"
+};
+
+const NEUTRAL_HINT: Bilingual = {
+  en: "Ask neutrally. Never infer the answer from name, surname or appearance.",
+  hi: "तटस्थ रूप से पूछें। नाम, उपनाम या रूप-रंग से उत्तर का अनुमान कभी न लगाएँ।"
+};
+
+/** An optional equity `select_one` / `select_multiple` with inline English and Hindi text. */
+function equityChoice(
+  name: string,
+  order: number,
+  sectionPath: string[],
+  label: Bilingual,
+  listName: string,
+  list: ReadonlyArray<BilingualChoice>,
+  options: { multiple?: boolean; hint?: Bilingual; relevant?: string } = {}
+): InstrumentQuestion {
+  const dataType = options.multiple ? "string[]" : "string";
+  const constraint = options.multiple ? { constraint: expression(EXCLUSIVE_CONSTRAINT) } : {};
+  const constraintMessage = options.multiple ? { ...EXCLUSIVE_MESSAGE } : {};
+  return base(name, order, sectionPath, label.en, {
+    sourceType: `${options.multiple ? "select_multiple" : "select_one"} ${listName}`,
+    dataType,
+    control: options.multiple ? "multipleChoice" : "singleChoice",
+    label: { ...label },
+    hint: options.hint ? { ...options.hint } : {},
+    listName,
+    choices: choices(list),
+    ...constraint,
+    constraintMessage,
+    ...(options.relevant ? { relevant: expression(options.relevant) } : {}),
+    validation: {
+      required: false,
+      dataType,
+      ...constraint,
+      constraintMessage,
+      choiceValues: list.map((item) => item.value)
+    }
+  });
+}
+
+/**
+ * `equity`: the equity questions (docs/policy/digitva-who-form-overrides.md,
+ * the four "Equity extension" sections), keyed by the question each follows:
+ * `social_group` after Id10053, `residence_type` after Id10055,
+ * `vulnerable_group` (and its filtered yes/no items) then `health_coverage`
+ * after Id10066, and the refusal profile after `consent_mode` (itself right
+ * after Id10013).
+ *
+ * Gate: the deceased questions carry no relevance of their own and sit in
+ * WHO's `consented` group, so they are asked whenever the layer is on and
+ * consent was given -- deliberately not behind WHO's Id10051. The refusal
+ * profile is asked only when Id10013 = no. Everything is optional, so older
+ * drafts stay valid. `sectionPathOf` returns an anchor's section path.
+ */
+export function createEquityExtension(
+  startOrder: number,
+  sectionPathOf: (anchor: string) => string[],
+  choiceSet: EquityChoiceSet = "india"
+): { after: Record<string, InstrumentQuestion[]> } {
+  let order = startOrder;
+  const next = () => ++order;
+  const refusalPath = sectionPathOf("consent_mode");
+  const deceasedPath = sectionPathOf("Id10053");
+  const refused = "selected(${Id10013}, 'no')";
+
+  const refusalProfile = [
+    equityChoice(
+      "refusal_age_group",
+      next(),
+      refusalPath,
+      { en: "Age group of the deceased", hi: "मृतक का आयु वर्ग" },
+      "REFUSAL_AGE_GROUP",
+      REFUSAL_AGE_GROUP,
+      {
+        relevant: refused,
+        hint: {
+          en: "Record what is already known, or ask only this if the family is willing. Unknown is allowed.",
+          hi: "जो पहले से पता है वह दर्ज करें, या परिवार राज़ी हो तो केवल यही पूछें। अज्ञात चुन सकते हैं।"
+        }
+      }
+    ),
+    equityChoice(
+      "refusal_sex",
+      next(),
+      refusalPath,
+      { en: "Sex of the deceased", hi: "मृतक का लिंग" },
+      "REFUSAL_SEX",
+      REFUSAL_SEX,
+      { relevant: refused }
+    )
+  ];
+
+  const socialGroup = equityChoice(
+    "social_group",
+    next(),
+    deceasedPath,
+    { en: "Which of these groups did the deceased belong to?", hi: "मृतक इनमें से किस समूह से थे?" },
+    "SOCIAL_GROUP",
+    SOCIAL_GROUP[choiceSet],
+    { hint: NEUTRAL_HINT }
+  );
+
+  const residenceType = equityChoice(
+    "residence_type",
+    next(),
+    sectionPathOf("Id10055"),
+    {
+      en: "Was the place where the deceased usually lived rural, urban or an urban slum?",
+      hi: "मृतक जहाँ सामान्यतः रहते थे, वह स्थान ग्रामीण था, शहरी था या शहरी झुग्गी बस्ती?"
+    },
+    "RESIDENCE_TYPE",
+    RESIDENCE_TYPE
+  );
+
+  const occupationPath = sectionPathOf("Id10066");
+  const vulnerable = [
+    equityChoice(
+      "vulnerable_group",
+      next(),
+      occupationPath,
+      {
+        en: "Did any of these apply to the deceased? Tick all that apply.",
+        hi: "क्या इनमें से कोई बात मृतक पर लागू होती थी? जो भी लागू हों, सभी चुनें।"
+      },
+      "VULNERABLE_GROUP",
+      vulnerableGroupChoices(choiceSet),
+      { multiple: true, hint: NEUTRAL_HINT }
+    ),
+    ...VULNERABLE_GROUP_FILTERED.map((item) =>
+      equityChoice(
+        `vulnerable_group_${item.code}`,
+        next(),
+        occupationPath,
+        item.label,
+        "EQUITY_YES_NO_DK_REF",
+        EQUITY_YES_NO_DK_REF,
+        { relevant: item.relevant }
+      )
+    ),
+    equityChoice(
+      "health_coverage",
+      next(),
+      occupationPath,
+      {
+        en: "What health insurance did the deceased have? Tick all that apply.",
+        hi: "मृतक के पास कौन-सा स्वास्थ्य बीमा था? जो भी लागू हों, सभी चुनें।"
+      },
+      "HEALTH_COVERAGE",
+      healthCoverageChoices(choiceSet),
+      { multiple: true }
+    )
+  ];
+
+  return {
+    after: {
+      consent_mode: refusalProfile,
+      Id10053: [socialGroup],
+      Id10055: [residenceType],
+      Id10066: vulnerable
+    }
   };
 }
 

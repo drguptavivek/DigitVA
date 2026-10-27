@@ -7,9 +7,10 @@ from datetime import date, datetime, timedelta
 class VaDailyKpiAggregates(db.Model):
     """Pre-computed daily KPI grid — one row per (snapshot_date, site_id).
 
-    Written by the daily aggregation task (app/tasks/kpi_tasks.py) and read by
-    the data-manager KPI endpoints. Mirrors migration d7e8f9a0b1c2; see
-    docs/policy/kpis.md for column semantics.
+    Retired (digitva-0hul): nothing writes or reads it any more; KPIs are
+    computed live (docs/policy/kpis.md, "Aggregates are retired as a read
+    source"). Kept in the schema, and cleared by the demo reset. Mirrors
+    migration d7e8f9a0b1c2.
     """
 
     __tablename__ = "va_daily_kpi_aggregates"

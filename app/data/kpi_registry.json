@@ -1,0 +1,3380 @@
+{
+  "source": "docs/policy/kpis.md",
+  "kpis": [
+    {
+      "id": "C-21",
+      "name": "Coder Utilization Rate",
+      "question": "Do we have enough coders, and are they busy?",
+      "stage": "input",
+      "category": "workforce",
+      "type": "rate",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of coders with at least one active allocation (va_allocations where va_allocation_status = 'active') Denominator: COUNT of coders who can code at least one case in the DM's subtree (owner decision 2026-10-27, digitva-0hul): project grants, grants on in-scope (project, site) pairs, and unit grants that are ancestors or descendants of the DM's unit, excluding ancestors above coding_scope_level_id when the project is view_only. For a project or site DM this equals all active coders of its scope. See [Access Control Model](access-control-model.md). Rate: N / D × 100 Time Frame: Snapshot Actionable: If utilization is low (<70%), coders are idle — either not enough forms in their language or forms aren't being allocated. If high (>95%), coders are saturated — need more coders.",
+        "base": "coders who can code a case in the DM's subtree (coder availability)",
+        "canonical": [
+          "Coder availability"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_coders:compute_c21",
+      "unit": "percent",
+      "direction": "band",
+      "thresholds": {
+        "idle_below_pct": 70,
+        "saturated_above_pct": 95
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "D-LC-02"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-21-coder-utilization-rate",
+      "decisions": [
+        "2026-10-27 digitva-0hul",
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-15",
+      "name": "Language Gap Alert",
+      "question": "Which ready cases have no coder for their language?",
+      "stage": "input",
+      "category": "workforce",
+      "type": "gap",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "blocker"
+      ],
+      "definition": {
+        "measure": "Definition: COUNT of submissions in the ready pool (ready_for_coding) (owner decision 2026-10-27, digitva-0hul) where va_narration_language has zero available coders. A coder matches when lower(trim(language)) equals lower(trim(va_narration_language)); a coder with no languages matches any language. Coders are counted for the DM's subtree (coder availability). Source: va_submissions JOIN va_users.vacode_language via grants Scope: ready pool Time Frame: Snapshot Drill-down: Which languages, how many submissions affected",
+        "base": "ready pool; coders by coder availability",
+        "canonical": [
+          "Ready pool",
+          "Coder availability"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_language:compute_c15",
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better; 0 expected."
+      },
+      "peer": null,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submissions JOIN va_users.vacode_language via grants"
+      ],
+      "replaces": [
+        "D-LC-03"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-15-language-gap-alert",
+      "decisions": [
+        "2026-10-27 digitva-0hul",
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-04",
+      "name": "% Uncoded (Pending Rate)",
+      "question": "How much is uncoded, and when will it clear?",
+      "stage": "process",
+      "category": "flow",
+      "type": "rate",
+      "level": [
+        "St"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend",
+        "forecast"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT in the 6 pending states (screening_pending, attachment_sync_pending, smartva_pending, ready_for_coding, coding_in_progress, coder_step1_saved) (owner decision 2026-10-27, digitva-0hul) Denominator: COUNT of CODING-POOL Rate: N / D × 100 Scope: CODING-POOL Time Frames: Snapshot, also daily in grid Meaning: What fraction of the eligible pipeline has NOT been coded yet",
+        "base": "CODING-POOL; pending set",
+        "canonical": [
+          "CODING-POOL",
+          "Pending"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_pipeline:compute_c04",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "days_to_clear_above": 30,
+        "text": "Lower is better. Days to clear above 30 means more coders or faster coding are needed."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot",
+        "also daily in grid"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "C-17",
+        "C-22",
+        "D-WT-03"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-04--uncoded-pending-rate",
+      "decisions": [
+        "2026-10-27 digitva-0hul",
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-19",
+      "name": "Daily Inflow vs Outflow",
+      "question": "Are we keeping up (inflow against outflow)?",
+      "stage": "process",
+      "category": "flow",
+      "type": "net",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "trend",
+        "forecast"
+      ],
+      "definition": {
+        "measure": "Inflow: COUNT of events that day whose previous_state is outside the pending set and current_state is inside it (owner decision 2026-10-27, digitva-0hul), so a case entering through SmartVA failure, a reset or an admin override counts too Outflow: COUNT of non-demo events that day whose previous_state is pending and current_state is not (cases leaving the pending set, which includes finalizing); demo events excluded Net delta: Inflow − Outflow Display: Side-by-side bar chart (inflow vs outflow per day, last 7d) Actionable: If inflow consistently exceeds outflow, backlog will grow. Positive net delta = falling behind. Negative = catching up.",
+        "base": "crossings of the pending boundary",
+        "canonical": [
+          "Pending",
+          "Inflow / outflow",
+          "Demo"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_pipeline:compute_c19",
+      "unit": null,
+      "direction": null,
+      "thresholds": {
+        "text": "Net inflow minus outflow above 0 means falling behind; below 0 means catching up."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-19-daily-inflow-vs-outflow",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ]
+    },
+    {
+      "id": "C-23",
+      "name": "Blocked Forms Alert (Composite)",
+      "question": "What is stopping cases, why, how old, and who can unblock them?",
+      "stage": "process",
+      "category": "flow",
+      "type": "volume",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "blocker",
+        "status"
+      ],
+      "definition": {
+        "measure": "Definition: COUNT and breakdown of all submissions that cannot be routed to a coder right now, grouped by blockage reason (owner decision 2026-10-27, digitva-0hul). Every row except the two upstream rows is restricted to the 6 pending states, so a coded case with a flagged ODK review state or a missing language is not blocked. The upstream rows are coded cases waiting on a DM and stay in the total. One FILTER query. Breakdown: Overlap handling: A single submission may have multiple conditions (e.g., not-codeable AND ODK-has-issues). The breakdown counts each condition independently (a form can appear in multiple rows). A separate \"total blocked\" count deduplicates by counting each form once, assigned to its primary blockage (highest-priority condition in the order listed above). Display: Table showing blockage type + count + action. Total blocked count shown separately. Scope: pending states plus the upstream states (excludes consent_refused — that's a hard gate) Note on soft gates: not_codeable_by_data_manager and not_codeable_by_coder forms are excluded from CODING-POOL but tracked separately in C-05/D-QG-01/D-QG-02. They are NOT double-counted here. However, if ODK data updates and makes a not-codeable form potentially codeable, it would re-enter the screening pipeline. Time Frame: Snapshot Actionable: This is the DM's \"to-do list\" — each blockage type has a clear action. DM works through the list to unblock forms and increase throughput. Owner of each blocker row (owner decision 2026-10-27, digitva-r5s0): screening, upstream change and the soft gates: the DM; attachment sync and SmartVA: the DM, or admin when the queue is down; language gap and \"no coder at unit\": the coder supervisor or in-charge; sent back and ODK flagged: the field team, through the IC. Sent back also carries the former \"awaiting correction\" figure: its age (p50 and max), owner (\"interviewer, through the IC\") and by=interviewer (web only). Every C-23 row gains an intake_source split.",
+        "base": "blocked set (pending plus upstream)",
+        "canonical": [
+          "CODING-POOL",
+          "Pending",
+          "Blocked"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_exclusions:compute_c23",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better; 0 expected. Each row names an owner (see below)."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "C-10"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-23-blocked-forms-alert-composite",
+      "decisions": [
+        "2026-10-27 digitva-0hul",
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-07",
+      "name": "Pipeline Aging (Stagnation)",
+      "question": "Which states hold cases too long?",
+      "stage": "process",
+      "category": "timeliness",
+      "type": "aged volume",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend",
+        "blocker"
+      ],
+      "definition": {
+        "measure": "Definition: COUNT of submissions where workflow_state = 'ready_for_coding' AND workflow_updated_at < now() − interval '48 hours' Also report: Same count at thresholds: >48h, >7d, >30d Source: va_submission_workflow JOIN va_forms for scope Scope: CODING-POOL (ready pool, ready_for_coding only, by design) Time Frame: Snapshot",
+        "base": "ready pool for the ready_for_coding count; every non-terminal state for the stagnation table",
+        "canonical": [
+          "CODING-POOL",
+          "Ready pool"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_pipeline:compute_c07",
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": {
+        "per_state": {
+          "attachment_sync_pending": [
+            "<2h",
+            ">2h",
+            ">24h"
+          ],
+          "screening_pending": [
+            "<24h",
+            ">48h",
+            ">7d"
+          ],
+          "smartva_pending": [
+            "<2h",
+            ">6h",
+            ">24h"
+          ],
+          "ready_for_coding": [
+            "<48h",
+            ">48h",
+            ">7d"
+          ],
+          "coding_in_progress": [
+            "<1h",
+            ">2h",
+            ">24h"
+          ],
+          "coder_step1_saved": [
+            "<4h",
+            ">24h",
+            ">7d"
+          ],
+          "coder_finalized": [
+            "<recode window",
+            ">recode window",
+            ">7d"
+          ],
+          "reviewer_coding_in_progress": [
+            "<4h",
+            ">24h",
+            ">7d"
+          ],
+          "finalized_upstream_changed": [
+            "<48h",
+            ">48h",
+            ">7d"
+          ],
+          "sent_back_for_revision": [
+            "<48h",
+            ">48h",
+            ">7d"
+          ]
+        },
+        "columns": [
+          "normal",
+          "alert",
+          "critical"
+        ],
+        "text": "Per-state normal, alert and critical thresholds (kept from D-WF-03)."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_workflow JOIN va_forms for scope"
+      ],
+      "replaces": [
+        "D-WF-03"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-07-pipeline-aging-stagnation",
+      "decisions": [
+        "2026-10-27 digitva-r5s0",
+        "2026-10-27 digitva-0hul"
+      ]
+    },
+    {
+      "id": "C-08",
+      "name": "Time to Code (Min / Max / Median / P90)",
+      "question": "How long does a coding episode take?",
+      "stage": "process",
+      "category": "timeliness",
+      "type": "duration",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Definition: For each finalize event in the window, compute finalize.event_created_at − latest start.event_created_at, where the latest start is the most recent coding_started or recode_started event at or before the finalize (owner decision 2026-10-27, digitva-0hul). A recoded case yields one duration per finalize, never one per start/finalize combination. Aggregates: MIN, MAX, PERCENTILE(0.5), PERCENTILE(0.90) Source: va_submission_workflow_events rows of the same va_sid, each coder_finalized/recode_finalized paired by a lateral lookup with its latest start Scope: CODING-POOL Inclusions: First-pass coding AND recode episodes Exclusions: Demo events (shared demo predicate) Time Frames: Today, yesterday, 7d",
+        "base": "CODING-POOL; non-demo finalize events",
+        "canonical": [
+          "CODING-POOL",
+          "Demo"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_pipeline:compute_c08",
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Today",
+        "yesterday",
+        "7d"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_workflow_events rows of the same va_sid, each coder_finalized/recode_finalized paired by a lateral lookup with its latest start"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-08-time-to-code-min--max--median--p90",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ]
+    },
+    {
+      "id": "D-WF-02",
+      "name": "State Velocity",
+      "question": "Which stage dominates end-to-end time, and where is the bottleneck against peers?",
+      "stage": "process",
+      "category": "timeliness",
+      "type": "duration",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "critical_path",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Definition: Average time submissions spend in each workflow state before transitioning out Source: CTE on va_submission_workflow_events computing per-transition durations, aggregated per previous_state Aggregates: AVG, P50, P90 in hours Response: states[] with state, label, transition_count, avg_hours, p50_hours, p90_hours Rendering: Table with sortable columns, slow states highlighted Endpoint: GET /api/v1/analytics/dm-kpi/workflow/state-velocity?days=30 Time Frame: 30d (configurable up to 90d)",
+        "base": "workflow events by stage",
+        "canonical": []
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_critical_path:compute_dwf02",
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "30d"
+      ],
+      "dimensions": [
+        "unit"
+      ],
+      "sources": [
+        "CTE on va_submission_workflow_events computing per-transition durations, aggregated per previous_state"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-wf-02-state-velocity",
+      "decisions": []
+    },
+    {
+      "id": "C-03",
+      "name": "Sync Error Rate",
+      "question": "Is ODK sync working?",
+      "stage": "process",
+      "category": "system",
+      "type": "rate",
+      "level": [
+        "Sys"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of va_sync_runs where status IN ('error', 'partial') and started_at ≥ window_start Denominator: COUNT of all va_sync_runs where started_at ≥ window_start Rate: N / D × 100 Time Frames: 7d, cumulative",
+        "base": "va_sync_runs",
+        "canonical": []
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_sync:compute_c03",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "C-02"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-03-sync-error-rate",
+      "decisions": [
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-01",
+      "name": "Daily Operations Grid",
+      "question": "What came in and what got coded each day?",
+      "stage": "output",
+      "category": "flow",
+      "type": "volume",
+      "level": [
+        "St"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "trend"
+      ],
+      "definition": {
+        "measure": "A 7-column table, last 8 rows (today + 7 prior days), slicable by project and site.",
+        "base": "ALL-SYNCED for received; coded events for output",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_grid:compute_c01",
+      "unit": "count",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "D-PS-01",
+        "D-PS-02"
+      ],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-01-daily-operations-grid",
+      "decisions": [
+        "2026-10-27 digitva-0hul",
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "AD-FCOD",
+      "name": "Final Cause Coverage",
+      "question": "What share of codeable cases has an authoritative cause?",
+      "stage": "output",
+      "category": "coverage",
+      "type": "rate",
+      "level": [
+        "St"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend",
+        "forecast"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of CODING-POOL submissions with an authoritative final cause (va_final_cod_authority; the WHO 2026 bucket is read from the COD snapshot MV, authoritative_who_bucket). Denominator: COUNT of CODING-POOL, less not_codeable_by_coder (the codeable cases). Rate: N / D × 100. Shown only when D is 20 or more. Replaces: the area dashboard \"Final COD\" column, the Site-PI \"coded\" count, and the \"achieved\" half of C-18. C-18 is the forecast of this KPI. Time Frames: Snapshot, daily series.",
+        "base": "CODING-POOL",
+        "canonical": [
+          "CODING-POOL"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_outcomes:compute_adfcod",
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "thresholds": {
+        "text": "Higher is better; the forecast is C-18."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot",
+        "daily series"
+      ],
+      "dimensions": [
+        "sex"
+      ],
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_ad_fcod",
+      "policy_anchor": "docs/policy/kpis.md#ad-fcod-final-cause-coverage",
+      "decisions": []
+    },
+    {
+      "id": "AD-COV",
+      "name": "Reported-Death Interview Coverage",
+      "question": "Are reported deaths being interviewed, and how many have waited over 30 days? (death-register projects only)",
+      "stage": "output",
+      "category": "coverage",
+      "type": "rate",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend",
+        "blocker"
+      ],
+      "definition": {
+        "measure": "Applies to death-register projects only (owner decision 2026-10-27, digitva-r5s0). A project without a death register has no reported-death base, and the KPI is not computed for it. Reported deaths: register rows of the project, with confirmed duplicates excluded. Numerator: reported deaths that have an interview (a linked submission). Denominator: reported deaths. Rate: N / D × 100. Shown only when D is 20 or more. Waiting over 30 days: COUNT of reported deaths with no interview whose report is more than 30 days old. It is a count, owned by the field team through the in-charge, and is the blocker view of this KPI. Time Frames: Snapshot, daily series. Gap: death to interview time exists only for register cases.",
+        "base": "death-register cases",
+        "canonical": []
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_outcomes:compute_adcov",
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "thresholds": {
+        "text": "Higher is better; the count waiting over 30 days should fall."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot",
+        "daily series"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#ad-cov-reported-death-interview-coverage",
+      "decisions": [
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-05",
+      "name": "% Not Codeable (Overall)",
+      "question": "How many cases are lost to coding, by whom and why?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT where workflow_state IN ('not_codeable_by_coder', 'not_codeable_by_data_manager') Denominator: COUNT of ALL-SYNCED Rate: N / D × 100 Scope: ALL-SYNCED Time Frames: Today, 7d, cumulative Drill-down: By actor (coder vs DM) and by reason",
+        "base": "ALL-SYNCED (rate); CODING-POOL for the coder share",
+        "canonical": [
+          "ALL-SYNCED",
+          "CODING-POOL"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_exclusions:compute_c05",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Today",
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "D-QG-01",
+        "D-QG-02",
+        "D-QG-03",
+        "D-QG-04",
+        "D-QG-05"
+      ],
+      "mcp": "full",
+      "catalog_key": "kpi_c_05",
+      "policy_anchor": "docs/policy/kpis.md#c-05--not-codeable-overall",
+      "decisions": [
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "C-06",
+      "name": "Not Analysable Rate",
+      "question": "How many interviews cannot be analysed, and why?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Was \"Consent Refusal Rate\"; renamed 2026-10-01 (digitva-4tb). One bucket for every interview that cannot be analysed, whatever the reason. Numerator: COUNT where workflow_state = 'consent_refused'. That state holds every web interview stored as refused, respondent_unavailable or partially_completed, and ODK submissions with consent = no. Per-reason subtext: Refused / Respondent unavailable / Partially completed, read from the active payload's interview_outcome; a payload without one (every ODK submission) counts as Refused. Derived at query time, nothing stored: the API serves it as not_analysable.by_reason, the dashboard card as not_analysable_by_reason. The old consent_refused response key is kept with the same count. The daily grid shows the total only (owner, 2026-10-10: keep the grid simple). The per-reason split lives on the C-06 card and the dashboard card, not in the grid; stored grid days hold no reasons, and splitting them would mean estimates. Denominator: COUNT of ALL-SYNCED Rate: N / D × 100 Time Frames: Today, 7d, cumulative Outcome (what the results say: cause quality, equity and cause mix.) Categories: coding quality, equity.",
+        "base": "ALL-SYNCED",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_exclusions:compute_c06",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Today",
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_c_06",
+      "policy_anchor": "docs/policy/kpis.md#c-06-not-analysable-rate",
+      "decisions": []
+    },
+    {
+      "id": "O-UNK",
+      "name": "Unknown Cause Share",
+      "question": "What share of finals has no meaningful cause?",
+      "stage": "outcome",
+      "category": "coding quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of authoritative finals whose WHO 2026 VA cause section is \"Cause of death unknown\" (UNKNOWN_CAUSE_SECTION). The measure is based on VA causes, per the owner's decision of 2026-10-27. Senility (R54) and other ill-defined codes all map there. An ICD breakdown inside the section is an optional drill-down. Denominator: COUNT of authoritative finals. Rate: N / D × 100. Shown only when D is 20 or more. Meaning: a final that exists but tells the programme nothing. High values point at coding quality, not at volume. Time Frames: Snapshot, weekly series.",
+        "base": "authoritative finals",
+        "canonical": []
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_outcomes:compute_ounk",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": null,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot",
+        "weekly series"
+      ],
+      "dimensions": [
+        "icd"
+      ],
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_o_unk",
+      "policy_anchor": "docs/policy/kpis.md#o-unk-unknown-cause-share",
+      "decisions": []
+    },
+    {
+      "id": "D-QG-09",
+      "name": "Coder-Reviewer Disagreement Rate",
+      "question": "Do coders and reviewers agree, at the WHO 2026 bucket level?",
+      "stage": "outcome",
+      "category": "coding quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of submissions with an active coder final and an active reviewer final whose WHO 2026 bucket differs (owner decision 2026-10-27, digitva-0hul). Compared from the COD snapshot MV (va_submission_cod_snapshot_mv: coder_final_who_bucket vs reviewer_final_who_bucket), not va_conclusive_cod text; where no bucket exists, the ICD-11 primary stem or ICD-10 code is compared instead. ICD-10 A/B post-coordinated codes compare by primary stem. Denominator: COUNT of submissions with both coder final assessment AND reviewer final assessment (active) Rate: N/D × 100 Source: va_submission_cod_snapshot_mv (refreshed hourly, so the rate can lag a recent finalization) Time Frame: Cumulative",
+        "base": "submissions with both an active coder final and an active reviewer final",
+        "canonical": []
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_outcomes:compute_dqg09",
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": null,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_cod_snapshot_mv (refreshed hourly, so the rate can lag a recent finalization)"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-qg-09-coder-reviewer-disagreement-rate",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ]
+    },
+    {
+      "id": "EQ-01",
+      "name": "Female Share Against Peers",
+      "question": "Are female deaths under-reported in some districts, against peers?",
+      "stage": "outcome",
+      "category": "equity",
+      "type": "gap",
+      "level": [
+        "Dt",
+        "Bk"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "monthly",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Measure: the female share of cases with sex known, per district (or per block in a district view), against the median of its siblings inside the viewer's grant. Gap: unit female share minus peer median, in percentage points. A district that is well below its peers may be under-reporting female deaths. Base: ALL-SYNCED with sex known. Sex values are raw strings today; they are normalised to female, male and unknown in one place. Suppression: a unit with fewer than 20 cases shows its count with no share, gap or rank. Not claimed: this is composition against peers, not a per-population rate. There is no population figure; expected female share (DHS or SRS, digitva-1835) and SES, caste and education (digitva-r9lk) are later. Time Frames: Cumulative, monthly series.",
+        "base": "ALL-SYNCED with sex known",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_outcomes:compute_eq01",
+      "unit": null,
+      "direction": null,
+      "thresholds": {
+        "text": "Gap to the peer median; a large negative female gap is the signal."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative",
+        "monthly series"
+      ],
+      "dimensions": [
+        "unit"
+      ],
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_eq_01",
+      "policy_anchor": "docs/policy/kpis.md#eq-01-female-share-against-peers",
+      "decisions": []
+    },
+    {
+      "id": "EQ-02",
+      "name": "Female-Male Final Cause Gap",
+      "question": "Do female cases get a final cause as often as male cases?",
+      "stage": "outcome",
+      "category": "equity",
+      "type": "gap",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "monthly",
+      "tier": "core",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Measure: the share of female CODING-POOL cases with an authoritative final cause, minus the same share for male cases. Gap: female rate minus male rate, in percentage points. Sex is normalised as in EQ-01; unknown sex is left out and reported by EQ-03. Register half (death-register projects only): the share of reported female deaths that have an interview, minus the male share. It applies to death-register projects only (owner decision 2026-10-27, digitva-r5s0); other projects show the final-cause half alone. Suppression: each sex needs a denominator of 20 or more; otherwise counts only. Time Frames: Cumulative, monthly series.",
+        "base": "CODING-POOL with sex known",
+        "canonical": [
+          "CODING-POOL"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_outcomes:compute_eq02",
+      "unit": null,
+      "direction": "target",
+      "thresholds": {
+        "text": "Gap near 0 is expected."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative",
+        "monthly series"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_eq_02",
+      "policy_anchor": "docs/policy/kpis.md#eq-02-female-male-final-cause-gap",
+      "decisions": [
+        "2026-10-27 digitva-r5s0"
+      ]
+    },
+    {
+      "id": "D-LC-06",
+      "name": "Coder Roster",
+      "question": "Who are the active coders, with languages and load?",
+      "stage": "input",
+      "category": "workforce",
+      "type": "roster",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Definition: Per project, for each active coder: name, email, vacode_language list, total forms coded (cumulative), currently allocated count, active since date Source: va_users JOIN va_user_access_grants JOIN va_final_assessments COUNT Time Frame: Cumulative Note: Policy-only definition, not a dashboard widget",
+        "base": "grant scope (grant_in_scope_sql)",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "informational",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_users JOIN va_user_access_grants JOIN va_final_assessments COUNT"
+      ],
+      "replaces": [],
+      "mcp": "none",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-lc-06-coder-roster",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "ST-01",
+      "name": "Staff per Unit",
+      "question": "How many staff hold each role in each unit?",
+      "stage": "input",
+      "category": "workforce",
+      "type": "volume",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Measure: COUNT of active grant holders by role in each unit of the viewer's subtree (coders, reviewers, data managers, interviewers, supervisors). Output: counts only. Names stay in D-LC-06 (web only). Why: the input half of capacity: C-21 says whether coders are busy; ST-01 says how many people there are to do the work. Time Frames: Snapshot. Process (how cases move: flow, timeliness, coding quality, system health and the correction loop.) Categories: flow, timeliness, coding quality, system, loop.",
+        "base": "active grants in the viewer's subtree",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "count",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#st-01-staff-per-unit",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-16",
+      "name": "Mean Daily Coding Rate",
+      "question": "How many cases does the team code per day?",
+      "stage": "process",
+      "category": "flow",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Definition: Average number of submissions coded per day over the trailing window Formula: COUNT of non-demo finalize events over the window (live, viewer-timezone days) / COUNT of days in window (owner decision 2026-10-27, digitva-0hul) Also report: Per coder: SUM of coder_finalized events / days grouped by va_finassess_by Per language: SUM of coder_finalized events / days grouped by va_submissions.va_narration_language Scope: CODING-POOL Time Frames: 7d Actionable: Tells the DM \"your team is averaging N forms/day\" — compare against inflow rate to know if you're keeping up",
+        "base": "CODING-POOL; non-demo finalize events",
+        "canonical": [
+          "CODING-POOL",
+          "Inflow / outflow",
+          "Demo"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "higher_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-16-mean-daily-coding-rate",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-20",
+      "name": "Language with Maximum Pendency",
+      "question": "Which languages have the most pending cases?",
+      "stage": "process",
+      "category": "flow",
+      "type": "volume",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "forecast"
+      ],
+      "definition": {
+        "measure": "Definition: For each language, COUNT in the 6 pending states (owner decision 2026-10-27, digitva-0hul), ordered DESC Display: Table: Language | Pending | Coders Available | Gap (yes/no) | Predicted Days to Clear Top row = the bottleneck language Scope: CODING-POOL (6 pending states) Time Frame: Snapshot Actionable: Immediately tells DM which language needs urgent coder recruitment or reallocation",
+        "base": "CODING-POOL; pending set",
+        "canonical": [
+          "CODING-POOL",
+          "Pending"
+        ]
+      },
+      "helper": "app.routes.api.dm_kpi.dm_kpi_language:compute_c20",
+      "unit": "count",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-20-language-with-maximum-pendency",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ]
+    },
+    {
+      "id": "D-WF-01",
+      "name": "CONSORT Pipeline Flowchart",
+      "question": "How many cases are in each workflow state?",
+      "stage": "process",
+      "category": "flow",
+      "type": "distribution",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Definition: Current count of submissions in each of the 14 workflow states, rendered as a CONSORT-style flowchart with: Main trunk flowing top-to-bottom through pipeline stages Branch points showing terminal states (consent_refused, not_codeable_by_*, finalized_upstream_changed) Flow-through numbers at each stage (total minus cumulative branches) Sub-phases within states (e.g., coder_finalized split by within/beyond the project's recode window) (owner decision 2026-10-27, digitva-0hul) Optional states visually distinguished from mandatory trunk states Source: va_submission_workflow GROUP BY workflow_state, scoped by DM sites Response includes: total_synced: total submissions in DM scope nodes[]: each node with id, label, count (in state), flow_through (reached this stage), type (trunk/optional/terminal/branch), phase, branch_from sub_phases for coder_finalized: within_window and beyond_window counts, with within_24h and beyond_24h kept for one release (owner decision 2026-10-27, digitva-0hul) conversion: consent_valid_rate, coding_completion_rate, review_rate Rendering: CSS-based flowchart (no chart library). Vertical trunk with horizontal branches. Color-coded by phase. Endpoint: GET /api/v1/analytics/dm-kpi/workflow/flowchart Time Frame: Snapshot",
+        "base": "ALL-SYNCED",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "informational",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_workflow GROUP BY workflow_state, scoped by DM sites"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-wf-01-consort-pipeline-flowchart",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-WF-04",
+      "name": "Daily State Transitions",
+      "question": "How many cases entered each state each day?",
+      "stage": "process",
+      "category": "flow",
+      "type": "volume",
+      "level": [
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "trend"
+      ],
+      "definition": {
+        "measure": "Definition: How many submissions entered each state per day over the trailing window Extends C-19 (which tracks crossings of the pending boundary) to ALL states Source: va_submission_workflow_events GROUP BY DATE(event_created_at), current_state Response: days[] with date, transitions (dict of state→count), total Rendering: Stacked bar chart (Chart.js), one bar per day, stacked by target state, color-coded by phase Endpoint: GET /api/v1/analytics/dm-kpi/workflow/daily-transitions?days=7 Time Frame: 7d (configurable up to 90d)",
+        "base": "workflow events",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "count",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_workflow_events GROUP BY DATE(event_created_at), current_state"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-wf-04-daily-state-transitions",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-WT-02",
+      "name": "Upstream Change Resolution Time",
+      "question": "How long do ODK upstream changes take to resolve?",
+      "stage": "process",
+      "category": "timeliness",
+      "type": "duration",
+      "level": [
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: For each resolved upstream change in 7d, resolved_at − created_at Aggregate: PERCENTILE(0.5) Source: va_submission_upstream_changes Note: rows exist for ODK changes only, so send-backs and reopens are already excluded Time Frame: 7d",
+        "base": "va_submission_upstream_changes",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_upstream_changes"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-wt-02-upstream-change-resolution-time",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-09",
+      "name": "% Forms Reviewed",
+      "question": "What share of coded cases has been reviewed?",
+      "stage": "process",
+      "category": "coding quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of submissions that have at least one va_reviewer_final_assessments row with active status Denominator: COUNT of submissions that ever reached coder_finalized (i.e., CODED scope, excluding those still in coder-finalized if reviewer window hasn't passed) Refined denominator: COUNT where workflow_state IN ('reviewer_eligible', 'reviewer_coding_in_progress', 'reviewer_finalized') OR has a reviewer_finalized event in history Rate: N / D × 100 Scope: CODED Time Frames: 7d, cumulative Note: The project's recode window (recode_window_minutes, not a fixed 24 h) means reviewer-eligible forms can't be reviewed immediately. Denominator excludes coder_finalized forms younger than that window (owner decision 2026-10-27, digitva-0hul).",
+        "base": "CODED",
+        "canonical": [
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-09--forms-reviewed",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-WT-04",
+      "name": "Reopen Rate",
+      "question": "How often are finalized cases reopened for recoding?",
+      "stage": "process",
+      "category": "coding quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of events with transition_id IN ('upstream_change_accepted', 'admin_override_to_recode') in window, minus events whose transition_reason is interviewer_revision (the interviewer's revision restarting a sent-back case) or interview_chosen (a supervisor's choice of the other interview); neither is a data-manager reopen Companion: d_wt_04_revision_restarts_7d counts the interviewer_revision restarts Denominator: COUNT of coder_finalized events in window Rate: N/D × 100 Scope: CODED Meaning: What fraction of finalized forms were re-opened for recoding Time Frames: 7d, cumulative",
+        "base": "CODED",
+        "canonical": [
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-wt-04-reopen-rate",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "CQ-FAST",
+      "name": "Share of Fast Finals",
+      "question": "What share of finals was finished suspiciously fast?",
+      "stage": "process",
+      "category": "coding quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of non-demo finalize events whose time to code (see canonical terms) is under the registry cut-off. Denominator: COUNT of non-demo finalize events in the window. Rate: N / D × 100. Shown only when D is 20 or more. By coder: per-coder rows name people, so they are web only, for DMs in scope; MCP returns totals. Cut-off: 180 seconds by default. This is elapsed time between workflow events, not time on screen. Time Frames: 7d, cumulative.",
+        "base": "non-demo finalize events",
+        "canonical": [
+          "Time to code",
+          "Demo"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "cutoff_seconds": 180
+      },
+      "peer": null,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#cq-fast-share-of-fast-finals",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-13",
+      "name": "Sync Latency (ODK → App)",
+      "question": "How long does a submission take to reach DigitVA from ODK?",
+      "stage": "process",
+      "category": "system",
+      "type": "duration",
+      "level": [
+        "Sys",
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Definition: For submissions synced in window: time between ODK submission timestamp and local DB insert Formula: va_created_at − va_submission_date per submission, ODK-sourced forms only (form_source = 'odk') (owner decision 2026-10-27, digitva-0hul) Aggregates: P50, P90, P99 Time Frames: Today, 7d",
+        "base": "ODK-sourced ALL-SYNCED",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Today",
+        "7d"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-13-sync-latency-odk--app",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-14",
+      "name": "Attachment Health",
+      "question": "How many ODK submissions are missing their attachments?",
+      "stage": "process",
+      "category": "system",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of ODK-sourced submissions past SmartVA gate where attachment count = 0 (owner decision 2026-10-27, digitva-0hul) Denominator: COUNT of ODK-sourced submissions past SmartVA gate Rate: N / D × 100 Source: va_submission_attachments JOIN va_submissions Time Frame: Snapshot",
+        "base": "ODK-sourced submissions past the SmartVA gate",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better; 0 expected."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": [
+        "va_submission_attachments JOIN va_submissions"
+      ],
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-14-attachment-health",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-SH-01",
+      "name": "Attachment Download Completeness",
+      "question": "Did the last sync download its attachments?",
+      "stage": "process",
+      "category": "system",
+      "type": "rate",
+      "level": [
+        "Sys"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: va_sync_runs.attachment_downloaded from latest run Denominator: the same run's attachment_forms_total (owner decision 2026-10-27, digitva-0hul) (the code's denominator; the earlier text said downloaded + skipped + errors) Rate: N/D × 100 Time Frame: Snapshot",
+        "base": "latest va_sync_runs row",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "thresholds": {
+        "text": "Higher is better; 100% expected."
+      },
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-sh-01-attachment-download-completeness",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-SH-04",
+      "name": "SmartVA Failure Rate",
+      "question": "How often does SmartVA fail?",
+      "stage": "process",
+      "category": "system",
+      "type": "rate",
+      "level": [
+        "Sys"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of va_smartva_runs where va_smartva_outcome = 'failed' in window Denominator: COUNT of all va_smartva_runs in window Rate: N/D × 100 Time Frames: 7d, cumulative",
+        "base": "va_smartva_runs",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-sh-04-smartva-failure-rate",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-SH-02",
+      "name": "ODK Coverage Delta",
+      "question": "Does ODK Central hold more submissions than DigitVA?",
+      "stage": "process",
+      "category": "system",
+      "type": "gap",
+      "level": [
+        "St"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "on demand",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Definition: Per form, ODK-side submission count (from preview) minus local COUNT Source: Sync preview logic (live ODK call) Time Frame: On-demand",
+        "base": "live ODK call",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "target",
+      "thresholds": {
+        "text": "0 expected."
+      },
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "On-demand"
+      ],
+      "dimensions": null,
+      "sources": [
+        "Sync preview logic (live ODK call)"
+      ],
+      "replaces": [],
+      "mcp": "none",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-sh-02-odk-coverage-delta",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "CL-01",
+      "name": "Send-back and Reopen Rate by Reason",
+      "question": "How often are cases sent back or reopened, and why?",
+      "stage": "process",
+      "category": "loop",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Collect only. Send-back and reopen exist only for Collect-sourced cases; ODK submissions are refused, and ODK uses hasIssues plus Central edits instead. The split is va_forms.form_source. Browser against device is not split. Numerator: COUNT of send-back and reopen workflow events (sent_back_for_revision, reopened_for_revision) in the window. Denominator: COUNT of finalize events in the window. Reason: read from the submission audit row (<reason>:<code>), paired with the workflow event by LATERAL. by=actor_role is available. ODK proxy: hasIssues plus upstream-change counts, shown as a proxy only. ODK review-state history is not stored, so ODK reasons, time to correct and repeat flags are not captured. Per-interviewer rows name people: web only, for DMs and ICs in scope, and never sent over MCP. Time Frames: 7d, cumulative.",
+        "base": "Collect-sourced cases (va_forms.form_source)",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#cl-01-send-back-and-reopen-rate-by-reason",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "CL-02",
+      "name": "Time to Correct",
+      "question": "How long does a correction take, send-back to revision?",
+      "stage": "process",
+      "category": "loop",
+      "type": "duration",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend",
+        "critical_path"
+      ],
+      "definition": {
+        "measure": "Collect only. See CL-01. Measure: each correction request paired with the next interviewer_revision event. Median and p90 of the gap, in hours. Open and cancelled requests: counted, with no duration. Critical path: it is the \"correction\" stage of the D-WF-02 critical path. ODK: not captured, because ODK review-state history is not stored. Time Frames: 7d, cumulative.",
+        "base": "Collect-sourced cases",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#cl-02-time-to-correct",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "CL-04",
+      "name": "Supervisor Review Turnaround",
+      "question": "How long does supervisor review take?",
+      "stage": "process",
+      "category": "loop",
+      "type": "duration",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Inactive until digitva-ydnl.4 ships. Measure: time from a case being submitted for supervisor review to the supervisor's decision. Median and p90 in hours. Scope: only projects that have the supervisor review switch on. Time Frames: 7d, cumulative. Output (what the process produces: coded cases, coverage, data quality and workforce output.) Categories: flow, coverage, data quality, workforce, loop.",
+        "base": "projects with the supervisor review switch on",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better. Inactive until digitva-ydnl.4 ships."
+      },
+      "peer": null,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#cl-04-supervisor-review-turnaround",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-18",
+      "name": "Predicted vs Achieved (Burndown)",
+      "question": "Are we ahead of or behind the target-date trajectory?",
+      "stage": "output",
+      "category": "flow",
+      "type": "net",
+      "level": [
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "trend",
+        "forecast"
+      ],
+      "definition": {
+        "measure": "Definition: Chart comparing projected completion trajectory vs actual cumulative coding progress Projected line: At project start (or target date set), draw a straight line from (start, total_forms) to (target_date, 0). Daily point: total − (days_elapsed × daily_target_rate) Achieved line: Cumulative CODED submissions over time, rebuilt live from workflow events, not from va_daily_kpi_aggregates (owner decision 2026-10-27, digitva-0hul) Requires: project_target_completion_date set by admin Display: Line chart, two lines, X-axis = time, Y-axis = remaining forms Actionable: If achieved line is above projected line, the project is behind schedule. The gap tells the DM exactly how far behind. Time Frame: Daily series from project start to target date",
+        "base": "CODING-POOL",
+        "canonical": [
+          "CODING-POOL",
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": {
+        "text": "Achieved line above projected line means behind schedule."
+      },
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Daily series from project start to target date"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-18-predicted-vs-achieved-burndown",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-QG-08",
+      "name": "Social Autopsy Completion Rate",
+      "question": "What share of coded cases has a social autopsy?",
+      "stage": "output",
+      "category": "coverage",
+      "type": "rate",
+      "level": [
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of submissions with at least one active va_social_autopsy_analyses row (where va_saa_status = 'active') Denominator: COUNT of CODED submissions WHERE the submission's own project has social_autopsy_enabled = true (joined on the form's project) (owner decision 2026-10-27, digitva-0hul) Rate: N/D × 100 Inclusions: Only projects where social_autopsy_enabled = true Exclusions: Projects where social_autopsy_enabled = false Time Frame: Cumulative",
+        "base": "CODED in projects with social_autopsy_enabled",
+        "canonical": [
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-qg-08-social-autopsy-completion-rate",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-LC-01",
+      "name": "Submission Language Distribution",
+      "question": "What languages are the interviews in?",
+      "stage": "output",
+      "category": "coverage",
+      "type": "distribution",
+      "level": [
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "monthly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT grouped by lower(trim(va_narration_language)) (owner decision 2026-10-27, digitva-0hul) (\"English\" and \"english\" are one group) Denominator scope: CONSENT-VALID Where: va_narration_language IS NOT NULL Time Frame: Cumulative Also report: Trend over time (monthly)",
+        "base": "CONSENT-VALID",
+        "canonical": [
+          "CONSENT-VALID"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "informational",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_d_lc_01",
+      "policy_anchor": "docs/policy/kpis.md#d-lc-01-submission-language-distribution",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "AD-VN",
+      "name": "Visit Notes",
+      "question": "Where are interviews not completed (refused or respondent unavailable), and is each visit documented?",
+      "stage": "output",
+      "category": "coverage",
+      "type": "volume",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "IC",
+        "DM"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Count: supervised cases whose active payload holds a visit note (visit_date, visit_address, visit_remarks, recorded with a refused or unavailable interview outcome). This is the same predicate as the supervision and submissions visit_note=1 filter, by unit. Privacy: address and remarks are never part of the KPI. Viewers that should_redact_pii sees only the date, and MCP returns counts only. Applies to DigitVA Collect and web intake. ODK has no visit note. Time Frames: Snapshot, weekly.",
+        "base": "supervised Collect cases in the viewer's scope",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "count",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot",
+        "weekly"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "totals_only",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#ad-vn-visit-notes",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-QG-06",
+      "name": "ODK Has Issues Count",
+      "question": "How many cases does ODK flag with issues?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT where va_odk_reviewstate = 'hasIssues' Denominator: ALL-SYNCED Time Frame: Cumulative",
+        "base": "ALL-SYNCED",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-qg-06-odk-has-issues-count",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-LC-07",
+      "name": "Forms with Missing/Unmapped Language",
+      "question": "How many cases have no usable language?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT where va_narration_language IS NULL OR va_narration_language = '' OR va_narration_language NOT IN (SELECT alias FROM map_language_aliases) Denominator: COUNT of CODING-POOL Rate: N/D × 100 Scope: CODING-POOL Time Frame: Snapshot Actionable: These forms cannot be language-matched to coders. Either the ODK form doesn't collect language, the value isn't in the alias mapping table, or the field is blank. DM action: check alias mapping, update ODK form, or manually assign language",
+        "base": "CODING-POOL",
+        "canonical": [
+          "CODING-POOL"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better; 0 expected."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-lc-07-forms-with-missingunmapped-language",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-11",
+      "name": "% Forms with Upstream Changes",
+      "question": "How many coded cases had ODK data change after finalization?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of submissions that have at least one va_submission_workflow_events row with transition_id = 'upstream_change_detected' whose transition_reason is not a revision request (sent_back_for_revision, reopened_for_revision) or interview_chosen: ODK changes only Denominator: COUNT of CODED submissions Rate: N / D × 100 Scope: CODED Time Frames: 7d, cumulative Meaning: What fraction of coded forms had ODK data change after finalization",
+        "base": "CODED",
+        "canonical": [
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-11--forms-with-upstream-changes",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-SH-03",
+      "name": "Locally Missing in ODK",
+      "question": "How many local cases no longer exist in ODK?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "snapshot",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT where va_sync_issue_code = 'missing_in_odk' (the core analytics MV's odk_missing column) Denominator: ALL-SYNCED *plus* the retired rows themselves — this KPI is the one place that counts them, and it ignores the default exclusion Surfaced as the \"Missing in ODK\" card on the data-manager dashboard (missing_in_odk_submissions); clicking it filters the list to odk_sync=missing_in_odk Time Frame: Cumulative",
+        "base": "ALL-SYNCED plus the retired rows",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better; 0 expected."
+      },
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-sh-03-locally-missing-in-odk",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-QG-07",
+      "name": "NQA Completion Rate",
+      "question": "What share of coded cases has a narrative quality assessment?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of submissions with at least one active va_narrative_assessments row (where va_nqa_status = 'active') Denominator: COUNT of CODED submissions WHERE the submission's own project has narrative_qa_enabled = true (joined on the form's project, never a project at the same site) (owner decision 2026-10-27, digitva-0hul) Rate: N/D × 100 Inclusions: Only projects where narrative_qa_enabled = true Exclusions: Projects where narrative_qa_enabled = false (excluded from both N and D) Time Frame: Cumulative",
+        "base": "CODED in projects with narrative_qa_enabled",
+        "canonical": [
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "higher_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-qg-07-nqa-completion-rate",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-LC-05",
+      "name": "Language-Not-Codeable Correlation",
+      "question": "Do language not-codeable decisions match the coder gap?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of va_coder_review where va_creview_reason = 'narration_language' AND submission's va_narration_language is in the gap set (D-LC-03) Denominator: COUNT of all va_coder_review where va_creview_reason = 'narration_language' Rate: N/D × 100 Time Frame: Cumulative",
+        "base": "language not-codeable reviews",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-lc-05-language-not-codeable-correlation",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "EQ-03",
+      "name": "Sex or Age Unknown",
+      "question": "How many cases have sex or age unknown?",
+      "stage": "output",
+      "category": "data quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of ALL-SYNCED submissions where sex or age is missing or unrecognised. Denominator: COUNT of ALL-SYNCED. Rate: N / D × 100. Meaning: guards the validity of EQ-01 and EQ-02; if it is high, their gaps are not trustworthy. Time Frames: Snapshot, weekly series.",
+        "base": "ALL-SYNCED",
+        "canonical": [
+          "ALL-SYNCED"
+        ]
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "lower_is_better",
+      "thresholds": {
+        "text": "Lower is better; it guards the validity of EQ-01 and EQ-02."
+      },
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Snapshot",
+        "weekly series"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_eq_03",
+      "policy_anchor": "docs/policy/kpis.md#eq-03-sex-or-age-unknown",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-12",
+      "name": "Coder Throughput",
+      "question": "How many cases does each coder finish?",
+      "stage": "output",
+      "category": "workforce",
+      "type": "volume",
+      "level": [
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of workflow events with transition_id IN ('coder_finalized', 'recode_finalized') in window Denominator: — (raw count) Also report: Per-coder breakdown Scope: CODING-POOL Time Frames: Today, yesterday, 7d, cumulative Inclusions: Non-demo events only (owner decision 2026-10-27, digitva-0hul)",
+        "base": "non-demo finalize events",
+        "canonical": [
+          "CODING-POOL",
+          "Demo"
+        ]
+      },
+      "helper": null,
+      "unit": "count",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Today",
+        "yesterday",
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "totals_only",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-12-coder-throughput",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-24",
+      "name": "Forms per Coder by Language",
+      "question": "Which coder codes which language?",
+      "stage": "output",
+      "category": "workforce",
+      "type": "matrix",
+      "level": [
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Definition: For each coder × language combination, the count of forms coded (cumulative and in last 7d) Display: Heatmap table Numerator: COUNT of va_final_assessments (active) GROUP BY (va_finassess_by, va_submissions.va_narration_language) Denominator scope: CODED Also show: Backlog per language = pending in that language − forms currently being coded in that language Time Frames: 7d, cumulative Actionable: Shows which coders are productive in which languages. DM can reallocate coders to languages with higher backlog. Also shows if a coder claims to know a language but hasn't coded any forms in it.",
+        "base": "CODED",
+        "canonical": [
+          "CODED"
+        ]
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "informational",
+      "thresholds": null,
+      "peer": false,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [
+        "D-LC-04"
+      ],
+      "mcp": "none",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#c-24-forms-per-coder-by-language",
+      "decisions": [
+        "2026-10-27 digitva-r5s0"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "D-WT-01",
+      "name": "Reviewer Throughput",
+      "question": "How many cases do reviewers finish?",
+      "stage": "output",
+      "category": "workforce",
+      "type": "volume",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "daily",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of events with transition_id = 'reviewer_finalized' in window Time Frames: Today, 7d, cumulative",
+        "base": "reviewer_finalized events",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "count",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Today",
+        "7d",
+        "cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "totals_only",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#d-wt-01-reviewer-throughput",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "CL-03",
+      "name": "Repeat Send-backs",
+      "question": "How many cases were sent back twice or more?",
+      "stage": "output",
+      "category": "loop",
+      "type": "volume",
+      "level": [
+        "Pj",
+        "Dt",
+        "Bk",
+        "Fu"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status"
+      ],
+      "definition": {
+        "measure": "Collect only. See CL-01. Numerator: COUNT of cases with 2 or more correction requests. Denominator: COUNT of cases with at least 1 correction request. Meaning: a case that comes back twice points at an unclear instruction or a field-team gap. Per-interviewer rows name people: web only, never over MCP. Time Frames: Cumulative. Outcome (what the results say: cause quality, equity and cause mix.) Categories: coding quality, cause mix.",
+        "base": "Collect-sourced cases",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "count",
+      "direction": "lower_is_better",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#cl-03-repeat-send-backs",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "SV-AGR",
+      "name": "Agreement with SmartVA",
+      "question": "How often does the final cause agree with SmartVA?",
+      "stage": "outcome",
+      "category": "coding quality",
+      "type": "rate",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "weekly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Numerator: COUNT of authoritative finals whose WHO 2026 bucket equals the bucket of the case's SmartVA result. Denominator: COUNT of authoritative finals that have a SmartVA result mapped to a bucket. Rate: N / D × 100. Shown only when D is 20 or more. Meaning: how often the human final and the automated result agree. It is a quality signal, not a target to maximise: SmartVA is an input to coding, not the truth. Time Frames: Cumulative, weekly series.",
+        "base": "authoritative finals with a SmartVA result",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": "percent",
+      "direction": "informational",
+      "thresholds": null,
+      "peer": null,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative",
+        "weekly series"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": null,
+      "policy_anchor": "docs/policy/kpis.md#sv-agr-agreement-with-smartva",
+      "decisions": [],
+      "helper_status": "pending"
+    },
+    {
+      "id": "MO-01",
+      "name": "Cause Mix",
+      "question": "What is the cause mix?",
+      "stage": "outcome",
+      "category": "cause mix",
+      "type": "distribution",
+      "level": [
+        "Pj",
+        "Dt"
+      ],
+      "audience": [
+        "DM",
+        "admin"
+      ],
+      "cadence": "monthly",
+      "tier": "registered",
+      "merged_into": null,
+      "retired_reason": null,
+      "views": [
+        "status",
+        "trend"
+      ],
+      "definition": {
+        "measure": "Measure: COUNT of authoritative finals by WHO 2026 bucket, with the share of each (the cause mix). Base: authoritative finals. Counts under 5 are folded; shares are shown only when the base is 20 or more. Meaning: what the programme is finding. It is context for the quality KPIs, not a performance measure. Answerable from the AI cube (kpi_MO-01 catalog entry). Time Frames: Cumulative, monthly series. Correction-loop facts (owner decision 2026-10-27, digitva-r5s0): Send-back and reopen are Collect only. ODK submissions are refused, and ODK uses hasIssues plus Central edits instead. ODK review-state history is not stored, so ODK time to correct, repeat flags and reasons are not captured. Per-interviewer rows name people, so they are web only, for DMs and ICs in scope, and never sent over MCP. The Collect/ODK split is va_forms.form_source. Browser against device is not split. See also [Interview Revisions Policy](interview-revisions.md).",
+        "base": "authoritative finals",
+        "canonical": []
+      },
+      "helper": null,
+      "unit": null,
+      "direction": "informational",
+      "thresholds": null,
+      "peer": true,
+      "min_whole": 20,
+      "cell_min": 5,
+      "periods": [
+        "Cumulative",
+        "monthly series"
+      ],
+      "dimensions": null,
+      "sources": null,
+      "replaces": [],
+      "mcp": "full",
+      "catalog_key": "kpi_mo_01",
+      "policy_anchor": "docs/policy/kpis.md#mo-01-cause-mix",
+      "decisions": [
+        "2026-10-27 digitva-r5s0"
+      ],
+      "helper_status": "pending"
+    },
+    {
+      "id": "C-02",
+      "name": "Last Sync Run Status",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-03",
+      "retired_reason": null,
+      "stage": "process",
+      "definition": {
+        "measure": "Merged into C-03 as view=status (last run row).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#c-02-last-sync-run-status",
+      "decisions": []
+    },
+    {
+      "id": "C-10",
+      "name": "Upstream Change Queue",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-23",
+      "retired_reason": null,
+      "stage": "process",
+      "definition": {
+        "measure": "Merged into C-23 as the \"Upstream change pending\" row, by=reason.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#c-10-upstream-change-queue",
+      "decisions": []
+    },
+    {
+      "id": "C-17",
+      "name": "Predicted Days to Clear Backlog",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-04",
+      "retired_reason": null,
+      "stage": "process",
+      "definition": {
+        "measure": "Merged into C-04 as view=forecast.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#c-17-predicted-days-to-clear-backlog",
+      "decisions": []
+    },
+    {
+      "id": "C-22",
+      "name": "Site-Level Bottleneck",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-04",
+      "retired_reason": null,
+      "stage": "process",
+      "definition": {
+        "measure": "Merged into C-04 as by=unit (peer view).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#c-22-site-level-bottleneck",
+      "decisions": []
+    },
+    {
+      "id": "D-LC-02",
+      "name": "Coder Language Pool",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-21",
+      "retired_reason": null,
+      "stage": "input",
+      "definition": {
+        "measure": "Merged into C-21 as by=language (counts; names stay in D-LC-06).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-lc-02-coder-language-pool",
+      "decisions": []
+    },
+    {
+      "id": "D-LC-03",
+      "name": "Language Gap Analysis",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-15",
+      "retired_reason": null,
+      "stage": "input",
+      "definition": {
+        "measure": "Merged into C-15 as by=language.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-lc-03-language-gap-analysis",
+      "decisions": []
+    },
+    {
+      "id": "D-LC-04",
+      "name": "Coder Output by Language",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-24",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-24 as by=coder,language.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-lc-04-coder-output-by-language",
+      "decisions": []
+    },
+    {
+      "id": "D-PS-01",
+      "name": "Project-wise Form Counts",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-01",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-01 as by=project.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-ps-01-project-wise-form-counts",
+      "decisions": []
+    },
+    {
+      "id": "D-PS-02",
+      "name": "Site-wise within Project",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-01",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-01 as by=site.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-ps-02-site-wise-within-project",
+      "decisions": []
+    },
+    {
+      "id": "D-QG-01",
+      "name": "Coder Not-Codeable Count & Rate",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-05",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-05 as by=actor_role (coder).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-qg-01-coder-not-codeable-count--rate",
+      "decisions": []
+    },
+    {
+      "id": "D-QG-02",
+      "name": "DM Not-Codeable Count & Rate",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-05",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-05 as by=actor_role (data manager).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-qg-02-dm-not-codeable-count--rate",
+      "decisions": []
+    },
+    {
+      "id": "D-QG-03",
+      "name": "Exclusions by Actor",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-05",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-05 as by=actor_role; the reviewer-rejection item is still a known gap (see C-05).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-qg-03-exclusions-by-actor",
+      "decisions": []
+    },
+    {
+      "id": "D-QG-04",
+      "name": "Coder Not-Codeable Reason Breakdown",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-05",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-05 as by=reason (coder).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-qg-04-coder-not-codeable-reason-breakdown",
+      "decisions": []
+    },
+    {
+      "id": "D-QG-05",
+      "name": "DM Not-Codeable Reason Breakdown",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-05",
+      "retired_reason": null,
+      "stage": "output",
+      "definition": {
+        "measure": "Merged into C-05 as by=reason (data manager).",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-qg-05-dm-not-codeable-reason-breakdown",
+      "decisions": []
+    },
+    {
+      "id": "D-WF-03",
+      "name": "State Stagnation Alerts",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-07",
+      "retired_reason": null,
+      "stage": "process",
+      "definition": {
+        "measure": "Merged into C-07 as by=state; the threshold table is kept unchanged under C-07.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-wf-03-state-stagnation-alerts",
+      "decisions": []
+    },
+    {
+      "id": "D-WT-03",
+      "name": "Coding Backlog Trend",
+      "question": null,
+      "tier": "merged",
+      "merged_into": "C-04",
+      "retired_reason": null,
+      "stage": "process",
+      "definition": {
+        "measure": "Merged into C-04 as view=trend.",
+        "base": null,
+        "canonical": []
+      },
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-wt-03-coding-backlog-trend",
+      "decisions": []
+    },
+    {
+      "id": "D-PS-03",
+      "name": "Project Feature Summary",
+      "question": null,
+      "tier": "retired",
+      "merged_into": null,
+      "retired_reason": "a configuration listing (feature flags and coder counts per project), not a measure of performance. It lives in Project Setup and the people pages.",
+      "definition": null,
+      "stage": null,
+      "category": null,
+      "type": null,
+      "level": null,
+      "audience": null,
+      "cadence": null,
+      "views": null,
+      "helper": null,
+      "unit": null,
+      "direction": null,
+      "thresholds": null,
+      "peer": null,
+      "min_whole": null,
+      "cell_min": null,
+      "periods": null,
+      "dimensions": null,
+      "sources": null,
+      "mcp": null,
+      "catalog_key": null,
+      "replaces": [],
+      "policy_anchor": "docs/policy/kpis.md#d-ps-03-project-feature-summary",
+      "decisions": [
+        "2026-10-27 digitva-0hul"
+      ]
+    }
+  ]
+}

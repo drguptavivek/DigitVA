@@ -1,5 +1,5 @@
 """Typo-tolerant suggestions over help pages, WHO VA definitions, the AI
-question catalog and a user's own saved queries.
+question catalog, the KPI registry and a user's own saved queries.
 
 Policy: docs/policy/ai-analytics-questions.md ("Suggestions"). Typesense
 (internal container, plain HTTP API via ``requests``) answers when reachable;
@@ -35,7 +35,7 @@ COLLECTION = "digitva_search"
 # Typesense strips symbols from filter values, so the spec's "*" cannot be
 # filtered on; "public" is the same token in a form it can.
 PUBLIC = "public"
-KINDS = ("help", "va_definition", "catalog", "saved_query")
+KINDS = ("help", "va_definition", "catalog", "kpi", "saved_query")
 BODY_MAX = 4096
 _TIMEOUT = (0.5, 1)  # connect, read seconds: suggestions must never stall a page
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -46,6 +46,7 @@ VA_DEFINITIONS_URL = "/help/va-definitions"
 AI_PAGE_URL = "/data-management/ai-questions"
 SAVED_QUERY_URL = AI_PAGE_URL + "?saved={id}"
 AI_PAGE_ROLES = ["data_manager"]  # admin passes every role check too
+KPI_ROLES = ["data_manager", "admin"]  # the /help/kpis page roles
 SAVED_QUERY_TABLE = "va_ai_saved_queries"
 
 _FALLBACK_TTL = 60  # seconds a process keeps its source-built documents
@@ -162,6 +163,24 @@ def _catalog_docs() -> list[dict]:
     return docs
 
 
+def _kpi_docs() -> list[dict]:
+    """One document per registry KPI (merged and retired ids included, so a
+    search for an old id still lands on the help page). The text is definition
+    wording from the registry, never data."""
+    from app.services import kpi_registry
+
+    docs = []
+    for kpi in kpi_registry.load_registry():
+        measure = (kpi.get("definition") or {}).get("measure") or kpi.get("retired_reason") or ""
+        body = re.sub(r"\s+", " ", f"{kpi.get('question') or ''} {measure}").strip()[:BODY_MAX]
+        docs.append({
+            "id": f"kpi:{kpi['id']}", "kind": "kpi", "title": kpi["name"], "body": body,
+            "keywords": " ".join(filter(None, [kpi["id"], kpi["stage"], kpi["category"], *(kpi["audience"] or ())])),
+            "url": f"/help/kpis#{kpi['id']}", "roles": KPI_ROLES,
+        })
+    return docs
+
+
 def _saved_query_doc(id, owner_user_id, title, keywords="") -> dict:
     return {
         "id": f"saved_query:{id}", "kind": "saved_query", "title": title,
@@ -187,7 +206,7 @@ def _saved_query_docs():
 
 
 def _source_docs() -> list[dict]:
-    return _help_docs() + _definition_docs() + _catalog_docs()
+    return _help_docs() + _definition_docs() + _catalog_docs() + _kpi_docs()
 
 
 # ---------------------------------------------------------------------------

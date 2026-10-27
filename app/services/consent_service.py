@@ -48,6 +48,7 @@ from app.services.consent_notice_seed import (
     SEED_ALLOWED_MODES,
     SEED_PURPOSES,
     SEED_TEXT,
+    standalone_bundle_sha256,
 )
 from app.services.web_intake_service import _device_time
 
@@ -117,11 +118,13 @@ def active_versions(project_id: str) -> list[MasConsentNoticeVersion]:
 
 
 def _newest_versions(*conditions, project_id: str) -> list[MasConsentNoticeVersion]:
-    """The newest ``MAX_VERSIONS_LISTED`` versions matching *conditions*,
-    returned by (version, language) ascending."""
+    """The newest ``MAX_VERSIONS_LISTED`` project notice versions matching
+    *conditions*, returned by (version, language) ascending. A standalone
+    text snapshot is never listed or served."""
     rows = db.session.scalars(
         sa.select(MasConsentNoticeVersion)
-        .where(MasConsentNoticeVersion.project_id == project_id, *conditions)
+        .where(MasConsentNoticeVersion.project_id == project_id, MasConsentNoticeVersion.source == "project",
+               *conditions)
         .order_by(MasConsentNoticeVersion.version.desc(), MasConsentNoticeVersion.language)
         .limit(MAX_VERSIONS_LISTED)
     )
@@ -343,6 +346,93 @@ def record_consent(user, *, project_id: str, death, consent: object, client_draf
     log.info("consent recorded | project=%s | death=%s | event=%s | channel=%s | by=%s",
              project_id, death.death_id, record.event, channel, user.user_id)
     return record, True
+
+
+# ---------------------------------------------------------------------------
+# Standalone notice (Collect Plus Path C; contract 5.6 exception, section 17)
+# ---------------------------------------------------------------------------
+
+#: The bundled notices a standalone push may name as ``bundle_sha256``: the
+#: current seed's (scripts/export_standalone_consent_notice.py). When the seed
+#: changes, add the previous hash here, for phones still holding consents taken
+#: against it; never remove one.
+STANDALONE_BUNDLE_SHA256 = frozenset({standalone_bundle_sha256()})
+#: The push's consent record (mobile/digitva-collect/src/standaloneConsent.ts).
+STANDALONE_CONSENT_KEYS = frozenset({"envelope", "notice_text", "bundle_version", "bundle_sha256"})
+STANDALONE_NOTICE_PREFIX = "standalone-"
+
+
+def standalone_consent(user, project_id: str, record: object) -> dict:
+    """The 5.3 consent object of a standalone push's consent *record*
+    (``{envelope, notice_text, bundle_version, bundle_sha256}``) with its
+    ``notice_version_id`` (``standalone-<sha>``) replaced by the id of the
+    stored standalone notice version, created on first use; ``gate`` then
+    validates and stores it like any consent. 422 ``consent_invalid``: a bad
+    shape, ``notice_sha256`` not the SHA-256 of ``notice_text``, a
+    ``bundle_sha256`` off the allowlist, a language with no bundled notice, or
+    a ``notice_version_id`` other than ``standalone-<notice_sha256>``. The
+    caller commits."""
+    if not isinstance(record, dict) or set(record) != STANDALONE_CONSENT_KEYS:
+        raise ConsentError("consent must be {envelope, notice_text, bundle_version, bundle_sha256}.")
+    envelope, text = record["envelope"], record["notice_text"]
+    bundle_version, bundle_sha = record["bundle_version"], record["bundle_sha256"]
+    if not isinstance(envelope, dict):
+        raise ConsentError("consent.envelope must be an object.")
+    if not isinstance(text, str) or not text.strip() or len(text) > MAX_NOTICE_CHARS or not _storable(text):
+        raise ConsentError(f"consent.notice_text is required, at most {MAX_NOTICE_CHARS} characters.")
+    if not isinstance(bundle_version, str) or not 0 < len(bundle_version) <= 64 or not _storable(bundle_version):
+        raise ConsentError("consent.bundle_version is required, at most 64 characters.")
+    if not isinstance(bundle_sha, str) or bundle_sha.lower() not in STANDALONE_BUNDLE_SHA256:
+        raise ConsentError("consent.bundle_sha256 does not name a bundled notice this server accepts.")
+    text_sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    claimed = envelope.get("notice_sha256")
+    if not isinstance(claimed, str) or not hmac.compare_digest(claimed.lower(), text_sha):
+        raise ConsentError("consent.notice_sha256 does not match the notice text.")
+    if envelope.get("notice_version_id") != f"{STANDALONE_NOTICE_PREFIX}{text_sha}":
+        raise ConsentError("consent.notice_version_id must be standalone-<notice_sha256>.")
+    language = envelope.get("notice_language")
+    if not isinstance(language, str) or language not in SEED_PURPOSES:
+        raise ConsentError("consent.notice_language has no bundled notice.")
+    version = _standalone_version(user, project_id, language, text, text_sha, bundle_version, bundle_sha.lower())
+    return {**envelope, "notice_version_id": str(version.notice_version_id)}
+
+
+def _standalone_version(user, project_id: str, language: str, text: str, text_sha: str, bundle_version: str,
+                        bundle_sha: str) -> MasConsentNoticeVersion:
+    """The project's standalone notice version for this exact text, created
+    (append-only, audited) when new: the seed's purposes, modes and the
+    default covered fields, which is what the bundled notice was generated
+    from. A concurrent first push of the same text loses on the unique index
+    and reads the winner's row."""
+    def existing():
+        return db.session.scalar(sa.select(MasConsentNoticeVersion).where(
+            MasConsentNoticeVersion.project_id == project_id, MasConsentNoticeVersion.source == "standalone",
+            MasConsentNoticeVersion.language == language, MasConsentNoticeVersion.text_sha256 == text_sha))
+
+    row = existing()
+    if row is not None:
+        return row
+    row = MasConsentNoticeVersion(
+        project_id=project_id, version=1, language=language, text=text, text_sha256=text_sha,
+        purposes=sorted(SEED_PURPOSES[language], key=lambda p: p["code"]),
+        covered_fields=sorted(DEFAULT_COVERED_FIELDS),
+        allowed_modes=[m for m in CONSENT_MODES if m in SEED_ALLOWED_MODES],
+        witness_allowed=True, contacts_snapshot=empty_contacts(), created_by=user.user_id,
+        source="standalone", bundle_version=bundle_version, bundle_sha256=bundle_sha,
+    )
+    try:
+        with db.session.begin_nested():
+            db.session.add(row)
+    except IntegrityError:
+        row = existing()
+        if row is None:
+            raise
+        return row
+    _audit(user, "interviewer", project_id, "standalone_notice_stored", {
+        "language": language, "text_sha256": text_sha, "bundle_version": bundle_version,
+        "bundle_sha256": bundle_sha,
+    }, notice_version_id=row.notice_version_id)
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -704,7 +794,8 @@ def create_notice_version(user, project_id: str, body: dict) -> MasConsentNotice
     version = body.get("version")
     if version is None:
         version = (db.session.scalar(sa.select(sa.func.max(MasConsentNoticeVersion.version))
-                                     .where(MasConsentNoticeVersion.project_id == project_id)) or 0) + 1
+                                     .where(MasConsentNoticeVersion.project_id == project_id,
+                                            MasConsentNoticeVersion.source == "project")) or 0) + 1
     elif isinstance(version, bool) or not isinstance(version, int) or not 1 <= version <= 1_000_000:
         raise _bad("version must be a whole number from 1.", "version")
     settings = get_settings(project_id)
@@ -738,7 +829,8 @@ def seed_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]
     ``conflict``); a concurrent seed loses on the version unique key (409)."""
     configuring_role(user, project_id)
     if db.session.scalar(sa.select(MasConsentNoticeVersion.notice_version_id)
-                         .where(MasConsentNoticeVersion.project_id == project_id).limit(1)):
+                         .where(MasConsentNoticeVersion.project_id == project_id,
+                                MasConsentNoticeVersion.source == "project").limit(1)):
         raise ConsentError("This project already has a notice. Edit it to save a new version.",
                            "conflict", 409, fields=[])
     name = db.session.get(VaProjectMaster, project_id).project_name

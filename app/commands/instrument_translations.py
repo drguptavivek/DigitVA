@@ -406,5 +406,43 @@ def machine_translate(locales, dry_run, limit):
         click.echo(f"{code}: " + ", ".join(f"{k}={v}" for k, v in counts.items()))
 
 
+@instrument_translations_group.command("fix-label-codes")
+@click.argument("instrument_code", required=False, default=BASE_INSTRUMENT_CODE)
+@click.option("--locale", default=None, help="Limit to one locale.")
+@click.option("--apply", "apply_", is_flag=True, help="Write the fixes (default is a dry run).")
+@click.option("--backup", "backup_path", default=None, type=click.Path(dir_okay=False),
+              help="Required with --apply: new file receiving the prior values.")
+@click.option("--restore", "restore_path", default=None, type=click.Path(exists=True, dir_okay=False),
+              help="Undo a previous --apply from its backup file.")
+def fix_label_codes(instrument_code, locale, apply_, backup_path, restore_path):
+    """Correct case-only and mistyped (Id...) codes on translated labels.
+
+    Rows showing another real question's code are only listed (digitva-fb5).
+    """
+    from app.services import translation_label_code_audit as audit
+
+    if restore_path and apply_:
+        raise click.UsageError("--restore and --apply cannot be combined.")
+    try:
+        if restore_path:
+            result = audit.restore_from_snapshot(restore_path)
+            db.session.commit()
+            click.echo(f"restored={result['restored']} skipped={result['skipped']}")
+            return
+        result = audit.fix_code_only_labels(
+            instrument_code, locale_code=locale, dry_run=not apply_, backup_path=backup_path
+        )
+        db.session.commit()
+    except (InstrumentTranslationError, OSError) as exc:
+        db.session.rollback()
+        raise click.ClickException(str(exc))
+    for item in result["rows"]:
+        click.echo(f"{item['kind']}\t{item['locale']}\t{item['item_key']}\t{item['shown_code']}")
+    click.echo(
+        f"{'applied' if apply_ else 'dry-run'}: fixable={result['fixed']} "
+        f"needs_review={result['needs_review']}"
+    )
+
+
 def init_app(app):
     app.cli.add_command(instrument_translations_group)

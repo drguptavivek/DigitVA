@@ -1497,8 +1497,7 @@ class BeatScheduleTests(BaseTestCase):
 
         registered = set(self.app.extensions["celery"].tasks)
         self.assertLessEqual(set(DEMO_BEAT_TASKS), registered)
-        for main_only in ("app.tasks.sync_tasks.run_odk_sync", "app.tasks.kpi_tasks.compute_daily_kpi_snapshot",
-                          "app.tasks.sync_tasks.apply_bundle_pending_coding"):
+        for main_only in ("app.tasks.sync_tasks.run_odk_sync", "app.tasks.sync_tasks.apply_bundle_pending_coding"):
             self.assertNotIn(main_only, DEMO_BEAT_TASKS)
 
     def test_disable_off_allowlist_updates_only_rows_outside_the_list(self):

@@ -4,8 +4,8 @@ A data_manager grant at an organization unit counts the submissions whose
 ``va_submissions.org_unit_id`` lies in its subtree on every
 ``/api/v1/analytics/dm-kpi/*`` panel, and nothing from a sibling unit of the
 same site. A project/site DM keeps its results; a DM holding both kinds sees
-the union with no submission counted twice, including where the site-keyed
-``va_daily_kpi_aggregates`` are combined with live unit figures. Policy:
+the union with no submission counted twice (every panel is live, one WHERE
+over pairs OR subtree; digitva-0hul). Policy:
 docs/policy/access-control-model.md, "Role To Scope Rules"; design notes in
 app/routes/api/dm_kpi/dm_kpi_scope.py.
 
@@ -14,7 +14,8 @@ one site CS01): both PHCs share one site and one form, so only the unit
 predicate can tell their submissions apart.
 """
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
@@ -24,7 +25,6 @@ from app.models import (
     VaAccessScopeTypes,
     VaAllocation,
     VaAllocations,
-    VaDailyKpiAggregates,
     VaFinalAssessments,
     VaProjectMaster,
     VaProjectSites,
@@ -217,58 +217,35 @@ class DmKpiUnitScopeTests(UnitScopeFixture, BaseTestCase):
         self.assertFalse(english[0]["gap"])
         self.assertGreaterEqual(self._kpi(dm, "coders/utilization")["total_coders"], 1)
 
-    # -- aggregate panels --------------------------------------------------
+    # -- per-day panels ----------------------------------------------------
 
-    def _aggregate(self, site_id, project_id, day, coded, pending=0):
-        db.session.add(VaDailyKpiAggregates(
-            snapshot_date=day, site_id=site_id, project_id=project_id,
-            total_submissions=10, new_from_odk=0, updated_from_odk=0,
-            coded_count=coded, pending_count=pending,
-            consent_refused_count=0, not_codeable_count=0,
-        ))
-        db.session.commit()
+    def _today(self, user):
+        rows = self._kpi(user, "grid/")["data"]
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+        self.assertEqual(rows[0]["date"], today)
+        return rows[0]
 
-    def _grid_day(self, user, day):
-        rows = {r["date"]: r for r in self._kpi(user, "grid/")["data"]}
-        self.assertIn(str(day), rows)
-        return rows[str(day)]
-
-    def test_aggregates_for_a_direct_site_add_the_unit_part_live(self):
-        self._ensure_base_research_project_and_site()
-        yesterday = date.today() - timedelta(days=1)
-        at_noon = datetime.combine(yesterday, time(12), UTC)
-        self._aggregate(self.BASE_SITE_ID, self.BASE_PROJECT_ID, yesterday, coded=5, pending=7)
-        self._seed_coded("csc-kpi-agg-unit", self.phc_a, finalized_at=at_noon)
-        self._seed_coded("csc-kpi-agg-sibling", self.phc_b, finalized_at=at_noon)
-        ready = self._sub("csc-kpi-agg-ready", unit=self.phc_a)
-        self.assertIsNotNone(ready)
-
-        mixed = self._unit_dm(self.phc_a)
-        self._add_site_grant(mixed, self.BASE_PROJECT_ID, self.BASE_SITE_ID)
-        site_only = self._site_dm(self.BASE_PROJECT_ID, self.BASE_SITE_ID)
-
-        self.assertEqual(self._grid_day(site_only, yesterday)["coded"], 5)
-        self.assertEqual(self._grid_day(mixed, yesterday)["coded"], 6)
-        self.assertEqual(self._kpi(site_only, "burndown/")["c16_total_coded_7d"], 5)
-        self.assertEqual(self._kpi(mixed, "burndown/")["c16_total_coded_7d"], 6)
-
-        trend = self._kpi(mixed, "pipeline/backlog-trend")
-        self.assertEqual(trend["source"], "aggregates")
-        by_day = {r["date"]: r["pending"] for r in trend["data"]}
-        self.assertEqual(by_day[str(yesterday)], 7)
-        self.assertEqual(by_day[str(date.today())], 1)
-
-    def test_aggregates_do_not_double_count_a_unit_inside_a_direct_site(self):
-        yesterday = date.today() - timedelta(days=1)
-        at_noon = datetime.combine(yesterday, time(12), UTC)
-        # The aggregate row already includes the PHC A submission's coding.
-        self._aggregate(self.SITE, self.PROJECT, yesterday, coded=5)
-        self._seed_coded("csc-kpi-agg-inside", self.phc_a, finalized_at=at_noon)
+    def test_mixed_dm_grid_total_counts_a_subtree_case_once(self):
+        self._seed_coded("csc-kpi-total-in", self.phc_a)
+        self._seed_coded("csc-kpi-total-sibling", self.phc_b)
         mixed = self._unit_dm(self.phc_a)
         self._add_site_grant(mixed, self.PROJECT, self.SITE)
 
-        self.assertEqual(self._grid_day(mixed, yesterday)["coded"], 5)
-        self.assertEqual(self._kpi(mixed, "burndown/")["c16_total_coded_7d"], 5)
+        # Presence: the unit DM alone sees its one case.
+        self.assertEqual(self._today(self._unit_dm(self.phc_a))["total"], 1)
+        # The PHC A case is in the direct pair and the subtree: counted once.
+        today = self._today(mixed)
+        self.assertEqual((today["total"], today["new_from_odk"], today["coded"]), (2, 2, 2))
+
+    def test_unit_dm_backlog_trend_is_live_for_its_subtree(self):
+        self._sub("csc-kpi-trend-in", unit=self.phc_a)
+        self._sub("csc-kpi-trend-sibling", unit=self.phc_b)
+
+        trend = self._kpi(self._unit_dm(self.phc_a), "pipeline/backlog-trend?days=7")
+
+        self.assertEqual(trend["source"], "live")
+        self.assertEqual(len(trend["data"]), 7)
+        self.assertEqual(trend["data"][-1]["pending"], 1)
 
     def test_unit_dm_burndown_achieved_line_is_computed_live(self):
         project = db.session.get(VaProjectMaster, self.PROJECT)

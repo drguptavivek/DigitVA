@@ -7,13 +7,16 @@ import generatedInstrument from "./generated/who-va-2022.instrument.json";
 import {
   ALL_DIGITVA_EXTENSIONS,
   DORIS_SUPPORT_EXTENSION,
+  EQUITY_EXTENSION,
   createConsentModeQuestion,
   createDigitVaExtension,
   createDorisSupportExtension,
+  createEquityExtension,
   createInterviewOutcome,
   createVisitNote
 } from "./digitva-extension.js";
 
+import type { EquityChoiceSet } from "./digitva-extension.js";
 import type { InstrumentDefinition, InstrumentQuestion, InstrumentSection } from "./types.js";
 
 const generated = generatedInstrument as InstrumentDefinition;
@@ -161,10 +164,13 @@ function withRegistrationDateChecks(question: InstrumentQuestion): InstrumentQue
  * (tooling/who-va-2022/build-server-instrument.mjs) uses this option: its
  * re-derivation keeps WHO's own, looser rules for the DORIS-tightened
  * questions (see `withDorisSupport`).
+ *
+ * `options.equityChoiceSet` picks the `equity` layer's country choice set
+ * (default `india`; see `EquityChoiceSet`).
  */
 export function createWhoVa2022Instrument(
   enabledExtensions: ReadonlySet<string> | ReadonlyArray<string>,
-  options: { whoOverrides?: boolean } = {}
+  options: { whoOverrides?: boolean; equityChoiceSet?: EquityChoiceSet } = {}
 ): InstrumentDefinition {
   const enabled = enabledExtensions instanceof Set ? enabledExtensions : new Set(enabledExtensions);
 
@@ -291,9 +297,12 @@ export function createWhoVa2022Instrument(
     ...digitva.socialAutopsyQuestions
   ];
 
-  const composed = enabled.has(DORIS_SUPPORT_EXTENSION)
-    ? withDorisSupport(questions, sections, options.whoOverrides ?? true)
+  const withEquity = enabled.has(EQUITY_EXTENSION)
+    ? withEquityLayer(questions, sections, options.equityChoiceSet ?? "india")
     : questions;
+  const composed = enabled.has(DORIS_SUPPORT_EXTENSION)
+    ? withDorisSupport(withEquity, sections, options.whoOverrides ?? true)
+    : withEquity;
 
   // digitva_core: interview_outcome closes the form, after WHO's closing note
   // and every layer, numbered past everything so its section sorts last.
@@ -309,6 +318,30 @@ export function createWhoVa2022Instrument(
     sections: [...sections, visitNote.section, outcome.section],
     questions: [...composed, ...visitNote.questions, outcome.question]
   };
+}
+
+/**
+ * Splice the `equity` questions in after their anchors (see
+ * `createEquityExtension`), numbered past every order already used, as the
+ * other layers are.
+ */
+function withEquityLayer(
+  questions: InstrumentQuestion[],
+  sections: InstrumentSection[],
+  choiceSet: EquityChoiceSet
+): InstrumentQuestion[] {
+  const byName = new Map(questions.map((question) => [question.name, question]));
+  const maxOrder = Math.max(...questions.map((q) => q.order), ...sections.map((s) => s.order));
+  const equity = createEquityExtension(
+    maxOrder,
+    (anchor) => {
+      const question = byName.get(anchor);
+      if (!question) throw new Error(`Cannot add the equity questions because ${anchor} is missing`);
+      return [...question.sectionPath];
+    },
+    choiceSet
+  );
+  return questions.flatMap((question) => [question, ...(equity.after[question.name] ?? [])]);
 }
 
 /**

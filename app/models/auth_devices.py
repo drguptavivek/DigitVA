@@ -89,6 +89,13 @@ class AuthDevice(db.Model):
     signing_public_key: so.Mapped[bytes | None] = so.mapped_column(sa.LargeBinary, nullable=True)
     signing_key_id: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True, index=True)
     signing_key_set_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    # Collect Plus: the install's own UUID (mobile offlineIdentity), a claim the
+    # app sends at enrolment so a later standalone push can name its device.
+    # Not unique: a reinstall or re-enrolment makes a new row with the same
+    # value, and a unique claim would let a stranger block it.
+    client_device_uuid: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), nullable=True, index=True
+    )
 
 
 class AuthDeviceSigningKey(db.Model):

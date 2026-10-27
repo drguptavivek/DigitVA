@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-24
+last_updated: 2026-10-27
 ---
 
 # Current Data Model
@@ -723,6 +723,11 @@ migration, `status` is free text; digitva-xz83 part B);
 `auth_device_enrolment_codes`, `auth_devices` and `auth_device_sessions`
 hold hashed enrolment codes, device secrets and tokens. See
 [Device Collection API](device-collection-api.md).
+
+Migration `c7a3e9d1f5b8` (digitva-5bzf.4): `auth_devices.client_device_uuid`
+(UUID, nullable, plain index `ix_auth_devices_client_device_uuid`): the Collect
+Plus install UUID sent at enrolment; repeats across rows on re-enrolment, so
+not unique.
 
 Migration `b9e4f2a7c1d3` (digitva-gb8w.5, `docs/policy/offline-bundle-and-transfer.md`
 3.2): `auth_devices` gains `signing_public_key` (raw 32-byte Ed25519 public
@@ -1876,6 +1881,9 @@ Other important tables:
   and `web_intake_death_summary_enabled` (Boolean, NOT NULL, default true).
   Migration `e1b6c9a3d7f4` adds `web_intake_medical_records_enabled`
   (Boolean, NOT NULL, default true), mirroring `web_intake_death_summary_enabled`.
+  Migration `b4f8d2e6a1c3` adds `web_intake_equity_enabled` (Boolean, NOT
+  NULL, server default false): `equity` joins `enabled_extensions` only when
+  it is true (docs/policy/digitva-who-form-overrides.md, "Equity extension").
   Migration `b4k8m2r6w9x3` adds `self_coding_enabled` (Boolean, NOT NULL,
   server default false): in a self-coding project a coder also interviews and
   may code their own case (`ProjectSettings.self_coding` in

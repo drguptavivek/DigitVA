@@ -48,6 +48,7 @@ import {
   listActions,
   listRegistrations,
   replaceCases,
+  listCases,
   setActionState,
   setRegistrationRefusal,
   setRegistrationState,
@@ -56,6 +57,7 @@ import {
   type CaseRow
 } from "./cases";
 import {
+  completedDraft,
   completedDrafts,
   countDrafts,
   countUnsentWork,
@@ -63,6 +65,7 @@ import {
   draftUniqueIds,
   getMeta,
   deleteDraftSnapshot,
+  getOfflineCoding,
   pruneDraftAttachments,
   localDateTimeWithOffset,
   projectIds,
@@ -73,14 +76,16 @@ import {
   unfinishedDraftsForSync,
   type CompletedDraft,
   type Completion,
-  type Db
+  type Db,
+  type OfflineCodingRow
 } from "./drafts";
+import { getStandaloneConsent } from "./standaloneConsentStore";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
 import { syncQueuedRevisions } from "./revisions";
 import { deleteCoveredAttachments, markDraftUnconfirmed } from "./attachmentStore";
 import { uploadDraftAttachments } from "./attachmentUpload";
 import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
-import { consentFor, deleteDraftConsent, getRegistrationConsent, loadConsents, markInheritedConsentRefused, refreshConsentConfig, withoutCovered } from "./consentStore";
+import { consentFor, deleteDraftConsent, getRegistrationConsent, loadConsents, markInheritedConsentRefused, refreshConsentConfig, withoutCovered, type ConsentIndex } from "./consentStore";
 import { PinnedDefinitionError, readDefinitionPin } from "./formDefinitionRuntime";
 import { createNativeDefinitionCache } from "./formDefinitionCache";
 import {
@@ -262,6 +267,92 @@ async function purgeTerminalAcknowledgement(db: Db, projectId: string, body: unk
   }
 }
 
+/**
+ * The answers an upload sends for one completed draft, their JSON and its SHA-256: a refused consent (this
+ * interview's or its registration's) never sends the covered answers. The one definition of the hash, so the
+ * offline coding screen binds a coding to exactly what the push will send (contract 17 coded_answers_sha256).
+ */
+export async function sentAnswers(item: CompletedDraft, consents: ConsentIndex) {
+  const applied = consentFor(consents, item);
+  const sentData = applied?.record.envelope.decision === "refused" && item.draft.data
+    ? withoutCovered(item.draft.data, applied.record.covered_fields)
+    : item.draft.data;
+  const answersJson = JSON.stringify(sentData);
+  const answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
+  return { applied, sentData, answersJson, answersHash };
+}
+
+/** The hash a coding saved now is bound to; null when the draft is not a completed interview. */
+export async function draftAnswersSha256(db: Db, draftId: string): Promise<string | null> {
+  const item = await completedDraft(db, draftId);
+  return item ? (await sentAnswers(item, await loadConsents(db))).answersHash : null;
+}
+
+/** A coding made on other answers (or before its hash was kept) is stale: it is never sent for these answers. */
+export const isCodingStale = (row: Pick<OfflineCodingRow, "answers_sha256">, answersHash: string) =>
+  !row.answers_sha256 || row.answers_sha256.toLowerCase() !== answersHash.toLowerCase();
+
+/** Where a standalone (Path C) store's interviews go once the user adopted them into an enrolled account (contract 17). */
+export interface StandalonePush {
+  projectId: string;
+  siteId: string;
+  clientDeviceUuid: string;
+  profileSnapshot: { name: string | null; designation: string | null; facility: string | null; country: string | null };
+  /** A unit code claim, already checked against the server's pattern; null routes by the project's fallback. */
+  orgCode: string | null;
+}
+
+/** The reply's verdict on the offline coding sent with a standalone interview. */
+export type OfflineCodingOutcome = { draftId: string; status: "pending" | "applied" | "refused"; code: string | null };
+
+const PROCESS_TOKEN = /^local-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const HEX64 = /^[0-9a-f]{64}$/;
+const hex64OrNull = (value: string | null) => (value && HEX64.test(value.toLowerCase()) ? value.toLowerCase() : null);
+const parsedObject = (text: string | null) => {
+  if (!text) return null;
+  const value: unknown = JSON.parse(text);
+  return value && typeof value === "object" && !Array.isArray(value) ? value : null;
+};
+
+/**
+ * The contract 17 `offline_coding` object for a coding row, or null when it must not be sent: not a coded final,
+ * no allowability provenance, coded on other answers (stale) or on another phone, or a token the server refuses.
+ * conclusive_cod is the code alone: the phone keeps no title and the server takes it from its own MMS row.
+ */
+export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, clientDeviceUuid: string) {
+  if (row.status !== "coded" || !row.ucod_code || !row.provenance || isCodingStale(row, answersHash)) return null;
+  if (row.device_uuid !== clientDeviceUuid || !PROCESS_TOKEN.test(row.process_token)) return null;
+  const provenance = JSON.parse(row.provenance) as { allowability?: { rules?: unknown } };
+  const rules = provenance.allowability?.rules;
+  return {
+    coded_answers_sha256: answersHash,
+    device_uuid: clientDeviceUuid,
+    process_token: row.process_token,
+    conclusive_cod: row.ucod_code,
+    remark: null,
+    certificate: parsedObject(row.certificate),
+    result: parsedObject(row.result),
+    codedit_result: parsedObject(row.codedit_result),
+    certificate_digest: hex64OrNull(row.certificate_digest),
+    result_digest: hex64OrNull(row.result_digest),
+    provenance,
+    pack_versions: typeof rules === "string" ? { allowability: rules } : {},
+  };
+}
+
+/** The reply's `offline_coding`, required whenever one was sent: without it the coding was not received. */
+function codingOutcome(body: { offline_coding?: unknown }, draftId: string): OfflineCodingOutcome {
+  const value = body.offline_coding as { status?: unknown; code?: unknown } | null | undefined;
+  if (!value || typeof value !== "object" || !["pending", "applied", "refused"].includes(value.status as string) ||
+      (value.code !== null && typeof value.code !== "string")) {
+    throw new Error("invalid_upload_ack");
+  }
+  return { draftId, status: value.status as OfflineCodingOutcome["status"], code: (value.code as string | null) ?? null };
+}
+
+/** Standalone refusals shown and held, never resent or reopened on their own (contract 17: consent is terminal). */
+const STANDALONE_HELD_422 = new Set(["consent_invalid", "consent_required", "consent_conflict", "standalone_invalid", "offline_coding_invalid"]);
+
 /** What one upload pass sent, refused and learned; the rows themselves stay until acknowledged. */
 export interface UploadResult {
   sent: number;
@@ -269,6 +360,9 @@ export interface UploadResult {
   supersededUniqueIds: string[];
   serverKeptUploads: { uniqueId: string; locked: boolean }[];
   canCodeNowUniqueIds: string[];
+  /** Standalone push only: the server's verdict on each coding sent, and the drafts whose coding was stale. */
+  codingOutcomes?: OfflineCodingOutcome[];
+  staleCodingDraftIds?: string[];
 }
 
 /**
@@ -276,6 +370,11 @@ export interface UploadResult {
  * interview on the phone, in every project it holds, including a project
  * that has left this worker's access: the server decides, and a refusal
  * keeps the row and is recorded for the worklist (listPausedProjects).
+ *
+ * With `standalone`, `db` is a standalone store and `userId` the enrolled
+ * account it was adopted into: each interview goes to that project and site
+ * with the contract 17 `standalone` object and, when fresh, its offline
+ * coding; the draft and its coding are deleted together on the 2xx only.
  */
 export async function uploadQueuedWork(
   userId: string,
@@ -284,9 +383,12 @@ export async function uploadQueuedWork(
     onSuperseded?: (uniqueId: string) => void;
     onServerKept?: (notice: { uniqueId: string; locked: boolean }) => void;
     onCanCodeNow?: (uniqueId: string) => void;
+    standalone?: StandalonePush;
   } = {}
 ): Promise<UploadResult> {
-  const { onSuperseded, onServerKept, onCanCodeNow } = callbacks;
+  const { onSuperseded, onServerKept, onCanCodeNow, standalone } = callbacks;
+  const codingOutcomes: OfflineCodingOutcome[] = [];
+  const staleCodingDraftIds: string[] = [];
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
@@ -379,14 +481,31 @@ export async function uploadQueuedWork(
     if (item.client_death_id && !item.death_id) continue; // its registration is not accepted yet
     // A refusal (this interview's, or its registration's) never sends the covered answers, so the hash covers
     // only what is sent. A decision taken for this interview travels with it (contract 5.3).
-    const applied = consentFor(consents, item);
-    const sentData = applied?.record.envelope.decision === "refused" && item.draft.data
-      ? withoutCovered(item.draft.data, applied.record.covered_fields)
-      : item.draft.data;
+    const { applied, sentData, answersJson, answersHash: sentHash } = await sentAnswers(item, consents);
     if (applied?.record.envelope.decision === "refused") await deleteCoveredAttachments(db, item.id, applied.record.covered_fields);
     const sentDraft = sentData === item.draft.data ? item.draft : { ...item.draft, data: sentData };
+    // A standalone interview goes to the adopted project and site; the server routes it by the org code claim.
+    const target = standalone ? { ...item, project_id: standalone.projectId, site_id: standalone.siteId, org_unit_id: null } : item;
+    let standaloneFields: Record<string, unknown> = {};
+    let codingSent = false;
+    if (standalone) {
+      const row = await getOfflineCoding(db, item.id);
+      const coding = row ? offlineCodingBody(row, sentHash, standalone.clientDeviceUuid) : null;
+      if (row?.status === "coded" && isCodingStale(row, sentHash)) staleCodingDraftIds.push(item.id);
+      codingSent = coding !== null;
+      standaloneFields = {
+        standalone: {
+          client_device_uuid: standalone.clientDeviceUuid,
+          profile_snapshot: standalone.profileSnapshot,
+          org_code: standalone.orgCode,
+          // The standalone record replaces the 5.3 consent key: the server refuses both (400).
+          consent: (await getStandaloneConsent(db, item.id)) ?? null,
+        },
+        ...(coding ? { offline_coding: coding } : {}),
+      };
+    }
     // Files first, and the interview only when the server holds every one (owner rule, digitva-jkvl).
-    const files = await uploadDraftAttachments(userId, db, item, sentData);
+    const files = await uploadDraftAttachments(userId, db, target, sentData);
     if (files.state !== "done") {
       const refused = files.error instanceof Error ? refusal(files.error) : undefined;
       if (refused) await notePausedRefusal(db, item.project_id, refused);
@@ -394,23 +513,23 @@ export async function uploadQueuedWork(
       failed += 1;
       continue draftLoop;
     }
-    const answersJson = JSON.stringify(sentData);
-    let answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
+    let answersHash = sentHash;
     try {
       const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
         method: "POST",
         timeoutMs: 120_000,
         bodyFactory: () => ({
           client_draft_id: item.id,
-          project_id: item.project_id,
-          site_id: item.site_id,
-          ...(item.org_unit_id ? { org_unit_id: item.org_unit_id } : {}),
+          project_id: target.project_id,
+          site_id: target.site_id,
+          ...(target.org_unit_id ? { org_unit_id: target.org_unit_id } : {}),
           ...(item.death_id ? { death_id: item.death_id } : {}),
           draft: { ...sentDraft, deviceClockAt: localDateTimeWithOffset(), ...clockOffsetField() },
           answers_json: answersJson,
           answers_sha256: answersHash,
           completion: { valid: item.completion?.valid === true, issues: item.completion?.issues ?? [] },
-          ...(applied?.own ? { consent: applied.record.envelope } : {})
+          ...(applied?.own && !standalone ? { consent: applied.record.envelope } : {}),
+          ...standaloneFields
         })
       });
       let acknowledgement;
@@ -459,6 +578,8 @@ export async function uploadQueuedWork(
         throw new Error("invalid_upload_ack");
       }
       acknowledgedUploadCase(responseBody, item.death_id);
+      // pending, applied and refused are all receipt of the coding; a refusal is kept for the user to read.
+      if (codingSent) codingOutcomes.push(codingOutcome(responseBody as { offline_coding?: unknown }, item.id));
       const acknowledgedUniqueId = body.case?.unique_id;
       if (
         body.can_code_now === true && !body.superseded &&
@@ -493,7 +614,12 @@ export async function uploadQueuedWork(
       const refused = refusal(error);
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, item.project_id, refused);
-      if (refused.status === 422 && refused.code !== "answers_hash_invalid") {
+      // A standalone record refused as it stands is held and shown (a 409 by case_conflict below), never reopened.
+      const standaloneHeld = standalone && ((refused.status === 403 && refused.code === "device_mismatch") ||
+        (refused.status === 422 && STANDALONE_HELD_422.has(refused.code ?? "")));
+      if (standaloneHeld) {
+        await setDraftUploadIssue(db, item.id, "standalone_refused");
+      } else if (refused.status === 422 && refused.code !== "answers_hash_invalid") {
         // Its own decision is dropped; an inherited one (the registration's) is shared, so only this draft is told to ask again.
         if (refused.code?.startsWith("consent_")) {
           if (applied?.own) await deleteDraftConsent(db, item.id);
@@ -510,7 +636,10 @@ export async function uploadQueuedWork(
     }
   }
 
-  return { sent, failed, supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds };
+  return {
+    sent, failed, supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds,
+    ...(standalone ? { codingOutcomes, staleCodingDraftIds } : {}),
+  };
 }
 
 export async function syncInterviewer(
@@ -707,8 +836,16 @@ export async function refreshCases(
     }
     if (!complete) throw new Error("case_page_limit");
     const details: CaseDetail[] = [];
+    const stored = new Map((await listCases(db)).map((c) => [c.death_id, c]));
     for (const row of rows) {
       if (row.project_id !== project.project_id) throw new Error("project_mismatch");
+      // Unchanged since the stored copy was downloaded: skip the request.
+      const sig = JSON.stringify(row);
+      const cached = stored.get(row.death_id);
+      if (cached && cached.project_id === project.project_id && cached.list_sig === sig && isActiveCaseState(cached.state)) {
+        details.push(cached);
+        continue;
+      }
       let detail: CaseDetail;
       try {
         detail = await fetchCaseDetail(userId, db, row.death_id, {
@@ -722,7 +859,7 @@ export async function refreshCases(
         if (error instanceof ApiError && error.status === 404) continue;
         throw error;
       }
-      if (isActiveCaseState(detail.state)) details.push(detail);
+      if (isActiveCaseState(detail.state)) details.push({ ...detail, list_sig: sig });
     }
     await replaceCases(db, project.project_id, details);
     all.push(...details);

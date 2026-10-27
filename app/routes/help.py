@@ -434,6 +434,13 @@ def page(slug):
     if slug == "mobile-app":
         page_context["mobile_app_url"] = valid_android_apk_url()
         page_context["hosted_apk"] = hosted_android_apk()
+    elif slug == "kpis":
+        from app.services import kpi_registry
+
+        page_context["kpi_groups"] = kpi_registry.grouped_for_display()
+        page_context["kpi_closed"] = [
+            k for k in kpi_registry.load_registry() if k["tier"] in ("merged", "retired")
+        ]
     return render_template(
         "help/help_base.html",
         page_slug=slug,

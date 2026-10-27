@@ -155,5 +155,10 @@ class DmKpiRevisionRequestTests(BaseTestCase):
             by_reason["sent_back_for_revision"]["dm_action"],
             "Wait for the interviewer or cancel the request",
         )
+        # The sent-back row carries its age and its owner (C-23, digitva-r5s0).
+        sent_back = by_reason["sent_back_for_revision"]
+        self.assertEqual(sent_back["owner"], "interviewer, through the in-charge")
+        self.assertIsNotNone(sent_back["age_p50_hours"])
+        self.assertIn("web", sent_back["intake_source"])
         # Five fuc rows plus the one smartva_pending row; the split adds nothing.
         self.assertEqual(data["total_blocked"], 6)

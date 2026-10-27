@@ -13,6 +13,19 @@
 import { CryptoDigestAlgorithm, digestStringAsync, randomUUID } from "expo-crypto";
 
 import { localDateTimeWithOffset } from "../client/localDateTime";
+import {
+  ageRestrictionConfirmation,
+  causingConditionUnknownError,
+  checkAllowability,
+  extractIcd11CodeExpression,
+  firstStem,
+  icd11PrimaryStem,
+  INVALID_EXPRESSION_MESSAGE,
+  isCluster,
+  type AgeRestriction,
+  type AllowabilityIndex,
+  type CodingContext,
+} from "../coding/icd11Allowability";
 import type { OfflineCodingRow } from "../drafts";
 import type { OfflineEngine, EngineResult } from "../offlineEngine";
 import type { DorisCodeInfoReply, DorisProcessEngine, DorisProcessReply, DorisTerm, DorisTermsReply, JsonObject, JsonValue } from "./contracts";
@@ -42,6 +55,28 @@ export interface OfflineDorisEditor {
   save(input: OfflineCodingSaveInput): Promise<OfflineCodingRow>;
 }
 
+/**
+ * What a local final is judged by: the exported allowability rules and the deceased's age group and sex (from the
+ * interview). `confirmedBy` is the account recorded as having confirmed an age restriction.
+ */
+export interface OfflineAllowability {
+  index: AllowabilityIndex;
+  context: CodingContext;
+  confirmedBy: string;
+}
+
+/**
+ * A final the allowability rules refuse. "blocked" is final (non-selectable code, sex conflict, bad expression, bad
+ * causing-condition flag); "age_confirm" asks the coder to confirm and save again with age_restriction_confirmed.
+ * The screen maps it onto the ApiError shapes DorisPanel already handles for the server's 400 and 422.
+ */
+export class OfflineAllowabilityError extends Error {
+  constructor(readonly kind: "blocked" | "age_confirm", message: string, readonly restriction?: AgeRestriction) {
+    super(message);
+    this.name = "OfflineAllowabilityError";
+  }
+}
+
 /** A save DorisPanel posted (its saveInitial body) with the process reply it confirms. */
 export interface OfflineCodingSaveInput {
   clientDraftId: string;
@@ -49,6 +84,8 @@ export interface OfflineCodingSaveInput {
   reply: DorisProcessReply | null;
   deviceUuid: string | null;
   coderProfileUpdatedAt: string | null;
+  /** The interview's answers hash now (src/sync.ts draftAnswersSha256): the coding is bound to these answers; absent is stale. */
+  answersSha256?: string | null;
 }
 
 async function sha256Hex(text: string): Promise<string> {
@@ -157,7 +194,7 @@ function cleanCode(code: string): string | null {
   return trimmed && trimmed.length <= MAX_CODE_CHARS ? trimmed : null;
 }
 
-export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCodingStore): OfflineDorisEditor {
+export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCodingStore, allowability?: OfflineAllowability): OfflineDorisEditor {
   /** The engine-reported URI per code a selection check confirmed; the save stores it beside the confirmed code. */
   const confirmedUris = new Map<string, string>();
 
@@ -204,6 +241,51 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
     return {
       schema_version: 1,
       item: { code, title: info.title, uri, release: OFFLINE_ICD11_RELEASE, postcoordination: false },
+    };
+  };
+
+  /**
+   * The server's final-cause check (validate_icd11_mms_coding_value_for_submission + record_final_cod_flags) before a
+   * local final: returns the provenance to store, or throws OfflineAllowabilityError.
+   */
+  const judgeUnderlyingCause = async (value: string, body: JsonObject): Promise<JsonObject> => {
+    if (!allowability) throw new Error("offline_save_invalid");
+    const expression = extractIcd11CodeExpression(value);
+    const first = expression ? firstStem(expression) : null;
+    if (!expression || !first) throw new OfflineAllowabilityError("blocked", "Select a valid ICD-11 code.");
+    let primary = first;
+    if (isCluster(expression)) {
+      // A cluster is judged by WHO's causing condition, which only codeinfo of the whole expression names.
+      const result = await engine.codeinfo(expression);
+      if (!result.ok) throw new Error("icd11_unavailable");
+      const info = result.data;
+      const valid = isRecord(info) && info.code === expression
+        && (info.stemCode == null ? typeof info.stemId === "string" : info.stemCode === first);
+      if (!valid) throw new OfflineAllowabilityError("blocked", INVALID_EXPRESSION_MESSAGE);
+      primary = icd11PrimaryStem(info, first);
+    }
+    const verdict = checkAllowability(allowability.index, primary, allowability.context);
+    if (verdict.status === "blocked") throw new OfflineAllowabilityError("blocked", verdict.message);
+    const unknownCause = body.causing_condition_unknown === true;
+    const unknownError = unknownCause ? causingConditionUnknownError(expression) : null;
+    if (unknownError) throw new OfflineAllowabilityError("blocked", unknownError);
+    let confirmation: JsonObject | null = null;
+    if (verdict.status === "age_confirm") {
+      if (body.age_restriction_confirmed !== true) {
+        throw new OfflineAllowabilityError("age_confirm", `${verdict.restriction.code} is not selectable for this submission.`, verdict.restriction);
+      }
+      const dorisResult = isRecord(body.doris_result) && isRecord(body.doris_result.result) ? body.doris_result.result : {};
+      confirmation = ageRestrictionConfirmation(verdict.restriction, allowability.confirmedBy, localDateTimeWithOffset(), dorisResult.warning);
+    }
+    return {
+      allowability: { rules: allowability.index.version, release: allowability.index.release },
+      antecedent: {
+        code: expression,
+        primary_stem: primary,
+        release: OFFLINE_ICD11_RELEASE,
+        ...(unknownCause ? { causing_condition_unknown: true } : {}),
+        ...(confirmation ? { age_restriction_confirmation: confirmation } : {}),
+      },
     };
   };
 
@@ -265,7 +347,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
       return reply;
     },
 
-    async save({ clientDraftId, body, reply, deviceUuid, coderProfileUpdatedAt }) {
+    async save({ clientDraftId, body, reply, deviceUuid, coderProfileUpdatedAt, answersSha256 }) {
       const draftId = typeof clientDraftId === "string" ? clientDraftId.trim() : "";
       if (!draftId) throw new Error("offline_save_invalid");
       const certificate = isRecord(body.doris_certificate) ? JSON.stringify(body.doris_certificate) : null;
@@ -276,6 +358,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         : reply?.process_token ?? "";
       if (!certificate || !result || !codeditResult || !processToken) throw new Error("offline_save_invalid");
       const ucodCode = typeof body.antecedent_cod === "string" && body.antecedent_cod ? body.antecedent_cod : null;
+      const provenance = allowability && ucodCode ? await judgeUnderlyingCause(ucodCode, body) : null;
       const existing = await store.get(draftId);
       const row: OfflineCodingRow = {
         client_draft_id: draftId,
@@ -291,6 +374,8 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         status: result.status === "rejected" ? "rejected" : result.status === "completed" ? "coded" : "draft",
         coder_profile_updated_at: coderProfileUpdatedAt,
         device_uuid: deviceUuid,
+        provenance: provenance ? JSON.stringify(provenance) : null,
+        answers_sha256: answersSha256 ?? null,
         created_at: existing?.created_at ?? localDateTimeWithOffset(),
         updated_at: localDateTimeWithOffset(),
       };

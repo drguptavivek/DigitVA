@@ -49,7 +49,7 @@ export function IcdPickerModal(props: IcdPickerModalProps) {
   return (
     <Modal visible transparent animationType="slide" onRequestClose={close}>
       <View style={{ flex: 1, backgroundColor: "rgba(17,24,39,0.62)" }}>
-        <IcdPickerFrame init={props.init} revision={props.revision} onMessage={(message, reply) => void bridge.handle(message, reply)} />
+        <IcdPickerFrame init={props.init} revision={props.revision} onClose={close} onMessage={(message, reply) => void bridge.handle(message, reply)} />
       </View>
     </Modal>
   );

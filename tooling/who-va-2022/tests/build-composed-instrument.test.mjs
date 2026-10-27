@@ -1,7 +1,7 @@
 // tooling/who-va-2022/build-composed-instrument.mjs emits
 // app/data/who-va-2022.composed.json, which app/services/served_form_service.py
 // filters per project. The generator itself fails unless filter(tagged, S)
-// equals compose(always-on + S) for all 32 extension subsets; this pins that it
+// equals compose(always-on + S) for all 64 extension subsets; this pins that it
 // still runs clean, reproduces the committed file byte for byte, and writes the
 // version/engineVersion the endpoint serves.
 //
@@ -20,10 +20,10 @@ const repo = path.resolve(toolingDir, "..", "..");
 const generatorPath = path.join(toolingDir, "build-composed-instrument.mjs");
 const artifactPath = path.join(repo, "app/data/who-va-2022.composed.json");
 
-test("regenerating reproduces the committed file byte for byte and passes the 32-subset check", () => {
+test("regenerating reproduces the committed file byte for byte and passes the 64-subset check", () => {
   const before = readFileSync(artifactPath, "utf8");
   const output = execFileSync(process.execPath, [generatorPath], { cwd: toolingDir, encoding: "utf8" });
-  assert.match(output, /Subset check: 32\/32 subsets match/);
+  assert.match(output, /Subset check: 64\/64 subsets match/);
   assert.equal(readFileSync(artifactPath, "utf8"), before);
 });
 

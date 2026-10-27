@@ -499,16 +499,12 @@ class InterviewRevisionTests(BaseTestCase):
         self.assertEqual((response.status_code, response.get_json()["code"]), (422, "invalid_reason"))
         self.assertEqual(len(self._versions(va_sid)), 1)
 
-    def test_a_changed_revision_recounts_the_kpi_rows_and_stores_its_completion_time(self):
+    def test_a_changed_revision_stores_its_completion_time(self):
         _death, va_sid = self._submitted()
-        with patch("app.services.case_transition_service._recompute_kpi_rows_after_commit") as recount:
-            response = self._revise(va_sid, _answers(Id10017="Binita"))
-            self.assertEqual(response.get_json()["changed"], True)
-            recount.assert_called_once_with(va_sid)
-            recount.reset_mock()
-            unchanged = self._revise(va_sid, _answers(Id10017="Binita"))
-            self.assertEqual(unchanged.get_json()["changed"], False)
-            recount.assert_not_called()
+        response = self._revise(va_sid, _answers(Id10017="Binita"))
+        self.assertEqual(response.get_json()["changed"], True)
+        unchanged = self._revise(va_sid, _answers(Id10017="Binita"))
+        self.assertEqual(unchanged.get_json()["changed"], False)
         done = datetime.now(UTC) - timedelta(hours=1)
         changed = self._revise(
             va_sid, _answers(Id10017="Third"), draft={"completedAt": done.isoformat(), "deviceClockAt": datetime.now(UTC).isoformat()})

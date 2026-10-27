@@ -18,11 +18,9 @@ This module only decides *which kind* of actor a transition needs.
 """
 from __future__ import annotations
 
-import logging
 import uuid
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Session
 
 from app import db
 from app.models import (
@@ -53,7 +51,6 @@ __all__ = [
 ]
 
 
-log = logging.getLogger(__name__)
 
 
 class WebIntakeError(ValueError):
@@ -297,43 +294,6 @@ def open_case(case: VaDeathRegister, *, actor: VaUsers) -> VaDeathRegister:
     return case
 
 
-_KPI_RECOUNT_SIDS = "duplicate_kpi_recount_sids"
-
-
-def _recompute_kpi_rows_after_commit(va_sid: str) -> None:
-    """Queue the stored daily KPI recount for *va_sid* once this transaction commits.
-
-    Confirming or undoing a duplicate, or an interviewer's revision that
-    moves the submission's ``updatedAt``, changes what the daily aggregates
-    count (app/services/duplicate_exclusion.py); the worker must see the
-    committed status, so the sid waits in ``session.info`` and is queued by
-    ``_queue_kpi_recounts`` on commit, or dropped on rollback.
-    """
-    db.session().info.setdefault(_KPI_RECOUNT_SIDS, set()).add(va_sid)
-
-
-@sa.event.listens_for(Session, "after_commit")
-def _queue_kpi_recounts(session):
-    va_sids = session.info.pop(_KPI_RECOUNT_SIDS, None)
-    if not va_sids:
-        return
-    from app.tasks.kpi_tasks import recompute_kpi_days_for_submission
-
-    for va_sid in sorted(va_sids):
-        try:
-            recompute_kpi_days_for_submission.delay(va_sid)
-        except Exception:
-            # The case change is committed; a missed recount only leaves
-            # stored rows stale until the next snapshot or backfill.
-            log.warning("Could not queue the KPI recount after a duplicate change", exc_info=True)
-
-
-@sa.event.listens_for(Session, "after_soft_rollback")
-def _drop_kpi_recounts(session, previous_transaction):
-    if previous_transaction.parent is None:
-        session.info.pop(_KPI_RECOUNT_SIDS, None)
-
-
 def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: str,
                reason: str | None = None) -> VaDeathRegister:
     """Move *case* to *to_state*, or raise ``WebIntakeError`` (409 / 403).
@@ -384,7 +344,6 @@ def transition(case: VaDeathRegister, to_state: str, *, actor: VaUsers, action: 
                 "so the duplicate cannot be confirmed yet. Ask a data manager to repair it.",
                 409,
             ) from exc
-        _recompute_kpi_rows_after_commit(case.va_sid)
     _audit(case, actor=actor, action=action, from_state=from_state, to_state=to_state, reason=reason,
            grant=grant)
     db.session.flush()
@@ -521,8 +480,6 @@ def reopen(case: VaDeathRegister, *, actor: VaUsers, reason: str | None = None) 
     from_state = case.status
     if from_state == "duplicate":
         case.duplicate_of_death_id = None
-        if case.va_sid:
-            _recompute_kpi_rows_after_commit(case.va_sid)
     case.status = previous
     _audit(case, actor=actor, action="reopen", from_state=from_state, to_state=previous, reason=reason,
            grant=grant)

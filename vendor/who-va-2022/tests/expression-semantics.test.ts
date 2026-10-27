@@ -49,12 +49,14 @@ describe("WHO VA expression semantics", () => {
     // The asserted count is the instrument's actual one: 560, down from 561
     // when the DigitVA core override in src/instrument.ts (commit 308d15979)
     // dropped WHO's relevance on Id10476 so the typed narrative stays visible
-    // next to saved audio.
+    // next to saved audio. + 9 added by equity (the refusal profile's 2
+    // relevance, the 5 age/sex-filtered vulnerable_group_* relevance, and the
+    // vulnerable_group/health_coverage exclusive-choice constraints): 570.
     // This count is asserted explicitly, not derived from
     // whoVa2022Instrument, because the count under test is exactly
     // whoVa2022Instrument's own expression count — deriving it from the
     // instrument would make the assertion vacuous.
-    expect(expressions).toHaveLength(561);
+    expect(expressions).toHaveLength(570);
     for (const expression of expressions) {
       expect(
         () =>

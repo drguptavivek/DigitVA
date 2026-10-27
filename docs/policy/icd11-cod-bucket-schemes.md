@@ -66,6 +66,15 @@ project lookup.
 - Lookup is the exact code, then its ancestors along the catalogue's parent
   chain. ICD-11 codes are not prefix-ordered the way ICD-10 codes are, so no
   string truncation.
+- **Which mapping rows resolve (`digitva-mubf`).** The COD snapshot view and the
+  COD reports use one rule. A mapping row counts only when it is active, its
+  leaf node is active, and it is in the death's age scope (the snapshot view
+  has no age bands, so it reads the all-ages scope, `age_scope IS NULL`; a
+  report reads the row's own band scope, so an age-scoped row serves only that
+  band). Codes compare case-insensitively. An inactive, de-scoped or
+  inactive-leaf row is walked past to the next mapped ancestor, never matched.
+  Tests: `tests/services/test_submission_analytics_mv.py`
+  (`test_report_and_snapshot_resolve_icd11_buckets_against_the_same_rows`).
 - A post-coordinated ICD-11 value (`1G40&XN...`, `1G40/...`) is bucketed by its
   primary stem: the causing condition when WHO codeinfo reports
   `hasCausingCondition` for the expression (`FB80.B/2F9Z` buckets as `2F9Z`),

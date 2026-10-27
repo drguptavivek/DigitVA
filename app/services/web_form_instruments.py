@@ -70,19 +70,24 @@ def _servable_rows(instrument_code: str | None = None) -> list:
     return db.session.execute(stmt).all()
 
 
-def _instrument_rows(instrument_code: str | None) -> list:
-    """One instrument's servable rows, falling back to ``WHO_2022_VA``'s.
+def resolved_instrument_code(instrument_code: str | None) -> str:
+    """The instrument whose locales ``_instrument_rows`` actually serves.
 
-    ``None``, a blank code, or a code with no servable locales of its own falls
-    back to ``WHO_2022_VA``: it is the only instrument DigitVA bundles today,
-    so serving its locales is the honest answer for any project whose form
-    type has not resolved to something else.
+    ``None``, a blank code, or a code with no servable locales of its own
+    resolves to ``WHO_2022_VA``: it is the only instrument DigitVA bundles
+    today, so serving its locales is the honest answer for any project whose
+    form type has not resolved to something else. Callers that advertise
+    these locales must download them from this code, not the requested one.
     """
     code = (instrument_code or "").strip().upper()
-    rows = _servable_rows(code) if code else []
-    if not rows and code != FALLBACK_INSTRUMENT_CODE:
-        rows = _servable_rows(FALLBACK_INSTRUMENT_CODE)
-    return rows
+    if code and code != FALLBACK_INSTRUMENT_CODE and _servable_rows(code):
+        return code
+    return FALLBACK_INSTRUMENT_CODE
+
+
+def _instrument_rows(instrument_code: str | None) -> list:
+    """One instrument's servable rows, falling back per ``resolved_instrument_code``."""
+    return _servable_rows(resolved_instrument_code(instrument_code))
 
 
 def _catalogue(rows) -> tuple[dict[str, str], set[str]]:

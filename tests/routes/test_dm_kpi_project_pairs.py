@@ -1,13 +1,13 @@
 """DM KPI panels key direct scope on (project_id, site_id) pairs (digitva-lh1h).
 
 A site_id is shared across projects. A data manager granted on (P1, S1) must
-see P1's figures at S1 and nothing of P2's forms at the same S1, on the live
-panels, on the site-keyed daily aggregates (one row per site mixes every
-project there, so a shared site is never served from them), and through the
-KPI cache (two such managers must never share a cache entry).
+see P1's figures at S1 and nothing of P2's forms at the same S1, on every
+panel (all live since digitva-0hul, the per-day grid included), and through
+the KPI cache (two such managers must never share a cache entry).
 """
 import uuid
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 
@@ -17,7 +17,6 @@ from app.models import (
     VaAccessScopeTypes,
     VaAllocation,
     VaAllocations,
-    VaDailyKpiAggregates,
     VaFinalAssessments,
     VaForms,
     VaProjectMaster,
@@ -187,15 +186,6 @@ class DmKpiProjectPairTests(BaseTestCase):
             with self.subTest(kpi=name):
                 self.assertEqual(count, value)
 
-    def _aggregate(self, day, coded):
-        db.session.add(VaDailyKpiAggregates(
-            snapshot_date=day, site_id=self.SITE, project_id=self.P1,
-            total_submissions=10, new_from_odk=0, updated_from_odk=0,
-            coded_count=coded, pending_count=0,
-            consent_refused_count=0, not_codeable_count=0,
-        ))
-        db.session.commit()
-
     # -- tests -------------------------------------------------------------
 
     def test_pair_dm_counts_its_project_and_not_the_other_project_at_the_same_site(self):
@@ -210,36 +200,28 @@ class DmKpiProjectPairTests(BaseTestCase):
 
         self._expect_all(self._counts(self._project_dm(self.P2)), 1)
 
-    def test_a_shared_site_aggregate_row_is_not_served_to_one_projects_dm(self):
-        yesterday = date.today() - timedelta(days=1)
-        at_noon = datetime.combine(yesterday, time(12), UTC)
-        # The stored row mixes both projects at the site (kpi_tasks counts by site).
-        self._aggregate(yesterday, coded=2)
-        self._seed_coded("lh1h-agg-p1", self.FORMS[self.P1], finalized_at=at_noon)
-        self._seed_coded("lh1h-agg-p2", self.FORMS[self.P2], finalized_at=at_noon)
-        dm = self._pair_dm(self.P1)
+    def test_a_past_grid_day_at_a_shared_site_counts_one_projects_cases(self):
+        yesterday = datetime.now(ZoneInfo("Asia/Kolkata")).date() - timedelta(days=1)
+        at_noon = datetime.combine(yesterday, time(12), ZoneInfo("Asia/Kolkata"))
+        self._seed_coded("lh1h-day-p1", self.FORMS[self.P1], finalized_at=at_noon)
+        self._seed_coded("lh1h-day-p2", self.FORMS[self.P2], finalized_at=at_noon)
 
-        rows = {r["date"]: r for r in self._kpi(dm, "grid/")["data"]}
+        rows = {r["date"]: r for r in self._kpi(self._pair_dm(self.P1), "grid/")["data"]}
         self.assertIn(str(yesterday), rows)
         self.assertEqual(rows[str(yesterday)]["coded"], 1)
-        self.assertEqual(self._kpi(dm, "burndown/")["c16_total_coded_7d"], 1)
 
-    def test_a_dm_on_every_project_at_the_site_reads_the_aggregate_row(self):
-        yesterday = date.today() - timedelta(days=1)
-        self._aggregate(yesterday, coded=5)
-        dm = self._pair_dm(self.P1)
+        both = self._pair_dm(self.P1)
         project_site_id = db.session.scalar(sa.select(VaProjectSites.project_site_id).where(
             VaProjectSites.project_id == self.P2, VaProjectSites.site_id == self.SITE,
         ))
         db.session.add(VaUserAccessGrants(
-            user_id=dm.user_id, role=VaAccessRoles.data_manager,
+            user_id=both.user_id, role=VaAccessRoles.data_manager,
             scope_type=VaAccessScopeTypes.project_site,
             project_site_id=project_site_id, grant_status=VaStatuses.active,
         ))
         db.session.commit()
-
-        rows = {r["date"]: r for r in self._kpi(dm, "grid/")["data"]}
-        self.assertEqual(rows[str(yesterday)]["coded"], 5)
+        rows = {r["date"]: r for r in self._kpi(both, "grid/")["data"]}
+        self.assertEqual(rows[str(yesterday)]["coded"], 2)
 
     def test_moving_a_grant_to_the_same_site_in_another_project_misses_the_cache(self):
         from app import cache
@@ -271,6 +253,6 @@ class DmKpiProjectPairTests(BaseTestCase):
     def test_scope_digest_differs_for_the_same_site_in_different_projects(self):
         from app.routes.api.dm_kpi.dm_kpi_scope import DmScope
 
-        p1 = DmScope(pairs=[(self.P1, self.SITE)], unit_ids=[], aggregate_site_ids=[])
-        p2 = DmScope(pairs=[(self.P2, self.SITE)], unit_ids=[], aggregate_site_ids=[])
+        p1 = DmScope(pairs=[(self.P1, self.SITE)], unit_ids=[])
+        p2 = DmScope(pairs=[(self.P2, self.SITE)], unit_ids=[])
         self.assertNotEqual(p1.digest(), p2.digest())

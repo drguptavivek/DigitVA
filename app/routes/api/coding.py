@@ -252,8 +252,8 @@ def code_now(va_sid):
     201 ``{va_sid, actiontype}`` (``vapickcoding``); 200 with ``varesumecoding``
     when the caller already holds this very case. Errors ``{error, code}``: 404 ``not_found``;
     403 ``forbidden`` (not a self-coding project, not the caller's submitted
-    case, outside coding scope) / ``allocation_exists`` (another allocation
-    held); 409 ``not_ready`` with ``workflow_state`` (attachments or SmartVA
+    case, outside coding scope); 409 ``allocation_exists`` (another allocation
+    held), ``not_ready`` with ``workflow_state`` (attachments or SmartVA
     pending: retry), ``held_by_another`` or ``not_available`` with
     ``workflow_state``, ``conflict`` (retired or duplicate case), and
     ``not_available`` for a case across the training/real line."""

@@ -199,6 +199,31 @@ class InstrumentTranslationServingTests(BaseTestCase):
             )
             self.assertEqual(response.status_code, 404, f"unadvertised {locale!r}")
 
+    def test_a_project_on_an_instrument_without_locales_downloads_what_it_advertises(self):
+        """digitva-p6fs.27 root cause: the catalogue falls back to WHO_2022_VA's
+        locales for an instrument with none, but the download used the
+        project's own code and 404ed every advertised language."""
+        from unittest import mock
+
+        from app.routes.api import organization
+
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        forms = [{"is_default": True, "instrument_code": "OTHER_VA", "form_type_code": "OTHER"}]
+        with mock.patch.object(organization, "_project_form_types", return_value=forms):
+            code, advertised = organization.served_instrument_locales(project)
+            versions = organization.form_options_payload(project)["translation_versions"]
+        self.assertEqual(code, INSTRUMENT)
+        self.assertIn("hi", advertised)
+        self.assertEqual(set(versions), advertised)
+
+        self._login(self.base_admin_id)
+        with mock.patch.object(organization, "_project_form_types", return_value=forms):
+            for locale in sorted(advertised):
+                response = self.client.get(
+                    self._url(locale), query_string={"project_id": self.BASE_PROJECT_ID}
+                )
+                self.assertEqual(response.status_code, 200, locale)
+
     def test_an_unchanged_version_revalidates_to_304(self):
         self._login(self.base_coder_id)
         first = self.client.get(self._url("hi"))
@@ -558,8 +583,8 @@ class InstrumentTranslationAdminTests(BaseTestCase):
         # question can be linked to as owner (digitva-8go follow-up; the
         # doris_support_whova_2022 layer added 19 questions and 5 lists;
         # digitva_core's interview_outcome one section, one question and one
-        # list, digitva-vzk.2).
-        self.assertEqual(payload["total"], 567)
+        # list, digitva-vzk.2; equity 11 questions and 7 lists).
+        self.assertEqual(payload["total"], 585)
 
     def test_layer_questions_appear_after_every_base_question(self):
         """digitva-8go follow-up: the layers were missing entirely at first,
@@ -571,7 +596,7 @@ class InstrumentTranslationAdminTests(BaseTestCase):
                 self._api(f"/questions?page_size=200&page={page}")
             ).get_json()
             all_items.extend(payload["items"])
-        self.assertEqual(len(all_items), 567)
+        self.assertEqual(len(all_items), 585)
 
         by_name = {item["name"]: item for item in all_items}
         for name in ("consent_mode", "abha_number", "socialautopsy", "sa01"):
@@ -1324,10 +1349,10 @@ class InstrumentTranslationAdminTests(BaseTestCase):
             )
         self.assertEqual(response.status_code, 200, response.get_json())
         report = response.get_json()["report"]
-        # 0.94, not 0.95: the ND01 workbook predates digitva_core's
-        # interview_outcome (digitva-vzk.2), whose two labels it cannot carry
-        # (548 of 577 labels, was 548 of 575).
-        self.assertGreaterEqual(report["label_coverage"], 0.94)
+        # 0.92, not 0.95: the ND01 workbook predates digitva_core's
+        # interview_outcome (digitva-vzk.2) and the equity layer, whose labels
+        # it cannot carry (548 of 592 labels, was 548 of 577, then 575).
+        self.assertGreaterEqual(report["label_coverage"], 0.92)
         self.assertFalse(report["demoted"])
         self.assertNotIn("activated", report)
         self.assertGreater(report["written"], 400)

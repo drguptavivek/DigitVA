@@ -767,3 +767,75 @@ describe("server draft store", () => {
     expect(acknowledged).toEqual([{ savedSections: 2, updatedAt: "revision-3" }]);
   });
 });
+
+describe("server draft store on a dead session (digitva-fvbc)", () => {
+  const draft: WhoVaDraft = {
+    schemaVersion: 1, formVersion: "f1", id: "d1", instrumentId: "who-2022-va", instrumentVersion: "1",
+    currentSection: "s1", createdAt: "2026-10-03T00:00:00Z", updatedAt: "2026-10-03T00:01:00Z",
+    data: { Id10007: "typed" },
+  };
+  const loaded = () => response({
+    status: 200,
+    body: {
+      draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+      envelope: { ...draft, data: {} }, prefill: {},
+    },
+  });
+  const memory = new Map<string, string>();
+  beforeEach(() => {
+    memory.clear();
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      value: { getItem: (k: string) => memory.get(k) ?? null, setItem: (k: string, v: string) => void memory.set(k, v), removeItem: (k: string) => void memory.delete(k) },
+    });
+  });
+
+  for (const [label, dead] of [
+    ["401", { status: 401, body: { code: "unauthorized" } }],
+    ["csrf_failed after the refresh also fails", { status: 400, body: { code: "csrf_failed" } }],
+  ] as const) {
+    it(`stops retrying on ${label}, keeps the answers locally and resumes after sign-in`, async () => {
+      let signedIn = false;
+      const urls: string[] = [];
+      jest.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+        const url = String(input);
+        urls.push(url);
+        if (url.endsWith("/d1") && urls.length === 1) return loaded();
+        if (signedIn) {
+          return url.includes("/me/access")
+            ? response({ status: 200, body: {} })
+            : response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
+        }
+        return response(dead);
+      });
+      const onSignedOut = jest.fn();
+      const onError = jest.fn();
+      const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]), onSignedOut, onError });
+      await store.load("d1");
+
+      const first = store.save(draft);
+      await expect(store.flush()).rejects.toBeInstanceOf(ClientApiError);
+      await expect(first).rejects.toBeInstanceOf(ClientApiError);
+      expect(onSignedOut).toHaveBeenCalledTimes(1);
+      expect(onError).not.toHaveBeenCalled();
+      expect(store.isSignedOut()).toBe(true);
+      expect(memory.get("digitva-kept-draft:d1")).toContain("typed");
+
+      // Autosave ticks while signed out make no request at all.
+      const before = urls.length;
+      await expect(store.save(draft)).rejects.toBeInstanceOf(ClientApiError);
+      await expect(store.flush()).rejects.toBeInstanceOf(ClientApiError);
+      expect(urls.length).toBe(before);
+
+      // Still signed out: resume fails and stays paused.
+      await expect(store.resume()).rejects.toBeInstanceOf(ClientApiError);
+      expect(store.isSignedOut()).toBe(true);
+
+      signedIn = true;
+      await store.resume();
+      expect(store.isSignedOut()).toBe(false);
+      expect(memory.has("digitva-kept-draft:d1")).toBe(false);
+      expect(urls[urls.length - 1]).toBe("/api/v1/intake/drafts/d1");
+    });
+  }
+});

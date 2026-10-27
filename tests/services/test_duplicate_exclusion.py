@@ -11,7 +11,6 @@ reopens the case -- so no test passes because the fixture was never seen.
 """
 import uuid
 from datetime import UTC, date, datetime, timedelta
-from unittest.mock import patch
 
 import sqlalchemy as sa
 
@@ -33,7 +32,6 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
     VaSubmissionWorkflow,
-    VaSubmissionWorkflowEvent,
     VaUserAccessGrants,
 )
 from app.services import case_transition_service as cases
@@ -55,17 +53,8 @@ from app.services.runtime_form_sync_service import _ensure_legacy_project_site_r
 from app.services.sitepi_reporting_service import get_project_workflow_kpis
 from app.services.smartva_service import pending_smartva_sids
 from app.services.workflow.state_store import get_submission_workflow_state
-from app.tasks.kpi_tasks import (
-    _compute_site_snapshot,
-    _count_coded,
-    _count_pending_eod,
-    _count_total_submissions,
-    compute_daily_kpi_snapshot,
-    recompute_kpi_days_for_submission,
-)
 from tests.base import BaseTestCase
 
-_RECOUNT_DELAY = "app.tasks.kpi_tasks.recompute_kpi_days_for_submission.delay"
 
 
 class ConfirmedDuplicateExclusionTests(BaseTestCase):
@@ -123,14 +112,6 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
                 scope_type=VaAccessScopeTypes.project_site, project_site_id=project_site_id,
             ))
         db.session.commit()
-
-    def setUp(self):
-        super().setUp()
-        # Confirm and reopen queue the stored-KPI recount after commit; record
-        # the call instead of publishing to the broker.
-        patcher = patch(_RECOUNT_DELAY)
-        self.recount_delay = patcher.start()
-        self.addCleanup(patcher.stop)
 
     # ── helpers ────────────────────────────────────────────────────────────
 
@@ -390,87 +371,3 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
                 VaFinalAssessments.va_finassess_status == VaStatuses.active,
             )
         ))
-
-    # ── stored daily KPI rows ──────────────────────────────────────────────
-
-    # Task bodies are called through ``.run``: calling the task pushes its own
-    # app context (FlaskTask), whose session cannot see this test's savepoint.
-
-    def _stored(self, day, column):
-        return db.session.scalar(
-            sa.text(
-                f"SELECT {column} FROM va_daily_kpi_aggregates "  # column: hardcoded below
-                "WHERE snapshot_date = :d AND site_id = :s"
-            ),
-            {"d": day, "s": self.SITE_ID},
-        )
-
-    def test_the_daily_snapshot_task_excludes_a_confirmed_duplicate(self):
-        """Every raw-SQL count in kpi_tasks runs with the predicate."""
-        case = self._case("ready_for_coding")
-        today = db.session.scalar(sa.text("SELECT CURRENT_DATE"))
-        compute_daily_kpi_snapshot.run(snapshot_date=today.isoformat(), site_ids=[self.SITE_ID])
-        pending, total = self._stored(today, "pending_count"), self._stored(today, "total_submissions")
-        self.assertGreaterEqual(pending, 1)
-
-        self._confirm(case)
-        result = compute_daily_kpi_snapshot.run(snapshot_date=today.isoformat(), site_ids=[self.SITE_ID])
-        self.assertEqual(result["sites_processed"], 1)
-        self.assertEqual(self._stored(today, "pending_count"), pending - 1)
-        self.assertEqual(self._stored(today, "total_submissions"), total - 1)
-        self.assertEqual(_count_pending_eod(db, self.SITE_ID, today), pending - 1)
-
-    def test_confirm_and_reopen_recount_the_stored_days_the_case_touched(self):
-        case = self._case("coder_finalized")
-        today = db.session.scalar(sa.text("SELECT CURRENT_DATE"))
-        yesterday = today - timedelta(days=1)
-        db.session.add(VaSubmissionWorkflowEvent(
-            va_sid=case.va_sid, transition_id="coder_finalized", previous_state="coder_step1_saved",
-            current_state="coder_finalized", event_created_at=datetime.now(UTC) - timedelta(days=1),
-        ))
-        db.session.commit()
-        _compute_site_snapshot(db, today, self.SITE_ID)
-        _compute_site_snapshot(db, yesterday, self.SITE_ID)
-        # A past day's end-of-day columns are history; the recount keeps them.
-        db.session.execute(
-            sa.text(
-                "UPDATE va_daily_kpi_aggregates SET pending_count = 999 "
-                "WHERE snapshot_date = :d AND site_id = :s"
-            ),
-            {"d": yesterday, "s": self.SITE_ID},
-        )
-        db.session.commit()
-        coded, total = self._stored(yesterday, "coded_count"), self._stored(today, "total_submissions")
-        # Presence: the stored rows count the case, as the live counts do.
-        self.assertGreaterEqual(coded, 1)
-        self.assertEqual(coded, _count_coded(db, self.SITE_ID, yesterday))
-        self.assertEqual(total, _count_total_submissions(db, self.SITE_ID, today))
-
-        def recount():
-            self.recount_delay.assert_called_once_with(case.va_sid)
-            self.recount_delay.reset_mock()
-            return recompute_kpi_days_for_submission.run(case.va_sid)
-
-        self._confirm(case)
-        self.assertEqual(recount()["days_recomputed"], 2)
-        self.assertEqual(self._stored(yesterday, "coded_count"), coded - 1)
-        self.assertEqual(self._stored(yesterday, "coded_count"), _count_coded(db, self.SITE_ID, yesterday))
-        self.assertEqual(self._stored(today, "total_submissions"), total - 1)
-        self.assertEqual(
-            self._stored(today, "total_submissions"), _count_total_submissions(db, self.SITE_ID, today)
-        )
-        self.assertEqual(self._stored(yesterday, "pending_count"), 999)
-
-        self._reopen(case)
-        self.assertEqual(recount()["days_recomputed"], 2)
-        self.assertEqual(self._stored(yesterday, "coded_count"), coded)
-        self.assertEqual(self._stored(today, "total_submissions"), total)
-        self.assertEqual(self._stored(yesterday, "pending_count"), 999)
-
-    def test_a_rolled_back_confirmation_queues_no_recount(self):
-        case = self._case("ready_for_coding")
-        cases.flag_case(case, actor=self.dana, kind="duplicate", duplicate_of=self.kept, reason="same")
-        self.recount_delay.assert_not_called()  # not before the commit
-        db.session.rollback()
-        db.session.commit()  # a later commit must not queue the dropped one
-        self.recount_delay.assert_not_called()

@@ -9,6 +9,7 @@ import { ClockBlock } from "./nativeShell/ClockNotice";
 import { usePhoneClock } from "./phoneClock";
 import { isUnlocked, openInterviewerDb, unsentWorkCount } from "./interviewerDb";
 import { uploadQueuedWork } from "./sync";
+import { isPlusVariant } from "./appVariant";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 
 const COLLECTION_ROUTES = new Set([
@@ -80,8 +81,15 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       ) : unlocked && unsent ? (
         <Button label={t("sendUnsent")} loading={sending} disabled={sending} onPress={() => void sendUnsent()} />
       ) : null}
-      {/* The Android app collects data only; coding and review are on the web. */}
-      <Text style={styles.text}>{t(account?.coding_access || account?.reviewing_access ? "codingOnWeb" : "codingReviewPending")}</Text>
+      {/* Collect Plus codes on the phone; the plain app collects only, and coding and review are on the web. */}
+      {isPlusVariant() && account?.coding_access && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
+        <>
+          <Button label="Coding queue" onPress={() => router.push({ pathname: "/coding", params: { userId } })} />
+          <Button kind="secondary" label="Offline coding" onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })} />
+        </>
+      ) : (
+        <Text style={styles.text}>{t(account?.coding_access || account?.reviewing_access ? "codingOnWeb" : "codingReviewPending")}</Text>
+      )}
       {message ? <Text style={styles.error}>{message}</Text> : null}
     </Screen>
   );

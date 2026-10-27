@@ -853,6 +853,21 @@ it("shows the server's DORIS error message and each field path, not a generic li
 describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
   const quickButton = (tree: ReactTestRenderer, prefix: string) => tree.root.findAll((n) => typeof n.props.label === "string" && n.props.label.startsWith(prefix) && typeof n.props.onPress === "function")[0];
 
+  it("expands the details with every report box and logs no React warning", async () => {
+    const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    const api = apiFor({ processDoris: jest.fn(async (): Promise<DorisProcessReply> => ({ ...processReply, doris: { status: "completed" as const, result: { ...processReply.doris.result, report: "DORIS report" } }, codedit: { status: "completed" as const, result: { report: "CoDEdit report", tabularReport: "CoDEdit table" } } })) });
+    const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    await act(async () => byLabel(tree, "Show DORIS code details").props.onPress());
+    const text = allText(tree);
+    expect(text).toContain("DORIS report");
+    expect(text).toContain("CoDEdit report");
+    expect(text).toContain("CoDEdit table");
+    expect(errors.mock.calls.map((call) => String(call[0]))).toEqual([]);
+    errors.mockRestore();
+    await act(async () => tree.unmount());
+  });
+
   it("shows one 'No problems found' for an empty CoDEdit run and collapses blank-line runs in the DORIS report", async () => {
     const api = apiFor({ processDoris: jest.fn(async (): Promise<DorisProcessReply> => ({ ...processReply, doris: { status: "completed" as const, result: { ...processReply.doris.result, report: "Line one\n\n\n\nLine two" } }, codedit: { status: "completed" as const, result: { report: "", tabularReport: "" } } })) });
     const { tree } = renderPanel(makeWorkspace({ seed: whoSeed }), api);

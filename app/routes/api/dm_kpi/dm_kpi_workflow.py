@@ -125,21 +125,6 @@ OPTIONAL_STATES = frozenset({
     "reviewer_finalized",
 })
 
-# Stagnation thresholds per state (hours)
-STAGNATION_THRESHOLDS: dict[str, dict] = {
-    "attachment_sync_pending": {"normal": 2, "alert": 24},
-    "screening_pending": {"normal": 24, "alert": 48, "critical": 168},
-    "smartva_pending": {"normal": 2, "alert": 6, "critical": 24},
-    "ready_for_coding": {"normal": 48, "alert": 168},
-    "coding_in_progress": {"normal": 1, "alert": 24},
-    "coder_step1_saved": {"normal": 4, "alert": 168},
-    "coder_finalized": {"normal": 24, "alert": 168},  # 24h recode window
-    "reviewer_eligible": {"normal": None, "alert": None, "critical": None},
-    "reviewer_coding_in_progress": {"normal": 4, "alert": 168},
-    "finalized_upstream_changed": {"normal": 48, "alert": 168},
-    "sent_back_for_revision": {"normal": 48, "alert": 168},
-}
-
 DM_ACTIONS: dict[str, str] = {
     "screening_pending": "Pass or reject screening",
     "attachment_sync_pending": "Trigger attachment sync",
@@ -147,7 +132,7 @@ DM_ACTIONS: dict[str, str] = {
     "ready_for_coding": "Allocate coders or check capacity",
     "coding_in_progress": "Check coder allocation timeout",
     "coder_step1_saved": "Coder should return to complete",
-    "coder_finalized": "Auto-progresses to reviewer_eligible after 24h",
+    "coder_finalized": "Auto-progresses to reviewer_eligible after the recode window",
     "reviewer_eligible": "Assign reviewers or leave as-is",
     "reviewer_coding_in_progress": "Check reviewer allocation timeout",
     "finalized_upstream_changed": "Accept or reject upstream change",
@@ -181,30 +166,19 @@ def _state_counts(scope: DmScope) -> dict[str, int]:
     return {r["state"]: r["count"] for r in rows}
 
 
-def _coder_finalized_24h_split(scope: DmScope) -> dict:
-    """Return within_24h and beyond_24h counts for coder_finalized."""
-    row = db.session.execute(
-        sa.text(f"""
-            SELECT
-                COUNT(*) FILTER (
-                    WHERE w.workflow_updated_at >= NOW() - INTERVAL '24 hours'
-                ) AS within_24h,
-                COUNT(*) FILTER (
-                    WHERE w.workflow_updated_at < NOW() - INTERVAL '24 hours'
-                ) AS beyond_24h
-            FROM va_submission_workflow w
-            JOIN va_submissions s ON s.va_sid = w.va_sid
-            JOIN va_forms f ON f.form_id = s.va_form_id
-            WHERE {scope.sql()}
-              AND {_IN_ODK_SQL}
-              AND {_NOT_DUPLICATE_SQL}
-              AND w.workflow_state = 'coder_finalized'
-        """),
-        {**IN_ODK_BIND, **scope.params},
-    ).mappings().first()
+def _coder_finalized_split(scope: DmScope) -> dict:
+    """within/beyond the project's recode window for coder_finalized (C-07)."""
+    from app.routes.api.dm_kpi.dm_kpi_pipeline import compute_c07  # pipeline imports this module
+
+    row = next(
+        (r for r in compute_c07(scope, by="state")["states"] if r["state"] == "coder_finalized"),
+        {},
+    )
     return {
-        "within_24h": row["within_24h"] or 0,
-        "beyond_24h": row["beyond_24h"] or 0,
+        "within_window": row.get("within_window", 0),
+        "beyond_window": row.get("beyond_window", 0),
+        "within_24h": row.get("within_24h", 0),
+        "beyond_24h": row.get("gt_24h", 0),
     }
 
 
@@ -222,7 +196,7 @@ def flowchart():
         → Excluded: Consent Refused + Not Codeable (DM)
         → Eligible for Coding
             → Excluded: Not Codeable (Coder)
-            → Coded [within 24h / beyond 24h]
+            → Coded [within / beyond the recode window]
                 → Reviewed
     """
     scope = dm_scope()
@@ -232,7 +206,7 @@ def flowchart():
     def compute():
         counts = _state_counts(scope)
         total = sum(counts.values())
-        split = _coder_finalized_24h_split(scope)
+        split = _coder_finalized_split(scope)
 
         # Counts per group
         consent_refused = counts.get("consent_refused", 0)
@@ -263,8 +237,6 @@ def flowchart():
 
         # coder_finalized breakdown
         coder_finalized = counts.get("coder_finalized", 0)
-        within_24h = split["within_24h"]
-        beyond_24h = split["beyond_24h"]
 
         return {
             "total_synced": total,
@@ -283,8 +255,9 @@ def flowchart():
                 "coded": coded,
                 "coder_finalized": {
                     "total": coder_finalized,
-                    "within_24h": within_24h,
-                    "beyond_24h": beyond_24h,
+                    # within_24h / beyond_24h stay one release for the Expo client
+                    # (docs/policy/kpis.md, Recode window).
+                    **split,
                 },
                 "upstream_changed": upstream_changed,
                 "sent_back": sent_back,
@@ -414,110 +387,24 @@ def state_velocity():
 @bp.get("/stagnation")
 @role_required("data_manager", "admin")
 def stagnation():
-    """KPI: D-WF-03 — State Stagnation Alerts.
+    """KPI: D-WF-03 — State Stagnation Alerts, thin wrapper over ``compute_c07(by="state")``.
 
-    Submissions stuck in non-terminal states beyond configurable thresholds.
-    Returns per-state counts with age buckets and alert levels.
+    Thresholds are ``C07_STATE_THRESHOLDS``; coder_finalized alerts after the
+    project's recode window. reviewer_eligible is left out of the totals.
     """
+    from app.routes.api.dm_kpi.dm_kpi_pipeline import compute_c07  # pipeline imports this module
+
     scope = dm_scope()
     if not scope:
         return jsonify({"alerts": [], "total_stagnant_gt_48h": 0, "total_stagnant_gt_7d": 0})
 
     def compute():
-        # Stored states to scan; the virtual key lives inside finalized_upstream_changed.
-        non_terminal = [k for k in STAGNATION_THRESHOLDS if k != SENT_BACK_FOR_REVISION]
-
-        rows = db.session.execute(
-            sa.text(f"""
-                SELECT
-                    {effective_workflow_state_sql("w")} AS state,
-                    COUNT(*) AS total,
-                    COUNT(*) FILTER (
-                        WHERE w.workflow_updated_at < NOW() - INTERVAL '2 hours'
-                    ) AS gt_2h,
-                    COUNT(*) FILTER (
-                        WHERE w.workflow_updated_at < NOW() - INTERVAL '24 hours'
-                    ) AS gt_24h,
-                    COUNT(*) FILTER (
-                        WHERE w.workflow_updated_at < NOW() - INTERVAL '48 hours'
-                    ) AS gt_48h,
-                    COUNT(*) FILTER (
-                        WHERE w.workflow_updated_at < NOW() - INTERVAL '7 days'
-                    ) AS gt_7d,
-                    COUNT(*) FILTER (
-                        WHERE w.workflow_updated_at < NOW() - INTERVAL '30 days'
-                    ) AS gt_30d,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (
-                        ORDER BY EXTRACT(EPOCH FROM (NOW() - w.workflow_updated_at))
-                    ) AS p50_age_seconds,
-                    MAX(EXTRACT(EPOCH FROM (NOW() - w.workflow_updated_at))) AS max_age_seconds
-                FROM va_submission_workflow w
-                JOIN va_submissions s ON s.va_sid = w.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND w.workflow_state = ANY(:non_terminal)
-                GROUP BY 1
-                ORDER BY gt_7d DESC
-            """),
-            {**IN_ODK_BIND, **scope.params, "non_terminal": non_terminal},
-        ).mappings().all()
-
-        alerts = []
-        total_gt_48h = 0
-        total_gt_7d = 0
-
-        for r in rows:
-            state = r["state"]
-            thresholds = STAGNATION_THRESHOLDS.get(state, {})
-            p50_s = r["p50_age_seconds"] or 0
-            gt_7d = r["gt_7d"] or 0
-            gt_48h = r["gt_48h"] or 0
-
-            # Determine alert level
-            if thresholds.get("critical") and gt_7d > 0:
-                level = "critical"
-            elif thresholds.get("alert") and gt_48h > 0:
-                level = "warning"
-            elif state == "coder_finalized":
-                # Special: within 24h is normal recode window
-                gt_24h_val = r["gt_24h"] or 0
-                level = "info" if gt_24h_val == 0 else "warning"
-            elif thresholds.get("alert") is None:
-                level = "normal"  # e.g., reviewer_eligible
-            else:
-                level = "normal"
-
-            alert: dict = {
-                "state": state,
-                "label": STATE_LABELS.get(state, state),
-                "total": r["total"] or 0,
-                "gt_48h": gt_48h,
-                "gt_7d": gt_7d,
-                "gt_30d": r["gt_30d"] or 0,
-                "p50_age_hours": round(p50_s / 3600, 1) if p50_s else 0,
-                "alert_level": level,
-                "dm_action": DM_ACTIONS.get(state, ""),
-            }
-
-            # Special sub-phases for coder_finalized
-            if state == "coder_finalized":
-                alert["within_24h"] = (r["total"] or 0) - (r["gt_24h"] or 0)
-                alert["gt_24h"] = r["gt_24h"] or 0
-                alert["note"] = "Within 24h is normal recode window"
-
-            alerts.append(alert)
-
-            # Skip reviewer_eligible from global stagnation counts
-            if state != "reviewer_eligible":
-                total_gt_48h += gt_48h
-                total_gt_7d += gt_7d
-
+        alerts = compute_c07(scope, by="state")["states"]
+        counted = [a for a in alerts if a["state"] != "reviewer_eligible"]
         return {
             "alerts": alerts,
-            "total_stagnant_gt_48h": total_gt_48h,
-            "total_stagnant_gt_7d": total_gt_7d,
+            "total_stagnant_gt_48h": sum(a["gt_48h"] for a in counted),
+            "total_stagnant_gt_7d": sum(a["gt_7d"] for a in counted),
         }
 
     return jsonify(cached_kpi("stagnation", compute))

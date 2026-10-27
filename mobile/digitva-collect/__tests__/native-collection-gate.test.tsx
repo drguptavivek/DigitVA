@@ -1,5 +1,5 @@
 import React from "react";
-import { act, create } from "react-test-renderer";
+import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 let mockPathname = "/case";
 let mockParams: Record<string, string> = { userId: "worker" };
@@ -39,6 +39,8 @@ jest.mock("../src/interviewerDb", () => ({
   unsentWorkCount: (userId: string) => mockUnsentCount(userId),
 }));
 jest.mock("../src/sync", () => ({ uploadQueuedWork: (...args: unknown[]) => mockUpload(...(args as [])) }));
+let mockPlus = false;
+jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -80,6 +82,7 @@ import BrowserCollectionGate from "../src/NativeCollectionGate";
 import WorkspaceScreen from "../src/web/WorkspaceScreen";
 
 beforeEach(() => {
+  mockPlus = false;
   mockPathname = "/case";
   mockParams = { userId: "worker" };
   mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false }];
@@ -116,6 +119,22 @@ it("tells a coder-only account on the phone to code in the web app", async () =>
   expect(output).not.toContain("worklist");
   expect(tree.root.findAllByProps({ label: "navCoding" })).toHaveLength(0);
   expect(tree.root.findAllByProps({ label: "navReview" })).toHaveLength(0);
+  await act(async () => tree.unmount());
+});
+
+it("sends a QR-signed-in coder on Collect Plus to the coding screens, not the interviewer worklist", async () => {
+  mockPlus = true;
+  mockPathname = "/worklist";
+  mockState.accounts = [{ user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: true, reviewing_access: false }];
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<NativeCollectionGate>worklist</NativeCollectionGate>); });
+  const output = JSON.stringify(tree.toJSON());
+  expect(output).not.toContain("codingOnWeb");
+  expect(output).not.toContain("worklist");
+  await act(async () => tree.root.findByProps({ label: "Coding queue" }).props.onPress());
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/coding", params: { userId: "worker" } });
+  await act(async () => tree.root.findByProps({ label: "Offline coding" }).props.onPress());
+  expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/offline-coding", params: { userId: "worker" } });
   await act(async () => tree.unmount());
 });
 

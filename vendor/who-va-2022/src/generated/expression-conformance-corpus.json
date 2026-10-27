@@ -16239,6 +16239,67 @@
           "currentValue": null,
           "data": {},
           "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": [],
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": [
+            "disability"
+          ],
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": [
+            "disability",
+            "homeless"
+          ],
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": [
+            "not_a_real_choice"
+          ],
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "current_value_omitted"
+        }
+      ],
+      "parseError": null,
+      "source": "not(selected(., 'none') and count-selected(.) > 1) and not(selected(., 'dk') and count-selected(.) > 1) and not(selected(., 'ref') and count-selected(.) > 1)"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
           "result": false,
           "resultIsNaN": false,
           "scenario": "missing"
@@ -16530,6 +16591,60 @@
       ],
       "parseError": null,
       "source": "selected(${Id10008}, 'child')  and (selected(${isNeonatal}, '1') or selected(${isChild}, '1'))"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "yes"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "no"
+          },
+          "error": null,
+          "result": true,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10013": "not_a_real_choice"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${Id10013}, 'no')"
     },
     {
       "cases": [
@@ -21351,6 +21466,75 @@
       ],
       "parseError": null,
       "source": "selected(${isAdult}, '1') and (${Id10019} = 'female' or ${Id10019} = 'undetermined')"
+    },
+    {
+      "cases": [
+        {
+          "currentValue": null,
+          "data": {},
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "missing"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10019": "",
+            "isAdult": ""
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_0"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10019": "female",
+            "isAdult": "hello world"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_1"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10019": "male",
+            "isAdult": "0"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_2"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10019": "not_a_real_choice",
+            "isAdult": "  "
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "candidate_3"
+        },
+        {
+          "currentValue": null,
+          "data": {
+            "Id10019": "female",
+            "isAdult": "0"
+          },
+          "error": null,
+          "result": false,
+          "resultIsNaN": false,
+          "scenario": "shifted"
+        }
+      ],
+      "parseError": null,
+      "source": "selected(${isAdult}, '1') and selected(${Id10019}, 'female')"
     },
     {
       "cases": [

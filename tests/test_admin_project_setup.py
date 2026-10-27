@@ -102,6 +102,17 @@ class ProjectSetupPanelTests(BaseTestCase):
         # One form, not a copy: the Projects panel's form ids appear once.
         self.assertEqual(body.count('id="project-name-input"'), 1)
 
+    def test_the_web_form_switches_sit_together_and_equity_starts_off(self):
+        body = self._setup_body()
+        death = body.index('id="project-web-intake-death-summary-input"')
+        records = body.index('id="project-web-intake-medical-records-input"')
+        equity = body.index('id="project-web-intake-equity-input"')
+        self.assertLess(death, records)
+        self.assertLess(records, equity)
+        tag = body[equity:body.index(">", equity)]
+        self.assertNotIn("checked", tag)
+        self.assertIn("web_intake_equity_enabled: equityInput.checked", body)
+
     def test_the_projects_panel_itself_is_not_locked(self):
         self._login(self.base_admin_id)
         body = self.client.get("/admin/panels/projects").get_data(as_text=True)

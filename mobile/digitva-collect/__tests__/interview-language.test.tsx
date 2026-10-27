@@ -73,6 +73,7 @@ jest.mock("../src/client/serverDraftStore", () => ({
       flush: mockServerFlush,
       getLocaleMetadata: () => ({}),
       getServerUpdatedAt: () => "revision-1",
+      isSignedOut: () => false,
       restoreLocaleMetadata: jest.fn(),
       setLocaleMetadata: jest.fn(),
     });

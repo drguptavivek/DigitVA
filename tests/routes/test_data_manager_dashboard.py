@@ -4,7 +4,7 @@ import json
 import uuid
 import re
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -43,6 +43,7 @@ from app.models import (
     VaFinalAssessments,
     VaSmartvaResults,
     VaSubmissionWorkflow,
+    VaDeathRegister,
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -1667,6 +1668,233 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(row["org_unit_code"], "P01")
         self.assertEqual(row["org_unit_name"], "PHC One")
         self.assertEqual(row["org_unit_level_path"], "District One / PHC One")
+
+    def _extra_submission(self, state, *, unit=None, note=False, died=None):
+        """A submission on this class's in-scope form in *state*, optionally
+        routed to *unit*, carrying a visit note, and with a case dated *died*."""
+        from app.services.submission_payload_version_service import ensure_active_payload_version
+
+        sid = f"uuid:dm-extra-{uuid.uuid4().hex[:8]}"
+        now = datetime.now(timezone.utc)
+        submission = VaSubmissions(
+            va_sid=sid, va_form_id=self.FORM_ID, va_submission_date=now, va_odk_updatedat=now,
+            va_data_collector="Collector", va_instance_name=sid, va_uniqueid_real=sid,
+            va_uniqueid_masked=f"masked-{sid[-8:]}", va_consent="no" if note else "yes",
+            va_narration_language="English", va_deceased_age=40, va_deceased_gender="male",
+            va_summary=[], va_catcount={}, va_category_list=[],
+            org_unit_id=unit.org_unit_id if unit else None,
+            org_unit_resolution="manual" if unit else None,
+        )
+        db.session.add(submission)
+        db.session.flush()
+        db.session.add(VaSubmissionWorkflow(
+            va_sid=sid, workflow_state=state, workflow_reason="test_seed",
+            workflow_updated_by_role="vasystem",
+        ))
+        if note:
+            ensure_active_payload_version(
+                submission, payload_data={"visit_date": "2026-10-01", "visit_address": "Hut 1"}
+            )
+        if died is not None:
+            db.session.add(VaDeathRegister(
+                project_id=self.BASE_PROJECT_ID, site_id=self.BASE_SITE_ID,
+                death_number=int(uuid.uuid4().int % 10**9), unique_id=f"DOD-{sid[-8:]}",
+                deceased_name="Test Person", has_deceased_name=True, deceased_sex="male",
+                date_of_death=died, registered_by=self.dm_user.user_id,
+                status="submitted", source="odk", va_sid=sid,
+            ))
+        db.session.flush()
+        return sid
+
+    def test_kpi_cards_count_exactly_the_states_their_list_filter_shows(self):
+        """digitva-l945: Not Codeable (DM) is DM-only and Coded leaves out
+        finalized_upstream_changed. Pending is the 6 PENDING_STATES in both."""
+        from app.services.workflow.definition import (
+            WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+            WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER,
+            WORKFLOW_SCREENING_PENDING,
+        )
+
+        # SID (not_codeable_by_coder) is already seeded: the card must skip it.
+        self._extra_submission(WORKFLOW_NOT_CODEABLE_BY_DATA_MANAGER)
+        self._extra_submission(WORKFLOW_CODER_FINALIZED)
+        self._extra_submission(WORKFLOW_FINALIZED_UPSTREAM_CHANGED)
+        self._extra_submission(WORKFLOW_SCREENING_PENDING)
+        self._extra_submission(WORKFLOW_READY_FOR_CODING)
+        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_card_list")
+        self._login(self.dm_user_id)
+
+        kpi = self.client.get("/api/v1/data-management/kpi?probe=cards").get_json()
+        for card, workflow in (
+            ("flagged_submissions", "not_codeable_by_data_manager"),
+            ("coded_submissions", "coded"),
+        ):
+            listed = self.client.get(
+                f"/api/v1/data-management/submissions?workflow={workflow}&size=100"
+            ).get_json()
+            # Subject present first: a zero on both sides would prove nothing.
+            self.assertGreaterEqual(listed["total"], 1, workflow)
+            self.assertEqual(kpi[card], listed["total"], workflow)
+        self.assertEqual(kpi["flagged_submissions"], 1)
+        self.assertEqual(kpi["coded_submissions"], 1)
+
+    def test_pending_card_equals_the_pending_coding_list_with_all_six_states(self):
+        """Owner decision 2026-10-27: Pending is PENDING_STATES for card and list."""
+        from app.services.workflow.definition import PENDING_STATES
+
+        for state in PENDING_STATES:
+            self._extra_submission(state)
+        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_pending_six")
+        self._login(self.dm_user_id)
+
+        kpi = self.client.get("/api/v1/data-management/kpi?probe=pending").get_json()
+        listed = self.client.get(
+            "/api/v1/data-management/submissions?workflow=pending_coding&size=100"
+        ).get_json()
+        self.assertGreaterEqual(listed["total"], len(PENDING_STATES))
+        self.assertEqual(kpi["pending_submissions"], listed["total"])
+        states = {row["workflow_state"] for row in listed["data"] if "workflow_state" in row}
+        if states:
+            self.assertTrue(set(PENDING_STATES) <= states)
+
+    def test_death_date_filter_reaches_list_cards_and_exports(self):
+        """digitva-yeg3.26: death_from/death_to filter list, cards and CSV from the case."""
+        inside = self._extra_submission(WORKFLOW_READY_FOR_CODING, died=date(2026, 5, 10))
+        before = self._extra_submission(WORKFLOW_READY_FOR_CODING, died=date(2026, 1, 1))
+        no_case = self._extra_submission(WORKFLOW_READY_FOR_CODING)
+        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_death_filter")
+        self._login(self.dm_user_id)
+        base = "/api/v1/data-management"
+        query = "death_from=2026-05-01&death_to=2026-05-31"
+
+        unfiltered = self.client.get(f"{base}/submissions?size=100").get_json()
+        self.assertTrue({inside, before, no_case} <= {r["va_sid"] for r in unfiltered["data"]})
+        listed = {r["va_sid"] for r in self.client.get(f"{base}/submissions?{query}&size=100").get_json()["data"]}
+        self.assertIn(inside, listed)
+        self.assertNotIn(before, listed)
+        self.assertNotIn(no_case, listed)
+        self.assertEqual(self.client.get(f"{base}/kpi?{query}").get_json()["total_submissions"], 1)
+
+        def exported(q):
+            body = self.client.get(f"{base}/submissions/export.csv?{q}").get_data(as_text=True).lstrip("\ufeff")
+            return {row.get("va_sid") or row.get("sid") for row in csv.DictReader(io.StringIO(body))}
+
+        self.assertTrue({inside, before, no_case} <= exported("probe=all"))
+        found = exported(query)
+        self.assertIn(inside, found)
+        self.assertNotIn(before, found)
+        self.assertNotIn(no_case, found)
+
+    def test_kpi_and_exports_respect_org_unit_subtree_and_visit_note(self):
+        """digitva-yeg3.26: org_unit (subtree) and visit_note reach the cards
+        and every CSV export through the shared filter builders."""
+        district, phc = self._org_tree()
+        inside = self._extra_submission(WORKFLOW_READY_FOR_CODING, unit=phc, note=True)
+        outside = self._extra_submission(WORKFLOW_READY_FOR_CODING)
+        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_unit_filter")
+        self._login(self.dm_user_id)
+        base = "/api/v1/data-management"
+
+        def sids(path, query):
+            response = self.client.get(f"{base}/{path}?{query}")
+            self.assertEqual(response.status_code, 200)
+            body = response.get_data(as_text=True).lstrip("\ufeff")
+            return {row.get("va_sid") or row.get("sid") for row in csv.DictReader(io.StringIO(body))}
+
+        unit_query = f"org_unit={district.org_unit_id}"
+        # The unfiltered export holds both, so absence below is meaningful.
+        everything = sids("submissions/export.csv", "probe=all")
+        self.assertTrue({inside, outside} <= everything)
+        for query in (unit_query, "visit_note=1"):
+            found = sids("submissions/export.csv", query)
+            self.assertIn(inside, found, query)
+            self.assertNotIn(outside, found, query)
+            self.assertEqual(self.client.get(f"{base}/kpi?{query}").get_json()["total_submissions"], 1, query)
+        # An unrelated unit id (nothing routed there) matches nothing.
+        other = self.client.get(f"{base}/kpi?org_unit={uuid.uuid4()}").get_json()
+        self.assertEqual(other["total_submissions"], 0)
+        # The other export kinds take the same filters without error.
+        for path in (
+            "submissions/export-coded-cod-snapshot.csv",
+            "submissions/export-smartva-input.csv",
+            "submissions/export-smartva-results.csv",
+            "submissions/export-smartva-likelihoods.csv",
+        ):
+            self.assertEqual(
+                self.client.get(f"{base}/{path}?{unit_query}&visit_note=1").status_code, 200, path
+            )
+
+    def test_project_site_and_org_unit_stats_narrow_with_visit_note_and_org_unit(self):
+        """The chart behind /project-site-submissions takes the same two filters as the cards."""
+        district, phc = self._org_tree()
+        self._extra_submission(WORKFLOW_READY_FOR_CODING, unit=phc, note=True)
+        self._extra_submission(WORKFLOW_READY_FOR_CODING)
+        db.session.commit()
+        self._create_analytics_mvs("ix_test_dm_stats_filters")
+        self._login(self.dm_user_id)
+        url = "/api/v1/data-management/project-site-submissions"
+
+        def total(**query):
+            stats = self.client.get(url, query_string=query).get_json()["stats"]
+            return sum(row["total_submissions"] for row in stats)
+
+        for grouping in ({}, {"group_by": "org_unit", "project": self.BASE_PROJECT_ID}):
+            everything = total(**grouping)
+            # Subject present: the filter must have something to remove.
+            self.assertGreaterEqual(everything, 2, grouping)
+            if grouping:
+                # org_unit rows count each submission once per ancestor; read the district row.
+                stats = self.client.get(url, query_string=grouping).get_json()["stats"]
+                self.assertTrue(any(r["org_unit_id"] == str(district.org_unit_id) for r in stats))
+            for narrow in ({"visit_note": "1"}, {"org_unit": str(district.org_unit_id)}):
+                narrowed = self.client.get(url, query_string={**grouping, **narrow}).get_json()["stats"]
+                if grouping:
+                    row = next(r for r in narrowed if r["org_unit_id"] == str(district.org_unit_id))
+                    self.assertEqual(row["total_submissions"], 1, (grouping, narrow))
+                else:
+                    self.assertEqual(sum(r["total_submissions"] for r in narrowed), 1, narrow)
+                    self.assertLess(1, everything)
+            self.assertEqual(total(**{**grouping, "org_unit": str(uuid.uuid4())}), 0)
+
+    def test_filter_options_offer_only_org_units_in_scope(self):
+        from app.models.mas_organization import MasOrgLevel, MasOrgUnit
+
+        district, phc = self._org_tree()
+        routed = db.session.get(VaSubmissions, self.SID)
+        routed.org_unit_id, routed.org_unit_resolution = phc.org_unit_id, "manual"
+        out_level = MasOrgLevel(
+            project_id=self.OUT_PROJECT_ID, level_code="district", level_name="District", depth=1
+        )
+        db.session.add(out_level)
+        db.session.flush()
+        out_unit = MasOrgUnit(
+            org_unit_id=uuid.uuid4(), project_id=self.OUT_PROJECT_ID,
+            org_level_id=out_level.org_level_id, unit_code="OUT1", unit_name="Out Unit", path="OUT1",
+        )
+        db.session.add(out_unit)
+        db.session.flush()
+        out_routed = db.session.get(VaSubmissions, self.OUT_SID)
+        out_routed.org_unit_id, out_routed.org_unit_resolution = out_unit.org_unit_id, "manual"
+        db.session.commit()
+        self._login(self.dm_user_id)
+
+        options = self.client.get("/api/v1/data-management/filter-options").get_json()
+        units = options["org_units"]
+        self.assertIs(options["org_units_truncated"], False)
+
+        offered = {u["org_unit_id"] for u in units}
+        self.assertEqual(offered, {str(district.org_unit_id), str(phc.org_unit_id)})
+        self.assertNotIn(str(out_unit.org_unit_id), offered)
+
+        # At the cap the list is cut and says so (two units are offered, the cap is one).
+        with patch("app.services.data_management_service._ORG_UNIT_OPTIONS_LIMIT", 1):
+            capped = self.client.get("/api/v1/data-management/filter-options").get_json()
+        self.assertEqual(len(capped["org_units"]), 1)
+        self.assertIs(capped["org_units_truncated"], True)
 
     def test_submissions_export_csv_leaves_org_unit_columns_blank_when_unrouted(self):
         submission = db.session.get(VaSubmissions, self.SID)

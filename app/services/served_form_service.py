@@ -7,10 +7,10 @@ from the server"). ``app/data/who-va-2022.composed.json`` is built by
 extension contributes tagged ``extensions: [..]``. A project's definition is
 that file minus the items whose tags are all disabled for the project -- no
 Node process in the request path, and the build proves the result equals the
-package's own ``createWhoVa2022Instrument`` for all 2^5 extension subsets.
+package's own ``createWhoVa2022Instrument`` for all 2^6 extension subsets.
 
 Speed: the file is parsed once per process; each distinct set of enabled
-conditional extensions (at most 32) is filtered and serialized once, and the
+conditional extensions (at most 64) is filtered and serialized once, and the
 request path is a dict lookup plus the cached bytes. The ETag is the bytes'
 SHA-256, so a client revalidates for free.
 
@@ -156,7 +156,7 @@ def _served(full: dict, enabled: frozenset[str]) -> ServedDefinition:
     )
 
 
-@lru_cache(maxsize=32)  # at most 2^5 conditional-extension sets
+@lru_cache(maxsize=64)  # at most 2^6 conditional-extension sets
 def _serve_current(enabled: frozenset[str]) -> ServedDefinition:
     return _served(composed_definition(), enabled)
 

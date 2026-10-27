@@ -45,7 +45,9 @@ function codingRow(overrides: Partial<OfflineCodingRow> = {}): OfflineCodingRow 
     ucod_uri: "http://id.who.int/icd/entity/1",
     status: "coded",
     coder_profile_updated_at: "2026-10-26T09:00:00.000+05:30",
+    provenance: null,
     device_uuid: "device-uuid-1",
+    answers_sha256: "c".repeat(64),
     created_at: "2026-10-26T09:00:00.000+05:30",
     updated_at: "2026-10-26T09:00:00.000+05:30",
     ...overrides,
@@ -76,8 +78,22 @@ describe("offline_coding migration", () => {
     expect(columns.map((column) => column.name)).toEqual([
       "id", "client_draft_id", "certificate", "result", "codedit_result", "process_token",
       "certificate_digest", "result_digest", "ucod_code", "ucod_uri", "status",
-      "coder_profile_updated_at", "device_uuid", "created_at", "updated_at",
+      "coder_profile_updated_at", "device_uuid", "created_at", "updated_at", "provenance", "answers_sha256",
     ]);
+  });
+
+  it("adds provenance to a store created before it, keeping its rows", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await db.execAsync("ALTER TABLE offline_coding DROP COLUMN provenance");
+    await db.runAsync(
+      "INSERT INTO offline_coding (client_draft_id, certificate, process_token, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+      ["old", "{}", "local-0", "coded", "2026-10-26T09:00:00.000+05:30", "2026-10-26T09:00:00.000+05:30"],
+    );
+    await migrate(db);
+    expect((await getOfflineCoding(db, "old"))?.provenance).toBeNull();
+    await saveOfflineCoding(db, codingRow({ provenance: JSON.stringify({ allowability: { rules: "2026-01+abc" } }) }));
+    expect((await getOfflineCoding(db, "draft-1"))?.provenance).toBe(JSON.stringify({ allowability: { rules: "2026-01+abc" } }));
   });
 
   it("rejects a status outside draft/coded/rejected", async () => {

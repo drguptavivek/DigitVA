@@ -4,6 +4,7 @@ import { ActivityIndicator, Platform, Pressable, Text, View } from "react-native
 
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
+import { homeRoute } from "../standalone/home";
 import { isUnlocked } from "../interviewerDb";
 import DemoPanel from "../DemoPanel";
 import { Button, Screen, useUiStyles } from "../ui";
@@ -16,11 +17,12 @@ export default function Home() {
   // The context value changes on every lock and unlock, so this re-renders.
   const { ready, device, accounts } = useAppState();
   if (!ready) return <ActivityIndicator style={{ flex: 1 }} />;
-  if (!device) return <Redirect href="/enrol" />;
+  const standalone = accounts.some((account) => account.standalone);
+  if (!device && !standalone) return <Redirect href="/enrol" />;
   return (
     <Screen title={t("accountsTitle")}>
-      <Text style={styles.muted}>{device.project_name}</Text>
-      <DemoPanel server={device.server} />
+      {device ? <Text style={styles.muted}>{device.project_name}</Text> : null}
+      {device ? <DemoPanel server={device.server} /> : null}
       {accounts.length === 0 ? <Text style={styles.text}>{t("accountsEmpty")}</Text> : null}
       {accounts.map((account) => (
         <View key={account.user_id} style={{ gap: 8 }}>
@@ -29,7 +31,7 @@ export default function Home() {
             style={styles.card}
             onPress={() =>
               router.push({
-                pathname: isUnlocked(account.user_id) ? "/worklist" : "/unlock",
+                pathname: isUnlocked(account.user_id) ? homeRoute(account) : "/unlock",
                 params: { userId: account.user_id }
               })
             }
@@ -40,6 +42,8 @@ export default function Home() {
             </Text>
             {account.access_removed ? <Text style={styles.error}>{t("accessRemovedKept")}</Text> : null}
             {account.needs_sign_in ? <Text style={styles.muted}>{t("signInAgain")}</Text> : null}
+            {/* Path C adoption is offered on the standalone home, behind its PIN. */}
+            {device && account.standalone ? <Text style={styles.muted}>{t("standaloneAdoptHint", { name: account.name })}</Text> : null}
           </Pressable>
           {/* Sign-in keeps this account's store; sign-out would wipe it. */}
           {account.needs_sign_in ? (
@@ -52,7 +56,7 @@ export default function Home() {
         </View>
       ))}
       <View style={{ gap: 8 }}>
-        <Button label={t("addInterviewer")} onPress={() => router.push("/sign-in")} />
+        {device ? <Button label={t("addInterviewer")} onPress={() => router.push("/sign-in")} /> : <Button label={t("standaloneEnrol")} onPress={() => router.push("/enrol")} />}
         <Button kind="secondary" label={t("settings")} onPress={() => router.push("/settings")} />
       </View>
     </Screen>

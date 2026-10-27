@@ -938,7 +938,7 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
 
 def _allocation_exists() -> AllocationError:
     return AllocationError(
-        "You already have an active coding allocation.", code="allocation_exists"
+        "You already have an active coding allocation.", 409, code="allocation_exists"
     )
 
 
@@ -1059,7 +1059,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
                 )
                 db.session.commit()
             return AllocationResult(va_sid=va_sid, actiontype="varesumecoding")
-        raise AllocationError("You already have an active coding allocation.")
+        raise _allocation_exists()
 
     _require_coder_access(user, va_sid, Action.RECODE)
 
@@ -1107,7 +1107,7 @@ def start_recode_allocation(user, va_sid: str) -> AllocationResult:
                 va_allocation_training=training_scope.is_training_sid(va_sid),
             ))
     except ActiveAllocationHeld:
-        raise AllocationError("You already have an active coding allocation.") from None
+        raise _allocation_exists() from None
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
         va_audit_byrole="vacoder",

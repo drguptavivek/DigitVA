@@ -311,6 +311,14 @@ def create_app(config_class=None, register_routes=True):
         view = app.view_functions.get(request.endpoint)
         if f"{view.__module__}.{view.__name__}" in csrf._exempt_views:
             return None
+        # A dead cookie session on /api/v1 is a sign-in problem, not a CSRF
+        # one: answer 401 so the client re-authenticates (digitva-fvbc).
+        if (
+            request.path.startswith("/api/v1/")
+            and not request.path.startswith("/api/v1/doris-demo/")
+            and not current_user.is_authenticated
+        ):
+            return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
         csrf.protect()
         return None
     
@@ -400,7 +408,6 @@ def create_app(config_class=None, register_routes=True):
     from app import models #noqa
     from app import services #noqa
     from app import utils #noqa
-    from app.tasks import kpi_tasks #noqa
     from app.tasks import ui_string_tasks #noqa
     from app.tasks import instrument_translation_tasks #noqa
 
@@ -432,9 +439,6 @@ def create_app(config_class=None, register_routes=True):
 
     from app.commands.payload_backfill import init_app as init_payload_backfill_commands
     init_payload_backfill_commands(app)
-
-    from app.commands.kpi import init_app as init_kpi_commands
-    init_kpi_commands(app)
 
     from app.commands.cod_buckets import init_app as init_cod_bucket_commands
     init_cod_bucket_commands(app)

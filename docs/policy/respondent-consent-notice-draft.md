@@ -316,7 +316,7 @@ record informant details on the phone.
   screen needs only that copy, so it works offline. A notice whose
   `text_sha256` does not match its text, or a config with an unknown
   `refusal_behaviour`, is treated as no usable notice; there is no fallback
-  to a built-in text (the unprovisioned sandbox project excepted).
+  to a built-in text (the unprovisioned sandbox project and the standalone notice of "Standalone notice" below excepted).
 - **Registration.** The informant name, phone and address fields stay closed
   until a decision is recorded on the registration screen: the notice in the
   app language (switchable), one toggle per purpose, how consent was given
@@ -454,6 +454,49 @@ or data manager, as under "Withdrawal" in the consent bead.
   address are saved; the interview reuses that record and asks again only
   when the informant is a different person.
 
+## Standalone notice (Collect Plus Path C; owner decision 2026-10-27, `digitva-5bzf`)
+
+A Collect Plus phone used without a server
+([Field Data Collection](field-data-collection.md) "Path C") has no consent
+config to fetch, so it records consent against a notice bundled in the app.
+This is the one exception to "never from values built into the app" (the
+Offline app section below) and to
+[Offline API Contract](offline-api-contract.md) 5.6, which that section
+bounds.
+
+- **Source.** The bundled notice is **generated from
+  `app/services/consent_notice_seed.py`**, never written by hand: the same
+  purpose codes and required flags, item 7 included, in English and Hindi. A
+  drift test keeps the bundle equal to the seed, as `tests/services/test_consent_notice_seed.py`
+  keeps the seed equal to this draft.
+- **Placeholders.** `[ORGANISATION]`, contacts and the like are filled from
+  the offline profile; how an unfilled placeholder is handled is open point 1.
+  Because the fills change the text, the hash is per deployment.
+- **Item 7 before enrolment.** `narrative_automated_processing` is offered and
+  recorded like any purpose, and its toggle **defaults to "no"** while the
+  phone is not enrolled. A "yes" is stored but acts only if the project
+  later runs the pipeline (see `narrative-ai-processing.md`, which gates on
+  the case's consent record). Whether the item-7 wording may name an
+  organisation the respondent cannot yet reach is a legal question for
+  `digitva-athy` (open point 2).
+- **Push.** The consent object (offline contract 5.3) names a notice version
+  identifier derived from the text hash (`standalone-<sha>`) and the push
+  carries the **full text snapshot** the respondent saw. The server stores it
+  as an append-only, source-flagged notice version for the project and checks
+  the template hash against the platform allowlist; unknown text is flagged
+  (offline contract section 17).
+- **Never edited.** The stored text, hash, language, mode, witness flag, time,
+  device UUID and profile snapshot are never edited; a correction supersedes.
+- **Mobile sandbox alignment (rule).** The sandbox/bundled notice in
+  `mobile/digitva-collect/src/consent.ts` must use the **seed's** purpose
+  codes. The two codes that differ today are renamed to the seed's:
+  `sms_whatsapp_messages` becomes `messages`, and `statistical_reports`
+  becomes `statistics_reports`. The sandbox notice also gains the seed's item
+  7. A code that exists in the app and not in the seed is a defect, caught
+  by the drift test, because a mismatch otherwise fails only at push time.
+- **Open points.** (1) Unfilled-placeholder handling; (2) legal review of the
+  standalone item-7 wording.
+
 ## Offline app
 
 The offline PHC app shows this notice and records the choices at
@@ -465,7 +508,8 @@ taken at the interview start (the `consent` object on
 informant is a different person. Each record names the notice version,
 language and the SHA-256 of the exact text shown, and the station gets the
 notice versions, purposes and district contacts from the signed station
-config, never from values built into the app. See
+config, never from values built into the app (the single exception is the
+standalone notice above, for an unenrolled Collect Plus phone). See
 [offline-bundle-and-transfer.md](offline-bundle-and-transfer.md).
 
 Fixed 2026-10-21 in [offline-api-contract.md](offline-api-contract.md)

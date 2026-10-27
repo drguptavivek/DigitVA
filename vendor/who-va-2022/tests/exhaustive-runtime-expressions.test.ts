@@ -189,10 +189,12 @@ describe("exhaustive WHO VA runtime expressions", () => {
     // carry a constraint (sa09, sa13..sa19), plus the 8 doris_support_whova_2022
     // questions that carry one (dob_month_year, dob_year, doris_hours_survived,
     // doris_injury_date, doris_injury_month_year, doris_mother_age,
-    // doris_pregnancy_weeks, doris_surgery_when). Asserted explicitly rather than
+    // doris_pregnancy_weeks, doris_surgery_when), plus the 2 equity
+    // select_multiple questions whose none/dk/ref are exclusive
+    // (vulnerable_group, health_coverage). Asserted explicitly rather than
     // derived from whoVa2022Instrument, since the count under test is that
     // instrument's own constrained-question count.
-    expect(constrainedQuestions).toHaveLength(111);
+    expect(constrainedQuestions).toHaveLength(113);
 
     for (const question of constrainedQuestions) {
       const data = constraintData(question);

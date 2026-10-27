@@ -43,6 +43,8 @@ _SPA_ROUTE_ROOTS = frozenset(
         "revision",
         "settings",
         "sign-in",
+        "standalone",
+        "standalone-setup",
         "statistics",
         "supervision",
         "training",

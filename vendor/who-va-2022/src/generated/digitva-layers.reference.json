@@ -20,6 +20,123 @@
     },
     {
       "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "EQUITY_YES_NO_DK_REF/dk",
+      "itemKind": "choice",
+      "text": "Don't know"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "EQUITY_YES_NO_DK_REF/no",
+      "itemKind": "choice",
+      "text": "No"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "EQUITY_YES_NO_DK_REF/ref",
+      "itemKind": "choice",
+      "text": "Prefer not to say"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "EQUITY_YES_NO_DK_REF/yes",
+      "itemKind": "choice",
+      "text": "Yes"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/community_mutual",
+      "itemKind": "choice",
+      "text": "Mutual health organisation or community-based insurance"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/dk",
+      "itemKind": "choice",
+      "text": "Don't know"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/employer",
+      "itemKind": "choice",
+      "text": "Other employer-based insurance"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/government_scheme",
+      "itemKind": "choice",
+      "text": "A government health scheme (Ayushman Bharat PM-JAY or a state scheme)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/none",
+      "itemKind": "choice",
+      "text": "No health insurance"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/other",
+      "itemKind": "choice",
+      "text": "Other"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/private",
+      "itemKind": "choice",
+      "text": "Privately purchased commercial insurance"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/ref",
+      "itemKind": "choice",
+      "text": "Prefer not to say"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "HEALTH_COVERAGE/social_security",
+      "itemKind": "choice",
+      "text": "Social security health insurance"
+    },
+    {
+      "extensions": [
         "digitva_core"
       ],
       "field": "label",
@@ -53,6 +170,249 @@
       "itemKey": "INTERVIEW_OUTCOME/respondent_unavailable",
       "itemKind": "choice",
       "text": "Respondent unavailable"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_AGE_GROUP/15_49y",
+      "itemKind": "choice",
+      "text": "15 to 49 years"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_AGE_GROUP/50_64y",
+      "itemKind": "choice",
+      "text": "50 to 64 years"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_AGE_GROUP/65_plus",
+      "itemKind": "choice",
+      "text": "65 years or older"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_AGE_GROUP/child",
+      "itemKind": "choice",
+      "text": "Child (28 days to 14 years)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_AGE_GROUP/neonate",
+      "itemKind": "choice",
+      "text": "Neonate (under 28 days)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_AGE_GROUP/unknown",
+      "itemKind": "choice",
+      "text": "Unknown"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_SEX/female",
+      "itemKind": "choice",
+      "text": "Female"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_SEX/male",
+      "itemKind": "choice",
+      "text": "Male"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "REFUSAL_SEX/unknown",
+      "itemKind": "choice",
+      "text": "Unknown"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "RESIDENCE_TYPE/dk",
+      "itemKind": "choice",
+      "text": "Don't know"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "RESIDENCE_TYPE/rural",
+      "itemKind": "choice",
+      "text": "Rural (village)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "RESIDENCE_TYPE/urban",
+      "itemKind": "choice",
+      "text": "Urban (town or city)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "RESIDENCE_TYPE/urban_slum",
+      "itemKind": "choice",
+      "text": "Urban slum or informal settlement"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "SOCIAL_GROUP/dk",
+      "itemKind": "choice",
+      "text": "Don't know"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "SOCIAL_GROUP/general",
+      "itemKind": "choice",
+      "text": "None of these (general)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "SOCIAL_GROUP/obc",
+      "itemKind": "choice",
+      "text": "Other Backward Class (OBC)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "SOCIAL_GROUP/ref",
+      "itemKind": "choice",
+      "text": "Prefer not to say"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "SOCIAL_GROUP/sc",
+      "itemKind": "choice",
+      "text": "Scheduled Caste (SC)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "SOCIAL_GROUP/st",
+      "itemKind": "choice",
+      "text": "Scheduled Tribe (ST), including PVTG"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/disability",
+      "itemKind": "choice",
+      "text": "A person with a disability (physical, sensory, intellectual or psychosocial)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/displaced",
+      "itemKind": "choice",
+      "text": "Internally displaced person, refugee, asylum seeker or stateless"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/dk",
+      "itemKind": "choice",
+      "text": "Don't know"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/homeless",
+      "itemKind": "choice",
+      "text": "Homeless or destitute"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/migrant",
+      "itemKind": "choice",
+      "text": "Migrant worker, seasonal or from another region"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/none",
+      "itemKind": "choice",
+      "text": "None of these"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/poverty_programme",
+      "itemKind": "choice",
+      "text": "Enrolled in the national poverty or food-security programme (AAY or priority household ration card)"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "VULNERABLE_GROUP/ref",
+      "itemKind": "choice",
+      "text": "Prefer not to say"
     },
     {
       "extensions": [
@@ -1092,6 +1452,15 @@
     },
     {
       "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "health_coverage",
+      "itemKind": "question",
+      "text": "What health insurance did the deceased have? Tick all that apply."
+    },
+    {
+      "extensions": [
         "narration_language"
       ],
       "field": "label",
@@ -1434,6 +1803,42 @@
     },
     {
       "extensions": [
+        "equity"
+      ],
+      "field": "hint",
+      "itemKey": "refusal_age_group",
+      "itemKind": "question",
+      "text": "Record what is already known, or ask only this if the family is willing. Unknown is allowed."
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "refusal_age_group",
+      "itemKind": "question",
+      "text": "Age group of the deceased"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "refusal_sex",
+      "itemKind": "question",
+      "text": "Sex of the deceased"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "residence_type",
+      "itemKind": "question",
+      "text": "Was the place where the deceased usually lived rural, urban or an urban slum?"
+    },
+    {
+      "extensions": [
         "social_autopsy"
       ],
       "field": "label",
@@ -1731,6 +2136,24 @@
     },
     {
       "extensions": [
+        "equity"
+      ],
+      "field": "hint",
+      "itemKey": "social_group",
+      "itemKind": "question",
+      "text": "Ask neutrally. Never infer the answer from name, surname or appearance."
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "social_group",
+      "itemKind": "question",
+      "text": "Which of these groups did the deceased belong to?"
+    },
+    {
+      "extensions": [
         "social_autopsy"
       ],
       "field": "label",
@@ -1782,6 +2205,69 @@
       "itemKey": "visit_remarks",
       "itemKind": "question",
       "text": "Remarks"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "hint",
+      "itemKey": "vulnerable_group",
+      "itemKind": "question",
+      "text": "Ask neutrally. Never infer the answer from name, surname or appearance."
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "vulnerable_group",
+      "itemKind": "question",
+      "text": "Did any of these apply to the deceased? Tick all that apply."
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "vulnerable_group_child_no_care",
+      "itemKind": "question",
+      "text": "Was the deceased a child without parental care?"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "vulnerable_group_custody",
+      "itemKind": "question",
+      "text": "Was the deceased in prison or custody at the time of death?"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "vulnerable_group_elderly_alone",
+      "itemKind": "question",
+      "text": "Was the deceased an older person living alone?"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "vulnerable_group_female_head",
+      "itemKind": "question",
+      "text": "Was the deceased a widow or a woman heading the household alone?"
+    },
+    {
+      "extensions": [
+        "equity"
+      ],
+      "field": "label",
+      "itemKey": "vulnerable_group_gender_minority",
+      "itemKind": "question",
+      "text": "Was the deceased a transgender or gender-diverse person?"
     }
   ],
   "extensionCounts": {
@@ -1803,6 +2289,11 @@
     "doris_support_whova_2022": {
       "choices": 24,
       "questions": 19,
+      "sections": 0
+    },
+    "equity": {
+      "choices": 40,
+      "questions": 11,
       "sections": 0
     },
     "geography": {
@@ -1843,7 +2334,8 @@
       "death_summary",
       "medical_records",
       "abha",
-      "doris_support_whova_2022"
+      "doris_support_whova_2022",
+      "equity"
     ],
     "generatedBy": "tooling/who-va-2022/build-layer-reference.mjs",
     "package": "@drguptavivek/who-2022-va",

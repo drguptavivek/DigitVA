@@ -20,12 +20,26 @@
         <select id="dm-site-filter" class="form-select form-select-sm" multiple placeholder="All sites…"></select>
       </div>
       <div class="mb-3">
-        <label class="form-label small fw-semibold">Date From</label>
+        <label class="form-label small fw-semibold">Org unit</label>
+        <select id="dm-org-unit-filter" class="form-select form-select-sm" placeholder="All org units…"></select>
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold">Submission date from</label>
         <input type="date" id="dm-date-from" class="form-control form-control-sm">
       </div>
       <div class="mb-3">
-        <label class="form-label small fw-semibold">Date To</label>
+        <label class="form-label small fw-semibold">Submission date to</label>
         <input type="date" id="dm-date-to" class="form-control form-control-sm">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="dm-death-from">Date of death from</label>
+        <input type="date" id="dm-death-from" class="form-control form-control-sm"
+               title="Date of death comes from the case record. Submissions without one are left out while this filter is set.">
+      </div>
+      <div class="mb-3">
+        <label class="form-label small fw-semibold" for="dm-death-to">Date of death to</label>
+        <input type="date" id="dm-death-to" class="form-control form-control-sm"
+               title="Date of death comes from the case record. Submissions without one are left out while this filter is set.">
       </div>
       <div class="mb-3">
         <label class="form-label small fw-semibold">ODK Status</label>

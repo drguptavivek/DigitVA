@@ -546,7 +546,8 @@ def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = Non
 
 
 def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None,
-                   roles: frozenset = _INTERVIEWER, *, entries: list[dict] | None = None) -> dict:
+                   roles: frozenset = _INTERVIEWER, *, entries: list[dict] | None = None,
+                   unrouted_ok: bool = False) -> dict:
     """Return the context entry for (project, site) or raise 403.
 
     In a project with an organization tree, a unit must always be named,
@@ -559,7 +560,10 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
     keeps the pre-phase-4 behaviour: no unit is required. *roles* as
     ``interviewer_context``: the grants whose reach is checked. *entries*: the
     caller's own ``interviewer_context(user, roles)`` of this request, reused
-    instead of rebuilt; the checks are the same.
+    instead of rebuilt; the checks are the same. *unrouted_ok*: a Collect Plus
+    standalone push whose org code matched no unit it may name may start
+    without one; routing then leaves it to the mapping fallback or the
+    project's unrouted queue (offline-api-contract.md section 17).
     """
     entry = None
     # A context built for other roles is never reused: the role set decides reach.
@@ -582,6 +586,8 @@ def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: ob
         return entry
 
     if not org_unit_id:
+        if unrouted_ok:
+            return entry
         raise WebIntakeError("Choose the organization unit for this entry.", 400)
     try:
         unit_id = uuid.UUID(str(org_unit_id))
@@ -1671,13 +1677,14 @@ def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
         cases.transition(death, "in_progress", actor=user, action=action)
 
 
-def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, entries: list[dict] | None = None, locked_death: VaDeathRegister | None = None) -> VaWebIntakeDraft:
+def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, entries: list[dict] | None = None, locked_death: VaDeathRegister | None = None, unrouted_ok: bool = False) -> VaWebIntakeDraft:
     """Open (or return the caller's own) draft for a case, or start directly.
 
     *entries* and *locked_death* are plumbing for a caller that already built
     ``interviewer_context(user)`` and already passed ``get_death`` and
     ``lock_case`` on this case in this transaction (``submit_device_interview``):
     reused instead of rebuilt, re-read and re-locked. Every check still runs.
+    *unrouted_ok* as ``_require_scope`` (a standalone push only).
 
     A direct start creates its case at once (``source = direct``,
     ``draft_identity``); the draft's answers fill the identity in.
@@ -1719,7 +1726,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
         raise WebIntakeError("This project requires a death register entry before the questionnaire.", 403)
     else:
         org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
-    _require_scope(user, project_id, site_id, org_unit_id, entries=entries)
+    _require_scope(user, project_id, site_id, org_unit_id, entries=entries, unrouted_ok=unrouted_ok)
     # Only a new draft counts against the public demo's open-draft limit.
     public_demo_service.check_new_draft(user, project_id)
     form = ensure_web_runtime_form(project_id, site_id)
@@ -2971,8 +2978,6 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
         answers_sha256=answers_sha256,
     )
     attachments.link_to_submission(va_sid, draft.draft_id, payload)
-    # updatedAt moved: the stored daily KPI rows of the submission's days are recounted.
-    cases._recompute_kpi_rows_after_commit(va_sid)
     _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=version.payload_version_id)
     draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome, "effectiveSavedAt": completed_at.isoformat()}
 
@@ -3233,7 +3238,6 @@ def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object
         revision_reason_code="supervisor_choice", answers_sha256=candidate.answers_sha256,
     )
     attachments.link_to_submission(va_sid, candidate.draft_id, payload)
-    cases._recompute_kpi_rows_after_commit(va_sid)
 
     enters_coding = consent_is_valid(normalize_consent(raw.get("Id10013")))
     try:
@@ -3556,7 +3560,7 @@ def fold_into_own_submission(user: VaUsers, draft: VaWebIntakeDraft, *, completi
     return own, reply
 
 
-def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None) -> tuple[VaWebIntakeDraft, str, bool]:
+def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None, unrouted_ok: bool = False) -> tuple[VaWebIntakeDraft, str, bool]:
     """Store and submit one completed device interview; returns
     ``(draft, kept, locked)`` (``"incoming"``/``"server"``: whose answers are
     the coder's version; *locked*: coding is final or the case closed).
@@ -3576,6 +3580,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     pick, exactly as on the web. Idempotency is the caller's
     (``find_device_upload`` first; ``client_draft_id`` is unique).
     *device_id* is the uploading device's id, None for a browser-cookie request.
+    *unrouted_ok*: a standalone push may start without a unit (``_require_scope``).
     *envelope* supplies only the meta keys; *data* is the parsed answers and
     *answers_sha256* the hash of their exact JSON text, both already checked
     by the caller (``check_device_answers``) and stored with the upload.
@@ -3625,7 +3630,7 @@ def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: 
     else:
         draft = start_draft(
             user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
-            death_id=death_id, entries=entries, locked_death=death,
+            death_id=death_id, entries=entries, locked_death=death, unrouted_ok=unrouted_ok,
         )
     if draft.sections:
         # An open draft with content: the phone's own earlier sync is the same

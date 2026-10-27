@@ -544,8 +544,21 @@ describe("native submitted-interview revisions", () => {
         "revisionReasonFinishPartial",
       ]);
       await act(async () => { rows[2].props.onPress(); });
-      const notice = tree.root.findAll((n) => n.props.numberOfLines === 1 && JSON.stringify(n.props.children) === '"revisionReasonMessageMoreInformation"');
+      // digitva-46xk: the notice stays out of the way until asked for, so the questions get the height.
+      expect(tree.root.findAll((n) => n.props.testID === "revision-notice")).toHaveLength(0);
+      await act(async () => { tree.root.findAll((n) => n.props.testID === "revision-notice-toggle" && typeof n.props.onPress === "function")[0].props.onPress(); });
+      const notice = tree.root.findAll((n) => n.props.testID === "revision-notice" && typeof n.type === "string");
       expect(notice.length).toBeGreaterThan(0);
+      expect(JSON.stringify(notice[0].props.children)).toBe('"revisionReasonMessageMoreInformation"');
+    });
+
+    it("gives the questions the whole remaining height (flex fill, one compact reason row)", async () => {
+      const tree = await openForm();
+      const area = tree.root.findAll((n) => n.props.testID === "revision-form-area" && typeof n.type === "string")[0];
+      expect(area.props.style).toMatchObject({ flex: 1, minHeight: 0 });
+      expect(JSON.stringify(area.props.style)).not.toMatch(/"height"/);
+      const reason = tree.root.findAll((n) => n.props.testID === "revision-reason" && typeof n.type === "string")[0];
+      expect(reason.props.style.minHeight).toBeLessThanOrEqual(40);
     });
 
     const sheetVisible = (tree: ReturnType<typeof create>) =>

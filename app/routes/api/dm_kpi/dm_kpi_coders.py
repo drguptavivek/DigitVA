@@ -4,7 +4,7 @@ Blueprint prefix: ``/api/v1/analytics/dm-kpi/coders``
 
 KPIs served:
   C-12  Coder Throughput
-  C-21  Coder Utilization Rate
+  C-21  Coder Utilization Rate (D-LC-02 as by=language)
   C-24  Forms per Coder by Language (heatmap)
   D-LC-04  Coder Output by Language
   D-LC-06  Coder Roster
@@ -33,9 +33,11 @@ from app.decorators import role_required
 from app.routes.api.dm_kpi.dm_kpi_scope import (
     GRANT_PROJECT_JOINS,
     GRANT_PROJECT_SQL,
+    DmScope,
     cached_kpi,
     dm_scope,
 )
+from app.routes.api.request_helpers import error as api_error
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 
@@ -50,78 +52,176 @@ _IN_ODK_SQL_S2 = in_odk_sql("s2")
 _NOT_DUPLICATE_SQL_S2 = not_confirmed_duplicate_sql("s2.va_sid")
 
 
+# A coder grant ``g`` with its project, unit and the project's coding scope
+# level resolved (aliases gps, gou, gpm, gsl, gul). Only grants on active
+# projects count, as authz's grant relation does.
+CODING_GRANT_JOINS = f"""
+    {GRANT_PROJECT_JOINS}
+    JOIN va_project_master gpm
+      ON gpm.project_id = {GRANT_PROJECT_SQL} AND gpm.project_status = 'active'
+    LEFT JOIN mas_org_level gsl ON gsl.org_level_id = gpm.coding_scope_level_id
+    LEFT JOIN mas_org_level gul ON gul.org_level_id = gou.org_level_id
+"""
+# The coding scope rule (authz ``ResolvedGrants.codes``): with a scope level
+# set, a project or pair grant (above any level) codes only under
+# ``code_any``; a unit grant codes at or below the level, or under ``code_any``.
+CODING_GRANT_CODES_SQL = (
+    "(gsl.org_level_id IS NULL OR gpm.above_scope_coding_mode = 'code_any'"
+    " OR (g.scope_type = 'org_unit' AND gul.depth >= gsl.depth))"
+)
+
+
+def coders_covering_scope_sql() -> str:
+    """SELECT of the coders who can code at least one case in the DM's subtree
+    (coder availability, docs/policy/kpis.md and access-control-model.md).
+
+    One row per coder: ``user_id`` and ``languages``, their ``vacode_language``
+    lower-cased and trimmed; an empty array means the coder covers any language
+    (as allocation does). Deactivated users are skipped, as they cannot sign in.
+    A grant counts when it codes (``CODING_GRANT_CODES_SQL``)
+    and is a project grant on a project of the scope, a pair grant on a pair of
+    the scope (or, for a unit DM, on a pair holding a case of its subtree), or a
+    unit grant that is an ancestor or descendant of a DM unit or sits in a
+    project the DM holds by pair. Binds ``DmScope.params`` only. Names no one by
+    itself: callers aggregate. The named roster (D-LC-06) keeps
+    ``grant_in_scope_sql`` and its stricter rule.
+
+    ponytail: the pair-grant probe for a unit DM ignores retired and duplicate
+    cases; an existence test only, not a count.
+    """
+    unit_projects = (
+        "SELECT cov_u.project_id FROM mas_org_unit cov_u"
+        " WHERE cov_u.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))"
+    )
+    return f"""
+        SELECT u.user_id,
+               ARRAY(SELECT lower(trim(l)) FROM unnest(u.vacode_language) l
+                     WHERE trim(l) <> '') AS languages
+        FROM va_users u
+        WHERE u.user_status = 'active'
+          AND u.user_id IN (
+            SELECT g.user_id
+            FROM va_user_access_grants g
+            {CODING_GRANT_JOINS}
+            WHERE g.role = 'coder'
+              AND g.grant_status = 'active'
+              AND {CODING_GRANT_CODES_SQL}
+              AND (
+                (g.scope_type = 'project'
+                 AND (g.project_id = ANY(CAST(:pair_project_ids AS text[]))
+                      OR g.project_id IN ({unit_projects})))
+                OR (g.scope_type = 'project_site' AND gps.project_site_id IS NOT NULL
+                    AND ((gps.project_id, gps.site_id) IN (SELECT * FROM unnest(
+                              CAST(:pair_project_ids AS text[]),
+                              CAST(:pair_site_ids AS text[])))
+                         OR EXISTS (
+                              SELECT 1 FROM va_submissions cov_s
+                              JOIN va_forms cov_f ON cov_f.form_id = cov_s.va_form_id
+                              WHERE cov_f.project_id = gps.project_id
+                                AND cov_f.site_id = gps.site_id
+                                AND cov_s.org_unit_id IN ({DmScope.subtree_sql()}))))
+                OR (g.scope_type = 'org_unit' AND gou.org_unit_id IS NOT NULL
+                    AND (gou.project_id = ANY(CAST(:pair_project_ids AS text[]))
+                         OR EXISTS (
+                              SELECT 1 FROM mas_org_unit cov_a
+                              WHERE cov_a.org_unit_id = ANY(CAST(:unit_ids AS uuid[]))
+                                AND cov_a.project_id = gou.project_id
+                                AND (gou.path <@ cov_a.path OR gou.path @> cov_a.path))))
+              )
+        )
+    """
+
+
+def compute_c21(scope: DmScope, period=None, by: str | None = None) -> dict:
+    """C-21 Coder Utilization, with D-LC-02 (coder language pool) as ``by="language"``.
+
+    Numerator: covering coders with an active allocation on a case of the
+    scope. Denominator: covering coders (``coders_covering_scope_sql``).
+    Snapshot, so *period* is ignored. ``by="language"`` adds ``rows``: per
+    language the coders who cover it (explicit plus any-language coders) and how
+    many of them are active; counts only, names stay in D-LC-06.
+    """
+    if by not in (None, "language"):
+        raise ValueError(f"C-21 has no by={by!r}")
+    if not scope:
+        result = {"active_count": 0, "total_coders": 0, "rate": 0.0}
+        return {**result, "by": by, "rows": []} if by else result
+
+    cte = f"""
+        WITH cov AS ({coders_covering_scope_sql()}),
+        busy AS (
+            SELECT DISTINCT a.va_allocated_to AS user_id
+            FROM va_allocations a
+            JOIN va_submissions s ON s.va_sid = a.va_sid
+            JOIN va_forms f ON f.form_id = s.va_form_id
+            WHERE {scope.sql()}
+              AND {_IN_ODK_SQL}
+              AND {_NOT_DUPLICATE_SQL}
+              AND a.va_allocation_status = 'active'
+              AND a.va_allocated_to IN (SELECT user_id FROM cov)
+        )
+    """
+    params = {**IN_ODK_BIND, **scope.params}
+    row = db.session.execute(
+        sa.text(cte + """
+            SELECT (SELECT COUNT(*) FROM cov) AS total,
+                   (SELECT COUNT(*) FROM busy) AS active
+        """),
+        params,
+    ).mappings().first()
+    total, active = row["total"] or 0, row["active"] or 0
+    result = {
+        "active_count": active,
+        "total_coders": total,
+        "rate": round(active / total * 100, 1) if total > 0 else 0.0,
+    }
+    if by is None:
+        return result
+
+    rows = db.session.execute(
+        sa.text(cte + """
+            , langs AS (SELECT DISTINCT unnest(languages) AS lang FROM cov)
+            SELECT l.lang AS language,
+                   COUNT(c.user_id) AS coders,
+                   COUNT(c.user_id) FILTER (WHERE c.user_id IN (SELECT user_id FROM busy))
+                       AS active_coders
+            FROM langs l
+            JOIN cov c ON cardinality(c.languages) = 0 OR l.lang = ANY(c.languages)
+            GROUP BY l.lang
+            ORDER BY coders DESC, l.lang
+        """),
+        params,
+    ).mappings().all()
+    return {
+        **result,
+        "by": "language",
+        "rows": [
+            {"language": r["language"], "coders": r["coders"], "active_coders": r["active_coders"]}
+            for r in rows
+        ],
+    }
+
+
 @bp.get("/utilization")
 @role_required("data_manager", "admin")
 def coder_utilization():
-    """KPI: C-21 — Coder Utilization Rate.
+    """KPI: C-21 — Coder Utilization Rate (D-LC-02 as ``?by=language``).
 
     Numerator: COUNT of coders with at least one active allocation
-               (va_allocations where va_allocation_status = 'active'),
-               holders of an active coder grant only (a coding_tester's
-               session is not counted).
-    Denominator: COUNT of all active coders in DM's scope
-                 (va_user_access_grants where role='coder', grant_status='active').
+               (va_allocations where va_allocation_status = 'active').
+    Denominator: COUNT of coders who can code at least one case in the DM's
+                 subtree (coders_covering_scope_sql; owner decision 2026-10-27).
     Rate: N / D × 100.
     Time frame: Snapshot.
     Actionable: <70% → coders idle; >95% → coders saturated.
     """
+    by = request.args.get("by") or None
+    if by not in (None, "language"):
+        return api_error("Unsupported 'by'; use 'language'.", status_code=400)
     scope = dm_scope()
-    # Coder grants are keyed by project; a unit grant's project counts here
-    # because this returns counts only, never who the coders are.
-    project_ids = scope.all_project_ids
-
-    if not project_ids:
+    if not scope:
         return jsonify({"active_count": 0, "total_coders": 0, "rate": 0.0})
-
-    def compute():
-        # Total active coders in DM's scope
-        total_coders = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(DISTINCT g.user_id) AS cnt
-                FROM va_user_access_grants g
-                {GRANT_PROJECT_JOINS}
-                WHERE g.role = 'coder'
-                  AND g.grant_status = 'active'
-                  AND {GRANT_PROJECT_SQL} = ANY(:project_ids)
-            """),
-            {"project_ids": project_ids},
-        ).scalar() or 0
-
-        # Coders with active allocations in DM's scoped submissions
-        active_coders = db.session.execute(
-            sa.text(f"""
-                SELECT COUNT(DISTINCT a.va_allocated_to) AS cnt
-                FROM va_allocations a
-                JOIN va_submissions s ON s.va_sid = a.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND a.va_allocation_status = 'active'
-                  -- Coders only, as the denominator: a coding_tester's
-                  -- session is not coder utilization (digitva-ggc3).
-                  AND EXISTS (
-                      SELECT 1
-                      FROM va_user_access_grants g
-                      {GRANT_PROJECT_JOINS}
-                      WHERE g.user_id = a.va_allocated_to
-                        AND g.role = 'coder'
-                        AND g.grant_status = 'active'
-                        AND {GRANT_PROJECT_SQL} = f.project_id
-                  )
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).scalar() or 0
-
-        rate =round(active_coders / total_coders * 100, 1) if total_coders > 0 else 0.0
-
-        return {
-            "active_count": active_coders,
-            "total_coders": total_coders,
-            "rate": rate,
-        }
-
-    return jsonify(cached_kpi("coder_utilization", compute))
+    return jsonify(cached_kpi("coder_utilization", lambda: compute_c21(scope, None, by)))
 
 
 @bp.get("/output")
@@ -316,50 +416,11 @@ def coder_roster():
 @bp.get("/disagreement")
 @role_required("data_manager", "admin")
 def coder_reviewer_disagreement():
-    """KPI: D-QG-09 — Coder-Reviewer Disagreement Rate.
+    """KPI: D-QG-09, kept at its old path; the WHO 2026 bucket comparison.
 
-    Numerator: COUNT of submissions where va_reviewer_final_assessments
-               exists AND va_final_assessments exists AND they have
-               different va_conclusive_cod values.
-    Denominator: COUNT of submissions with both coder final assessment
-                 AND reviewer final assessment (active).
-    Rate: N / D × 100.
-    Source: va_final_assessments JOIN va_reviewer_final_assessments on va_sid.
-    Time frame: Cumulative.
+    Returns ``compute_dqg09`` (``reviewed``, ``disagreements``, ``rate`` as a
+    fraction). Nothing in the dashboard reads this path.
     """
-    scope = dm_scope()
-    if not scope:
-        return jsonify({"total_reviewed": 0, "disagreements": 0, "rate": 0.0})
+    from app.routes.api.dm_kpi.dm_kpi_outcomes import compute_dqg09
 
-    def compute():
-        row = db.session.execute(
-            sa.text(f"""
-                SELECT
-                    COUNT(*) AS total_reviewed,
-                    COUNT(*) FILTER (
-                        WHERE fa.va_conclusive_cod IS DISTINCT FROM rf.va_conclusive_cod
-                    ) AS disagreements
-                FROM va_final_assessments fa
-                JOIN va_reviewer_final_assessments rf ON rf.va_sid = fa.va_sid
-                JOIN va_submissions s ON s.va_sid = fa.va_sid
-                JOIN va_forms f ON f.form_id = s.va_form_id
-                WHERE {scope.sql()}
-                  AND {_IN_ODK_SQL}
-                  AND {_NOT_DUPLICATE_SQL}
-                  AND fa.va_finassess_status = 'active'
-                  AND rf.va_rfinassess_status = 'active'
-            """),
-            {**IN_ODK_BIND, **scope.params},
-        ).mappings().first()
-
-        total = row["total_reviewed"] or 0 if row else 0
-        disagreements = row["disagreements"] or 0 if row else 0
-        rate = round(disagreements / total * 100, 1) if total > 0 else 0.0
-
-        return {
-            "total_reviewed": total,
-            "disagreements": disagreements,
-            "rate": rate,
-        }
-
-    return jsonify(cached_kpi("coder_reviewer_disagreement", compute))
+    return jsonify(cached_kpi("outcomes:D-QG-09", lambda: compute_dqg09(dm_scope())))

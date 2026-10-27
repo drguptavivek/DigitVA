@@ -47,6 +47,12 @@ export type DeviceTimedDraft = WhoVaDraft & {
   definitionExtensions?: unknown;
 };
 
+/**
+ * A persistent upload refusal. `standalone_refused` is a standalone push refused as it stands (403
+ * device_mismatch, or a 422 such as consent_invalid): held, never resent or reopened on its own (contract 17).
+ */
+export type UploadIssue = "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | "standalone_refused";
+
 export interface DraftRow {
   id: string;
   project_id: string | null;
@@ -60,7 +66,7 @@ export interface DraftRow {
   /** An offline registration not yet acknowledged; the draft waits for it. */
   client_death_id: string | null;
   /** A persistent upload refusal that needs interviewer attention. */
-  upload_issue?: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict" | null;
+  upload_issue?: UploadIssue | null;
   upload_issue_unique_id?: string | null;
   /** Server draft identity is separate from the stable local submission id. */
   server_draft_id?: string | null;
@@ -396,6 +402,15 @@ export async function migrate(db: Db): Promise<void> {
     );
     CREATE INDEX IF NOT EXISTS ix_offline_coding_draft ON offline_coding(client_draft_id);
   `);
+  // provenance (JSON: allowability rules version, primary stem, age confirmation) arrived after the first offline stores.
+  const codingColumns = await db.getAllAsync<{ name: string }>("PRAGMA table_info(offline_coding)", []);
+  if (!codingColumns.some((column) => column.name === "provenance")) {
+    await db.execAsync("ALTER TABLE offline_coding ADD COLUMN provenance TEXT");
+  }
+  // The answers_sha256 the coding was made on (contract 17 coded_answers_sha256); null on rows coded before it existed.
+  if (!codingColumns.some((column) => column.name === "answers_sha256")) {
+    await db.execAsync("ALTER TABLE offline_coding ADD COLUMN answers_sha256 TEXT");
+  }
 }
 
 /**
@@ -594,7 +609,7 @@ export async function pruneDraftAttachments(db: Db, id: string): Promise<void> {
 export async function setDraftUploadIssue(
   db: Db,
   id: string,
-  issue: "answers_hash_invalid" | "invalid_definition_pin" | "demo_limit" | "case_conflict",
+  issue: UploadIssue,
 ): Promise<void> {
   await db.runAsync(`UPDATE drafts SET upload_issue = ?, upload_issue_unique_id = ?,
     completed = CASE WHEN ? = 'answers_hash_invalid' THEN 0 ELSE completed END
@@ -603,13 +618,13 @@ export async function setDraftUploadIssue(
 
 /**
  * The interviewer asks for a held draft (refused at the public demo's limit,
- * or by a 409 on its case) to be sent again. The only way out of
- * `demo_limit` and `case_conflict`: sync never clears them, so such a
+ * by a 409 on its case, or a refused standalone push) to be sent again. The only way out of
+ * `demo_limit`, `case_conflict` and `standalone_refused`: sync never clears them, so such a
  * refusal is never retried on its own.
  */
 export async function retryHeldDraft(db: Db, id: string): Promise<void> {
   await db.runAsync(
-    "UPDATE drafts SET upload_issue = NULL, upload_issue_unique_id = NULL WHERE id = ? AND upload_issue IN ('demo_limit', 'case_conflict')",
+    "UPDATE drafts SET upload_issue = NULL, upload_issue_unique_id = NULL WHERE id = ? AND upload_issue IN ('demo_limit', 'case_conflict', 'standalone_refused')",
     [id],
   );
 }
@@ -641,23 +656,36 @@ function reduceLegacyNationalId(draft: DeviceTimedDraft): DeviceTimedDraft {
   return data === draft.data ? draft : { ...draft, data };
 }
 
+interface CompletedDraftRow {
+  id: string;
+  project_id: string | null;
+  site_id: string;
+  org_unit_id: string | null;
+  death_id: string | null;
+  client_death_id: string | null;
+  envelope: string;
+  completion: string | null;
+}
+const COMPLETED_COLUMNS = "id, project_id, site_id, org_unit_id, death_id, client_death_id, envelope, completion";
+
 /** Completed drafts with their envelopes and verdicts, oldest first, for upload. */
 export async function completedDrafts(db: Db, projectId?: string): Promise<CompletedDraft[]> {
-  const rows = await db.getAllAsync<{
-    id: string;
-    project_id: string | null;
-    site_id: string;
-    org_unit_id: string | null;
-    death_id: string | null;
-    client_death_id: string | null;
-    envelope: string;
-    completion: string | null;
-  }>(
-    `SELECT id, project_id, site_id, org_unit_id, death_id, client_death_id, envelope, completion
+  const rows = await db.getAllAsync<CompletedDraftRow>(
+    `SELECT ${COMPLETED_COLUMNS}
      FROM drafts WHERE completed = 1 AND upload_issue IS NULL${projectId ? " AND project_id = ?" : ""} ORDER BY updated_at`,
     projectId ? [projectId] : []
   );
-  return rows.map((row) => ({
+  return rows.map(toCompletedDraft);
+}
+
+/** One completed draft as the upload reads it (held or not), or null when it is not completed. */
+export async function completedDraft(db: Db, id: string): Promise<CompletedDraft | null> {
+  const row = await db.getFirstAsync<CompletedDraftRow>(`SELECT ${COMPLETED_COLUMNS} FROM drafts WHERE id = ? AND completed = 1`, [id]);
+  return row ? toCompletedDraft(row) : null;
+}
+
+function toCompletedDraft(row: CompletedDraftRow): CompletedDraft {
+  return {
     id: row.id,
     project_id: row.project_id,
     site_id: row.site_id,
@@ -669,7 +697,7 @@ export async function completedDrafts(db: Db, projectId?: string): Promise<Compl
     draft: reduceLegacyNationalId(JSON.parse(row.envelope) as DeviceTimedDraft),
     completion: row.completion ? (JSON.parse(row.completion) as Completion) : null,
     envelope: row.envelope
-  }));
+  };
 }
 
 /** Every draft id on the phone (the outstanding-work report). */
@@ -692,20 +720,26 @@ export async function draftUniqueIds(db: Db, projectId?: string): Promise<string
   return rows.map((row) => row.unique_id);
 }
 
-export async function deleteDraft(db: Db, id: string): Promise<void> {
-  await db.runAsync("DELETE FROM drafts WHERE id = ?", [id]);
+/** What the phone keeps beside a draft, deleted with it: consent records, files and its offline coding. */
+async function deleteDraftCompanions(db: Db, id: string): Promise<void> {
+  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`, `standaloneConsent:${id}`]);
   await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
-  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
+  await db.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [id]);
 }
 
-/** Delete only the exact envelope sent, preserving edits made during upload. */
+export async function deleteDraft(db: Db, id: string): Promise<void> {
+  await db.runAsync("DELETE FROM drafts WHERE id = ?", [id]);
+  await deleteDraftCompanions(db, id);
+}
+
+/**
+ * Delete only the exact envelope sent, preserving edits made during upload. Its offline coding goes with it, and
+ * only here (after the server acknowledged the interview), so a coding row never outlives or predeceases its draft.
+ */
 export async function deleteDraftSnapshot(db: Db, id: string, envelope: string): Promise<boolean> {
   const result = await db.runAsync("DELETE FROM drafts WHERE id = ? AND envelope = ?", [id, envelope]);
   const deleted = !!result && typeof result === "object" && "changes" in result && Number(result.changes) > 0;
-  if (deleted) {
-    await db.runAsync("DELETE FROM meta WHERE key IN (?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`]);
-    await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
-  }
+  if (deleted) await deleteDraftCompanions(db, id);
   return deleted;
 }
 
@@ -845,7 +879,8 @@ export async function purgeProjectData(db: Db, projectId: string, accountId?: st
 /**
  * Offline coding (Collect Plus phase 1): the certificate and the on-device
  * DORIS results for one interview, stored per interviewer beside its draft.
- * Rows never sync in this phase; the draft keeps syncing as the interview.
+ * A standalone push sends the row with its interview (contract 17); every
+ * upload deletes it with the draft once the server acknowledges.
  */
 export type OfflineCodingStatus = "draft" | "coded" | "rejected";
 
@@ -863,6 +898,10 @@ export interface OfflineCodingRow {
   status: OfflineCodingStatus;
   coder_profile_updated_at: string | null;
   device_uuid: string | null;
+  /** JSON of the ICD-11 allowability record (rules version, primary stem, age confirmation), or null. */
+  provenance: string | null;
+  /** SHA-256 of the answers as the upload sends them (src/sync.ts sentAnswers) when this was coded; null if unknown. */
+  answers_sha256?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -881,19 +920,19 @@ export async function saveOfflineCoding(db: Db, row: OfflineCodingRow): Promise<
   await db.runAsync(
     `INSERT INTO offline_coding
        (client_draft_id, certificate, result, codedit_result, process_token, certificate_digest,
-        result_digest, ucod_code, ucod_uri, status, coder_profile_updated_at, device_uuid, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        result_digest, ucod_code, ucod_uri, status, coder_profile_updated_at, device_uuid, provenance, answers_sha256, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(client_draft_id) DO UPDATE SET
        certificate = excluded.certificate, result = excluded.result,
        codedit_result = excluded.codedit_result, process_token = excluded.process_token,
        certificate_digest = excluded.certificate_digest, result_digest = excluded.result_digest,
        ucod_code = excluded.ucod_code, ucod_uri = excluded.ucod_uri, status = excluded.status,
        coder_profile_updated_at = excluded.coder_profile_updated_at, device_uuid = excluded.device_uuid,
-       updated_at = excluded.updated_at`,
+       provenance = excluded.provenance, answers_sha256 = excluded.answers_sha256, updated_at = excluded.updated_at`,
     [
       row.client_draft_id, row.certificate, row.result, row.codedit_result, row.process_token,
       row.certificate_digest, row.result_digest, row.ucod_code, row.ucod_uri, row.status,
-      row.coder_profile_updated_at, row.device_uuid, row.created_at, row.updated_at,
+      row.coder_profile_updated_at, row.device_uuid, row.provenance ?? null, row.answers_sha256 ?? null, row.created_at, row.updated_at,
     ],
   );
 }
@@ -915,7 +954,8 @@ export async function listOfflineCodingCases(db: Db): Promise<OfflineCodingCaseR
 export async function getOfflineCoding(db: Db, clientDraftId: string): Promise<OfflineCodingRow | null> {
   return db.getFirstAsync<OfflineCodingRow>(
     `SELECT client_draft_id, certificate, result, codedit_result, process_token, certificate_digest,
-            result_digest, ucod_code, ucod_uri, status, coder_profile_updated_at, device_uuid, created_at, updated_at
+            result_digest, ucod_code, ucod_uri, status, coder_profile_updated_at, device_uuid, provenance, answers_sha256,
+            created_at, updated_at
      FROM offline_coding WHERE client_draft_id = ?`,
     [clientDraftId],
   );

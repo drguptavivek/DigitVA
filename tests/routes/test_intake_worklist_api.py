@@ -93,6 +93,26 @@ class IntakeWorklistApiTests(BaseTestCase):
         self.assertGreaterEqual(body["counts"]["registered"], 1)
         self.assertIn("next_cursor", body)
 
+    def test_list_row_updated_at_moves_when_the_case_detail_changes(self):
+        # The app skips a case's detail download while this stamp is unchanged.
+        self._login(self.interviewer_id)
+        death = self._register()
+
+        def stamp():
+            rows = {r["death_id"]: r for r in self.client.get("/api/v1/intake/cases?mine=true").get_json()["cases"]}
+            return rows[death["death_id"]]["updated_at"]
+
+        before = stamp()
+        self.assertTrue(before)
+        self.assertEqual(stamp(), before)
+        visit = (date.today() + timedelta(days=3)).isoformat() + "T09:00:00+00:00"
+        response = self.client.post(
+            f"/api/v1/intake/cases/{death['death_id']}/visit", json={"next_visit_at": visit},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertNotEqual(stamp(), before)
+
     def test_worklist_refuses_junk_parameters(self):
         self._login(self.interviewer_id)
         for query in ("mine=maybe", "state=va_submitted", "limit=ten", "cursor=zzz"):

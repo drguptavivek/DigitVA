@@ -168,6 +168,9 @@ function normalizeEnvelope(
     formVersion: envelope.formVersion || WHO_VA_FORM_VERSION,
     instrumentId: envelope.instrumentId || instrument.id,
     instrumentVersion: envelope.instrumentVersion || instrument.version,
+    // A submitted draft usually has no current section; the form refuses an
+    // empty one and would then open blank, so it starts at the first section.
+    currentSection: envelope.currentSection || instrument.sections[0]?.name || "_root",
   };
 }
 

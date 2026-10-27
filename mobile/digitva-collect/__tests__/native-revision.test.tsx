@@ -268,6 +268,24 @@ describe("native submitted-interview revisions", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("opens a submitted draft with no current section at the first section, answers kept", async () => {
+    mockLocalRow = { ...mockRow, envelope: { ...mockRow.envelope, currentSection: "" } };
+    const sectioned = { ...mockRevisionInstrument, sections: [{ name: "first_section" }, { name: "second_section" }] };
+    (jest.requireMock("../src/formDefinitionRuntime").resolveSavedEnvelopeDefinition as jest.Mock)
+      .mockResolvedValueOnce({ ...mockRevisionDefinition, instrument: sectioned });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Revision />); });
+    await settle();
+    await settle();
+
+    const store = mockFormProps.draftStore as { load(id: string): Promise<Record<string, unknown> | undefined> };
+    expect(store).toBeDefined();
+    const loaded = await store.load("draft-1");
+    expect(loaded?.data).toEqual(mockRow.envelope.data);
+    expect(loaded?.currentSection).toBe("first_section");
+    await act(async () => tree!.unmount());
+  });
+
   it("still looks up translations for a revision whose saved hash differs from current", async () => {
     mockLocalRow = {
       ...mockRow,

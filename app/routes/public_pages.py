@@ -110,10 +110,10 @@ def privacy():
 @limiter.limit("3 per hour", methods=["POST"], key_func=_contact_email_key, deduct_when=_contact_sent_counts)
 def contact():
     """Contact details, plus the form when ``PUBLIC_CONTACT_EMAIL`` is set and
-    mail is configured (otherwise the confirmation link could never arrive).
+    mail really goes out (otherwise the confirmation link could never arrive).
     Every valid submission gets the same neutral reply; a filled honeypot
     gets it too, with nothing stored or sent."""
-    if not _org()["email"] or not email_service.is_mail_configured():
+    if not _org()["email"] or not email_service.can_send_mail():
         if request.method == "POST":
             return _render_contact(refused=True)
         return _page("va_frontpages/va_public_contact.html")

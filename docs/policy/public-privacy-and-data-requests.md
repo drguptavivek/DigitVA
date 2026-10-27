@@ -143,7 +143,10 @@ confirmation link), removed when the task runs; accepted, since the broker
 is the same private Redis as the cache. The per-sender limit folds
 plus-tags, and dots for Gmail, so one inbox shares one bucket. Mail logs show
 recipients masked (`a***@example.org`). The form is shown only when
-`PUBLIC_CONTACT_EMAIL` is set and outgoing mail is configured.
+`PUBLIC_CONTACT_EMAIL` is set and outgoing mail really goes out (a mail
+server, delivery enabled, sending not suppressed). On the public demo the
+keys are `DEMO_PUBLIC_*` in `/data/digitva-demo.env`; the demo suppresses
+mail, so its contact page shows the details without the form.
 
 **Neutral responses.** Every valid submission gets the same reply ("if the
 address can receive email, a confirmation link is on its way"), whether or not

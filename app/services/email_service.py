@@ -39,6 +39,16 @@ def is_mail_configured() -> bool:
     return bool(server and server != "localhost")
 
 
+def can_send_mail() -> bool:
+    """Whether an email sent now would really go out: SMTP configured, delivery
+    enabled and sending not suppressed (the public demo suppresses it)."""
+    return (
+        is_mail_configured()
+        and _email_delivery_enabled()
+        and not current_app.config.get("MAIL_SUPPRESS_SEND")
+    )
+
+
 def _masked_recipients(to) -> str:
     """Recipients for logs with the local part hidden (a***@example.org)."""
     addresses = [to] if isinstance(to, str) else list(to or ())

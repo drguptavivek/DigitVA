@@ -47,6 +47,12 @@ x-demo-env: &demo-env
   WEBAUTHN_RP_ID: ${DEMO_HOST:-demo.causeofdeathindia.com}
   WEBAUTHN_ORIGIN: https://${DEMO_HOST:-demo.causeofdeathindia.com}
   DEVICE_PUBLIC_URL: https://${DEMO_HOST:-demo.causeofdeathindia.com}
+  # Public privacy, contact and data-requests pages (unset: neutral wording).
+  # The contact form stays hidden here: the demo suppresses outgoing mail.
+  PUBLIC_ORG_NAME: ${DEMO_PUBLIC_ORG_NAME:-}
+  PUBLIC_CONTACT_EMAIL: ${DEMO_PUBLIC_CONTACT_EMAIL:-}
+  PUBLIC_GRIEVANCE_OFFICER: ${DEMO_PUBLIC_GRIEVANCE_OFFICER:-}
+  PUBLIC_POSTAL_ADDRESS: ${DEMO_PUBLIC_POSTAL_ADDRESS:-}
   # Own keys, never the main ones (.env.demo.example says how to generate).
   SECRET_KEY: ${DEMO_SECRET_KEY:?DEMO_SECRET_KEY missing, pass --env-file}
   CAPTCHA_HMAC_KEY: ${DEMO_CAPTCHA_HMAC_KEY:?DEMO_CAPTCHA_HMAC_KEY missing}

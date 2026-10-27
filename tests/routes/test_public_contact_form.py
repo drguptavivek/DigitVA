@@ -17,7 +17,7 @@ class PublicContactFormTest(BaseTestCase):
     def setUp(self):
         super().setUp()
         limiter.reset()  # in-memory buckets outlive a test; POST allows 5 a minute
-        config = patch.dict(self.app.config, PUBLIC_CONTACT_EMAIL=CONTACT_EMAIL, PUBLIC_BASE_URL="https://va.example.org")
+        config = patch.dict(self.app.config, PUBLIC_CONTACT_EMAIL=CONTACT_EMAIL, PUBLIC_BASE_URL="https://va.example.org", MAIL_SUPPRESS_SEND=False)
         config.start()
         self.addCleanup(config.stop)
         dispatch = patch("app.services.email_service._dispatch_email")
@@ -84,6 +84,15 @@ class PublicContactFormTest(BaseTestCase):
         body = self.client.get(CONTACT + "?topic=<script>").get_data(as_text=True)
         self.assertIn('<option selected value="general">', body)
         self.assertNotIn("<script>", body.split("<body", 1)[1].split('<script src', 1)[0])
+
+    def test_suppressed_mail_hides_form(self):
+        """The public demo suppresses mail: a form there would promise a link
+        that never arrives."""
+        self.assertIn('id="slide-captcha-range"', self.client.get(CONTACT).get_data(as_text=True))
+        with patch.dict(self.app.config, MAIL_SUPPRESS_SEND=True):
+            body = self.client.get(CONTACT).get_data(as_text=True)
+        self.assertIn("Contact us", body)
+        self.assertNotIn('id="slide-captcha-range"', body)
 
     def test_contact_email_unset_hides_form_and_refuses_post(self):
         with patch.dict(self.app.config, PUBLIC_CONTACT_EMAIL=""):

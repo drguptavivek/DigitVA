@@ -137,7 +137,10 @@ def _plan_gemini(system, prompt, schema, *, retry) -> Reply:
     from google.genai import types
 
     model = model_name(GEMINI)
-    response = _client(GEMINI).models.generate_content(
+    # Keep the client referenced: genai closes its HTTP client when the Client
+    # object is garbage collected, which a bare _client(GEMINI).models... allows.
+    client = _client(GEMINI)
+    response = client.models.generate_content(
         model=model,
         contents=prompt,
         config=types.GenerateContentConfig(

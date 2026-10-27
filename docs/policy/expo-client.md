@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-10-27
 ---
 
 # Expo Web Client Boundary
@@ -340,7 +340,7 @@ brand-blue header (emblem, a spinner or Offline marker only while syncing or off
 the 文A app-language button, account avatar), bottom tabs
 (Home, Interviews, Register death, Sync; the badge on Sync is the unsent count)
 and an account menu sheet (Settings, Help, language, Lock now, Switch
-interviewer, Sign out with the existing unsent-work confirmation, version). The
+interviewer, Sign out (refused while work is unsent, `digitva-dxgj`), version). The
 tabs follow the account's `collection_access`, `registration_access` and
 `registered_deaths_access` through the browser's `navEntries` rules and never
 show coding or review (web-only). Header and tabs are hidden on the interview

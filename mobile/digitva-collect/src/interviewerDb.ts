@@ -18,7 +18,7 @@
 import { File } from "expo-file-system";
 import { defaultDatabaseDirectory, deleteDatabaseAsync, openDatabaseAsync } from "expo-sqlite";
 
-import { countUnsentWork, migrate, type Db } from "./drafts";
+import { countUnsentWork, countUnsentWorkByKind, migrate, type Db, type UnsentWorkKinds } from "./drafts";
 import { wipeMediaCache } from "./mediaFiles";
 import { summariseWork, type WorkSummary } from "./unsentWork";
 import {
@@ -87,6 +87,12 @@ export async function openInterviewerDb(userId: string): Promise<Db> {
 export async function unsentWorkCount(userId: string): Promise<number | undefined> {
   const db = unlocked.get(userId);
   return db ? countUnsentWork(db) : undefined;
+}
+
+/** unsentWorkCount split by kind (for the sign-out warning), or undefined while the store is locked. */
+export async function unsentWorkKinds(userId: string): Promise<UnsentWorkKinds | undefined> {
+  const db = unlocked.get(userId);
+  return db ? countUnsentWorkByKind(db) : undefined;
 }
 
 /**

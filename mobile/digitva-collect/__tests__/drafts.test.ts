@@ -20,6 +20,7 @@ import {
   migrate,
   purgeProjectData,
   countUnsentWork,
+  countUnsentWorkByKind,
   projectIds,
   setMeta,
   setDraftUploadIssue,
@@ -423,6 +424,7 @@ describe("draft store", () => {
     expect(await db.getFirstAsync("SELECT death_id FROM cases WHERE project_id = ?", ["PROJECT1"])).toBeNull();
     expect(await getMeta(db, "units", "PROJECT1")).toBeUndefined();
     expect(await countUnsentWork(db)).toBe(4);
+    expect(await countUnsentWorkByKind(db)).toEqual({ interviews: 2, registrations: 1, actions: 1, revisions: 0 });
     expect(await countUnsentWork(db, "PROJECT2")).toBe(0);
   });
 });

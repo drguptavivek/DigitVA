@@ -1,8 +1,10 @@
-/** Sign-out wipes the store: the confirmation states the unsent count and asks twice when work would be lost. */
+/** Sign-out wipes the store: it is refused while work is unsent, and a locked store warns twice. */
 import { Alert } from "react-native";
 
-const mockUnsentCount = jest.fn<Promise<number | undefined>, [string]>();
-jest.mock("../src/interviewerDb", () => ({ unsentWorkCount: (userId: string) => mockUnsentCount(userId) }));
+type Kinds = { interviews: number; registrations: number; actions: number; revisions: number };
+const none: Kinds = { interviews: 0, registrations: 0, actions: 0, revisions: 0 };
+const mockUnsentKinds = jest.fn<Promise<Kinds | undefined>, [string]>();
+jest.mock("../src/interviewerDb", () => ({ unsentWorkKinds: (userId: string) => mockUnsentKinds(userId) }));
 jest.mock("../src/i18n", () => ({
   t: (key: string, vars?: Record<string, unknown>) => (vars ? `${key}:${JSON.stringify(vars)}` : key),
 }));
@@ -16,21 +18,23 @@ const press = (call: number, text: string) =>
 
 beforeEach(() => alert.mockClear());
 
-it("states the unsent count and signs out only after a second confirmation", async () => {
-  mockUnsentCount.mockResolvedValue(3);
+it("refuses sign-out while work is unsent and names each kind", async () => {
+  mockUnsentKinds.mockResolvedValue({ ...none, interviews: 2, revisions: 1 });
   const onConfirmed = jest.fn();
   await confirmSignOut("worker", onConfirmed);
 
-  expect(alert.mock.calls[0][1]).toBe('signOutUnsentCount:{"count":3}');
-  press(0, "signOutConfirm");
+  expect(alert).toHaveBeenCalledTimes(1);
+  expect(alert.mock.calls[0][0]).toBe("signOutBlockedTitle");
+  const list = 'unsentKindInterviews:{"count":2}\nunsentKindRevisions:{"count":1}';
+  expect(alert.mock.calls[0][1]).toBe(`signOutBlockedUnsent:${JSON.stringify({ list })}`);
+  const buttons = alert.mock.calls[0][2] as Buttons;
+  expect(buttons.map((button) => button.text)).toEqual(["ok"]);
+  buttons[0].onPress?.();
   expect(onConfirmed).not.toHaveBeenCalled();
-  expect(alert.mock.calls[1][1]).toBe('signOutUnsentFinal:{"count":3}');
-  press(1, "signOutDeletePermanently");
-  expect(onConfirmed).toHaveBeenCalledTimes(1);
 });
 
 it("asks twice when a locked store cannot be counted", async () => {
-  mockUnsentCount.mockResolvedValue(undefined);
+  mockUnsentKinds.mockResolvedValue(undefined);
   const onConfirmed = jest.fn();
   await confirmSignOut("worker", onConfirmed);
 
@@ -41,7 +45,7 @@ it("asks twice when a locked store cannot be counted", async () => {
 });
 
 it("asks once when nothing is unsent", async () => {
-  mockUnsentCount.mockResolvedValue(0);
+  mockUnsentKinds.mockResolvedValue(none);
   const onConfirmed = jest.fn();
   await confirmSignOut("worker", onConfirmed);
 

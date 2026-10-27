@@ -100,8 +100,13 @@ Requirements, all of which must hold before the app collects real data:
   purged automatically" below), and refuses further use under that account;
   other accounts on the same handset are untouched.
 - **Wipe on logout**, covering that interviewer's database, attachments and
-  cached keys. Sign-out states how many items are unsent and, when any are,
-  asks a second time; an account that only needs to sign in again is offered
+  cached keys, and only once nothing is unsent (owner decision 2026-10-27,
+  `digitva-dxgj`): while the store holds unsent work, sign-out is refused
+  and lists what is unsent by kind (interviews, registrations, contact
+  attempts and visits, revisions), telling the interviewer to send it first
+  or ask their supervisor. A locked store cannot be counted and its data
+  cannot be read without the PIN, so sign-out from it still warns and asks a
+  second time. An account that only needs to sign in again is offered
   "Sign in again", which keeps the store.
 - **Unsent work is never purged automatically** (owner decision 2026-10-22,
   `digitva-tnr6`). A completed interview not yet acknowledged, an offline

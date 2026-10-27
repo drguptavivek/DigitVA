@@ -842,15 +842,37 @@ export async function projectIds(db: Db): Promise<string[]> {
  * Each row is deleted on acknowledgement, so every remaining row is unsent.
  */
 export async function countUnsentWork(db: Db, projectId?: string): Promise<number> {
+  const kinds = await countUnsentWorkByKind(db, projectId);
+  return kinds.interviews + kinds.registrations + kinds.actions + kinds.revisions;
+}
+
+export interface UnsentWorkKinds {
+  interviews: number;
+  /** Offline registrations, with the one still being typed. */
+  registrations: number;
+  /** Queued contact attempts and visits. */
+  actions: number;
+  revisions: number;
+}
+
+/** countUnsentWork split by kind, so a warning can say what would be lost. */
+export async function countUnsentWorkByKind(db: Db, projectId?: string): Promise<UnsentWorkKinds> {
   const where = projectId ? " WHERE project_id = ?" : "";
   // The new registration being typed lives in meta (nativeRoutes/register.tsx); the per-project purge checks skip it.
   const typing = projectId ? "0" : "(SELECT COUNT(*) FROM meta WHERE key = 'registration-in-progress')";
-  const row = await db.getFirstAsync<{ n: number }>(
-    `SELECT (SELECT COUNT(*) FROM drafts${where}) + (SELECT COUNT(*) FROM registrations${where})
-       + (SELECT COUNT(*) FROM case_actions${where}) + (SELECT COUNT(*) FROM revision_drafts${where}) + ${typing} AS n`,
+  const row = await db.getFirstAsync<{ interviews: number; registrations: number; actions: number; revisions: number }>(
+    `SELECT (SELECT COUNT(*) FROM drafts${where}) AS interviews,
+       (SELECT COUNT(*) FROM registrations${where}) + ${typing} AS registrations,
+       (SELECT COUNT(*) FROM case_actions${where}) AS actions,
+       (SELECT COUNT(*) FROM revision_drafts${where}) AS revisions`,
     projectId ? [projectId, projectId, projectId, projectId] : []
   );
-  return Number(row?.n ?? 0);
+  return {
+    interviews: Number(row?.interviews ?? 0),
+    registrations: Number(row?.registrations ?? 0),
+    actions: Number(row?.actions ?? 0),
+    revisions: Number(row?.revisions ?? 0),
+  };
 }
 
 /**

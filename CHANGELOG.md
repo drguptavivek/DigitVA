@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-10-28
 
+- **Public APKs and matched deployment pins** (`digitva-hs7e.17`): published
+  signed arm64 Collect 0.3.13 (67,927,662 bytes) and Collect Plus 0.3.13
+  (141,184,458 bytes, prerelease). Fresh public downloads matched their build
+  checksums. Pin both APKs and `expo-web-v2026.10.28.2`, whose tests/export/profile
+  passed in run `40689771530` from source `9ea377d7b`. Server deployment and
+  hosted override population are a separate verified step.
 - **Server compatibility and separate APK downloads** (`digitva-hs7e.18`, `.17`):
   public API contract/deployed-build endpoint, manual Settings compatibility
   check scoped to the selected server, separate Collect/Plus update and download

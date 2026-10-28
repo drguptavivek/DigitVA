@@ -21,13 +21,13 @@ Never reset or stash.
    7015 passed/1 query-count failure/6 skipped; 20-test file passed serial
    and two-worker reruns (hs7e.19 follow-up). Scoped audit found
    Plus tag identity issue, fixed with validated runtime pin/null fallback.
-2. digitva-hs7e.17: both local signed 0.3.13 APKs are verified under
+2. digitva-hs7e.17: both public signed 0.3.13 APKs are verified under
    private/android-artifacts/0.3.13/ (verified-artifacts.json). Normal installed
-   preserving data; both copied/hash-verified in phone Downloads. Publish, set
-   normal/Plus Compose pins. Deploy variant-safe source BEFORE adding Plus to
+   preserving data; both copied/hash-verified in phone Downloads. Releases are
+   android-v0.3.13 and collect-plus-v0.3.13-plus.1; fresh downloads verified.
+   Both APK pins and matched web expo-web-v2026.10.28.2 are ready to commit. Deploy variant-safe source BEFORE adding Plus to
    hosted override; old lexical selector would expose Plus as normal.
-   Variant isolation and size-aware download page are implemented. Run matched
-   web release, update pins, build server image, get protected approval, deploy
+   Variant isolation and size-aware download page are implemented. Build server image from the final pin commit, get protected approval, deploy
    only via deploy-staging.sh and verify both public downloads/version endpoint.
 3. digitva-hs7e.15.2: authorized/audited release of a submitted shared-case
    refusal hold still needs design. Prior lawful submissions remain immutable;

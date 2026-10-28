@@ -17,6 +17,30 @@ session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
 
+## Public 0.3.13 APKs (2026-10-28)
+
+Both use release certificate `6D94718A...6D361767`, versionCode 3132, target API
+36 and arm64. The normal APK was installed on the connected Android 15 phone
+without clearing data. Both copied phone Downloads files matched their hashes.
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.13` | 67,927,662 | `10ad21e2077f21c41e8ccfc563d34da8e05cf1e821c69ff7df6682582a6fb1e1` |
+| Collect Plus | `collect-plus-v0.3.13-plus.1` | 141,184,458 | `ae2c864434212ef8d7b04f3faf7de55f802ce0e023c7e9d23e902bb0ccc89837` |
+
+The Plus release remains labelled prerelease because its offline WHO engine is
+experimental. Both APKs passed release identity/signing checks and zip alignment;
+all native ELF LOAD segments support 16 KB alignment (normal 28, Plus 33).
+The SmartVA/WHO engine cores match the Android 13/15 measured candidate bytes.
+The benchmark Plus installation uses a debug signature; do not uninstall it to
+install the production-signed Plus APK while its draft must be retained.
+
+For staging's hosted override, deploy variant-filtering server code before
+adding Plus to the folder. Then copy verified APKs from the new image's
+`/opt/digitva/android` into `private/android-hosted` using temporary names and
+atomic renames. Preserve older files. Verify each public metadata response and
+download checksum; a successful image deployment does not replace override files.
+
 DigitVA Collect supports enrolment, sign-in, PIN, consent, death registration,
 interviews, drafts, attachments, sync, settings and online coding through the
 shared native workspace (`digitva-6rxf`). Collect Plus additionally carries the
